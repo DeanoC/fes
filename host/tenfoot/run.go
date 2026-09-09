@@ -34,7 +34,8 @@ type Options struct {
 	// InputProfile is a built-in name (identity, swap-ab) or a JSON file
 	// path. Empty is identity.
 	InputProfile string
-	// Theme is a built-in name (default, arcade, night) or a JSON/TOML
+	// Theme is a built-in or pack name (default/classic, arcade/neon,
+	// night/sofa-dim) or a JSON/TOML
 	// file path. Empty is default.
 	Theme string
 }

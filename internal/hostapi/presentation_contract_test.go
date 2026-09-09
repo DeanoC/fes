@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -238,6 +239,196 @@ func TestPresentationOverlayRewritesOnlyOfflineWithLocalMedia(t *testing.T) {
 				t.Fatalf("%s overlay state = %q", tc.name, wire.State)
 			}
 		})
+	}
+}
+
+func TestPresentationOverlayLogoWinsWhenPresentKeepsMetadataWhenMissing(t *testing.T) {
+	metaLogo := strings.Repeat("aa", 32)
+	localLogo := strings.Repeat("bb", 32)
+	cover := strings.Repeat("cc", 32)
+	type logoWire struct {
+		State        string `json:"state"`
+		Presentation *struct {
+			CoverArtworkID string `json:"cover_artwork_id"`
+			LogoID         string `json:"logo_id"`
+		} `json:"presentation"`
+	}
+	get := func(t *testing.T, handler http.Handler) logoWire {
+		t.Helper()
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/presentation/games/sonic", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+		}
+		var wire logoWire
+		if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire.Presentation == nil {
+			t.Fatalf("missing presentation body=%s", response.Body.String())
+		}
+		return wire
+	}
+	meta := presentationMetadata{result: metadata.Result{
+		Outcome: metadata.OutcomeExact,
+		Presentation: metadata.Presentation{
+			CoverArtworkID: cover,
+			LogoArtworkID:  metaLogo,
+			Year:           "1991",
+			Genre:          "Platform",
+		},
+		Attribution: metadata.Attribution{Provider: metadata.ProviderLaunchBox, Label: "Data from LaunchBox Games Database"},
+	}}
+
+	t.Run("empty overlay keeps metadata logo", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Screenshot: []string{strings.Repeat("dd", 32)}},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(meta, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.Presentation.LogoID != metaLogo {
+			t.Fatalf("logo = %q want metadata %q body state=%s", wire.Presentation.LogoID, metaLogo, wire.State)
+		}
+		if wire.Presentation.CoverArtworkID != cover {
+			t.Fatalf("cover = %q", wire.Presentation.CoverArtworkID)
+		}
+	})
+	t.Run("library logo wins", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Logo: localLogo},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(meta, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.Presentation.LogoID != localLogo {
+			t.Fatalf("logo = %q want local %q", wire.Presentation.LogoID, localLogo)
+		}
+		if wire.Presentation.CoverArtworkID != cover {
+			t.Fatalf("cover wiped = %q", wire.Presentation.CoverArtworkID)
+		}
+	})
+	t.Run("logo-only overlay readies offline", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Logo: localLogo},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{err: &metadata.OpError{Code: metadata.ErrUpstreamUnavailable}}, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.State != "ready" || wire.Presentation.LogoID != localLogo {
+			t.Fatalf("offline overlay state=%q logo=%q", wire.State, wire.Presentation.LogoID)
+		}
+	})
+}
+
+func TestPresentationOverlayMarqueeWinsWhenPresentKeepsMetadataWhenMissing(t *testing.T) {
+	metaMarquee := strings.Repeat("aa", 32)
+	localMarquee := strings.Repeat("bb", 32)
+	cover := strings.Repeat("cc", 32)
+	type marqueeWire struct {
+		State        string `json:"state"`
+		Presentation *struct {
+			CoverArtworkID string `json:"cover_artwork_id"`
+			MarqueeID      string `json:"marquee_id"`
+		} `json:"presentation"`
+	}
+	get := func(t *testing.T, handler http.Handler) marqueeWire {
+		t.Helper()
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/presentation/games/sonic", nil))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+		}
+		var wire marqueeWire
+		if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire.Presentation == nil {
+			t.Fatalf("missing presentation body=%s", response.Body.String())
+		}
+		return wire
+	}
+	meta := presentationMetadata{result: metadata.Result{
+		Outcome: metadata.OutcomeExact,
+		Presentation: metadata.Presentation{
+			CoverArtworkID:   cover,
+			MarqueeArtworkID: metaMarquee,
+			Year:             "1991",
+			Genre:            "Platform",
+		},
+		Attribution: metadata.Attribution{Provider: metadata.ProviderLaunchBox, Label: "Data from LaunchBox Games Database"},
+	}}
+
+	t.Run("empty overlay keeps metadata marquee", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Screenshot: []string{strings.Repeat("dd", 32)}},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(meta, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.Presentation.MarqueeID != metaMarquee {
+			t.Fatalf("marquee = %q want metadata %q body state=%s", wire.Presentation.MarqueeID, metaMarquee, wire.State)
+		}
+		if wire.Presentation.CoverArtworkID != cover {
+			t.Fatalf("cover = %q", wire.Presentation.CoverArtworkID)
+		}
+	})
+	t.Run("library marquee wins", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Marquee: localMarquee},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(meta, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.Presentation.MarqueeID != localMarquee {
+			t.Fatalf("marquee = %q want local %q", wire.Presentation.MarqueeID, localMarquee)
+		}
+		if wire.Presentation.CoverArtworkID != cover {
+			t.Fatalf("cover wiped = %q", wire.Presentation.CoverArtworkID)
+		}
+	})
+	t.Run("marquee-only overlay readies offline", func(t *testing.T) {
+		base := overlayMediaService{
+			fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+			media:       librarymedia.GameMedia{Marquee: localMarquee},
+		}
+		handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{err: &metadata.OpError{Code: metadata.ErrUpstreamUnavailable}}, metadata.StateReady))
+		wire := get(t, handler)
+		if wire.State != "ready" || wire.Presentation.MarqueeID != localMarquee {
+			t.Fatalf("offline overlay state=%q marquee=%q", wire.State, wire.Presentation.MarqueeID)
+		}
+	})
+}
+
+func TestPresentationOverlayExposesLibraryVideoHandle(t *testing.T) {
+	video := strings.Repeat("ab", 32)
+	cover := strings.Repeat("cc", 32)
+	type videoWire struct {
+		State        string `json:"state"`
+		Presentation *struct {
+			CoverArtworkID string `json:"cover_artwork_id"`
+			VideoID        string `json:"video_id"`
+		} `json:"presentation"`
+	}
+	base := overlayMediaService{
+		fakeService: &fakeService{game: catalog.Game{ID: "sonic", Title: "Sonic", System: protocol.SystemMegaDrive}},
+		media:       librarymedia.GameMedia{Cover: cover, Video: video},
+	}
+	handler := hostapi.New(base, hostapi.WithMetadata(presentationMetadata{result: metadata.Result{
+		Outcome:      metadata.OutcomeExact,
+		Presentation: metadata.Presentation{CoverArtworkID: cover, Year: "1991"},
+	}}, metadata.StateReady))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/presentation/games/sonic", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var wire videoWire
+	if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Presentation == nil || wire.Presentation.VideoID != video || wire.Presentation.CoverArtworkID != cover {
+		t.Fatalf("video overlay %#v body=%s", wire.Presentation, response.Body.String())
 	}
 }
 

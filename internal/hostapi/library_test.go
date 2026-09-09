@@ -76,6 +76,57 @@ func TestAttractEndpointReturnsBoundedPlaylistWithoutQueryService(t *testing.T) 
 	}
 }
 
+type userStateFake struct {
+	queryCaptureFake
+	states map[string]libraryuser.State
+}
+
+func (s *userStateFake) SetFavorite(context.Context, string, bool) error { return nil }
+
+func (s *userStateFake) LibraryState(_ context.Context, id string) (libraryuser.State, error) {
+	return s.states[id], nil
+}
+
+func (s *userStateFake) LibraryStates(_ context.Context, ids []string) (map[string]libraryuser.State, error) {
+	out := map[string]libraryuser.State{}
+	for _, id := range ids {
+		if state, ok := s.states[id]; ok {
+			out[id] = state
+		}
+	}
+	return out, nil
+}
+
+func TestGamesListAdmitsPlayCountAndLastPlayed(t *testing.T) {
+	service := &userStateFake{
+		queryCaptureFake: queryCaptureFake{page: catalog.Page{Games: []catalog.Game{{
+			ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+			Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		}}}},
+		states: map[string]libraryuser.State{
+			"snes-mario-test": {GameID: "snes-mario-test", PlayCount: 3, LastPlayedAt: 99, Favorite: true},
+		},
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"play_count":3`) || !strings.Contains(response.Body.String(), `"last_played_at":99`) || !strings.Contains(response.Body.String(), `"favorite":true`) {
+		t.Fatalf("play stats missing: %s", response.Body.String())
+	}
+
+	plain := serve(t, hostapi.New(&queryCaptureFake{page: catalog.Page{Games: []catalog.Game{{
+		ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}}}}), http.MethodGet, "/api/v1/games")
+	if plain.Code != http.StatusOK {
+		t.Fatal(plain.Body.String())
+	}
+	if strings.Contains(plain.Body.String(), "play_count") || strings.Contains(plain.Body.String(), "last_played_at") {
+		t.Fatalf("zero play stats leaked: %s", plain.Body.String())
+	}
+}
+
 func TestGamesListRejectsMalformedCursorAndInvalidSort(t *testing.T) {
 	service := &queryFake{pageErr: catalog.ErrInvalidQuery}
 	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games?cursor=not-a-cursor")

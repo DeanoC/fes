@@ -36,18 +36,21 @@ const (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	System      string   `json:"system"`
-	Cover       string   `json:"cover,omitempty"`
-	Genre       string   `json:"genre,omitempty"`
-	Year        string   `json:"year,omitempty"`
-	State       string   `json:"state"`
-	RootOnline  bool     `json:"root_online"`
-	Launchable  bool     `json:"launchable"`
-	Favorite    bool     `json:"favorite,omitempty"`
-	Collections []string `json:"collections,omitempty"`
-	Variants    []Game   `json:"variants,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	System       string   `json:"system"`
+	Cover        string   `json:"cover,omitempty"`
+	Genre        string   `json:"genre,omitempty"`
+	Year         string   `json:"year,omitempty"`
+	Region       string   `json:"region,omitempty"`
+	State        string   `json:"state"`
+	RootOnline   bool     `json:"root_online"`
+	Launchable   bool     `json:"launchable"`
+	Favorite     bool     `json:"favorite,omitempty"`
+	PlayCount    int64    `json:"play_count,omitempty"`
+	LastPlayedAt int64    `json:"last_played_at,omitempty"`
+	Collections  []string `json:"collections,omitempty"`
+	Variants     []Game   `json:"variants,omitempty"`
 }
 
 // Presentation is GET /api/v1/presentation/games/{id}.
@@ -60,13 +63,20 @@ type Presentation struct {
 
 // PresentationInfo is the nested presentation object on a games/{id} payload.
 type PresentationInfo struct {
-	CoverArtworkID string   `json:"cover_artwork_id"`
-	Summary        string   `json:"summary"`
-	Year           string   `json:"year"`
-	Genre          string   `json:"genre"`
-	Studio         string   `json:"studio"`
-	Players        string   `json:"players"`
-	ScreenshotIDs  []string `json:"screenshot_ids,omitempty"`
+	CoverArtworkID    string   `json:"cover_artwork_id"`
+	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
+	LogoID            string   `json:"logo_id,omitempty"`
+	MarqueeID         string   `json:"marquee_id,omitempty"`
+	VideoID           string   `json:"video_id,omitempty"`
+	Summary           string   `json:"summary"`
+	Year              string   `json:"year"`
+	Genre             string   `json:"genre"`
+	Studio            string   `json:"studio"`
+	Players           string   `json:"players"`
+	Rating            string   `json:"rating,omitempty"`
+	Completion        string   `json:"completion,omitempty"`
+	Portable          bool     `json:"portable,omitempty"`
+	ScreenshotIDs     []string `json:"screenshot_ids,omitempty"`
 }
 
 // PresentationAttribution is the provider label the public API returns with ready metadata.
@@ -131,13 +141,28 @@ type AttractPlaylist struct {
 	IdleSeconds int           `json:"idle_seconds"`
 }
 
+// BackdropHandle is the 64-hex fanart/backdrop handle, or empty.
+func (item AttractItem) BackdropHandle() string {
+	return normalizeHandle(item.Backdrop)
+}
+
+// VideoHandle is the 64-hex library_media / attract video handle, or empty.
+func (item AttractItem) VideoHandle() string {
+	return normalizeHandle(item.Video)
+}
+
 // StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
 func (item AttractItem) StillHandle() string {
-	handles := item.stillHandles()
+	handles := item.StillHandles()
 	if len(handles) == 0 {
 		return ""
 	}
 	return handles[0]
+}
+
+// StillHandles is backdrop, then cover, then marquee, de-duplicated. Video is ignored.
+func (item AttractItem) StillHandles() []string {
+	return item.stillHandles()
 }
 
 func (item AttractItem) stillHandles() []string {
@@ -665,6 +690,122 @@ func CoverHandle(game Game, presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.CoverArtworkID)
+}
+
+// LogoHandle returns a 64-hex clear-logo handle from presentation.
+func LogoHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.LogoID)
+}
+
+// MarqueeHandle returns a 64-hex banner/marquee handle from presentation.
+func MarqueeHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.MarqueeID)
+}
+
+// AttractMarqueeHandle prefers presentation marquee_id, then the attract row.
+func AttractMarqueeHandle(item AttractItem, p Presentation) string {
+	if handle := MarqueeHandle(p); handle != "" {
+		return handle
+	}
+	return normalizeHandle(item.Marquee)
+}
+
+// BackdropHandle returns a 64-hex fanart/backdrop handle from presentation.
+func BackdropHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.BackdropArtworkID)
+}
+
+// VideoHandle returns a 64-hex library_media / presentation video handle.
+func VideoHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.VideoID)
+}
+
+// AttractPreviewHandles selects kit-safe stills for idle attract.
+// Without a video handle this is the item's backdrop/cover/marquee. With a
+// video handle it prefers presentation screenshot_ids then unique
+// backdrop/cover/marquee so attract can cycle a motion preview without
+// decoding H.264 on the CGO-free kit path.
+func AttractPreviewHandles(item AttractItem, p Presentation) []string {
+	video := item.VideoHandle()
+	if video == "" {
+		video = VideoHandle(p)
+	}
+	stills := item.StillHandles()
+	if video == "" {
+		return stills
+	}
+	var shots []string
+	cover := normalizeHandle(item.Cover)
+	backdrop := normalizeHandle(item.Backdrop)
+	marquee := AttractMarqueeHandle(item, p)
+	if p.Presentation != nil {
+		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
+		if cover == "" {
+			cover = normalizeHandle(p.Presentation.CoverArtworkID)
+		}
+		if backdrop == "" {
+			backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
+		}
+	}
+	return appendUniqueHandles(shots, backdrop, cover, marquee)
+}
+
+// DetailPreviewHandles selects kit-safe stills for the title pane.
+// Without a video handle this is screenshot_ids only. With video_id it
+// appends unique backdrop then cover as a poster so the pane can cycle a
+// motion preview without decoding H.264 on the CGO-free kit path.
+func DetailPreviewHandles(p Presentation, cover string) []string {
+	var shots []string
+	video := ""
+	backdrop := ""
+	if p.Presentation != nil {
+		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
+		video = normalizeHandle(p.Presentation.VideoID)
+		backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
+		if cover == "" {
+			cover = normalizeHandle(p.Presentation.CoverArtworkID)
+		}
+	}
+	cover = normalizeHandle(cover)
+	if video == "" {
+		return shots
+	}
+	return appendUniqueHandles(shots, backdrop, cover)
+}
+
+func appendUniqueHandles(base []string, extra ...string) []string {
+	seen := make(map[string]bool, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra))
+	add := func(handle string) {
+		handle = normalizeHandle(handle)
+		if handle == "" || seen[handle] {
+			return
+		}
+		seen[handle] = true
+		out = append(out, handle)
+	}
+	for _, handle := range base {
+		add(handle)
+	}
+	for _, handle := range extra {
+		add(handle)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // LibraryTarget is one target row from GET /api/v1/library/settings.

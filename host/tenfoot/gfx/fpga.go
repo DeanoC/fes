@@ -60,6 +60,14 @@ func (f *FPGAStub) DebugText(x, y int, text string, scale int) {
 	f.sw.DebugText(x, y, text, scale)
 }
 
+func (f *FPGAStub) DrawText(x, y int, text string, sizePx int, c Color) {
+	f.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (f *FPGAStub) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	f.sw.DrawTextWeight(x, y, text, sizePx, w, c)
+}
+
 func (f *FPGAStub) Close() { f.sw.Close() }
 
 var _ Device = (*FPGAStub)(nil)

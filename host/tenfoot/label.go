@@ -103,6 +103,8 @@ func ensureLabelFonts() {
 		}
 	}
 	if len(labelFonts) == 0 {
+		// Same embedded Go Regular face the kit gfx.DrawText path uses when
+		// the target has no system fonts.
 		appendLabelFont(parseFirstFont(goregular.TTF))
 	}
 }

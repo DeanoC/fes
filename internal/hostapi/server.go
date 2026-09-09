@@ -47,6 +47,8 @@ type gameResult struct {
 	Year            string              `json:"year,omitempty"`
 	Platform        protocol.System     `json:"platform,omitempty"`
 	Favorite        bool                `json:"favorite,omitempty"`
+	PlayCount       int64               `json:"play_count,omitempty"`
+	LastPlayedAt    int64               `json:"last_played_at,omitempty"`
 	Collections     []string            `json:"collections,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`
@@ -561,6 +563,8 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		Players:               boundedPresentationText(result.Presentation.Players, 40),
 		CoverArtworkHandle:    safePresentationHandle(result.Presentation.CoverArtworkID),
 		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
+		LogoHandle:            safePresentationHandle(result.Presentation.LogoArtworkID),
+		MarqueeHandle:         safePresentationHandle(result.Presentation.MarqueeArtworkID),
 	}, presentationAttribution{Provider: string(result.Attribution.Provider), Label: label}, true
 }
 

@@ -48,7 +48,10 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 		want                          int
 	}{
 		{"catalogue", "GET", "/api/v1/games", launcherToken, launcherID, 200},
-		{"presentation", "GET", "/api/v1/presentation/games/snes-mario", launcherToken, launcherID, 404},
+		{"attract", "GET", "/api/v1/library/attract", launcherToken, launcherID, 200},
+		{"presentation", "GET", "/api/v1/presentation/games/snes-mario", launcherToken, launcherID, 200},
+		{"presentation junk", "GET", "/api/v1/presentation/games/Nope", launcherToken, launcherID, 404},
+		{"presentation traversal", "GET", "/api/v1/presentation/games/../secret", launcherToken, launcherID, 404},
 		{"no token", "GET", "/api/v1/games", "", launcherID, 401},
 		{"wrong token", "GET", "/api/v1/games", "wrong", launcherID, 401},
 		{"wrong identity", "GET", "/api/v1/games", launcherToken, "different", 403},
@@ -89,6 +92,20 @@ func TestLauncherAllowsArtworkGET(t *testing.T) {
 	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/presentation/artwork/nope", nil))
 	if w.Code != 404 || !strings.Contains(w.Body.String(), "launcher operation is unavailable") {
 		t.Fatalf("rejected artwork: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestLauncherAllowsPresentationGameGET(t *testing.T) {
+	handler := launcherHandler(t, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/presentation/games/snes-mario", nil))
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"state":"unconfigured"`) {
+		t.Fatalf("admitted presentation: %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/presentation/games/Not-A-Slug", nil))
+	if w.Code != 404 || !strings.Contains(w.Body.String(), "launcher operation is unavailable") {
+		t.Fatalf("rejected presentation: %d %s", w.Code, w.Body.String())
 	}
 }
 

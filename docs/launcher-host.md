@@ -32,7 +32,14 @@ An absent host remains a client reconnect state; this is not an offline library.
 Allowed operations are:
 
 - `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`.
-- `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog cover handles.
+  Games may include `play_count` and `last_played_at` when user library state
+  already has them (omitted when zero).
+- `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
+  (video handles are not decoded on kit).
+- `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover
+  handles, `logo_id`, `marquee_id`, studio, players, screenshots, `video_id`). Optional
+  `rating`, `completion`, and `portable` decode when present.
+- `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog or metadata cover, logo, and marquee handles.
 - `GET /api/v1/session` and `/api/v1/session/input`.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
 - `POST /api/v1/session/stop` with no body.

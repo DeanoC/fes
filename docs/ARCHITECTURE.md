@@ -280,7 +280,7 @@ Native SDL3 UI
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
     and focused-title screenshot handles
   -> GET /api/v1/presentation/games/{id} for the focused title (studio,
-    players, summary, screenshot_ids, year, genre, attribution)
+    players, summary, screenshot_ids, video_id, year, genre, attribution)
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
   -> POST /api/v1/session/launch
@@ -330,7 +330,9 @@ goroutine holds the stream.
 
 Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
-textured quads, fill rects). Window, events, gamepad, and text input remain
+textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
+embedded Go Regular and Go Bold, and
+`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, and text input remain
 SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
@@ -338,20 +340,30 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 | Backend | Construction | Role |
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
-| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. |
+| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
 | FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing, font
-scale, and cover-chrome tokens from a built-in name (`default`, `arcade`,
-`night`) or a JSON/TOML file. `default` preserves the current kit grid pixels
-and the sofa/attract clear colours. `fogcast-kit` and `fogcast-tenfoot` share
-`theme.Resolve` (`-theme`, then `launcher.json` / `tenfoot.json` `theme`, then
-`FOGCAST_THEME`). There is no scripted theme VM; derived colours stay in Go.
+Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing,
+typography roles, and cover-chrome tokens from a built-in name (`default`,
+`arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
+(`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
+`BodyPx`, `CaptionPx`, and `StatusPx` so fallback math stays in the theme
+package: an unset role uses `gfx.ScalePx` of `header_scale` / `label_scale` /
+`status_scale` (the former 8× DebugText hierarchy). Built-in `default` and
+`night` use 20/13/12/14 on a 640×480 grid; `arcade` uses 22/13/12/15.
+`default` still preserves the sofa/attract clear colours. Built-in themes
+mark `title_bold` (and chrome `header_bold`) true so grid headers and detail
+titles raster with embedded Go Bold; body/caption/status stay Regular unless
+the matching `*_bold` token is set. Incomplete files inherit those defaults.
+`fogcast-kit` and
+`fogcast-tenfoot` share `theme.Resolve` (`-theme`, then `launcher.json` /
+`tenfoot.json` `theme`, then `FOGCAST_THEME`). There is no scripted theme VM
+or font-family picker; derived colours stay in Go.
 
 The browser shell remains the default UI. Mac is the primary sofa target; Linux builds
 with the same `make build-fogcast-tenfoot` target (`CGO_ENABLED=1` and
@@ -671,16 +683,110 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a live 4×3 catalog grid renderer. Catalog rows are grouped into system
+with a living-room platform wheel and a live catalog browse renderer.
+The wheel is the top-level browse view: a horizontal clear-logo / wordmark
+strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
-Mega Drive, and SNES). Shoulder L/R and Select cycle the active shelf and
-filter the grid; the themed header shows `FOGCAST  MEGADRIVE 12/40`. D-pad
-and left-stick focus moves in two
+Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
+Select cycle platforms; A/South enters the filtered browse view for that system
+(default 4×3 grid). East/B on browse returns to the wheel. Y (North) on browse
+cycles Grid → Coverflow → Wall → Split → Grid; it is ignored on the wheel, title pane,
+and attract (any pad input still dismisses attract). That Y chord is the
+layout switch; X (West) still cycles theme
+packs Classic → Neon → Sofa Dim → Classic on the wheel, browse, strip, and
+title pane; attract still dismisses on X like any pad input. The last pack is
+stored in `launcher.json` `theme` so a kit restart (and a host reconnect of
+the same process) keeps it. Coverflow is a scaled
+focus row of five titles; wall is a denser 6×3 mosaic; split is a vertical
+clear-logo (or title) list with a focused cover and short meta. In browse, shoulder L/R and Select
+still cycle shelves as a secondary filter; the themed header shows
+`FOGCAST  MEGADRIVE 12/40`, plus `FLOW`, `WALL`, or `SPLIT` when that layout is active,
+and `NEON` or `DIM` when that pack is active. Classic stays untagged. The hero paints an attract still, presentation
+`backdrop_artwork_id`, or representative cover when a handle exists, otherwise
+a theme-tinted placeholder, with game-count chrome plus a play-count and
+last-played rollup when host games already carry `play_count` /
+`last_played_at` (recents order is the fallback last-played). Wheel cells use a representative
+`logo_id` when presentation has one, else a bold wordmark. D-pad
+and left-stick focus in the grid and wall moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
-up/down step by four cells, and leaving a page of 12 changes the painted page.
-Catalog cells paint decoded box-art from
-`GET /api/v1/presentation/artwork/{handle}` when `Game.Cover` is present, and
-keep the system-color fallback otherwise. A paired, authenticated host listener
+up/down step by the layout column count (4 on the grid, 6 on the wall), and
+leaving a page changes the painted window. Coverflow uses one row of the
+whole shelf so left/right walk titles and down opens the strip or title pane.
+Split uses one column so up/down walk titles, left/right clamp, and last-item
+down opens the strip or title pane.
+Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
+scale ~1.06 over ~160ms); confirm eases a white pulse out over
+`ConfirmFrames` ticks. Unfocused cells keep their layout origins. The kit
+paints dimmed presentation `backdrop_artwork_id` (or an attract backdrop)
+cover-fill behind the wheel, browse layouts, strip, and title pane when that
+handle decodes; otherwise a cover-wall of visible decoded covers; otherwise
+the solid theme background. Atmosphere is paint-only. The kit
+also loads `GET /api/v1/games` with `collection=recents` and
+`collection=favorites` (best-effort; a miss hides the row) and paints a
+single horizontal strip under browse when at least one title exists.
+Last-row Down enters that strip; L/R move among tiles; A opens the title
+pane; B or Up return to browse. Down that
+cannot move focus further (last catalog row) opens a focused title pane
+through `fbgrid.PaintDetail` when the strip is hidden (large cover, title at `TitlePx`, meta from
+catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
+Admitted facts are platform, year, genre, studio, players, and region when
+those fields are present; `summary` wraps as caption-role description and is
+omitted when empty. Compact chips paint on browse tiles and the title pane
+for players, rating, completion, and portable when presentation (or handheld
+catalog system identity) already carries them; empty chips stay hidden rather
+than inventing rating or completion. Play-count and last-played stay off the
+pane body; the platform-wheel hero rolls them up from the games payload.
+When `video_id` is present (library_media overlay on the same presentation
+payload), the pane paints an honest motion preview: it auto-cycles
+`screenshot_ids` then unique backdrop/cover posters under a VIDEO badge and
+a `preview` caption. The CGO-free kit binary does not decode H.264; titles
+without a video handle keep the still screenshot carousel.
+Presentation `marquee_id` (LaunchBox Arcade-Marquee or Banner, with
+`library_media` RoleMarquee winning when present) paints a wide strip under
+the header; a missing handle hides the strip. Cover, meta, badges, and the
+screenshot or video-preview slot keep their existing layout.
+A/South still launches from browse. The pane's A plays the
+focused title, East/B and Up return to the same shelf and focus, and
+shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
+Meaningful scene cuts (detail open/close, attract show/hide, wheel
+enter/leave, Y layout, X pack) paint a short CGO-free overlay from the
+theme `transition` token through `host/tenfoot/anim`: Classic a curtain,
+Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
+400ms and do not block pad input. `transition` `none`, `-no-transition`,
+or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
+`GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
+presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
+Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
+paints on the detail title, grid label bar, and split list rows; tiles and titles without a
+logo keep the existing text labels. Split paints the focused cover and
+admitted short meta (platform, year, genre, studio, players, region) in the
+right column; it omits summary, series, last-played, and play-count there.
+The kit prefetches
+`GET /api/v1/presentation/games/{id}` for the visible browse page and a cheap
+next window without blocking present; missing or failed lookups keep the placeholder.
+`DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw
+stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
+placeholder (lettermark when missing; a distinct panel while loading) instead
+of a flat system fill. After host `idle_seconds` from
+`GET /api/v1/library/attract` with no pad input, the kit paints attract through
+`DecodeStill` and `fbgrid.PaintAttract`. Video-only rows stay dropped because
+the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
+presentation `marquee_id` paints a banner strip under the header alongside the
+still, motion preview, or 2×2 wall; a marquee-only row keeps the still
+fallback and hides the duplicate strip. When a staged row has a video
+handle plus stills (item backdrop/cover/marquee, or presentation
+`screenshot_ids` when that payload is fetched), attract auto-cycles those
+stills under a VIDEO badge and a `preview` caption — the same honest motion
+preview as the title pane. Four or more stills-backed rows with at least one
+video handle paint a 2×2 wall of neighboring stills with the staged tile
+highlighted; titles without a video handle keep the stills attract. Full clip
+playback is a follow-up. Any pad input returns to the same shelf and focus;
+A/South may launch the current attract title. An empty playlist shows a themed
+idle panel rather than a frozen grid. Aspect-fit letterbox bars mix the system colour toward
+the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
+lettermarks use caption, and the footer uses status. They rasterize the
+embedded Go Regular face (no kit system fonts) and truncate with an ellipsis
+when the string exceeds the chrome or cell width. A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
@@ -695,5 +801,5 @@ sofa maps remapped logical codes onto the existing `tenfoot.Command` set.
 
 See [kit adapter](kit-launcher.md) and [host connection contract](launcher-host.md)
 for setup, controls, exact routes, timeouts and ownership. The existing browser
-listener remains loopback-only. The SDL sofa layout and the kit grid are separate
+listener remains loopback-only. The SDL sofa layout and the kit browse views are separate
 renderers over the same session model and do not own physical transitions.

@@ -131,6 +131,16 @@ func (m *Model) applyFilter(keepID string) {
 		m.Games = filterGames(m.Catalog, m.Shelf)
 	}
 	m.Focus = focusIndex(m.Games, keepID)
+	if m.DetailOpen && m.detailFromStrip {
+		if _, ok := m.stripGame(); !ok {
+			m.closeDetail()
+			m.leaveStrip()
+		}
+		return
+	}
+	if m.DetailOpen && focusedID(m.Games, m.Focus) != keepID {
+		m.closeDetail()
+	}
 }
 
 func shelfPresent(shelves []string, id string) bool {

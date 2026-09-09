@@ -34,15 +34,42 @@ type Theme struct {
 	FooterBar         gfx.Color
 	CoverFrame        gfx.Color
 	CoverFrameWidth   int
+	// Transition is none, curtain, wipe, or glitch. Empty inherits Default
+	// (curtain) in Complete. "none" is an honest no-op overlay.
+	Transition string
 
-	Pad         int
-	Gap         int
-	Border      int
-	HeaderH     int
-	FooterH     int
+	Pad     int
+	Gap     int
+	Border  int
+	HeaderH int
+	FooterH int
+	// HeaderScale, LabelScale and StatusScale are legacy size multipliers.
+	// TitlePx / BodyPx / CaptionPx / StatusPx prefer the matching *_px token
+	// when it is set; otherwise they map 8*scale (the former DebugText glyph
+	// height) so older theme JSON that only set *scale keeps that hierarchy.
+	// A theme with no type tokens at all inherits Default's pixel roles.
+	// TitleBold (default true on built-ins) selects the embedded Go Bold
+	// face for the title role. HeaderBold follows TitleBold when unset.
+	// Body, caption, and status stay Regular unless the matching *_bold
+	// token is set. There is no font-family picker, italic, or medium.
 	HeaderScale int
 	LabelScale  int
 	StatusScale int
+	TitleSize   int
+	BodySize    int
+	CaptionSize int
+	StatusSize  int
+	TitleBold   bool
+	HeaderBold  bool
+	BodyBold    bool
+	CaptionBold bool
+	StatusBold  bool
+
+	titleBoldSet   bool
+	headerBoldSet  bool
+	bodyBoldSet    bool
+	captionBoldSet bool
+	statusBoldSet  bool
 
 	Systems map[string]gfx.Color
 }
@@ -65,6 +92,7 @@ func Default() Theme {
 		FooterBar:         gfx.RGB(16, 16, 24),
 		CoverFrame:        gfx.Color{},
 		CoverFrameWidth:   0,
+		Transition:        "curtain",
 		Pad:               16,
 		Gap:               8,
 		Border:            4,
@@ -73,6 +101,17 @@ func Default() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         20,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        14,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems:           defaultSystems(),
 	}
 }
@@ -96,6 +135,7 @@ func Arcade() Theme {
 		FooterBar:         gfx.RGB(255, 34, 0),
 		CoverFrame:        gfx.RGB(255, 230, 0),
 		CoverFrameWidth:   3,
+		Transition:        "glitch",
 		Pad:               16,
 		Gap:               8,
 		Border:            6,
@@ -104,6 +144,17 @@ func Arcade() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         22,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        15,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(57, 255, 20),
 			"megadrive": gfx.RGB(255, 140, 0),
@@ -131,6 +182,7 @@ func Night() Theme {
 		FooterBar:         gfx.RGB(10, 32, 64),
 		CoverFrame:        gfx.RGB(61, 184, 255),
 		CoverFrameWidth:   2,
+		Transition:        "wipe",
 		Pad:               16,
 		Gap:               8,
 		Border:            4,
@@ -139,6 +191,17 @@ func Night() Theme {
 		HeaderScale:       2,
 		LabelScale:        1,
 		StatusScale:       2,
+		TitleSize:         20,
+		BodySize:          13,
+		CaptionSize:       12,
+		StatusSize:        14,
+		TitleBold:         true,
+		HeaderBold:        true,
+		titleBoldSet:      true,
+		headerBoldSet:     true,
+		bodyBoldSet:       true,
+		captionBoldSet:    true,
+		statusBoldSet:     true,
 		Systems: map[string]gfx.Color{
 			"pong":      gfx.RGB(200, 160, 40),
 			"megadrive": gfx.RGB(40, 90, 160),
@@ -158,13 +221,15 @@ func defaultSystems() map[string]gfx.Color {
 }
 
 // Builtin returns a built-in theme. Empty and "default" are today's look.
+// Pack aliases classic / neon / sofa-dim select the same tokens as
+// default / arcade / night.
 func Builtin(name string) (Theme, bool) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "", NameDefault:
+	case "", NameDefault, PackClassic:
 		return Default(), true
-	case NameArcade:
+	case NameArcade, PackNeon:
 		return Arcade(), true
-	case NameNight:
+	case NameNight, PackSofaDim, "sofa", "sofadim":
 		return Night(), true
 	default:
 		return Theme{}, false
@@ -195,6 +260,11 @@ func (t Theme) Complete() Theme {
 	if t.CoverFrameWidth < 0 {
 		t.CoverFrameWidth = d.CoverFrameWidth
 	}
+	if strings.TrimSpace(t.Transition) == "" {
+		t.Transition = d.Transition
+	} else {
+		t.Transition = strings.ToLower(strings.TrimSpace(t.Transition))
+	}
 	if t.Pad <= 0 {
 		t.Pad = d.Pad
 	}
@@ -210,6 +280,10 @@ func (t Theme) Complete() Theme {
 	if t.FooterH <= 0 {
 		t.FooterH = d.FooterH
 	}
+	// A file that only set *scale must keep ScalePx fallback. A theme with
+	// no type tokens at all inherits Default's pixel roles.
+	hadTypeTokens := t.HeaderScale > 0 || t.LabelScale > 0 || t.StatusScale > 0 ||
+		t.TitleSize > 0 || t.BodySize > 0 || t.CaptionSize > 0 || t.StatusSize > 0
 	if t.HeaderScale <= 0 {
 		t.HeaderScale = d.HeaderScale
 	}
@@ -219,8 +293,116 @@ func (t Theme) Complete() Theme {
 	if t.StatusScale <= 0 {
 		t.StatusScale = d.StatusScale
 	}
+	if !hadTypeTokens {
+		t.TitleSize = d.TitleSize
+		t.BodySize = d.BodySize
+		t.CaptionSize = d.CaptionSize
+		t.StatusSize = d.StatusSize
+	}
+	if !t.titleBoldSet {
+		t.TitleBold = d.TitleBold
+		t.titleBoldSet = true
+	}
+	if !t.headerBoldSet {
+		t.HeaderBold = t.TitleBold
+		t.headerBoldSet = true
+	}
+	if !t.bodyBoldSet {
+		t.BodyBold = d.BodyBold
+		t.bodyBoldSet = true
+	}
+	if !t.captionBoldSet {
+		t.CaptionBold = d.CaptionBold
+		t.captionBoldSet = true
+	}
+	if !t.statusBoldSet {
+		t.StatusBold = d.StatusBold
+		t.statusBoldSet = true
+	}
 	t.Systems = mergeSystems(d.Systems, t.Systems)
 	return t
+}
+
+// TitlePx is the header UI-face size. An explicit title_px wins; otherwise
+// the completed header_scale maps through gfx.ScalePx.
+func (t Theme) TitlePx() int {
+	t = t.Complete()
+	if t.TitleSize > 0 {
+		return t.TitleSize
+	}
+	return gfx.ScalePx(t.HeaderScale)
+}
+
+// BodyPx is the tile-name UI-face size. An explicit body_px wins; otherwise
+// the completed label_scale maps through gfx.ScalePx.
+func (t Theme) BodyPx() int {
+	t = t.Complete()
+	if t.BodySize > 0 {
+		return t.BodySize
+	}
+	return gfx.ScalePx(t.LabelScale)
+}
+
+// CaptionPx is the placeholder-lettermark size. caption_px wins, then body_px,
+// then label_scale through gfx.ScalePx.
+func (t Theme) CaptionPx() int {
+	t = t.Complete()
+	if t.CaptionSize > 0 {
+		return t.CaptionSize
+	}
+	if t.BodySize > 0 {
+		return t.BodySize
+	}
+	return gfx.ScalePx(t.LabelScale)
+}
+
+// StatusPx is the footer UI-face size. An explicit status_px wins; otherwise
+// the completed status_scale maps through gfx.ScalePx.
+func (t Theme) StatusPx() int {
+	t = t.Complete()
+	if t.StatusSize > 0 {
+		return t.StatusSize
+	}
+	return gfx.ScalePx(t.StatusScale)
+}
+
+func faceWeight(bold bool) gfx.Weight {
+	if bold {
+		return gfx.WeightBold
+	}
+	return gfx.WeightRegular
+}
+
+// TitleWeight is the UI-face weight for the title role (detail title and
+// attract title). Built-ins use Bold.
+func (t Theme) TitleWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.TitleBold)
+}
+
+// HeaderWeight is the UI-face weight for chrome headers. It follows
+// TitleWeight when header_bold is omitted.
+func (t Theme) HeaderWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.HeaderBold)
+}
+
+// BodyWeight is the UI-face weight for tile names and detail meta.
+func (t Theme) BodyWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.BodyBold)
+}
+
+// CaptionWeight is the UI-face weight for placeholder lettermarks.
+func (t Theme) CaptionWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.CaptionBold)
+}
+
+// StatusWeight is the UI-face weight for footer chrome.
+func (t Theme) StatusWeight() gfx.Weight {
+	t = t.Complete()
+	return faceWeight(t.StatusBold)
 }
 
 // SystemColor is the solid-tile fallback for a catalog system id.
@@ -253,6 +435,7 @@ func (t Theme) Equal(o Theme) bool {
 		t.FooterBar != o.FooterBar ||
 		t.CoverFrame != o.CoverFrame ||
 		t.CoverFrameWidth != o.CoverFrameWidth ||
+		t.Transition != o.Transition ||
 		t.Pad != o.Pad ||
 		t.Gap != o.Gap ||
 		t.Border != o.Border ||
@@ -260,7 +443,16 @@ func (t Theme) Equal(o Theme) bool {
 		t.FooterH != o.FooterH ||
 		t.HeaderScale != o.HeaderScale ||
 		t.LabelScale != o.LabelScale ||
-		t.StatusScale != o.StatusScale {
+		t.StatusScale != o.StatusScale ||
+		t.TitleSize != o.TitleSize ||
+		t.BodySize != o.BodySize ||
+		t.CaptionSize != o.CaptionSize ||
+		t.StatusSize != o.StatusSize ||
+		t.TitleBold != o.TitleBold ||
+		t.HeaderBold != o.HeaderBold ||
+		t.BodyBold != o.BodyBold ||
+		t.CaptionBold != o.CaptionBold ||
+		t.StatusBold != o.StatusBold {
 		return false
 	}
 	if len(t.Systems) != len(o.Systems) {

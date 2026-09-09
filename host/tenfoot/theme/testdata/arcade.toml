@@ -12,6 +12,7 @@ header_bar = "#ff3300"
 footer_bar = "#ff2200"
 cover_frame = "#ffe600"
 cover_frame_width = 3
+transition = "glitch"
 pad = 16
 gap = 8
 border = 6
@@ -20,6 +21,15 @@ footer_height = 28
 header_scale = 2
 label_scale = 1
 status_scale = 2
+title_px = 22
+body_px = 13
+caption_px = 12
+status_px = 15
+title_bold = true
+header_bold = true
+body_bold = false
+caption_bold = false
+status_bold = false
 
 [systems]
 pong = "#39ff14"

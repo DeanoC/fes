@@ -41,7 +41,7 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 
 - frame lifecycle: `BeginFrame` / `Clear` / `Present`
 - textures: create/update/destroy from `*image.RGBA` (RGBA8), opaque handles
-- draw: textured quad (dst rect, optional src rect) and solid fill rect
+- draw: textured quad (dst rect, optional src rect), solid fill rect, CGO-free `DrawText` / `DrawTextWeight` (embedded Go Regular and Go Bold), and `DebugText` (8×8 HUD)
 - letterbox logical size and VSync are backend concerns
 - GPU park destroys textures individually (preview is the parked exception)
 
@@ -52,7 +52,7 @@ in `host/tenfoot/sdl.go` until a later slice.
 | Backend | Construction | Role |
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
-| Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. |
+| Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode, not in Draw. |
 | FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `host/tenfoot/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `host/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
@@ -96,11 +96,16 @@ TENFOOT_GFX=fpga-stub bin/fogcast-tenfoot
 ```
 
 Look tokens (`host/tenfoot/theme`) are shared with the kit grid. `-theme`
-selects a built-in name (`default`, `arcade`, `night`) or a JSON/TOML file;
+selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
+`night`/`sofa-dim`) or a JSON/TOML file;
 `tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
-`default` keeps the sofa and attract clear colours. This slice applies the
+`default` / Classic keeps the sofa and attract clear colours. This slice applies the
 loaded theme to those `Clear` sites; kit `fbgrid.Paint` consumes the full
-token set.
+token set, including typography roles (`title_px` / `body_px` / `caption_px` /
+`status_px`, with `*_scale` fallback) and title/header Bold (`title_bold`,
+default true on built-ins). Packs also select a kit scene overlay
+(`transition`: Classic curtain, Neon glitch, Sofa Dim wipe). On the kit, X (West) cycles the three packs at
+runtime and writes the last pack to `launcher.json`.
 
 Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debug
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
@@ -136,7 +141,32 @@ queued open results), and resets the idle timer. South/A on a launchable
 attract item dismisses and launches. A South/North hold that began before
 attract does not launch the attract title on release. `-smoke` implies
 `-no-attract`. Linux without `ffmpeg` skips the video download and keeps the
-stills fallback. GUI video smoke on a Linux display is NEED.
+stills fallback. GUI video smoke on a Linux display is NEED. The on-kit
+`fogcast-kit` adapter arms the same host idle and paints stills, or a kit-safe
+screenshot/poster motion preview when the staged title has a video handle
+(no H.264 decode; full clip playback is a follow-up). Four or more stills-backed
+titles with a video handle paint a 2×2 attract wall. Any pad input returns to
+the platform wheel or catalog grid. The kit
+opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
+(default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
+Coverflow → Wall → Split → Grid. X (West) cycles theme packs Classic → Neon → Sofa Dim
+without stealing Y or D-pad; the last pack is stored in `launcher.json`.
+Detail, attract, wheel, layout, and pack cuts play that pack's short overlay
+(curtain, wipe, or glitch) without holding pad input; `transition` `none`
+disables it.
+A Recent / Favorites strip paints under the grid when those host collections
+return titles, and hides when they are empty. Last-row Down enters the
+strip; A opens the title pane; B or Up return to the grid. The kit title pane is a
+sibling `fbgrid.PaintDetail` over the same catalog focus: last-row
+Down opens it when the strip is hidden, East/B and Up return, and A still launches. The pane
+shows admitted genre/year/players/region/studio plus wrapped `summary`
+description when those fields exist; it omits empty copy. Compact chips
+paint on kit tiles and the pane for players, rating, completion, and
+portable when presentation (or a handheld catalog system) already carries
+them. Play-count and last-played stay off the pane body; the platform
+wheel rolls them up from host games when those fields are admitted. A presentation `video_id`
+paints a VIDEO badge and cycles screenshot/poster stills as an honest
+motion preview (no H.264 decode on the CGO-free kit).
 
 Gamepad is the intended control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
@@ -289,6 +319,8 @@ make tenfoot-smoke
 - `GET /api/v1/presentation/games/{id}` for the focused title's detail pane
   (title, platform, year, genre, studio, players, summary, screenshot handles,
   and provider attribution). Empty studio, players, and summary are omitted.
+  Catalog `region` from `GET /api/v1/games` joins the meta line when present.
+  Series, last-played, and play-count are not on these public payloads.
   HTTP 200 with `state: "offline"` is a temporary provider failure: details are
   not cached, and the focused title retries with backoff. A local-media overlay of
   offline arrives as `ready` without attribution and retries the same way.

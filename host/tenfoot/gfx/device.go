@@ -6,8 +6,11 @@
 // stream and rasters through Software until a programmed 2D core exists
 // (IsStub stays true; see fpga_protocol.md). FPGAStub is the older thin
 // Software wrapper without a stream. LinuxFB rasters with Software and
-// Present-blits onto a 32bpp Linux framebuffer. Recorder is a call-order
-// test double and does not draw pixels.
+// Present-blits onto a 32bpp Linux framebuffer. DrawText rasterizes the
+// embedded Go Regular UI face (no system fonts). DrawTextWeight selects
+// Regular or the embedded Go Bold face. DebugText stays the 8×8
+// HUD path and FC2D opcode. Recorder is a call-order test double and does
+// not draw pixels.
 //
 // Window creation, events, gamepad, and text input stay in the SDL shell
 // (host/tenfoot/sdl.go) until a later slice.
@@ -76,6 +79,36 @@ type Device interface {
 	SetBlend(mode BlendMode)
 
 	DebugText(x, y int, text string, scale int)
+	// DrawText rasterizes the embedded UI face (Go Regular) at sizePx.
+	// Color tints the glyphs. DebugText stays the 8×8 debug HUD path.
+	DrawText(x, y int, text string, sizePx int, c Color)
+	// DrawTextWeight is DrawText with an explicit Regular or Bold face.
+	// WeightRegular matches DrawText. There is no italic or medium face.
+	DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color)
 
 	Close()
+}
+
+// Weight selects the embedded UI face. Wire value 0 is Regular so existing
+// FC2D DrawText streams stay Regular.
+type Weight uint8
+
+const (
+	WeightRegular Weight = 0
+	WeightBold    Weight = 1
+)
+
+// NormalizeWeight maps unknown values to Regular. Bold is the only other face.
+func NormalizeWeight(w Weight) Weight {
+	if w == WeightBold {
+		return WeightBold
+	}
+	return WeightRegular
+}
+
+func (w Weight) String() string {
+	if NormalizeWeight(w) == WeightBold {
+		return "bold"
+	}
+	return "regular"
 }

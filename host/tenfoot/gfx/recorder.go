@@ -16,6 +16,8 @@ type Call struct {
 	Text   string
 	X, Y   int
 	Scale  int
+	SizePx int
+	Weight Weight
 	Width  int
 	Height int
 }
@@ -142,6 +144,14 @@ func (r *Recorder) SetBlend(mode BlendMode) {
 
 func (r *Recorder) DebugText(x, y int, text string, scale int) {
 	r.record(Call{Op: "DebugText", X: x, Y: y, Text: text, Scale: scale})
+}
+
+func (r *Recorder) DrawText(x, y int, text string, sizePx int, c Color) {
+	r.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (r *Recorder) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	r.record(Call{Op: "DrawText", X: x, Y: y, Text: text, SizePx: sizePx, Weight: NormalizeWeight(w), Color: c})
 }
 
 func (r *Recorder) Close() {

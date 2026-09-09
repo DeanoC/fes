@@ -364,6 +364,36 @@ func TestCarouselIndexClampAndFailedSkip(t *testing.T) {
 	}
 }
 
+func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
+	t.Parallel()
+	game := Game{ID: "snes-mario", Title: "Mario", System: "snes", Year: "1990", Genre: "Action", Favorite: true}
+	d := GameDetail(game, Presentation{})
+	if d.Title != "Mario" || d.Platform != "snes" || d.Year != "1990" || d.Genre != "Action" || !d.Favorite {
+		t.Fatalf("catalog %+v", d)
+	}
+	if d.Studio != "" || d.Summary != "" || len(d.ScreenshotIDs) != 0 {
+		t.Fatalf("empty presentation leaked %+v", d)
+	}
+	shot := strings.Repeat("ab", 32)
+	d = GameDetail(game, Presentation{
+		Presentation: &PresentationInfo{
+			Year:          "1985",
+			Genre:         "Platform",
+			Studio:        "Nintendo",
+			Players:       "1-2",
+			Summary:       "Jump.",
+			ScreenshotIDs: []string{shot, "nope", shot},
+		},
+		Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+	})
+	if d.Year != "1985" || d.Genre != "Platform" || d.Studio != "Nintendo" || d.Players != "1-2" || d.Summary != "Jump." {
+		t.Fatalf("merged %+v", d)
+	}
+	if d.Attribution != "Data from IGDB.com" || len(d.ScreenshotIDs) != 1 || d.ScreenshotIDs[0] != shot {
+		t.Fatalf("shots/attr %+v", d)
+	}
+}
+
 func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	t.Parallel()
 	d := FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}
@@ -375,11 +405,40 @@ func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	}
 	d.Studio = "Nintendo"
 	d.Players = "1-2"
-	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform  ·  Nintendo  ·  1-2" {
+	d.Region = "USA"
+	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform  ·  Nintendo  ·  1-2  ·  USA" {
 		t.Fatalf("rich facts = %q", d.MetaFacts())
 	}
 	if d.studioLine() != "Nintendo" || d.playersLine() != "1-2" {
 		t.Fatalf("lines studio=%q players=%q", d.studioLine(), d.playersLine())
+	}
+}
+
+func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
+	t.Parallel()
+	d := GameDetail(Game{Title: "Sonic", System: "megadrive", Year: "1990", Genre: "Action", Region: "usa"}, Presentation{})
+	if d.Year != "1990" || d.Genre != "Action" || d.Region != "USA" || d.Summary != "" || d.Players != "" {
+		t.Fatalf("catalog-only %+v", d)
+	}
+	if d.MetaFacts() != "megadrive  ·  1990  ·  Action  ·  USA" {
+		t.Fatalf("facts = %q", d.MetaFacts())
+	}
+	empty := GameDetail(Game{Title: "Pong", System: "pong"}, Presentation{})
+	if empty.Region != "" || empty.Summary != "" || empty.Players != "" || empty.MetaFacts() != "pong" {
+		t.Fatalf("empty %+v facts=%q", empty, empty.MetaFacts())
+	}
+	ready := GameDetail(Game{Title: "Sonic", System: "megadrive", Region: "japan"}, Presentation{
+		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump.", VideoID: strings.Repeat("ab", 32)},
+	})
+	if ready.Year != "1991" || ready.Genre != "Platform" || ready.Studio != "SEGA" || ready.Players != "1-2" || ready.Region != "Japan" || ready.Summary != "Jump." {
+		t.Fatalf("presentation %+v", ready)
+	}
+	if ready.VideoID != strings.Repeat("ab", 32) {
+		t.Fatalf("video %q", ready.VideoID)
+	}
+	plain := GameDetail(Game{Title: "Pong"}, Presentation{Presentation: &PresentationInfo{Summary: "Ball."}})
+	if plain.VideoID != "" {
+		t.Fatalf("still-only grew video %q", plain.VideoID)
 	}
 }
 

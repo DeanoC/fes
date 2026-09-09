@@ -49,6 +49,9 @@ func TestLaunchBoxCatalogMatchesGenesisTitleAndIgnoresOtherPlatforms(t *testing.
 	if result.Presentation.CoverArtworkID != wantHandle {
 		t.Fatalf("cover = %q want %q", result.Presentation.CoverArtworkID, wantHandle)
 	}
+	if result.Presentation.LogoArtworkID != "" {
+		t.Fatalf("unexpected logo %q", result.Presentation.LogoArtworkID)
+	}
 
 	unrelated, err := runtime.Lookup(context.Background(), LookupInput{Title: "Unrelated", System: protocol.SystemMegaDrive})
 	if err != nil || unrelated.Outcome != OutcomeNoMatch {
@@ -145,8 +148,11 @@ func TestLaunchBoxCoverageArchive(t *testing.T) {
 		candidates := runtime.catalog.candidates[system]
 		covers := 0
 		for _, candidate := range candidates {
-			if len(candidate.Artwork) > 0 {
-				covers++
+			for _, art := range candidate.Artwork {
+				if art.Role == ArtworkCover {
+					covers++
+					break
+				}
 			}
 		}
 		if len(candidates) != counts.candidates || covers != counts.covers {
@@ -229,6 +235,148 @@ func TestLaunchBoxCoverDiskCacheSurvivesNewRuntime(t *testing.T) {
 	}
 }
 
+func TestLaunchBoxCatalogSelectsClearLogoHandle(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>42</DatabaseID><Name>Sonic the Hedgehog</Name>` +
+		`<Platform>Sega Genesis</Platform><Overview>Blue hedgehog.</Overview>` +
+		`<ReleaseYear>1991</ReleaseYear></Game>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>cover_42.jpg</FileName>` +
+		`<Type>Box - Front</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>logo_42.png</FileName>` +
+		`<Type>Clear Logo</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>fanart_42.jpg</FileName>` +
+		`<Type>Fanart - Background</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>banner_42.png</FileName>` +
+		`<Type>Banner</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "Sonic the Hedgehog", System: protocol.SystemMegaDrive})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	wantCover := launchBoxArtworkHandle("cover_42.jpg")
+	wantLogo := launchBoxArtworkHandle("logo_42.png")
+	wantMarquee := launchBoxArtworkHandle("banner_42.png")
+	if result.Presentation.CoverArtworkID != wantCover {
+		t.Fatalf("cover = %q want %q", result.Presentation.CoverArtworkID, wantCover)
+	}
+	if result.Presentation.LogoArtworkID != wantLogo {
+		t.Fatalf("logo = %q want %q", result.Presentation.LogoArtworkID, wantLogo)
+	}
+	if result.Presentation.MarqueeArtworkID != wantMarquee {
+		t.Fatalf("marquee = %q want %q", result.Presentation.MarqueeArtworkID, wantMarquee)
+	}
+	if _, ok := catalog.covers[wantLogo]; !ok {
+		t.Fatal("logo filename missing from artwork map")
+	}
+	if _, ok := catalog.covers[wantMarquee]; !ok {
+		t.Fatal("marquee filename missing from artwork map")
+	}
+}
+
+func TestLaunchBoxCatalogPrefersArcadeMarqueeOverBanner(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>7</DatabaseID><Name>OutRun</Name>` +
+		`<Platform>Sega Genesis</Platform></Game>` +
+		`<GameImage><DatabaseID>7</DatabaseID><FileName>banner_7.png</FileName>` +
+		`<Type>Banner</Type></GameImage>` +
+		`<GameImage><DatabaseID>7</DatabaseID><FileName>marquee_7.png</FileName>` +
+		`<Type>Arcade - Marquee</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "OutRun", System: protocol.SystemMegaDrive})
+	if err != nil || result.Outcome != OutcomeExact {
+		t.Fatalf("Lookup = %+v err=%v", result, err)
+	}
+	want := launchBoxArtworkHandle("marquee_7.png")
+	if result.Presentation.MarqueeArtworkID != want {
+		t.Fatalf("marquee = %q want arcade %q", result.Presentation.MarqueeArtworkID, want)
+	}
+	if result.Presentation.CoverArtworkID != "" || result.Presentation.LogoArtworkID != "" {
+		t.Fatalf("unexpected cover/logo %+v", result.Presentation)
+	}
+}
+
+func TestLaunchBoxCatalogLogoWithoutCover(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>8</DatabaseID><Name>Pong</Name>` +
+		`<Platform>Atari 2600</Platform></Game>` +
+		`<GameImage><DatabaseID>8</DatabaseID><FileName>pong_logo.png</FileName>` +
+		`<Type>Clear Logo</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "Pong", System: protocol.SystemAtari2600})
+	if err != nil || result.Outcome != OutcomeExact {
+		t.Fatalf("Lookup = %+v err=%v", result, err)
+	}
+	if result.Presentation.CoverArtworkID != "" {
+		t.Fatalf("cover = %q", result.Presentation.CoverArtworkID)
+	}
+	wantLogo := launchBoxArtworkHandle("pong_logo.png")
+	if result.Presentation.LogoArtworkID != wantLogo {
+		t.Fatalf("logo = %q want %q", result.Presentation.LogoArtworkID, wantLogo)
+	}
+}
+
+func TestLaunchBoxLogoFetchesOfficialPNGOnce(t *testing.T) {
+	hits := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		hits++
+		if request.URL.Path != "/logo_42.png" {
+			http.NotFound(writer, request)
+			return
+		}
+		writer.Header().Set("Content-Type", "image/png")
+		_, _ = writer.Write(minimalPNG)
+	}))
+	t.Cleanup(server.Close)
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>42</DatabaseID><Name>Sonic the Hedgehog</Name>` +
+		`<Platform>Sega Genesis</Platform></Game>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>logo_42.png</FileName>` +
+		`<Type>Clear Logo</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, &http.Client{Transport: rewriteLaunchBoxHost(server.URL)})
+	t.Cleanup(func() { _ = runtime.Close() })
+	handle := launchBoxArtworkHandle("logo_42.png")
+	first, err := runtime.OpenArtwork(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("OpenArtwork: %v", err)
+	}
+	body, err := io.ReadAll(first.Reader)
+	_ = first.Reader.Close()
+	if err != nil || first.MIME != "image/png" || len(body) == 0 {
+		t.Fatalf("artwork mime=%q size=%d err=%v", first.MIME, len(body), err)
+	}
+	second, err := runtime.OpenArtwork(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("second OpenArtwork: %v", err)
+	}
+	_ = second.Reader.Close()
+	if hits != 1 {
+		t.Fatalf("official image fetched %d times", hits)
+	}
+}
+
 func TestLaunchBoxCatalogMatchesDumpTagsAndEnglishAlias(t *testing.T) {
 	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
 		`<Game><DatabaseID>9</DatabaseID><Name>Streets of Rage</Name>` +
@@ -280,6 +428,16 @@ func rewriteLaunchBoxHost(base string) http.RoundTripper {
 		target.Header = request.Header
 		return http.DefaultTransport.RoundTrip(target)
 	})
+}
+
+// minimalPNG is a 1x1 PNG recognized by image/png.
+var minimalPNG = []byte{
+	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+	0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+	0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+	0x00, 0x00, 0x03, 0x00, 0x01, 0x00, 0x05, 0xfe, 0xd4, 0xef, 0x00, 0x00,
+	0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
 }
 
 // minimalJPEG is a 1x1 JPEG recognized by image/jpeg.

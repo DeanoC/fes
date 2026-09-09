@@ -6,6 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/anim"
+	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
@@ -55,7 +56,7 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 		games[i] = tenfoot.Game{ID: "game-" + string(rune('a'+i)), Title: "Title " + string(rune('A'+i)), System: "snes", Launchable: true}
 	}
 	m := kitlauncher.Model{Games: games, Focus: 12, Connected: true, TargetReady: true, ControllerConnected: true}
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if len(g.Tiles) != 1 || g.Focus != 0 {
 		t.Fatalf("page tiles=%d focus=%d", len(g.Tiles), g.Focus)
 	}
@@ -77,14 +78,14 @@ func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
 	down, _ := remoteinput.NormalizeGamepad("dpad-down", true)
 	now := time.Now()
 	m.Input(right, now)
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Focus != 1 || g.Focus != 1 || len(g.Tiles) != 12 {
 		t.Fatalf("right focus=%d local=%d tiles=%d", m.Focus, g.Focus, len(g.Tiles))
 	}
 	m.Focus = 11
 	m.Input(down, now)
-	start, end := catalogPage(m.Focus, len(m.Games))
-	g = modelGrid(m, 640, 480, nil, theme.Default())
+	start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
+	g = modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Focus != 15 || start != 12 || end != 24 || g.Focus != 3 || len(g.Tiles) != 12 {
 		t.Fatalf("page-cross focus=%d page=%d:%d local=%d tiles=%d", m.Focus, start, end, g.Focus, len(g.Tiles))
 	}
@@ -112,29 +113,92 @@ func TestExerciseNavGridSamplesHighlight(t *testing.T) {
 }
 
 func TestCatalogPageAndPrefetchWindow(t *testing.T) {
-	start, end := catalogPage(0, 25)
+	start, end := catalogPage(0, 25, fbgrid.BrowseGrid)
 	if start != 0 || end != 12 {
 		t.Fatalf("page0 %d:%d", start, end)
 	}
-	start, end = catalogPage(12, 25)
+	start, end = catalogPage(12, 25, fbgrid.BrowseGrid)
 	if start != 12 || end != 24 {
 		t.Fatalf("page1 %d:%d", start, end)
 	}
-	start, end = catalogPage(24, 25)
+	start, end = catalogPage(24, 25, fbgrid.BrowseGrid)
 	if start != 24 || end != 25 {
 		t.Fatalf("page2 %d:%d", start, end)
+	}
+	start, end = catalogPage(10, 25, fbgrid.BrowseCoverflow)
+	if start != 8 || end != 13 {
+		t.Fatalf("coverflow window %d:%d", start, end)
+	}
+	start, end = catalogPage(0, 25, fbgrid.BrowseWall)
+	if start != 0 || end != 18 {
+		t.Fatalf("wall page0 %d:%d", start, end)
+	}
+	start, end = catalogPage(10, 25, fbgrid.BrowseSplit)
+	if start != 6 || end != 14 {
+		t.Fatalf("split window %d:%d", start, end)
+	}
+}
+
+func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
+	handle := strings.Repeat("ab", 32)
+	cache := tenfoot.NewCoverCache()
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{LogoID: handle}}
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default(), 18)
+	if tile.Logo != nil {
+		t.Fatal("uncached logo should keep text fallback")
+	}
+	if tile.Name != "Sonic" {
+		t.Fatalf("name %q", tile.Name)
+	}
+	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, cache, tenfoot.Presentation{}, theme.Default(), 18)
+	if plain.Logo != nil {
+		t.Fatal("text-fallback tile gained a logo")
+	}
+	if plain.Name != "Pong" {
+		t.Fatalf("plain name %q", plain.Name)
+	}
+}
+
+func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
+	th := theme.Default()
+	plain := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, tenfoot.Presentation{}, th, 18)
+	if len(plain.Badges) != 0 {
+		t.Fatalf("empty badges %+v", plain.Badges)
+	}
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{Players: "2", Rating: "4.5"}}
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th, 18)
+	if len(tile.Badges) != 2 || tile.Badges[0].Label != "2P" || tile.Badges[1].Label != "4.5" {
+		t.Fatalf("badges %+v", tile.Badges)
+	}
+	gb := gameTile(tenfoot.Game{Title: "Zelda", System: "gb"}, nil, tenfoot.Presentation{}, th, 18)
+	if len(gb.Badges) != 1 || gb.Badges[0].Label != "PORT" {
+		t.Fatalf("gb badges %+v", gb.Badges)
 	}
 }
 
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
-	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), theme.Default())
+	if tile.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("uncached kind %d", tile.CoverKind)
+	}
+	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
+	}
+	if flat.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("missing kind %d", flat.CoverKind)
+	}
+	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{CoverArtworkID: handle}}
+	fromMeta := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, tenfoot.NewCoverCache(), pres, theme.Default(), 18)
+	if fromMeta.Cover != nil {
+		t.Fatal("uncached presentation cover should stay fallback")
+	}
+	if fromMeta.CoverKind != fbgrid.CoverMissing {
+		t.Fatalf("presentation kind %d", fromMeta.CoverKind)
 	}
 }
 
@@ -148,7 +212,7 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 		t.Fatalf("controller footer %q", got)
 	}
 	m = kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	if got := modelFooter(m); got != "A play | L/R shelf" {
+	if got := modelFooter(m); got != "A play | B detail | L/R | Y flow" {
 		t.Fatalf("play footer %q", got)
 	}
 }
@@ -165,14 +229,14 @@ func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	now := time.Now()
 	m.Input(r, now)
 	m.Input(r2, now)
-	g := modelGrid(m, 640, 480, nil, theme.Default())
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Shelf != "megadrive" || len(g.Tiles) != 1 || g.Tiles[0].Name != "Sonic" {
 		t.Fatalf("shelf=%q tiles=%d name=%v", m.Shelf, len(g.Tiles), g.Tiles)
 	}
 	if g.Header != "FOGCAST  MEGADRIVE 1/3" {
 		t.Fatalf("header %q", g.Header)
 	}
-	if g.Footer != "A play | L/R shelf" {
+	if g.Footer != "A play | B detail | L/R | Y flow" {
 		t.Fatalf("footer %q", g.Footer)
 	}
 }
@@ -196,19 +260,30 @@ func TestExerciseShelfGridCyclesVisibleSet(t *testing.T) {
 }
 
 func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Default())
+	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
 	if tile.Name != "M?r?o" {
 		t.Fatalf("label %q", tile.Name)
 	}
 	if tile.Color != gfx.RGB(156, 52, 60) {
 		t.Fatalf("color %+v", tile.Color)
 	}
-	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, theme.Arcade())
+	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Arcade(), 18)
 	if arcade.Color != theme.Arcade().SystemColor("snes") {
 		t.Fatalf("arcade color %+v", arcade.Color)
 	}
 	if arcade.Color == tile.Color {
 		t.Fatal("arcade palette must differ")
+	}
+}
+
+func TestGameTileMetaJoinsCatalogFacts(t *testing.T) {
+	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Year: "1991", Genre: "Action", Region: "usa"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	if tile.Meta != "MEGADRIVE | 1991 | Action | USA" {
+		t.Fatalf("meta %q", tile.Meta)
+	}
+	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	if plain.Meta != "PONG" {
+		t.Fatalf("plain meta %q", plain.Meta)
 	}
 }
 
@@ -237,6 +312,49 @@ func TestLoadKitThemeFlagBeatsConfigAndEnv(t *testing.T) {
 	}
 }
 
+func TestLoadKitThemePackAliases(t *testing.T) {
+	t.Setenv("FOGCAST_THEME", "")
+	th, err := loadKitTheme("neon", "")
+	if err != nil || th.Name != theme.NameArcade {
+		t.Fatalf("neon: %+v %v", th, err)
+	}
+	th, err = loadKitTheme("sofa-dim", "")
+	if err != nil || th.Name != theme.NameNight {
+		t.Fatalf("sofa-dim: %+v %v", th, err)
+	}
+	th, err = loadKitTheme("classic", "")
+	if err != nil || th.Name != theme.NameDefault {
+		t.Fatalf("classic: %+v %v", th, err)
+	}
+}
+
+func TestKitLookPrefersPackOverFallback(t *testing.T) {
+	m := kitlauncher.Model{Pack: theme.PackNeon}
+	look := kitLook(m, theme.Default())
+	if !look.Equal(theme.Arcade()) {
+		t.Fatalf("neon look %+v", look)
+	}
+	m.Pack = ""
+	look = kitLook(m, theme.Night())
+	if !look.Equal(theme.Night()) {
+		t.Fatal("empty pack should keep fallback")
+	}
+}
+
+func TestPackHeaderTagsNonClassic(t *testing.T) {
+	m := kitlauncher.Model{Pack: theme.PackNeon, Browse: fbgrid.BrowseCoverflow}
+	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	got := packHeader(m)
+	if !strings.Contains(got, "FLOW") || !strings.Contains(got, "NEON") {
+		t.Fatalf("header %q", got)
+	}
+	m.Pack = theme.PackClassic
+	got = packHeader(m)
+	if strings.Contains(got, "NEON") || strings.Contains(got, "DIM") {
+		t.Fatalf("classic header %q", got)
+	}
+}
+
 func TestLoadKitThemeMissingFile(t *testing.T) {
 	t.Setenv("FOGCAST_THEME", "")
 	_, err := loadKitTheme("/no/such/theme.json", "")
@@ -251,6 +369,349 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 		t.Fatalf("%v\n%s", err, report)
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
+		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseBadgesGridPaintsChipsWheelStatsAndNestsPacks(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseBadgesGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-badges PASS") || !strings.Contains(report, "selftest-packs PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "grid badge=") || !strings.Contains(report, "detail badge=") || !strings.Contains(report, "wheel stats=") {
+		t.Fatalf("missing badge evidence: %s", report)
+	}
+}
+
+func TestSceneFXStartsOnMeaningfulCutsAndHonorsNone(t *testing.T) {
+	now := time.Unix(50, 0)
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Pack: theme.PackClassic}
+	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	var fx sceneFX
+	fx.observe(modelScene(m), anim.StyleCurtain, now)
+	if fx.active(now) {
+		t.Fatal("first frame should not overlay")
+	}
+	m.Browse = fbgrid.BrowseCoverflow
+	fx.observe(modelScene(m), anim.StyleCurtain, now)
+	if !fx.active(now) || fx.style != anim.StyleCurtain {
+		t.Fatalf("layout cut active=%v style=%s", fx.active(now), fx.style)
+	}
+	if fx.active(now.Add(anim.CurtainDuration)) {
+		t.Fatal("overlay should settle at duration")
+	}
+	m.Pack = theme.PackNeon
+	later := now.Add(time.Second)
+	fx.observe(modelScene(m), anim.StyleGlitch, later)
+	if fx.style != anim.StyleGlitch || !fx.active(later) {
+		t.Fatalf("pack cut style=%s active=%v", fx.style, fx.active(later))
+	}
+	m.DetailOpen = true
+	cleared := later.Add(time.Millisecond)
+	fx.observe(modelScene(m), anim.StyleNone, cleared)
+	if fx.active(cleared) || fx.style != anim.StyleNone {
+		t.Fatalf("none should clear in-flight overlay style=%s", fx.style)
+	}
+	if kitTransitionStyle(theme.Default(), true) != anim.StyleNone {
+		t.Fatal("disabled")
+	}
+	if kitTransitionStyle(theme.Arcade(), false) != anim.StyleGlitch {
+		t.Fatal("neon style")
+	}
+	if kitTransitionStyle(theme.Theme{Transition: "none"}.Complete(), false) != anim.StyleNone {
+		t.Fatal("theme none")
+	}
+}
+
+func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseMarqueeGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-marquee PASS") || !strings.Contains(report, "selftest-transition PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "attract marquee=") || !strings.Contains(report, "detail marquee=") || !strings.Contains(report, "attract hide=1") || !strings.Contains(report, "detail hide=1") {
+		t.Fatalf("missing marquee evidence: %s", report)
+	}
+}
+
+func TestExerciseTransitionGridPaintsCurtainWipeGlitchAndNestsPacks(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseTransitionGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-transition PASS") || !strings.Contains(report, "selftest-packs PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "curtain-t0") || !strings.Contains(report, "wipe-mid") || !strings.Contains(report, "glitch-mid") || !strings.Contains(report, "none-noop") {
+		t.Fatalf("missing overlay evidence: %s", report)
+	}
+	if !strings.Contains(report, "launch-still-a=1") || !strings.Contains(report, "nested-packs=1") {
+		t.Fatalf("missing hook evidence: %s", report)
+	}
+}
+
+func TestExercisePacksGridPaintsClassicNeonSofaDimAndNestsLayouts(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exercisePacksGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-packs PASS") || !strings.Contains(report, "selftest-layouts PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "pack=classic") || !strings.Contains(report, "pack=neon") || !strings.Contains(report, "pack=sofa-dim") {
+		t.Fatalf("missing pack evidence: %s", report)
+	}
+	if !strings.Contains(report, "coverflow-neon") || !strings.Contains(report, "wheel-neon") {
+		t.Fatalf("missing chrome evidence: %s", report)
+	}
+}
+
+func TestExerciseLayoutsGridPaintsCoverflowWallAndNestsAtmosphere(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseLayoutsGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-layouts PASS") || !strings.Contains(report, "selftest-atmosphere PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "coverflow kind=coverflow") || !strings.Contains(report, "wall kind=wall") || !strings.Contains(report, "split kind=split") || !strings.Contains(report, "empty-coverflow") || !strings.Contains(report, "empty-split") {
+		t.Fatalf("missing layout evidence: %s", report)
+	}
+}
+
+func TestExerciseAtmosphereGridPaintsFanartCoverWallAndNestsStrip(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseAtmosphereGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-atmosphere PASS") || !strings.Contains(report, "selftest-strip PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "fanart stage") || !strings.Contains(report, "absent stage") || !strings.Contains(report, "cover-wall") {
+		t.Fatalf("missing atmosphere evidence: %s", report)
+	}
+}
+
+func TestExerciseStripGridPaintsHandoffAndHidesEmpty(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseStripGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-strip PASS") || !strings.Contains(report, "selftest-wheel PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "enter-strip") || !strings.Contains(report, "strip-detail") || !strings.Contains(report, "hide-empty") {
+		t.Fatalf("missing strip evidence: %s", report)
+	}
+}
+
+func TestExerciseWheelGridPaintsHeroEntersAndNestsMotion(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseWheelGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-wheel PASS") || !strings.Contains(report, "selftest-motion PASS") || !strings.Contains(report, "enter-grid") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "hero=") || !strings.Contains(report, "back-wheel-megadrive") {
+		t.Fatalf("missing wheel evidence: %s", report)
+	}
+}
+
+func TestExerciseMotionGridPopsAndPulsesThenNestsDetail(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseMotionGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-motion PASS") || !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-nav PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "motion pop-mid") || !strings.Contains(report, "motion confirm-mid") {
+		t.Fatalf("missing motion evidence: %s", report)
+	}
+}
+
+func TestExerciseDetailGridOpensPaintsAndNestsAttract(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseDetailGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "detail title-ink=1") || !strings.Contains(report, "detail cover=") || !strings.Contains(report, "detail logo=") || !strings.Contains(report, "logo=1") {
+		t.Fatalf("missing detail paint evidence: %s", report)
+	}
+	if !strings.Contains(report, "meta=1") || !strings.Contains(report, "description=1") || !strings.Contains(report, "omit-empty=1") || !strings.Contains(report, "hedgehog=1") {
+		t.Fatalf("missing detail meta evidence: %s", report)
+	}
+	if !strings.Contains(report, "video-preview=1") || !strings.Contains(report, "still-only=1") || !strings.Contains(report, "poster=1") || !strings.Contains(report, "detail video-preview") {
+		t.Fatalf("missing detail video evidence: %s", report)
+	}
+}
+
+func TestExerciseAttractGridPaintsStillAndDismisses(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseAttractGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-attract PASS") || !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "attract still=") || !strings.Contains(report, "empty-panel") {
+		t.Fatalf("missing still/empty evidence: %s", report)
+	}
+	if !strings.Contains(report, "attract motion-preview") || !strings.Contains(report, "attract motion-cycle=1") || !strings.Contains(report, "stills-fallback video=0") || !strings.Contains(report, "attract wall=1") {
+		t.Fatalf("missing attract motion evidence: %s", report)
+	}
+	if !strings.Contains(report, "motion=1") || !strings.Contains(report, "stills-fallback=1") || !strings.Contains(report, "wall=1") {
+		t.Fatalf("missing attract motion pass flags: %s", report)
+	}
+}
+
+func TestExerciseCoverGridPaintsArtAndPlaceholder(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseCoverGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-cover PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "selftest-nav PASS") || !strings.Contains(report, "selftest-shelf PASS") {
+		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseBoldGridNestsDetailAndText(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseBoldGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-bold PASS") || !strings.Contains(report, "selftest-detail PASS") || !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "header-bold=1") {
+		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseTextGridUsesUIFace(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseTextGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-text PASS") || !strings.Contains(report, "header-not-debug=1") || !strings.Contains(report, "header-bold=1") || !strings.Contains(report, "selftest-shelf PASS") || !strings.Contains(report, "selftest-nav PASS") {
 		t.Fatalf("report %s", report)
 	}
 }
@@ -270,5 +731,56 @@ func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
 	}
 	if !strings.Contains(report, "selftest-theme PASS") || !strings.Contains(report, "theme=default") || !strings.Contains(report, "theme=arcade") {
 		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "roles theme=default") || !strings.Contains(report, "compat scale-only") || !strings.Contains(report, "compat px-override") {
+		t.Fatalf("missing type-role evidence: %s", report)
+	}
+}
+
+func TestModelDetailFrameVideoPreviewVersusStillOnly(t *testing.T) {
+	th := theme.Default()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog([]tenfoot.Game{
+		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
+	})
+	now := time.Unix(1, 0)
+	b, _ := remoteinput.NormalizeGamepad("b", true)
+	m.Input(b, now)
+	if !m.DetailOpen {
+		t.Fatal("expected detail")
+	}
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)}},
+	})
+	still := modelDetailFrame(m, nil, nil, th, 640, 480)
+	if still.VideoBadge || strings.Contains(still.ShotCaption, "preview") {
+		t.Fatalf("still-only frame %+v", still)
+	}
+	if still.ShotCaption != "1 / 2" {
+		t.Fatalf("still caption %q", still.ShotCaption)
+	}
+
+	m.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			VideoID:       strings.Repeat("ee", 32),
+			ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)},
+		},
+	})
+	video := modelDetailFrame(m, nil, nil, th, 640, 480)
+	if !video.VideoBadge || video.ShotCaption != "preview 1 / 2" {
+		t.Fatalf("video frame badge=%v caption=%q", video.VideoBadge, video.ShotCaption)
+	}
+	if previewCaption(0, 1) != "preview" || previewCaption(1, 3) != "preview 2 / 3" {
+		t.Fatalf("previewCaption %q %q", previewCaption(0, 1), previewCaption(1, 3))
+	}
+}
+
+func TestKitMetaLineUsesASCIISeparator(t *testing.T) {
+	got := kitMetaLine("MEGADRIVE  \u00b7  1991  \u00b7  USA")
+	if got != "MEGADRIVE | 1991 | USA" {
+		t.Fatalf("kit meta %q", got)
+	}
+	if kitMetaLine("") != "" {
+		t.Fatal("empty")
 	}
 }

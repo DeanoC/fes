@@ -176,16 +176,20 @@ type FocusDetail struct {
 	Genre         string
 	Studio        string
 	Players       string
+	Region        string
 	Summary       string
 	Attribution   string
 	Favorite      bool
+	VideoID       string
 	ScreenshotIDs []string
 }
 
-// MetaFacts joins platform, year, genre, studio, and players for the detail strip.
+// MetaFacts joins admitted catalog/presentation facts for the detail strip.
+// Empty fields are omitted. Play-count and last-played stay off this pane;
+// the kit platform wheel rolls them up when the games payload carries them.
 func (d FocusDetail) MetaFacts() string {
-	parts := make([]string, 0, 5)
-	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players} {
+	parts := make([]string, 0, 6)
+	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region} {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

@@ -5,18 +5,38 @@ package fbgrid
 
 import (
 	"image"
+	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 )
 
-// Tile is one catalog cell: a short label, a solid colour fallback, and
-// optional decoded cover pixels.
+// CoverKind is the cheap cover-fetch state painted when Cover is nil.
+type CoverKind int
+
+const (
+	// CoverMissing is no handle, a failed fetch, or art that will not arrive.
+	CoverMissing CoverKind = iota
+	// CoverLoading is an in-flight GET/decode.
+	CoverLoading
+	// CoverPresent is a decoded image in Tile.Cover.
+	CoverPresent
+)
+
+// Tile is one catalog cell: a short label, a solid colour fallback, optional
+// decoded cover pixels, the cover-fetch kind used for placeholders, an
+// optional clear logo for the label bar, optional metadata chips, and
+// optional short catalog facts for split hero copy.
 type Tile struct {
-	Name  string
-	Color gfx.Color
-	Cover *image.RGBA
+	Name      string
+	Color     gfx.Color
+	Cover     *image.RGBA
+	CoverKind CoverKind
+	Logo      *image.RGBA
+	Badges    []Badge
+	// Meta is optional short catalog/presentation facts for split hero copy.
+	Meta string
 }
 
 const (
@@ -27,7 +47,7 @@ const (
 	pad            = 16
 	gap            = 8
 	border         = 4
-	// ConfirmFrames is how long the selected tile stays flashed.
+	// ConfirmFrames is how long the selected tile's confirm pulse runs.
 	ConfirmFrames = 45
 	repeatDelay   = 18
 	repeatRate    = 8
@@ -58,36 +78,56 @@ func FakeTiles() []Tile {
 }
 
 // Grid is a 2D focus over FakeTiles. Apply consumes mapped linuxinput
-// events; Tick repeats a held direction after a short delay and decays
-// the confirm flash.
+// events; Tick repeats a held direction after a short delay and advances
+// the focus pop and confirm pulse. Now, when set, drives those tweens from
+// wall-clock instead of TickPeriod.
 type Grid struct {
-	Tiles        []Tile
-	Header       string
-	Footer       string
-	Columns      int
-	Width        int
-	Height       int
-	HeaderH      int
-	FooterH      int
-	Pad          int
-	Gap          int
-	Border       int
-	CellW        int
-	CellH        int
-	Focus        int
-	Selected     string
-	ConfirmIndex int
-	ConfirmLeft  int
-	Quit         bool
-	Last         string
-	Theme        theme.Theme
-	holdX        int
-	holdY        int
-	analogX      bool
-	analogY      bool
-	waitX        int
-	waitY        int
-	confirmHeld  bool
+	Tiles          []Tile
+	Header         string
+	Footer         string
+	Columns        int
+	Width          int
+	Height         int
+	HeaderH        int
+	FooterH        int
+	Pad            int
+	Gap            int
+	Border         int
+	CellW          int
+	CellH          int
+	Focus          int
+	Selected       string
+	ConfirmIndex   int
+	ConfirmLeft    int
+	Quit           bool
+	Last           string
+	Theme          theme.Theme
+	Now            time.Time
+	holdX          int
+	holdY          int
+	analogX        bool
+	analogY        bool
+	waitX          int
+	waitY          int
+	confirmHeld    bool
+	popAt          time.Time
+	confirmAt      time.Time
+	popElapsed     time.Duration
+	confirmElapsed time.Duration
+	popIndex       int
+	popLive        bool
+	Strip          []Tile
+	StripLabel     string
+	StripFocus     int
+	StripActive    bool
+	StripCellW     int
+	StripCellH     int
+	// Atmosphere is optional fanart/backdrop painted cover-fill behind chrome.
+	// When nil, Paint uses a dimmed cover-wall of decoded tile/strip covers.
+	// When those are also empty, the stage stays the solid theme background.
+	Atmosphere *image.RGBA
+	// Kind selects the catalog presentation. Zero is the 4×3 box grid.
+	Kind BrowseKind
 }
 
 // New lays out FakeTiles for a w×h framebuffer.
@@ -141,6 +181,55 @@ func ApplyTheme(g *Grid, th theme.Theme) {
 }
 
 func (g *Grid) layout() {
+	switch g.Kind {
+	case BrowseWall:
+		g.Columns = WallColumns
+	case BrowseCoverflow:
+		n := g.count()
+		if n < 1 {
+			n = 1
+		}
+		g.Columns = n
+		g.layoutStrip()
+		if r, ok := g.coverflowRect(g.Focus); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else {
+			g.CellW = coverflowFocusW
+			g.CellH = coverflowFocusH
+		}
+		if g.CellW < 1 {
+			g.CellW = 1
+		}
+		if g.CellH < 1 {
+			g.CellH = 1
+		}
+		return
+	case BrowseSplit:
+		g.Columns = 1
+		g.layoutStrip()
+		if r, ok := g.splitListRect(g.Focus); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else if r, ok := g.splitListRect(0); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else {
+			g.CellW = splitListMinW
+			g.CellH = splitRowMaxH
+		}
+		if g.CellW < 1 {
+			g.CellW = 1
+		}
+		if g.CellH < 1 {
+			g.CellH = 1
+		}
+		return
+	default:
+		if g.Columns < 1 {
+			g.Columns = DefaultColumns
+		}
+	}
 	if g.Columns < 1 {
 		g.Columns = 1
 	}
@@ -154,11 +243,12 @@ func (g *Grid) layout() {
 	if rows < 1 {
 		rows = 1
 	}
-	innerH := g.Height - g.HeaderH - g.FooterH - 2*g.Pad - (rows-1)*g.Gap
+	innerH := g.Height - g.HeaderH - g.FooterH - 2*g.Pad - (rows-1)*g.Gap - g.stripReserve()
 	g.CellH = innerH / rows
 	if g.CellH < 1 {
 		g.CellH = 1
 	}
+	g.layoutStrip()
 }
 
 func (g Grid) rows() int {
@@ -215,13 +305,27 @@ func MoveFocus(focus, count, columns, dx, dy int) int {
 	return focus
 }
 
-// Move shifts focus by cells. Left/right stay on the current row.
+// Move shifts focus by cells. Left/right stay on the current row. A change
+// starts the focus pop; the catalog layout (CellOrigin) is unchanged.
 func (g *Grid) Move(dx, dy int) {
-	g.Focus = MoveFocus(g.Focus, g.count(), g.Columns, dx, dy)
+	next := MoveFocus(g.Focus, g.count(), g.Columns, dx, dy)
+	if next == g.Focus {
+		return
+	}
+	g.Focus = next
+	g.startFocusPop()
 }
 
 // CellOrigin is the top-left pixel of tile i.
 func (g Grid) CellOrigin(i int) (x, y int, ok bool) {
+	r, ok := g.tileBaseRect(i)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(r.X), int(r.Y), true
+}
+
+func (g Grid) gridCellOrigin(i int) (x, y int, ok bool) {
 	if i < 0 || i >= g.count() || g.Columns < 1 {
 		return 0, 0, false
 	}
@@ -248,6 +352,52 @@ func (g Grid) InteriorSample() (x, y int, ok bool) {
 		return 0, 0, false
 	}
 	return ox + g.CellW/2, oy + g.CellH/2, true
+}
+
+// LabelBarSample is a pixel in tile i's label bar, centered horizontally.
+func (g Grid) LabelBarSample(i int) (x, y int, ok bool) {
+	r, ok := g.tileInner(i)
+	if !ok {
+		r, ok = g.tileRect(i)
+		if !ok {
+			return 0, 0, false
+		}
+	}
+	th := g.Theme.Complete()
+	textH := gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight())
+	barH := float32(textH + 4)
+	if barH < 16 {
+		barH = 16
+	}
+	if i >= 0 && i < len(g.Tiles) && g.Tiles[i].Logo != nil && barH < 24 {
+		barH = 24
+	}
+	if barH > r.H {
+		barH = r.H
+	}
+	if barH < 2 || r.W < 2 {
+		return 0, 0, false
+	}
+	x = int(r.X + r.W/2)
+	y = int(r.Y + r.H - barH/2)
+	return x, y, true
+}
+
+// PanelSample is a pixel on tile i's placeholder or letterbox panel: inside
+// the focus border and 1px outline, above the label bar.
+func (g Grid) PanelSample(i int) (x, y int, ok bool) {
+	ox, oy, ok := g.CellOrigin(i)
+	if !ok {
+		return 0, 0, false
+	}
+	inset := 4
+	if i == g.Focus {
+		inset = g.Border + 4
+		if inset < 5 {
+			inset = 5
+		}
+	}
+	return ox + inset, oy + inset, true
 }
 
 // Apply updates hold state, steps on a rising edge, and confirms or quits.
@@ -285,6 +435,7 @@ func (g *Grid) applyConfirm(m linuxinput.Mapped) {
 			g.Selected = g.Tiles[g.Focus].Name
 			g.ConfirmIndex = g.Focus
 			g.ConfirmLeft = ConfirmFrames
+			g.startConfirmPulse()
 		}
 		return
 	}
@@ -327,11 +478,13 @@ func (g *Grid) step(dir int, horizontal bool) {
 	g.Move(0, dir)
 }
 
-// Tick repeats motion while a direction is held and decays confirm flash.
+// Tick repeats motion while a direction is held and advances focus pop and
+// confirm pulse by TickPeriod.
 func (g *Grid) Tick() {
 	if g.ConfirmLeft > 0 {
 		g.ConfirmLeft--
 	}
+	g.advanceMotion()
 	g.tickAxis(g.holdX, &g.waitX, true)
 	g.tickAxis(g.holdY, &g.waitY, false)
 }

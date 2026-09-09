@@ -13,6 +13,66 @@ import (
 	"testing"
 )
 
+func TestClientDecodesGameRegion(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"games": []Game{{
+				ID:         "megadrive-sonic",
+				Title:      "Sonic",
+				System:     "megadrive",
+				Year:       "1991",
+				Genre:      "Platform",
+				Region:     "usa",
+				Launchable: true,
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 1 || games[0].Region != "usa" || games[0].Year != "1991" || games[0].Genre != "Platform" {
+		t.Fatalf("games = %#v", games)
+	}
+}
+
+func TestClientDecodesPlayStatsAndOptionalBadgeFields(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{{
+					ID: "megadrive-sonic", Title: "Sonic", System: "megadrive",
+					Launchable: true, PlayCount: 4, LastPlayedAt: 99,
+				}},
+			})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			_ = json.NewEncoder(w).Encode(Presentation{
+				GameID: "megadrive-sonic",
+				State:  "ready",
+				Presentation: &PresentationInfo{
+					Players: "2", Rating: "4.5", Completion: "100%", Portable: true,
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	games, _, err := client.ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil || len(games) != 1 || games[0].PlayCount != 4 || games[0].LastPlayedAt != 99 {
+		t.Fatalf("games = %#v err=%v", games, err)
+	}
+	pres, err := client.GamePresentation(context.Background(), "megadrive-sonic")
+	if err != nil || pres.Presentation == nil || pres.Presentation.Players != "2" || pres.Presentation.Rating != "4.5" || pres.Presentation.Completion != "100%" || !pres.Presentation.Portable {
+		t.Fatalf("presentation = %#v err=%v", pres, err)
+	}
+}
+
 func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 	t.Parallel()
 	var paths []string
@@ -86,6 +146,7 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 				State:  "ready",
 				Presentation: &PresentationInfo{
 					CoverArtworkID: handle,
+					VideoID:        strings.Repeat("ef", 32),
 					Summary:        "jump",
 					Year:           "1985",
 					Genre:          "Platform",
@@ -122,6 +183,12 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	}
 	if got := screenshotHandles(pres.Presentation.ScreenshotIDs); len(got) != 2 || got[0] != handle {
 		t.Fatalf("screenshots = %#v", pres.Presentation.ScreenshotIDs)
+	}
+	if got := VideoHandle(pres); got != strings.Repeat("ef", 32) {
+		t.Fatalf("video = %q", got)
+	}
+	if got := MarqueeHandle(pres); got != "" {
+		t.Fatalf("unexpected marquee %q", got)
 	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
 	if err != nil || ctype != "image/png" || string(data) != "png-bytes" {
@@ -993,6 +1060,80 @@ func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
 	if item.StillHandle() != "" {
 		t.Fatalf("video must not be a still handle, got %q", item.StillHandle())
 	}
+	item = AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
+	handles := item.StillHandles()
+	if len(handles) != 3 || handles[0] != backdrop || handles[1] != cover || handles[2] != marquee {
+		t.Fatalf("still handles %v", handles)
+	}
+	if item.VideoHandle() != video {
+		t.Fatalf("video handle %q", item.VideoHandle())
+	}
+}
+
+func TestAttractPreviewHandlesMotionAndStillsFallback(t *testing.T) {
+	t.Parallel()
+	shot := strings.Repeat("aa", 32)
+	backdrop := strings.Repeat("bb", 32)
+	cover := strings.Repeat("cc", 32)
+	marquee := strings.Repeat("dd", 32)
+	video := strings.Repeat("ee", 32)
+	item := AttractItem{Video: video, Backdrop: backdrop, Cover: cover, Marquee: marquee}
+	got := AttractPreviewHandles(item, Presentation{})
+	if len(got) != 3 || got[0] != backdrop || got[1] != cover || got[2] != marquee {
+		t.Fatalf("item stills %#v", got)
+	}
+
+	preview := AttractPreviewHandles(item, Presentation{
+		Presentation: &PresentationInfo{
+			VideoID:           video,
+			ScreenshotIDs:     []string{shot, "bad"},
+			BackdropArtworkID: strings.Repeat("ff", 32),
+		},
+	})
+	if len(preview) != 4 || preview[0] != shot || preview[1] != backdrop || preview[2] != cover || preview[3] != marquee {
+		t.Fatalf("video preview %#v", preview)
+	}
+
+	stills := AttractPreviewHandles(AttractItem{Backdrop: backdrop, Cover: cover}, Presentation{
+		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot}, VideoID: ""},
+	})
+	if len(stills) != 2 || stills[0] != backdrop || stills[1] != cover {
+		t.Fatalf("stills fallback %#v", stills)
+	}
+
+	empty := AttractPreviewHandles(AttractItem{Video: video}, Presentation{})
+	if empty != nil {
+		t.Fatalf("video-only %#v", empty)
+	}
+
+	fromPres := AttractPreviewHandles(AttractItem{Video: video, Backdrop: backdrop}, Presentation{
+		Presentation: &PresentationInfo{VideoID: video, MarqueeID: marquee},
+	})
+	if len(fromPres) != 2 || fromPres[0] != backdrop || fromPres[1] != marquee {
+		t.Fatalf("presentation marquee %#v", fromPres)
+	}
+}
+
+func TestAttractMarqueeHandlePrefersPresentationThenItem(t *testing.T) {
+	t.Parallel()
+	item := strings.Repeat("aa", 32)
+	pres := strings.Repeat("bb", 32)
+	row := AttractItem{Marquee: item, Backdrop: strings.Repeat("cc", 32)}
+	if got := AttractMarqueeHandle(row, Presentation{}); got != item {
+		t.Fatalf("item = %q", got)
+	}
+	if got := AttractMarqueeHandle(row, Presentation{Presentation: &PresentationInfo{MarqueeID: pres}}); got != pres {
+		t.Fatalf("presentation = %q", got)
+	}
+	if got := AttractMarqueeHandle(AttractItem{}, Presentation{}); got != "" {
+		t.Fatalf("empty = %q", got)
+	}
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{MarqueeID: pres, LogoID: item}}); got != pres {
+		t.Fatalf("presentation handle = %q", got)
+	}
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{LogoID: item}}); got != "" {
+		t.Fatalf("logo-only = %q", got)
+	}
 }
 
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {
@@ -1002,6 +1143,52 @@ func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 	}
 	if got := CoverHandle(Game{Cover: "not-a-handle"}, Presentation{}); got != "" {
 		t.Fatalf("cover handle = %q", got)
+	}
+}
+
+func TestDetailPreviewHandlesSelectsShotsThenPoster(t *testing.T) {
+	t.Parallel()
+	shot := strings.Repeat("aa", 32)
+	shot2 := strings.Repeat("bb", 32)
+	backdrop := strings.Repeat("cc", 32)
+	cover := strings.Repeat("dd", 32)
+	video := strings.Repeat("ee", 32)
+	dupShot := shot
+
+	stills := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot, shot2, "nope"}},
+	}, cover)
+	if len(stills) != 2 || stills[0] != shot || stills[1] != shot2 {
+		t.Fatalf("stills-only %#v", stills)
+	}
+
+	preview := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{
+			VideoID:           video,
+			ScreenshotIDs:     []string{shot, dupShot, "bad"},
+			BackdropArtworkID: backdrop,
+			CoverArtworkID:    strings.Repeat("ff", 32),
+		},
+	}, cover)
+	if len(preview) != 3 || preview[0] != shot || preview[1] != backdrop || preview[2] != cover {
+		t.Fatalf("video preview %#v", preview)
+	}
+
+	poster := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{VideoID: video, CoverArtworkID: cover},
+	}, "")
+	if len(poster) != 1 || poster[0] != cover {
+		t.Fatalf("poster %#v", poster)
+	}
+
+	empty := DetailPreviewHandles(Presentation{
+		Presentation: &PresentationInfo{VideoID: video},
+	}, "")
+	if empty != nil {
+		t.Fatalf("video without stills %#v", empty)
+	}
+	if VideoHandle(Presentation{}) != "" {
+		t.Fatal("empty presentation grew a video handle")
 	}
 }
 

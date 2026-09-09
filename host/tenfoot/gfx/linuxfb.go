@@ -89,6 +89,14 @@ func (d *LinuxFB) DebugText(x, y int, text string, scale int) {
 	d.sw.DebugText(x, y, text, scale)
 }
 
+func (d *LinuxFB) DrawText(x, y int, text string, sizePx int, c Color) {
+	d.DrawTextWeight(x, y, text, sizePx, WeightRegular, c)
+}
+
+func (d *LinuxFB) DrawTextWeight(x, y int, text string, sizePx int, w Weight, c Color) {
+	d.sw.DrawTextWeight(x, y, text, sizePx, w, c)
+}
+
 func (d *LinuxFB) Close() {
 	if d.sw != nil {
 		d.sw.Close()

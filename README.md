@@ -76,19 +76,110 @@ The normal FPGA launch path is:
 The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
 display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
-Stop and returns to the library. Its live catalog is rendered as a small 4×3
-cover grid through `host/tenfoot/fbgrid`. Shoulder L/R (and Select) cycle
-system shelves (`All` plus each system present in the loaded catalog); the
-header shows the active shelf and counts (`MEGADRIVE 12/40`). D-pad and left
+Stop and returns to the library. Its live catalog opens as a living-room platform wheel
+(horizontal clear-logo / wordmark strip plus a platform hero) and drops into
+a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
+4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
+Wall (6×3 mosaic) → Split (vertical clear-logo list plus hero) → Grid
+without stealing D-pad browse or the X theme cycle. X (West) cycles
+theme packs Classic → Neon → Sofa Dim → Classic without stealing Y or
+D-pad; the last pack is stored in `launcher.json` `theme`. Coverflow keeps the
+focused title largest and paints its name at the title role (or a clear logo
+when one is ready). Wall uses caption labels on denser cells. Split keeps a
+logo (or title) list on the left and a large cover plus short meta on the
+right; Up/Down walk the list. Empty catalogs
+hide tiles and keep chrome. Shoulder L/R (and Select)
+cycle platforms on the wheel and still cycle system shelves in the grid
+(`All` plus each system present in the loaded catalog); the
+header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `FLOW`,
+`WALL`, or `SPLIT` when that layout is active. A/South on the
+wheel enters that system's browse view; East/B on the browse view returns to the wheel.
+The focused platform paints hardware/fanart/backdrop when attract, presentation
+`backdrop_artwork_id`, or a representative cover handle exists, otherwise a
+theme-tinted placeholder, with game-count chrome plus a play rollup when host
+games already carry `play_count` or last-played. Wheel cells use a
+representative clear logo when presentation has `logo_id`, else a bold
+wordmark. D-pad and left
 stick move focus in
-two dimensions (left/right clamp on the row; up/down by four cells, paging
-when `Focus` leaves the visible 12). Cells show host cover art when
-`Game.Cover` is available and keep the system-color fallback otherwise. Paint
+two dimensions on the grid and wall (left/right clamp on the row; up/down by
+the layout column count, paging when `Focus` leaves the visible page).
+Coverflow is one row: left/right walk titles, and down that cannot move further
+enters the recent strip or title pane. Split is one column: up/down walk
+titles, left/right clamp, and down that cannot move further enters the strip
+or title pane. A short ease-in-out pop grows the
+focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
+confirm is a white pulse that eases out over `ConfirmFrames` rather than a
+flat flash. Browse paints a dimmed fanart/backdrop behind chrome when presentation
+`backdrop_artwork_id` or an attract backdrop exists; otherwise a soft
+cover-wall of decoded covers, or the solid theme background when no art is
+present. Focus rings and header/footer stay opaque. A Recent / Favorites strip paints under the grid when host
+`collection=recents` or `collection=favorites` returns at least one title
+(recents first, then favorites, labeled honestly); an empty row is omitted.
+Down that cannot move focus further (last catalog row) enters that strip, or
+opens a focused title pane when the strip is hidden
+(large cover, title, and platform/year/genre/studio/players/region when the
+catalog or presentation already carries them, plus a wrapped `summary`
+description). Compact chips paint on grid, coverflow, wall, and the title pane
+for players, rating, completion, and portable when those presentation fields
+exist (portable also uses handheld catalog systems); missing chips stay hidden.
+The title pane still omits play-count and last-played as body copy; the
+platform wheel rolls those up from host `play_count` / `last_played_at` (or
+recents order) when admitted. D-pad L/R move among strip
+tiles, A opens that title's pane, and B or Up return to the grid.
+A/South still launches from the grid. The pane's A plays the title, East/B
+and Up return to the same shelf and focus, and L/R (or shoulders) cycle
+screenshots when `screenshot_ids` has two or more. Presentation `marquee_id`
+(LaunchBox Arcade-Marquee or Banner, or a `library_media` RoleMarquee overlay
+that wins when present) paints a wide strip under the header; missing handles
+hide the strip rather than reserving an empty band, and cover, meta, badges,
+and the screenshot/video slot keep their existing layout. When presentation
+`video_id` (library_media video overlay) is present, the pane shows an honest
+motion preview: it auto-cycles those screenshots plus backdrop/cover posters
+under a VIDEO badge and a `preview` caption. The CGO-free kit path does not
+decode H.264. Titles without a video handle keep today's still carousel.
+Opening the pane, showing or hiding attract, entering or leaving the
+platform wheel, and switching layout or theme pack play a short
+theme-driven overlay: Classic a curtain, Neon a glitch/static burst,
+Sofa Dim a wipe (`host/tenfoot/anim`, under 400ms). `transition` `none`
+in a theme file, `-no-transition`, or `FOGCAST_NO_TRANSITION=1` is an
+honest no-op. Pad input is not held while the overlay paints. Attract does not arm
+while the pane is open. Missing description copy is omitted rather than
+drawn as an empty box. Cells show host cover art when a catalog
+`Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
+Catmull–Rom downscaled at decode, with a theme-tinted
+placeholder (lettermark when missing, a distinct panel while loading) instead of
+a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
+`library_media` RoleLogo overlay) paints on the detail title and grid label
+bar; missing logos keep the existing bold/regular text labels. The visible page (12 on the grid, 5 around coverflow focus, 18 on the wall, 8 around split focus)
+and a cheap next window prefetch those
+handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
+kit shows an attract stage (title chrome plus backdrop/cover artwork)
+and returns to the same shelf and focus on any input. When the staged title has
+a distinct `marquee_id` or attract `marquee` handle, a banner strip paints
+under the header alongside the still or motion preview; a marquee-only row
+keeps today's still fallback and hides the duplicate strip. When the staged title has
+a video handle plus stills, attract auto-cycles those stills under a VIDEO badge
+and a `preview` caption — the same kit-safe motion path as title-detail, not
+H.264 decode. Four or more stills-backed titles with at least one video handle
+paint a 2×2 wall of neighboring stills with the staged tile highlighted. Titles
+without a video handle keep today's stills attract; an empty playlist uses a
+themed idle panel instead of a frozen grid. Full clip playback is a follow-up.
+Title-detail video handles use the screenshot/poster preview above. Header, tile names, placeholder lettermarks, and footer use the embedded Go
+UI faces through `gfx.DrawText` / `gfx.DrawTextWeight` (CGO-free; no system
+fonts on the kit) at theme typography roles `title_px` / `body_px` /
+`caption_px` / `status_px` (legacy `header_scale` / `label_scale` /
+`status_scale` still map to `8*scale` when a role is unset). Built-in themes
+paint title and chrome header with Go Bold (`title_bold`, default true);
+body, caption, and status stay Go Regular unless a matching `*_bold` token
+is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
-come from `host/tenfoot/theme`: built-in `default` matches today's kit look,
-and `arcade` / `night` (or a JSON/TOML file) swap the look without forking
-UI code. Select with `-theme`, `theme` in `launcher.json`, or
-`FOGCAST_THEME`. The
+come from `host/tenfoot/theme`: built-in `default` / pack **Classic** match
+today's kit look, and **Neon** (`arcade`) / **Sofa Dim** (`night`) (or a
+JSON/TOML file) swap colours, type roles, chrome accents, and scene
+transitions without forking UI code. Select with `-theme`, `theme` in
+`launcher.json`, or `FOGCAST_THEME`; on the kit, X (West) cycles the three
+packs at runtime.
+The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
 their polls, and applies a JSON remap profile from

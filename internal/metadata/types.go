@@ -36,6 +36,8 @@ type ArtworkRole string
 const (
 	ArtworkCover    ArtworkRole = "cover"
 	ArtworkBackdrop ArtworkRole = "backdrop"
+	ArtworkLogo     ArtworkRole = "logo"
+	ArtworkMarquee  ArtworkRole = "marquee"
 )
 
 type ArtworkRef struct {
@@ -80,6 +82,8 @@ type Presentation struct {
 	Players           string
 	CoverArtworkID    string
 	BackdropArtworkID string
+	LogoArtworkID     string
+	MarqueeArtworkID  string
 }
 
 type Result struct {

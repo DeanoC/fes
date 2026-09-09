@@ -33,6 +33,7 @@ type fileTheme struct {
 	FooterBar         string            `json:"footer_bar" toml:"footer_bar"`
 	CoverFrame        string            `json:"cover_frame" toml:"cover_frame"`
 	CoverFrameWidth   int               `json:"cover_frame_width" toml:"cover_frame_width"`
+	Transition        string            `json:"transition" toml:"transition"`
 	Pad               int               `json:"pad" toml:"pad"`
 	Gap               int               `json:"gap" toml:"gap"`
 	Border            int               `json:"border" toml:"border"`
@@ -41,6 +42,15 @@ type fileTheme struct {
 	HeaderScale       int               `json:"header_scale" toml:"header_scale"`
 	LabelScale        int               `json:"label_scale" toml:"label_scale"`
 	StatusScale       int               `json:"status_scale" toml:"status_scale"`
+	TitleSize         int               `json:"title_px" toml:"title_px"`
+	BodySize          int               `json:"body_px" toml:"body_px"`
+	CaptionSize       int               `json:"caption_px" toml:"caption_px"`
+	StatusSize        int               `json:"status_px" toml:"status_px"`
+	TitleBold         *bool             `json:"title_bold" toml:"title_bold"`
+	HeaderBold        *bool             `json:"header_bold" toml:"header_bold"`
+	BodyBold          *bool             `json:"body_bold" toml:"body_bold"`
+	CaptionBold       *bool             `json:"caption_bold" toml:"caption_bold"`
+	StatusBold        *bool             `json:"status_bold" toml:"status_bold"`
 	Systems           map[string]string `json:"systems" toml:"systems"`
 }
 
@@ -118,8 +128,35 @@ func (raw fileTheme) theme() (Theme, error) {
 		HeaderScale:     raw.HeaderScale,
 		LabelScale:      raw.LabelScale,
 		StatusScale:     raw.StatusScale,
+		TitleSize:       raw.TitleSize,
+		BodySize:        raw.BodySize,
+		CaptionSize:     raw.CaptionSize,
+		StatusSize:      raw.StatusSize,
+	}
+	if raw.TitleBold != nil {
+		t.TitleBold = *raw.TitleBold
+		t.titleBoldSet = true
+	}
+	if raw.HeaderBold != nil {
+		t.HeaderBold = *raw.HeaderBold
+		t.headerBoldSet = true
+	}
+	if raw.BodyBold != nil {
+		t.BodyBold = *raw.BodyBold
+		t.bodyBoldSet = true
+	}
+	if raw.CaptionBold != nil {
+		t.CaptionBold = *raw.CaptionBold
+		t.captionBoldSet = true
+	}
+	if raw.StatusBold != nil {
+		t.StatusBold = *raw.StatusBold
+		t.statusBoldSet = true
 	}
 	var err error
+	if t.Transition, err = parseTransition(raw.Transition); err != nil {
+		return Theme{}, err
+	}
 	if t.Background, err = parseHex(raw.Background); err != nil {
 		return Theme{}, err
 	}
@@ -167,6 +204,19 @@ func (raw fileTheme) theme() (Theme, error) {
 		}
 	}
 	return t, nil
+}
+
+func parseTransition(s string) (string, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch s {
+	case "", "none", "curtain", "wipe", "glitch", "static":
+		if s == "static" {
+			return "glitch", nil
+		}
+		return s, nil
+	default:
+		return "", fmt.Errorf("theme: transition %q must be none, curtain, wipe, or glitch", s)
+	}
 }
 
 func parseHex(s string) (gfx.Color, error) {
