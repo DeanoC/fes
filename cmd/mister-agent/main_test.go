@@ -155,6 +155,9 @@ func (*compositionInput) Detach(context.Context, uint64) error     { return nil 
 func (*compositionInput) OpenStream(context.Context, uint64) (net.Conn, error) {
 	return nil, errors.New("unused")
 }
+func (*compositionInput) BeginCoreReplacement(context.Context) (func(context.Context, bool) error, error) {
+	return func(context.Context, bool) error { return nil }, nil
+}
 func (c *compositionInput) Close() error { c.closed++; return nil }
 
 func (*compositionStore) Probe(context.Context, protocol.System, protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
@@ -408,6 +411,13 @@ func TestNativeRunCreatesGamepadBeforeRuntimeAndClosesItAfterServing(t *testing.
 			order = append(order, "runtime")
 			return &compositionRuntime{}
 		},
+		configureRuntime: func(runtime agent.Runtime, controller httpapi.InputController) error {
+			if runtime == nil || controller != inputController {
+				t.Fatal("native replacement barrier received the wrong composition")
+			}
+			order = append(order, "barrier")
+			return nil
+		},
 		serve: func(*http.Server) error {
 			order = append(order, "serve")
 			if inputController.closed != 0 {
@@ -420,7 +430,7 @@ func TestNativeRunCreatesGamepadBeforeRuntimeAndClosesItAfterServing(t *testing.
 	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(order, ","); got != "cache,input,runtime,serve" {
+	if got := strings.Join(order, ","); got != "cache,input,runtime,barrier,serve" {
 		t.Fatalf("native startup order = %q", got)
 	}
 	if inputController.closed != 1 {
@@ -580,6 +590,13 @@ func TestProductionRuntimeBackendSelectsNativeOnlyWhenExplicit(t *testing.T) {
 	}
 	if !nativeDependencies.inputBeforeInitialize {
 		t.Fatal("native backend did not require gamepad construction before runtime initialization")
+	}
+	if mainDependencies.configureRuntime != nil || nativeDependencies.configureRuntime == nil {
+		t.Fatal("replacement barrier configuration did not remain native-only")
+	}
+	nativeRuntime := nativeDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
+	if err := nativeDependencies.configureRuntime(nativeRuntime, &compositionInput{}); err != nil {
+		t.Fatalf("native replacement barrier composition failed: %v", err)
 	}
 }
 

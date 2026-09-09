@@ -39,7 +39,7 @@ done
 
 grep -Fq 'export E2FSPROGS_FAKE_TIME=$inside_epoch' \
   "$repo/scripts/build-target-image.sh"
-grep -Fq '/bin/rm -rf "$inside_output"' \
+grep -Fq 'cleanup_inside_output "$inside_output"' \
   "$repo/scripts/build-target-image.sh"
 grep -Fq 'image=$(readlink -f "$image")' \
   "$repo/scripts/verify-target-image.sh"

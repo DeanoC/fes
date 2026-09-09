@@ -85,7 +85,10 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	}
 	c.lifecycle.Lock()
 	defer c.lifecycle.Unlock()
+	return c.attachLocked(ctx, spec)
+}
 
+func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -196,6 +199,56 @@ func (c *TargetController) Attach(ctx context.Context, spec Spec) error {
 	c.active = candidate
 	c.mu.Unlock()
 	return nil
+}
+
+// BeginCoreReplacement closes the active producer, waits for its in-flight
+// writes, and neutralizes the retained sink before the runtime may open a new
+// input reader. The returned function must be called exactly once. Passing
+// preserve reconstructs the same logical lease after a proven pre-mutation
+// failure; false permanently retires it.
+func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(context.Context, bool) error, error) {
+	if c == nil || ctx == nil {
+		return nil, errors.New("invalid input replacement barrier")
+	}
+	c.lifecycle.Lock()
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		c.lifecycle.Unlock()
+		return nil, errors.New("input controller is closed")
+	}
+	current := c.active
+	c.active = nil
+	c.mu.Unlock()
+	if err := stopLease(current); err != nil {
+		c.mu.Lock()
+		c.needsRelease = c.persistent != nil
+		c.mu.Unlock()
+		c.lifecycle.Unlock()
+		return nil, err
+	}
+
+	var once sync.Once
+	var finishErr error
+	finish := func(finishCtx context.Context, preserve bool) error {
+		once.Do(func() {
+			defer c.lifecycle.Unlock()
+			if !preserve || current == nil {
+				return
+			}
+			if finishCtx == nil {
+				finishErr = errors.New("invalid input replacement completion")
+				return
+			}
+			finishErr = c.attachLocked(finishCtx, Spec{
+				Session: current.session,
+				Token:   append([]byte(nil), current.token...),
+				Core:    current.core,
+			})
+		})
+		return finishErr
+	}
+	return finish, nil
 }
 
 func (c *TargetController) Detach(ctx context.Context, session uint64) error {

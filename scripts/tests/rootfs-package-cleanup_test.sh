@@ -107,6 +107,67 @@ if "$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh" "$bad" \
 fi
 test "$(cat "$ambient/keep")" = unchanged
 
+assert_ambient_unchanged() {
+  ambient_target=$1
+  expected_modes=$2
+  expected_manifest=$3
+  expected_payload=$4
+  package=$ambient_target/usr/share/mister-runtime/core-packages/$package_id
+  actual_modes=$(stat -c '%a %a %a' \
+    "$ambient_target/usr/share/mister-runtime" \
+    "$ambient_target/usr/share/mister-runtime/core-packages" \
+    "$package")
+  test "$actual_modes" = "$expected_modes"
+  test "$(sha256sum "$package/manifest.toml" | awk '{print $1}')" = \
+    "$expected_manifest"
+  test "$(sha256sum "$package/core.rbf" | awk '{print $1}')" = \
+    "$expected_payload"
+}
+
+# Every retained path component must be a real directory. A stale target or
+# intermediate symlink must never redirect chmod into an ambient tree.
+for redirect in target usr share mister-runtime; do
+  ambient_target=$fixture/ambient-$redirect
+  redirected_output=$fixture/redirected-$redirect
+  make_target "$ambient_target"
+  package=$ambient_target/usr/share/mister-runtime/core-packages/$package_id
+  expected_modes=$(stat -c '%a %a %a' \
+    "$ambient_target/usr/share/mister-runtime" \
+    "$ambient_target/usr/share/mister-runtime/core-packages" \
+    "$package")
+  expected_manifest=$(sha256sum "$package/manifest.toml" | awk '{print $1}')
+  expected_payload=$(sha256sum "$package/core.rbf" | awk '{print $1}')
+  case "$redirect" in
+    target)
+      ln -s "$ambient_target" "$redirected_output"
+      redirected_target=$redirected_output
+      ;;
+    usr)
+      mkdir -p "$redirected_output"
+      ln -s "$ambient_target/usr" "$redirected_output/usr"
+      redirected_target=$redirected_output
+      ;;
+    share)
+      mkdir -p "$redirected_output/usr"
+      ln -s "$ambient_target/usr/share" "$redirected_output/usr/share"
+      redirected_target=$redirected_output
+      ;;
+    mister-runtime)
+      mkdir -p "$redirected_output/usr/share"
+      ln -s "$ambient_target/usr/share/mister-runtime" \
+        "$redirected_output/usr/share/mister-runtime"
+      redirected_target=$redirected_output
+      ;;
+  esac
+  if "$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh" \
+      "$redirected_target" >"$fixture/redirected-$redirect.log" 2>&1; then
+    echo "redirected $redirect cleanup unexpectedly accepted" >&2
+    exit 1
+  fi
+  assert_ambient_unchanged "$ambient_target" "$expected_modes" \
+    "$expected_manifest" "$expected_payload"
+done
+
 emit_exit_only "$bad" 0 "$fixture/fakeroot-bad-success"
 if "$fixture/fakeroot-bad-success" >"$fixture/bad-success.log" 2>&1; then
   echo 'cleanup failure after successful image command was hidden' >&2
@@ -134,3 +195,75 @@ test "$(cat "$ambient/keep")" = unchanged
 
 grep -Fq 'ROOTFS_PRE_CMD_HOOKS += FOGCAST_PACKAGE_ROOTFS_CLEANUP' \
   "$repo/buildroot/external.mk"
+
+# A retained Buildroot output has the same sealed BASE_TARGET_DIR. The next
+# unprivileged cold build must relax that exact package before removing the
+# otherwise-disposable output tree.
+inside_without=$fixture/work-without-native-dev
+make_target "$inside_without/target"
+if rm -rf "$inside_without" >"$fixture/inside-without.log" 2>&1; then
+  echo 'sealed prior Buildroot output unexpectedly allowed plain cleanup' >&2
+  exit 1
+fi
+chmod u+w "$inside_without/target/usr/share/mister-runtime/core-packages/$package_id"
+rm -rf "$inside_without"
+inside_output=$fixture/work-1-native-dev
+make_target "$inside_output/target"
+TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_CLEANUP_TEST_PATH=$inside_output \
+  "$repo/scripts/build-target-image.sh" \
+  --cleanup-inside-output "$inside_output"
+test ! -e "$inside_output"
+
+# The caller rejects an output symlink before it can hand an ambient target to
+# the package cleanup helper.
+ambient_output=$fixture/ambient-output
+make_target "$ambient_output/target"
+ambient_package=$ambient_output/target/usr/share/mister-runtime/core-packages/$package_id
+ambient_modes=$(stat -c '%a %a %a' \
+  "$ambient_output/target/usr/share/mister-runtime" \
+  "$ambient_output/target/usr/share/mister-runtime/core-packages" \
+  "$ambient_package")
+ambient_manifest=$(sha256sum "$ambient_package/manifest.toml" | awk '{print $1}')
+ambient_payload=$(sha256sum "$ambient_package/core.rbf" | awk '{print $1}')
+redirected_output=$fixture/redirected-output
+ln -s "$ambient_output" "$redirected_output"
+if TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_CLEANUP_TEST_PATH=$redirected_output \
+    "$repo/scripts/build-target-image.sh" \
+    --cleanup-inside-output "$redirected_output" \
+    >"$fixture/redirected-output.log" 2>&1; then
+  echo 'symlinked retained output unexpectedly accepted' >&2
+  exit 1
+fi
+test -L "$redirected_output"
+assert_ambient_unchanged "$ambient_output/target" "$ambient_modes" \
+  "$ambient_manifest" "$ambient_payload"
+
+ambient_target=$fixture/ambient-caller-target
+redirected_output=$fixture/redirected-caller-target
+make_target "$ambient_target"
+mkdir "$redirected_output"
+ln -s "$ambient_target" "$redirected_output/target"
+ambient_package=$ambient_target/usr/share/mister-runtime/core-packages/$package_id
+ambient_modes=$(stat -c '%a %a %a' \
+  "$ambient_target/usr/share/mister-runtime" \
+  "$ambient_target/usr/share/mister-runtime/core-packages" \
+  "$ambient_package")
+ambient_manifest=$(sha256sum "$ambient_package/manifest.toml" | awk '{print $1}')
+ambient_payload=$(sha256sum "$ambient_package/core.rbf" | awk '{print $1}')
+if TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_CLEANUP_TEST_PATH=$redirected_output \
+    "$repo/scripts/build-target-image.sh" \
+    --cleanup-inside-output "$redirected_output" \
+    >"$fixture/redirected-caller-target.log" 2>&1; then
+  echo 'symlinked retained target unexpectedly accepted by caller' >&2
+  exit 1
+fi
+test -L "$redirected_output/target"
+assert_ambient_unchanged "$ambient_target" "$ambient_modes" \
+  "$ambient_manifest" "$ambient_payload"
+cleanup_line=$(grep -n 'cleanup_inside_output "$inside_output"' \
+  "$repo/scripts/build-target-image.sh" | head -1 | cut -d: -f1)
+remove_line=$(grep -n '/bin/rm -rf "$cleanup_output"' \
+  "$repo/scripts/build-target-image.sh" | head -1 | cut -d: -f1)
+test -n "$cleanup_line" && test -n "$remove_line"
+grep -Fq '$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh' \
+  "$repo/scripts/build-target-image.sh"

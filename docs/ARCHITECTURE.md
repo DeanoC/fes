@@ -215,9 +215,16 @@ explicit `unsupported_protocol` response and cannot activate custom packages.
 `load_core` carries a rooted staged directory and package ID. The target retains
 active and in-flight `Staged` ownership, reconciles a lost mutation reply by
 observing identity plus a new generation, and retries failed cleanup only at a
-safe lifecycle boundary. Startup adopts every still-valid publication through
-the same opened trusted root, selecting only the package that exactly matches
-the active runtime status.
+safe lifecycle boundary. After staging, the adapter performs a read-only runtime
+inspection and checks the exact package and descriptor before it enters the
+target input replacement barrier. That barrier closes the old producer, waits
+for in-flight sink writes, neutralizes the retained uinput device, and prevents
+new streams or attachments until the mutation and any lost-reply observation
+finish. Success or an ambiguous attempted mutation retires the old lease. A
+proven pre-mutation failure reconstructs the same logical lease; failure to
+pause or reconstruct it is a recovery failure and leaves input gated. Startup
+adopts every still-valid publication through the same opened trusted root,
+selecting only the package that exactly matches the active runtime status.
 
 The authenticated target route `POST /v1/development/core` accepts one bounded
 `application/octet-stream` archive under the normal kit lease and update
@@ -447,7 +454,13 @@ The verifier reconstructs that projection from the installed package and
 external selection; it does not infer selection from cache or image contents.
 The per-filesystem Buildroot copy retains the installed 0555 package directory
 and 0444 member modes through image creation, then an external rootfs hook makes
-only the copied directories removable when the fakeroot command exits.
+only the copied directories removable when the fakeroot command exits. Before
+reusing a retained Buildroot output, the image builder applies that same bounded
+directory-only cleanup to its exact `target` copy. Image verification preserves
+the sealed modes while checking them, then inode-binds its disposable extraction
+root, rejects symlinked or mismatched package entries, makes only extracted
+directories writable, and removes the tree without hiding verification or
+cleanup failures.
 Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF

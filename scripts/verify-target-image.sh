@@ -5,18 +5,91 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 cleanup_manifest_tmp=
 cleanup_library_tmp=
 cleanup_inspect_root=
+cleanup_inspect_parent=
+cleanup_inspect_name=
+cleanup_inspect_device=
+cleanup_inspect_inode=
 cleanup_native_inputs_tmp=
 canonical_native_input_lock=$repo/build/native-runtime.inputs.lock.toml
 native_input_lock=$canonical_native_input_lock
 native_selection_file=$repo/build/cache/target-image/native/megadrive.selection.toml
 
 cleanup() {
-  [ -z "$cleanup_manifest_tmp" ] || /bin/rm -f "$cleanup_manifest_tmp"
-  [ -z "$cleanup_library_tmp" ] || /bin/rm -f "$cleanup_library_tmp"
-  [ -z "$cleanup_inspect_root" ] || /bin/rm -rf "$cleanup_inspect_root"
-  [ -z "$cleanup_native_inputs_tmp" ] || /bin/rm -f "$cleanup_native_inputs_tmp"
+	status=$?
+	trap - EXIT INT TERM
+	cleanup_status=0
+	[ -z "$cleanup_manifest_tmp" ] || /bin/rm -f "$cleanup_manifest_tmp" || cleanup_status=$?
+	[ -z "$cleanup_library_tmp" ] || /bin/rm -f "$cleanup_library_tmp" || cleanup_status=$?
+	[ -z "$cleanup_inspect_root" ] || cleanup_inspection_root \
+		"$cleanup_inspect_root" || cleanup_status=$?
+	[ -z "$cleanup_native_inputs_tmp" ] || /bin/rm -f "$cleanup_native_inputs_tmp" || cleanup_status=$?
+	if [ "$status" -ne 0 ]; then
+		exit "$status"
+	fi
+	exit "$cleanup_status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+register_inspection_root() {
+	registered_root=$1
+	registered_variant=$2
+	registered_parent=$(dirname -- "$registered_root")
+	registered_name=$(basename -- "$registered_root")
+	case "$registered_name" in
+		"inspect-$registered_variant".*|"inspect-$registered_variant"-*) : ;;
+		*) return 1 ;;
+	esac
+	[ -d "$registered_parent" ] && [ ! -L "$registered_parent" ] || return 1
+	[ -d "$registered_root" ] && [ ! -L "$registered_root" ] || return 1
+	[ "$(stat -c %u "$registered_root")" -eq "$(id -u)" ] || return 1
+	cleanup_inspect_root=$registered_root
+	cleanup_inspect_parent=$(CDPATH='' cd -- "$registered_parent" && pwd -P)
+	cleanup_inspect_name=$registered_name
+	cleanup_inspect_device=$(stat -c %d "$registered_root")
+	cleanup_inspect_inode=$(stat -c %i "$registered_root")
+}
+
+inspection_package_id() {
+	inspection_root=$1
+	package_root=$inspection_root/usr/share/mister-runtime/core-packages
+	if [ ! -e "$package_root" ] && [ ! -L "$package_root" ]; then
+		return 0
+	fi
+	[ -d "$package_root" ] && [ ! -L "$package_root" ] || return 1
+	package_entries=$(find -P "$package_root" -mindepth 1 -maxdepth 1 -printf '%f\n')
+	[ "$(printf '%s\n' "$package_entries" | sed '/^$/d' | wc -l)" -le 1 ] || return 1
+	[ -n "$package_entries" ] || return 0
+	printf '%s\n' "$package_entries" | grep -Eq '^[0-9a-f]{64}$' || return 1
+	[ -d "$package_root/$package_entries" ] && [ ! -L "$package_root/$package_entries" ] || return 1
+	printf '%s\n' "$package_entries"
+}
+
+cleanup_inspection_root() {
+	inspect_root=$1
+	[ -n "$cleanup_inspect_parent" ] && [ -n "$cleanup_inspect_name" ] || return 1
+	[ "$inspect_root" = "$cleanup_inspect_parent/$cleanup_inspect_name" ] || return 1
+	[ -d "$cleanup_inspect_parent" ] && [ ! -L "$cleanup_inspect_parent" ] || return 1
+	[ -d "$inspect_root" ] && [ ! -L "$inspect_root" ] || return 1
+	[ "$(stat -c %d "$inspect_root")" = "$cleanup_inspect_device" ] || return 1
+	[ "$(stat -c %i "$inspect_root")" = "$cleanup_inspect_inode" ] || return 1
+	find -P "$inspect_root" -type d -exec /bin/chmod u+rwx {} \; || return 1
+	/bin/rm -rf -- "$inspect_root" || return 1
+	[ ! -e "$inspect_root" ] && [ ! -L "$inspect_root" ]
+}
+
+prepare_inspection_root() {
+	prepared_root=$1
+	prepared_variant=$2
+	if [ -e "$prepared_root" ] || [ -L "$prepared_root" ]; then
+		register_inspection_root "$prepared_root" "$prepared_variant" || return 1
+		cleanup_inspection_root "$prepared_root" || return 1
+		cleanup_inspect_root=
+	fi
+	/bin/mkdir "$prepared_root" || return 1
+	register_inspection_root "$prepared_root" "$prepared_variant"
+}
 
 required_libraries() {
   printf '%s\n' \
@@ -37,7 +110,7 @@ required_libraries() {
 }
 
 usage() {
-  printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT [SELECTION]\n' >&2
+	printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT [SELECTION] | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT [SELECTION]\n' >&2
   exit 2
 }
 
@@ -522,6 +595,21 @@ EOF
 }
 
 case "${1:-}" in
+	--cleanup-fixture)
+		[ "$#" -eq 5 ] || usage
+		test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || usage
+		validate_variant "$2"
+		register_inspection_root "$3" "$2"
+		exit "$5"
+		;;
+	--prepare-cleanup-fixture)
+		[ "$#" -eq 4 ] || usage
+		test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || usage
+		validate_variant "$2"
+		prepare_inspection_root "$3" "$2"
+		cleanup_inspect_root=
+		exit "$4"
+		;;
   --root-fixture)
     [ "$#" -eq 5 ] || [ "$#" -eq 6 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
@@ -570,13 +658,15 @@ case "${1:-}" in
         exit 2
         ;;
     esac
-    /bin/rm -rf "$inspect_root"
-    /bin/mkdir -p "$inspect_root"
-    cleanup_inspect_root=$inspect_root
-    /usr/sbin/debugfs -R "rdump / $inspect_root" "$image" >/dev/null
-    verify_root "$variant" "$inspect_root" "$manifest" "$library_report" "$native_selection_file"
-    /bin/rm -rf "$inspect_root"
-    cleanup_inspect_root=
+		prepare_inspection_root "$inspect_root" "$variant" || {
+			printf '%s\n' 'verify-target-image: inspection path is unsafe or cannot be reset' >&2
+			exit 1
+		}
+		/usr/sbin/debugfs -R "rdump / $inspect_root" "$image" >/dev/null
+		inspection_package_id "$inspect_root" >/dev/null
+		verify_root "$variant" "$inspect_root" "$manifest" "$library_report" "$native_selection_file"
+		cleanup_inspection_root "$inspect_root"
+		cleanup_inspect_root=
     exit
     ;;
   prod|dev|native-dev)

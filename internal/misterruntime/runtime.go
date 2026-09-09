@@ -34,6 +34,7 @@ type Runtime struct {
 	packageMu          sync.Mutex
 	activePackage      *corepackage.Staged
 	retiredPackages    []corepackage.Staged
+	coreBarrier        CoreReplacementBarrier
 }
 
 type RuntimeOption func(*Runtime)
@@ -54,6 +55,22 @@ func WithRebootCommand(path string) RuntimeOption {
 	return func(runtime *Runtime) {
 		runtime.rebootCommand = path
 	}
+}
+
+type CoreReplacementBarrier interface {
+	BeginCoreReplacement(context.Context) (func(context.Context, bool) error, error)
+}
+
+func WithCoreReplacementBarrier(barrier CoreReplacementBarrier) RuntimeOption {
+	return func(runtime *Runtime) {
+		runtime.coreBarrier = barrier
+	}
+}
+
+// ConfigureCoreReplacementBarrier wires the target-owned input lifecycle
+// before the runtime is published to the coordinator.
+func (r *Runtime) ConfigureCoreReplacementBarrier(barrier CoreReplacementBarrier) {
+	r.coreBarrier = barrier
 }
 
 func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration, options ...RuntimeOption) *Runtime {
@@ -84,7 +101,7 @@ type protocol2StatusControl interface {
 }
 
 func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.Context,
-	size int64, content io.Reader) (CoreActivation, bool, *protocol.APIError) {
+	size int64, content io.Reader) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	if r.corePackageRoot == "" {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
@@ -108,17 +125,35 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 	if admission.Err() != nil || observation.Err() != nil || operationOwner.Err() != nil {
 		return CoreActivation{}, false, unavailableError()
 	}
+	inspector, ok := r.control.(interface {
+		InspectCore(context.Context, string, string) (Protocol2Response, error)
+	})
+	if !ok {
+		return CoreActivation{}, false, unsupportedOperationError()
+	}
+	inspection, inspectErr := inspector.InspectCore(admission,
+		staged.Directory, staged.PackageID)
+	if inspectErr != nil {
+		if errors.Is(inspectErr, errProtocol2Unsupported) {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		return CoreActivation{}, false, unavailableError()
+	}
+	if !inspection.OK || inspection.Error != nil {
+		return CoreActivation{}, false, mapProtocol2Error(inspection.Error)
+	}
+	if inspection.InspectedPackage == nil ||
+		inspection.InspectedPackage.PackageID != staged.PackageID ||
+		!reflect.DeepEqual(inspection.InspectedPackage.Descriptor, staged.Descriptor) {
+		return CoreActivation{}, false, unavailableError()
+	}
+	if !inspection.InspectedPackage.Compatible {
+		return CoreActivation{}, false,
+			mapProtocol2Error(inspection.InspectedPackage.CompatibilityError)
+	}
 	var before *Protocol2Response
 	statusControl, hasStatus := r.control.(protocol2StatusControl)
-	var response Protocol2Response
-	var callErr error
-	if client, ok := r.control.(*Client); ok {
-		loaded, prior, err := client.loadCoreWithStatus(operationOwner, staged.Directory, staged.PackageID)
-		response, callErr = loaded, err
-		if !errors.Is(err, errProtocol2Unsupported) && !errors.Is(err, errInvalidRuntimeRequest) {
-			before = &prior
-		}
-	} else if hasStatus {
+	if hasStatus {
 		status, statusErr := statusControl.Protocol2Status(operationOwner)
 		if statusErr != nil {
 			if errors.Is(statusErr, errProtocol2Unsupported) {
@@ -127,13 +162,30 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 			return CoreActivation{}, false, unavailableError()
 		}
 		before = &status
-		response, callErr = control.LoadCore(operationOwner, staged.Directory, staged.PackageID)
-	} else {
-		response, callErr = control.LoadCore(operationOwner, staged.Directory, staged.PackageID)
 	}
-	attempted := callErr == nil || protocol2MutationAttempted(callErr)
+	finishBarrier := func(context.Context, bool) error { return nil }
+	if r.coreBarrier != nil {
+		finish, barrierErr := r.coreBarrier.BeginCoreReplacement(operationOwner)
+		if barrierErr != nil {
+			return CoreActivation{}, true, replacementBarrierError()
+		}
+		finishBarrier = finish
+	}
+	preserveInput := false
+	defer func() {
+		if err := finishBarrier(operationOwner, preserveInput); err != nil {
+			activation = CoreActivation{}
+			attempted = true
+			apiErr = replacementBarrierError()
+		}
+	}()
+
+	response, callErr := control.LoadCore(operationOwner,
+		staged.Directory, staged.PackageID)
+	attempted = callErr == nil || protocol2MutationAttempted(callErr)
 	if callErr != nil {
 		if errors.Is(callErr, errProtocol2Unsupported) {
+			preserveInput = true
 			return CoreActivation{}, false, unsupportedOperationError()
 		}
 		if attempted {
@@ -146,6 +198,7 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 					cleanupStaged = false
 					return observed, true, nil
 				case coreLoadPreserved:
+					preserveInput = true
 					return CoreActivation{}, false, unavailableError()
 				case coreLoadRecovery:
 					apiErr := unavailableError()
@@ -157,12 +210,15 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 			// or a proven-safe Stop boundary; never replay the load.
 			r.retainRetired(staged)
 			cleanupStaged = false
+		} else {
+			preserveInput = true
 		}
 		return CoreActivation{}, attempted, unavailableError()
 	}
 	if !response.OK || response.Error != nil {
 		apiErr := mapProtocol2Error(response.Error)
 		attempted = !protocol2PreMutationFailure(response.Error)
+		preserveInput = !attempted
 		return CoreActivation{}, attempted, apiErr
 	}
 	if response.State != "running_development" || response.Execution != "development" ||
@@ -170,10 +226,15 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 		response.Generation == nil || *response.Generation == 0 {
 		return CoreActivation{}, true, unavailableError()
 	}
-	activation := activationFromProtocol2(staged.PackageID, staged.Descriptor, response)
+	activation = activationFromProtocol2(staged.PackageID, staged.Descriptor, response)
 	r.replaceActivePackage(staged)
 	cleanupStaged = false
 	return activation, true, nil
+}
+
+func replacementBarrierError() *protocol.APIError {
+	return &protocol.APIError{Code: protocol.CodeInternal,
+		Message: "remote input could not be safely transitioned", Phase: "recovery"}
 }
 
 func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor, response Protocol2Response) CoreActivation {

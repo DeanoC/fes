@@ -6,15 +6,25 @@ set -eu
   exit 1
 }
 target=$1
-root=$target/usr/share/mister-runtime/core-packages
-
-if [ ! -e "$root" ] && [ ! -L "$root" ]; then
-  exit 0
-fi
-[ -d "$root" ] && [ ! -L "$root" ] || {
-  printf '%s\n' 'rootfs-package-cleanup: package root must be a non-symlink directory' >&2
+[ -d "$target" ] && [ ! -L "$target" ] || {
+  printf '%s\n' 'rootfs-package-cleanup: target must be a non-symlink directory' >&2
   exit 1
 }
+
+# Check each retained path component before looking below it. Tests such as
+# -d follow symlinks, so the explicit -L rejection must accompany every step.
+path=$target
+for component in usr share mister-runtime core-packages; do
+  path=$path/$component
+  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    exit 0
+  fi
+  [ -d "$path" ] && [ ! -L "$path" ] || {
+    printf '%s\n' 'rootfs-package-cleanup: package path components must be non-symlink directories' >&2
+    exit 1
+  }
+done
+root=$path
 
 build_inputs=$target/usr/share/mister-runtime/build-inputs
 [ -f "$build_inputs" ] && [ ! -L "$build_inputs" ] || {

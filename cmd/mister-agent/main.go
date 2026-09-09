@@ -58,6 +58,7 @@ const (
 type runDependencies struct {
 	openCache             func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime            func(agentconfig.Config, core.Registry) agent.Runtime
+	configureRuntime      func(agent.Runtime, httpapi.InputController) error
 	newInput              func(agentconfig.Config) (httpapi.InputController, error)
 	inputBeforeInitialize bool
 	newCast               func(agentconfig.Config) (httpapi.CastController, error)
@@ -128,6 +129,18 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 	dependencies.newInput = func(cfg agentconfig.Config) (httpapi.InputController, error) {
 		return input.NewNativeTargetControllerWithConfig(cfg.InputListenAddress, cfg.InputUInputPath)
 	}
+	dependencies.configureRuntime = func(runtime agent.Runtime, controller httpapi.InputController) error {
+		nativeRuntime, ok := runtime.(*misterruntime.Runtime)
+		if !ok {
+			return errors.New("native runtime cannot accept the input replacement barrier")
+		}
+		barrier, ok := controller.(misterruntime.CoreReplacementBarrier)
+		if !ok {
+			return errors.New("native input controller cannot fence core replacement")
+		}
+		nativeRuntime.ConfigureCoreReplacementBarrier(barrier)
+		return nil
+	}
 	dependencies.inputBeforeInitialize = true
 	dependencies.newUpdate = loadApplianceUpdate
 	return dependencies, nil
@@ -173,6 +186,11 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		defer inputController.Close()
 	}
 	runtime := dependencies.newRuntime(cfg, registry)
+	if dependencies.configureRuntime != nil {
+		if err := dependencies.configureRuntime(runtime, inputController); err != nil {
+			return errors.New("native input replacement barrier could not be configured")
+		}
+	}
 	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second, agent.WithOperationContext(ctx))
 	content := agent.NewContentController(coordinator, cache)
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -31,9 +32,36 @@ type packageControl struct {
 	status2Err            error
 	status2ErrAfterLoad   error
 	status2Calls          int
+	inspectCompatible     *bool
+	inspectCompatibility  *misterruntime.Protocol2Error
 	blockFirstObservation bool
 	lostReply             bool
 	preserveOnLost        bool
+}
+
+type replacementBarrier struct {
+	beginErr  error
+	finishErr error
+	begins    int
+	preserve  []bool
+}
+
+type unsupportedProtocolError struct{}
+
+func (unsupportedProtocolError) Error() string { return "runtime protocol 2 is unsupported" }
+func (unsupportedProtocolError) Is(target error) bool {
+	return target != nil && target.Error() == "runtime protocol 2 is unsupported"
+}
+
+func (b *replacementBarrier) BeginCoreReplacement(context.Context) (func(context.Context, bool) error, error) {
+	b.begins++
+	if b.beginErr != nil {
+		return nil, b.beginErr
+	}
+	return func(_ context.Context, preserve bool) error {
+		b.preserve = append(b.preserve, preserve)
+		return b.finishErr
+	}, nil
 }
 
 func (*packageControl) Status(context.Context) (misterruntime.Response, error) {
@@ -50,6 +78,24 @@ func (*packageControl) Stop(context.Context) (misterruntime.Response, error) {
 }
 func (c *packageControl) Protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {
 	return c.protocol2Status(ctx)
+}
+
+func (c *packageControl) InspectCore(_ context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
+	inspection, err := corepackageInspection(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
+	compatible := true
+	if c.inspectCompatible != nil {
+		compatible = *c.inspectCompatible
+	}
+	return misterruntime.Protocol2Response{
+		Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
+		InspectedPackage: &misterruntime.Protocol2Inspection{
+			PackageID: packageID, Descriptor: inspection.Descriptor,
+			Compatible: compatible, CompatibilityError: c.inspectCompatibility,
+		},
+	}, nil
 }
 
 func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {
@@ -150,6 +196,97 @@ func TestCorePackageDispatchAndExplicitPreflightClassifications(t *testing.T) {
 	}
 }
 
+func TestCorePackageReplacementBarrierFollowsMutationBoundary(t *testing.T) {
+	archive := canonicalCoreArchive(t)
+	t.Run("success retires", func(t *testing.T) {
+		barrier := &replacementBarrier{}
+		runtime := misterruntime.NewRuntime(&packageControl{}, "", 0, 0,
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
+		t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if apiErr != nil || !attempted || barrier.begins != 1 ||
+			!reflect.DeepEqual(barrier.preserve, []bool{false}) {
+			t.Fatalf("attempted=%t error=%#v barrier=%#v", attempted, apiErr, barrier)
+		}
+	})
+
+	t.Run("save failure restores", func(t *testing.T) {
+		barrier := &replacementBarrier{}
+		control := &packageControl{remoteErr: &misterruntime.Protocol2Error{
+			Code: "save_failed", Message: "disk full", Phase: "save"}}
+		runtime := misterruntime.NewRuntime(control, "", 0, 0,
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if apiErr == nil || attempted || barrier.begins != 1 ||
+			!reflect.DeepEqual(barrier.preserve, []bool{true}) {
+			t.Fatalf("attempted=%t error=%#v barrier=%#v", attempted, apiErr, barrier)
+		}
+	})
+
+	t.Run("unsupported pre-dispatch load restores", func(t *testing.T) {
+		barrier := &replacementBarrier{}
+		control := &packageControl{loadErr: unsupportedProtocolError{}}
+		runtime := misterruntime.NewRuntime(control, "", 0, 0,
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if apiErr == nil || apiErr.Code != "UNSUPPORTED_OPERATION" || attempted ||
+			barrier.begins != 1 || !reflect.DeepEqual(barrier.preserve, []bool{true}) {
+			t.Fatalf("attempted=%t error=%#v barrier=%#v", attempted, apiErr, barrier)
+		}
+	})
+
+	t.Run("invalid archive does not pause", func(t *testing.T) {
+		barrier := &replacementBarrier{}
+		runtime := misterruntime.NewRuntime(&packageControl{}, "", 0, 0,
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), 3, strings.NewReader("bad"))
+		if apiErr == nil || attempted || barrier.begins != 0 {
+			t.Fatalf("attempted=%t error=%#v begins=%d", attempted, apiErr, barrier.begins)
+		}
+	})
+
+	t.Run("incompatible inspection does not pause", func(t *testing.T) {
+		barrier := &replacementBarrier{}
+		compatible := false
+		control := &packageControl{inspectCompatible: &compatible,
+			inspectCompatibility: &misterruntime.Protocol2Error{
+				Code: "unsupported_interface", Message: "missing gamepad", Phase: "compatibility"}}
+		runtime := misterruntime.NewRuntime(control, "", 0, 0,
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if apiErr == nil || attempted || apiErr.Phase != "compatibility" || barrier.begins != 0 || control.loadCalls != 0 {
+			t.Fatalf("attempted=%t error=%#v begins=%d loads=%d", attempted, apiErr, barrier.begins, control.loadCalls)
+		}
+	})
+
+	t.Run("pause or restore failure requires recovery", func(t *testing.T) {
+		for _, test := range []struct {
+			name      string
+			barrier   *replacementBarrier
+			remoteErr *misterruntime.Protocol2Error
+		}{
+			{name: "pause", barrier: &replacementBarrier{beginErr: errors.New("pause failed")}},
+			{name: "restore", barrier: &replacementBarrier{finishErr: errors.New("restore failed")}, remoteErr: &misterruntime.Protocol2Error{Code: "save_failed", Message: "disk full", Phase: "save"}},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				control := &packageControl{remoteErr: test.remoteErr}
+				runtime := misterruntime.NewRuntime(control, "", 0, 0,
+					misterruntime.WithCorePackageRoot(t.TempDir()),
+					misterruntime.WithCoreReplacementBarrier(test.barrier))
+				_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
+				if apiErr == nil || !attempted || apiErr.Phase != "recovery" {
+					t.Fatalf("attempted=%t error=%#v", attempted, apiErr)
+				}
+			})
+		}
+	})
+}
+
 func TestCorePackageFailedRejectedCleanupIsRetainedForStopRetry(t *testing.T) {
 	root := t.TempDir()
 	moved := root + "-moved"
@@ -195,14 +332,16 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	t.Run("confirmed requested package", func(t *testing.T) {
 		control := &packageControl{lostReply: true}
+		barrier := &replacementBarrier{}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond,
-			misterruntime.WithCorePackageRoot(t.TempDir()))
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
 		activation, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
 		if apiErr != nil || !attempted || activation.PackageID == "" || activation.Generation != 1 {
 			t.Fatalf("activation=%#v attempted=%t error=%#v", activation, attempted, apiErr)
 		}
-		if control.loadCalls != 1 {
-			t.Fatalf("load calls=%d", control.loadCalls)
+		if control.loadCalls != 1 || !reflect.DeepEqual(barrier.preserve, []bool{false}) {
+			t.Fatalf("load calls=%d barrier=%#v", control.loadCalls, barrier.preserve)
 		}
 		control.lostReply = false
 		_, _ = runtime.Stop(context.Background())
@@ -210,8 +349,10 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 
 	t.Run("confirmed prior package", func(t *testing.T) {
 		control := &packageControl{}
+		barrier := &replacementBarrier{}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond,
-			misterruntime.WithCorePackageRoot(t.TempDir()))
+			misterruntime.WithCorePackageRoot(t.TempDir()),
+			misterruntime.WithCoreReplacementBarrier(barrier))
 		if _, _, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive)); apiErr != nil {
 			t.Fatal(apiErr)
 		}
@@ -221,6 +362,9 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(replacement)), bytes.NewReader(replacement))
 		if apiErr == nil || attempted || control.loadCalls != 2 {
 			t.Fatalf("attempted=%t calls=%d error=%#v", attempted, control.loadCalls, apiErr)
+		}
+		if !reflect.DeepEqual(barrier.preserve, []bool{false, true}) {
+			t.Fatalf("barrier results=%#v", barrier.preserve)
 		}
 		if _, err := os.Stat(priorPath); err != nil {
 			t.Fatalf("prior package lost: %v", err)

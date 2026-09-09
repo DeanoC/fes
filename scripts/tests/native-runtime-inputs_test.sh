@@ -737,7 +737,7 @@ fi
 grep -Fq 'sh scripts/tests/native-runtime-inputs_test.sh' "$repo/Makefile"
 
 real_lock=$repo/build/native-runtime.inputs.lock.toml
-grep -Fqx "commit = 'bdf56abd16afcc29bdca45cdafafeb5b0b56a3c8'" "$real_lock"
+grep -Fqx "commit = '475b060bfb8a7c5c5f7340895623ab382c9933fb'" "$real_lock"
 grep -Fqx "sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'" "$real_lock"
 grep -Fqx 'size = 2452588' "$real_lock"
 grep -Fqx '[megadrive_rbf]' "$real_lock"
