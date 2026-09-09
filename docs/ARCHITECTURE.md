@@ -609,18 +609,28 @@ strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
 Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
 Select cycle platforms; A/South enters the filtered browse view for that system
-(default 4×3 grid). East/B on browse returns to the wheel. Y (North) on browse
+(default 4×3 grid). East/B on browse returns to the wheel and closes search. Start opens catalog search on the current
+shelf (from the wheel it enters that system's browse first) with the existing
+gamepad OSK; Y (North) on browse
 cycles Grid → Coverflow → Wall → Split → Grid; it is ignored on the wheel, title pane,
-and attract (any pad input still dismisses attract). That Y chord is the
+attract, and search OSK (any pad input still dismisses attract). That Y chord is the
 layout switch; X (West) still cycles theme
 packs Classic → Neon → Sofa Dim → Classic on the wheel, browse, strip, and
-title pane; attract still dismisses on X like any pad input. The last pack is
+title pane; attract still dismisses on X like any pad input, and X is ignored
+while the search OSK is open. Search filters the loaded shelf by a case-insensitive
+title substring (clear-logo wordmark / system id when the title is empty). An empty
+query restores the shelf; no matches hide tiles (including the recent strip) and paint `No matches`.
+A committed query keeps the recent strip hidden so Down stays on the filtered shelf.
+After Done or Start commits the OSK, D-pad and A/B match browse on the filtered results.
+Closing search restores the prior focus when that title is still visible. Select
+still cycles shelves; Select+Start still stops. The last pack is
 stored in `launcher.json` `theme` so a kit restart (and a host reconnect of
 the same process) keeps it. Coverflow is a scaled
 focus row of five titles; wall is a denser 6×3 mosaic; split is a vertical
 clear-logo (or title) list with a focused cover and short meta. In browse, shoulder L/R and Select
 still cycle shelves as a secondary filter; the themed header shows
-`FOGCAST  MEGADRIVE 12/40`, plus `FLOW`, `WALL`, or `SPLIT` when that layout is active,
+`FOGCAST  MEGADRIVE 12/40`, plus `SEARCH` when a query is filtering the shelf,
+`FLOW`, `WALL`, or `SPLIT` when that layout is active,
 and `NEON` or `DIM` when that pack is active. Classic stays untagged. The hero paints an attract still, presentation
 `backdrop_artwork_id`, or representative cover when a handle exists, otherwise
 a theme-tinted placeholder, with game-count chrome plus a play-count and
@@ -669,11 +679,11 @@ A/South still launches from browse. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
 Meaningful scene cuts (detail open/close, attract show/hide, wheel
-enter/leave, Y layout, X pack) paint a short CGO-free overlay from the
+enter/leave, Y layout, X pack, search OSK open/close) paint a short CGO-free overlay from the
 theme `transition` token through `host/tenfoot/anim`: Classic a curtain,
 Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
 400ms and do not block pad input. `transition` `none`, `-no-transition`,
-or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
+or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane or search OSK is open. Catalog cells paint decoded box-art from
 `GET /api/v1/presentation/artwork/{handle}` when a catalog `Game.Cover` or a
 presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
 Clear Logo, or a `library_media` RoleLogo overlay that wins when present)

@@ -2,10 +2,11 @@ package kitlauncher
 
 import "github.com/DeanoC/FogCast/host/tenfoot/theme"
 
-// CyclePack advances the living-room look. X is ignored during attract so
-// it cannot steal dismiss; wheel, browse, strip, and the title pane cycle.
+// CyclePack advances the living-room look. X is ignored during attract and
+// the search OSK so it cannot steal dismiss or search; wheel, browse, strip,
+// and the title pane cycle.
 func (m *Model) CyclePack() {
-	if m == nil || m.AttractActive {
+	if m == nil || m.AttractActive || m.SearchOpen {
 		return
 	}
 	m.Pack = theme.NextPack(m.Pack)

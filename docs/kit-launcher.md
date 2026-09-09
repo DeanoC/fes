@@ -92,7 +92,19 @@ the usual 100ms same-key skip.
 Browse starts on a platform wheel: a horizontal clear-logo / wordmark strip
 and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
 cycle platforms; A/South enters the filtered catalog browse (default 4×3 grid).
-East/B on browse returns to the wheel. Y (North) is the layout switch chord
+East/B on browse returns to the wheel and closes search. Start is the search
+chord on browse (and from the wheel or title pane): it opens the existing
+gamepad OSK from `host/tenfoot` and filters the current shelf by a
+case-insensitive substring of the title, or of the clear-logo wordmark fallback
+(system id) when the title is empty. D-pad moves keys while the OSK is open; A
+types; L/R page letters and symbols; B clears a non-empty query or closes; Start
+or Done commits and leaves the filter on the shelf. An empty query restores the
+full shelf; no matches hide tiles (including the recent strip) and paint `No
+matches`. A committed query keeps the recent strip hidden so Down stays on the
+filtered shelf. After the OSK closes, D-pad and A/B match browse on the filtered
+results; closing search restores the prior focus when that title is still
+visible. Y, X, and Select are ignored while the OSK is open so they
+cannot steal layout, pack, or shelf. Y (North) is the layout switch chord
 on browse: Grid → Coverflow → Wall → Split → Grid. Coverflow is a scaled focus row of five titles
 with the focused cover largest and its name (or ready clear logo) at the title
 role; wall is a denser 6×3 mosaic with caption labels; split is a vertical
@@ -144,14 +156,17 @@ the slot `preview` (or `preview N / M`). That path does not decode H.264 on
 the CGO-free ARMv7 binary; full clip playback is a follow-up. Titles without
 a video handle keep today's still carousel. Attract does not arm while the pane is open; opening it notes
 activity so idle does not fire underneath. Meaningful scene cuts (detail
-open/close, attract show/hide, wheel enter/leave, Y layout, X pack) paint a
+open/close, attract show/hide, wheel enter/leave, Y layout, X pack, search
+OSK open/close) paint a
 short overlay from the active theme `transition` token: Classic **curtain**,
-Neon **glitch**, Sofa Dim **wipe**. Durations stay under 400ms and do not
+Neon **glitch**, Sofa Dim **wipe**. Attract does not arm while the search OSK
+is open. Durations stay under 400ms and do not
 block pad input. `transition` `none`, `-no-transition`, or
 `FOGCAST_NO_TRANSITION=1` skips the overlay. Missing cover art uses the same
 placeholder path as the grid. The wheel footer hint is
 `A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
-`classic`); the browse footer after entering from the wheel is
+`classic`); the search OSK footer is
+`A type | B clear | L/R abc | START done`; the browse footer after entering from the wheel is
 `A play | B platforms | L/R | Y flow` (Y names the next layout: `flow`, `wall`,
 `split`, or `grid`); a browse view that never used the wheel (selftests)
 keeps `A play | B detail | L/R | Y flow`; the strip footer is
@@ -233,7 +248,11 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-marquee` paints a banner
+framebuffer devices. On the kit, `fogcast-kit -selftest-search` opens Start search,
+types through the gamepad OSK, filters the current shelf, paints an honest empty
+miss, restores prior focus, keeps Y/X/Select, and re-runs transition (which re-runs
+packs, layouts, atmosphere, strip, wheel, motion, detail, attract, cover, text, nav,
+and shelf). On the kit, `fogcast-kit -selftest-marquee` paints a banner
 strip on attract beside a still and a motion preview, hides the strip when the
 handle is absent or is the only still, paints the same strip on the title pane
 without crushing cover, meta, badges, or VIDEO preview, keeps Y/X/A, and

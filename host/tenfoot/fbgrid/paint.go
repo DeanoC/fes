@@ -2,6 +2,7 @@ package fbgrid
 
 import (
 	"image"
+	"strings"
 	"unicode"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
@@ -47,6 +48,7 @@ func Paint(d gfx.Device, g Grid) {
 	paintCoverflowTitle(d, g, th)
 	paintSplitHero(d, g, th)
 	paintStrip(d, g, th)
+	paintEmptyLabel(d, g, th)
 	status := g.Footer
 	if status == "" {
 		status = g.Status()
@@ -476,6 +478,39 @@ func paintStripTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 
 // chromeTextY vertically centers a textH-pixel label in a chrome bar. When the
 // glyph is taller than the bar, it overflows away from the tile row.
+func paintEmptyLabel(d gfx.Device, g Grid, th theme.Theme) {
+	if d == nil || len(g.Tiles) > 0 {
+		return
+	}
+	label := strings.TrimSpace(g.EmptyLabel)
+	if label == "" {
+		return
+	}
+	size := th.TitlePx()
+	weight := th.TitleWeight()
+	maxW := g.Width - 24
+	if maxW < 8 {
+		maxW = 8
+	}
+	label = gfx.FitTextWeight(label, size, maxW, weight)
+	textH := gfx.TextHeightWeight(size, weight)
+	x := (g.Width - gfx.MeasureTextWeight(label, size, weight)) / 2
+	if x < 8 {
+		x = 8
+	}
+	stageTop := g.HeaderH
+	stageH := g.Height - g.HeaderH - g.FooterH
+	if stageH < 1 {
+		stageH = g.Height
+		stageTop = 0
+	}
+	y := stageTop + (stageH-textH)/3
+	if y < stageTop {
+		y = stageTop
+	}
+	d.DrawTextWeight(x, y, label, size, weight, th.Header)
+}
+
 func chromeTextY(barTop, barH, textH int, overflowUp bool) int {
 	if textH < 1 {
 		textH = 1

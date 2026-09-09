@@ -684,6 +684,282 @@ func runTransitionSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runSearchSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseSearchGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func oskType(m *kitlauncher.Model, text string) {
+	for _, r := range text {
+		id := "char-" + string(r)
+		if r == ' ' {
+			id = "space"
+		}
+		if !m.FocusSearchKey(id) {
+			continue
+		}
+		press(m, "a")
+	}
+}
+
+func exerciseSearchGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedCatalog())
+	m.Focus = 1
+	if m.Games[m.Focus].ID != "sonic" {
+		return b.String(), fmt.Errorf("origin focus %q", m.Games[m.Focus].ID)
+	}
+	restore := m.Games[m.Focus].ID
+	g := paintModel(d, m, th)
+	if strings.Contains(g.Header, "SEARCH") {
+		return b.String(), fmt.Errorf("browse header tagged search %q", g.Header)
+	}
+	if g.EmptyLabel != "" {
+		return b.String(), fmt.Errorf("browse empty label %q", g.EmptyLabel)
+	}
+
+	press(&m, "start")
+	if !m.SearchOpen {
+		return b.String(), fmt.Errorf("start did not open search")
+	}
+	if m.Browse != fbgrid.BrowseGrid {
+		return b.String(), fmt.Errorf("start stole layout %s", m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if !strings.Contains(g.Header, "SEARCH") {
+		return b.String(), fmt.Errorf("search header %q", g.Header)
+	}
+	if g.Footer != tenfoot.OSKKitHint(0) {
+		return b.String(), fmt.Errorf("osk footer %q", g.Footer)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	fbgrid.PaintOSK(rec, modelOSKFrame(m, cfg.Width, cfg.Height, kitLook(m, th), g))
+	var sawSearch, sawQ, sawDone bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if strings.Contains(c.Text, "Search:") {
+			sawSearch = true
+		}
+		if c.Text == "Q" {
+			sawQ = true
+		}
+		if strings.EqualFold(c.Text, "done") {
+			sawDone = true
+		}
+	}
+	if !sawSearch || !sawQ || !sawDone {
+		return b.String(), fmt.Errorf("osk chrome search=%v q=%v done=%v ops=%v", sawSearch, sawQ, sawDone, rec.Ops())
+	}
+	fmt.Fprintf(&b, "open header=%q footer=%q osk=1\n", g.Header, g.Footer)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseGrid || !m.SearchOpen {
+		return b.String(), fmt.Errorf("y stole layout browse=%s open=%v", m.Browse, m.SearchOpen)
+	}
+	press(&m, "x")
+	if m.Pack != "" || !m.SearchOpen {
+		return b.String(), fmt.Errorf("x stole pack %q", m.Pack)
+	}
+	press(&m, "select")
+	if m.Shelf != kitlauncher.ShelfAll || !m.SearchOpen {
+		return b.String(), fmt.Errorf("select stole shelf %q", m.Shelf)
+	}
+
+	oskType(&m, "sonic")
+	if fold := strings.ToLower(m.SearchQuery); fold != "sonic" {
+		return b.String(), fmt.Errorf("query %q", m.SearchQuery)
+	}
+	if len(m.Games) != 1 || m.Games[0].ID != "sonic" {
+		return b.String(), fmt.Errorf("filter games=%v", idsOf(m.Games))
+	}
+	g = paintModel(d, m, th)
+	if !strings.Contains(g.Header, "1/6") || !strings.Contains(g.Header, "SEARCH") {
+		return b.String(), fmt.Errorf("filtered header %q", g.Header)
+	}
+	fmt.Fprintf(&b, "filter query=%q n=%d header=%q\n", m.SearchQuery, len(m.Games), g.Header)
+
+	if !m.FocusSearchKey("done") {
+		return b.String(), fmt.Errorf("focus done")
+	}
+	press(&m, "a")
+	if m.SearchOpen {
+		return b.String(), fmt.Errorf("done left osk open")
+	}
+	if m.SearchQuery != "sonic" || len(m.Games) != 1 {
+		return b.String(), fmt.Errorf("done dropped filter q=%q n=%d", m.SearchQuery, len(m.Games))
+	}
+	press(&m, "dpad-right")
+	if m.Focus != 0 {
+		return b.String(), fmt.Errorf("filtered dpad wrap %d", m.Focus)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("filtered A %q", action)
+	}
+	press(&m, "b")
+	if !m.DetailOpen {
+		return b.String(), fmt.Errorf("filtered B did not open detail")
+	}
+	press(&m, "b")
+	if m.DetailOpen {
+		return b.String(), fmt.Errorf("detail B did not close")
+	}
+	fmt.Fprintf(&b, "nav-filtered n=%d launch=1 detail=1\n", len(m.Games))
+
+	press(&m, "start")
+	if !m.SearchOpen {
+		return b.String(), fmt.Errorf("start did not reopen osk")
+	}
+	press(&m, "b")
+	if strings.TrimSpace(m.SearchQuery) != "" || !m.SearchOpen {
+		return b.String(), fmt.Errorf("clear q=%q open=%v", m.SearchQuery, m.SearchOpen)
+	}
+	if len(m.Games) != 6 {
+		return b.String(), fmt.Errorf("empty query n=%d", len(m.Games))
+	}
+	press(&m, "b")
+	if m.SearchOpen || m.SearchQuery != "" {
+		return b.String(), fmt.Errorf("exit open=%v q=%q", m.SearchOpen, m.SearchQuery)
+	}
+	if m.Games[m.Focus].ID != restore {
+		return b.String(), fmt.Errorf("restore focus %q want %q", m.Games[m.Focus].ID, restore)
+	}
+	fmt.Fprintf(&b, "restore id=%q n=%d\n", m.Games[m.Focus].ID, len(m.Games))
+
+	press(&m, "start")
+	oskType(&m, "zzzz")
+	if len(m.Games) != 0 {
+		return b.String(), fmt.Errorf("miss n=%d", len(m.Games))
+	}
+	g = paintModel(d, m, th)
+	if g.EmptyLabel != "No matches" || len(g.Tiles) != 0 {
+		return b.String(), fmt.Errorf("empty label=%q tiles=%d", g.EmptyLabel, len(g.Tiles))
+	}
+	emptyRec := gfx.NewRecorder()
+	fbgrid.Paint(emptyRec, g)
+	var sawMiss bool
+	for _, c := range emptyRec.Calls {
+		if c.Op == "DrawText" && c.Text == "No matches" {
+			sawMiss = true
+		}
+	}
+	if !sawMiss {
+		return b.String(), fmt.Errorf("empty state not painted ops=%v", emptyRec.Ops())
+	}
+	fmt.Fprintf(&b, "empty-miss label=%q tiles=%d\n", g.EmptyLabel, len(g.Tiles))
+	press(&m, "b")
+	press(&m, "b")
+
+	stripM := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	stripM.SetCatalog(mixedCatalog())
+	stripM.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	press(&stripM, "start")
+	oskType(&stripM, "zzzz")
+	if !stripM.FocusSearchKey("done") {
+		return b.String(), fmt.Errorf("strip-hide done")
+	}
+	press(&stripM, "a")
+	g = paintModel(d, stripM, th)
+	if g.EmptyLabel != "No matches" || len(g.Tiles) != 0 || len(g.Strip) != 0 {
+		return b.String(), fmt.Errorf("strip-hide label=%q tiles=%d strip=%d", g.EmptyLabel, len(g.Tiles), len(g.Strip))
+	}
+	fmt.Fprintf(&b, "strip-hide label=%q tiles=%d strip=%d\n", g.EmptyLabel, len(g.Tiles), len(g.Strip))
+
+	untitled := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	untitled.SetCatalog([]tenfoot.Game{
+		{ID: "logo-md", Title: "", System: "megadrive", Launchable: true},
+		{ID: "named", Title: "Streets", System: "megadrive", Launchable: true},
+	})
+	press(&untitled, "start")
+	oskType(&untitled, "megadrive")
+	if len(untitled.Games) != 1 || untitled.Games[0].ID != "logo-md" {
+		return b.String(), fmt.Errorf("logo fallback games=%v", idsOf(untitled.Games))
+	}
+	fmt.Fprintf(&b, "logo-fallback n=%d id=%q\n", len(untitled.Games), untitled.Games[0].ID)
+
+	wheel := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, WheelOpen: true}
+	wheel.SetCatalog(mixedCatalog())
+	press(&wheel, "r")
+	press(&wheel, "r")
+	if wheel.Shelf != "megadrive" || !wheel.WheelOpen {
+		return b.String(), fmt.Errorf("wheel shelf %q open=%v", wheel.Shelf, wheel.WheelOpen)
+	}
+	press(&wheel, "start")
+	if wheel.WheelOpen || !wheel.SearchOpen || wheel.Shelf != "megadrive" {
+		return b.String(), fmt.Errorf("wheel start open=%v search=%v shelf=%q", wheel.WheelOpen, wheel.SearchOpen, wheel.Shelf)
+	}
+	oskType(&wheel, "sonic")
+	if !wheel.FocusSearchKey("done") {
+		return b.String(), fmt.Errorf("wheel done")
+	}
+	press(&wheel, "a")
+	press(&wheel, "b")
+	if !wheel.WheelOpen || strings.TrimSpace(wheel.SearchQuery) != "" || wheel.SearchTag() != "" {
+		return b.String(), fmt.Errorf("wheel back search q=%q tag=%q wheel=%v", wheel.SearchQuery, wheel.SearchTag(), wheel.WheelOpen)
+	}
+	if wheel.WheelStats() != "3 games" {
+		return b.String(), fmt.Errorf("wheel back stats %q", wheel.WheelStats())
+	}
+	press(&wheel, "r")
+	press(&wheel, "a")
+	if wheel.WheelOpen || wheel.Shelf != "snes" || len(wheel.Games) != 2 || wheel.SearchTag() != "" {
+		return b.String(), fmt.Errorf("snes after search wheel=%v shelf=%q n=%d tag=%q", wheel.WheelOpen, wheel.Shelf, len(wheel.Games), wheel.SearchTag())
+	}
+	fmt.Fprintf(&b, "wheel-start shelf=megadrive search=1 wheel-back=1 snes n=%d\n", len(wheel.Games))
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y after search browse=%s", m.Browse)
+	}
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x after search pack=%s", m.Pack)
+	}
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("A after search %q", action)
+	}
+	fmt.Fprintf(&b, "nav-still y=%s x=%s launch=1\n", m.Browse, m.Pack)
+
+	nested, err := exerciseTransitionGrid(d, th)
+	b.WriteString(nested)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-search PASS open=1 filter=1 empty=1 restore=1 logo=1 nested-transition=1\n")
+	return b.String(), nil
+}
+
+func idsOf(games []tenfoot.Game) []string {
+	out := make([]string, len(games))
+	for i, game := range games {
+		out[i] = game.ID
+	}
+	return out
+}
+
+func mixedCatalog() []tenfoot.Game {
+	return []tenfoot.Game{
+		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
+		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
+		{ID: "streets", Title: "Streets", System: "megadrive", Launchable: true},
+		{ID: "blocked-md", Title: "Blocked", System: "megadrive", Launchable: false},
+		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+		{ID: "zelda", Title: "Zelda", System: "snes", Launchable: true},
+	}
+}
+
 func exerciseTransitionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	cfg := d.Config()
@@ -1877,8 +2153,12 @@ func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 func paintModel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.Grid {
 	cfg := d.Config()
-	g := modelGrid(m, cfg.Width, cfg.Height, nil, nil, kitLook(m, th))
+	look := kitLook(m, th)
+	g := modelGrid(m, cfg.Width, cfg.Height, nil, nil, look)
 	fbgrid.Paint(d, g)
+	if m.SearchOpen {
+		fbgrid.PaintOSK(d, modelOSKFrame(m, cfg.Width, cfg.Height, look, g))
+	}
 	d.Present()
 	return g
 }

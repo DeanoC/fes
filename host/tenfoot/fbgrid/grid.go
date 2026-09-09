@@ -128,6 +128,9 @@ type Grid struct {
 	Atmosphere *image.RGBA
 	// Kind selects the catalog presentation. Zero is the 4×3 box grid.
 	Kind BrowseKind
+	// EmptyLabel is optional stage copy when Tiles is empty (search misses).
+	// Ordinary empty catalogs leave this blank and keep chrome only.
+	EmptyLabel string
 }
 
 // New lays out FakeTiles for a w×h framebuffer.

@@ -61,6 +61,9 @@ func (m *Model) showWheel(now time.Time) {
 	}
 	m.closeDetail()
 	m.leaveStrip()
+	if m.SearchTag() != "" {
+		m.exitSearch(now)
+	}
 	m.WheelOpen = true
 	m.fromWheel = false
 	m.noteActivity(now)
@@ -259,6 +262,9 @@ func (m Model) WheelHint() string {
 
 // GridHint is the idle footer on the filtered game grid.
 func (m Model) GridHint() string {
+	if m.SearchOpen {
+		return tenfoot.OSKKitHint(m.searchField.Snapshot().Page)
+	}
 	if m.StripActive {
 		return m.stripHint()
 	}
