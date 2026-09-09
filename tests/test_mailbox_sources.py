@@ -181,6 +181,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "600_m10k_tdp_mix8_16",
             "610_pll_frac_7425",
             "620_ddr_clock",
+            "630_sdr_output",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

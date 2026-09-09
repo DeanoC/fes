@@ -154,9 +154,19 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`eefa26d3`.
+`2c9f9c5`.
 
-The current nextpnr pin `eefa26d3ec3151630ccd556824fd8ebfa9df4976` merges
+The current nextpnr pin `2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6` is
+merged PR #42 (`8c0c8e7db1a9b0ba101ae9fb26a38a450209e091` onto
+`eefa26d3ec3151630ccd556824fd8ebfa9df4976`). It adds
+dedicated Cyclone V SDR output registers: `FAST_OUTPUT_REGISTER ON` absorbs
+a directly connected `MISTRAL_FF` into the constrained `MISTRAL_OB` as
+`MISTRAL_SDROUT`. The supported flop has constant `ENA=1`, inactive `ACLR=1`,
+`SCLR=0`, `SLOAD=0`, one Q consumer and a non-inverted clock; unsupported
+controls, inverted clocks, fanout and parameters fail closed.
+`FAST_OUTPUT_REGISTER OFF` keeps the fabric flop. There is no characterized
+GPIO-register setup/hold or clock-to-pad model, so the packed data pin is an
+unclocked timing endpoint. The DDR/Pong baseline `eefa26d3` merges
 dedicated DDR clock forwarding from merged PR #40 with the four existing HPS
 peripheral I2C sites, HDMI routing checks, and a GPIO input-buffer fix that
 preserves external input on bidirectional pads. Width-one `altddio_out` with
@@ -1024,6 +1034,29 @@ paired fabric beats for ten samples. Load JSON timed out; GPI and probe
 still passed. `stop` completed development reboot recovery and left the
 lease free. This does not measure the forwarded pin waveform.
 
+`630_sdr_output` registers `beat[7]` through a dedicated flop onto PIN_W15
+with `FAST_OUTPUT_REGISTER ON`. GPI signature `0x5D01` identifies the fabric
+beat protocol. Simulation uses the Verilog flop; it does not model analog
+GPIO-register delay. nextpnr absorbs that flop into `MISTRAL_SDROUT` on the
+existing GPIO BEL. The packed pin is an unclocked timing endpoint. The kit
+probe observes fabric counters, not the pin waveform. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/630_sdr_output/expected.md`.
+
+The OSS `630_sdr_output` artifact has SHA-256
+`cf5d712159ccc237b8c19f35530d5241bc2cdcb20d8433596bf3dc198ad78ce4`
+and size 1,953,438 bytes. nextpnr packed the dedicated output flop into
+`MISTRAL_SDROUT` on `MISTRAL_IO.89.8.1` (PIN_W15). Its reported Fmax is
+329.489 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `2c9f9c5`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on
+2026-09-09 returned GPI signature `0x5D01` with changing paired fabric
+beats for ten samples. Load JSON timed out; GPI and probe still passed.
+`stop` completed development reboot recovery and left the lease free.
+This does not measure the registered pin waveform and is not
+external-interface timing closure.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1033,8 +1066,9 @@ contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
 independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
-50→74.25 MHz fractional-N PLL profile, and dedicated 50 MHz DDR clock
-forwarding (fabric GPI only). It does not establish native game acceptance.
+50→74.25 MHz fractional-N PLL profile, dedicated 50 MHz DDR clock
+forwarding (fabric GPI only), and dedicated SDR output registers (fabric
+GPI only; GPIO-register timing uncharacterized). It does not establish native game acceptance.
 
 ## Standalone Pong game
 
