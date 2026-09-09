@@ -10,9 +10,9 @@ from scripts import lockfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
-    "yosys": "10891a9e0256a0eac70c329aa64c633902fc6bc6",
+    "yosys": "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "ef294430c57b1d64c52f15129adcc6236ecbce01",
+    "nextpnr": "69556b7e58eae3dda9b38df438267481c951863d",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -110,7 +110,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "ef294430c57b1d64c52f15129adcc6236ecbce01\n")
+        self.assertEqual(result.stdout, "69556b7e58eae3dda9b38df438267481c951863d\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

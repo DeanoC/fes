@@ -145,18 +145,20 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `10891a9e0256a0eac70c329aa64c633902fc6bc6` is
-`mistral-stable` including merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
+The current Yosys pin `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8` adds
+the HPS peripheral I2C primitive on `10891a9e0256a0eac70c329aa64c633902fc6bc6`.
+That baseline includes merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
 true dual-port RAM through `ram_style="m10k_tdp_mixed"` as `MISTRAL_M10K_TDP`
 with `CFG_MIXED_WIDTH=1` (physical 20/10 and 10/20, padded 16/8 and 8/16),
 including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`ef29443`.
+`69556b7`.
 
-The current nextpnr pin `ef294430c57b1d64c52f15129adcc6236ecbce01` is
-`mistral-stable` including merged PR #39: a single 50→74.25 MHz fractional-N
+The current nextpnr pin `69556b7e58eae3dda9b38df438267481c951863d` adds
+the four existing HPS peripheral I2C sites and HDMI routing checks on
+`ef294430c57b1d64c52f15129adcc6236ecbce01`. That baseline includes merged PR #39: a single 50→74.25 MHz fractional-N
 output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
 M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer
 mode still rejects 74.25 MHz. That sits on merged PR #38 mixed-width true dual-port M10K packing
