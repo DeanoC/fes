@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "10891a9e0256a0eac70c329aa64c633902fc6bc6"
+commit = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
 order = 10
-rationale = "DeanoC mistral-stable including merged PR #7: Intel ALM infers mixed-width Cyclone V M10K true dual-port RAM through ram_style=\"m10k_tdp_mixed\" as MISTRAL_M10K_TDP with CFG_MIXED_WIDTH=1 (physical 20/10 and 10/20, padded 16/8 and 8/16, CFG_RD_ABITS/CFG_RD_DBITS for port B). Keeps merged PRs #1-#6 (MLAB INIT, dual-clock M10K, SDP byte enables, mixed-width SDP, unmasked TDP, TDP byte enables). Base is CMake pin f1beec77 on YosysHQ 13b43f8c; 10891a9e merges 9a89681. Pair with nextpnr ef29443 (merged PR #39); old Yosys maps mixed TDP as equal-width or SDP."
+rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 5e31bf41 for the FES Pong HDMI I2C route; fixed reviewed local commit pending publication."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "ef294430c57b1d64c52f15129adcc6236ecbce01"
+commit = "5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0"
 order = 30
-rationale = "DeanoC mistral-stable including merged PR #39: Cyclone V 50→74.25 MHz single-output fractional-N (fractional_vco_multiplier=true, direct, 0 phase, 50% duty, M=8 N=1 C6=6, K=0xe8f5c239) on merged PR #38 mixed-width TDP M10K (CFG_MIXED_WIDTH=1, per-port 1024x10 or 512x20, CFG_RD_ABITS/CFG_RD_DBITS, width-specific ENABLE/WREN and Quartus 17.0.2 TOP/BOT selectors) on merged PR #37 TDP byte enables. Base 5c12b204 is merged PRs #21-#38 for 5CSEBA6U23I7; ef29443 merges 28a5a52. Requires Mistral b28e30a and Yosys 10891a9e (merged PR #7); old nextpnr rejects 74.25 MHz. Mixed-TDP experiments use default router2. Integer mode still rejects 74.25 MHz."
+rationale = "Adds four existing Cyclone V HPS peripheral I2C sites, exact HDMI low-or-release routing tests, bidirectional GPIO input-buffer preservation, and physical routing of explicit flip-flop constant data on ef294430c57b1d64c52f15129adcc6236ecbce01. Preserves the base's 50-to-74.25 MHz fractional PLL and mixed-width TDP support. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; fixed reviewed local commit pending publication."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

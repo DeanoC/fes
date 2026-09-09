@@ -145,18 +145,25 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `10891a9e0256a0eac70c329aa64c633902fc6bc6` is
-`mistral-stable` including merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
+The current Yosys pin `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8` adds
+the HPS peripheral I2C primitive on `10891a9e0256a0eac70c329aa64c633902fc6bc6`.
+That baseline includes merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
 true dual-port RAM through `ram_style="m10k_tdp_mixed"` as `MISTRAL_M10K_TDP`
 with `CFG_MIXED_WIDTH=1` (physical 20/10 and 10/20, padded 16/8 and 8/16),
 including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`ef29443`.
+`5e31bf41`.
 
-The current nextpnr pin `ef294430c57b1d64c52f15129adcc6236ecbce01` is
-`mistral-stable` including merged PR #39: a single 50→74.25 MHz fractional-N
+The current nextpnr pin `5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0` adds
+the four existing HPS peripheral I2C sites, HDMI routing checks, and a GPIO
+input-buffer fix that preserves external input on bidirectional pads. It also
+routes explicit constant-zero and constant-one `MISTRAL_FF.DATAIN` values
+through real fabric sources: Cyclone V flip-flops have no hard constant data
+selector, so folding a zero away could otherwise select unrelated co-packed
+logic after reset. It builds on
+`ef294430c57b1d64c52f15129adcc6236ecbce01`. That baseline includes merged PR #39: a single 50→74.25 MHz fractional-N
 output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
 M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer
 mode still rejects 74.25 MHz. That sits on merged PR #38 mixed-width true dual-port M10K packing
@@ -1041,6 +1048,115 @@ every three cycles of a 20 MHz clock (approximately 60.01 Hz). That module
 supplies coordinates, syncs, active-video indication and one frame tick. Neither
 module includes the board/HPS wrapper. Simulation is not hardware evidence.
 
+## FES GP and fixed 720p Pong shell
+
+`cores/fes-pong/rtl/fes_gp.v` implements `fes.simple-game` 1.0 on the Cyclone V
+HPS general-purpose port. Its public ports are the 50 MHz destination `clk`,
+32-bit HPS `gpo`, fixed 128-bit `build_id`, 32-bit FPGA `gpi`, and the gameplay
+outputs `game_reset` and `buttons[7:0]`. FPGA configuration state starts with a
+stable `0xF5` signature, ACK zero, gameplay held in reset and neutral input.
+The request toggle crosses two `async_reg` stages. The state machine consumes
+the held payload only when that synchronized toggle differs from the retained
+ACK, updates response and ACK together, and never changes ACK for gameplay
+reset. Invalid opcode, index and argument responses have no gameplay effect.
+
+The checked-in `cores/fes-pong/generated/fes_gp.vh` is the unedited Verilog
+emitter output from `mister-packages/packages/abi/fes_simple_game.yaml`.
+`cores/fes-pong/generated/exchanges.json` is the matching unedited stateful GP
+fixture: it declares request toggle zero and synthetic build ID
+`00112233445566778899aabbccddeeff`, then carries one contiguous exchange
+sequence. `make sim-fes-pong` reads that JSON at runtime and verifies field hold,
+varied host-to-FPGA edge placement, one effect per toggle, exact GPI words,
+error isolation and reset behavior. The copied include and fixture have SHA-256
+`a765645d4b657ccc31803d9f48857bd2fef67a5fb072fa3a136c9d295c2a5e23`
+and `04f0f1a783cfe4f480de3e0ce09ceb6c8cd74a5a28dacc652d616da74726529a`.
+
+`cores/fes-pong/rtl/video_720p.v` advances one pixel on every supplied pixel
+clock: 1280 active, 110 front porch, 40 positive-sync clocks and 220 back porch
+for a 1650-clock line; 720 active, 5 front-porch, 5 positive-sync and 20
+back-porch lines for a 750-line frame. It maps a 320x240 game image at 3x scale
+into horizontal pixels 160 through 1119, emits black in both 160-pixel side
+bars, drives RGB888 plus data enable, and keeps its counters independent of
+gameplay reset. `fes_pong_core` connects the existing `pong_game` directly to
+that pixel domain with `CLOCK_HZ=74250000` and one frame tick per raster frame.
+
+`cores/fes-pong/rtl/top.v` exports `FPGA_CLK1_50`, `HDMI_TX_CLK`,
+`HDMI_TX_D[23:0]`, `HDMI_TX_DE`, `HDMI_TX_HS`, `HDMI_TX_VS` and the
+bidirectional `HDMI_I2C_SCL`/`HDMI_I2C_SDA` pins. It instantiates
+the HPS GP primitive without fabric SDRAM and clocks the mailbox, gameplay and
+raster from the same pixel clock. The GP request toggle remains the only
+asynchronous HPS signal synchronized into that domain; accepted reset and button
+state therefore reaches the game as one registered vector without an internal
+multi-bit clock crossing. If the pixel clock is absent, the initial signature,
+ACK-zero, reset and neutral-button state remains visible, but new requests do
+not ACK. Activation consequently fails instead of accepting a core whose video
+clock is stopped.
+
+The HDMI control path uses `cyclonev_hps_interface_peripheral_i2c` at the
+explicit `BEL` site `cyclonev_hps_interface_peripheral_i2c.52.60.0`, connecting
+Linux's existing HPS I2C controller to SCL U10 and SDA AA4. Each explicit
+`MISTRAL_IO` has constant-zero data, the matching HPS low-enable on OE, and
+pad feedback returned to the HPS. This preserves low-or-release behavior
+through OSS synthesis; neither line may actively drive high. The source `BEL`
+attribute places the internal hard block because QSF `HPS_LOCATION` does not
+place internal cells in this lane. Simulation covers all combinations of HPS
+and external-device low enables, with digital pull-ups and observable drive
+intent; it does not model analog bus timing or replace hardware validation.
+
+Top has the synthesis parameter `BUILD_ID[127:0]`. The standalone build recipe
+overrides that parameter with the 32 hexadecimal digits of the build-record ID; identity
+indices 8 through 15 expose successive source-order byte pairs with the low byte
+first. The all-zero default identifies an unset simulation/build integration
+value rather than an accepted artifact.
+
+The test target uses the pinned external Verilator when supplied through
+`VERILATOR=...`. Its controllable `board_models.v` drives reference and pixel
+clocks with independent phases and exposes the HPS GP boundary so `board_tb.cpp`
+can test the production top. It verifies that reference-only clocks cannot
+advance the pixel-domain mailbox, then commits multi-bit buttons and a
+reset/button-clear vector immediately around frame tick. This model does not
+model 74.25 MHz, PLL lock, or hardware. Production `pixel_pll.v` uses the same
+checked 50→74.25 MHz single-output fractional-N declaration as
+`610_pll_frac_7425`: direct operation, zero phase, 50% duty and
+`fractional_vco_multiplier="true"`. Integer mode is not accepted for this
+rate. `constraints.qsf` assigns the DE10-Nano 50 MHz input and the ADV7513
+RGB888, DE, sync, pixel-clock and I2C pins.
+
+`scripts/build_fes_pong.py`, invoked by `make build-fes-pong`, is the sole
+standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
+`video_720p.v` and the existing `pong_game.sv`, with the generated ABI include
+directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
+forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
+seed 1, the task-local QSF, the 50 MHz board SDC and an explicit 74.25 MHz
+target; all outputs stay under `build/fes-pong/`.
+
+Before synthesis, the recipe requires a clean source checkout, checks every
+recipe/source/constraint/ABI/lock input is tracked and non-symlinked,
+authenticates Yosys, Mistral and nextpnr-mistral against the recipe's expected
+commits and `toolchain.lock` through their canonical cache stamps and executable
+digests, then writes canonical `build-inputs.json`.
+The record uses `scripts/build_fes_pong.py` as its recipe,
+`cores/fes-pong/generated/fes_gp.vh` as its tracked ABI definition, and an empty
+dependency map because the build is self-contained in this checkout.
+
+Export remains unreachable until the routed JSON contains top, synthesis and
+utilization each show exactly one `altera_pll`, one HPS GP primitive and one
+HPS I2C primitive, no
+forbidden memory/DSP synthesis cell or utilization resource is used, the known
+`cyclonev_oscillator` utilization row is present with zero use, and the route
+log proves normal completion. Synthesized and routed evidence must preserve the
+I2C low-or-release topology and pad feedback; routed evidence must use the exact
+HPS site and U10/AA4 pads. The single sequential timing domain must meet its
+74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
+the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
+application in the route log, and identical fixed fractional PLL parameters in
+the synthesized and routed designs. After creating the deterministic manifest, the recipe
+reauthenticates tools and the clean source before calling the Task-3 exporter. A failed
+build retains the pre-synthesis input record and diagnostic reports but removes
+the RBF, manifest and passing summary so they cannot be mistaken for an
+exportable result. The recipe checkpoint itself has no FES Pong RBF, physical
+video result or hardware-support claim.
+
 ## Pong MiSTer wrapper and Quartus build
 
 `cores/pong/Pong.sv` connects the game/raster to the framework selected in
@@ -1116,6 +1232,10 @@ build/rebuild/<name>/<name>.rbf
 build/current/<name>.rbf
 build/bundles/megadrive/<rbf-sha256>/megadrive.rbf
 build/bundles/megadrive/<rbf-sha256>/megadrive-rbf.toml
+build/packages/<package-id>/manifest.toml
+build/packages/<package-id>/core.rbf
+build/packages/<package-id>.fcore
+build/packages/<package-id>.build-inputs.json
 ```
 
 The core workflow has three separate operations:
@@ -1231,3 +1351,69 @@ against the receipt and artifact. SNES also records its seed and recipe hash.
 A compiler success without these timing results cannot produce a new exportable
 receipt. Generated reports and bundles are local artifacts; FES owns selection
 and exact-image hardware acceptance.
+
+## Format-2 package boundary
+
+`scripts/core_package.py` is the host inspector for format-2 package directories
+and `.fcore` archives. Its public Python API is
+`read_package(path: Path) -> CorePackage`,
+`encode_manifest(fields: dict) -> bytes`, and
+`package_identity(manifest: bytes, payload: bytes) -> str`. `CorePackage` exposes
+the original `manifest_bytes`, parsed `fields`, bounded `payload_bytes`, and
+`package_id`. The inspector validates every manifest field and payload digest;
+an unknown well-formed ABI remains inspectable. A directory has exactly two
+regular non-symlink entries. An archive is at most 33 MiB and is exactly two
+canonical uncompressed POSIX ustar regular-file members, manifest first, with
+zero member padding and exactly two final zero blocks. Alternate paths, links,
+extensions, extra members, base-256 sizes and trailing bytes are rejected.
+
+Repository URI syntax uses the host-only vendored
+`rfc3986-validator` 0.1.1 module from
+`https://github.com/naimetti/rfc3986-validator`, followed by the manifest's
+lowercase `https://` and no-literal-userinfo authority policy. The unchanged
+vendored module is `scripts/rfc3986_validator.py`, SHA-256
+`95fc6d48642f111952b25c040947765bccba669210c8c140b7ed9647fd7e470c`.
+Its MIT terms are retained in `scripts/rfc3986_validator.LICENSE`, SHA-256
+`94e53eb4b94a5d33a7e66b0abb143ee95f4ec96f36ea4c54794ae6a46e624f04`.
+This adds no installed Python or target dependency. Manifest parsing and
+pre-synthesis build-record encoding share the same validator.
+
+`scripts/export_core_package.py` provides
+`export_package(manifest: bytes, payload: Path, destination: Path) -> Path`.
+The destination is a package-store directory. Export derives the package ID from
+the exact manifest and payload bytes, then publishes the read-only directory,
+matching `.fcore`, and external `.build-inputs.json` with no-replace atomic
+renames. A pre-existing result is reused only after all three outputs and their
+permissions are verified byte for byte. Format 1 continues to use
+`scripts/export_core_bundle.py` and its existing RBF-digest store.
+
+The format-2 build record is canonical UTF-8 JSON (sorted keys, compact
+separators, one final newline), at most 65,536 bytes, with this closed schema:
+
+```json
+{
+  "format": 1,
+  "repository": "https://example.invalid/source",
+  "revision": "<40 lowercase hex>",
+  "recipe": "relative/tracked/build.py",
+  "recipe_sha256": "<64 lowercase hex>",
+  "abi_definition": "relative/tracked/abi.json",
+  "abi_definition_sha256": "<64 lowercase hex>",
+  "dependencies": {"relative/checkout": "<40 lowercase hex>"},
+  "tools": {"tool-id": "exact version or commit identity"},
+  "parameters": {"parameter-id": "string, signed 64-bit integer, or Boolean"}
+}
+```
+
+`encode_build_record(fields: dict) -> bytes` constructs the record before
+synthesis; `build_identity(record: bytes) -> str` returns the first 16 bytes of
+its SHA-256 as 32 lowercase hex digits for the manifest and RTL. The exporter
+discovers the main Git root from the RBF path. It requires that checkout to be
+clean at `revision`, checks its origin against `repository`, requires the recipe
+and ABI definition to be tracked regular files without symlink components, and
+checks their digests. Each dependency path is likewise relative, non-symlink,
+clean, and at its recorded commit. `tools` records exact identities, while the
+Task-10 build lane is responsible for authenticating the invoked tools and
+timing result before export. Generated or ignored build products may include the
+RBF and adjacent record, but they cannot stand in for tracked recipe or ABI
+inputs. Empty `dependencies` is valid for a self-contained source tree.
