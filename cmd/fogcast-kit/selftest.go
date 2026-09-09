@@ -200,6 +200,187 @@ func runStripSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runAtmosphereSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseAtmosphereGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseAtmosphereGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	art := gfx.RGB(40, 180, 80)
+	fanart := image.NewRGBA(image.Rect(0, 0, 32, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 32; x++ {
+			fanart.SetRGBA(x, y, color.RGBA{R: art.R, G: art.G, B: art.B, A: 255})
+		}
+	}
+	g := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&g, th)
+	g.Header = "FOGCAST  ATMOSPHERE"
+	g.Atmosphere = fanart
+	fbgrid.Paint(d, g)
+	d.Present()
+	sx, sy, ok := fbgrid.AtmosphereSample(g)
+	if !ok {
+		return b.String(), fmt.Errorf("fanart stage sample")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	dim := fbgrid.AtmosphereDim(art, th.Background)
+	fmt.Fprintf(&b, "fanart stage=(%d,%d) bgrx=%d,%d,%d,%d dim=%d,%d,%d\n",
+		sx, sy, gotB, gotG, gotR, gotX, dim.B, dim.G, dim.R)
+	if gotB != dim.B || gotG != dim.G || gotR != dim.R || gotX != 0 {
+		return b.String(), fmt.Errorf("fanart stage bgrx %d,%d,%d,%d want %d,%d,%d,0", gotB, gotG, gotR, gotX, dim.B, dim.G, dim.R)
+	}
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("fanart highlight")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R {
+		return b.String(), fmt.Errorf("fanart highlight bgrx %d,%d,%d", hlB, hlG, hlR)
+	}
+
+	plain := fbgrid.New(cfg.Width, cfg.Height)
+	fbgrid.ApplyTheme(&plain, th)
+	fbgrid.Paint(d, plain)
+	d.Present()
+	px, py, ok := fbgrid.AtmosphereSample(plain)
+	if !ok {
+		return b.String(), fmt.Errorf("plain stage sample")
+	}
+	pB, pG, pR, _, err := gfx.SampleBGRX(d.Destination(), cfg, px, py)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "absent stage=(%d,%d) bgrx=%d,%d,%d bg=%d,%d,%d\n",
+		px, py, pB, pG, pR, th.Background.B, th.Background.G, th.Background.R)
+	if pB != th.Background.B || pG != th.Background.G || pR != th.Background.R {
+		return b.String(), fmt.Errorf("absent stage bgrx %d,%d,%d want background", pB, pG, pR)
+	}
+
+	cover := gfx.RGB(200, 40, 40)
+	coverImg := image.NewRGBA(image.Rect(0, 0, 8, 12))
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 8; x++ {
+			coverImg.SetRGBA(x, y, color.RGBA{R: cover.R, G: cover.G, B: cover.B, A: 255})
+		}
+	}
+	wall := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+		{Name: "A", Color: th.SystemColor("megadrive"), Cover: coverImg, CoverKind: fbgrid.CoverPresent},
+		{Name: "B", Color: th.SystemColor("snes"), Cover: coverImg, CoverKind: fbgrid.CoverPresent},
+	})
+	fbgrid.ApplyTheme(&wall, th)
+	fbgrid.Paint(d, wall)
+	d.Present()
+	wx, wy, ok := fbgrid.AtmosphereSample(wall)
+	if !ok {
+		return b.String(), fmt.Errorf("cover-wall stage sample")
+	}
+	wB, wG, wR, _, err := gfx.SampleBGRX(d.Destination(), cfg, wx, wy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "cover-wall stage=(%d,%d) bgrx=%d,%d,%d\n", wx, wy, wB, wG, wR)
+	if wB == th.Background.B && wG == th.Background.G && wR == th.Background.R {
+		return b.String(), fmt.Errorf("cover-wall stage stayed background")
+	}
+
+	hero := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			hero.SetRGBA(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	fbgrid.PaintWheel(d, fbgrid.WheelFrame{
+		Width: cfg.Width, Height: cfg.Height, Title: "MEGADRIVE", Stats: "3 games",
+		Hero: hero, HeroKind: fbgrid.CoverPresent,
+		Color: th.SystemColor("megadrive"),
+		Items: []fbgrid.WheelItem{{ID: "megadrive", Label: "MEGADRIVE", Color: th.SystemColor("megadrive")}},
+		Theme: th,
+	})
+	d.Present()
+	whx, why, ok := fbgrid.WheelHeroSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("wheel hero")
+	}
+	hB, hG, hR, _, err := gfx.SampleBGRX(d.Destination(), cfg, whx, why)
+	if err != nil {
+		return b.String(), err
+	}
+	asx, asy, ok := fbgrid.WheelAtmosphereSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("wheel stage")
+	}
+	aB, aG, aR, _, err := gfx.SampleBGRX(d.Destination(), cfg, asx, asy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "wheel hero=(%d,%d) bgrx=%d,%d,%d stage=(%d,%d) bgrx=%d,%d,%d\n",
+		whx, why, hB, hG, hR, asx, asy, aB, aG, aR)
+	if hB != 160 || hG != 32 || hR != 255 {
+		return b.String(), fmt.Errorf("wheel hero bgrx %d,%d,%d", hB, hG, hR)
+	}
+	wheelDim := fbgrid.AtmosphereDim(gfx.RGB(255, 32, 160), th.Background)
+	if aB != wheelDim.B || aG != wheelDim.G || aR != wheelDim.R {
+		return b.String(), fmt.Errorf("wheel stage bgrx %d,%d,%d want %d,%d,%d", aB, aG, aR, wheelDim.B, wheelDim.G, wheelDim.R)
+	}
+
+	fbgrid.PaintDetail(d, fbgrid.DetailFrame{
+		Width: cfg.Width, Height: cfg.Height, Header: "FOGCAST", Title: "Sonic",
+		Hint:  "A play | B back",
+		Cover: hero, CoverKind: fbgrid.CoverPresent,
+		Atmosphere: fanart,
+		Color:      th.SystemColor("megadrive"), Theme: th,
+	})
+	d.Present()
+	cx, cy, ok := fbgrid.DetailCoverSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("detail cover")
+	}
+	cB, cG, cR, _, err := gfx.SampleBGRX(d.Destination(), cfg, cx, cy)
+	if err != nil {
+		return b.String(), err
+	}
+	dsx, dsy, ok := fbgrid.DetailAtmosphereSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("detail stage")
+	}
+	dB, dG, dR, _, err := gfx.SampleBGRX(d.Destination(), cfg, dsx, dsy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "detail cover=(%d,%d) bgrx=%d,%d,%d stage=(%d,%d) bgrx=%d,%d,%d\n",
+		cx, cy, cB, cG, cR, dsx, dsy, dB, dG, dR)
+	if cB != 160 || cG != 32 || cR != 255 {
+		return b.String(), fmt.Errorf("detail cover bgrx %d,%d,%d", cB, cG, cR)
+	}
+	if dB != dim.B || dG != dim.G || dR != dim.R {
+		return b.String(), fmt.Errorf("detail stage bgrx %d,%d,%d want %d,%d,%d", dB, dG, dR, dim.B, dim.G, dim.R)
+	}
+
+	strip, err := exerciseStripGrid(d, th)
+	b.WriteString(strip)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-atmosphere PASS fanart=1 absent=1 cover-wall=1 wheel=1 detail=1 nested-strip=1\n")
+	return b.String(), nil
+}
+
 func exerciseStripGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}

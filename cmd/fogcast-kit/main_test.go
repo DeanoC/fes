@@ -290,6 +290,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 }
 
+func TestExerciseAtmosphereGridPaintsFanartCoverWallAndNestsStrip(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseAtmosphereGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-atmosphere PASS") || !strings.Contains(report, "selftest-strip PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "fanart stage") || !strings.Contains(report, "absent stage") || !strings.Contains(report, "cover-wall") {
+		t.Fatalf("missing atmosphere evidence: %s", report)
+	}
+}
+
 func TestExerciseStripGridPaintsHandoffAndHidesEmpty(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

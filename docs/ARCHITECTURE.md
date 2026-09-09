@@ -622,6 +622,10 @@ up/down step by four cells, and leaving a page of 12 changes the painted page.
 Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
 scale ~1.06 over ~160ms); confirm eases a white pulse out over
 `ConfirmFrames` ticks. Unfocused cells keep their layout origins. The kit
+paints dimmed presentation `backdrop_artwork_id` (or an attract backdrop)
+cover-fill behind the wheel, 4×3 grid, strip, and title pane when that
+handle decodes; otherwise a cover-wall of visible decoded covers; otherwise
+the solid theme background. Atmosphere is paint-only. The kit
 also loads `GET /api/v1/games` with `collection=recents` and
 `collection=favorites` (best-effort; a miss hides the row) and paints a
 single horizontal strip under the grid when at least one title exists.

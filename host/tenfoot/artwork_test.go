@@ -257,3 +257,20 @@ func TestCoverDestRectPreservesAspect(t *testing.T) {
 		t.Fatalf("2:3 should pillarbox, x=%v", x)
 	}
 }
+
+func TestCoverFillRectCropsToFill(t *testing.T) {
+	t.Parallel()
+	x, y, w, h := CoverFillRect(0, 0, 640, 480, 16, 8)
+	if w != 960 || h != 480 || x != -160 || y != 0 {
+		t.Fatalf("wide fill = %v %v %v %v", x, y, w, h)
+	}
+	x, y, w, h = CoverFillRect(0, 0, 640, 480, 8, 8)
+	if w != 640 || h != 640 || x != 0 || y != -80 {
+		t.Fatalf("square fill = %v %v %v %v", x, y, w, h)
+	}
+	fitX, fitY, fitW, fitH := CoverDestRect(0, 0, 640, 480, 16, 8)
+	fillX, fillY, fillW, fillH := CoverFillRect(0, 0, 640, 480, 16, 8)
+	if fillW <= fitW && fillH <= fitH {
+		t.Fatalf("fill dest %v,%v,%v,%v was not larger than fit %v,%v,%v,%v", fillX, fillY, fillW, fillH, fitX, fitY, fitW, fitH)
+	}
+}

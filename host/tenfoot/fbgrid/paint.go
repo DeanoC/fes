@@ -19,6 +19,7 @@ func Paint(d gfx.Device, g Grid) {
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
+	paintAtmosphere(d, g.Width, g.Height, th, g.Atmosphere, gridAtmosphereCovers(g))
 	if g.HeaderH > 0 {
 		d.FillRect(gfx.Rect{X: 0, Y: 0, W: float32(g.Width), H: float32(g.HeaderH)}, th.HeaderBar)
 	}

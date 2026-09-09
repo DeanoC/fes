@@ -25,7 +25,10 @@ type DetailFrame struct {
 	Shot          *image.RGBA
 	ShotCaption   string
 	VideoBadge    bool
-	Theme         theme.Theme
+	// Atmosphere is optional fanart behind chrome. When nil, PaintDetail
+	// dims the title cover across the stage if one is present.
+	Atmosphere *image.RGBA
+	Theme      theme.Theme
 	// FadeFromBlack is overlay alpha in [0, 1]. Zero (default) is fully visible.
 	FadeFromBlack float64
 }
@@ -39,6 +42,11 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
+	fanart := f.Atmosphere
+	if fanart == nil {
+		fanart = f.Cover
+	}
+	paintAtmosphere(d, f.Width, f.Height, th, fanart, nil)
 	headerH := th.HeaderH
 	footerH := th.FooterH
 	if headerH < 0 {

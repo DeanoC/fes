@@ -91,7 +91,10 @@ two dimensions (left/right clamp on the row; up/down by four cells, paging
 when `Focus` leaves the visible 12). A short ease-in-out pop grows the
 focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
 confirm is a white pulse that eases out over `ConfirmFrames` rather than a
-flat flash. A Recent / Favorites strip paints under the grid when host
+flat flash. Browse paints a dimmed fanart/backdrop behind chrome when presentation
+`backdrop_artwork_id` or an attract backdrop exists; otherwise a soft
+cover-wall of decoded covers, or the solid theme background when no art is
+present. Focus rings and header/footer stay opaque. A Recent / Favorites strip paints under the grid when host
 `collection=recents` or `collection=favorites` returns at least one title
 (recents first, then favorites, labeled honestly); an empty row is omitted.
 Down that cannot move focus further (last catalog row) enters that strip, or

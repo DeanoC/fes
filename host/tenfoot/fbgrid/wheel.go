@@ -34,13 +34,16 @@ type WheelFrame struct {
 	Featured      string
 	Hero          *image.RGBA
 	HeroKind      CoverKind
-	Logo          *image.RGBA
-	Color         gfx.Color
-	Items         []WheelItem
-	Focus         int
-	Theme         theme.Theme
-	Now           time.Time
-	PopAt         time.Time
+	// Atmosphere is optional fanart behind chrome. When nil, PaintWheel
+	// dims the hero across the stage so the bright hero sits on the same art.
+	Atmosphere *image.RGBA
+	Logo       *image.RGBA
+	Color      gfx.Color
+	Items      []WheelItem
+	Focus      int
+	Theme      theme.Theme
+	Now        time.Time
+	PopAt      time.Time
 }
 
 // PaintWheel draws the platform wheel. It does not Present.
@@ -52,6 +55,11 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
+	fanart := f.Atmosphere
+	if fanart == nil {
+		fanart = f.Hero
+	}
+	paintAtmosphere(d, f.Width, f.Height, th, fanart, nil)
 	headerH := th.HeaderH
 	footerH := th.FooterH
 	if headerH < 0 {
