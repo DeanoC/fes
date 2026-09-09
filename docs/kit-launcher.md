@@ -52,11 +52,17 @@ Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
 names. The same remapper is what linuxinput-derived paths and the tenfoot
 `CommandFromLogical` adapter apply. There is no on-screen editor in this slice.
 
-Look tokens live in `host/tenfoot/theme`. Built-in **default** keeps the current
-kit pixels (highlight BGRX 0,220,255,0, flash white, system palette). **arcade**
-and **night** are named alternates. `-theme` (then optional `theme` in
-`launcher.json`, then `FOGCAST_THEME`) selects a built-in name or a JSON/TOML
-file. `fbgrid.Paint` and the system-color fallback consume those tokens (fills,
+Look tokens live in `host/tenfoot/theme`. Built-in **default** / pack **Classic**
+keep the current kit pixels (highlight BGRX 0,220,255,0, flash white, system
+palette). **Neon** (`arcade`) and **Sofa Dim** (`night`) are named living-room
+packs: colours, type roles, and chrome accents already admitted by the theme
+engine. `-theme` (then optional `theme` in
+`launcher.json`, then `FOGCAST_THEME`) selects a pack or builtin name, or a
+JSON/TOML file. X (West) cycles Classic → Neon → Sofa Dim → Classic on the
+wheel, browse, strip, and title pane without stealing D-pad or Y; the last
+pack is written to `launcher.json` `theme`. Classic stays untagged in the
+header; Neon paints `NEON` and Sofa Dim paints `DIM`. `fbgrid.Paint` and the
+system-color fallback consume those tokens (fills,
 highlight, flash, chrome, spacing). Header, tile names, and footer/status draw
 through `gfx.DrawText` / `gfx.DrawTextWeight` with the embedded Go Regular and
 Go Bold faces (`golang.org/x/image/font/gofont/goregular` and `gobold`);
@@ -73,7 +79,7 @@ Overlong
 chrome and tile labels truncate with an ellipsis. `DebugText` remains the 8×8
 HUD path for FPGA protocol and spikes. There is no italic, medium, or
 font-family picker in this slice. The catalog, input, and launch path stay the same. There is no
-on-screen theme picker in this slice.
+on-screen theme file picker in this slice; X cycles the three packs.
 
 Focus changes play a short ease-in-out pop: the focused highlight ring
 grows about its cell (~1.06 scale, ~160ms via `anim.Tween`) while unfocused
@@ -89,7 +95,9 @@ East/B on browse returns to the wheel. Y (North) on browse cycles
 Grid → Coverflow → Wall → Grid. Coverflow is a scaled focus row of five titles
 with the focused cover largest and its name (or ready clear logo) at the title
 role; wall is a denser 6×3 mosaic with caption labels. Y is ignored on the
-wheel, title pane, and attract. An empty catalog hides tiles and keeps chrome. The hero paints an attract still for that system,
+wheel, title pane, and attract. X (West) cycles theme packs Classic → Neon →
+Sofa Dim → Classic on the wheel, browse, strip, and title pane; attract still
+dismisses on X. The last pack is stored in `launcher.json`. An empty catalog hides tiles and keeps chrome. The hero paints an attract still for that system,
 then presentation `backdrop_artwork_id`, then a representative catalog/presentation
 cover; missing art uses the same theme-tinted placeholder as the grid. Light
 stats chrome is the shelf game count plus a representative title when the
@@ -131,7 +139,8 @@ activity so idle does not fire underneath. The pane uses a short
 fade-from-black overlay (`DetailFadeDuration`) that settles to the existing
 paint. Missing cover art uses the same
 placeholder path as the grid. The wheel footer hint is
-`A open | L/R platform`; the browse footer after entering from the wheel is
+`A open | L/R platform | X neon` (X names the next pack: `neon`, `dim`, or
+`classic`); the browse footer after entering from the wheel is
 `A play | B platforms | L/R | Y flow` (Y names the next layout: `flow`, `wall`,
 or `grid`); a browse view that never used the wheel (selftests)
 keeps `A play | B detail | L/R | Y flow`; the strip footer is
@@ -206,7 +215,11 @@ fetched on kit.
 
 Run `go test -race ./kitlauncher/... ./host/tenfoot/inputmap ./host/tenfoot/theme ./host/tenfoot/fbgrid ./host/tenfoot/gfx ./host/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
-framebuffer devices. On the kit, `fogcast-kit -selftest-layouts` paints the 4×3 grid, cycles Y to
+framebuffer devices. On the kit, `fogcast-kit -selftest-packs` paints Classic, cycles X to Neon then
+Sofa Dim then Classic, samples highlight and background so the three looks
+differ, keeps Y layout cycle and D-pad browse, paints a Neon wheel hint, keeps
+A launch, and re-runs layouts (which re-runs atmosphere, strip, wheel, motion,
+detail, attract, cover, text, nav, and shelf). On the kit, `fogcast-kit -selftest-layouts` paints the 4×3 grid, cycles Y to
 coverflow then wall, samples a larger focused coverflow tile and a denser wall
 cell, hides an empty coverflow, keeps A launch, and re-runs atmosphere (which
 re-runs strip, wheel, motion, detail, attract, cover, text, nav, and shelf).

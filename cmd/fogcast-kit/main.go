@@ -33,7 +33,7 @@ func main() {
 func run() error {
 	configPath := flag.String("config", "/media/fat/fogcast/launcher.json", "provisioned launcher configuration")
 	inputProfile := flag.String("input-profile", "", "identity, swap-ab, or JSON profile path (default identity)")
-	themeSpec := flag.String("theme", "", "default, arcade, night, or JSON/TOML path (default default)")
+	themeSpec := flag.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
 	selftestNav := flag.Bool("selftest-nav", false, "paint 4x3 catalog navigation on the framebuffer and exit")
 	selftestPads := flag.Bool("selftest-pads", false, "open eligible USB pads, print them, and exit")
 	selftestTheme := flag.Bool("selftest-theme", false, "paint default and arcade, prove type-role sizes, and sample pixels, then exit")
@@ -49,6 +49,7 @@ func run() error {
 	selftestStrip := flag.Bool("selftest-strip", false, "paint recent/favorites strip, hand off from grid, then exit")
 	selftestAtmosphere := flag.Bool("selftest-atmosphere", false, "paint dimmed fanart/cover-wall behind chrome, then exit")
 	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow and cover-wall browse, cycle Y, then exit")
+	selftestPacks := flag.Bool("selftest-packs", false, "paint Classic/Neon/Sofa Dim packs, cycle X, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -71,7 +72,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -86,6 +87,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestPacks {
+			return runPacksSelftest(fb, th)
 		}
 		if *selftestLayouts {
 			return runLayoutsSelftest(fb, th)
@@ -127,6 +131,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if id := theme.NormalizePack(*themeSpec); id != "" {
+		c.Theme = id
+	} else if id := theme.NormalizePack(th.Name); id != "" && strings.TrimSpace(*themeSpec) == "" {
+		c.Theme = id
+	}
 	d, err := gfx.OpenLinuxFB(c.Framebuffer)
 	if err != nil {
 		return err
@@ -146,6 +155,7 @@ func run() error {
 	var detailAt time.Time
 	present := func(m kitlauncher.Model) {
 		now := time.Now()
+		look := kitLook(m, th)
 		if m.AttractActive && !m.Busy {
 			lastFocus = -1
 			detailWas = false
@@ -168,7 +178,7 @@ func run() error {
 			last = now
 			lastKey = key
 			cfg := d.Config()
-			fbgrid.PaintAttract(d, attractFrame(view, stills, th, cfg.Width, cfg.Height))
+			fbgrid.PaintAttract(d, attractFrame(view, stills, look, cfg.Width, cfg.Height))
 			d.Present()
 			return
 		}
@@ -201,7 +211,7 @@ func run() error {
 			covers.Request(ctx, client.Library, logoHandles)
 			cfg := d.Config()
 			w, h := cfg.Width, cfg.Height
-			frame := modelWheelFrame(m, covers, stills, presentations, th, w, h)
+			frame := modelWheelFrame(m, covers, stills, presentations, look, w, h)
 			wheelFocus := m.WheelIndex()
 			if lastFocus >= 0 && wheelFocus != lastFocus {
 				popAt = now
@@ -256,7 +266,7 @@ func run() error {
 		stills.Request(ctx, client.Library, backdropHandles)
 		cfg := d.Config()
 		w, h := cfg.Width, cfg.Height
-		grid := modelGrid(m, w, h, covers, presentations, th)
+		grid := modelGrid(m, w, h, covers, presentations, look)
 		grid.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
 		if lastFocus >= 0 && grid.Focus != lastFocus {
 			popAt = now
@@ -281,7 +291,7 @@ func run() error {
 		last = now
 		lastKey = key
 		if m.DetailOpen {
-			frame := modelDetailFrame(m, covers, presentations, th, w, h)
+			frame := modelDetailFrame(m, covers, presentations, look, w, h)
 			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
 			frame.FadeFromBlack = fade
 			fbgrid.PaintDetail(d, frame)
@@ -309,6 +319,27 @@ func loadKitTheme(flagSpec, configSpec string) (theme.Theme, error) {
 	return theme.Resolve(spec)
 }
 
+func kitLook(m kitlauncher.Model, fallback theme.Theme) theme.Theme {
+	if strings.TrimSpace(m.Pack) == "" {
+		return fallback.Complete()
+	}
+	if look, ok := theme.PackTheme(m.Pack); ok {
+		return look
+	}
+	return fallback.Complete()
+}
+
+func packHeader(m kitlauncher.Model) string {
+	header := m.HeaderChrome()
+	if tag := m.Browse.HeaderTag(); tag != "" && !m.WheelOpen && !m.DetailOpen {
+		header = header + "  " + tag
+	}
+	if tag := m.PackTag(); tag != "" {
+		header = header + "  " + tag
+	}
+	return header
+}
+
 func loadKitRemapper(flagSpec, configSpec string) (*inputmap.Remapper, error) {
 	spec := strings.TrimSpace(flagSpec)
 	if spec == "" {
@@ -332,6 +363,7 @@ type renderKey struct {
 	Attract, Detail, Wheel, Video, Strip                          bool
 	Covers, Stills, Presentations                                 uint64
 	Browse                                                        fbgrid.BrowseKind
+	Pack                                                          string
 }
 
 func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey {
@@ -352,6 +384,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
 		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
 		Covers: covers, Presentations: presentations, Browse: m.Browse,
+		Pack: m.Pack,
 	}
 }
 
@@ -419,11 +452,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	g.Kind = m.Browse
 	fbgrid.ApplyTheme(&g, th)
-	header := m.HeaderChrome()
-	if tag := m.Browse.HeaderTag(); tag != "" {
-		header = header + "  " + tag
-	}
-	g.Header = truncateLabel(asciiLabel(header), 36)
+	g.Header = truncateLabel(asciiLabel(packHeader(m)), 36)
 	if m.Focus >= start && m.Focus < end {
 		g.Focus = m.Focus - start
 	}
@@ -451,7 +480,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	frame := fbgrid.DetailFrame{
 		Width:       width,
 		Height:      height,
-		Header:      truncateLabel(asciiLabel(m.HeaderChrome()), 36),
+		Header:      truncateLabel(asciiLabel(packHeader(m)), 36),
 		Title:       title,
 		Meta:        kitMetaLine(detail.MetaFacts()),
 		Description: asciiLabel(detail.Summary),
@@ -639,7 +668,7 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 	frame := fbgrid.WheelFrame{
 		Width:    width,
 		Height:   height,
-		Header:   truncateLabel(asciiLabel(m.HeaderChrome()), 36),
+		Header:   truncateLabel(asciiLabel(packHeader(m)), 36),
 		Footer:   modelFooter(m),
 		Title:    asciiLabel(m.ShelfLabel()),
 		Stats:    asciiLabel(m.WheelStats()),

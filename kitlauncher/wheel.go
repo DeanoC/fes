@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -30,6 +31,9 @@ func (m *Model) inputWheel(e remoteinput.Event, dx, dy int, now time.Time) strin
 			return ""
 		case remoteinput.ButtonA:
 			m.enterPlatform()
+			return ""
+		case remoteinput.ButtonX:
+			m.CyclePack()
 			return ""
 		}
 	}
@@ -188,9 +192,13 @@ func (m Model) wheelAttractHandle() string {
 	return ""
 }
 
-// WheelHint is the idle footer on the platform wheel.
+// WheelHint is the idle footer on the platform wheel. X names the next pack.
 func (m Model) WheelHint() string {
-	return "A open | L/R platform"
+	short := theme.PackShort(theme.NextPack(m.Pack))
+	if short == "" {
+		return "A open | L/R platform"
+	}
+	return "A open | L/R platform | X " + short
 }
 
 // GridHint is the idle footer on the filtered game grid.

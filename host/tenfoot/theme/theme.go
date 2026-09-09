@@ -215,13 +215,15 @@ func defaultSystems() map[string]gfx.Color {
 }
 
 // Builtin returns a built-in theme. Empty and "default" are today's look.
+// Pack aliases classic / neon / sofa-dim select the same tokens as
+// default / arcade / night.
 func Builtin(name string) (Theme, bool) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
-	case "", NameDefault:
+	case "", NameDefault, PackClassic:
 		return Default(), true
-	case NameArcade:
+	case NameArcade, PackNeon:
 		return Arcade(), true
-	case NameNight:
+	case NameNight, PackSofaDim, "sofa", "sofadim":
 		return Night(), true
 	default:
 		return Theme{}, false

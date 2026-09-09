@@ -611,10 +611,15 @@ Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
 Select cycle platforms; A/South enters the filtered browse view for that system
 (default 4×3 grid). East/B on browse returns to the wheel. Y (North) on browse
 cycles Grid → Coverflow → Wall → Grid; it is ignored on the wheel, title pane,
-and attract (any pad input still dismisses attract). Coverflow is a scaled
+and attract (any pad input still dismisses attract). X (West) cycles theme
+packs Classic → Neon → Sofa Dim → Classic on the wheel, browse, strip, and
+title pane; attract still dismisses on X like any pad input. The last pack is
+stored in `launcher.json` `theme` so a kit restart (and a host reconnect of
+the same process) keeps it. Coverflow is a scaled
 focus row of five titles; wall is a denser 6×3 mosaic. In browse, shoulder L/R and Select
 still cycle shelves as a secondary filter; the themed header shows
-`FOGCAST  MEGADRIVE 12/40`, plus `FLOW` or `WALL` when that layout is active. The hero paints an attract still, presentation
+`FOGCAST  MEGADRIVE 12/40`, plus `FLOW` or `WALL` when that layout is active,
+and `NEON` or `DIM` when that pack is active. Classic stays untagged. The hero paints an attract still, presentation
 `backdrop_artwork_id`, or representative cover when a handle exists, otherwise
 a theme-tinted placeholder, with game-count chrome and a representative title
 when one is cheap from the loaded catalog. Wheel cells use a representative

@@ -211,6 +211,157 @@ func runAtmosphereSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runPacksSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exercisePacksGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exercisePacksGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Pack: theme.PackClassic}
+	m.SetCatalog(mixedShelfGames())
+	sample := func(label string) (hlB, hlG, hlR, bgB, bgG, bgR byte, header string, err error) {
+		look := kitLook(m, th)
+		g := paintModel(d, m, look)
+		hx, hy, ok := g.HighlightSample()
+		if !ok {
+			return 0, 0, 0, 0, 0, 0, g.Header, fmt.Errorf("%s: no highlight", label)
+		}
+		hlB, hlG, hlR, _, err = gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+		if err != nil {
+			return 0, 0, 0, 0, 0, 0, g.Header, err
+		}
+		bgY := g.HeaderH + 2
+		if bgY < 0 {
+			bgY = 0
+		}
+		bgB, bgG, bgR, _, err = gfx.SampleBGRX(d.Destination(), cfg, 2, bgY)
+		if err != nil {
+			return 0, 0, 0, 0, 0, 0, g.Header, err
+		}
+		if hlB != look.Highlight.B || hlG != look.Highlight.G || hlR != look.Highlight.R {
+			return 0, 0, 0, 0, 0, 0, g.Header, fmt.Errorf("%s: highlight bgrx %d,%d,%d want %d,%d,%d", label, hlB, hlG, hlR, look.Highlight.B, look.Highlight.G, look.Highlight.R)
+		}
+		if bgB != look.Background.B || bgG != look.Background.G || bgR != look.Background.R {
+			return 0, 0, 0, 0, 0, 0, g.Header, fmt.Errorf("%s: background bgrx %d,%d,%d want %d,%d,%d", label, bgB, bgG, bgR, look.Background.B, look.Background.G, look.Background.R)
+		}
+		fmt.Fprintf(&b, "pack=%s id=%s highlight=(%d,%d) hl_bgrx=%d,%d,%d bg=(2,%d) bg_bgrx=%d,%d,%d header=%q title_px=%d header_bar=%s\n",
+			label, m.Pack, hx, hy, hlB, hlG, hlR, bgY, bgB, bgG, bgR, g.Header, look.TitlePx(), theme.FormatColor(look.HeaderBar))
+		return hlB, hlG, hlR, bgB, bgG, bgR, g.Header, nil
+	}
+
+	cHLB, cHLG, cHLR, cBGB, cBGG, cBGR, classicHeader, err := sample("classic")
+	if err != nil {
+		return b.String(), err
+	}
+	if strings.Contains(classicHeader, "NEON") || strings.Contains(classicHeader, "DIM") {
+		return b.String(), fmt.Errorf("classic header tagged %q", classicHeader)
+	}
+
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x1 pack %s", m.Pack)
+	}
+	nHLB, nHLG, nHLR, nBGB, nBGG, nBGR, neonHeader, err := sample("neon")
+	if err != nil {
+		return b.String(), err
+	}
+	if !strings.Contains(neonHeader, "NEON") {
+		return b.String(), fmt.Errorf("neon header %q", neonHeader)
+	}
+	if nHLB == cHLB && nHLG == cHLG && nHLR == cHLR && nBGB == cBGB && nBGG == cBGG && nBGR == cBGR {
+		return b.String(), fmt.Errorf("classic and neon sampled the same pixels")
+	}
+
+	press(&m, "x")
+	if m.Pack != theme.PackSofaDim {
+		return b.String(), fmt.Errorf("x2 pack %s", m.Pack)
+	}
+	dHLB, dHLG, dHLR, dBGB, dBGG, dBGR, dimHeader, err := sample("sofa-dim")
+	if err != nil {
+		return b.String(), err
+	}
+	if !strings.Contains(dimHeader, "DIM") {
+		return b.String(), fmt.Errorf("dim header %q", dimHeader)
+	}
+	if (dHLB == nHLB && dHLG == nHLG && dHLR == nHLR && dBGB == nBGB && dBGG == nBGG && dBGR == nBGR) ||
+		(dHLB == cHLB && dHLG == cHLG && dHLR == cHLR && dBGB == cBGB && dBGG == cBGG && dBGR == cBGR) {
+		return b.String(), fmt.Errorf("sofa-dim sampled the same as another pack")
+	}
+
+	press(&m, "x")
+	if m.Pack != theme.PackClassic {
+		return b.String(), fmt.Errorf("x3 pack %s", m.Pack)
+	}
+	_, _, _, _, _, _, backHeader, err := sample("classic-wrap")
+	if err != nil {
+		return b.String(), err
+	}
+	if strings.Contains(backHeader, "NEON") || strings.Contains(backHeader, "DIM") {
+		return b.String(), fmt.Errorf("wrap header tagged %q", backHeader)
+	}
+
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x4 pack %s", m.Pack)
+	}
+	press(&m, "dpad-right")
+	if m.Focus != 1 || m.Pack != theme.PackNeon || m.Browse != fbgrid.BrowseGrid {
+		return b.String(), fmt.Errorf("dpad after x focus=%d pack=%s browse=%s", m.Focus, m.Pack, m.Browse)
+	}
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow || m.Pack != theme.PackNeon || m.Focus != 1 {
+		return b.String(), fmt.Errorf("y after x browse=%s pack=%s focus=%d", m.Browse, m.Pack, m.Focus)
+	}
+	look := kitLook(m, th)
+	g := paintModel(d, m, look)
+	if g.Kind != fbgrid.BrowseCoverflow || !strings.Contains(g.Header, "FLOW") || !strings.Contains(g.Header, "NEON") {
+		return b.String(), fmt.Errorf("coverflow+neon header=%q kind=%s", g.Header, g.Kind)
+	}
+	fmt.Fprintf(&b, "coverflow-neon kind=%s focus=%d header=%q footer=%q\n", g.Kind, m.Focus, g.Header, g.Footer)
+
+	wheel := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, WheelOpen: true, Pack: theme.PackClassic}
+	wheel.SetCatalog(mixedShelfGames())
+	press(&wheel, "x")
+	if wheel.Pack != theme.PackNeon || !wheel.WheelOpen {
+		return b.String(), fmt.Errorf("wheel x pack=%s open=%v", wheel.Pack, wheel.WheelOpen)
+	}
+	wlook := kitLook(wheel, th)
+	frame := modelWheelFrame(wheel, nil, nil, nil, wlook, cfg.Width, cfg.Height)
+	fbgrid.PaintWheel(d, frame)
+	d.Present()
+	if !strings.Contains(frame.Header, "NEON") {
+		return b.String(), fmt.Errorf("wheel header %q", frame.Header)
+	}
+	if frame.Footer != "A open | L/R platform | X dim" {
+		return b.String(), fmt.Errorf("wheel footer %q", frame.Footer)
+	}
+	fmt.Fprintf(&b, "wheel-neon header=%q footer=%q\n", frame.Header, frame.Footer)
+
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("A after packs %q", action)
+	}
+	fmt.Fprintf(&b, "launch-still-a=1 focus=%d pack=%s browse=%s\n", m.Focus, m.Pack, m.Browse)
+
+	layouts, err := exerciseLayoutsGrid(d, th)
+	b.WriteString(layouts)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-packs PASS classic_hl=%d,%d,%d neon_hl=%d,%d,%d dim_hl=%d,%d,%d classic_bg=%d,%d,%d neon_bg=%d,%d,%d dim_bg=%d,%d,%d cycle=1 nested-layouts=1\n",
+		cHLB, cHLG, cHLR, nHLB, nHLG, nHLR, dHLB, dHLG, dHLR, cBGB, cBGG, cBGR, nBGB, nBGG, nBGR, dBGB, dBGG, dBGR)
+	return b.String(), nil
+}
+
 func runLayoutsSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {
@@ -1021,7 +1172,7 @@ func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 func paintModel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.Grid {
 	cfg := d.Config()
-	g := modelGrid(m, cfg.Width, cfg.Height, nil, nil, th)
+	g := modelGrid(m, cfg.Width, cfg.Height, nil, nil, kitLook(m, th))
 	fbgrid.Paint(d, g)
 	d.Present()
 	return g
