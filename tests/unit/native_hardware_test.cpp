@@ -364,6 +364,7 @@ public:
 		std::vector<std::uint16_t>* response, std::uint64_t deadline) override
 	{
 		deadlines.push_back(deadline);
+		requests.push_back(request);
 		if (save_spi && !request.empty() && (request[0] == 0x53 || request[0] == 0x1e ||
 		    request[0] == 0x1c || request[0] == 0x1d || request[0] == 0x16 || request[0] == 0x17 || request[0] == 0x18)) {
 			if (request[0] == 0x18) events_.push_back("save.snapshot");
@@ -429,6 +430,7 @@ public:
 	std::string observed_core = "MegaDrive";
 	mister::Error probe_error;
 	std::vector<std::uint64_t> deadlines;
+	std::vector<std::vector<std::uint16_t>> requests;
 	mister::Error sync_error;
 	std::string fail_event;
 	std::size_t status_calls = 0;
@@ -447,6 +449,7 @@ public:
 		identities.push_back(identity);
 		recipes.push_back(recipe);
 		writer_ = std::move(writer);
+		writers.push_back(writer_);
 		open_deadlines.push_back(deadline);
 		++open_calls;
 		if (!open_error.ok()) return open_error;
@@ -520,6 +523,7 @@ public:
 	std::vector<std::uint64_t> neutral_deadlines;
 	std::vector<std::uint64_t> stop_deadlines;
 	std::vector<std::uint64_t> generations;
+	std::vector<mister::native::ButtonWriter> writers;
 	bool reject_expired_deadline = false;
 
 private:
@@ -1967,12 +1971,19 @@ void TestNativeSaveStopAndWriteRetry()
 	const int programs = f.fpga.calls;
 	const int input_opens = f.input.open_calls;
 	const int input_starts = f.input.start_calls;
+	const mister::native::ButtonWriter retired_writer = f.input.writers.back();
 	backup.ram[0] = 0x99;
 	assert(f.hardware.RestoreInput(1).ok());
 	assert(f.input.open_calls == input_opens + 1 &&
 		f.input.start_calls == input_starts + 1);
 	assert(f.input.generations.back() == 1);
+	const std::size_t requests_before_retired = f.spi.requests.size();
+	assert(retired_writer(0x10, 998).ok());
+	assert(f.spi.requests.size() == requests_before_retired);
 	assert(f.input.Deliver(0x20, 999).ok());
+	assert(f.spi.requests.size() == requests_before_retired + 1);
+	assert((f.spi.requests.back() ==
+		std::vector<std::uint16_t>{0x0002, 0x0020}));
 	assert(rmdir(launch.save_path.c_str()) == 0);
 	assert(f.hardware.FlushSave().ok());
 	f.temporary.files.push_back(launch.save_path);
