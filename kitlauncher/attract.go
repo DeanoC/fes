@@ -209,6 +209,8 @@ func (m *Model) inputAttract(e remoteinput.Event, dx, dy int, now time.Time) str
 	item, ok := m.currentAttractItem()
 	m.noteActivity(now)
 	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok && item.Launchable && strings.TrimSpace(item.GameID) != "" {
+		// focusedGame prefers the strip while it is active; attract A launches the still.
+		m.leaveStrip()
 		if !m.focusGame(item.GameID) {
 			m.launchID = strings.TrimSpace(item.GameID)
 		}
