@@ -14,7 +14,7 @@ host software and target root filesystem.
 | Create component worktrees and use incremental builds | [Development guide](development.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
-| Build, inspect and load described FPGA core packages | [Described FPGA core packages](core-packages.md) |
+| Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
@@ -29,6 +29,11 @@ NES video and native session lifecycle acceptance for the selected image is
 recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md).
 
 ## What has been verified
+
+- [Core package library](validation/2026-09-09-core-package-library.md):
+  installed versions, normal library launch, checked selection and rollback.
+- [RBF ABI acceptance](validation/2026-09-09-rbf-abi-acceptance.md):
+  described-core identity, standalone Pong, input and recovery checks.
 
 - [Dual-PLL native diagnostic](dual-pll-native-diagnostic.md): FES `f34c84c`
   selecting misteross `cb89517`, diagnostic `make dev` image and bounded kit
@@ -59,6 +64,12 @@ Mistral Pong milestone. The [implementation plan](superpowers/plans/2026-09-08-r
 retains its task history and acceptance checks. The software and image-selection
 path is implemented; physical acceptance still requires evidence for the exact
 assembled image.
+
+[Installed package library design](superpowers/specs/2026-09-09-core-package-library-design.md)
+and its [implementation plan](superpowers/plans/2026-09-09-core-package-library.md)
+describe immutable host installation, compatibility inspection and explicit
+ROM-less library selections. The operator commands and UI-facing API contract
+are linked from the [core package guide](core-packages.md).
 
 ## Earlier designs and plans
 
