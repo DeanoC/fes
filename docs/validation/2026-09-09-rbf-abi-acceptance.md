@@ -1,6 +1,6 @@
 # RBF ABI hardware validation — 2026-09-09
 
-Status: **gameplay and recovery diagnostics passed; updated integrated image pending**.
+Status: **integrated recovery passed; unsupported-package input preservation failed**.
 The assembled development image passed structural verification, but standalone
 FES Pong initially failed HDMI initialization, followed by faulty ball motion.
 Hardware diagnostics now verify a nextpnr correction with the original Pong
@@ -270,3 +270,62 @@ image, not a rebuilt integrated image. Diagnostic host SHA-256:
 target agent SHA-256:
 `e3f6310954128debcb0b9111f05a587b4a314184e680cd886d228b05176effe3`.
 Evidence: `out/acceptance/20260909-package-recovery-04b2050`.
+
+
+## Updated integrated image: recovery passed, input preservation failed
+
+Image SHA-256
+`3f488a77d1024b736bf717c915294208ad1399d3cc905bd3ce05b9765d27a1e2`
+passed two-pass reproducibility, structural verification and QEMU. Its receipts
+identify FES `3238337e8b70ec54d4f6c851625b559bcab41ec4`, FogCast
+`23b539ea6982eca350c41dce6bf97c003312692f`, runtime
+`04b20509a5501c1fdf6400e21a8dd6567d6c5e33`, misteross
+`11c3ee1fbb4d0324a5fd8b3168a7be89a9ecea26` and mister-packages
+`a5c97eb94b5cad68568368b07a4321fe0b4c5623`. The final parent CI change
+only affected workflow checkout; a canonical host rebuild refreshed its receipt
+and produced identical host binaries.
+
+The kit rebooted into this exact image. Runtime, agent and launcher came from
+the immutable image, with no executable or launcher-configuration bind mounts.
+The standalone package activated with the expected ABI, build ID, generation
+and an attached launcher input source. Repeated live build-ID mismatch requests
+returned the expected identity error, retained both build IDs in the HTTP
+response, and recovered to idle. Subsequent 007 launch/Stop and raw MiSTer RBF
+load/Stop passed without reboot. These are automated results; the user gameplay
+confirmations above belong to the previous image.
+
+Unsupported ABI admission correctly rejected the package and preserved the
+active package/generation, but **did not preserve input readiness**: the bridge
+connection closed during the 3.519-second rejection request. The session
+changed from attached/ready to reconnecting/not-ready, followed by launcher
+source detachment. Explicit Stop succeeded. This is failed acceptance evidence
+and remains under investigation.
+
+Cleanup restored the prior ordinary launcher configuration (SHA-256
+`ade9d4fd13b4a0d58dc3b380f53e03f83e6a3634aa63df693a7361190be8b815`),
+restarted the image launcher, stopped the isolated host and observed a free
+lease. The ordinary UI host initially reported discovery validation failure, then
+recovered to ready/reachable on the same boot without process/configuration
+changes. Its validator checks network API v1 identity; this was a transient
+discovery failure, not evidence of runtime protocol incompatibility. The
+launcher subsequently loaded its 3,629-game catalog, although the captured
+footer still indicated reconnecting; physical menu input was not retested.
+The previous image remains retained as `/media/fat/linux/fesprv.img`.
+
+Evidence: `out/acceptance/20260909T121537Z-final-image`. FES #12 remains draft.
+
+
+A repeat on the same immutable image, with a temporary launcher pairing and
+video capture disabled, kept input attached for ten seconds before the
+unsupported-package request and preserved it through rejection. Stop returned
+idle. This does not erase the earlier transient failure; it shows the admission
+path does not deterministically drop input. Evidence:
+`out/acceptance/20260909-input-drop-diagnostic`.
+
+FogCast `bda3c220aef9011e7fdc928cf574f1dce8b83746` fixes a separately
+reproduced reconnect deadlock: the launcher may reclaim the same active input
+session while reconnecting, and the host restores its transport before granting
+the new source, without waiting for a controller event. Focused regressions
+failed before the fix and passed afterward; affected host/launcher/API tests,
+race checks and vet passed, with independent review. Hardware diagnostics and
+a rebuilt integrated image for this follow-up are pending.
