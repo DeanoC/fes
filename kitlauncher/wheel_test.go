@@ -167,6 +167,39 @@ func TestWheelPrefetchIDsFocusFirst(t *testing.T) {
 	}
 }
 
+func TestWheelStatsRollsUpPlayCountAndLastPlayed(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
+	games := mixedCatalog()
+	for i := range games {
+		if games[i].ID == "sonic" {
+			games[i].PlayCount = 4
+			games[i].LastPlayedAt = 200
+		}
+		if games[i].ID == "streets" {
+			games[i].PlayCount = 1
+			games[i].LastPlayedAt = 50
+		}
+	}
+	m.SetCatalog(games)
+	m.Shelf = "megadrive"
+	m.applyFilter("")
+	if m.WheelStats() != "3 games  |  5 plays" {
+		t.Fatalf("stats %q", m.WheelStats())
+	}
+	if m.WheelFeaturedTitle() != "Sonic" {
+		t.Fatalf("featured %q", m.WheelFeaturedTitle())
+	}
+	m.Shelf = "snes"
+	m.applyFilter("")
+	if m.WheelStats() != "2 games" || m.WheelFeaturedTitle() != "Mario" {
+		t.Fatalf("snes stats=%q featured=%q", m.WheelStats(), m.WheelFeaturedTitle())
+	}
+	m.Recents = []tenfoot.Game{{ID: "zelda", Title: "Zelda", System: "snes"}}
+	if m.WheelFeaturedTitle() != "Zelda" {
+		t.Fatalf("recents featured %q", m.WheelFeaturedTitle())
+	}
+}
+
 func TestWheelEmptyCatalogIsIdle(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
 	now := time.Unix(1, 0)

@@ -128,6 +128,7 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		if focused {
 			paintRectOutline(d, inner, 1, th.Highlight)
 		}
+		paintTileBadges(d, g, th, inner, tile)
 	}
 	if g.Kind == BrowseCoverflow {
 		return

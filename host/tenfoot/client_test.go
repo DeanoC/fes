@@ -38,6 +38,41 @@ func TestClientDecodesGameRegion(t *testing.T) {
 	}
 }
 
+func TestClientDecodesPlayStatsAndOptionalBadgeFields(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"games": []Game{{
+					ID: "megadrive-sonic", Title: "Sonic", System: "megadrive",
+					Launchable: true, PlayCount: 4, LastPlayedAt: 99,
+				}},
+			})
+		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
+			_ = json.NewEncoder(w).Encode(Presentation{
+				GameID: "megadrive-sonic",
+				State:  "ready",
+				Presentation: &PresentationInfo{
+					Players: "2", Rating: "4.5", Completion: "100%", Portable: true,
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+	games, _, err := client.ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil || len(games) != 1 || games[0].PlayCount != 4 || games[0].LastPlayedAt != 99 {
+		t.Fatalf("games = %#v err=%v", games, err)
+	}
+	pres, err := client.GamePresentation(context.Background(), "megadrive-sonic")
+	if err != nil || pres.Presentation == nil || pres.Presentation.Players != "2" || pres.Presentation.Rating != "4.5" || pres.Presentation.Completion != "100%" || !pres.Presentation.Portable {
+		t.Fatalf("presentation = %#v err=%v", pres, err)
+	}
+}
+
 func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 	t.Parallel()
 	var paths []string

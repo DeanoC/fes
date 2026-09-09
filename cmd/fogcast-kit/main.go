@@ -50,6 +50,7 @@ func run() error {
 	selftestAtmosphere := flag.Bool("selftest-atmosphere", false, "paint dimmed fanart/cover-wall behind chrome, then exit")
 	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow and cover-wall browse, cycle Y, then exit")
 	selftestPacks := flag.Bool("selftest-packs", false, "paint Classic/Neon/Sofa Dim packs, cycle X, then exit")
+	selftestBadges := flag.Bool("selftest-badges", false, "paint tile/detail badges and wheel play-stats, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -72,7 +73,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -87,6 +88,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestBadges {
+			return runBadgesSelftest(fb, th)
 		}
 		if *selftestPacks {
 			return runPacksSelftest(fb, th)
@@ -494,6 +498,10 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		if presentations != nil {
 			pres = presentations.Get(game.ID)
 		}
+		if pres.Presentation == nil {
+			pres = m.FocusPresentation()
+		}
+		frame.Badges = kitlauncher.TitleBadges(game, pres)
 		handle := m.FocusCoverHandle()
 		if handle == "" {
 			handle = tenfoot.CoverHandle(game, pres)
@@ -619,7 +627,7 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presen
 	if name == "" {
 		name = "UNTITLED"
 	}
-	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System), CoverKind: fbgrid.CoverMissing}
+	tile := fbgrid.Tile{Name: truncateLabel(name, 18), Color: th.SystemColor(game.System), CoverKind: fbgrid.CoverMissing, Badges: kitlauncher.TitleBadges(game, pres)}
 	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
 		if covers != nil {
 			tile.Cover = covers.Image(handle)

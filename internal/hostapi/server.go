@@ -46,6 +46,8 @@ type gameResult struct {
 	Year            string              `json:"year,omitempty"`
 	Platform        protocol.System     `json:"platform,omitempty"`
 	Favorite        bool                `json:"favorite,omitempty"`
+	PlayCount       int64               `json:"play_count,omitempty"`
+	LastPlayedAt    int64               `json:"last_played_at,omitempty"`
 	Collections     []string            `json:"collections,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`

@@ -91,7 +91,8 @@ header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `FLOW` or
 wheel enters that system's browse view; East/B on the browse view returns to the wheel.
 The focused platform paints hardware/fanart/backdrop when attract, presentation
 `backdrop_artwork_id`, or a representative cover handle exists, otherwise a
-theme-tinted placeholder, with game-count chrome. Wheel cells use a
+theme-tinted placeholder, with game-count chrome plus a play rollup when host
+games already carry `play_count` or last-played. Wheel cells use a
 representative clear logo when presentation has `logo_id`, else a bold
 wordmark. D-pad and left
 stick move focus in
@@ -111,8 +112,12 @@ Down that cannot move focus further (last catalog row) enters that strip, or
 opens a focused title pane when the strip is hidden
 (large cover, title, and platform/year/genre/studio/players/region when the
 catalog or presentation already carries them, plus a wrapped `summary`
-description). Series, last-played, and play-count are omitted: they are not
-on the public games or presentation payloads. D-pad L/R move among strip
+description). Compact chips paint on grid, coverflow, wall, and the title pane
+for players, rating, completion, and portable when those presentation fields
+exist (portable also uses handheld catalog systems); missing chips stay hidden.
+The title pane still omits play-count and last-played as body copy; the
+platform wheel rolls those up from host `play_count` / `last_played_at` (or
+recents order) when admitted. D-pad L/R move among strip
 tiles, A opens that title's pane, and B or Up return to the grid.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle

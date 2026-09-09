@@ -21,6 +21,7 @@ type observation struct {
 	games          []tenfoot.Game
 	strip          []tenfoot.Game
 	stripLabel     string
+	recents        []tenfoot.Game
 	haveStrip      bool
 	attract        tenfoot.AttractPlaylist
 	haveAttract    bool
@@ -96,7 +97,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err == nil && load {
 				o.games, o.err = loadCatalog(ctx, c)
 				if o.err == nil {
-					o.strip, o.stripLabel = loadStrip(ctx, c)
+					o.strip, o.stripLabel, o.recents = loadStrip(ctx, c)
 					o.haveStrip = true
 				}
 			}
@@ -213,6 +214,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.haveStrip {
 					m.SetStrip(o.strip, o.stripLabel)
+					m.Recents = append([]tenfoot.Game(nil), o.recents...)
 				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)
@@ -339,9 +341,9 @@ func catalogSystems(ctx context.Context, c *Client) []string {
 	return ids
 }
 
-func loadStrip(ctx context.Context, c *Client) ([]tenfoot.Game, string) {
+func loadStrip(ctx context.Context, c *Client) ([]tenfoot.Game, string, []tenfoot.Game) {
 	if c == nil || c.Library == nil {
-		return nil, ""
+		return nil, "", nil
 	}
 	recents, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Collection: "recents", Limit: stripMax}, stripMax)
 	if err != nil {
@@ -351,7 +353,8 @@ func loadStrip(ctx context.Context, c *Client) ([]tenfoot.Game, string) {
 	if err != nil {
 		favorites = nil
 	}
-	return ComposeStrip(recents, favorites)
+	games, label := ComposeStrip(recents, favorites)
+	return games, label, recents
 }
 
 func persistShelf(c *Client, shelf string) {

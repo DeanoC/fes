@@ -185,8 +185,8 @@ type FocusDetail struct {
 }
 
 // MetaFacts joins admitted catalog/presentation facts for the detail strip.
-// Empty fields are omitted. Series, last-played, and play-count are not on
-// the public games or presentation payloads, so they never appear here.
+// Empty fields are omitted. Play-count and last-played stay off this pane;
+// the kit platform wheel rolls them up when the games payload carries them.
 func (d FocusDetail) MetaFacts() string {
 	parts := make([]string, 0, 6)
 	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region} {

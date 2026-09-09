@@ -211,6 +211,190 @@ func runAtmosphereSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runBadgesSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseBadgesGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseBadgesGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	g := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+		{Name: "SONIC", Color: th.SystemColor("megadrive"), Cover: cover, CoverKind: fbgrid.CoverPresent, Badges: fbgrid.ComposeBadges("2", "4.5", "100%", true)},
+		{Name: "PONG", Color: th.SystemColor("pong"), Cover: cover, CoverKind: fbgrid.CoverPresent},
+	})
+	fbgrid.ApplyTheme(&g, th)
+	g.Header = "FOGCAST  BADGES"
+	g.Footer = "A play | B detail | L/R | Y flow"
+	fbgrid.Paint(d, g)
+	d.Present()
+	bx, by, ok := fbgrid.TileBadgeSample(g, 0, 0)
+	if !ok {
+		return b.String(), fmt.Errorf("grid badge sample")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, bx, by)
+	if err != nil {
+		return b.String(), err
+	}
+	if gotB != th.Highlight.B || gotG != th.Highlight.G || gotR != th.Highlight.R || gotX != 0 {
+		return b.String(), fmt.Errorf("grid badge bgrx %d,%d,%d,%d", gotB, gotG, gotR, gotX)
+	}
+	ix, iy, ok := g.InteriorSample()
+	if !ok {
+		return b.String(), fmt.Errorf("grid interior")
+	}
+	inB, inG, inR, inX, err := gfx.SampleBGRX(d.Destination(), cfg, ix, iy)
+	if err != nil {
+		return b.String(), err
+	}
+	if inB != 160 || inG != 32 || inR != 255 || inX != 0 {
+		return b.String(), fmt.Errorf("cover crushed bgrx %d,%d,%d,%d", inB, inG, inR, inX)
+	}
+	if _, _, ok := fbgrid.TileBadgeSample(g, 1, 0); ok {
+		return b.String(), fmt.Errorf("empty tile grew a badge")
+	}
+	fmt.Fprintf(&b, "grid badge=(%d,%d) bgrx=%d,%d,%d,%d interior=(%d,%d) cover_bgrx=%d,%d,%d,%d\n",
+		bx, by, gotB, gotG, gotR, gotX, ix, iy, inB, inG, inR, inX)
+
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var saw2P, sawRating, sawDone, sawPort bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		switch c.Text {
+		case "2P":
+			saw2P = true
+		case "4.5":
+			sawRating = true
+		case "100%":
+			sawDone = true
+		case "PORT":
+			sawPort = true
+		}
+	}
+	if !saw2P || !sawRating || !sawDone || !sawPort {
+		return b.String(), fmt.Errorf("grid chips 2P=%v rating=%v done=%v port=%v ops=%v", saw2P, sawRating, sawDone, sawPort, rec.Ops())
+	}
+
+	for _, kind := range []fbgrid.BrowseKind{fbgrid.BrowseCoverflow, fbgrid.BrowseWall} {
+		g.Kind = kind
+		fbgrid.ApplyTheme(&g, th)
+		fbgrid.Paint(d, g)
+		d.Present()
+		if _, _, ok := fbgrid.TileBadgeSample(g, 0, 0); !ok {
+			return b.String(), fmt.Errorf("%s badge sample", kind)
+		}
+		fmt.Fprintf(&b, "layout=%s badge=1\n", kind)
+	}
+
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{Players: "1-2"}})
+	frame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	if len(frame.Badges) == 0 || frame.Badges[0].Label != "1-2" {
+		return b.String(), fmt.Errorf("detail badges %+v", frame.Badges)
+	}
+	fbgrid.PaintDetail(d, frame)
+	d.Present()
+	dx, dy, ok := fbgrid.DetailBadgeSample(cfg.Width, cfg.Height, th, frame)
+	if !ok {
+		return b.String(), fmt.Errorf("detail badge sample")
+	}
+	dB, dG, dR, dX, err := gfx.SampleBGRX(d.Destination(), cfg, dx, dy)
+	if err != nil {
+		return b.String(), err
+	}
+	if dB != th.Highlight.B || dG != th.Highlight.G || dR != th.Highlight.R || dX != 0 {
+		return b.String(), fmt.Errorf("detail badge bgrx %d,%d,%d,%d", dB, dG, dR, dX)
+	}
+	fmt.Fprintf(&b, "detail badge=(%d,%d) bgrx=%d,%d,%d,%d label=%q\n", dx, dy, dB, dG, dR, dX, frame.Badges[0].Label)
+
+	wheel := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, WheelOpen: true}
+	games := mixedShelfGames()
+	for i := range games {
+		if games[i].System == "megadrive" && games[i].ID != "" {
+			games[i].PlayCount = 2
+			games[i].LastPlayedAt = int64(100 + i)
+			if games[i].Title == "" {
+				games[i].Title = "Sonic"
+			}
+		}
+	}
+	wheel.SetCatalog(games)
+	wheel.CycleShelf(1)
+	wheel.CycleShelf(1)
+	if wheel.Shelf != "megadrive" {
+		return b.String(), fmt.Errorf("wheel shelf %q", wheel.Shelf)
+	}
+	wframe := modelWheelFrame(wheel, nil, nil, nil, th, cfg.Width, cfg.Height)
+	if !strings.Contains(wframe.Stats, "plays") || wframe.Featured == "" {
+		return b.String(), fmt.Errorf("wheel stats=%q featured=%q", wframe.Stats, wframe.Featured)
+	}
+	fbgrid.PaintWheel(d, wframe)
+	d.Present()
+	fmt.Fprintf(&b, "wheel stats=%q featured=%q header=%q\n", wframe.Stats, wframe.Featured, wframe.Header)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y stole browse %s", m.Browse)
+	}
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x stole pack %s", m.Pack)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("A after badges %q", action)
+	}
+	fmt.Fprintf(&b, "nav-still y=%s x=%s launch=1\n", m.Browse, m.Pack)
+
+	for _, look := range []theme.Theme{theme.Default(), theme.Arcade(), theme.Night()} {
+		look = look.Complete()
+		packGrid := fbgrid.NewWithTiles(cfg.Width, cfg.Height, []fbgrid.Tile{
+			{Name: "SONIC", Color: look.SystemColor("megadrive"), Badges: fbgrid.ComposeBadges("2", "", "", false)},
+		})
+		fbgrid.ApplyTheme(&packGrid, look)
+		fbgrid.Paint(d, packGrid)
+		d.Present()
+		px, py, ok := fbgrid.TileBadgeSample(packGrid, 0, 0)
+		if !ok {
+			return b.String(), fmt.Errorf("%s pack badge", look.Name)
+		}
+		pB, pG, pR, _, err := gfx.SampleBGRX(d.Destination(), cfg, px, py)
+		if err != nil {
+			return b.String(), err
+		}
+		if pB != look.Highlight.B || pG != look.Highlight.G || pR != look.Highlight.R {
+			return b.String(), fmt.Errorf("%s pack badge bgrx %d,%d,%d want %d,%d,%d", look.Name, pB, pG, pR, look.Highlight.B, look.Highlight.G, look.Highlight.R)
+		}
+		fmt.Fprintf(&b, "pack=%s badge_bgrx=%d,%d,%d\n", look.Name, pB, pG, pR)
+	}
+
+	packs, err := exercisePacksGrid(d, th)
+	b.WriteString(packs)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-badges PASS chips=1 wheel-stats=1 packs=1 nested-packs=1\n")
+	return b.String(), nil
+}
+
 func runPacksSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {

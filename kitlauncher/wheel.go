@@ -101,17 +101,73 @@ func (m Model) WheelItems() []WheelItem {
 	return items
 }
 
-// WheelStats is the light hero chrome: "12 games".
+// WheelStats is the platform-header count chrome: title count, plus a play
+// rollup when host games already carry play_count.
 func (m Model) WheelStats() string {
 	n, _ := m.ShelfCounts()
-	if n == 1 {
-		return "1 game"
+	games := "0 games"
+	switch n {
+	case 1:
+		games = "1 game"
+	default:
+		games = fmt.Sprintf("%d games", n)
 	}
-	return fmt.Sprintf("%d games", n)
+	plays := m.WheelPlayCount()
+	if plays < 1 {
+		return games
+	}
+	if plays == 1 {
+		return games + "  |  1 play"
+	}
+	return games + fmt.Sprintf("  |  %d plays", plays)
 }
 
-// WheelFeaturedTitle is a cheap title from the focused shelf, when one exists.
+// WheelPlayCount sums admitted play_count values on the focused shelf.
+func (m Model) WheelPlayCount() int64 {
+	var n int64
+	for _, game := range filterGames(m.Catalog, m.activeShelf()) {
+		if game.PlayCount > 0 {
+			n += game.PlayCount
+		}
+	}
+	return n
+}
+
+// WheelLastPlayed is the shelf title with the newest last_played_at, else the
+// first recents row on that shelf. Empty when the host has not admitted either.
+func (m Model) WheelLastPlayed() (tenfoot.Game, bool) {
+	var best tenfoot.Game
+	var at int64
+	found := false
+	for _, game := range filterGames(m.Catalog, m.activeShelf()) {
+		if game.LastPlayedAt > at {
+			at = game.LastPlayedAt
+			best = game
+			found = true
+		}
+	}
+	if found {
+		return best, true
+	}
+	shelf := m.activeShelf()
+	for _, game := range m.Recents {
+		if shelf != ShelfAll && !strings.EqualFold(strings.TrimSpace(game.System), shelf) {
+			continue
+		}
+		if strings.TrimSpace(game.Title) == "" && strings.TrimSpace(game.ID) == "" {
+			continue
+		}
+		return game, true
+	}
+	return tenfoot.Game{}, false
+}
+
+// WheelFeaturedTitle prefers last-played when the host admitted it, else a
+// cheap title from the focused shelf.
 func (m Model) WheelFeaturedTitle() string {
+	if game, ok := m.WheelLastPlayed(); ok {
+		return strings.TrimSpace(game.Title)
+	}
 	game, ok := m.WheelGame(m.activeShelf())
 	if !ok {
 		return ""
