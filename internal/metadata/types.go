@@ -55,6 +55,7 @@ type Candidate struct {
 	Genres           []string
 	Studios          []string
 	Players          string
+	Series           string
 	Artwork          []ArtworkRef
 	UpdatedAt        time.Time
 	Checksum         string
@@ -80,6 +81,7 @@ type Presentation struct {
 	Genre             string
 	Studio            string
 	Players           string
+	Series            string
 	CoverArtworkID    string
 	BackdropArtworkID string
 	LogoArtworkID     string

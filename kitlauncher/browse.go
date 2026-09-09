@@ -9,6 +9,7 @@ func (m *Model) CycleBrowse() {
 	if m == nil || m.WheelOpen || m.DetailOpen || m.AttractActive || m.SearchOpen {
 		return
 	}
+	m.leaveSeries()
 	m.Browse = m.Browse.Next()
 }
 

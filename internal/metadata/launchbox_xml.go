@@ -929,6 +929,7 @@ type launchBoxGameRecord struct {
 	developer   string
 	publisher   string
 	maxPlayers  string
+	series      string
 }
 
 type launchBoxAliasRecord struct {
@@ -1216,6 +1217,9 @@ func validateLaunchBoxRecord(record *launchBoxRecord) error {
 		if record.game.publisher != "" && utf8.RuneCountInString(record.game.publisher) > 256 {
 			return errors.New("launchbox Game.Publisher is invalid")
 		}
+		if record.game.series != "" && utf8.RuneCountInString(record.game.series) > 256 {
+			return errors.New("launchbox Game.Series is invalid")
+		}
 	case "GameAlternateName":
 		if !validLaunchBoxID(record.alias.databaseID) {
 			return errors.New("launchbox alias DatabaseID is invalid")
@@ -1457,7 +1461,7 @@ func launchBoxSelectedFieldBit(family, field string) uint64 {
 	fields := []string{}
 	switch family {
 	case "Game":
-		fields = []string{"DatabaseID", "Name", "Platform", "Overview", "ReleaseYear", "Genres", "Developer", "Publisher", "MaxPlayers"}
+		fields = []string{"DatabaseID", "Name", "Platform", "Overview", "ReleaseYear", "Genres", "Developer", "Publisher", "MaxPlayers", "Series"}
 	case "GameAlternateName":
 		fields = []string{"DatabaseID", "AlternateName", "Region"}
 	case "GameImage":
@@ -1497,6 +1501,8 @@ func launchBoxFieldLimit(family, field string) (bool, int, int) {
 			return true, 1024, 256
 		case "MaxPlayers":
 			return true, 32, 32
+		case "Series":
+			return true, 1024, 256
 		}
 	case "GameAlternateName":
 		switch field {
@@ -1589,6 +1595,8 @@ func assignLaunchBoxField(record *launchBoxRecord, family, field, value string) 
 			record.game.publisher = value
 		case "MaxPlayers":
 			record.game.maxPlayers = value
+		case "Series":
+			record.game.series = value
 		}
 	case "GameAlternateName":
 		switch field {

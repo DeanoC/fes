@@ -320,7 +320,10 @@ make tenfoot-smoke
   (title, platform, year, genre, studio, players, summary, screenshot handles,
   and provider attribution). Empty studio, players, and summary are omitted.
   Catalog `region` from `GET /api/v1/games` joins the meta line when present.
-  Series, last-played, and play-count are not on these public payloads.
+  Optional `marquee_id`, `series`, `related` / `related_ids`, and `collection`
+  decode when present. A ready `marquee_id` paints under the header; the kit
+  filters the loaded catalog for siblings and hides the Series row at the
+  bottom of the pane when none exist. Last-played and play-count stay off this pane.
   HTTP 200 with `state: "offline"` is a temporary provider failure: details are
   not cached, and the focused title retries with backoff. A local-media overlay of
   offline arrives as `ready` without attribution and retries the same way.

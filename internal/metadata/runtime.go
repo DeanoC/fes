@@ -745,6 +745,7 @@ func presentationFromCandidate(candidate Candidate) Presentation {
 		Genre:   boundedText(strings.Join(candidate.Genres, ", "), 40),
 		Studio:  boundedText(strings.Join(candidate.Studios, ", "), 60),
 		Players: boundedText(candidate.Players, 40),
+		Series:  boundedText(candidate.Series, 80),
 	}
 }
 

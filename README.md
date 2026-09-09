@@ -144,6 +144,10 @@ screenshots when `screenshot_ids` has two or more. Presentation `marquee_id`
 that wins when present) paints a wide strip under the header; missing handles
 hide the strip rather than reserving an empty band, and cover, meta, badges,
 and the screenshot/video slot keep their existing layout. When presentation
+`series`, `related`, or `collection` names at least one other loaded catalog
+title, a Series strip paints at the bottom of the pane (and in the Split
+hero). Down (detail) or Right (split) focuses it; A opens that title; B
+returns; the row hides when no sibling exists. When presentation
 `video_id` (library_media video overlay) is present, the pane shows an honest
 motion preview: it auto-cycles those screenshots plus backdrop/cover posters
 under a VIDEO badge and a `preview` caption. The CGO-free kit path does not

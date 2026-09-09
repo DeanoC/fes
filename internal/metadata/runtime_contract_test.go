@@ -124,11 +124,12 @@ func TestPresentationFromCandidatePreservesIndependentOptionalTextFields(t *test
 		{name: "genre", set: func(value *Candidate) { value.Genres = nil }},
 		{name: "studio", set: func(value *Candidate) { value.Studios = nil }},
 		{name: "players", set: func(value *Candidate) { value.Players = "" }},
+		{name: "series", set: func(value *Candidate) { value.Series = "" }},
 	} {
 		t.Run(field.name, func(t *testing.T) {
 			candidate := Candidate{
 				Summary: "summary", FirstReleaseYear: 1991, Genres: []string{"genre"},
-				Studios: []string{"studio"}, Players: "players",
+				Studios: []string{"studio"}, Players: "players", Series: "Sonic the Hedgehog",
 			}
 			field.set(&candidate)
 			presentation := presentationFromCandidate(candidate)
@@ -146,6 +147,9 @@ func TestPresentationFromCandidatePreservesIndependentOptionalTextFields(t *test
 			}
 			if field.name != "players" && presentation.Players != "players" {
 				t.Fatalf("players was not preserved: %#v", presentation)
+			}
+			if field.name != "series" && presentation.Series != "Sonic the Hedgehog" {
+				t.Fatalf("series was not preserved: %#v", presentation)
 			}
 		})
 	}

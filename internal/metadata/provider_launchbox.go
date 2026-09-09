@@ -40,6 +40,7 @@ type launchBoxXMLGame struct {
 	Developer   string `xml:"Developer"`
 	Publisher   string `xml:"Publisher"`
 	MaxPlayers  string `xml:"MaxPlayers"`
+	Series      string `xml:"Series"`
 }
 
 type launchBoxXMLAlias struct {
@@ -106,6 +107,7 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 				developer:   strings.TrimSpace(game.Developer),
 				publisher:   strings.TrimSpace(game.Publisher),
 				maxPlayers:  strings.TrimSpace(game.MaxPlayers),
+				series:      strings.TrimSpace(game.Series),
 			}})
 		case "GameAlternateName":
 			var alias launchBoxXMLAlias
@@ -157,6 +159,7 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 			Summary:          game.record.overview,
 			Studios:          launchBoxStudios(game.record),
 			Players:          game.record.maxPlayers,
+			Series:           game.record.series,
 		}
 		if year, err := parseLaunchBoxYear(game.record.releaseYear); err == nil {
 			candidate.FirstReleaseYear = year
@@ -370,6 +373,7 @@ func (r *launchBoxCatalogRuntime) Lookup(_ context.Context, input LookupInput) (
 		Genre:   firstNonEmpty(decision.Candidate.Genres),
 		Studio:  firstNonEmpty(decision.Candidate.Studios),
 		Players: decision.Candidate.Players,
+		Series:  strings.TrimSpace(decision.Candidate.Series),
 	}
 	if decision.Candidate.FirstReleaseYear > 0 {
 		result.Presentation.Year = itoaYear(decision.Candidate.FirstReleaseYear)

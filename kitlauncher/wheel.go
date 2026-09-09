@@ -268,6 +268,9 @@ func (m Model) GridHint() string {
 	if m.StripActive {
 		return m.stripHint()
 	}
+	if m.SeriesActive {
+		return m.seriesHint()
+	}
 	next := "Y " + m.Browse.Next().ShortLabel()
 	if m.fromWheel {
 		return "A play | B platforms | L/R | " + next

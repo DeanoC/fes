@@ -182,6 +182,9 @@ type FocusDetail struct {
 	Favorite      bool
 	VideoID       string
 	ScreenshotIDs []string
+	Series        string
+	RelatedIDs    []string
+	Collection    string
 }
 
 // MetaFacts joins admitted catalog/presentation facts for the detail strip.

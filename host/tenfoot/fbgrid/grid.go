@@ -122,6 +122,10 @@ type Grid struct {
 	StripActive    bool
 	StripCellW     int
 	StripCellH     int
+	Series         []Tile
+	SeriesLabel    string
+	SeriesFocus    int
+	SeriesActive   bool
 	// Atmosphere is optional fanart/backdrop painted cover-fill behind chrome.
 	// When nil, Paint uses a dimmed cover-wall of decoded tile/strip covers.
 	// When those are also empty, the stage stays the solid theme background.

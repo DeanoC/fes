@@ -37,6 +37,8 @@ func (m *Model) openDetail(now time.Time) {
 	m.DetailOpen = true
 	m.shotIndex = 0
 	m.previewAt = time.Time{}
+	m.leaveSeries()
+	m.refreshSeries()
 	m.noteActivity(now)
 }
 
@@ -47,6 +49,7 @@ func (m *Model) closeDetail() {
 	m.DetailOpen = false
 	m.shotIndex = 0
 	m.previewAt = time.Time{}
+	m.leaveSeries()
 }
 
 func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) string {
@@ -54,6 +57,35 @@ func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) stri
 		return ""
 	}
 	m.noteActivity(now)
+	if m.SeriesActive {
+		if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
+			switch e.Code {
+			case remoteinput.ButtonA:
+				m.jumpToSeries(now)
+				return ""
+			case remoteinput.ButtonB:
+				m.leaveSeries()
+				return ""
+			case remoteinput.ButtonX:
+				m.CyclePack()
+				return ""
+			case remoteinput.ButtonL:
+				m.inputSeries(-1, 0)
+				return ""
+			case remoteinput.ButtonR:
+				m.inputSeries(1, 0)
+				return ""
+			}
+		}
+		if dx != 0 || dy != 0 {
+			if dy < 0 {
+				m.leaveSeries()
+				return ""
+			}
+			m.inputSeries(dx, dy)
+		}
+		return ""
+	}
 	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
 		switch e.Code {
 		case remoteinput.ButtonA:
@@ -78,6 +110,10 @@ func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) stri
 	}
 	if dx != 0 {
 		m.stepShot(dx)
+		return ""
+	}
+	if dy > 0 && len(m.Series) > 0 {
+		m.enterSeries()
 		return ""
 	}
 	if dy < 0 {
@@ -108,13 +144,14 @@ func (m Model) FocusDetail() tenfoot.FocusDetail {
 // ApplyPresentation stores host presentation for the currently focused title.
 func (m *Model) ApplyPresentation(id string, p tenfoot.Presentation) {
 	id = strings.TrimSpace(id)
-	game, ok := m.focusedGame()
+	game, ok := m.seriesSubject()
 	if id == "" || !ok || game.ID != id {
 		return
 	}
 	m.presentationID = id
 	m.presentation = p
 	m.clampShot()
+	m.refreshSeries()
 }
 
 func (m *Model) clampShot() {
@@ -223,11 +260,23 @@ func (m Model) HasVideoPreview() bool {
 
 // DetailHint is the footer for the title pane.
 func (m Model) DetailHint() string {
+	if m.SeriesActive {
+		return m.seriesHint()
+	}
 	if m.HasVideoPreview() && len(m.previewHandles()) > 1 {
+		if len(m.Series) > 0 {
+			return "A play | B back | L/R | Down series"
+		}
 		return "A play | B back | L/R preview"
 	}
 	if len(m.FocusDetail().ScreenshotIDs) > 1 {
+		if len(m.Series) > 0 {
+			return "A play | B back | L/R | Down series"
+		}
 		return "A play | B back | L/R shots"
+	}
+	if len(m.Series) > 0 {
+		return "A play | B back | Down series"
 	}
 	return "A play | B back"
 }
@@ -279,6 +328,9 @@ func (m Model) DetailPrefetchHandles() []string {
 	add(m.FocusMarqueeHandle())
 	for _, handle := range m.previewHandles() {
 		add(handle)
+	}
+	for _, game := range m.Series {
+		add(tenfoot.CoverHandle(game, tenfoot.Presentation{}))
 	}
 	return out
 }

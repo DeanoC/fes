@@ -127,6 +127,12 @@ func GameDetail(game Game, p Presentation) FocusDetail {
 		d.Summary = strings.TrimSpace(info.Summary)
 		d.VideoID = normalizeHandle(info.VideoID)
 		d.ScreenshotIDs = screenshotHandles(info.ScreenshotIDs)
+		d.Series = strings.TrimSpace(info.Series)
+		d.RelatedIDs = RelatedIDs(p)
+		d.Collection = strings.TrimSpace(info.Collection)
+	}
+	if d.Series == "" {
+		d.Series = strings.TrimSpace(game.Series)
 	}
 	d.Attribution = strings.TrimSpace(p.AttributionLabel())
 	return d

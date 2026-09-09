@@ -40,6 +40,7 @@ type presentationWire struct {
 		Genre   string `json:"genre"`
 		Studio  string `json:"studio"`
 		Players string `json:"players"`
+		Series  string `json:"series"`
 	} `json:"presentation"`
 	Attribution *struct {
 		Provider string `json:"provider"`
@@ -129,9 +130,10 @@ func TestPresentationWirePreservesIndependentReadyFieldsWhenOptionalTextIsEmpty(
 		{name: "genre", set: func(value *metadata.Presentation) { value.Genre = "" }},
 		{name: "studio", set: func(value *metadata.Presentation) { value.Studio = "" }},
 		{name: "players", set: func(value *metadata.Presentation) { value.Players = "" }},
+		{name: "series", set: func(value *metadata.Presentation) { value.Series = "" }},
 	} {
 		t.Run(field.name, func(t *testing.T) {
-			presentation := metadata.Presentation{Summary: "summary", Year: "1991", Genre: "genre", Studio: "studio", Players: "players"}
+			presentation := metadata.Presentation{Summary: "summary", Year: "1991", Genre: "genre", Studio: "studio", Players: "players", Series: "Sonic the Hedgehog"}
 			field.set(&presentation)
 			handler := hostapi.New(service, hostapi.WithMetadata(presentationMetadata{result: metadata.Result{
 				Outcome: metadata.OutcomeExact, Presentation: presentation,
@@ -146,7 +148,7 @@ func TestPresentationWirePreservesIndependentReadyFieldsWhenOptionalTextIsEmpty(
 			if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
 				t.Fatal(err)
 			}
-			if wire.State != "ready" || wire.Presentation == nil || wire.Presentation.Summary != presentation.Summary || wire.Presentation.Year != presentation.Year || wire.Presentation.Genre != presentation.Genre || wire.Presentation.Studio != presentation.Studio || wire.Presentation.Players != presentation.Players {
+			if wire.State != "ready" || wire.Presentation == nil || wire.Presentation.Summary != presentation.Summary || wire.Presentation.Year != presentation.Year || wire.Presentation.Genre != presentation.Genre || wire.Presentation.Studio != presentation.Studio || wire.Presentation.Players != presentation.Players || wire.Presentation.Series != presentation.Series {
 				t.Fatalf("partial ready wire = %#v body=%s", wire, response.Body.String())
 			}
 		})
