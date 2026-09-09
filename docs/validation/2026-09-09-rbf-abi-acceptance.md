@@ -1,6 +1,6 @@
 # RBF ABI hardware validation — 2026-09-09
 
-Status: **final-image gameplay confirmed; identity-mismatch recovery fix pending**.
+Status: **gameplay and recovery diagnostics passed; updated integrated image pending**.
 The assembled development image passed structural verification, but standalone
 FES Pong initially failed HDMI initialization, followed by faulty ball motion.
 Hardware diagnostics now verify a nextpnr correction with the original Pong
@@ -244,3 +244,29 @@ verifies HDMI successfully. The installed target agent still publishes failed
 state for an attempted package error, causing the host to report a recovery
 error. Explicit Stop restores idle without reboot. Target/host reconciliation
 requires correction before this negative test can pass end to end.
+
+
+## Reviewed recovery diagnostic passed
+
+The kit passed the repeated identity-mismatch test with runtime
+`04b20509a5501c1fdf6400e21a8dd6567d6c5e33` and matching FogCast host/target
+`9444091d3a4f3eea7002599a61fa00ab5ea7af3b`. Both attempts returned
+`UNRECOGNIZED_CORE` in the identity phase and left the session idle. The direct
+HTTP response retained expected build ID `70ba707329b4e7c8c86d4389e6fa510a`
+and observed ID `60ba707329b4e7c8c86d4389e6fa510a`. A subsequent 007 launch
+and Stop returned idle without reboot, followed by a successful raw MiSTer RBF
+load and Stop.
+
+The image launcher was paired to the diagnostic host for this passing run.
+Earlier runs left it paired to the ordinary UI host and encountered native
+launch/Stop errors despite successful runtime MENU recovery; those attempts
+are not passing acceptance evidence. The CLI's compact error projection does
+not include build-ID fields, so the repeated request verifies those fields
+through the HTTP API.
+
+These were temporary executable/configuration bind mounts over the existing
+image, not a rebuilt integrated image. Diagnostic host SHA-256:
+`3aff8fbcdc2fb82538a82a1591e7af72786374effad788d9e45d2a372b76c0e0`;
+target agent SHA-256:
+`e3f6310954128debcb0b9111f05a587b4a314184e680cd886d228b05176effe3`.
+Evidence: `out/acceptance/20260909-package-recovery-04b2050`.
