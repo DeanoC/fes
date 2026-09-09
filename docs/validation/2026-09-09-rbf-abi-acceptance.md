@@ -2,8 +2,10 @@
 
 Status: **diagnostic validation only; milestone acceptance incomplete**.
 The assembled development image passed structural verification, but standalone
-FES Pong initially failed HDMI initialization. A corrected build now displays
-video and accepts controller input, but its ball motion is faulty.
+FES Pong initially failed HDMI initialization, followed by faulty ball motion.
+Hardware diagnostics now verify a nextpnr correction with the original Pong
+RTL: smooth motion, both paddle bounces, and return to centre after a point.
+The final pinned package and image still require acceptance.
 Two-pass image reproducibility, QEMU checks,
 and acceptance against the final corrected image remain pending.
 
@@ -95,7 +97,51 @@ playfield. The user confirmed paddle movement and Select+Start return to a
 usable launcher, but reported flickering and incorrect ball motion after Start.
 A recorded repeat showed the ball at the top edge and unexpected motion.
 This package therefore remains a failed gameplay diagnostic. The first formal
-image assembly was stopped before completion while this fault is investigated.
+image assembly was stopped before completion during the investigation.
+
+### Constant register-input defect
+
+The fault is in nextpnr's `MISTRAL_FF.DATAIN` handling. `PINSTYLE_INP` was
+`0x001`, advertising a hard constant-low input that the physical register does
+not provide. Packing discarded three constant-zero coordinate-register inputs;
+the registers then sampled local logic when enabled. Telemetry exposed the
+first X update as 667 instead of 155, and the subsequent reset as 670 instead
+of 158: bit 9 was incorrectly set in both cases.
+
+Two independent hardware controls verified the cause without changing Pong RTL:
+
+| Control | Payload SHA-256 | Timing | Result |
+| --- | --- | --- | --- |
+| Original synthesized netlist with the three zero inputs explicitly routed from a zero LUT | `157c46e3ebef7ad1dce74d4f33c445ad224afc9afbd5bad8a186d4569c0ff9f0` | 84.51 MHz | Correct initial motion, both paddle bounces, centre restored after a point. |
+| Unmodified synthesized netlist with nextpnr `PINSTYLE_INP=0x010` | `d254047ab00c23cb7700147237278318d50c8c4c92854ca117451141235c1229` | 79.09 MHz | Same successful gameplay checks; Stop returned idle and the lease was released. |
+
+The second control used provisional compiler binary SHA-256
+`9558a77387112d5f156f1b7708e2ba80ff408229a1f62fc37c9052bb9f880f0f`,
+built from `cb0dab2d` with the one-line pin-style correction. Its package ID was
+`3ecc996f96bee2d3e38f1ed29144b61b8f2762894311c25f280064f1431e1433`.
+These are diagnostic artifacts, not a sealed release from a final compiler pin.
+The paired launcher was restored and target readiness and a free lease verified.
+
+The reviewed fix is committed as nextpnr
+`5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0`, selected by misteross
+`11c3ee1fbb4d0324a5fd8b3168a7be89a9ecea26`. Its regression fails with the
+previous compiler and passes with the correction, checking real constant
+sources, routes to the registers, and decoded register-input selection.
+The misteross suite passes 552 tests with one skip; FES consistency checks pass.
+
+The sealed rebuild produces package
+`356d38e50aa0db49f01abccae28d745d305a0f9e98ba634998d68172c9d5d023`,
+archive SHA-256 `099eb49fabfe015ee17e9d723be9146ddc7c223b4cc49f257bd020384283ba63`,
+payload SHA-256 `18c3aae94a3d470474955591daf4ba9b5e4ba22b7c92b314c37a043543766135`,
+and build ID `60ba707329b4e7c8c86d4389e6fa510a`. It reports 78.25 MHz and binds
+the reviewed source and compiler revisions. Its exact-package hardware run
+passed on boot `a1383a40-cf3b-4c0b-ae9a-2cc7dc85bf63`: package loading and
+input attachment succeeded, recorded motion followed the expected initial
+vector and speed, both paddles reversed the ball, and a point restored the
+ball to the centre. The capture contains repeated/skipped frames; displacement
+and elapsed-time checks account for those sampling gaps. Stop returned idle,
+and subsequent checks confirmed agent readiness and a free lease. The user
+confirmed the preceding reboots came from another test.
 
 A separate startup race caused the agent to report unavailable when the runtime
 socket was not yet accepting requests. FogCast's reviewed local fix retries
