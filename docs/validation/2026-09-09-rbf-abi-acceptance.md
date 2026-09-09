@@ -1,13 +1,14 @@
 # RBF ABI hardware validation — 2026-09-09
 
-Status: **diagnostic validation only; milestone acceptance incomplete**.
+Status: **final image built, verified and booted; interactive acceptance pending**.
 The assembled development image passed structural verification, but standalone
 FES Pong initially failed HDMI initialization, followed by faulty ball motion.
 Hardware diagnostics now verify a nextpnr correction with the original Pong
 RTL: smooth motion, both paddle bounces, and return to centre after a point.
-The final pinned package and image still require acceptance.
-Two-pass image reproducibility, QEMU checks,
-and acceptance against the final corrected image remain pending.
+The final pinned package passed its separate gameplay diagnostic. The final
+image now passes two-pass reproducibility, structural and QEMU checks and boots
+its own matching launcher. Interactive acceptance against that exact image
+remains pending; see the final-image checkpoint below.
 
 ## Tested source and artifact identity
 
@@ -163,3 +164,47 @@ standalone video, physical controller movement, Select+Start return to a
 responsive launcher, relaunch/Stop, explicit raw diagnostic loading, intentional
 live-identity mismatch recovery, and final lease cleanup. The stabilized image
 must also pass the planned two-pass and QEMU checks before formal acceptance.
+
+## Final-image checkpoint
+
+FES `a8492dced1003baf6b5253338932add47f60ef68` selects FogCast
+`8e4870caaaaadd4c46b1ac53345124c6a197eb04`, libmister-runtime
+`475b060bfb8a7c5c5f7340895623ab382c9933fb`, misteross
+`11c3ee1fbb4d0324a5fd8b3168a7be89a9ecea26`, and mister-packages
+`a5c97eb94b5cad68568368b07a4321fe0b4c5623`. FogCast merges the reviewed
+current launcher UI with the described-core branch, preserving input generation
+fencing and adding compatibility with the existing Classic configuration.
+
+Both independent image passes produced SHA-256
+`866d43a6915b2d6c7fbbddb109ab307d5be9b3d72ed616a9826dac42872cfcbf`.
+Structural and QEMU packaging checks pass; QEMU log SHA-256 is
+`12f61d5e1b4f098a54a5818de8c2fde8481584093abd287ccd436ab814cf4b2c`.
+The parent suite passed 190 tests with 36 skips, the native runtime and shared
+package suites passed, and the merged FogCast full Go suite passed. One initial
+FogCast recovery test was transiently flaky; its focused 20-repeat run, package
+rerun and full rerun passed.
+
+The image is installed on boot `f6e7be48-24e5-4475-9436-2d8a3805253a`.
+The installed package is `356d38e5` (full identity above), and the running
+image-owned launcher SHA-256 is
+`af4156babd75beac8e33d540e9b56b9b15c186970210c913ac35c7a796e6a5ac`.
+The installed source records match, the agent is ready, and no launcher bind
+mount is present. HDMI capture shows the launcher drawing its idle attract
+screen. Physical navigation, game input/Stop, raw loading and intentional live
+identity mismatch recovery on this exact image remain pending.
+
+The first deployment attempt exposed an exFAT filename alias on this kit:
+`launcher.json` and arbitrary long suffix paths resolved to the same inode.
+Staging with a suffixed filename replaced the active configuration, and the
+backup precondition stopped the image swap. The ordinary pairing was
+reconstructed from the owner-local paired configuration and the observed
+Classic theme; exact pre-attempt remote configuration bytes were not retained.
+The corrected installation backs up configuration off-card before uploading,
+uses distinct short basenames, and checks actual directory entries and inode
+inequality before replacement. It retains the previous image as
+`/media/fat/linux/fesold.img` and the configuration as
+`/media/fat/fogcast/fcold.json`, with an additional owner-only local copy.
+
+Published review dependencies are mister-packages #6, libmister-runtime #19,
+misteross #22, FogCast #200, Yosys #8 and nextpnr #41. FES #12 remains a draft
+until the outstanding exact-image hardware checks finish.
