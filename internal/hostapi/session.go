@@ -453,19 +453,30 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	if development {
 		return sessionResult{}, developmentMustStopError()
 	}
+	s.mu.Lock()
+	previousExecution := s.execution
+	s.mu.Unlock()
+	nativeAlreadyIdle := false
+	if previousExecution == fogcast.ExecutionFPGANative {
+		observed, err := s.service.Status(ctx)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if observed.Development && observed.State != protocol.StateIdle {
+			return sessionResult{}, developmentMustStopError()
+		}
+		nativeAlreadyIdle = exactIdleStatus(observed)
+	}
 
 	if s.remoteInput != nil {
 		if err := s.detachInputNow(ctx, "session_replace"); err != nil {
 			return sessionResult{}, remoteInputError()
 		}
 	}
-	s.mu.Lock()
-	previousExecution := s.execution
-	s.mu.Unlock()
 	if err := s.stopMediaBounded(previousExecution); err != nil {
 		return sessionResult{}, err
 	}
-	if previousExecution == fogcast.ExecutionFPGANative {
+	if previousExecution == fogcast.ExecutionFPGANative && !nativeAlreadyIdle {
 		stopped, err := s.stopServiceForReplacement()
 		if err != nil {
 			return sessionResult{}, err
@@ -473,6 +484,8 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 		if !exactIdleStatus(stopped) {
 			return sessionResult{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "native game did not stop to idle"}
 		}
+	}
+	if previousExecution == fogcast.ExecutionFPGANative {
 		s.restoreExecution("")
 	}
 	if err := ctx.Err(); err != nil {

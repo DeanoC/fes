@@ -770,12 +770,11 @@ func (r *forbiddenDevelopmentReader) Read([]byte) (int, error) {
 func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *testing.T) {
 	gameID, system, core := "megadrive-active", protocol.SystemMegaDrive, "MegaDrive"
 	order := []string{}
+	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}
 	baseService := &fakeService{
-		status:    protocol.Status{State: protocol.StateIdle},
-		execution: fogcast.ExecutionFPGANative,
-		launch: protocol.CachedLaunchResponse{Status: protocol.Status{
-			State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core,
-		}},
+		status:      active,
+		execution:   fogcast.ExecutionFPGANative,
+		launch:      protocol.CachedLaunchResponse{Status: active},
 		stopped:     protocol.Status{State: protocol.StateIdle},
 		development: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core},
 		order:       &order,
@@ -807,6 +806,51 @@ func TestSessionReplaceNativeGameStopsToExactIdleBeforeDevelopmentUpload(t *test
 	}
 }
 
+func TestSessionDevelopmentRBFAfterExplicitNativeStopDoesNotStopAgain(t *testing.T) {
+	gameID, system, core := "megadrive-stopped", protocol.SystemMegaDrive, "MegaDrive"
+	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}
+	baseService := &fakeService{
+		status:      protocol.Status{State: protocol.StateIdle},
+		execution:   fogcast.ExecutionFPGANative,
+		launch:      protocol.CachedLaunchResponse{Status: active},
+		stopped:     protocol.Status{State: protocol.StateIdle},
+		development: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core},
+	}
+	stopCalls := 0
+	baseService.stopHook = func(context.Context) (protocol.Status, error) {
+		stopCalls++
+		if stopCalls > 1 {
+			return protocol.Status{}, host.ErrKitLeaseLost
+		}
+		return protocol.Status{State: protocol.StateIdle}, nil
+	}
+	service := &leasedService{fakeService: baseService}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(&fakeRemoteInput{}), hostapi.WithMediaSession(&fakeMediaSession{}))
+	if launch := launchSession(t, handler, gameID); launch.Code != http.StatusOK {
+		t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+	}
+	if stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop"); stop.Code != http.StatusOK ||
+		!strings.Contains(stop.Body.String(), `"execution":"fpga_native"`) || !strings.Contains(stop.Body.String(), `"media":"stopped"`) {
+		t.Fatalf("stop = %d %s", stop.Code, stop.Body.String())
+	}
+	if service.releases != 1 || stopCalls != 1 {
+		t.Fatalf("stop calls=%d lease releases=%d", stopCalls, service.releases)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/development-rbf", strings.NewReader("rbf"))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/octet-stream")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || service.developmentCalls != 1 {
+		t.Fatalf("development replacement = %d %s calls=%d", response.Code, response.Body.String(), service.developmentCalls)
+	}
+	if stopCalls != 1 || service.releases != 1 {
+		t.Fatalf("development replacement changed stopped ownership: stop calls=%d lease releases=%d", stopCalls, service.releases)
+	}
+}
+
 func TestSessionReplaceNativeGameNeverReadsDevelopmentBodyWithoutConfirmedIdle(t *testing.T) {
 	for _, test := range []struct {
 		name    string
@@ -821,13 +865,24 @@ func TestSessionReplaceNativeGameNeverReadsDevelopmentBodyWithoutConfirmedIdle(t
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			gameID, system, core := "megadrive-active", protocol.SystemMegaDrive, "MegaDrive"
+			active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			service := &fakeService{
-				status: protocol.Status{State: protocol.StateIdle}, execution: fogcast.ExecutionFPGANative,
-				launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}},
+				status: active, execution: fogcast.ExecutionFPGANative,
+				launch:  protocol.CachedLaunchResponse{Status: active},
 				stopped: test.stopped, stopErr: test.stopErr,
 				development: protocol.Status{State: protocol.StateActive, Development: true},
+			}
+			if errors.Is(test.stopErr, context.DeadlineExceeded) {
+				statusCalls := 0
+				service.statusHook = func(context.Context) (protocol.Status, error) {
+					statusCalls++
+					if statusCalls > 1 {
+						return protocol.Status{State: protocol.StateIdle}, nil
+					}
+					return active, nil
+				}
 			}
 			if test.cancel {
 				service.stopHook = func(context.Context) (protocol.Status, error) {

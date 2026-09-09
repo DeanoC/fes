@@ -89,6 +89,10 @@ MiSTer-compatible load/Stop lifecycle and subsequent game regression; exact
 two-cycle evidence is in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
 Raw development uploads still have no generic video or input guarantee.
+After an explicit native session Stop has released the kit lease, a later raw
+development load confirms that the target remains exactly idle and does not
+submit another Stop; replacing an active native game still stops it to exact
+idle before reading and uploading the development RBF.
 
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
