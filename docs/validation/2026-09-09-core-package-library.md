@@ -105,3 +105,22 @@ The ordinary launcher configuration was restored, the isolated host stopped,
 and the kit lease was observed free. The ordinary host reported the configured
 kit reachable and ready after reboot; capture showed its normal menu. The exact
 new image remains installed, with the previous image preserved.
+
+## Review correction: host cleanup ownership
+
+The integration now selects FogCast `770241021eadfbd1de6b72b9f471914c6cc45cc0`.
+Review #204 found that successful package activation could overwrite an active
+host emulator's ownership before its Stop completed. The fix retains that owner
+and the recovery error until both target recovery and host cleanup succeed;
+status polls preserve internal host identity, and input attachment stays blocked.
+
+A real catalog/package regression reproduced the failure and now checks status,
+replacement admission and repeated Stop cleanup. Session tests check that host
+media ownership is retained and FPGA input is not attached. The full Go suite,
+affected service/API race tests and vet passed, with independent review clean.
+FES consistency and the selected host build are checked for this correction.
+
+This correction changes host service/session code. It does not change target
+agent or launcher dependencies, FPGA sources or runtime pins. The exact-image
+hardware evidence above remains evidence for FogCast `19dbbec`; no new hardware
+acceptance or image deployment is claimed for this host cleanup failure fix.
