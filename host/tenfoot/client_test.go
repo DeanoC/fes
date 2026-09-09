@@ -1027,6 +1027,46 @@ func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
 	if len(handles) != 3 || handles[0] != backdrop || handles[1] != cover || handles[2] != marquee {
 		t.Fatalf("still handles %v", handles)
 	}
+	if item.VideoHandle() != video {
+		t.Fatalf("video handle %q", item.VideoHandle())
+	}
+}
+
+func TestAttractPreviewHandlesMotionAndStillsFallback(t *testing.T) {
+	t.Parallel()
+	shot := strings.Repeat("aa", 32)
+	backdrop := strings.Repeat("bb", 32)
+	cover := strings.Repeat("cc", 32)
+	marquee := strings.Repeat("dd", 32)
+	video := strings.Repeat("ee", 32)
+	item := AttractItem{Video: video, Backdrop: backdrop, Cover: cover, Marquee: marquee}
+	got := AttractPreviewHandles(item, Presentation{})
+	if len(got) != 3 || got[0] != backdrop || got[1] != cover || got[2] != marquee {
+		t.Fatalf("item stills %#v", got)
+	}
+
+	preview := AttractPreviewHandles(item, Presentation{
+		Presentation: &PresentationInfo{
+			VideoID:           video,
+			ScreenshotIDs:     []string{shot, "bad"},
+			BackdropArtworkID: strings.Repeat("ff", 32),
+		},
+	})
+	if len(preview) != 4 || preview[0] != shot || preview[1] != backdrop || preview[2] != cover || preview[3] != marquee {
+		t.Fatalf("video preview %#v", preview)
+	}
+
+	stills := AttractPreviewHandles(AttractItem{Backdrop: backdrop, Cover: cover}, Presentation{
+		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot}, VideoID: ""},
+	})
+	if len(stills) != 2 || stills[0] != backdrop || stills[1] != cover {
+		t.Fatalf("stills fallback %#v", stills)
+	}
+
+	empty := AttractPreviewHandles(AttractItem{Video: video}, Presentation{})
+	if empty != nil {
+		t.Fatalf("video-only %#v", empty)
+	}
 }
 
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {

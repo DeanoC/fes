@@ -1728,6 +1728,115 @@ func exerciseAttractGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		return b.String(), fmt.Errorf("empty panel kept still pixels")
 	}
 
+	cc := strings.Repeat("cc", 32)
+	ee := strings.Repeat("ee", 32)
+	dd := strings.Repeat("dd", 32)
+	ff := strings.Repeat("ff", 32)
+	coverStill := solidStill(32, 200, 64, 40, 8)
+	sonicStill := stills[bb]
+	pongStill := solidStill(200, 40, 80, 40, 8)
+	stills[cc] = coverStill
+	stills[dd] = pongStill
+	stills[ff] = sonicStill
+
+	motion := kitlauncher.Model{Connected: true, TargetReady: true}
+	motion.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Video: ee, Backdrop: aa, Cover: cc, Launchable: true},
+	}})
+	motion.SetAttractIdle(20 * time.Millisecond)
+	motion.SetAttractCycle(10 * time.Second)
+	tMotion := time.Now()
+	motion.Tick(tMotion)
+	motion.Tick(tMotion.Add(40 * time.Millisecond))
+	motionView := motion.AttractView(tMotion.Add(40 * time.Millisecond))
+	if !motionView.Motion || motionView.Handle != aa || !strings.Contains(motionView.Caption, "preview") {
+		return b.String(), fmt.Errorf("motion view %+v", motionView)
+	}
+	paintAttractModel(d, motionView, stills, th)
+	motionRec := gfx.NewRecorder()
+	fbgrid.PaintAttract(motionRec, attractFrameFromStills(motionView, stills, th, cfg.Width, cfg.Height))
+	var sawVideo, sawPreview bool
+	for _, c := range motionRec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawVideo || !sawPreview {
+		return b.String(), fmt.Errorf("motion paint video=%v preview=%v ops=%v", sawVideo, sawPreview, motionRec.Ops())
+	}
+	bx, by, ok := fbgrid.AttractVideoBadgeSample(cfg.Width, cfg.Height, decoded, th)
+	if !ok {
+		return b.String(), fmt.Errorf("motion badge sample")
+	}
+	gotB, gotG, gotR, gotX, err = gfx.SampleBGRX(d.Destination(), cfg, bx, by)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "attract motion-preview caption=%q badge=(%d,%d) bgrx=%d,%d,%d,%d\n", motionView.Caption, bx, by, gotB, gotG, gotR, gotX)
+	if gotB != 0 || gotG != 220 || gotR != 255 || gotX != 0 {
+		return b.String(), fmt.Errorf("motion badge bgrx %d,%d,%d,%d want 0,220,255,0", gotB, gotG, gotR, gotX)
+	}
+	motion.Tick(tMotion.Add(40*time.Millisecond + 2*time.Second + time.Millisecond))
+	cycled := motion.AttractView(tMotion.Add(40*time.Millisecond + 2*time.Second + time.Millisecond))
+	if cycled.Handle != cc || cycled.ShotIndex != 1 {
+		return b.String(), fmt.Errorf("motion cycle %+v", cycled)
+	}
+	fmt.Fprintf(&b, "attract motion-cycle=1 handle=%q\n", cycled.Handle)
+
+	stillOnly := kitlauncher.Model{Connected: true, TargetReady: true, AttractActive: true}
+	stillOnly.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Backdrop: aa, Launchable: true},
+	}})
+	stillOnly.AttractActive = true
+	stillView := stillOnly.AttractView(t0)
+	if stillView.Motion || stillView.Caption != "" {
+		return b.String(), fmt.Errorf("stills-only chrome %+v", stillView)
+	}
+	stillRec := gfx.NewRecorder()
+	fbgrid.PaintAttract(stillRec, attractFrameFromStills(stillView, stills, th, cfg.Width, cfg.Height))
+	for _, c := range stillRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "VIDEO" || strings.Contains(c.Text, "preview")) {
+			return b.String(), fmt.Errorf("stills-only painted %q", c.Text)
+		}
+	}
+	fmt.Fprintf(&b, "attract stills-fallback video=0\n")
+
+	wall := kitlauncher.Model{Connected: true, TargetReady: true}
+	wall.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Video: ee, Backdrop: aa, Cover: cc, Launchable: true},
+		{GameID: "sonic", Title: "Sonic", Platform: "megadrive", Backdrop: bb, Launchable: true},
+		{GameID: "pong", Title: "Pong", Platform: "pong", Backdrop: dd, Launchable: true},
+		{GameID: "zelda", Title: "Zelda", Platform: "snes", Backdrop: ff, Launchable: true},
+	}})
+	wall.SetAttractIdle(20 * time.Millisecond)
+	wall.SetAttractCycle(10 * time.Second)
+	tWall := time.Now()
+	wall.Tick(tWall)
+	wall.Tick(tWall.Add(40 * time.Millisecond))
+	wallView := wall.AttractView(tWall.Add(40 * time.Millisecond))
+	if !wallView.Motion || len(wallView.Wall) != 4 {
+		return b.String(), fmt.Errorf("wall view %+v", wallView)
+	}
+	paintAttractModel(d, wallView, stills, th)
+	wx, wy, ok := fbgrid.AttractWallBadgeSample(cfg.Width, cfg.Height, th)
+	if !ok {
+		return b.String(), fmt.Errorf("wall badge sample")
+	}
+	wB, wG, wR, wX, err := gfx.SampleBGRX(d.Destination(), cfg, wx, wy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "attract wall=1 badge=(%d,%d) bgrx=%d,%d,%d,%d tiles=%d\n", wx, wy, wB, wG, wR, wX, len(wallView.Wall))
+	if wB != 0 || wG != 220 || wR != 255 || wX != 0 {
+		return b.String(), fmt.Errorf("wall badge bgrx %d,%d,%d,%d", wB, wG, wR, wX)
+	}
+
 	press(&m, "dpad-right")
 	if m.AttractActive {
 		return b.String(), fmt.Errorf("input did not dismiss attract")
@@ -1754,20 +1863,33 @@ func exerciseAttractGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-attract PASS idle=1 dismiss=1 still=1 empty-panel=1 nested-cover=1\n")
+	fmt.Fprintf(&b, "selftest-attract PASS idle=1 dismiss=1 still=1 empty-panel=1 motion=1 stills-fallback=1 wall=1 nested-cover=1\n")
 	return b.String(), nil
+}
+
+func attractFrameFromStills(view kitlauncher.AttractView, stills map[string]*image.RGBA, th theme.Theme, width, height int) fbgrid.AttractFrame {
+	frame := attractFrame(view, tenfoot.NewStillCache(), th, width, height)
+	if stills != nil {
+		frame.Image = stills[view.Handle]
+		frame.Next = stills[view.NextHandle]
+		if len(view.Wall) >= 4 {
+			wall := make([]fbgrid.AttractWallTile, 4)
+			for i := 0; i < 4; i++ {
+				wall[i].Image = stills[view.Wall[i].Handle]
+				wall[i].Video = view.Wall[i].Motion
+			}
+			frame.Wall = wall
+		}
+	}
+	frame.Empty = view.Empty
+	frame.VideoBadge = view.Motion
+	frame.Caption = view.Caption
+	return frame
 }
 
 func paintAttractModel(d *gfx.LinuxFB, view kitlauncher.AttractView, stills map[string]*image.RGBA, th theme.Theme) {
 	cfg := d.Config()
-	cache := tenfoot.NewStillCache()
-	frame := attractFrame(view, cache, th, cfg.Width, cfg.Height)
-	if stills != nil {
-		frame.Image = stills[view.Handle]
-		frame.Next = stills[view.NextHandle]
-	}
-	frame.Empty = view.Empty
-	fbgrid.PaintAttract(d, frame)
+	fbgrid.PaintAttract(d, attractFrameFromStills(view, stills, th, cfg.Width, cfg.Height))
 	d.Present()
 }
 

@@ -658,11 +658,18 @@ page without blocking present; missing or failed lookups keep the placeholder.
 stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
 of a flat system fill. After host `idle_seconds` from
-`GET /api/v1/library/attract` with no pad input, the kit paints a stills attract
-(backdrop, then cover, then marquee) through `DecodeStill` and
-`fbgrid.PaintAttract`; video handles are not decoded on kit. Any pad input
-returns to the same shelf and focus; A/South may launch the current attract
-title. An empty playlist shows a themed idle panel rather than a frozen grid. Aspect-fit letterbox bars mix the system colour toward
+`GET /api/v1/library/attract` with no pad input, the kit paints attract through
+`DecodeStill` and `fbgrid.PaintAttract`. Video-only rows stay dropped because
+the CGO-free kit binary does not decode H.264. When a staged row has a video
+handle plus stills (item backdrop/cover/marquee, or presentation
+`screenshot_ids` when that payload is fetched), attract auto-cycles those
+stills under a VIDEO badge and a `preview` caption — the same honest motion
+preview as the title pane. Four or more stills-backed rows with at least one
+video handle paint a 2×2 wall of neighboring stills with the staged tile
+highlighted; titles without a video handle keep the stills attract. Full clip
+playback is a follow-up. Any pad input returns to the same shelf and focus;
+A/South may launch the current attract title. An empty playlist shows a themed
+idle panel rather than a frozen grid. Aspect-fit letterbox bars mix the system colour toward
 the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
 lettermarks use caption, and the footer uses status. They rasterize the
 embedded Go Regular face (no kit system fonts) and truncate with an ellipsis

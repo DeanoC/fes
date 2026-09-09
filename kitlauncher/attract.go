@@ -1,6 +1,7 @@
 package kitlauncher
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,9 +15,16 @@ const (
 	defaultAttractCycle = 12 * time.Second
 	defaultAttractLimit = 24
 	attractIdleRefresh  = 15 * time.Second
+	attractWallSize     = 4
 )
 
-// AttractView is the stills stage the renderer paints while idle attract is on.
+// AttractWallTile is one cell of the optional 2×2 attract wall.
+type AttractWallTile struct {
+	Handle string
+	Motion bool
+}
+
+// AttractView is the stills/motion stage the renderer paints while idle attract is on.
 type AttractView struct {
 	Active     bool
 	Empty      bool
@@ -27,6 +35,10 @@ type AttractView struct {
 	NextHandle string
 	Index      int
 	FadeT      float64
+	Motion     bool
+	Caption    string
+	ShotIndex  int
+	Wall       []AttractWallTile
 }
 
 func playableStillItems(items []tenfoot.AttractItem) []tenfoot.AttractItem {
@@ -54,7 +66,8 @@ func (m *Model) cycleHold() time.Duration {
 }
 
 // SetAttractPlaylist stores host attract rows and idle_seconds. Video-only
-// rows are dropped; kit v1 paints stills (backdrop, then cover, then marquee).
+// rows are dropped because the CGO-free kit path does not decode H.264;
+// video plus stills keep the row for a kit-safe motion preview.
 func (m *Model) SetAttractPlaylist(p tenfoot.AttractPlaylist) {
 	if p.IdleSeconds > 0 {
 		m.attractIdle = time.Duration(p.IdleSeconds) * time.Second
@@ -110,6 +123,12 @@ func (m *Model) hideAttract() {
 	m.attractIndex = 0
 	m.attractShownAt = time.Time{}
 	m.attractCycleAt = time.Time{}
+	m.resetAttractPreview()
+}
+
+func (m *Model) resetAttractPreview() {
+	m.attractShotIndex = 0
+	m.attractPreviewAt = time.Time{}
 }
 
 func (m *Model) attractBlocked() bool {
@@ -128,6 +147,7 @@ func (m *Model) enterAttract(now time.Time) {
 	m.attractIndex = 0
 	m.attractShownAt = now
 	m.attractCycleAt = now.Add(m.cycleHold())
+	m.resetAttractPreview()
 }
 
 func (m *Model) tickAttract(now time.Time) {
@@ -148,7 +168,9 @@ func (m *Model) tickAttract(now time.Time) {
 			m.attractIndex = (m.attractIndex + 1) % len(m.attractItems)
 			m.attractShownAt = now
 			m.attractCycleAt = now.Add(m.cycleHold())
+			m.resetAttractPreview()
 		}
+		m.tickAttractPreview(now)
 		return
 	}
 	if !m.attractIdleReady {
@@ -158,6 +180,7 @@ func (m *Model) tickAttract(now time.Time) {
 		return
 	}
 	m.enterAttract(now)
+	m.tickAttractPreview(now)
 }
 
 func (m *Model) currentAttractItem() (tenfoot.AttractItem, bool) {
@@ -168,6 +191,167 @@ func (m *Model) currentAttractItem() (tenfoot.AttractItem, bool) {
 		m.attractIndex = 0
 	}
 	return m.attractItems[m.attractIndex%len(m.attractItems)], true
+}
+
+func (m Model) attractPresentationFor(id string) tenfoot.Presentation {
+	if m.attractPresentationID == id {
+		return m.attractPresentation
+	}
+	return tenfoot.Presentation{}
+}
+
+func (m Model) attractPreviewHandles(item tenfoot.AttractItem) []string {
+	return tenfoot.AttractPreviewHandles(item, m.attractPresentationFor(item.GameID))
+}
+
+func (m Model) attractHasMotion(item tenfoot.AttractItem) bool {
+	p := m.attractPresentationFor(item.GameID)
+	video := item.VideoHandle()
+	if video == "" {
+		video = tenfoot.VideoHandle(p)
+	}
+	if video == "" {
+		return false
+	}
+	return len(tenfoot.AttractPreviewHandles(item, p)) > 0
+}
+
+func (m Model) attractWallEnabled() bool {
+	if len(m.attractItems) < attractWallSize {
+		return false
+	}
+	for _, item := range m.attractItems {
+		if item.VideoHandle() != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) clampAttractShot() {
+	n := 0
+	if item, ok := m.currentAttractItem(); ok {
+		n = len(m.attractPreviewHandles(item))
+	}
+	if n < 1 {
+		m.attractShotIndex = 0
+		return
+	}
+	if m.attractShotIndex < 0 {
+		m.attractShotIndex = 0
+	}
+	if m.attractShotIndex >= n {
+		m.attractShotIndex = n - 1
+	}
+}
+
+func (m *Model) tickAttractPreview(now time.Time) {
+	if m == nil || !m.AttractActive {
+		return
+	}
+	item, ok := m.currentAttractItem()
+	if !ok || !m.attractHasMotion(item) {
+		return
+	}
+	ids := m.attractPreviewHandles(item)
+	if len(ids) < 2 {
+		return
+	}
+	if m.attractFading(now) {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if m.attractPreviewAt.IsZero() {
+		m.attractPreviewAt = now
+		return
+	}
+	if now.Sub(m.attractPreviewAt) < defaultPreviewCycle {
+		return
+	}
+	m.attractShotIndex = (m.attractShotIndex + 1) % len(ids)
+	m.attractPreviewAt = now
+}
+
+func (m Model) attractFading(now time.Time) bool {
+	if m.attractWallEnabled() || len(m.attractItems) < 2 {
+		return false
+	}
+	hold := m.cycleHold()
+	fade := anim.StillFade
+	if fade > hold/2 {
+		fade = hold / 2
+	}
+	if fade <= 0 || m.attractShownAt.IsZero() {
+		return false
+	}
+	return now.Sub(m.attractShownAt) >= hold-fade
+}
+
+// ApplyAttractPresentation stores host presentation for the staged attract title.
+func (m *Model) ApplyAttractPresentation(id string, p tenfoot.Presentation) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	item, ok := m.currentAttractItem()
+	if !ok || item.GameID != id {
+		return
+	}
+	m.attractPresentationID = id
+	m.attractPresentation = p
+	m.clampAttractShot()
+}
+
+func attractPreviewCaption(index, count int) string {
+	if count < 2 {
+		return "preview"
+	}
+	if index < 0 {
+		index = 0
+	}
+	if index >= count {
+		index = count - 1
+	}
+	return fmt.Sprintf("preview %d / %d", index+1, count)
+}
+
+func (m Model) attractShotHandle(item tenfoot.AttractItem) string {
+	if !m.attractHasMotion(item) {
+		return item.StillHandle()
+	}
+	ids := m.attractPreviewHandles(item)
+	if len(ids) == 0 {
+		return item.StillHandle()
+	}
+	idx := m.attractShotIndex
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(ids) {
+		idx = len(ids) - 1
+	}
+	return ids[idx]
+}
+
+func (m Model) attractWallTiles() []AttractWallTile {
+	if !m.AttractActive || !m.attractWallEnabled() {
+		return nil
+	}
+	out := make([]AttractWallTile, attractWallSize)
+	n := len(m.attractItems)
+	for i := 0; i < attractWallSize; i++ {
+		item := m.attractItems[(m.attractIndex+i)%n]
+		handle := item.StillHandle()
+		motion := false
+		if i == 0 {
+			handle = m.attractShotHandle(item)
+			motion = m.attractHasMotion(item)
+		}
+		out[i] = AttractWallTile{Handle: handle, Motion: motion}
+	}
+	return out
 }
 
 func (m *Model) padDelta(e remoteinput.Event) (dx, dy int) {
@@ -257,7 +441,7 @@ func (m *Model) consumeLaunchID() string {
 	return ""
 }
 
-// AttractView is the current stills stage, including crossfade progress.
+// AttractView is the current stills/motion stage, including crossfade progress.
 func (m *Model) AttractView(now time.Time) AttractView {
 	if !m.AttractActive {
 		return AttractView{}
@@ -282,9 +466,22 @@ func (m *Model) AttractView(now time.Time) AttractView {
 	}
 	view.GameID = item.GameID
 	view.Platform = item.Platform
-	view.Handle = item.StillHandle()
+	view.Handle = m.attractShotHandle(item)
 	view.Index = m.attractIndex
-	if len(m.attractItems) < 2 {
+	view.Motion = m.attractHasMotion(item)
+	if view.Motion {
+		ids := m.attractPreviewHandles(item)
+		view.ShotIndex = m.attractShotIndex
+		if view.ShotIndex < 0 {
+			view.ShotIndex = 0
+		}
+		if n := len(ids); n > 0 && view.ShotIndex >= n {
+			view.ShotIndex = n - 1
+		}
+		view.Caption = attractPreviewCaption(view.ShotIndex, len(ids))
+	}
+	view.Wall = m.attractWallTiles()
+	if len(view.Wall) >= attractWallSize || len(m.attractItems) < 2 {
 		return view
 	}
 	next := m.attractItems[(m.attractIndex+1)%len(m.attractItems)]
@@ -311,12 +508,12 @@ func (m *Model) AttractView(now time.Time) AttractView {
 	return view
 }
 
-// AttractPrefetchHandles is the current still plus the next still for Keep/Request.
+// AttractPrefetchHandles is the current preview stills plus the next title's stills.
 func (m *Model) AttractPrefetchHandles() []string {
 	if !m.AttractActive || len(m.attractItems) == 0 {
 		return nil
 	}
-	out := make([]string, 0, 2)
+	out := make([]string, 0, 8)
 	seen := map[string]struct{}{}
 	add := func(handle string) {
 		handle = strings.TrimSpace(handle)
@@ -331,7 +528,17 @@ func (m *Model) AttractPrefetchHandles() []string {
 	}
 	item, ok := m.currentAttractItem()
 	if ok {
+		for _, handle := range m.attractPreviewHandles(item) {
+			add(handle)
+		}
 		add(item.StillHandle())
+	}
+	if m.attractWallEnabled() {
+		n := len(m.attractItems)
+		for i := 1; i < attractWallSize; i++ {
+			add(m.attractItems[(m.attractIndex+i)%n].StillHandle())
+		}
+		return out
 	}
 	if len(m.attractItems) > 1 {
 		next := m.attractItems[(m.attractIndex+1)%len(m.attractItems)]

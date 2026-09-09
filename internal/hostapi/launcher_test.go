@@ -48,6 +48,7 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 		want                          int
 	}{
 		{"catalogue", "GET", "/api/v1/games", launcherToken, launcherID, 200},
+		{"attract", "GET", "/api/v1/library/attract", launcherToken, launcherID, 200},
 		{"presentation", "GET", "/api/v1/presentation/games/snes-mario", launcherToken, launcherID, 200},
 		{"presentation junk", "GET", "/api/v1/presentation/games/Nope", launcherToken, launcherID, 404},
 		{"presentation traversal", "GET", "/api/v1/presentation/games/../secret", launcherToken, launcherID, 404},

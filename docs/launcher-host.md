@@ -32,6 +32,8 @@ An absent host remains a client reconnect state; this is not an offline library.
 Allowed operations are:
 
 - `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`.
+- `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
+  (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover
   handles, `logo_id`, studio, screenshots, `video_id`).
 - `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog or metadata cover and logo handles.
