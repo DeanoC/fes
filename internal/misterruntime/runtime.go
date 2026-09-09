@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -35,6 +36,10 @@ type Runtime struct {
 	activePackage      *corepackage.Staged
 	retiredPackages    []corepackage.Staged
 	coreBarrier        CoreReplacementBarrier
+	events             flightdiag.Sink
+	eventsPath         string
+	eventsMu           sync.Mutex
+	imported           int
 }
 
 type RuntimeOption func(*Runtime)
@@ -74,7 +79,7 @@ func (r *Runtime) ConfigureCoreReplacementBarrier(barrier CoreReplacementBarrier
 }
 
 func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration, options ...RuntimeOption) *Runtime {
-	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout}
+	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout, eventsPath: DefaultEventsPath}
 	for _, option := range options {
 		if option != nil {
 			option(runtime)
@@ -229,6 +234,7 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 
 	response, callErr := control.LoadCore(operationOwner,
 		staged.Directory, staged.PackageID)
+	r.noteDispatch("load_core", callErr == nil)
 	attempted = callErr == nil || protocol2MutationAttempted(callErr)
 	if callErr != nil {
 		if errors.Is(callErr, errProtocol2Unsupported) {
@@ -439,6 +445,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 	}
 	response, err := r.boundedStatus(context.Background())
 	health.Ready = err == nil && validIdle(response)
+	r.drainEvents()
 	return health
 }
 
@@ -661,6 +668,7 @@ func (r *Runtime) launch(admission, observation, operationOwner context.Context,
 		launchContext = operationOwner
 	}
 	response, err = r.control.Launch(launchContext, request)
+	r.noteDispatch("launch", err == nil)
 	if err != nil {
 		var reconciled bool
 		if owned {
@@ -789,6 +797,7 @@ func (r *Runtime) loadDevelopmentRBF(admission, observation, operationOwner cont
 		dispatchContext = operationOwner
 	}
 	response, err = r.control.LoadDevelopmentRBF(dispatchContext, r.developmentRBFPath)
+	r.noteDispatch("development_rbf", err == nil)
 	if err != nil {
 		if owned {
 			observed, attempted, apiErr := r.reconcileOwnedLostDevelopment(observation, operationOwner)
@@ -924,6 +933,7 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 		ctx = operation
 	}
 	response, err := r.control.Stop(ctx)
+	r.noteDispatch("stop", err == nil)
 	if err != nil {
 		// The mutation may have completed before its reply was lost. Observe
 		// once under the remaining operation budget; never replay Stop.
