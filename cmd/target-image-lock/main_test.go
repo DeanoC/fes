@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/targetimage"
 )
 
@@ -178,6 +179,57 @@ func TestSelectMegaDriveCommandRequiresMatchingSourceFlags(t *testing.T) {
 				t.Fatalf("run returned %d, stderr=%s", code, stderr.String())
 			}
 		})
+	}
+}
+
+func TestVerifyPackagePrintsCanonicalBuildInputs(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "package")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for source, destination := range map[string]string{
+		filepath.Join("..", "..", "internal", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"): filepath.Join(directory, "manifest.toml"),
+		filepath.Join("..", "..", "internal", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"):   filepath.Join(directory, "core.rbf"),
+	} {
+		data, err := os.ReadFile(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(destination, data, 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(directory, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(directory, 0o755) })
+	inspection, err := corepackage.InspectPackage(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directoryWithID := filepath.Join(filepath.Dir(directory), inspection.PackageID)
+	if err := os.Rename(directory, directoryWithID); err != nil {
+		t.Fatal(err)
+	}
+	directory = directoryWithID
+	record := filepath.Join(t.TempDir(), "fes-pong.package-selection.toml")
+	recordBytes := []byte(fmt.Sprintf("format = 2\nkind = 'core-package'\ncore_id = 'fes.pong'\npackage_id = '%s'\npayload_sha256 = '%s'\nmisteross_revision = '%s'\nmister_packages_revision = '%s'\ninstall_path = '%s'\n",
+		inspection.PackageID, inspection.Descriptor.Payload.SHA256, inspection.Descriptor.Build.Revision,
+		strings.Repeat("a", 40), "/usr/share/mister-runtime/core-packages/"+inspection.PackageID))
+	if err := os.WriteFile(record, recordBytes, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	wantRecordSHA := fmt.Sprintf("%x", sha256.Sum256(recordBytes))
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"verify-package", "--package", directory, "--selection", record, "--print-inputs"}, &stdout, &stderr, nil); code != 0 {
+		t.Fatalf("run returned %d: %s", code, stderr.String())
+	}
+	want := fmt.Sprintf("fes_pong_package_selection_sha256=%s\nfes_pong_package_id=%s\nfes_pong_payload_sha256=%s\nfes_pong_misteross_revision=%s\nfes_pong_mister_packages_revision=%s\nfes_pong_install_path=%s\n",
+		wantRecordSHA, inspection.PackageID, inspection.Descriptor.Payload.SHA256,
+		inspection.Descriptor.Build.Revision, strings.Repeat("a", 40),
+		"/usr/share/mister-runtime/core-packages/"+inspection.PackageID)
+	if stdout.String() != want {
+		t.Fatalf("stdout=%q want=%q", stdout.String(), want)
 	}
 }
 

@@ -21,6 +21,10 @@ type sessionService interface {
 	Status(context.Context) (protocol.Status, error)
 }
 
+type sessionCoreService interface {
+	LoadCore(context.Context, int64, io.Reader) (protocol.Status, error)
+}
+
 // MediaSession is the session-owned seam for opt-in media transport.
 type MediaSession interface {
 	Start(context.Context, string) (MediaHandle, error)
@@ -48,13 +52,14 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
-	State     protocol.State          `json:"state"`
-	GameID    *string                 `json:"game_id,omitempty"`
-	System    *protocol.System        `json:"system,omitempty"`
-	Execution string                  `json:"execution,omitempty"`
-	Media     string                  `json:"media,omitempty"`
-	Progress  *sessionProgress        `json:"progress,omitempty"`
-	Input     *host.RemoteInputStatus `json:"input,omitempty"`
+	State       protocol.State              `json:"state"`
+	GameID      *string                     `json:"game_id,omitempty"`
+	System      *protocol.System            `json:"system,omitempty"`
+	Execution   string                      `json:"execution,omitempty"`
+	Media       string                      `json:"media,omitempty"`
+	Progress    *sessionProgress            `json:"progress,omitempty"`
+	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
+	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
 }
 
 type sessionEvent struct {
@@ -77,11 +82,18 @@ type sessionCoordinator struct {
 	execution       string
 	mediaState      string
 	terminalStatus  *protocol.Status
+	inputBinding    sessionInputBinding
 	mu              sync.Mutex
 	observationMu   sync.Mutex
 	busy            bool
 	sequence        uint64
 	events          []sessionEvent
+}
+
+type sessionInputBinding struct {
+	core       string
+	packageID  string
+	generation uint64
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
@@ -139,6 +151,9 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 		}
 		s.mu.Unlock()
 		return result, err
+	}
+	if err := s.reconcileInput(ctx, st); err != nil {
+		return s.publicSession(st, nil), err
 	}
 
 	// Service.Status is also the observation point for host-only processes:
@@ -216,6 +231,37 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 	s.mu.Unlock()
 	s.record("session.status", result, nil)
 	return result, nil
+}
+
+func (s *sessionCoordinator) reconcileInput(ctx context.Context, st protocol.Status) error {
+	if s.remoteInput == nil {
+		return nil
+	}
+	input := s.remoteInput.Status()
+	if inputEligibleStatus(st) {
+		desired := inputBindingForStatus(st)
+		s.mu.Lock()
+		current := s.inputBinding
+		s.mu.Unlock()
+		if current == desired && (input.State == host.RemoteInputAttached || input.State == host.RemoteInputReconnecting) {
+			return nil
+		}
+		if input.State != host.RemoteInputDetached {
+			if err := s.detachInputNow(ctx, "session_reconcile"); err != nil {
+				return remoteInputError()
+			}
+		}
+		if err := s.attachInputForStatus(ctx, st); err != nil {
+			return remoteInputError()
+		}
+		return nil
+	}
+	if input.State == host.RemoteInputAttached || input.Ready || input.SessionID != "" {
+		if err := s.detachInputNow(ctx, "session_reconcile"); err != nil {
+			return remoteInputError()
+		}
+	}
+	return nil
 }
 
 func mediaHandleDone(handle MediaHandle) bool {
@@ -299,7 +345,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 
 	if s.remoteInput != nil {
-		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
+		if err := s.detachInputNow(ctx, "session_replace"); err != nil {
 			return sessionResult{}, remoteInputError()
 		}
 	}
@@ -375,7 +421,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 		if core == "" {
 			return sessionResult{}, s.stopAfterFailedAttach(execution)
 		}
-		if err := s.remoteInput.Attach(ctx, core); err != nil {
+		if err := s.attachInputForStatus(ctx, resp.Status); err != nil {
 			return sessionResult{}, s.stopAfterFailedAttach(execution)
 		}
 		result = s.publicSession(resp.Status, &progress)
@@ -407,19 +453,30 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	if development {
 		return sessionResult{}, developmentMustStopError()
 	}
-
-	if s.remoteInput != nil {
-		if err := s.remoteInput.Detach(ctx, "session_replace"); err != nil {
-			return sessionResult{}, remoteInputError()
-		}
-	}
 	s.mu.Lock()
 	previousExecution := s.execution
 	s.mu.Unlock()
+	nativeAlreadyIdle := false
+	if previousExecution == fogcast.ExecutionFPGANative {
+		observed, err := s.service.Status(ctx)
+		if err != nil {
+			return sessionResult{}, err
+		}
+		if observed.Development && observed.State != protocol.StateIdle {
+			return sessionResult{}, developmentMustStopError()
+		}
+		nativeAlreadyIdle = exactIdleStatus(observed)
+	}
+
+	if s.remoteInput != nil {
+		if err := s.detachInputNow(ctx, "session_replace"); err != nil {
+			return sessionResult{}, remoteInputError()
+		}
+	}
 	if err := s.stopMediaBounded(previousExecution); err != nil {
 		return sessionResult{}, err
 	}
-	if previousExecution == fogcast.ExecutionFPGANative {
+	if previousExecution == fogcast.ExecutionFPGANative && !nativeAlreadyIdle {
 		stopped, err := s.stopServiceForReplacement()
 		if err != nil {
 			return sessionResult{}, err
@@ -427,6 +484,8 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 		if !exactIdleStatus(stopped) {
 			return sessionResult{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "native game did not stop to idle"}
 		}
+	}
+	if previousExecution == fogcast.ExecutionFPGANative {
 		s.restoreExecution("")
 	}
 	if err := ctx.Err(); err != nil {
@@ -459,6 +518,119 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	result.Execution = fogcast.ExecutionFPGADevelopment
 	s.record("session.development_rbf", result, nil)
 	return result, nil
+}
+
+func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64, content io.Reader) (sessionResult, error) {
+	if !s.begin() {
+		return sessionResult{}, busyError()
+	}
+	defer s.end()
+	s.observationMu.Lock()
+	defer s.observationMu.Unlock()
+	loader, ok := s.service.(sessionCoreService)
+	if !ok {
+		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	status, err := loader.LoadCore(ctx, size, content)
+	if err != nil && corePackagePreMutationFailure(err) {
+		// These failures are proven to precede target mutation, so the current
+		// host-owned input and media session still describe the active target.
+		return sessionResult{}, err
+	}
+	if !corePackageInputStatus(status) {
+		// The target result is ambiguous or post-mutation. Retire stale target
+		// input ownership. Preserve a still-running host-only owner when the
+		// service proves target idle but cannot stop that executor.
+		_ = s.detachInputBounded("session_replace_ambiguous")
+		s.mu.Lock()
+		previousExecution := s.execution
+		preserveHostOnly := hostOnlyCorePackageCleanupFailure(previousExecution, status, err)
+		if !preserveHostOnly {
+			s.execution = ""
+			s.terminalStatus = nil
+		}
+		s.mu.Unlock()
+		if !preserveHostOnly {
+			_ = s.stopMediaBounded(previousExecution)
+		}
+		if err != nil {
+			return sessionResult{}, err
+		}
+		return sessionResult{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target package state is unavailable", Phase: "recovery"}
+	}
+	s.mu.Lock()
+	previousExecution := s.execution
+	s.execution = fogcast.ExecutionFPGADevelopment
+	s.terminalStatus = nil
+	s.mu.Unlock()
+	// Publish the confirmed target owner before cleaning up the retired host
+	// session. Cleanup failures must not make subsequent status calls report
+	// that the old game still owns the target.
+	var cleanupErr error
+	detachErr := s.detachInputBounded("session_replace")
+	if detachErr != nil {
+		s.clearInputBinding()
+		cleanupErr = detachErr
+	}
+	if mediaErr := s.stopMediaBounded(previousExecution); mediaErr != nil && cleanupErr == nil {
+		cleanupErr = mediaErr
+	}
+	s.mu.Lock()
+	if s.mediaHandle == nil {
+		s.mediaState = ""
+	}
+	s.mu.Unlock()
+	if detachErr == nil && s.remoteInput != nil && inputEligibleStatus(status) {
+		core := sessionCore(status)
+		if core == "" || s.attachInputForStatus(ctx, status) != nil {
+			return sessionResult{}, s.stopAfterFailedAttach(fogcast.ExecutionFPGADevelopment)
+		}
+	}
+	result := s.publicSession(status, nil)
+	result.Execution = fogcast.ExecutionFPGADevelopment
+	s.record("session.development_core", result, nil)
+	if err != nil {
+		return result, err
+	}
+	if cleanupErr != nil {
+		return result, &protocol.APIError{Code: protocol.CodeInternal, Message: "retired host session cleanup failed", Phase: "recovery"}
+	}
+	return result, nil
+}
+
+func corePackagePreMutationFailure(err error) bool {
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if apiErr.Code == protocol.CodeBusy {
+		return true
+	}
+	switch apiErr.Phase {
+	case "request", "admission", "compatibility", "save":
+		return true
+	default:
+		return false
+	}
+}
+
+func hostOnlyCorePackageCleanupFailure(execution string, status protocol.Status, err error) bool {
+	if execution != fogcast.ExecutionHostOnly || status.LastError == nil {
+		return false
+	}
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeInternal || apiErr.Phase != "recovery" {
+		return false
+	}
+	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&
+		status.Recovery == "" && status.CorePackage == nil
+}
+
+func (s *sessionCoordinator) clearInputBinding() {
+	s.mu.Lock()
+	s.inputBinding = sessionInputBinding{}
+	s.mu.Unlock()
 }
 
 func (s *sessionCoordinator) stopServiceForReplacement() (protocol.Status, error) {
@@ -576,7 +748,7 @@ func (s *sessionCoordinator) stop(ctx context.Context) (sessionResult, error) {
 
 	var inputErr error
 	if s.remoteInput != nil {
-		inputErr = s.remoteInput.Detach(ctx, "session_stop")
+		inputErr = s.detachInputNow(ctx, "session_stop")
 	}
 	s.mu.Lock()
 	hadMedia := s.mediaHandle != nil
@@ -703,7 +875,7 @@ func (s *sessionCoordinator) detachInputBounded(reason string) error {
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := s.remoteInput.Detach(cleanupCtx, reason); err != nil {
+	if err := s.detachInputNow(cleanupCtx, reason); err != nil {
 		return remoteInputError()
 	}
 	return nil
@@ -778,14 +950,14 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 	if err != nil {
 		return sessionResult{}, err
 	}
-	if st.State != protocol.StateActive {
+	if !inputEligibleStatus(st) {
 		return sessionResult{}, remoteInputError()
 	}
 	core := sessionCore(st)
 	if core == "" {
 		return sessionResult{}, remoteInputError()
 	}
-	if err := s.remoteInput.Attach(ctx, core); err != nil {
+	if err := s.attachInputForStatus(ctx, st); err != nil {
 		return sessionResult{}, remoteInputError()
 	}
 	result := s.publicSession(st, nil)
@@ -802,7 +974,7 @@ func (s *sessionCoordinator) detachInput(ctx context.Context) (sessionResult, er
 	}
 	defer s.end()
 
-	if err := s.remoteInput.Detach(ctx, "operator_detach"); err != nil {
+	if err := s.detachInputNow(ctx, "operator_detach"); err != nil {
 		return sessionResult{}, remoteInputError()
 	}
 	st, err := s.service.Status(ctx)
@@ -876,13 +1048,67 @@ func publicSession(st protocol.Status, progress *sessionProgress) sessionResult 
 		gameID = nil
 		system = nil
 	}
-	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress}
+	result := sessionResult{State: st.State, GameID: gameID, System: system, Progress: progress,
+		CorePackage: cloneCorePackageStatus(st.CorePackage)}
 	if st.State == protocol.StateActive && st.Development {
 		result.Execution = fogcast.ExecutionFPGADevelopment
 	} else if system != nil {
 		result.Execution = fogcast.ExecutionFPGANative
 	}
 	return result
+}
+
+func corePackageInputStatus(status protocol.Status) bool {
+	return status.State == protocol.StateActive && status.Development && status.CorePackage != nil &&
+		status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 && status.LastError == nil
+}
+
+func inputEligibleStatus(status protocol.Status) bool {
+	if status.State != protocol.StateActive || sessionCore(status) == "" {
+		return false
+	}
+	if !status.Development {
+		return true
+	}
+	return corePackageInputStatus(status) && status.CorePackage.Gamepad
+}
+
+func inputBindingForStatus(status protocol.Status) sessionInputBinding {
+	binding := sessionInputBinding{core: sessionCore(status)}
+	if status.CorePackage != nil {
+		binding.packageID = status.CorePackage.PackageID
+		binding.generation = status.CorePackage.Generation
+	}
+	return binding
+}
+
+func (s *sessionCoordinator) attachInputForStatus(ctx context.Context, status protocol.Status) error {
+	if err := s.remoteInput.Attach(ctx, sessionCore(status)); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.inputBinding = inputBindingForStatus(status)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *sessionCoordinator) detachInputNow(ctx context.Context, reason string) error {
+	if err := s.remoteInput.Detach(ctx, reason); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.inputBinding = sessionInputBinding{}
+	s.mu.Unlock()
+	return nil
+}
+
+func cloneCorePackageStatus(value *protocol.CorePackageStatus) *protocol.CorePackageStatus {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	copy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), value.ActiveInterfaces...)
+	return &copy
 }
 
 func (s *sessionCoordinator) currentMediaState() string {

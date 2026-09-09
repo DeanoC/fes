@@ -2,6 +2,7 @@ package kitlauncher
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,12 +43,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	m := Model{Message: "Connecting to FogCast", Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true}
 	var pad Pad
 	var stream *InputStream
-	streamID := ""
+	streamKey := ""
 	closeInput := func() {
 		if stream != nil {
 			stream.Close()
 			stream = nil
-			streamID = ""
+			streamKey = ""
 		}
 		m.ResetControls()
 	}
@@ -193,7 +194,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			m.Connected = true
-			if m.Session.Input.SessionID != o.session.Input.SessionID || m.Session.State != o.session.State {
+			if streamKey != "" && streamKey != inputStreamKey(o.session) {
 				closeInput()
 			}
 			m.Session = o.session
@@ -249,7 +250,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				select {
 				case <-stream.Done:
 					stream = nil
-					streamID = ""
+					streamKey = ""
 					m.ResetControls()
 					nextPad = now.Add(time.Second)
 				default:
@@ -264,9 +265,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					closeInput()
 					nextPad = now.Add(time.Second)
 				} else {
-					if stream == nil && m.Connected && !m.Busy && m.Session.State == "active" && m.Session.Execution == "fpga_native" && m.Session.Input.SessionID != "" && now.After(nextPad) {
-						streamID = m.Session.Input.SessionID
-						stream = c.OpenInput(ctx, streamID)
+					key := inputStreamKey(m.Session)
+					if stream == nil && m.Connected && !m.Busy && key != "" && now.After(nextPad) {
+						streamKey = key
+						stream = c.OpenInput(ctx, m.Session.Input.SessionID)
 						nextPad = now.Add(time.Second)
 					}
 					for _, e := range events {
@@ -279,7 +281,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						if m.Pack != prevPack {
 							persistPack(c, m.Pack)
 						}
-						if stream != nil && streamID == m.Session.Input.SessionID {
+						if stream != nil && streamKey == inputStreamKey(m.Session) {
 							select {
 							case <-stream.Ready:
 								stream.Send(e)
@@ -300,6 +302,23 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				present(m)
 			}
 		}
+	}
+}
+
+func inputStreamKey(session Session) string {
+	if session.State != "active" || (!session.Input.Ready && session.Input.State != "reconnecting") || session.Input.SessionID == "" {
+		return ""
+	}
+	switch session.Execution {
+	case "fpga_native":
+		return session.Execution + ":" + session.Input.SessionID
+	case "fpga_development":
+		if session.CorePackage == nil || !session.CorePackage.Gamepad || session.CorePackage.Generation == 0 {
+			return ""
+		}
+		return session.Execution + ":" + session.Input.SessionID + ":" + strconv.FormatUint(session.CorePackage.Generation, 10)
+	default:
+		return ""
 	}
 }
 

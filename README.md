@@ -44,7 +44,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
   native agent backend, one locked idle RBF, and the selected Mega Drive RBF
-  with optional sealed Pong, SNES and NES RBFs.
+  with optional sealed Pong, SNES and NES RBFs. FES integration can also add
+  one validated format-2 `fes.pong` package through the closed package
+  selection described in [the development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega
   Drive launch, input, Stop, and immediate relaunch path are hardware-tested
@@ -277,6 +279,21 @@ image packages no development RBF. Its Mega Drive RBF is selected at build
 time as described below. The
 exact two-cycle acceptance and legacy rollback evidence is recorded in
 [native-development-rbf-baseline.md](docs/hardware/native-development-rbf-baseline.md).
+
+Format-2 `.fcore` development packages use
+`POST /api/v1/session/development-core` with a bounded
+`application/octet-stream` body. FogCast negotiates runtime protocol 2,
+validates package compatibility before mutation, and reports the active package
+identity, ABI, build ID, interfaces, capability flags, and generation in the
+session response. Input is enabled only when the active verified package
+provides `fes.gamepad`; raw development RBF input stays disabled. The command
+line provides `fogcast core-inspect PATH` for local inspection without a kit
+connection and `fogcast core-load PATH` for a mutation owned by the running
+host session. `core-load` calls the host API selected by `--api`, then
+`FOGCAST_API`, then `http://127.0.0.1:8787`; it does not open an independent
+target service. The archive inspection and upload use the same bounded byte
+snapshot. Success requires the returned package ID, ABI, build ID, positive
+generation, and required active interfaces to match that inspected package.
 There is no browser file picker. Tenfoot types or pastes a local path with
 the gamepad OSK and POSTs the file bytes.
 

@@ -89,6 +89,10 @@ MiSTer-compatible load/Stop lifecycle and subsequent game regression; exact
 two-cycle evidence is in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
 Raw development uploads still have no generic video or input guarantee.
+After an explicit native session Stop has released the kit lease, a later raw
+development load confirms that the target remains exactly idle and does not
+submit another Stop; replacing an active native game still stops it to exact
+idle before reading and uploading the development RBF.
 
 The native agent creates one `FogCast Virtual Gamepad` during startup before
 runtime reconciliation. Its Linux identity is `BUS_VIRTUAL`, vendor `0x0000`,
@@ -188,6 +192,77 @@ exact registered built-in can omit media; rooted games retain their existing
 source/cache admission. Configured Pong library roots are rejected. The Main
 backend explicitly rejects ROM-less profiles. Host discoverability does not
 establish that a selected target image contains the required Pong RBF.
+
+## Format-2 core package inspection and staging
+
+`internal/corepackage` is the shared, hardware-independent format-2 reader. It
+inspects exact two-file directories or restricted uncompressed ustar archives,
+validates the closed typed manifest and payload bytes, and computes package
+identity from the original manifest and payload. Unknown but well-formed ABIs
+remain inspectable; hardware compatibility belongs to the native runtime.
+`corepackage.InspectPackage` returns the package ID and closed `Descriptor`
+from the same pinned read for identity-reporting consumers such as
+`core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
+
+`corepackage.Stage` accepts a caller-bounded archive stream and publishes only
+validated `manifest.toml` and `core.rbf` bytes into a distinct sealed directory
+beneath an absolute private root. Cancellation or validation failure removes
+the incomplete directory, including cancellation observed after rename and
+before ownership handoff. The caller owns the returned directory lifetime and
+must release it with `Staged.Cleanup`, which reopens and verifies the retained
+root and publication identities before removing the sealed directory.
+
+The target package lifecycle uses runtime protocol 2. A read-only
+`inspect_package` exchange negotiates the exact ABI registry and programming
+profiles before mutation; protocol 1 fallback is permitted only after its
+explicit `unsupported_protocol` response and cannot activate custom packages.
+`load_core` carries a rooted staged directory and package ID. The target retains
+active and in-flight `Staged` ownership, reconciles a lost mutation reply by
+observing identity plus a new generation, and retries failed cleanup only at a
+safe lifecycle boundary. After staging, the adapter performs a read-only runtime
+inspection and checks the exact package and descriptor before it enters the
+target input replacement barrier. That barrier closes the old producer, waits
+for in-flight sink writes, neutralizes the retained uinput device, and prevents
+new streams or attachments until the mutation and any lost-reply observation
+finish. Success or an ambiguous attempted mutation retires the old lease. A
+proven pre-mutation failure reconstructs the same logical lease; failure to
+pause or reconstruct it is a recovery failure and leaves input gated. Startup
+adopts every still-valid publication through the same opened trusted root,
+selecting only the package that exactly matches the active runtime status.
+After an attempted activation failure, the target publishes idle only when the
+runtime confirms exact operational idle and retains the structured failure in
+that status. The host returns the original failure only when the observed idle
+status has matching code, phase, expected, and observed evidence; any mismatch
+or ambiguous transport result remains an unavailable recovery result. Confirmed
+idle failure retires the old service execution, input, and media ownership; a
+host-only executor must stop successfully before its ownership is retired.
+
+The authenticated target route `POST /v1/development/core` accepts one bounded
+`application/octet-stream` archive under the normal kit lease and update
+exclusion. The host route `POST /api/v1/session/development-core` passes the
+same mutation through the service and session coordinator. Rejected admission
+leaves the prior media and input session intact. After confirmed activation,
+the coordinator retires prior input and publishes the package ID, ABI, build
+ID, active interfaces, generation, and derived gamepad capability in
+`GET /api/v1/session`. Status reconstruction after a host restart attaches
+input only for native games or active custom packages with `fes.gamepad`; raw
+development RBF sessions remain input-disabled. Manual input attachment uses
+the same predicate.
+
+The kit launcher opens a stream only for a nonempty input session that is ready
+or reconnecting and is native or a capable custom development package. A
+same-session reconnect keeps the stream identity and re-establishes the target
+transport before accepting another source; capability, session, execution, or
+generation changes close the old stream before another event can be sent.
+`fogcast core-inspect PATH` validates locally without opening the FogCast
+service. `fogcast core-load PATH` validates and streams an archive through the
+running host-owned session and reports package/build identity or the public
+failure phase. Its API origin precedence is `--api`, `FOGCAST_API`, then
+`http://127.0.0.1:8787`. Inspection and upload derive from one bounded immutable
+archive snapshot, and the command never opens or closes a target-owning
+`Service`. It accepts success only when the returned active package has the
+same package, ABI, and build identities, a positive generation, and a valid
+descriptor-consistent active-interface set.
 
 ## Other modes
 
@@ -389,11 +464,28 @@ The `native-dev` image instead starts image-owned `mister-runtime` and
 then image-owned `mister-agent --runtime native`. It contains exactly one
 locked idle RBF and one selected Mega Drive RBF under `/usr/share/mister-runtime`,
 plus the explicitly selected sealed Pong, SNES and NES RBFs when the four-system
-profile is requested,
+profile is requested. FES may additionally supply one closed format-2
+`fes.pong` package/selection pair. The image selector validates and copies only
+`manifest.toml` and `core.rbf`, installs them beneath the exact package ID, and
+retains the external producer/package selection beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
-commit, agent binary, idle RBF, and selected Mega Drive RBF provenance. Its QEMU
+commit, agent binary, idle RBF, and selected Mega Drive RBF provenance. When the
+format-2 package is selected, the record also identifies the exact selection
+digest, package and payload IDs, producer/schema revisions, and install path.
+The verifier reconstructs that projection from the installed package and
+external selection; it does not infer selection from cache or image contents.
+The per-filesystem Buildroot copy retains the installed 0555 package directory
+and 0444 member modes through image creation, then an external rootfs hook makes
+only the copied directories removable when the fakeroot command exits. Before
+reusing a retained Buildroot output, the image builder applies that same bounded
+directory-only cleanup to its exact `target` copy. Image verification preserves
+the sealed modes while checking them, then inode-binds its disposable extraction
+root, rejects symlinked or mismatched package entries, makes only extracted
+directories writable, and removes the tree without hiding verification or
+cleanup failures.
+Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
 support. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,

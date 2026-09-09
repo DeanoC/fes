@@ -40,6 +40,27 @@ defconfig_for() {
   esac
 }
 
+cleanup_inside_output() {
+	cleanup_output=$1
+	if [ ! -e "$cleanup_output" ] && [ ! -L "$cleanup_output" ]; then
+		return 0
+	fi
+	[ -d "$cleanup_output" ] && [ ! -L "$cleanup_output" ] || {
+		printf '%s\n' 'build-target-image: retained output must be a non-symlink directory' >&2
+		return 1
+	}
+	cleanup_target=$cleanup_output/target
+	if [ -e "$cleanup_target" ] || [ -L "$cleanup_target" ]; then
+		[ -d "$cleanup_target" ] && [ ! -L "$cleanup_target" ] || {
+			printf '%s\n' 'build-target-image: retained target must be a non-symlink directory' >&2
+			return 1
+		}
+		"$repo/buildroot/board/fogcast-target/rootfs-package-cleanup.sh" \
+			"$cleanup_target"
+	fi
+	/bin/rm -rf "$cleanup_output"
+}
+
 verify_native_inputs() {
   [ -n "${LIBMISTER_RUNTIME_DIR:-}" ] || {
     printf '%s\n' 'build-target-image: LIBMISTER_RUNTIME_DIR is required for native-dev' >&2
@@ -109,7 +130,7 @@ inside_build() {
       /work/build/cache/target-image/native/megadrive.selection.toml
   fi
 
-  /bin/rm -rf "$inside_output"
+	cleanup_inside_output "$inside_output"
   export SOURCE_DATE_EPOCH=$inside_epoch
   export E2FSPROGS_FAKE_TIME=$inside_epoch
   make -C /work/build/cache/target-image/buildroot \
@@ -169,7 +190,7 @@ inside_fast_dev_build() {
     stored_dev_config_sha=$(tr -d '[:space:]' < "$dev_fingerprint")
   fi
   if [ "$stored_dev_config_sha" != "$dev_config_sha" ]; then
-    /bin/rm -rf "$inside_output"
+		cleanup_inside_output "$inside_output"
   fi
 
   export SOURCE_DATE_EPOCH=$inside_epoch
@@ -193,6 +214,19 @@ inside_fast_dev_build() {
 
 promote_existing=0
 case "${1:-}" in
+  --cleanup-inside-output)
+    [ "$#" -eq 2 ] || usage
+    test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
+      printf '%s\n' 'build-target-image: cleanup test interface requires test mode' >&2
+      exit 2
+    }
+    test "${TARGET_IMAGE_CLEANUP_TEST_PATH:-}" = "$2" || {
+      printf '%s\n' 'build-target-image: cleanup test path was not authorized' >&2
+      exit 2
+    }
+    cleanup_inside_output "$2"
+    exit
+    ;;
   --validate-inside-path)
     [ "$#" -eq 4 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
@@ -371,6 +405,20 @@ if [ "$variant" = native-dev ]; then
   if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
     for system in pong snes nes; do
       cmp "$output_root/work-1-$variant/$system.selection.toml" "$output_root/work-2-$variant/$system.selection.toml"
+    done
+  fi
+  if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then
+    cmp "$output_root/work-1-$variant/fes-pong.package-selection.toml" \
+      "$output_root/work-2-$variant/fes-pong.package-selection.toml" || {
+      printf '%s\n' 'build-target-image: FES Pong package selection differs between reproducible outputs' >&2
+      exit 1
+    }
+  else
+    for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
+      [ ! -e "$work/fes-pong.package-selection.toml" ] && [ ! -L "$work/fes-pong.package-selection.toml" ] || {
+        printf '%s\n' 'build-target-image: unselected FES Pong package selection was retained' >&2
+        exit 1
+      }
     done
   fi
 fi

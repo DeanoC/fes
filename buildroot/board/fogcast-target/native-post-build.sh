@@ -250,6 +250,9 @@ installed_megadrive=$target/usr/share/mister-runtime/cores/megadrive.rbf
 # exist in the immutable candidate; boot cannot create it on a read-only image.
 /bin/mkdir -p "$target/.fes-bootstrap"
 
+extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
+"$extra_cores" install "$(dirname "$megadrive_input")" "$target"
+
 build_inputs="$target/usr/share/mister-runtime/build-inputs"
 mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin/awk '{print $1}')
 {
@@ -278,10 +281,9 @@ mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin
     printf 'megadrive_toolchain=%s\n' "$selection_toolchain"
     [ -z "$selection_label" ] || printf 'megadrive_label=%s\n' "$selection_label"
   fi
+  "$extra_cores" build-inputs "$(dirname "$megadrive_input")" "$target"
 } > "$build_inputs"
 
-extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
-"$extra_cores" install "$(dirname "$megadrive_input")" "$target"
 expected_rbf_count=$("$extra_cores" count)
 rbf_count=$(find "$target" -iname '*.rbf' | /usr/bin/wc -l | /usr/bin/tr -d ' ')
 [ "$rbf_count" -eq "$expected_rbf_count" ] || {

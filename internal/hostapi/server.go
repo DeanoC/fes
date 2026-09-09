@@ -17,6 +17,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -124,8 +125,11 @@ type presentationAttribution struct {
 }
 
 type apiError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Phase    string `json:"phase,omitempty"`
+	Expected string `json:"expected,omitempty"`
+	Observed string `json:"observed,omitempty"`
 }
 
 type serverOptions struct {
@@ -225,6 +229,21 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentRBFBytes)
 		result, err := session.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body)
+		if err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/development-core", func(w http.ResponseWriter, r *http.Request) {
+		contentTypes := r.Header.Values("Content-Type")
+		if len(contentTypes) != 1 || contentTypes[0] != "application/octet-stream" || len(r.TransferEncoding) != 0 ||
+			r.ContentLength < 1 || r.ContentLength > corepackage.MaxArchiveSize {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "development core upload requires a bounded application/octet-stream body")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxArchiveSize)
+		result, err := session.loadDevelopmentCore(r.Context(), r.ContentLength, r.Body)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -775,7 +794,10 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem || apiErr.Code == protocol.CodeUnsupportedOperation {
 			status = http.StatusBadRequest
 		}
-		writeError(w, status, string(apiErr.Code), publicErrorMessage(apiErr.Code))
+		writeJSON(w, status, map[string]any{"error": apiError{
+			Code: string(apiErr.Code), Message: publicErrorMessage(apiErr.Code), Phase: apiErr.Phase,
+			Expected: apiErr.Expected, Observed: apiErr.Observed,
+		}})
 		return
 	}
 	writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "session operation failed")

@@ -1,5 +1,5 @@
 # Explicit native image selection applies consistently to fetch/build/verify/QEMU.
-export NATIVE_RUNTIME_SYSTEMS PONG_RBF_BUNDLE SNES_RBF_BUNDLE NES_RBF_BUNDLE
+export NATIVE_RUNTIME_SYSTEMS PONG_RBF_BUNDLE SNES_RBF_BUNDLE NES_RBF_BUNDLE FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION
 
 VERSION ?= 0.1.0
 REVISION ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf unknown)
@@ -39,6 +39,8 @@ test: build-agent test-ui
 	sh scripts/tests/target-image-sources_test.sh
 	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
+	sh scripts/tests/rootfs-package-cleanup_test.sh
+	sh scripts/tests/verify-target-image-cleanup_test.sh
 	sh scripts/tests/target-image_test.sh
 	sh scripts/tests/target-image-dev_test.sh
 	sh scripts/tests/target-image-dev-container_test.sh

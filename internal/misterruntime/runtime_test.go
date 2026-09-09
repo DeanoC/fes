@@ -2019,6 +2019,7 @@ func TestNativeOwnedDevelopmentStopsWhenProcessOwnerIsCanceled(t *testing.T) {
 
 func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
 	server := newLostResponseSocketServer(t, func() {},
+		`{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unsupported_protocol","message":"unsupported protocol"},"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`,
 	)
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
@@ -2029,20 +2030,21 @@ func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
 	if status.State != protocol.StateActive || !status.Development || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore == nil || *status.ObservedCore != "MegaDrive" || status.LastError != nil {
 		t.Fatalf("reconciled status = %#v", status)
 	}
-	if got := strings.Join(operations, ","); got != "status" {
-		t.Fatalf("agent restart operations = %q, want Status only", got)
+	if got := strings.Join(operations, ","); got != "status,status" {
+		t.Fatalf("agent restart operations = %q, want v2 negotiation then v1 Status", got)
 	}
 }
 
 func TestNativeReconcileTreatsRuntimeRestartIdleAsIdleWithoutReplay(t *testing.T) {
 	server := newLostResponseSocketServer(t, func() {},
+		`{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unsupported_protocol","message":"unsupported protocol"},"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
 	)
 	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	status := runtime.Reconcile(context.Background())
 	operations := server.stop(t)
-	if status.State != protocol.StateIdle || status.Development || strings.Join(operations, ",") != "status" {
+	if status.State != protocol.StateIdle || status.Development || strings.Join(operations, ",") != "status,status" {
 		t.Fatalf("runtime-restart status = %#v, operations = %v", status, operations)
 	}
 }

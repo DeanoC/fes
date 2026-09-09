@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
@@ -72,6 +74,10 @@ type developmentRBFClient interface {
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, error)
 }
 
+type corePackageClient interface {
+	LoadCore(context.Context, int64, io.Reader) (protocol.Status, error)
+}
+
 type developmentRecoveryClient interface {
 	RebootDevelopment(context.Context) (protocol.Status, error)
 }
@@ -91,6 +97,7 @@ const (
 	ExecutionFPGADevelopment = "fpga_development"
 	ExecutionHostOnly        = string(systems.CapabilityHostOnly)
 	lostLaunchPollInterval   = 25 * time.Millisecond
+	coreLoadReconcileTimeout = 2 * time.Second
 )
 
 // ExecutionResolver is a service-level policy seam.
@@ -202,6 +209,7 @@ type Service struct {
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
+	coreLoadReconcileTimeout time.Duration
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
 	hostExecutor             hostexec.Adapter
@@ -411,15 +419,16 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		targetClients:      make(map[string]serviceClient),
 		targetSwitchLocked: config.RemoteInput.Enabled || config.Media.Enabled,
 		requestTimeout:     config.RequestTimeout, uploadTimeout: config.UploadTimeout,
-		executionResolver: defaultExecutionResolver{},
-		attractIdle:       config.Library.AttractIdleSeconds,
-		preferredRegions:  append([]string(nil), config.Library.PreferredRegions...),
-		hostEmulator:      config.HostEmulator,
-		metadataRoot:      paths.MetadataRoot,
-		metadataScope:     config.Metadata.ClientID,
-		watchRoot:         strings.TrimSpace(config.Library.WatchRoot),
-		fpgaROMPaths:      copyFPGAROMPaths(config.FPGAROMPaths),
-		catalogAdmission:  make(chan struct{}, 1),
+		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
+		executionResolver:        defaultExecutionResolver{},
+		attractIdle:              config.Library.AttractIdleSeconds,
+		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
+		hostEmulator:             config.HostEmulator,
+		metadataRoot:             paths.MetadataRoot,
+		metadataScope:            config.Metadata.ClientID,
+		watchRoot:                strings.TrimSpace(config.Library.WatchRoot),
+		fpgaROMPaths:             copyFPGAROMPaths(config.FPGAROMPaths),
+		catalogAdmission:         make(chan struct{}, 1),
 	}
 	if len(service.targets) == 0 {
 		enabled := strings.TrimSpace(config.BaseURL) != "" && strings.TrimSpace(config.Token) != ""
@@ -1142,6 +1151,184 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 	return status, nil
 }
 
+// LoadCore sends one package mutation without tearing down the current session
+// first. Target admission therefore preserves a prior game/input session on a
+// stale lease, invalid archive, or compatibility rejection.
+func (s *Service) LoadCore(parent context.Context, size int64, content io.Reader) (protocol.Status, error) {
+	if size <= 0 || size > corepackage.MaxArchiveSize || content == nil {
+		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeBadRequest, nil))
+	}
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	releaseLifecycle, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.Status{}, corePackageRequestFailure(err)
+	}
+	defer releaseLifecycle()
+	if s.discoveryEnabled() {
+		if _, err := s.refreshTargetConnection(ctx); err != nil {
+			return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
+		}
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, ok := s.selectedClientLocked()
+	if !ok {
+		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeMiSTerUnavailable, nil))
+	}
+	loader, ok := client.(corePackageClient)
+	if !ok {
+		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+	}
+	prior, err := client.Status(ctx)
+	if err != nil {
+		return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
+	}
+	status, err := loader.LoadCore(ctx, size, content)
+	if err != nil {
+		if corePackagePreMutationFailure(err) {
+			return protocol.Status{}, preserveCorePackageError(err)
+		}
+		status, err = s.reconcileLostCoreLoad(parent, client, prior, err)
+		if err != nil {
+			if confirmedIdleCorePackageFailure(status, err) {
+				return s.retireExecutionAfterConfirmedIdleCorePackageFailure(ctx, status, err)
+			}
+			return status, err
+		}
+	}
+	if !validServiceCorePackageStatus(status) {
+		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	s.executionMu.Lock()
+	previousHostOnly := s.activeExecution == ExecutionHostOnly
+	s.activeExecution = ExecutionFPGADevelopment
+	s.activeTarget = s.selectedTarget
+	s.activeGameID, s.activeSystem = "", ""
+	s.selectedTargetReconciled = false
+	s.selectedTargetRepairAllowed = false
+	s.executionMu.Unlock()
+	if previousHostOnly {
+		if s.hostExecutor == nil || s.hostExecutor.Stop(ctx) != nil {
+			return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
+		}
+	}
+	return status, nil
+}
+
+func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx context.Context, status protocol.Status, loadErr error) (protocol.Status, error) {
+	s.executionMu.Lock()
+	previousHostOnly := s.activeExecution == ExecutionHostOnly
+	s.selectedTargetReconciled = true
+	s.selectedTargetRepairAllowed = false
+	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+	}
+	s.executionMu.Unlock()
+	if !previousHostOnly {
+		return status, loadErr
+	}
+	if s.hostExecutor == nil || s.hostExecutor.Stop(ctx) != nil {
+		return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
+	}
+	s.executionMu.Lock()
+	if s.activeExecution == ExecutionHostOnly {
+		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+	}
+	s.executionMu.Unlock()
+	return status, loadErr
+}
+
+func corePackageRequestFailure(err error) error {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
+		copy := *apiErr
+		copy.Phase = "request"
+		return &copy
+	}
+	return &protocol.APIError{Code: protocol.CodeInternal, Message: "core package request failed before dispatch", Phase: "request"}
+}
+
+func corePackagePreMutationFailure(err error) bool {
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if apiErr.Code == protocol.CodeBusy {
+		return true
+	}
+	switch apiErr.Phase {
+	case "request", "admission", "compatibility", "save":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceClient, prior protocol.Status, loadErr error) (protocol.Status, error) {
+	reconcileContext, cancelReconcile := context.WithTimeout(parent, s.coreLoadReconcileTimeout)
+	defer cancelReconcile()
+	for {
+		if err := reconcileContext.Err(); err != nil {
+			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
+		}
+		statusContext, cancel := serviceTimeout(reconcileContext, s.requestTimeout)
+		status, err := client.Status(statusContext)
+		cancel()
+		if err != nil {
+			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
+		}
+		if validServiceCorePackageStatus(status) && !reflect.DeepEqual(status, prior) {
+			return status, nil
+		}
+		if confirmedIdleCorePackageFailure(status, loadErr) {
+			return status, preserveCorePackageError(loadErr)
+		}
+		if reflect.DeepEqual(status, prior) {
+			preserved := preserveCorePackageError(loadErr)
+			var apiErr *protocol.APIError
+			if errors.As(preserved, &apiErr) {
+				apiErr.Phase = "request"
+			}
+			return protocol.Status{}, preserved
+		}
+		if status.State != protocol.StateLaunching || !status.Development || status.LastError != nil || status.Recovery != "" {
+			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is inconsistent", Phase: "recovery"}
+		}
+		timer := time.NewTimer(lostLaunchPollInterval)
+		select {
+		case <-reconcileContext.Done():
+			timer.Stop()
+			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
+		case <-timer.C:
+		}
+	}
+}
+
+func confirmedIdleCorePackageFailure(status protocol.Status, loadErr error) bool {
+	if ambiguousTargetMutationError(loadErr) {
+		return false
+	}
+	var dispatched *protocol.APIError
+	if !errors.As(loadErr, &dispatched) || status.LastError == nil {
+		return false
+	}
+	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
+		status.ExpectedCore == nil && status.ObservedCore == nil && !status.Development &&
+		status.Recovery == "" && status.CorePackage == nil &&
+		status.LastError.Code == dispatched.Code && status.LastError.Phase == dispatched.Phase &&
+		status.LastError.Expected == dispatched.Expected && status.LastError.Observed == dispatched.Observed
+}
+
+func preserveCorePackageError(err error) error {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) {
+		copy := *apiErr
+		return &copy
+	}
+	return canonicalRemoteError(err, protocol.CodeTransferFailed)
+}
+
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
@@ -1769,6 +1956,15 @@ func ambiguousTargetMutationError(err error) bool {
 func validServiceDevelopmentStatus(status protocol.Status) bool {
 	return status.State == protocol.StateActive && status.Development && status.GameID == nil && status.System == nil &&
 		status.ExpectedCore == nil && (status.ObservedCore == nil || *status.ObservedCore != "") && status.LastError == nil && status.Recovery == ""
+}
+
+func validServiceCorePackageStatus(status protocol.Status) bool {
+	return status.State == protocol.StateActive && status.Development && status.GameID == nil &&
+		status.System == nil && status.ExpectedCore == nil && status.LastError == nil &&
+		status.Recovery == "" && status.CorePackage != nil &&
+		status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 &&
+		status.CorePackage.ABI.ID != "" && status.CorePackage.ABI.Major != 0 &&
+		status.CorePackage.BuildID != ""
 }
 
 func (s *Service) reconcileLostDevelopmentLoad(parent context.Context, client serviceClient, loadErr error) (protocol.Status, error) {

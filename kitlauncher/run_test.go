@@ -120,6 +120,42 @@ func TestLoadCatalogFiltersByPlatform(t *testing.T) {
 	}
 }
 
+func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *testing.T) {
+	native := Session{State: "active", Execution: "fpga_native"}
+	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
+	if inputStreamKey(native) == "" {
+		t.Fatal("native session was not eligible")
+	}
+	custom := Session{State: "active", Execution: "fpga_development",
+		CorePackage: &CorePackageSession{Generation: 7, Gamepad: true}}
+	custom.Input.State, custom.Input.Ready, custom.Input.SessionID = "attached", true, "custom-session"
+	first := inputStreamKey(custom)
+	if first == "" {
+		t.Fatal("capable custom session was not eligible")
+	}
+	reconnecting := custom
+	reconnecting.Input.State = "reconnecting"
+	reconnecting.Input.Ready = false
+	if next := inputStreamKey(reconnecting); next != first {
+		t.Fatalf("same-generation reconnect changed stream key: %q then %q", first, next)
+	}
+	custom.CorePackage.Generation = 8
+	if next := inputStreamKey(custom); next == "" || next == first {
+		t.Fatalf("generation replacement did not retire stream: %q then %q", first, next)
+	}
+	for name, session := range map[string]Session{
+		"raw":        {State: "active", Execution: "fpga_development"},
+		"not-ready":  func() Session { v := custom; v.Input.Ready = false; return v }(),
+		"failed":     func() Session { v := custom; v.Input.State = "failed"; v.Input.Ready = false; return v }(),
+		"detached":   func() Session { v := custom; v.Input.State = "detached"; v.Input.Ready = false; return v }(),
+		"no-gamepad": func() Session { v := custom; v.CorePackage = &CorePackageSession{Generation: 8}; return v }(),
+	} {
+		if got := inputStreamKey(session); got != "" {
+			t.Errorf("%s stream key = %q", name, got)
+		}
+	}
+}
+
 func TestUnavailableHostStillRendersAndExits(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
 	defer server.Close()
@@ -146,6 +182,90 @@ func (p *pressPad) Poll() ([]remoteinput.Event, error) {
 	return []remoteinput.Event{e}, nil
 }
 func (*pressPad) Close() error { return nil }
+
+type customSessionPad struct {
+	polls  int
+	opened *atomic.Bool
+}
+
+func (p *customSessionPad) Poll() ([]remoteinput.Event, error) {
+	p.polls++
+	if p.opened == nil || !p.opened.Load() || p.polls < 2 {
+		return nil, nil
+	}
+	if p.polls > 0 {
+		p.polls = -1000000
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+	startPress, _ := remoteinput.NormalizeGamepad("start", true)
+	return []remoteinput.Event{a, selectPress, startPress}, nil
+}
+func (*customSessionPad) Close() error { return nil }
+
+func TestRunForwardsCapableCustomPaddleAndKeepsStopChord(t *testing.T) {
+	paddle := make(chan remoteinput.Event, 1)
+	stopped := make(chan struct{}, 1)
+	var opened atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"active","execution":"fpga_development","input":{"state":"attached","ready":true,"session_id":"custom-input"},"core_package":{"generation":9,"gamepad":true}}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[]}`))
+		case "/api/v1/launcher/input":
+			opened.Store(true)
+			_ = http.NewResponseController(w).EnableFullDuplex()
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			decoder := json.NewDecoder(r.Body)
+			for {
+				var frame struct {
+					Event *remoteinput.Event `json:"event"`
+				}
+				if decoder.Decode(&frame) != nil {
+					return
+				}
+				if frame.Event != nil && frame.Event.Code == remoteinput.ButtonA {
+					select {
+					case paddle <- *frame.Event:
+					default:
+					}
+				}
+			}
+		case "/api/v1/session/stop":
+			select {
+			case stopped <- struct{}{}:
+			default:
+			}
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	pad := &customSessionPad{opened: &opened}
+	_ = Run(ctx, NewClient(Config{API: server.URL}), func(Model) {}, func() (Pad, error) { return pad, nil })
+	select {
+	case event := <-paddle:
+		if event.Code != remoteinput.ButtonA {
+			t.Fatal(event)
+		}
+	default:
+		t.Fatal("custom paddle event not forwarded")
+	}
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("custom session Stop chord was not dispatched")
+	}
+}
 
 func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 	var loading atomic.Bool

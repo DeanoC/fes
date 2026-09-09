@@ -184,7 +184,7 @@ grep -Fq '/bin/sleep 1' "$supervise"
 ! grep -Eq '(printf|log)[^#]*\$(\*|@)' "$supervise"
 
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-rootfs.XXXXXX")
-trap 'rm -rf "$fixture"' EXIT INT TERM
+trap 'chmod -R u+w "$fixture" 2>/dev/null || true; rm -rf "$fixture"' EXIT INT TERM
 
 menu_fixture=$fixture/menu-blanking
 mkdir -p "$menu_fixture"
@@ -484,6 +484,57 @@ grep -Fqx 'megadrive_recipe_sha256=555555555555555555555555555555555555555555555
   "$native_target/usr/share/mister-runtime/build-inputs"
 grep -Fqx 'megadrive_toolchain=fixture-toolchain' \
   "$native_target/usr/share/mister-runtime/build-inputs"
+
+package_id=b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0
+package_source=$native_fixture/fes-pong-package
+package_selection=$native_fixture/fes-pong.package-selection.toml
+mkdir "$package_source"
+cp "$repo/internal/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml" "$package_source/manifest.toml"
+cp "$repo/internal/corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf" "$package_source/core.rbf"
+chmod 0444 "$package_source"/*
+chmod 0555 "$package_source"
+cat > "$package_selection" <<EOF
+format = 2
+kind = 'core-package'
+core_id = 'fes.pong'
+package_id = '$package_id'
+payload_sha256 = 'e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1'
+misteross_revision = '1111111111111111111111111111111111111111'
+mister_packages_revision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+install_path = '/usr/share/mister-runtime/core-packages/$package_id'
+EOF
+chmod 0444 "$package_selection"
+package_selector=$native_fixture/target-image-lock
+(cd "$repo" && go build -o "$package_selector" ./cmd/target-image-lock)
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+NATIVE_RUNTIME_SYSTEMS=megadrive \
+  "$repo/scripts/native-extra-cores.sh" fetch "$native_cache"
+native_package_target=$native_fixture/package-target
+cp -R "$native_fixture/target" "$native_package_target"
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+NATIVE_RUNTIME_SYSTEMS=megadrive \
+NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+NATIVE_RUNTIME_IDLE_FILE=$native_cache/idle.rbf \
+NATIVE_RUNTIME_MEGADRIVE_FILE=$native_cache/megadrive.rbf \
+NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$native_selection \
+  "$native_post_build" "$native_package_target"
+test "$(find "$native_package_target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 3
+test "$(stat -c %a "$native_package_target/usr/share/mister-runtime/core-packages/$package_id")" = 555
+grep -Fqx "fes_pong_package_selection_sha256=$(sha256sum "$package_selection" | awk '{print $1}')" \
+  "$native_package_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx "fes_pong_package_id=$package_id" \
+  "$native_package_target/usr/share/mister-runtime/build-inputs"
+grep -Fqx 'fes_pong_misteross_revision=1111111111111111111111111111111111111111' \
+  "$native_package_target/usr/share/mister-runtime/build-inputs"
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+NATIVE_RUNTIME_SYSTEMS=megadrive \
+  "$repo/scripts/native-extra-cores.sh" verify-image "$native_cache" "$native_package_target"
 
 native_upstream_lock=$native_fixture/upstream-native-runtime.inputs.lock.toml
 sed \

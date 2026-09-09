@@ -38,7 +38,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	grant := claimKit(t, manager)
 	controller := &fakeController{}
 	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/launch", "/v1/stop", "/v2/launch", "/v1/development/rbf", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
+	for _, path := range []string{"/v1/launch", "/v1/stop", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
 		for _, token := range []string{"", "foreign"} {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			request.Header.Set("Authorization", "Bearer bearer")
@@ -143,6 +143,15 @@ func TestReleasedOwnerCannotStopReplacement(t *testing.T) {
 }
 
 func TestKitLeaseExpiryInterruptsStalledUpload(t *testing.T) {
+	testLeaseExpiryInterruptsStalledUpload(t, "/v1/development/rbf")
+}
+
+func TestKitLeaseExpiryInterruptsStalledCoreUpload(t *testing.T) {
+	testLeaseExpiryInterruptsStalledUpload(t, "/v1/development/core")
+}
+
+func testLeaseExpiryInterruptsStalledUpload(t *testing.T, path string) {
+	t.Helper()
 	cleanup := make(chan struct{}, 2)
 	manager := kitlease.New(150*time.Millisecond, func(context.Context) error { cleanup <- struct{}{}; return nil })
 	defer manager.Close()
@@ -157,7 +166,7 @@ func TestKitLeaseExpiryInterruptsStalledUpload(t *testing.T) {
 	defer conn.Close()
 	// Announce an upload but deliberately never finish its body. Revocation must
 	// unblock the handler before cleanup can acquire the physical controller.
-	fmt.Fprintf(conn, "POST /v1/development/rbf HTTP/1.1\r\nHost: kit\r\nAuthorization: Bearer bearer\r\n%s: %s\r\nContent-Type: application/octet-stream\r\nContent-Length: 100\r\n\r\nx", httpapi.KitLeaseHeader, grant.Token)
+	fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: kit\r\nAuthorization: Bearer bearer\r\n%s: %s\r\nContent-Type: application/octet-stream\r\nContent-Length: 100\r\n\r\nx", path, httpapi.KitLeaseHeader, grant.Token)
 	select {
 	case <-cleanup:
 	case <-time.After(2 * time.Second):

@@ -38,12 +38,57 @@ func run(args []string, stdout, stderr io.Writer, runner commandRunner) int {
 		return runVerifyInputs(args[1:], stdout, stderr)
 	case "select-core", "verify-core":
 		return runCoreSelection(args[0], args[1:], stdout, stderr)
+	case "select-package", "verify-package":
+		return runPackageSelection(args[0], args[1:], stdout, stderr)
 	case "select-megadrive":
 		return runSelectMegaDrive(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "target-image-lock: unknown command %q\n", args[0])
 		return 2
 	}
+}
+
+func runPackageSelection(command string, args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	packageDirectory := flags.String("package", "", "sealed format-2 package directory")
+	selection := flags.String("selection", "", "closed package selection record")
+	cache := flags.String("cache", "", "native package cache")
+	output := flags.String("output", "", "published package selection record")
+	printInputs := flags.Bool("print-inputs", false, "print canonical native image build inputs")
+	if flags.Parse(args) != nil || flags.NArg() != 0 || *packageDirectory == "" || *selection == "" {
+		return 2
+	}
+	var err error
+	if command == "select-package" {
+		if *cache == "" || *output == "" || *printInputs {
+			return 2
+		}
+		_, err = targetimage.PrepareCorePackageSelection(*packageDirectory, *selection, *cache, *output)
+	} else {
+		if *cache != "" || *output != "" {
+			return 2
+		}
+		var inspected targetimage.CorePackageSelection
+		var selectionSHA256 string
+		inspected, selectionSHA256, err = targetimage.InspectCorePackageSelection(*packageDirectory, *selection)
+		if err == nil && *printInputs {
+			fmt.Fprintf(stdout, "fes_pong_package_selection_sha256=%s\n", selectionSHA256)
+			fmt.Fprintf(stdout, "fes_pong_package_id=%s\n", inspected.PackageID)
+			fmt.Fprintf(stdout, "fes_pong_payload_sha256=%s\n", inspected.PayloadSHA256)
+			fmt.Fprintf(stdout, "fes_pong_misteross_revision=%s\n", inspected.MisterossRevision)
+			fmt.Fprintf(stdout, "fes_pong_mister_packages_revision=%s\n", inspected.MisterPackagesRevision)
+			fmt.Fprintf(stdout, "fes_pong_install_path=%s\n", inspected.InstallPath)
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if !*printInputs {
+		fmt.Fprintln(stdout, command+" fes.pong verified")
+	}
+	return 0
 }
 
 func runSelectMegaDrive(args []string, stdout, stderr io.Writer) int {

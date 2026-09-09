@@ -183,7 +183,7 @@ func (c *Client) WithKitLease(l *KitLease) *Client { c.kitLease = l; return c }
 func (c *Client) KitLease() *KitLease              { return c.kitLease }
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
-	case "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":
+	case "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":
 		return c.kitLease.Authorize(r, true)
 	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate":
 		return c.kitLease.Authorize(r, false)
