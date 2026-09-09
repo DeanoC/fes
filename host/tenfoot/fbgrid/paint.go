@@ -44,6 +44,7 @@ func Paint(d gfx.Device, g Grid) {
 		}
 		paintTile(d, g, th, i, g.Tiles[i])
 	}
+	paintCoverflowTitle(d, g, th)
 	paintStrip(d, g, th)
 	status := g.Footer
 	if status == "" {
@@ -60,6 +61,9 @@ func Paint(d gfx.Device, g Grid) {
 }
 
 func paintOrder(g Grid) []int {
+	if g.Kind == BrowseCoverflow {
+		return coverflowPaintOrder(g)
+	}
 	n := len(g.Tiles)
 	order := make([]int, 0, n)
 	focus, confirm := -1, -1
@@ -125,8 +129,15 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 			paintRectOutline(d, inner, 1, th.Highlight)
 		}
 	}
+	if g.Kind == BrowseCoverflow {
+		return
+	}
 	labelSize := th.BodyPx()
 	labelW := th.BodyWeight()
+	if g.Kind == BrowseWall {
+		labelSize = th.CaptionPx()
+		labelW = th.CaptionWeight()
+	}
 	textH := gfx.TextHeightWeight(labelSize, labelW)
 	barH := float32(textH + 4)
 	if barH < 16 {
@@ -174,6 +185,60 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		textY = int(inner.Y)
 	}
 	d.DrawTextWeight(textX, textY, name, labelSize, labelW, th.Label)
+}
+
+func paintCoverflowTitle(d gfx.Device, g Grid, th theme.Theme) {
+	if d == nil || g.Kind != BrowseCoverflow || g.StripActive {
+		return
+	}
+	if g.Focus < 0 || g.Focus >= len(g.Tiles) {
+		return
+	}
+	r, ok := g.tileRect(g.Focus)
+	if !ok {
+		return
+	}
+	tile := g.Tiles[g.Focus]
+	reserve := g.coverflowTitleReserve()
+	if reserve < 1 {
+		return
+	}
+	bar := gfx.Rect{
+		X: float32(g.Pad),
+		Y: r.Y + r.H + 4,
+		W: float32(g.Width - 2*g.Pad),
+		H: float32(reserve - 4),
+	}
+	if bar.Y+bar.H > float32(g.Height-g.FooterH-g.stripReserve()) {
+		bar.Y = float32(g.Height-g.FooterH-g.stripReserve()) - bar.H
+	}
+	if bar.W < 1 || bar.H < 1 {
+		return
+	}
+	maxW := int(bar.W)
+	if tile.Logo != nil {
+		logoH := int(bar.H)
+		if logoH < 16 {
+			logoH = 16
+		}
+		logoCell := gfx.Rect{X: bar.X, Y: bar.Y, W: bar.W, H: float32(logoH)}
+		paintCover(d, tile.Logo, logoCell)
+		return
+	}
+	name := tile.Name
+	if name == "" {
+		return
+	}
+	size := th.TitlePx()
+	weight := th.TitleWeight()
+	name = gfx.FitTextWeight(name, size, maxW, weight)
+	textH := gfx.TextHeightWeight(size, weight)
+	x := int(bar.X) + (maxW-gfx.MeasureTextWeight(name, size, weight))/2
+	y := int(bar.Y) + (int(bar.H)-textH)/2
+	if y < int(bar.Y) {
+		y = int(bar.Y)
+	}
+	d.DrawTextWeight(x, y, name, size, weight, th.Header)
 }
 
 func paintStrip(d gfx.Device, g Grid, th theme.Theme) {

@@ -22,7 +22,7 @@ import (
 	"syscall"
 )
 
-const gridPageSize = 12
+const gridPageSize = fbgrid.DefaultPageSize
 
 func main() {
 	if err := run(); err != nil {
@@ -48,6 +48,7 @@ func run() error {
 	selftestWheel := flag.Bool("selftest-wheel", false, "paint platform wheel and hero, enter a system grid, then exit")
 	selftestStrip := flag.Bool("selftest-strip", false, "paint recent/favorites strip, hand off from grid, then exit")
 	selftestAtmosphere := flag.Bool("selftest-atmosphere", false, "paint dimmed fanart/cover-wall behind chrome, then exit")
+	selftestLayouts := flag.Bool("selftest-layouts", false, "paint coverflow and cover-wall browse, cycle Y, then exit")
 	flag.Parse()
 	if *selftestFPGA {
 		fb := "/dev/fb0"
@@ -70,7 +71,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -85,6 +86,9 @@ func run() error {
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
+		}
+		if *selftestLayouts {
+			return runLayoutsSelftest(fb, th)
 		}
 		if *selftestAtmosphere {
 			return runAtmosphereSelftest(fb, th)
@@ -217,8 +221,11 @@ func run() error {
 			d.Present()
 			return
 		}
-		start, end := catalogPage(m.Focus, len(m.Games))
-		prefetch := end + gridPageSize
+		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
+		prefetch := end + fbgrid.BrowsePageSize(m.Browse)
+		if m.Browse == fbgrid.BrowseCoverflow {
+			prefetch = end + 2
+		}
 		if prefetch > len(m.Games) {
 			prefetch = len(m.Games)
 		}
@@ -324,6 +331,7 @@ type renderKey struct {
 	Busy, Connected, TargetReady, ControllerConnected             bool
 	Attract, Detail, Wheel, Video, Strip                          bool
 	Covers, Stills, Presentations                                 uint64
+	Browse                                                        fbgrid.BrowseKind
 }
 
 func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey {
@@ -343,7 +351,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Detail: m.DetailOpen, Wheel: m.WheelOpen, Shot: m.ShotIndex(),
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
 		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
-		Covers: covers, Presentations: presentations,
+		Covers: covers, Presentations: presentations, Browse: m.Browse,
 	}
 }
 
@@ -392,27 +400,14 @@ func stillImage(stills *tenfoot.CoverCache, handle string) *image.RGBA {
 	return stills.Image(handle)
 }
 
-func catalogPage(focus, n int) (start, end int) {
-	if n <= 0 {
-		return 0, 0
-	}
-	if focus > 0 {
-		start = (focus / gridPageSize) * gridPageSize
-	}
-	if start >= n {
-		start = 0
-	}
-	end = start + gridPageSize
-	if end > n {
-		end = n
-	}
-	return start, end
+func catalogPage(focus, n int, kind fbgrid.BrowseKind) (start, end int) {
+	return fbgrid.CatalogPage(focus, n, kind)
 }
 
-// modelGrid maps the live catalog to one visible 4×3 page. Model.Focus remains
+// modelGrid maps the live catalog to one visible page. Model.Focus remains
 // an index into the complete catalog; the grid focus is page-local.
 func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme) fbgrid.Grid {
-	start, end := catalogPage(m.Focus, len(m.Games))
+	start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 	tiles := make([]fbgrid.Tile, 0, end-start)
 	for _, game := range m.Games[start:end] {
 		pres := tenfoot.Presentation{}
@@ -422,8 +417,13 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		tiles = append(tiles, gameTile(game, covers, pres, th))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
+	g.Kind = m.Browse
 	fbgrid.ApplyTheme(&g, th)
-	g.Header = truncateLabel(asciiLabel(m.HeaderChrome()), 36)
+	header := m.HeaderChrome()
+	if tag := m.Browse.HeaderTag(); tag != "" {
+		header = header + "  " + tag
+	}
+	g.Header = truncateLabel(asciiLabel(header), 36)
 	if m.Focus >= start && m.Focus < end {
 		g.Focus = m.Focus - start
 	}

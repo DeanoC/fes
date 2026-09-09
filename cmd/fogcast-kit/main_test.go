@@ -84,7 +84,7 @@ func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
 	}
 	m.Focus = 11
 	m.Input(down, now)
-	start, end := catalogPage(m.Focus, len(m.Games))
+	start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 	g = modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if m.Focus != 15 || start != 12 || end != 24 || g.Focus != 3 || len(g.Tiles) != 12 {
 		t.Fatalf("page-cross focus=%d page=%d:%d local=%d tiles=%d", m.Focus, start, end, g.Focus, len(g.Tiles))
@@ -113,17 +113,25 @@ func TestExerciseNavGridSamplesHighlight(t *testing.T) {
 }
 
 func TestCatalogPageAndPrefetchWindow(t *testing.T) {
-	start, end := catalogPage(0, 25)
+	start, end := catalogPage(0, 25, fbgrid.BrowseGrid)
 	if start != 0 || end != 12 {
 		t.Fatalf("page0 %d:%d", start, end)
 	}
-	start, end = catalogPage(12, 25)
+	start, end = catalogPage(12, 25, fbgrid.BrowseGrid)
 	if start != 12 || end != 24 {
 		t.Fatalf("page1 %d:%d", start, end)
 	}
-	start, end = catalogPage(24, 25)
+	start, end = catalogPage(24, 25, fbgrid.BrowseGrid)
 	if start != 24 || end != 25 {
 		t.Fatalf("page2 %d:%d", start, end)
+	}
+	start, end = catalogPage(10, 25, fbgrid.BrowseCoverflow)
+	if start != 8 || end != 13 {
+		t.Fatalf("coverflow window %d:%d", start, end)
+	}
+	start, end = catalogPage(0, 25, fbgrid.BrowseWall)
+	if start != 0 || end != 18 {
+		t.Fatalf("wall page0 %d:%d", start, end)
 	}
 }
 
@@ -183,7 +191,7 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 		t.Fatalf("controller footer %q", got)
 	}
 	m = kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	if got := modelFooter(m); got != "A play | B detail | L/R shelf" {
+	if got := modelFooter(m); got != "A play | B detail | L/R | Y flow" {
 		t.Fatalf("play footer %q", got)
 	}
 }
@@ -207,7 +215,7 @@ func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	if g.Header != "FOGCAST  MEGADRIVE 1/3" {
 		t.Fatalf("header %q", g.Header)
 	}
-	if g.Footer != "A play | B detail | L/R shelf" {
+	if g.Footer != "A play | B detail | L/R | Y flow" {
 		t.Fatalf("footer %q", g.Footer)
 	}
 }
@@ -287,6 +295,27 @@ func TestExerciseFPGAAnimProof(t *testing.T) {
 	}
 	if !strings.Contains(report, "selftest-fpga PASS") || !strings.Contains(report, "HW=not-yet") || !strings.Contains(report, "backend=fpga") {
 		t.Fatalf("report %s", report)
+	}
+}
+
+func TestExerciseLayoutsGridPaintsCoverflowWallAndNestsAtmosphere(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseLayoutsGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-layouts PASS") || !strings.Contains(report, "selftest-atmosphere PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "coverflow kind=coverflow") || !strings.Contains(report, "wall kind=wall") || !strings.Contains(report, "empty-coverflow") {
+		t.Fatalf("missing layout evidence: %s", report)
 	}
 }
 

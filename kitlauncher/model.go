@@ -49,6 +49,7 @@ type Model struct {
 	StripFocus                                        int
 	StripActive                                       bool
 	detailFromStrip                                   bool
+	Browse                                            fbgrid.BrowseKind
 }
 
 func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }
@@ -84,6 +85,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			m.CycleShelf(-1)
 		case remoteinput.ButtonR, remoteinput.ButtonSelect:
 			m.CycleShelf(1)
+		case remoteinput.ButtonY:
+			m.CycleBrowse()
+			return ""
 		case remoteinput.ButtonA:
 			if m.StripActive {
 				m.openDetail(now)
@@ -112,7 +116,7 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 		return ""
 	}
 	if len(m.Games) > 0 && (dx != 0 || dy != 0) {
-		next := fbgrid.MoveFocus(m.Focus, len(m.Games), fbgrid.DefaultColumns, dx, dy)
+		next := fbgrid.MoveFocus(m.Focus, len(m.Games), m.BrowseColumns(), dx, dy)
 		if dy > 0 && next == m.Focus {
 			if len(m.Strip) > 0 {
 				m.enterStrip()

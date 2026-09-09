@@ -211,6 +211,162 @@ func runAtmosphereSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runLayoutsSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseLayoutsGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseLayoutsGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	g := paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseGrid || len(g.Tiles) != 12 {
+		return b.String(), fmt.Errorf("origin kind=%s tiles=%d", g.Kind, len(g.Tiles))
+	}
+	if g.Footer != "A play | B detail | L/R | Y flow" {
+		return b.String(), fmt.Errorf("grid footer %q", g.Footer)
+	}
+	gridW := g.CellW
+	hx, hy, ok := g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("grid highlight")
+	}
+	hlB, hlG, hlR, _, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "origin kind=%s tiles=%d cellw=%d highlight=(%d,%d) bgrx=%d,%d,%d footer=%q\n",
+		g.Kind, len(g.Tiles), gridW, hx, hy, hlB, hlG, hlR, g.Footer)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y1 browse %s", m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseCoverflow || !strings.Contains(g.Header, "FLOW") {
+		return b.String(), fmt.Errorf("coverflow kind=%s header=%q", g.Kind, g.Header)
+	}
+	if g.Footer != "A play | B detail | L/R | Y wall" {
+		return b.String(), fmt.Errorf("coverflow footer %q", g.Footer)
+	}
+	fr, ok := g.TileRect(g.Focus)
+	if !ok {
+		return b.String(), fmt.Errorf("coverflow focus rect")
+	}
+	nr, ok := g.TileRect(1)
+	if !ok || len(g.Tiles) < 2 {
+		return b.String(), fmt.Errorf("coverflow neighbor")
+	}
+	if fr.W <= nr.W {
+		return b.String(), fmt.Errorf("coverflow focus %+v neighbor %+v", fr, nr)
+	}
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("coverflow highlight")
+	}
+	hlB, hlG, hlR, hlX, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R || hlX != 0 {
+		return b.String(), fmt.Errorf("coverflow highlight bgrx %d,%d,%d,%d", hlB, hlG, hlR, hlX)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.Paint(rec, g)
+	var sawTitle bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.SizePx == th.TitlePx() && c.Weight == th.TitleWeight() && c.Text != g.Header {
+			sawTitle = true
+		}
+		if c.Op == "DebugText" {
+			return b.String(), fmt.Errorf("coverflow DebugText")
+		}
+	}
+	if !sawTitle {
+		return b.String(), fmt.Errorf("coverflow missing title role ops=%v", rec.Ops())
+	}
+	fmt.Fprintf(&b, "coverflow kind=%s tiles=%d focusW=%d neighborW=%d header=%q footer=%q\n",
+		g.Kind, len(g.Tiles), int(fr.W), int(nr.W), g.Header, g.Footer)
+
+	press(&m, "dpad-right")
+	if m.Focus != 1 || m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("coverflow dpad focus=%d browse=%s", m.Focus, m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Focus != 1 {
+		return b.String(), fmt.Errorf("coverflow local focus %d", g.Focus)
+	}
+	fmt.Fprintf(&b, "coverflow-right focus=%d local=%d\n", m.Focus, g.Focus)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseWall {
+		return b.String(), fmt.Errorf("y2 browse %s", m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseWall || g.Columns != 6 || !strings.Contains(g.Header, "WALL") {
+		return b.String(), fmt.Errorf("wall kind=%s cols=%d header=%q", g.Kind, g.Columns, g.Header)
+	}
+	if g.CellW >= gridW {
+		return b.String(), fmt.Errorf("wall cell %d not denser than grid %d", g.CellW, gridW)
+	}
+	hx, hy, ok = g.HighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("wall highlight")
+	}
+	hlB, hlG, hlR, hlX, err = gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	if hlB != th.Highlight.B || hlG != th.Highlight.G || hlR != th.Highlight.R || hlX != 0 {
+		return b.String(), fmt.Errorf("wall highlight bgrx %d,%d,%d,%d", hlB, hlG, hlR, hlX)
+	}
+	fmt.Fprintf(&b, "wall kind=%s tiles=%d cols=%d cellw=%d header=%q footer=%q\n",
+		g.Kind, len(g.Tiles), g.Columns, g.CellW, g.Header, g.Footer)
+
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseGrid {
+		return b.String(), fmt.Errorf("y3 browse %s", m.Browse)
+	}
+	g = paintModel(d, m, th)
+	if g.Kind != fbgrid.BrowseGrid || strings.Contains(g.Header, "FLOW") || strings.Contains(g.Header, "WALL") {
+		return b.String(), fmt.Errorf("back grid kind=%s header=%q", g.Kind, g.Header)
+	}
+	fmt.Fprintf(&b, "back-grid kind=%s focus=%d header=%q\n", g.Kind, m.Focus, g.Header)
+
+	empty := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Browse: fbgrid.BrowseCoverflow}
+	hidden := paintModel(d, empty, th)
+	if len(hidden.Tiles) != 0 {
+		return b.String(), fmt.Errorf("empty coverflow tiles %d", len(hidden.Tiles))
+	}
+	if _, _, ok := hidden.HighlightSample(); ok {
+		return b.String(), fmt.Errorf("empty coverflow highlight")
+	}
+	fmt.Fprintf(&b, "empty-coverflow tiles=%d header=%q\n", len(hidden.Tiles), hidden.Header)
+
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("grid A after layouts %q", action)
+	}
+	fmt.Fprintf(&b, "launch-still-a=1 focus=%d\n", m.Focus)
+
+	atm, err := exerciseAtmosphereGrid(d, th)
+	b.WriteString(atm)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-layouts PASS coverflow=1 wall=1 cycle=1 empty=1 nested-atmosphere=1\n")
+	return b.String(), nil
+}
+
 func exerciseAtmosphereGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	th = th.Complete()
 	cfg := d.Config()
@@ -604,7 +760,7 @@ func exerciseWheelGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	if len(g.Tiles) != 5 || g.Header != "FOGCAST  MEGADRIVE 5/15" {
 		return b.String(), fmt.Errorf("grid header=%q tiles=%d", g.Header, len(g.Tiles))
 	}
-	if g.Footer != "A play | B platforms | L/R shelf" {
+	if g.Footer != "A play | B platforms | L/R | Y flow" {
 		return b.String(), fmt.Errorf("grid footer %q", g.Footer)
 	}
 	fmt.Fprintf(&b, "enter-grid header=%q tiles=%d footer=%q\n", g.Header, len(g.Tiles), g.Footer)
@@ -805,7 +961,7 @@ func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	var b strings.Builder
 	step := func(name string, wantFocus, wantPage int) error {
 		g := paintModel(d, m, th)
-		start, end := catalogPage(m.Focus, len(m.Games))
+		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 		hx, hy, ok := g.HighlightSample()
 		if !ok {
 			return fmt.Errorf("%s: no highlight", name)
@@ -1017,7 +1173,7 @@ func exerciseShelfGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	var b strings.Builder
 	step := func(name, wantShelf string, wantCount, wantFocus int) error {
 		g := paintModel(d, m, th)
-		start, end := catalogPage(m.Focus, len(m.Games))
+		start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 		hx, hy, ok := g.HighlightSample()
 		if !ok {
 			return fmt.Errorf("%s: no highlight", name)

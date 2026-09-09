@@ -149,12 +149,16 @@ func (g Grid) tileScale(i int) float64 {
 	return scale
 }
 
+// TileRect is the painted destination of tile i, including focus pop.
+func (g Grid) TileRect(i int) (gfx.Rect, bool) {
+	return g.tileRect(i)
+}
+
 func (g Grid) tileRect(i int) (gfx.Rect, bool) {
-	x, y, ok := g.CellOrigin(i)
+	r, ok := g.tileBaseRect(i)
 	if !ok {
 		return gfx.Rect{}, false
 	}
-	r := gfx.Rect{X: float32(x), Y: float32(y), W: float32(g.CellW), H: float32(g.CellH)}
 	if s := g.tileScale(i); s != 1 {
 		r = anim.Scale(r, s)
 	}
@@ -162,7 +166,7 @@ func (g Grid) tileRect(i int) (gfx.Rect, bool) {
 }
 
 func (g Grid) tileInner(i int) (gfx.Rect, bool) {
-	x, y, ok := g.CellOrigin(i)
+	r, ok := g.tileBaseRect(i)
 	if !ok {
 		return gfx.Rect{}, false
 	}
@@ -170,15 +174,15 @@ func (g Grid) tileInner(i int) (gfx.Rect, bool) {
 	if inset < 1 {
 		inset = 1
 	}
-	w := float32(g.CellW) - 2*inset
-	h := float32(g.CellH) - 2*inset
+	w := r.W - 2*inset
+	h := r.H - 2*inset
 	if w < 1 {
 		w = 1
 	}
 	if h < 1 {
 		h = 1
 	}
-	return gfx.Rect{X: float32(x) + inset, Y: float32(y) + inset, W: w, H: h}, true
+	return gfx.Rect{X: r.X + inset, Y: r.Y + inset, W: w, H: h}, true
 }
 
 func (g Grid) confirmFill(base, flash gfx.Color) gfx.Color {
