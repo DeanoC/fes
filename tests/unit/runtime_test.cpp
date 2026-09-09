@@ -48,6 +48,8 @@ struct Fixture {
 	mister::Runtime runtime;
 };
 
+bool WaitForState(mister::Runtime&, State);
+
 void TestSaveFailurePreservesSessionForStopRetry()
 {
 	Fixture f;
@@ -60,6 +62,10 @@ void TestSaveFailurePreservesSessionForStopRetry()
 	assert(failed.state == before.state && failed.execution == before.execution);
 	assert(failed.system == before.system && failed.core == before.core);
 	assert(failed.error.code == ErrorCode::save_failed);
+	assert(failed.error.phase == "save");
+	assert(f.hardware.restore_input_calls == 1);
+	assert(f.hardware.restored_input_generations ==
+		std::vector<std::uint64_t>({before.generation}));
 	assert(f.hardware.idle_calls == 1);
 	assert(f.hardware.flush_calls == 1);
 	assert(f.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
@@ -69,6 +75,24 @@ void TestSaveFailurePreservesSessionForStopRetry()
 	assert(f.runtime.status().state == State::idle);
 	assert(f.runtime.Stop().ok());
 	assert(f.hardware.flush_calls == 2);
+}
+
+void TestSaveFailureInputRestoreFailureRequiresRecovery()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	f.hardware.restore_input_result = {ErrorCode::io_failed,
+		"input reopen failed"};
+	const mister::Error error = f.runtime.Stop();
+	assert(error.code == ErrorCode::idle_failed);
+	assert(error.phase == "recovery");
+	const mister::Status failed = f.runtime.status();
+	assert(failed.state == State::reboot_required);
+	assert(failed.generation == 0);
+	assert(failed.error.code == ErrorCode::idle_failed);
+	assert(f.runtime.Stop().code == ErrorCode::idle_failed);
 }
 
 void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
@@ -88,6 +112,24 @@ void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
 	f.hardware.flush_result = {};
 	assert(f.runtime.Stop().ok());
 	assert(f.hardware.idle_calls == 2);
+}
+
+void TestInputFaultDuringRestoreIsOwnedByRestoredGeneration()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	const std::uint64_t generation = f.hardware.launch_generations.back();
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	f.hardware.on_restore_input = [&] {
+		f.hardware.ReportFault(generation,
+			{ErrorCode::io_failed, "restored input failed immediately"});
+	};
+	assert(f.runtime.Stop().code == ErrorCode::save_failed);
+	assert(f.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(f.runtime, State::idle));
+	assert(f.runtime.status().error.message ==
+		"restored input failed immediately");
 }
 
 void Start(Fixture& fixture)
@@ -227,10 +269,15 @@ void TestStartLoadsIdleOnceAndPublishesIdle()
 void TestFailedStartRequiresReboot()
 {
 	Fixture fixture;
-	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "idle program"};
+	fixture.hardware.idle_result.error = {ErrorCode::program_failed,
+		"idle program", "programming", "MENU", "OTHER"};
 	assert(fixture.runtime.Start().code == ErrorCode::idle_failed);
 	assert(fixture.hardware.idle_calls == 1);
 	assert(fixture.runtime.status().state == State::reboot_required);
+	assert(fixture.runtime.status().error.phase == "recovery");
+	const mister::Error stopped = fixture.runtime.Stop();
+	assert(stopped.phase == "recovery");
+	assert(stopped.expected == "MENU" && stopped.observed == "OTHER");
 }
 
 void TestValidationPrecedesHardwareMutation()
@@ -241,6 +288,67 @@ void TestValidationPrecedesHardwareMutation()
 	invalid.system = "not_known";
 	assert(fixture.runtime.LaunchGame(invalid).code == ErrorCode::unknown_system);
 	assert(fixture.hardware.launch_calls == 0);
+}
+
+void TestUnsupportedPackageLeavesRunningSessionExactlyUntouched()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	const mister::Status before = fixture.runtime.status();
+	const std::vector<std::string> events = fixture.hardware.events;
+	fixture.hardware.admission_result = {
+		ErrorCode::unsupported_protocol, "package driver unavailable"};
+	const mister::Error error = fixture.runtime.LoadCore(
+		"/packages/custom", std::string(64, 'a'));
+	assert(error.code == ErrorCode::unsupported_protocol);
+	const mister::Status after = fixture.runtime.status();
+	assert(after.state == before.state && after.execution == before.execution);
+	assert(after.system == before.system && after.core == before.core);
+	assert(after.error.code == before.error.code &&
+		after.error.message == before.error.message);
+	assert(fixture.hardware.events == events);
+	assert(fixture.hardware.flush_calls == 0);
+	assert(fixture.hardware.core_calls == 0);
+}
+
+void TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration()
+{
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	const std::uint64_t generation = fixture.hardware.launch_generations.back();
+	fixture.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	assert(fixture.runtime.LoadCore("/packages/custom", std::string(64, 'a')).code ==
+		ErrorCode::save_failed);
+	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.hardware.restore_input_calls == 1);
+	assert(fixture.hardware.restored_input_generations ==
+		std::vector<std::uint64_t>({generation}));
+	assert(fixture.runtime.status().state == State::running_game);
+	fixture.hardware.ReportFault(generation,
+		{ErrorCode::io_failed, "still active after failed save"});
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(fixture.runtime, State::idle));
+}
+
+void TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault()
+{
+	Fixture fixture;
+	Start(fixture);
+	const std::string id(64, 'a');
+	assert(fixture.runtime.LoadCore("/packages/custom", id).ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.LoadCore("/packages/custom", id).ok());
+	assert(fixture.hardware.core_generations ==
+		std::vector<std::uint64_t>({1, 2}));
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "stale package input fault"});
+	fixture.hardware.ReportFault(2,
+		{ErrorCode::io_failed, "active package input fault"});
+	assert(fixture.hardware.WaitForIdleCalls(3));
+	assert(WaitForState(fixture.runtime, State::idle));
+	assert(fixture.runtime.status().error.message == "active package input fault");
 }
 
 void TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation()
@@ -692,6 +800,29 @@ void TestActiveInputFaultCleanupFailureRequiresReboot()
 	assert(fixture.hardware.idle_calls == 2);
 }
 
+void TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery()
+{
+	Fixture fixture;
+	Start(fixture);
+	const std::string id(64, 'a');
+	assert(fixture.runtime.LoadCore("/packages/custom", id).ok());
+	fixture.hardware.BlockNextIdle();
+	fixture.hardware.ReportFault(1,
+		{ErrorCode::io_failed, "active package input failure"});
+	fixture.hardware.WaitUntilIdleEntered();
+	const mister::Status recovering = fixture.runtime.status();
+	assert(recovering.state == State::starting);
+	assert(recovering.execution == Execution::none);
+	assert(recovering.system.empty() && recovering.core.empty());
+	assert(recovering.generation == 0);
+	assert(recovering.active_package.package_id.empty());
+	assert(recovering.capabilities.active_interfaces.empty());
+	fixture.hardware.ReleaseIdle();
+	assert(fixture.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(fixture.runtime, State::idle));
+	assert(fixture.runtime.status().error.phase == "input");
+}
+
 void TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError()
 {
 	mister::Profiles profiles = Fixture::BuildProfiles();
@@ -723,15 +854,66 @@ void TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError()
 	assert(hardware.idle_calls == 3);
 }
 
+void TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration()
+{
+	Fixture fixture;
+	Start(fixture);
+	fixture.hardware.core_info.system = "pong";
+	fixture.hardware.core_info.descriptor.core.system = "pong";
+	fixture.hardware.core_info.descriptor.interfaces = {
+		{"fes.video.fixed-720p60", 1, 0, true},
+		{"vendor.optional", 1, 0, false},
+		{"fes.gamepad", 1, 0, true}};
+	const std::string id(64, 'a');
+	mister::CorePackageInspection inspection;
+	assert(fixture.runtime.InspectCore("/tmp/package", id, &inspection).ok());
+	assert(inspection.package_id == id && inspection.compatible);
+	assert(fixture.hardware.inspection_calls == 1);
+	assert(fixture.runtime.status().generation == 0);
+	assert(fixture.hardware.core_calls == 0);
+
+	assert(fixture.runtime.LoadCore("/tmp/package", id).ok());
+	mister::Status active = fixture.runtime.status();
+	assert(active.generation == 1);
+	assert(active.active_package.package_id == id);
+	assert(active.active_package.descriptor.build.id == std::string(32, 'c'));
+	assert(active.active_package.observed.abi.id == "fes.simple-game");
+	assert(active.active_package.observed.build_id == std::string(32, 'c'));
+	assert(active.system.empty());
+	assert(active.active_package.descriptor.core.system == "pong");
+	assert(active.capabilities.active_interfaces.size() == 2);
+	assert(active.capabilities.active_interfaces[0].id == "fes.gamepad");
+	assert(active.capabilities.active_interfaces[1].id ==
+		"fes.video.fixed-720p60");
+	assert(fixture.runtime.InspectCore("/tmp/package", id, &inspection).ok());
+	assert(fixture.runtime.status().generation == 1);
+
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.status().generation == 0);
+	assert(fixture.runtime.status().active_package.package_id.empty());
+	assert(fixture.runtime.LoadContainedDevelopmentRBF("/tmp/core.rbf").ok());
+	active = fixture.runtime.status();
+	assert(active.generation == 2);
+	assert(active.active_package.package_id.empty());
+	assert(active.capabilities.active_interfaces.empty());
+	assert(fixture.hardware.development_generations.back() == 2);
+	assert(fixture.runtime.Stop().ok());
+}
+
 } // namespace
 
 int main()
 {
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
+	TestInputFaultDuringRestoreIsOwnedByRestoredGeneration();
 	TestSaveFailurePreservesSessionForStopRetry();
+	TestSaveFailureInputRestoreFailureRequiresRecovery();
 	TestStartLoadsIdleOnceAndPublishesIdle();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();
+	TestUnsupportedPackageLeavesRunningSessionExactlyUntouched();
+	TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration();
+	TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault();
 	TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
@@ -761,7 +943,9 @@ int main()
 	TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce();
 	TestStaleFaultCannotCleanOrOverwriteANewerGeneration();
 	TestActiveInputFaultCleanupFailureRequiresReboot();
+	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
-	puts("runtime_test: 35 passed");
+	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
+	puts("runtime_test: 40 passed");
 	return 0;
 }

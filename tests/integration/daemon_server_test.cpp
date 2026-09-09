@@ -39,6 +39,8 @@ const char kLaunch[] =
 	"\"system\":\"test_cart\",\"rbf\":\"/cores/test.rbf\","
 	"\"media\":{\"cartridge\":\"/games/test.bin\"},"
 	"\"settings\":{\"region\":\"auto\"}}";
+const char kPackageId[] =
+	"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 struct TempDirectory {
 	TempDirectory()
@@ -505,6 +507,120 @@ void TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket()
 	assert(fixture.hardware.development_calls == 0);
 }
 
+void TestProtocol2InspectionActivationDiagnosticAndBothStops()
+{
+	Fixture fixture;
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string path = "/tmp/fogcast-development/core-packages/test";
+	const std::string inspect = std::string(
+		"{\"protocol\":2,\"operation\":\"inspect_core\",\"package_path\":\"") +
+		path + "\",\"package_id\":\"" + kPackageId + "\"}";
+	std::string response = controller.Handle(inspect);
+	Contains(response, "\"protocol\":2");
+	Contains(response, "\"inspected_package\":{\"package_id\":\"");
+	Contains(response, "\"compatible\":true");
+	Contains(response, "\"generation\":null");
+	assert(fixture.hardware.inspection_calls == 1);
+	assert(fixture.hardware.core_calls == 0);
+
+	const std::string load = std::string(
+		"{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"") +
+		path + "\",\"package_id\":\"" + kPackageId + "\"}";
+	response = controller.Handle(load);
+	Contains(response, "\"active_package\":{\"package_id\":\"");
+	Contains(response, "\"build_id\":\"cccccccccccccccccccccccccccccccc\"");
+	Contains(response, "\"active_interfaces\":[{\"id\":\"fes.gamepad\",\"major\":1,\"minor\":0},{\"id\":\"fes.video.fixed-720p60\",\"major\":1,\"minor\":0}]");
+	Contains(response, "\"generation\":1");
+	assert(fixture.hardware.core_generations == std::vector<std::uint64_t>({1}));
+
+	response = controller.Handle(kStatus);
+	Contains(response, "\"protocol\":1");
+	Contains(response, "\"state\":\"running_development\"");
+	Contains(response, "\"system\":null");
+	assert(response.find("capabilities") == std::string::npos);
+	assert(response.find("active_package") == std::string::npos);
+	assert(response.find("generation") == std::string::npos);
+
+	response = controller.Handle("{\"protocol\":2,\"operation\":\"stop\"}");
+	Contains(response, "\"state\":\"idle\"");
+	Contains(response, "\"generation\":null");
+	response = controller.Handle(
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\","
+		"\"rbf\":\"/tmp/fogcast-development/core.rbf\","
+		"\"programming_profile\":\"development-contained-v1\"}");
+	Contains(response, "\"active_package\":null");
+	Contains(response, "\"active_interfaces\":[]");
+	Contains(response, "\"generation\":2");
+	assert(fixture.hardware.contained_development_calls == 1);
+	response = controller.Handle("{\"protocol\":1,\"operation\":\"stop\"}");
+	Contains(response, "\"protocol\":1");
+	Contains(response, "\"state\":\"idle\"");
+}
+
+void TestProtocol1ProjectsAProtocol2OnlyActivationFailure()
+{
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.core_result = {
+		{mister::ErrorCode::unsupported_interface,
+			"required interface unavailable", "compatibility"}, false, ""};
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string response = controller.Handle(std::string(
+		"{\"protocol\":2,\"operation\":\"load_core\","
+		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+		"\"package_id\":\"") + kPackageId + "\"}");
+	Contains(response, "\"code\":\"unsupported_interface\"");
+	Contains(response, "\"phase\":\"compatibility\"");
+	const std::string legacy = controller.Handle(kStatus);
+	Contains(legacy, "\"protocol\":1");
+	Contains(legacy, "\"code\":\"invalid_request\"");
+	assert(legacy.find("phase") == std::string::npos);
+	assert(legacy.find("capabilities") == std::string::npos);
+}
+
+void TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope()
+{
+	Fixture fixture;
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string response = controller.Handle(
+		"{\"protocol\":2,\"operation\":\"load_core\","
+		"\"package_path\":\"relative\",\"package_id\":\"bad\"}");
+	Contains(response, "\"protocol\":2");
+	Contains(response, "\"ok\":false");
+	Contains(response, "\"code\":\"invalid_request\"");
+	Contains(response, "\"phase\":\"request\"");
+	Contains(response, "\"inspected_package\":null");
+	assert(fixture.hardware.admission_calls == 0);
+	const std::string missing_operation = controller.Handle("{\"protocol\":2}");
+	Contains(missing_operation, "\"protocol\":2");
+	Contains(missing_operation, "\"phase\":\"request\"");
+}
+
+void TestIncompatibleInspectionIsSuccessfulAndDoesNotMutate()
+{
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.inspection_compatible = false;
+	fixture.hardware.compatibility_error = {
+		mister::ErrorCode::unsupported_abi, "future ABI", "compatibility",
+		"fes.simple-game@1.0", "vendor.future@2.0"};
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string response = controller.Handle(std::string(
+		"{\"protocol\":2,\"operation\":\"inspect_core\","
+		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+		"\"package_id\":\"") + kPackageId + "\"}");
+	Contains(response, "\"ok\":true");
+	Contains(response, "\"compatible\":false");
+	Contains(response, "\"compatibility_error\":{\"code\":\"unsupported_abi\"");
+	Contains(response, "\"expected\":\"fes.simple-game@1.0\"");
+	Contains(response, "\"observed\":\"vendor.future@2.0\"");
+	Contains(response, "\"generation\":null");
+	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.hardware.development_calls == 0);
+}
+
 void TestStatusFromAnotherConnectionObservesStarting()
 {
 	TempDirectory temporary;
@@ -571,6 +687,38 @@ void TestCleanupFailureReturnsRebootRequiredIdleFailed()
 	}
 }
 
+void TestProtocol2PublishesRuntimeRecoveryPhaseAndV1OmitsMetadata()
+{
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.core_result = {
+		{mister::ErrorCode::program_failed, "package programming failed"},
+		true, ""};
+	fixture.hardware.idle_result = {
+		{mister::ErrorCode::program_failed, "cleanup failed", "programming",
+			"MENU", "OTHER"}, true, ""};
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string response = controller.Handle(std::string(
+		"{\"protocol\":2,\"operation\":\"load_core\","
+		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+		"\"package_id\":\"") + kPackageId + "\"}");
+	Contains(response, "\"code\":\"idle_failed\"");
+	Contains(response, "\"phase\":\"recovery\"");
+	Contains(response, "\"expected\":\"MENU\"");
+	Contains(response, "\"observed\":\"OTHER\"");
+	const std::string stopped = controller.Handle(
+		"{\"protocol\":2,\"operation\":\"stop\"}");
+	Contains(stopped, "\"code\":\"idle_failed\"");
+	Contains(stopped, "\"phase\":\"recovery\"");
+	Contains(stopped, "\"expected\":\"MENU\"");
+	Contains(stopped, "\"observed\":\"OTHER\"");
+	const std::string legacy = controller.Handle(kStop);
+	Contains(legacy, "\"code\":\"idle_failed\"");
+	assert(legacy.find("phase") == std::string::npos);
+	assert(legacy.find("expected") == std::string::npos);
+	assert(legacy.find("observed") == std::string::npos);
+}
+
 void TestSocketStopThenImmediateRelaunchUsesANewGeneration()
 {
 	TempDirectory temporary;
@@ -596,10 +744,23 @@ void TestSocketStatusObservesAsynchronousInputFaultCleanup()
 	Fixture fixture;
 	fixture.Start();
 	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
-	Contains(Exchange(temporary.Entry("runtime.sock"), kLaunch),
-		"\"state\":\"running_game\"");
+	const std::string load = std::string(
+		"{\"protocol\":2,\"operation\":\"load_core\","
+		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+		"\"package_id\":\"") + kPackageId + "\"}";
+	Contains(Exchange(temporary.Entry("runtime.sock"), load),
+		"\"state\":\"running_development\"");
+	fixture.hardware.BlockNextIdle();
 	fixture.hardware.ReportFault(1,
 		{mister::ErrorCode::io_failed, "socket input delivery failed"});
+	fixture.hardware.WaitUntilIdleEntered();
+	const std::string recovering = Exchange(temporary.Entry("runtime.sock"),
+		"{\"protocol\":2,\"operation\":\"status\"}");
+	Contains(recovering, "\"state\":\"starting\"");
+	Contains(recovering, "\"active_interfaces\":[]");
+	Contains(recovering, "\"active_package\":null");
+	Contains(recovering, "\"generation\":null");
+	fixture.hardware.ReleaseIdle();
 	assert(fixture.hardware.WaitForIdleCalls(2));
 	assert(fixture.log.WaitFor("input_fault", "idle"));
 	const std::string status = Exchange(temporary.Entry("runtime.sock"), kStatus);
@@ -611,6 +772,28 @@ void TestSocketStatusObservesAsynchronousInputFaultCleanup()
 	Contains(status, "\"code\":\"io_failed\"");
 	Contains(status, "socket input delivery failed");
 	assert(fixture.hardware.idle_calls == 2);
+}
+
+void TestProtocol1StatusAfterProtocol2MisterPackageKeepsNullSystem()
+{
+	Fixture fixture;
+	fixture.Start();
+	fixture.hardware.core_info.system = "pong";
+	fixture.hardware.core_info.descriptor.core.system = "pong";
+	fixture.hardware.core_info.descriptor.target.programming_profile =
+		"mister-v1";
+	fixture.hardware.core_info.descriptor.abi = {"mister", 1, 0};
+	fixture.hardware.core_info.descriptor.interfaces.clear();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string response = controller.Handle(std::string(
+		"{\"protocol\":2,\"operation\":\"load_core\","
+		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+		"\"package_id\":\"") + kPackageId + "\"}");
+	Contains(response, "\"system\":null");
+	Contains(response, "\"system\":\"pong\"");
+	const std::string legacy = controller.Handle(kStatus);
+	Contains(legacy, "\"state\":\"running_development\"");
+	Contains(legacy, "\"system\":null");
 }
 
 void TestReconstructedRuntimeDoesNotPreserveAGame()
@@ -933,12 +1116,18 @@ int main()
 	TestSecondRequestOnAConnectionIsNeverProcessed();
 	TestIncompleteAndOversizedRequestsAreInvalidThenClose();
 	TestLaunchDevelopmentAndStopMapIdentityAndState();
+	TestProtocol2InspectionActivationDiagnosticAndBothStops();
+	TestProtocol1ProjectsAProtocol2OnlyActivationFailure();
+	TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope();
+	TestIncompatibleInspectionIsSuccessfulAndDoesNotMutate();
 	TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket();
 	TestStatusFromAnotherConnectionObservesStarting();
 	TestConcurrentMutationReturnsBusy();
 	TestCleanupFailureReturnsRebootRequiredIdleFailed();
+	TestProtocol2PublishesRuntimeRecoveryPhaseAndV1OmitsMetadata();
 	TestSocketStopThenImmediateRelaunchUsesANewGeneration();
 	TestSocketStatusObservesAsynchronousInputFaultCleanup();
+	TestProtocol1StatusAfterProtocol2MisterPackageKeepsNullSystem();
 	TestReconstructedRuntimeDoesNotPreserveAGame();
 	TestLostLaunchResponseIsReconciledByStatus();
 	TestRequestStopWaitsAndRemovesOnlyItsOwnSocket();
@@ -950,6 +1139,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 23 passed");
+	puts("daemon_server_test: 29 passed");
 	return 0;
 }

@@ -77,6 +77,26 @@ void TestEmbeddedNulCannotSelectATruncatedPosixPath()
 	assert(artifact.fd() == -1);
 }
 
+void TestAbsoluteAndRelativeOpenUseTheSameFileAdmission()
+{
+	TempDirectory temporary;
+	const std::string path = temporary.File("member.rbf", 4);
+	const int directory = open(temporary.path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	assert(directory >= 0);
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact absolute;
+	mister::native::Artifact relative;
+	assert(opener.Open(path, 3, &absolute).code == mister::ErrorCode::io_failed);
+	assert(opener.OpenRelative(directory, temporary.path, "member.rbf", 3,
+		&relative).code == mister::ErrorCode::io_failed);
+	assert(opener.Open(path, 4, &absolute).ok());
+	assert(opener.OpenRelative(directory, temporary.path, "member.rbf", 4,
+		&relative).ok());
+	assert(absolute.size() == 4 && relative.size() == 4);
+	assert(relative.path() == path);
+	assert(close(directory) == 0);
+}
+
 class FailingOpener final : public mister::native::ArtifactOpener {
 public:
 	explicit FailingOpener(int fail_call) : fail_call_(fail_call), calls(0), delegate() {}
@@ -180,8 +200,9 @@ int main()
 	TestMissingDirectoryAndZeroLengthAreRejected();
 	TestOversizeRbfIsRejected();
 	TestEmbeddedNulCannotSelectATruncatedPosixPath();
+	TestAbsoluteAndRelativeOpenUseTheSameFileAdmission();
 	TestCompleteSetFailureDoesNotAssignOutput();
 	TestMultiFilePreflightRetainsAndClosesDescriptors();
-	puts("artifacts_test: 6 passed");
+	puts("artifacts_test: 7 passed");
 	return 0;
 }

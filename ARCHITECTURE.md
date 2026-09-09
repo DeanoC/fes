@@ -12,13 +12,15 @@ roles:
 - `src/native` and `src/linux` contain the Linux hardware primitives and the
   production construction boundary. `CreateProductionHardware` owns
   `PosixArtifactOpener`, `LinuxMmio`, `SteadyClock`, `LinuxFpgaManager`,
-  `LinuxSpi`, `CoreLoader`, `LinuxI2c`, `LinuxFramebuffer`, `MenuVideoBringup`,
+  `LinuxSpi`, `CoreLoader`, `MisterCoreDriver`, `LinuxI2c`, `LinuxFramebuffer`, `MenuVideoBringup`,
   `FixedVideoBringup`, `LinuxInput`, `NativeInputSession`, and
   `NativeHardware`. The dependency graph is:
 
   ```text
   LinuxMmio + SteadyClock -> LinuxFpgaManager + LinuxSpi
   LinuxSpi -> CoreLoader
+  LinuxMmio + CoreLoader + SteadyClock -> MisterCoreDriver
+  LinuxMmio + SteadyClock -> FesGp -> FesGpCoreDriver
   SteadyClock -> LinuxI2c
   CoreLoader + LinuxSpi + LinuxI2c + LinuxFramebuffer + SteadyClock + LogSink + fixed recipe
     -> MenuVideoBringup
@@ -50,6 +52,71 @@ build does not run Go and does not use a development-host compiler.
 Regenerate those headers in mister-packages and replace the checked-in
 copies. Do not hand-edit them.
 
+Format-2 package preflight is a read-only native boundary. `OpenCorePackage`
+opens an exact `manifest.toml`/`core.rbf` directory through one retained
+directory descriptor, parses at most 65,536 manifest bytes, verifies the
+retained payload descriptor's size and SHA-256, and computes the length-prefixed
+package identity from the original bytes. The returned `OpenedCorePackage`
+retains that payload descriptor for later programming, so a pathname
+replacement after preflight cannot redirect activation. Structural admission
+does not select hardware: `CheckCoreCompatibility` separately checks the
+compiled target/profile/ABI/interface registry.
+
+Production package admission and inspection first traverse one of the fixed
+roots `/tmp/fogcast-development/core-packages` or
+`/usr/share/mister-runtime/core-packages`. Each relative component is opened
+from a retained parent descriptor with `O_NOFOLLOW`; empty components,
+traversal, the root itself, and symlink components fail before package bytes
+are read. This policy is part of `NativeHardware`, so direct library calls and
+daemon requests use the same boundary. Tests and embedders can inject their
+own trusted roots when constructing that hardware boundary.
+
+`Runtime::LoadCore(directory, expected_package_id)` calls
+`Hardware::AdmitCorePackage` while the current Status and session remain
+unchanged. Admission returns an owned opaque `AdmittedCorePackage` only after
+exact identity, compatibility, optional MiSTer system recipe, and
+registered-driver availability all succeed. The runtime flushes any active
+save before publishing `starting`, assigns a new generation, and passes the
+retained object to `Hardware::LoadCore`; the package path is not reopened at
+the mutation boundary. Native activation rechecks the
+descriptor/profile/driver pairing, stops and joins any outgoing game input
+session, and only then quiesces the outgoing driver and programs the package.
+`Runtime::InspectCore(directory, expected_package_id, output)` uses the same
+rooted byte and registry checks without consuming a generation, changing
+status, or invoking FPGA, input, video, or driver operations. A structurally
+valid unsupported package returns a successful inspection with a structured
+compatibility error; malformed bytes or the wrong claimed package identity
+fail inspection.
+
+`CoreDriver` owns outgoing protocol quiesce and destination identity, button,
+and start operations. `MisterCoreDriver` is the production MiSTer adapter.
+`FesGpCoreDriver` is the production `fes-gp-v1` adapter over the bounded GPO/GPI
+transport. Package admission requires that registered driver before save,
+input, state, video, or FPGA changes.
+
+After programming a FES package, activation resets the transport session and
+reads all 16 identity words under a two-second deadline, with each exchange
+bounded to 100 ms. It sends no destination control until the descriptor ABI,
+capabilities, and build ID match. The fixed custom video path configures and
+validates the ADV7513 entirely over I2C, without issuing a MiSTer SPI timing or
+audio command. It then sends a neutral normalized button map, releases
+gameplay, and starts the input worker with the activation generation. Stop
+retires and joins that worker, sends its final neutral map, and only then asks
+the outgoing driver to hold gameplay reset. Opposite directions resolve to a
+neutral pair, and a retired generation cannot deliver to a replacement core.
+
+The package registry consumes checked-in generated C++14 headers
+`src/native/generated/fes_gp.hpp` and
+`src/native/generated/de10_nano_programming.hpp`. They were emitted from the
+reviewed mister-packages Task-2 tree
+`85a7771470ef0ff872e7a27d9fbf87d102e4a30f`; target builds do not run Go.
+The language-neutral conformance corpus under
+`tests/fixtures/core-bundle-v2/` is an exact copy of the reviewed Task-1 corpus;
+its sorted file-digest-list SHA-256 is
+`2fcc3812f3c77cd2b65893f61fd9b9f8f91f3d4ad931f2096fc5914fb1c4b004`.
+The vendored standard-library-only toml11 v3.8.1 headers, MIT license and file
+digest receipt live under `third_party/toml11/`.
+
 ADV7513 programming lives in `src/native/adv7513.hpp`. Register addresses,
 bitfields, and CEA-861 AVI/VIC values are named from the public ADV7513
 datasheet and Programming Guide. Analog Devices "must be set" bytes stay
@@ -70,6 +137,17 @@ entire request against the one runtime-owned profile table before mutation; a
 development launch validates its absolute RBF path without inventing a system
 profile. Stop flushes an active ordinary SNES battery save, then returns the hardware
 to idle.
+
+The FPGA manager takes one explicit `ProgrammingProfile`. It reads only board
+status/control during preflight, contains the system-manager interface, SDRAM
+ports, bridges and L3 remap, asserts `nCONFIG`, and waits for configuration
+reset before writing any destination GPO value. `mister-v1` then initializes a
+MiSTer reset value and, after verified configuration, releases the established
+SDRAM/bridge/remap recipe and core-normal value. `fes-gp-v1` initializes GPO to
+zero while reset is asserted and leaves bridges and SDRAM contained.
+`development-contained-v1` performs no ABI write and also remains contained.
+The active driver performs outgoing protocol reset before this sequence;
+startup has no active driver and sends no guessed word to unknown fabric.
 
 Native idle admission performs this exact sequence:
 
@@ -137,14 +215,27 @@ catalogue claim. Development loading does not run fixed video bring-up, media,
 reset, status, or input operations. Its physical-hardware acceptance remains
 pending.
 
+Format-2 MiSTer packages use the same explicit-development semantics. A
+declared `core.system` must resolve in the compiled Profiles table and selects
+its expected MiSTer identity and recipe metadata; omission remains valid for
+an explicit development package. Package loading never infers media, launches
+a game, opens input, or fabricates live build capabilities. Status records the
+verified package ID and declared core metadata (including the optional system)
+inside `active_package`, plus the separately observed MiSTer identity. The
+top-level system remains absent for every development execution, preserving
+the protocol-1 state shape. Existing raw `LoadDevelopmentRBF` remains a `mister-v1`
+compatibility adapter. Native-only explicit contained loading selects
+`development-contained-v1` and performs no identity or controller operation.
+
 Input resolution and all artifact opens complete before the transmitter is
 quiesced and FPGA programming begins. Quiescing preserves every other ADV7513
 power-register bit and uses the existing bounded video deadline; failure stops
 before FPGA mutation. The subsequent fixed bring-up reinitializes the ADV7513
 and powers the output back up after the new core is programmed.
 Neutralization succeeds before reset release, and the generation-bound input
-worker starts before `running_game` becomes observable. Stop invalidates the
-active generation, joins and neutralizes input through `LoadIdle()`, performs
+worker starts before `running_game` becomes observable. Stop retires the
+active generation while save/input shutdown runs, restores it when save
+persistence fails, joins and neutralizes input through `LoadIdle()`, performs
 the existing Menu idle bring-up once, and publishes `idle` only on success. A
 second launch repeats preflight and creates a new generation, descriptor
 session, and worker.
@@ -155,17 +246,30 @@ The one-shot hardware-fault notification is only deferred until the active
 mutation releases that same boundary. After a mutation has begun, a failed
 launch gets exactly one cleanup attempt. Cleanup success returns to `idle` with
 the original error; cleanup failure returns `reboot_required`.
+An outgoing-driver quiesce failure that attempted protocol mutation retires
+that driver identity before cleanup, so the containment/Menu recovery does not
+repeat an ambiguously completed protocol command. A failure known to precede
+protocol mutation retains the driver and lets the single cleanup attempt make
+its ordinary quiesce decision.
+FES GP discovery authorizes that cleanup command only after all identity words
+arrive through a stable transport and the protocol header, ABI, and required
+capabilities match. A later build-ID mismatch retains the programmed driver's
+context for one hold-reset command before Menu programming. A transport,
+header, ABI, or required-capability failure retires it, so recovery sends no
+command to an unverified fabric.
 There is no retry loop, failover path, recovery coordinator, or second
 ownership database.
 
 `Runtime::Impl` is the sole `HardwareFaultSink`. `Hardware::SetFaultSink`
-installs it before startup idle, and each admitted game hardware launch gets a
-strictly increasing generation. The input worker callback only enqueues its
+installs it before startup idle, and each admitted game or package hardware
+launch gets a strictly increasing generation. The input worker callback only enqueues its
 generation-tagged error and returns. Enqueuing an active-generation fault also
 reserves that generation under the runtime mutex, so Stop is rejected as busy
 until the drain owns cleanup. A private runtime drain thread admits the fault
 through the same mutation boundary, then invokes `LoadIdle()` exactly once; it
-never joins input from the input worker itself.
+never joins input from the input worker itself. Before that blocking recovery
+call, it publishes fresh `starting` status with no retired generation, package,
+system/core identity, or active interfaces.
 Cleanup success preserves the direct input fault in idle status, cleanup
 failure publishes `reboot_required`, and stale generations perform no work.
 
@@ -200,6 +304,25 @@ absolute RBF path, semantic media paths, profile-declared settings, and an
 optional SNES-only absolute `save_path`.
 Responses report `ok`, lifecycle state, execution type, system/core identity
 when present, a direct error when present, and the runtime version.
+
+Protocol 2 accepts `status`, `inspect_core`, `load_core`,
+`load_development_rbf`, and `stop`; it deliberately has no game `launch`.
+Package requests carry one absolute package path and the exact 64-character
+lowercase package ID. Raw diagnostic loading requires the literal
+`development-contained-v1` profile and never advertises an ABI, package, video,
+or input capability. Each v2 response always has twelve closed top-level
+fields. In addition to the v1 lifecycle fields it reports the sorted installed
+profile/ABI registry, currently active interfaces, the confirmed active package
+and observed ABI/build identity, the positive active generation or null, and a
+separate successful inspection result or null. MiSTer package observation has
+null ABI and build identity because its probe proves neither. Errors add a
+bounded phase and omit unavailable expected/observed strings. The active
+interface list is the sorted exact descriptor/installed-registry intersection
+verified by the live driver. Save, quiesce, programming, transport, identity,
+video, input, and recovery producers retain their concrete phase; identity
+mismatches include bounded safe expected/observed evidence. Protocol-2-only
+error codes project to `invalid_request` when old protocol-1 clients reconcile
+the same lifecycle error; no v2 fields or error members enter a v1 response.
 
 The maximum request frame is 65,536 bytes including its newline terminator.
 Decoded path strings reject embedded NUL bytes at the protocol, lifecycle,

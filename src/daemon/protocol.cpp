@@ -19,7 +19,7 @@ const std::size_t kMaximumResponsePayloadBytes =
 
 Error Invalid(const std::string& message)
 {
-	return {ErrorCode::invalid_request, message};
+	return {ErrorCode::invalid_request, message, "request"};
 }
 
 const json::Value* Find(const json::Value& object, const char* name)
@@ -64,6 +64,15 @@ bool Path(const std::string& value)
 {
 	return !value.empty() && value.size() <= 4095 && value[0] == '/' &&
 		value.find('\0') == std::string::npos;
+}
+
+bool PackageID(const std::string& value)
+{
+	if (value.size() != 64) return false;
+	for (unsigned char character : value)
+		if (!((character >= '0' && character <= '9') ||
+			(character >= 'a' && character <= 'f'))) return false;
+	return true;
 }
 
 bool StringMember(const json::Value& object, const char* name, const std::string** value,
@@ -186,7 +195,127 @@ void AppendIdentity(BoundedOutput* output, const std::string& value)
 	else AppendQuoted(output, value);
 }
 
-bool TryEncodeResponse(bool ok, const Status& status, const std::string& version,
+void AppendContract(BoundedOutput* output, const VersionedContract& contract)
+{
+	output->Append("{\"id\":");
+	AppendQuoted(output, contract.id);
+	output->Append(",\"major\":");
+	output->Append(std::to_string(contract.major));
+	output->Append(",\"minor\":");
+	output->Append(std::to_string(contract.minor));
+	output->Append("}");
+}
+
+void AppendSupportedInterface(BoundedOutput* output,
+	const SupportedInterface& interface)
+{
+	output->Append("{\"id\":");
+	AppendQuoted(output, interface.id);
+	output->Append(",\"major\":");
+	output->Append(std::to_string(interface.major));
+	output->Append(",\"minor\":");
+	output->Append(std::to_string(interface.minor));
+	output->Append("}");
+}
+
+void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
+{
+	output->Append("{\"format\":");
+	output->Append(std::to_string(descriptor.format));
+	output->Append(",\"core\":{\"id\":");
+	AppendQuoted(output, descriptor.core.id);
+	output->Append(",\"name\":");
+	AppendQuoted(output, descriptor.core.name);
+	output->Append(",\"description\":");
+	AppendQuoted(output, descriptor.core.description);
+	output->Append(",\"version\":");
+	AppendQuoted(output, descriptor.core.version);
+	if (!descriptor.core.system.empty()) {
+		output->Append(",\"system\":");
+		AppendQuoted(output, descriptor.core.system);
+	}
+	output->Append("},\"target\":{\"platform\":");
+	AppendQuoted(output, descriptor.target.platform);
+	output->Append(",\"device\":");
+	AppendQuoted(output, descriptor.target.device);
+	output->Append(",\"programming_profile\":");
+	AppendQuoted(output, descriptor.target.programming_profile);
+	output->Append("},\"payload\":{\"file\":");
+	AppendQuoted(output, descriptor.payload.file);
+	output->Append(",\"size\":");
+	output->Append(std::to_string(descriptor.payload.size));
+	output->Append(",\"sha256\":");
+	AppendQuoted(output, descriptor.payload.sha256);
+	output->Append("},\"abi\":");
+	AppendContract(output, descriptor.abi);
+	output->Append(",\"interfaces\":[");
+	for (std::size_t index = 0; index < descriptor.interfaces.size(); ++index) {
+		if (index != 0) output->Append(',');
+		const CoreInterface& interface = descriptor.interfaces[index];
+		output->Append("{\"id\":");
+		AppendQuoted(output, interface.id);
+		output->Append(",\"major\":");
+		output->Append(std::to_string(interface.major));
+		output->Append(",\"minor\":");
+		output->Append(std::to_string(interface.minor));
+		output->Append(",\"required\":");
+		output->Append(interface.required ? "true" : "false");
+		output->Append("}");
+	}
+	output->Append("],\"build\":{\"id\":");
+	AppendQuoted(output, descriptor.build.id);
+	output->Append(",\"repository\":");
+	AppendQuoted(output, descriptor.build.repository);
+	output->Append(",\"revision\":");
+	AppendQuoted(output, descriptor.build.revision);
+	output->Append(",\"recipe_sha256\":");
+	AppendQuoted(output, descriptor.build.recipe_sha256);
+	output->Append(",\"toolchain\":");
+	AppendQuoted(output, descriptor.build.toolchain);
+	output->Append("}}");
+}
+
+const char* V1ErrorCodeName(ErrorCode code)
+{
+	switch (code) {
+	case ErrorCode::invalid_package:
+	case ErrorCode::unsupported_target:
+	case ErrorCode::unsupported_programming_profile:
+	case ErrorCode::unsupported_abi:
+	case ErrorCode::unsupported_interface:
+		return "invalid_request";
+	default:
+		return ErrorCodeName(code);
+	}
+}
+
+void AppendError(BoundedOutput* output, const Error& error, bool protocol2)
+{
+	if (error.ok()) {
+		output->Append("null");
+		return;
+	}
+	output->Append("{\"code\":");
+	AppendQuoted(output, protocol2 ? ErrorCodeName(error.code) :
+		V1ErrorCodeName(error.code));
+	output->Append(",\"message\":");
+	AppendQuoted(output, error.message);
+	if (protocol2) {
+		output->Append(",\"phase\":");
+		AppendQuoted(output, error.phase.empty() ? "lifecycle" : error.phase);
+		if (!error.expected.empty()) {
+			output->Append(",\"expected\":");
+			AppendQuoted(output, error.expected);
+		}
+		if (!error.observed.empty()) {
+			output->Append(",\"observed\":");
+			AppendQuoted(output, error.observed);
+		}
+	}
+	output->Append("}");
+}
+
+bool TryEncodeV1Response(bool ok, const Status& status, const std::string& version,
 	std::string* response)
 {
 	BoundedOutput output(kMaximumResponsePayloadBytes);
@@ -201,17 +330,96 @@ bool TryEncodeResponse(bool ok, const Status& status, const std::string& version
 	output.Append(",\"core\":");
 	AppendIdentity(&output, status.core);
 	output.Append(",\"error\":");
-	if (status.error.ok()) {
-		output.Append("null");
-	} else {
-		output.Append("{\"code\":");
-		AppendQuoted(&output, ErrorCodeName(status.error.code));
-		output.Append(",\"message\":");
-		AppendQuoted(&output, status.error.message);
-		output.Append("}");
-	}
+	AppendError(&output, status.error, false);
 	output.Append(",\"version\":");
 	AppendQuoted(&output, version);
+	output.Append("}");
+	if (!output.ok()) return false;
+	*response = output.Take();
+	return true;
+}
+
+bool TryEncodeV2Response(bool ok, const Status& status,
+	const std::string& version, const CorePackageInspection* inspection,
+	std::string* response)
+{
+	BoundedOutput output(kMaximumResponsePayloadBytes);
+	output.Append("{\"protocol\":2,\"ok\":");
+	output.Append(ok ? "true" : "false");
+	output.Append(",\"state\":");
+	AppendQuoted(&output, StateName(status.state));
+	output.Append(",\"execution\":");
+	AppendQuoted(&output, ExecutionName(status.execution));
+	output.Append(",\"system\":");
+	AppendIdentity(&output, status.system);
+	output.Append(",\"core\":");
+	AppendIdentity(&output, status.core);
+	output.Append(",\"error\":");
+	AppendError(&output, status.error, true);
+	output.Append(",\"version\":");
+	AppendQuoted(&output, version);
+	output.Append(",\"capabilities\":{\"programming_profiles\":[");
+	for (std::size_t index = 0;
+		index < status.capabilities.programming_profiles.size(); ++index) {
+		if (index != 0) output.Append(',');
+		AppendQuoted(&output, status.capabilities.programming_profiles[index]);
+	}
+	output.Append("],\"abis\":[");
+	for (std::size_t index = 0; index < status.capabilities.abis.size(); ++index) {
+		if (index != 0) output.Append(',');
+		const SupportedABI& abi = status.capabilities.abis[index];
+		output.Append("{\"id\":");
+		AppendQuoted(&output, abi.id);
+		output.Append(",\"major\":");
+		output.Append(std::to_string(abi.major));
+		output.Append(",\"minor\":");
+		output.Append(std::to_string(abi.minor));
+		output.Append(",\"interfaces\":[");
+		for (std::size_t interface = 0; interface < abi.interfaces.size(); ++interface) {
+			if (interface != 0) output.Append(',');
+			AppendSupportedInterface(&output, abi.interfaces[interface]);
+		}
+		output.Append("]}");
+	}
+	output.Append("],\"active_interfaces\":[");
+	for (std::size_t index = 0;
+		index < status.capabilities.active_interfaces.size(); ++index) {
+		if (index != 0) output.Append(',');
+		AppendSupportedInterface(&output,
+			status.capabilities.active_interfaces[index]);
+	}
+	output.Append("]},\"active_package\":");
+	if (status.active_package.package_id.empty()) {
+		output.Append("null");
+	} else {
+		output.Append("{\"package_id\":");
+		AppendQuoted(&output, status.active_package.package_id);
+		output.Append(",\"descriptor\":");
+		AppendDescriptor(&output, status.active_package.descriptor);
+		output.Append(",\"observed\":{\"abi\":");
+		if (status.active_package.observed.abi.id.empty()) output.Append("null");
+		else AppendContract(&output, status.active_package.observed.abi);
+		output.Append(",\"build_id\":");
+		AppendIdentity(&output, status.active_package.observed.build_id);
+		output.Append("}}");
+	}
+	output.Append(",\"generation\":");
+	if (status.generation == 0) output.Append("null");
+	else output.Append(std::to_string(status.generation));
+	output.Append(",\"inspected_package\":");
+	if (inspection == nullptr) {
+		output.Append("null");
+	} else {
+		output.Append("{\"package_id\":");
+		AppendQuoted(&output, inspection->package_id);
+		output.Append(",\"descriptor\":");
+		AppendDescriptor(&output, inspection->descriptor);
+		output.Append(",\"compatible\":");
+		output.Append(inspection->compatible ? "true" : "false");
+		output.Append(",\"compatibility_error\":");
+		AppendError(&output, inspection->compatibility_error, true);
+		output.Append("}");
+	}
 	output.Append("}");
 	if (!output.ok()) return false;
 	*response = output.Take();
@@ -231,13 +439,58 @@ Error ParseRequest(const std::string& line, Request* request)
 	const json::Value* protocol = Find(root, "protocol");
 	if (protocol == nullptr) return Invalid("request requires protocol");
 	if (protocol->type != json::Type::integer) return Invalid("protocol must be an integer");
-	const bool unsupported_protocol = protocol->integer_value != 1;
+	request->protocol = protocol->integer_value;
 	const json::Value* operation = Find(root, "operation");
 	if (operation == nullptr || operation->type != json::Type::string)
 		return Invalid("request requires operation");
 
 	Request parsed;
+	parsed.protocol = protocol->integer_value;
 	Error error;
+	if (parsed.protocol == 2) {
+		if (operation->string_value == "status" || operation->string_value == "stop") {
+			const char* const fields[] = {"protocol", "operation"};
+			if (!HasOnly(root, fields, 2, &error)) return error;
+			parsed.operation = operation->string_value == "status" ?
+				Operation::status : Operation::stop;
+		} else if (operation->string_value == "inspect_core" ||
+			operation->string_value == "load_core") {
+			const char* const fields[] = {
+				"protocol", "operation", "package_path", "package_id"};
+			if (!HasOnly(root, fields, 4, &error)) return error;
+			const std::string* package_path = nullptr;
+			const std::string* package_id = nullptr;
+			if (!StringMember(root, "package_path", &package_path, &error) ||
+				!StringMember(root, "package_id", &package_id, &error)) return error;
+			if (!Path(*package_path))
+				return Invalid("package_path must be an absolute path of at most 4095 bytes");
+			if (!PackageID(*package_id))
+				return Invalid("package_id must be exactly 64 lowercase hexadecimal characters");
+			parsed.operation = operation->string_value == "inspect_core" ?
+				Operation::inspect_core : Operation::load_core;
+			parsed.package_path = *package_path;
+			parsed.package_id = *package_id;
+		} else if (operation->string_value == "load_development_rbf") {
+			const char* const fields[] = {
+				"protocol", "operation", "rbf", "programming_profile"};
+			if (!HasOnly(root, fields, 4, &error)) return error;
+			const std::string* rbf = nullptr;
+			const std::string* profile = nullptr;
+			if (!StringMember(root, "rbf", &rbf, &error) ||
+				!StringMember(root, "programming_profile", &profile, &error)) return error;
+			if (!Path(*rbf))
+				return Invalid("rbf must be an absolute path of at most 4095 bytes");
+			if (*profile != "development-contained-v1")
+				return Invalid("diagnostic programming_profile must be development-contained-v1");
+			parsed.operation = Operation::load_development_rbf;
+			parsed.rbf = *rbf;
+			parsed.programming_profile = *profile;
+		} else {
+			return Invalid("unknown operation");
+		}
+		*request = parsed;
+		return {};
+	}
 	if (operation->string_value == "status" || operation->string_value == "stop") {
 		const char* const fields[] = {"protocol", "operation"};
 		if (!HasOnly(root, fields, 2, &error)) return error;
@@ -278,8 +531,8 @@ Error ParseRequest(const std::string& line, Request* request)
 		return Invalid("unknown operation");
 	}
 
-	if (unsupported_protocol)
-		return {ErrorCode::unsupported_protocol, "unsupported protocol"};
+	if (parsed.protocol != 1)
+		return {ErrorCode::unsupported_protocol, "unsupported protocol", "request"};
 	*request = parsed;
 	return {};
 }
@@ -287,16 +540,44 @@ Error ParseRequest(const std::string& line, Request* request)
 std::string EncodeResponse(bool ok, const Status& status, const std::string& version)
 {
 	std::string response;
-	if (TryEncodeResponse(ok, status, version, &response)) return response;
+	if (TryEncodeV1Response(ok, status, version, &response)) return response;
 	Status fallback = status;
 	fallback.system.clear();
 	fallback.core.clear();
 	fallback.error = {ErrorCode::io_failed, "response exceeds 65536 bytes"};
-	if (TryEncodeResponse(false, fallback, "-", &response)) return response;
+	if (TryEncodeV1Response(false, fallback, "-", &response)) return response;
 	return "{\"protocol\":1,\"ok\":false,\"state\":\"idle\","
 		"\"execution\":\"none\",\"system\":null,\"core\":null,"
 		"\"error\":{\"code\":\"io_failed\","
 		"\"message\":\"response exceeds 65536 bytes\"},\"version\":\"-\"}";
+}
+
+std::string EncodeResponse(std::int64_t protocol, bool ok,
+	const Status& status, const std::string& version,
+	const CorePackageInspection* inspected_package)
+{
+	if (protocol != 2) return EncodeResponse(ok, status, version);
+	std::string response;
+	if (TryEncodeV2Response(ok, status, version, inspected_package, &response))
+		return response;
+	Status fallback = status;
+	fallback.system.clear();
+	fallback.core.clear();
+	fallback.active_package = {};
+	fallback.capabilities.active_interfaces.clear();
+	fallback.generation = 0;
+	fallback.error = {ErrorCode::io_failed,
+		"response exceeds 65536 bytes", "lifecycle"};
+	if (TryEncodeV2Response(false, fallback, "-", nullptr, &response))
+		return response;
+	return "{\"protocol\":2,\"ok\":false,\"state\":\"idle\","
+		"\"execution\":\"none\",\"system\":null,\"core\":null,"
+		"\"error\":{\"code\":\"io_failed\","
+		"\"message\":\"response exceeds 65536 bytes\","
+		"\"phase\":\"lifecycle\"},\"version\":\"-\","
+		"\"capabilities\":{\"programming_profiles\":[],\"abis\":[],"
+		"\"active_interfaces\":[]},\"active_package\":null,"
+		"\"generation\":null,\"inspected_package\":null}";
 }
 
 } // namespace daemon

@@ -3,6 +3,7 @@
 
 #include "fake_input.hpp"
 #include "native/input.hpp"
+#include "native/generated/fes_gp.hpp"
 #include "native/linux/input.hpp"
 #include "native/linux/spi.hpp"
 
@@ -331,7 +332,7 @@ void TestBatchesDigitalControlsAtSynAndSuppressesDuplicateMaps()
 	assert(calls[0].deadline == 101);
 	assert((calls[1].request == std::vector<std::uint16_t>{0x02, 0x0058}));
 	assert(calls[1].deadline == 65);
-	assert((calls[2].request == std::vector<std::uint16_t>{0x02, 0x00f7}));
+	assert((calls[2].request == std::vector<std::uint16_t>{0x02, 0x00f4}));
 	assert(session.Stop(102).ok());
 	assert((spi.Calls().back().request ==
 		std::vector<std::uint16_t>{0x02, 0x0000}));
@@ -390,15 +391,18 @@ void TestStopCancelsJoinsNeutralizesAndNewGenerationStartsClean()
 	assert(spi.Calls().size() == stopped_calls);
 	assert(session.Open(Identity(), Recipe(), 300).ok());
 	assert(session.Neutralize(300).ok());
-	assert(session.Start(9, callback).code == mister::ErrorCode::invalid_request);
 	assert(session.Start(8, callback).code == mister::ErrorCode::invalid_request);
-	assert(session.Start(10, callback).ok());
+	assert(session.Start(9, callback).ok());
 	device.Push({mister::native::InputControl::b, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
 	assert(spi.WaitForCalls(stopped_calls + 2));
 	assert((spi.Calls().back().request ==
 		std::vector<std::uint16_t>{0x02, 0x0020}));
 	assert(session.Stop(400).ok());
+	assert(session.Open(Identity(), Recipe(), 500).ok());
+	assert(session.Neutralize(500).ok());
+	assert(session.Start(10, callback).ok());
+	assert(session.Stop(600).ok());
 	assert(faults.Errors().empty());
 }
 
@@ -650,10 +654,58 @@ void TestSnesButtonsDeliverIndependentMasksAndStopNeutral()
 	assert(spi.Calls().back().request == std::vector<std::uint16_t>({2, 0}));
 }
 
+void TestFesSinkNeutralizesOppositeDirectionsAndRetiresGeneration()
+{
+	FixedClock clock(10);
+	mister_test::FakeInputDevice device;
+	RecordingSpi spi;
+	mister::native::NativeInputSession session(device, spi, clock, 25);
+	mister::InputRecipe recipe = {1,
+		static_cast<std::uint8_t>(mister::native::generated::FesGpOpcodeButtons),
+		mister::native::generated::FesGpButtonUp,
+		mister::native::generated::FesGpButtonDown,
+		mister::native::generated::FesGpButtonLeft,
+		mister::native::generated::FesGpButtonRight,
+		mister::native::generated::FesGpButtonA,
+		mister::native::generated::FesGpButtonB, 0,
+		mister::native::generated::FesGpButtonStart};
+	std::vector<std::uint16_t> maps;
+	auto sink = [&](std::uint16_t map, std::uint64_t) {
+		maps.push_back(map);
+		return mister::Error{};
+	};
+	assert(session.Open(Identity(), recipe, 100, sink).ok());
+	assert(session.Neutralize(101).ok());
+	unsigned faults = 0;
+	assert(session.Start(11, [&](std::uint64_t generation, mister::Error error) {
+		assert(generation == 11);
+		assert(error.code == mister::ErrorCode::io_failed);
+		++faults;
+	}).ok());
+	device.Push({mister::native::InputControl::up, 1});
+	device.Push({mister::native::InputControl::synchronize, 0});
+	assert(device.WaitForReads(2));
+	device.Push({mister::native::InputControl::down, 1});
+	device.Push({mister::native::InputControl::synchronize, 0});
+	assert(device.WaitForReads(4));
+	device.PushError({mister::ErrorCode::io_failed, "gamepad disconnected"});
+	assert(device.WaitForReads(5));
+	assert(session.Stop(102).ok());
+	assert(faults == 1);
+	assert((maps == std::vector<std::uint16_t>{0,
+		mister::native::generated::FesGpButtonUp, 0, 0}));
+	const std::size_t retired = maps.size();
+	device.Push({mister::native::InputControl::a, 1});
+	device.Push({mister::native::InputControl::synchronize, 0});
+	assert(maps.size() == retired);
+	assert(spi.Calls().empty());
+}
+
 } // namespace
 
 int main()
 {
+	TestFesSinkNeutralizesOppositeDirectionsAndRetiresGeneration();
 	TestSnesButtonsDeliverIndependentMasksAndStopNeutral();
 	TestProductionIdentityAndEveryFieldSelectExactlyOneDevice();
 	TestAbsentDuplicateAndDeadlineDiscoveryRejectWithoutLeakingDescriptors();

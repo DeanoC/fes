@@ -259,6 +259,19 @@ Error Profiles::Prepare(const Launch& launch, PreparedLaunch* output) const
 	return {};
 }
 
+Error Profiles::Describe(const std::string& system, Profile* output) const
+{
+	if (output == nullptr) return Invalid("missing profile output");
+	if (!ValidIdentifier(system)) return Invalid("invalid system identifier");
+	for (const Profile& profile : profiles_) {
+		if (profile.system == system) {
+			*output = profile;
+			return {};
+		}
+	}
+	return {ErrorCode::unknown_system, "unknown system"};
+}
+
 bool Profiles::empty() const
 {
 	return profiles_.empty();

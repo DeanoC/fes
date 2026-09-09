@@ -60,6 +60,7 @@ class LinuxFpgaManager final : public FpgaManager {
 public:
 	LinuxFpgaManager(Mmio&, Clock&);
 	NativeResult Program(const Artifact&,
+		ProgrammingProfile,
 		std::uint64_t absolute_deadline_ms) override;
 
 private:

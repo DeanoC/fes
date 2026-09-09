@@ -5,6 +5,8 @@
 
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
+#include "native/core_driver.hpp"
+#include "native/fes_gp.hpp"
 #include "native/generated/megadrive.hpp"
 #include "native/generated/nes.hpp"
 #include "native/generated/pong.hpp"
@@ -113,14 +115,22 @@ public:
 	}
 	void SetFaultSink(HardwareFaultSink*) override {}
 	HardwareResult LoadIdle() override { return {reason_, false, ""}; }
+	Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<AdmittedCorePackage>*) override { return reason_; }
+	Error InspectCorePackage(const std::string&, const std::string&,
+		CorePackageInspection*) override { return reason_; }
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
+		std::uint64_t) override { return {reason_, false, ""}; }
 	HardwareResult Launch(const PreparedLaunch&, std::uint64_t) override
 	{
 		return {reason_, false, ""};
 	}
-	HardwareResult LoadDevelopmentRBF(const std::string&) override
+	HardwareResult LoadDevelopmentRBF(const std::string&, std::uint64_t) override
 	{
 		return {reason_, false, ""};
 	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t) override { return {reason_, false, ""}; }
 
 private:
 	Error reason_;
@@ -142,6 +152,8 @@ public:
 	explicit ProductionHardware(LogSink& log)
 		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
 		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_), framebuffer_(clock_),
+		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
+		  mister_driver_(mmio_, core_, clock_),
 		  idle_video_(core_, spi_, i2c_, framebuffer_, clock_, log,
 			  native::Menu720p60Recipe()),
 		  game_video_(spi_, i2c_, clock_, log, native::Menu720p60Recipe()),
@@ -149,7 +161,10 @@ public:
 		  input_session_(input_device_, spi_, clock_, timeouts_.core_io_ms),
 		  hardware_(opener_, fpga_, core_, idle_video_, game_video_,
 			  input_session_, native::FogCastGamepadIdentity(), clock_, log,
-			  MISTER_RUNTIME_IDLE_RBF, timeouts_) {}
+			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, &fes_gp_driver_,
+			  &ProductionProfiles(),
+			  {"/tmp/fogcast-development/core-packages",
+			   "/usr/share/mister-runtime/core-packages"}) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{
@@ -157,14 +172,41 @@ public:
 	}
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
 	Error FlushSave() override { return hardware_.FlushSave(); }
+	Error RestoreInput(std::uint64_t generation) override
+	{
+		return hardware_.RestoreInput(generation);
+	}
+	Error AdmitCorePackage(const std::string& directory,
+		const std::string& expected_id,
+		std::unique_ptr<AdmittedCorePackage>* package) override
+	{
+		return hardware_.AdmitCorePackage(directory, expected_id, package);
+	}
+	Error InspectCorePackage(const std::string& directory,
+		const std::string& expected_id, CorePackageInspection* inspection) override
+	{
+		return hardware_.InspectCorePackage(directory, expected_id, inspection);
+	}
+	Capabilities capabilities() const override { return hardware_.capabilities(); }
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadCore(std::move(package), generation);
+	}
 	HardwareResult Launch(const PreparedLaunch& launch,
 		std::uint64_t generation) override
 	{
 		return hardware_.Launch(launch, generation);
 	}
-	HardwareResult LoadDevelopmentRBF(const std::string& path) override
+	HardwareResult LoadDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
 	{
-		return hardware_.LoadDevelopmentRBF(path);
+		return hardware_.LoadDevelopmentRBF(path, generation);
+	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadContainedDevelopmentRBF(path, generation);
 	}
 
 private:
@@ -176,6 +218,9 @@ private:
 	native::CoreLoader core_;
 	native::LinuxI2c i2c_;
 	native::LinuxFramebuffer framebuffer_;
+	native::FesGp fes_gp_;
+	native::FesGpCoreDriver fes_gp_driver_;
+	native::MisterCoreDriver mister_driver_;
 	native::MenuVideoBringup idle_video_;
 	native::FixedVideoBringup game_video_;
 	native::LinuxInput input_device_;

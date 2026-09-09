@@ -148,17 +148,15 @@ LinuxFpgaManager::LinuxFpgaManager(Mmio& mmio, Clock& clock)
 	: mmio_(mmio), clock_(clock) {}
 
 NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
-	std::uint64_t deadline)
+	ProgrammingProfile profile, std::uint64_t deadline)
 {
 	if (artifact.fd() < 0 || artifact.size() == 0)
 		return Failed("invalid RBF artifact", false);
 	if (clock_.NowMs() >= deadline) return Failed("deadline exceeded", false);
 
 	ProgrammingState state(mmio_, clock_, deadline);
-	Error error = state.Read(kFpgaGpoAddress, &state.gpo_, "preflight GPO", 0);
-	if (!error.ok()) return Failed(error, false);
 	std::uint32_t status = 0;
-	error = state.Read(kFpgaStatusAddress, &status, "preflight STAT", 0);
+	Error error = state.Read(kFpgaStatusAddress, &status, "preflight STAT", 0);
 	if (!error.ok()) return Failed(error, false);
 	state.last_status_ = status;
 	error = state.Read(kFpgaControlAddress, &state.control_, "preflight CTRL", 0);
@@ -172,8 +170,6 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	const bool wide = (msel & 8u) != 0;
 	const std::uint32_t ratio = ClockDataRatio(msel);
 
-	error = state.SetCoreReset(true);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
 	error = state.DisableBridges();
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 
@@ -194,6 +190,16 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 
 	error = state.WaitMode(kFpgaModeReset, false, "reset phase");
+	if (!error.ok()) return Failed(error, state.write_attempted_);
+	if (profile == ProgrammingProfile::mister_v1) {
+		error = state.Read(kFpgaGpoAddress, &state.gpo_,
+			"MiSTer destination GPO", 0);
+		if (error.ok()) error = state.SetCoreReset(true);
+	} else if (profile == ProgrammingProfile::fes_gp_v1) {
+		state.gpo_ = 0;
+		error = state.Write(kFpgaGpoAddress, state.gpo_,
+			"FES GP destination initialization");
+	}
 	if (!error.ok()) return Failed(error, state.write_attempted_);
 	error = state.UpdateControl(kFpgaControlNconfigPullMask, 0,
 		"configuration nCONFIG release");
@@ -288,6 +294,9 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (observed_control != state.control_)
 		return Failed(ProgrammingError("manager CTRL readback", observed_control,
 			"FPGA control mismatch"), state.write_attempted_);
+
+	if (profile != ProgrammingProfile::mister_v1)
+		return {{}, true};
 
 	error = state.Write(kSdrFpgaPortResetAddress, kSdrFpgaPortsEnabled,
 		"SDR release write");

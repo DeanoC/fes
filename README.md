@@ -42,6 +42,37 @@ headers checked in under `src/native/generated/`. They are target text
 for the ARMv7 Linux HPS, not host objects. The target build does not run
 Go.
 
+The library API exposes `Runtime::InspectCore(directory,
+expected_package_id, output)` for read-only package identity, descriptor and
+compatibility inspection, and `Runtime::LoadCore(directory,
+expected_package_id)` for activation. Hardware implementations
+admit the exact format-2 package into an owned opaque `AdmittedCorePackage`
+before the runtime flushes save data or changes visible state, then consume
+that retained object with a new generation at the mutation boundary. Packaged
+MiSTer cores run as explicit development loads: an optional declared system is
+checked against the compiled Profiles table, while media and input are never
+inferred; it remains only in the package descriptor and the top-level
+development system stays null for protocol-1 compatibility. FES GP package
+activation is software-tested through the production
+MMIO driver, fixed ADV7513-only video path, and generation-bound normalized
+gamepad sink. It verifies all 16 identity/build words before controls, then
+brings up video, sends neutral input, releases gameplay, and starts input. The
+Protocol 2 on the local socket exposes `status`, `inspect_core`, `load_core`,
+explicit contained diagnostic RBF loading, and `stop`. Every response reports
+the actual profile/ABI registry, active package identity and lifecycle
+generation. Active interfaces are the sorted exact intersection of the
+admitted descriptor and installed ABI registry. Concrete operation failures
+retain their phase and safe expected/observed identity evidence; protocol 1
+retains its original request and eight-field response
+contract. Package paths are accepted only below the production roots
+`/tmp/fogcast-development/core-packages` and
+`/usr/share/mister-runtime/core-packages`, with descriptor-relative no-follow
+traversal. The raw diagnostic path is
+`/tmp/fogcast-development/core.rbf`. Replacing a running game
+with a package first joins and
+neutralizes the old input session; an ambiguously failed outgoing-driver
+quiesce is not repeated during the one bounded Menu recovery.
+
 Native launches keep short deadlines for core control, video, and input setup,
 then give each cartridge transfer its own 120-second deadline. The HPS SPI
 bridge performs an MMIO handshake for every 16-bit media word, so using the

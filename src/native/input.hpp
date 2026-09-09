@@ -15,6 +15,9 @@ namespace native {
 
 class Spi;
 
+using ButtonWriter = std::function<Error(std::uint16_t,
+	std::uint64_t absolute_deadline_ms)>;
+
 struct InputDeviceIdentity {
 	std::string name;
 	std::uint16_t bus = 0;
@@ -63,7 +66,7 @@ class InputSession {
 public:
 	virtual ~InputSession() {}
 	virtual Error Open(const InputDeviceIdentity&, const InputRecipe&,
-		std::uint64_t absolute_deadline_ms) = 0;
+		std::uint64_t absolute_deadline_ms, ButtonWriter = {}) = 0;
 	virtual Error Start(std::uint64_t generation,
 		std::function<void(std::uint64_t, Error)> on_fault) = 0;
 	virtual Error Neutralize(std::uint64_t absolute_deadline_ms) = 0;
@@ -79,7 +82,7 @@ public:
 	NativeInputSession& operator=(const NativeInputSession&) = delete;
 
 	Error Open(const InputDeviceIdentity&, const InputRecipe&,
-		std::uint64_t) override;
+		std::uint64_t, ButtonWriter = {}) override;
 	Error Start(std::uint64_t,
 		std::function<void(std::uint64_t, Error)>) override;
 	Error Neutralize(std::uint64_t) override;

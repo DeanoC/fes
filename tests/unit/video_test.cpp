@@ -1223,10 +1223,22 @@ void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
 	++scenarios;
 }
 
+void TestCustomFixedVideoUsesOnlyAdvI2c()
+{
+	Fixture fixture;
+	fixture.spi.fail_call_index = 0;
+	mister::native::FixedVideoBringup video(fixture.spi, fixture.i2c,
+		fixture.clock, fixture.log, mister::native::Menu720p60Recipe());
+	assert(video.BringUpCustom(kDeadline).error.ok());
+	assert(fixture.spi.calls.empty());
+	++scenarios;
+}
+
 } // namespace
 
 int main()
 {
+	TestCustomFixedVideoUsesOnlyAdvI2c();
  TestIdleEnablesFramebufferOnEveryBringup();
  TestFramebufferFailurePreventsIdleVerification();
 	TestQuiesceUsesOneReadModifyWriteWithTheCallerDeadline();

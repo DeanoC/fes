@@ -80,7 +80,7 @@ class PreWriteDeadlineClock final : public mister::native::Clock {
 public:
 	std::uint64_t NowMs() const override
 	{
-		return calls_++ < 4 ? 0 : 100;
+		return calls_++ < 3 ? 0 : 100;
 	}
 private:
 	mutable std::size_t calls_ = 0;
@@ -150,13 +150,13 @@ void ConfigureSuccess(mister_test::FakeMmio& mmio, std::uint32_t msel = 9)
 std::vector<mister_test::FakeMmio::Write> SuccessfulWrites()
 {
 	return {
-		{kGpo, kGpoReset},
 		{kInterface, 0}, {kSdr, 0}, {kBridgeReset, 7}, {kRemap, 1},
 		{kControl, 0xa5a502c2u},
 		{kControl, 0xa5a50282u},
 		{kControl, 0xa5a50280u},
 		{kControl, 0xa5a50281u},
 		{kControl, 0xa5a50285u},
+		{kGpo, kGpoReset},
 		{kControl, 0xa5a50281u},
 		{kMonitorEoi, 0xfffu},
 		{kControl, 0xa5a50381u},
@@ -230,7 +230,8 @@ void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
 	mmio.enforce_expected_writes = true;
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
 		result.error.message.c_str());
 	if (!mmio.write_mismatch.empty()) fprintf(stderr, "%s\n",
@@ -240,6 +241,34 @@ void TestProgramsWithExactContainmentConfigurationAndReleaseOrder()
 	EXPECT(mmio.writes.size() == mmio.expected_writes.size());
 }
 
+void TestFesGpInitializationWaitsForContainmentAndConfigurationReset()
+{
+	TempArtifact input(4);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::fes_gp_v1, 100);
+	EXPECT(result.error.ok());
+	std::size_t interface = mmio.writes.size();
+	std::size_t nconfig = mmio.writes.size();
+	std::size_t gpo = mmio.writes.size();
+	for (std::size_t index = 0; index < mmio.writes.size(); ++index) {
+		if (mmio.writes[index].offset == kInterface &&
+			mmio.writes[index].value == 0) interface = index;
+		if (mmio.writes[index].offset == kControl &&
+			(mmio.writes[index].value & 4u) != 0) nconfig = index;
+		if (mmio.writes[index].offset == kGpo) gpo = index;
+	}
+	EXPECT(interface < nconfig);
+	EXPECT(nconfig < gpo);
+	EXPECT(mmio.writes[gpo].value == 0);
+	EXPECT(!HasWrite(mmio, kSdr, 0x3fffu));
+	EXPECT(!HasWrite(mmio, kBridgeReset, 0));
+	EXPECT(!HasWrite(mmio, kRemap, 0x19u));
+}
+
 void TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal()
 {
 	TempArtifact input(4);
@@ -247,7 +276,8 @@ void TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal()
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	if (!result.error.ok()) fprintf(stderr, "program error: %s\n",
 		result.error.message.c_str());
 	EXPECT(result.error.ok());
@@ -290,7 +320,8 @@ void TestMselMappingAndControlRmwPreserveUnrelatedBits()
 		ConfigureSuccess(mmio, item.msel);
 		FixedClock clock(1);
 		mister::native::LinuxFpgaManager manager(mmio, clock);
-		const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 		EXPECT(result.error.ok());
 		std::vector<std::uint32_t> control_writes;
 		for (const auto& write : mmio.writes)
@@ -311,7 +342,8 @@ void TestStreamsAcrossFourKiBReadBoundaryInWordOrder()
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	EXPECT(result.error.ok());
 	std::vector<std::uint32_t> data;
 	for (const auto& write : mmio.writes)
@@ -330,14 +362,15 @@ void TestUnsupportedMselFailsBeforeMutation()
 	ConfigurePreflight(mmio, 3);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, false, "MSEL", 3);
 	EXPECT(mmio.writes.empty());
 }
 
 void TestEveryPreflightReadFailureIsNotAttempted()
 {
-	const std::uint32_t addresses[] = {kGpo, kStatus, kControl};
+	const std::uint32_t addresses[] = {kStatus, kControl};
 	for (std::uint32_t address : addresses) {
 		TempArtifact input(4);
 		mister_test::FakeMmio mmio;
@@ -346,10 +379,28 @@ void TestEveryPreflightReadFailureIsNotAttempted()
 			{mister::ErrorCode::io_failed, "scripted preflight read"});
 		FixedClock clock(1);
 		mister::native::LinuxFpgaManager manager(mmio, clock);
-		const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 		ExpectProgramFailure(result, false, "preflight", 0);
 		EXPECT(mmio.writes.empty());
 	}
+}
+
+void TestMisterDestinationGpoReadFailureOccursOnlyAfterContainment()
+{
+	TempArtifact input(4);
+	mister_test::FakeMmio mmio;
+	ConfigureSuccess(mmio);
+	mmio.PushReadError(kGpo,
+		{mister::ErrorCode::io_failed, "scripted destination GPO read"});
+	FixedClock clock(1);
+	mister::native::LinuxFpgaManager manager(mmio, clock);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
+	ExpectProgramFailure(result, true, "destination GPO", 0);
+	EXPECT(!mmio.writes.empty());
+	EXPECT(mmio.writes.front().offset == kInterface);
+	EXPECT(!HasWrite(mmio, kGpo, kGpoReset));
 }
 
 void TestFirstCoreResetFailureIsAttemptedAndContained()
@@ -361,7 +412,8 @@ void TestFirstCoreResetFailureIsAttemptedAndContained()
 		{mister::ErrorCode::io_failed, "scripted core reset write"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "core reset", kGpoReset);
 	ExpectStillContained(mmio);
 }
@@ -373,8 +425,9 @@ void TestDeadlineAfterPreflightBeforeFirstWriteIsNotAttempted()
 	ConfigureSuccess(mmio);
 	PreWriteDeadlineClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
-	ExpectProgramFailure(result, false, "core reset", kGpoReset);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
+	ExpectProgramFailure(result, false, "bridge containment interface", 0);
 	EXPECT(mmio.writes.empty());
 }
 
@@ -386,7 +439,8 @@ void TestResetPhaseTimeoutRemainsContained()
 	mmio.PushRead(kStatus, Mode(9, 4));
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "reset phase", Mode(9, 4));
 	ExpectStillContained(mmio);
 }
@@ -400,7 +454,8 @@ void TestConfigurationPhaseTimeoutRemainsContained()
 	mmio.values[kStatus] = Mode(9, 1);
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "configuration phase", Mode(9, 1));
 	ExpectStillContained(mmio);
 }
@@ -414,7 +469,8 @@ void TestNstatusDropFailsImmediatelyAndRemainsContained()
 	mmio.PushRead(kMonitor, 0);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "nSTATUS", 0);
 	ExpectStillContained(mmio);
 }
@@ -428,7 +484,8 @@ void TestConfDoneTimeoutRemainsContained()
 	mmio.values[kMonitor] = 1;
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "CONF_DONE", 1);
 	ExpectStillContained(mmio);
 }
@@ -442,7 +499,8 @@ void TestDclkFourTimeoutRemainsContained()
 	mmio.values[kDclkStatus] = 0;
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "DCLK 0x4", 0);
 	ExpectStillContained(mmio);
 }
@@ -461,7 +519,8 @@ void TestInitializationPhaseTimeoutRemainsContained()
 	PushReads(mmio, kDclkStatus, {0, 1});
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "initialization phase", Mode(9, 2));
 	ExpectStillContained(mmio);
 }
@@ -481,7 +540,8 @@ void TestDclkFiveThousandTimeoutRemainsContained()
 	mmio.values[kDclkStatus] = 0;
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "DCLK 0x5000", 0);
 	ExpectStillContained(mmio);
 }
@@ -500,7 +560,8 @@ void TestUserModeTimeoutRemainsContained()
 	PushReads(mmio, kDclkStatus, {0, 1, 0, 1});
 	AdvancingClock clock;
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 1000);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 1000);
 	ExpectProgramFailure(result, true, "user mode", Mode(9, 3));
 	ExpectStillContained(mmio);
 }
@@ -512,7 +573,8 @@ void TestStreamDeadlineRemainsContained()
 	ConfigureSuccess(mmio);
 	StreamDeadlineClock clock(mmio);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "stream", 4);
 	EXPECT(HasWrite(mmio, kData, 0x03020100u));
 	ExpectStillContained(mmio);
@@ -526,7 +588,8 @@ void TestShortReadRemainsContained()
 	ConfigureSuccess(mmio);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "stream read", 0);
 	ExpectStillContained(mmio);
 }
@@ -540,7 +603,8 @@ void TestDataWriteFailureRemainsContained()
 		{mister::ErrorCode::io_failed, "scripted data write"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "stream write", 0x03020100u);
 	ExpectStillContained(mmio);
 }
@@ -555,7 +619,8 @@ void TestBridgeReleaseFailureDoesNotContinueRelease()
 		{mister::ErrorCode::io_failed, "scripted bridge release"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "bridge release", 0);
 	EXPECT(!HasWrite(mmio, kRemap, 0x19u));
 	EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
@@ -581,7 +646,8 @@ void TestManagerReadbackErrorsRemainContained()
 		PushReadFailureAfter(mmio, item.address, item.successful_reads);
 		FixedClock clock(1);
 		mister::native::LinuxFpgaManager manager(mmio, clock);
-		const auto result = manager.Program(input.artifact, 100);
+		const auto result = manager.Program(input.artifact,
+			mister::native::ProgrammingProfile::mister_v1, 100);
 		ExpectProgramFailure(result, true, item.phase, item.last);
 		EXPECT(!HasWrite(mmio, kSdr, 0x3fffu));
 		EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
@@ -597,7 +663,8 @@ void TestManagerReadbackMismatchRemainsContained()
 	mmio.PushRead(kControl, 0xa5a50281u);
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "manager CTRL readback", 0xa5a50281u);
 	EXPECT(!HasWrite(mmio, kSdr, 0x3fffu));
 	EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
@@ -621,7 +688,8 @@ void TestReadableReleaseWriteNotStuckBlocksCoreNormal()
 		mmio.forced_values_after_write[item.address] = item.stuck;
 		FixedClock clock(1);
 		mister::native::LinuxFpgaManager manager(mmio, clock);
-		const auto result = manager.Program(input.artifact, 100);
+		const auto result = manager.Program(input.artifact,
+			mister::native::ProgrammingProfile::mister_v1, 100);
 		ExpectProgramFailure(result, true, item.phase, item.stuck);
 		EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
 		if (item.address == kSdr) {
@@ -651,7 +719,8 @@ void TestReadableReleaseReadErrorsBlockCoreNormal()
 		PushReadFailureAfter(mmio, item.address, 0);
 		FixedClock clock(1);
 		mister::native::LinuxFpgaManager manager(mmio, clock);
-		const auto result = manager.Program(input.artifact, 100);
+		const auto result = manager.Program(input.artifact,
+			mister::native::ProgrammingProfile::mister_v1, 100);
 		ExpectProgramFailure(result, true, item.phase, item.last);
 		EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
 	}
@@ -667,7 +736,8 @@ void TestRemapReleaseWriteFailureBlocksCoreNormal()
 		{mister::ErrorCode::io_failed, "scripted remap release"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "L3 remap release write", 0x19u);
 	EXPECT(ReadCount(mmio, kRemap) == 0);
 	EXPECT(!HasWrite(mmio, kGpo, kGpoNormal));
@@ -683,7 +753,8 @@ void TestCoreNormalWriteFailureIsReported()
 		{mister::ErrorCode::io_failed, "scripted core normal"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "core normal", kGpoNormal);
 }
 
@@ -697,7 +768,8 @@ void TestFinalReadbackFailureIsReported()
 		{mister::ErrorCode::io_failed, "scripted final readback"});
 	FixedClock clock(1);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 100);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 100);
 	ExpectProgramFailure(result, true, "core-normal GPO readback", kGpoNormal);
 }
 
@@ -707,7 +779,8 @@ void TestInitialDeadlineIsNotAttempted()
 	mister_test::FakeMmio mmio;
 	FixedClock clock(10);
 	mister::native::LinuxFpgaManager manager(mmio, clock);
-	const auto result = manager.Program(input.artifact, 10);
+	const auto result = manager.Program(input.artifact,
+		mister::native::ProgrammingProfile::mister_v1, 10);
 	EXPECT(result.error.code == mister::ErrorCode::program_failed);
 	EXPECT(result.error.message == "deadline exceeded");
 	EXPECT(!result.mutation_attempted);
@@ -730,6 +803,8 @@ int main()
 		TestWriteOnlyRemapReleaseWritesLiteralBeforeCoreNormal, &count);
 	Run("exact containment/configuration/release order",
 		TestProgramsWithExactContainmentConfigurationAndReleaseOrder, &count);
+	Run("FES GP initialization after reset",
+		TestFesGpInitializationWaitsForContainmentAndConfigurationReset, &count);
 	Run("MSEL mapping and CTRL/GPO RMW preservation",
 		TestMselMappingAndControlRmwPreserveUnrelatedBits, &count);
 	Run("4 KiB stream boundary order",
@@ -737,6 +812,8 @@ int main()
 	Run("unsupported MSEL preflight", TestUnsupportedMselFailsBeforeMutation, &count);
 	Run("preflight read classification", TestEveryPreflightReadFailureIsNotAttempted,
 		&count);
+	Run("MiSTer destination GPO read after containment",
+		TestMisterDestinationGpoReadFailureOccursOnlyAfterContainment, &count);
 	Run("first core-reset write classification",
 		TestFirstCoreResetFailureIsAttemptedAndContained, &count);
 	Run("pre-write deadline classification",
