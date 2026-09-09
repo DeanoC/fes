@@ -1,6 +1,6 @@
 # Persistent settings and progress for described cores
 
-Status: proposed contract for review; implementation has not started.
+Status: approved; implementation in progress under the paired implementation plan.
 
 ## Outcome and first slice
 
