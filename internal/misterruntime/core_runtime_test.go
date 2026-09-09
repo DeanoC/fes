@@ -30,13 +30,20 @@ type packageControl struct {
 	activeID              string
 	status2               *misterruntime.Protocol2Response
 	status2Err            error
+	status2Script         []protocol2StatusResult
 	status2ErrAfterLoad   error
 	status2Calls          int
+	legacyStatusCalls     int
 	inspectCompatible     *bool
 	inspectCompatibility  *misterruntime.Protocol2Error
 	blockFirstObservation bool
 	lostReply             bool
 	preserveOnLost        bool
+}
+
+type protocol2StatusResult struct {
+	response misterruntime.Protocol2Response
+	err      error
 }
 
 type replacementBarrier struct {
@@ -64,7 +71,10 @@ func (b *replacementBarrier) BeginCoreReplacement(context.Context) (func(context
 	}, nil
 }
 
-func (*packageControl) Status(context.Context) (misterruntime.Response, error) {
+func (c *packageControl) Status(context.Context) (misterruntime.Response, error) {
+	c.mu.Lock()
+	c.legacyStatusCalls++
+	c.mu.Unlock()
 	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 func (*packageControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
@@ -109,6 +119,15 @@ func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Pro
 		statusErr = c.status2ErrAfterLoad
 	}
 	status := c.status2
+	var scripted *protocol2StatusResult
+	if len(c.status2Script) > 0 {
+		index := call - 1
+		if index >= len(c.status2Script) {
+			index = len(c.status2Script) - 1
+		}
+		result := c.status2Script[index]
+		scripted = &result
+	}
 	c.mu.Unlock()
 	if block {
 		<-ctx.Done()
@@ -116,6 +135,9 @@ func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Pro
 	}
 	if statusErr != nil {
 		return misterruntime.Protocol2Response{}, statusErr
+	}
+	if scripted != nil {
+		return scripted.response, scripted.err
 	}
 	if status != nil {
 		return *status, nil
@@ -536,12 +558,55 @@ func TestCorePackageReconcilePrefersV2AndAdoptsPrivatePublication(t *testing.T) 
 		})
 	}
 
-	t.Run("unavailable v2 does not fall back", func(t *testing.T) {
+	t.Run("transient v2 startup failures are polled without fallback or mutation", func(t *testing.T) {
+		control := &packageControl{status2Script: []protocol2StatusResult{
+			{err: io.EOF},
+			{err: errors.New("runtime socket is not accepting requests")},
+			{response: misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "starting", Execution: "none", Version: "test"}},
+			{response: misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}},
+		}}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		status := runtime.Reconcile(ctx)
+		if status.State != "idle" || status.LastError != nil || control.status2Calls != 4 ||
+			control.legacyStatusCalls != 0 || control.loadCalls != 0 {
+			t.Fatalf("status=%#v v2 calls=%d v1 calls=%d load calls=%d", status, control.status2Calls, control.legacyStatusCalls, control.loadCalls)
+		}
+	})
+
+	t.Run("unavailable v2 exhausts the caller deadline without fallback", func(t *testing.T) {
 		control := &packageControl{status2Err: io.EOF}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
+		defer cancel()
+		status := runtime.Reconcile(ctx)
+		if status.State != "failed" || status.LastError == nil || control.status2Calls < 2 ||
+			control.legacyStatusCalls != 0 || control.loadCalls != 0 {
+			t.Fatalf("status=%#v v2 calls=%d v1 calls=%d load calls=%d", status, control.status2Calls, control.legacyStatusCalls, control.loadCalls)
+		}
+	})
+
+	t.Run("explicitly unsupported v2 alone falls back to v1", func(t *testing.T) {
+		control := &packageControl{status2Err: unsupportedProtocolError{}}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
 		status := runtime.Reconcile(context.Background())
-		if status.State != "failed" || status.LastError == nil {
-			t.Fatalf("status=%#v", status)
+		if status.State != "idle" || status.LastError != nil || control.status2Calls != 1 ||
+			control.legacyStatusCalls != 1 || control.loadCalls != 0 {
+			t.Fatalf("status=%#v v2 calls=%d v1 calls=%d load calls=%d", status, control.status2Calls, control.legacyStatusCalls, control.loadCalls)
+		}
+	})
+
+	t.Run("conclusive recovery is returned without polling or fallback", func(t *testing.T) {
+		response := misterruntime.Protocol2Response{Protocol: 2, OK: false, State: "reboot_required", Execution: "none", Version: "test",
+			Error: &misterruntime.Protocol2Error{Code: "idle_failed", Message: "reboot required", Phase: "recovery"}}
+		control := &packageControl{status2: &response}
+		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
+		status := runtime.Reconcile(context.Background())
+		if status.State != "failed" || status.Recovery != "reboot_required" || status.LastError == nil ||
+			status.LastError.Phase != "recovery" || control.status2Calls != 1 ||
+			control.legacyStatusCalls != 0 || control.loadCalls != 0 {
+			t.Fatalf("status=%#v v2 calls=%d v1 calls=%d load calls=%d", status, control.status2Calls, control.legacyStatusCalls, control.loadCalls)
 		}
 	})
 

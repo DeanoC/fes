@@ -455,7 +455,10 @@ func (r *Runtime) reconcileProtocol2(ctx context.Context, control protocol2Statu
 			return protocol.Status{}, true
 		}
 		if err != nil {
-			return unavailableStatus(), false
+			if !waitForPoll(ctx, r.pollInterval) {
+				return unavailableStatus(), false
+			}
+			continue
 		}
 		switch response.State {
 		case "starting":
