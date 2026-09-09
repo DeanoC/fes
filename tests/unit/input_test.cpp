@@ -391,15 +391,18 @@ void TestStopCancelsJoinsNeutralizesAndNewGenerationStartsClean()
 	assert(spi.Calls().size() == stopped_calls);
 	assert(session.Open(Identity(), Recipe(), 300).ok());
 	assert(session.Neutralize(300).ok());
-	assert(session.Start(9, callback).code == mister::ErrorCode::invalid_request);
 	assert(session.Start(8, callback).code == mister::ErrorCode::invalid_request);
-	assert(session.Start(10, callback).ok());
+	assert(session.Start(9, callback).ok());
 	device.Push({mister::native::InputControl::b, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
 	assert(spi.WaitForCalls(stopped_calls + 2));
 	assert((spi.Calls().back().request ==
 		std::vector<std::uint16_t>{0x02, 0x0020}));
 	assert(session.Stop(400).ok());
+	assert(session.Open(Identity(), Recipe(), 500).ok());
+	assert(session.Neutralize(500).ok());
+	assert(session.Start(10, callback).ok());
+	assert(session.Stop(600).ok());
 	assert(faults.Errors().empty());
 }
 

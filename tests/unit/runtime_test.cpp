@@ -48,6 +48,8 @@ struct Fixture {
 	mister::Runtime runtime;
 };
 
+bool WaitForState(mister::Runtime&, State);
+
 void TestSaveFailurePreservesSessionForStopRetry()
 {
 	Fixture f;
@@ -61,6 +63,9 @@ void TestSaveFailurePreservesSessionForStopRetry()
 	assert(failed.system == before.system && failed.core == before.core);
 	assert(failed.error.code == ErrorCode::save_failed);
 	assert(failed.error.phase == "save");
+	assert(f.hardware.restore_input_calls == 1);
+	assert(f.hardware.restored_input_generations ==
+		std::vector<std::uint64_t>({before.generation}));
 	assert(f.hardware.idle_calls == 1);
 	assert(f.hardware.flush_calls == 1);
 	assert(f.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
@@ -70,6 +75,24 @@ void TestSaveFailurePreservesSessionForStopRetry()
 	assert(f.runtime.status().state == State::idle);
 	assert(f.runtime.Stop().ok());
 	assert(f.hardware.flush_calls == 2);
+}
+
+void TestSaveFailureInputRestoreFailureRequiresRecovery()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	f.hardware.restore_input_result = {ErrorCode::io_failed,
+		"input reopen failed"};
+	const mister::Error error = f.runtime.Stop();
+	assert(error.code == ErrorCode::idle_failed);
+	assert(error.phase == "recovery");
+	const mister::Status failed = f.runtime.status();
+	assert(failed.state == State::reboot_required);
+	assert(failed.generation == 0);
+	assert(failed.error.code == ErrorCode::idle_failed);
+	assert(f.runtime.Stop().code == ErrorCode::idle_failed);
 }
 
 void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
@@ -89,6 +112,24 @@ void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
 	f.hardware.flush_result = {};
 	assert(f.runtime.Stop().ok());
 	assert(f.hardware.idle_calls == 2);
+}
+
+void TestInputFaultDuringRestoreIsOwnedByRestoredGeneration()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	const std::uint64_t generation = f.hardware.launch_generations.back();
+	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
+	f.hardware.on_restore_input = [&] {
+		f.hardware.ReportFault(generation,
+			{ErrorCode::io_failed, "restored input failed immediately"});
+	};
+	assert(f.runtime.Stop().code == ErrorCode::save_failed);
+	assert(f.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(f.runtime, State::idle));
+	assert(f.runtime.status().error.message ==
+		"restored input failed immediately");
 }
 
 void Start(Fixture& fixture)
@@ -281,6 +322,9 @@ void TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration()
 	assert(fixture.runtime.LoadCore("/packages/custom", std::string(64, 'a')).code ==
 		ErrorCode::save_failed);
 	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.hardware.restore_input_calls == 1);
+	assert(fixture.hardware.restored_input_generations ==
+		std::vector<std::uint64_t>({generation}));
 	assert(fixture.runtime.status().state == State::running_game);
 	fixture.hardware.ReportFault(generation,
 		{ErrorCode::io_failed, "still active after failed save"});
@@ -861,7 +905,9 @@ void TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration()
 int main()
 {
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
+	TestInputFaultDuringRestoreIsOwnedByRestoredGeneration();
 	TestSaveFailurePreservesSessionForStopRetry();
+	TestSaveFailureInputRestoreFailureRequiresRecovery();
 	TestStartLoadsIdleOnceAndPublishesIdle();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();

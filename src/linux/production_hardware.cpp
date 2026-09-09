@@ -172,6 +172,10 @@ public:
 	}
 	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
 	Error FlushSave() override { return hardware_.FlushSave(); }
+	Error RestoreInput(std::uint64_t generation) override
+	{
+		return hardware_.RestoreInput(generation);
+	}
 	Error AdmitCorePackage(const std::string& directory,
 		const std::string& expected_id,
 		std::unique_ptr<AdmittedCorePackage>* package) override

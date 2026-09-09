@@ -309,6 +309,10 @@ public:
 	virtual void SetFaultSink(HardwareFaultSink*) = 0;
 	virtual HardwareResult LoadIdle() = 0;
 	virtual Error FlushSave() { return {}; }
+	// FlushSave may stop input before a persistence failure. RestoreInput
+	// re-establishes the still-active generation after that proven pre-mutation
+	// failure.
+	virtual Error RestoreInput(std::uint64_t) { return {}; }
 	virtual Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*)
 	{

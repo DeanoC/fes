@@ -323,16 +323,8 @@ public:
 			}
 			const Error saved = hardware_.FlushSave();
 			if (!saved.ok()) {
-				const Error error = SaveFailure(saved);
-				{
-					std::lock_guard<std::mutex> lock(mutex_);
-					active_generation_ = retired_generation;
-					status_.error = error;
-					busy_ = false;
-				}
-				condition_.notify_all();
-				Log("load_core", info.system, info.declared_core, "save", error);
-				return error;
+				return RestoreAfterSaveFailure("load_core", info.system,
+					info.declared_core, retired_generation, saved);
 			}
 		}
 
@@ -473,16 +465,8 @@ public:
 		}
 		const Error saved = hardware_.FlushSave();
 		if (!saved.ok()) {
-			const Error error = SaveFailure(saved);
-			{
-				std::lock_guard<std::mutex> lock(mutex_);
-				active_generation_ = retired_generation;
-				status_.error = error;
-				busy_ = false;
-			}
-			condition_.notify_all();
-			Log("stop", "", "", "save", error);
-			return error;
+			return RestoreAfterSaveFailure("stop", "", "",
+				retired_generation, saved);
 		}
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -513,6 +497,44 @@ public:
 	}
 
 	private:
+	Error RestoreAfterSaveFailure(const std::string& operation,
+		const std::string& system, const std::string& core,
+		std::uint64_t generation, const Error& cause)
+	{
+		const Error save_error = SaveFailure(cause);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			// Publish ownership before input becomes eligible so an immediate
+			// worker fault is attributed to the restored generation.
+			active_generation_ = generation;
+			pending_fault_generation_ = 0;
+		}
+		const Error restored = hardware_.RestoreInput(generation);
+		if (restored.ok()) {
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.error = save_error;
+				busy_ = false;
+			}
+			condition_.notify_all();
+			Log(operation, system, core, "save", save_error);
+			return save_error;
+		}
+
+		const Error recovery = IdleFailure(restored);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			active_generation_ = 0;
+			pending_fault_generation_ = 0;
+			status_ = FreshStatus(State::reboot_required);
+			status_.error = recovery;
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log(operation, system, core, "recovery", recovery);
+		return recovery;
+	}
+
 	Status FreshStatus(State state) const
 	{
 		Status result;

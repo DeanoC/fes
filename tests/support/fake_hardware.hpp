@@ -21,6 +21,13 @@ public:
 	void SetFaultSink(mister::HardwareFaultSink*) override;
 	mister::HardwareResult LoadIdle() override;
 	mister::Error FlushSave() override { ++flush_calls; if (on_flush) on_flush(); return flush_result; }
+	mister::Error RestoreInput(std::uint64_t generation) override
+	{
+		++restore_input_calls;
+		restored_input_generations.push_back(generation);
+		if (on_restore_input) on_restore_input();
+		return restore_input_result;
+	}
 	mister::Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<mister::AdmittedCorePackage>*) override;
 	mister::Error InspectCorePackage(const std::string&, const std::string&,
@@ -31,6 +38,10 @@ public:
 	int flush_calls = 0;
 	std::function<void()> on_flush;
 	mister::Error flush_result;
+	int restore_input_calls = 0;
+	std::function<void()> on_restore_input;
+	mister::Error restore_input_result;
+	std::vector<std::uint64_t> restored_input_generations;
 	mister::HardwareResult Launch(const mister::PreparedLaunch&,
 		std::uint64_t generation) override;
 	mister::HardwareResult LoadDevelopmentRBF(const std::string&,

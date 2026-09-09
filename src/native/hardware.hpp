@@ -64,6 +64,7 @@ public:
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
 	Error FlushSave() override;
+	Error RestoreInput(std::uint64_t generation) override;
 	Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
@@ -110,6 +111,8 @@ private:
 	HardwareFaultSink* fault_sink_;
 	bool input_open_;
 	std::shared_ptr<std::atomic<bool>> input_delivery_enabled_;
+	InputRecipe active_input_recipe_;
+	bool has_active_input_recipe_ = false;
 	std::unique_ptr<SaveFile> save_;
 	std::vector<unsigned char> snapshot_;
 	bool save_flushed_ = false;

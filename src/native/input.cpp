@@ -90,7 +90,7 @@ public:
 		std::lock_guard<std::mutex> lock(mutex_);
 		if (!opened_ || worker_.joinable()) return Invalid("input session is not startable");
 		if (!core_addressable_) return Invalid("input session is not neutralized");
-		if (generation == 0 || generation <= last_generation_)
+		if (generation == 0 || generation < last_generation_)
 			return Invalid("input generation is stale");
 		if (!on_fault) return Invalid("missing input fault callback");
 		active_generation_ = generation;

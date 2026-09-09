@@ -153,6 +153,50 @@ Error NativeHardware::FlushSave()
 	return {};
 }
 
+Error NativeHardware::RestoreInput(std::uint64_t generation)
+{
+	if (!save_) return {};
+	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
+		return {ErrorCode::io_failed,
+			"active input cannot be restored", "input"};
+	if (input_open_)
+		return {ErrorCode::io_failed,
+			"active input was not fully stopped", "input"};
+
+	CoreDriver* const driver = active_driver_;
+	const CoreDriverContext context = active_context_;
+	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
+		std::make_shared<std::atomic<bool>>(false);
+	Error error = input_.Open(input_identity_, active_input_recipe_,
+		Deadline(clock_, timeouts_.core_io_ms),
+		[driver, context, delivery_enabled](std::uint16_t map,
+			std::uint64_t deadline) {
+			if (!delivery_enabled->load()) return Error{};
+			return driver->SetButtons(context, map, deadline).error;
+		});
+	if (!error.ok()) return WithPhase(std::move(error), "input");
+	input_open_ = true;
+	input_delivery_enabled_ = delivery_enabled;
+	delivery_enabled->store(true);
+	error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
+	if (error.ok()) {
+		error = input_.Start(generation,
+			[this](std::uint64_t reported_generation, Error fault) {
+				ForwardInputFault(reported_generation, std::move(fault));
+			});
+	}
+	if (!error.ok()) {
+		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+		return WithPhase(stopped.ok() ? std::move(error) : stopped, "input");
+	}
+
+	// The failed write's snapshot described an earlier instant. Once play can
+	// continue, the next save attempt must capture the then-current RAM.
+	snapshot_.clear();
+	log_.Write({"restore_input", "", "", "input", {}});
+	return {};
+}
+
 CoreDriver* NativeHardware::ResolveDriver(ProgrammingProfile profile) const
 {
 	return driver_registry_.Resolve(profile);
@@ -163,6 +207,7 @@ void NativeHardware::ForgetActiveCore()
 	active_driver_ = nullptr;
 	active_context_ = {};
 	active_package_.reset();
+	has_active_input_recipe_ = false;
 }
 
 HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
@@ -422,6 +467,12 @@ HardwareResult NativeHardware::LoadCore(
 		if (!error.ok()) return {CoreIoError(error, "input"), true,
 			identified.observed_core};
 	}
+	if (fes_gp) {
+		active_input_recipe_ = FesGpInputRecipe();
+		has_active_input_recipe_ = true;
+	} else {
+		has_active_input_recipe_ = false;
+	}
 	return {{}, true, identified.observed_core};
 }
 
@@ -471,6 +522,7 @@ HardwareResult NativeHardware::LoadIdle()
 	active_package_.reset();
 	active_context_ = {};
 	active_context_.expected_core = "MENU";
+	has_active_input_recipe_ = false;
 	return {input_error, true, video.observed_core};
 }
 
@@ -618,6 +670,8 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	active_package_.reset();
 	active_context_ = driver_context;
 	active_context_.mister_recipe = nullptr;
+	active_input_recipe_ = launch.input;
+	has_active_input_recipe_ = true;
 	return {{}, true, observed};
 }
 
@@ -683,6 +737,7 @@ HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
 		active_driver_ = driver;
 		active_package_.reset();
 		active_context_ = context;
+		has_active_input_recipe_ = false;
 	}
 	return {error, true, identified.observed_core};
 }

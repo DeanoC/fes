@@ -498,6 +498,11 @@ public:
 		assert(static_cast<bool>(callback_));
 		callback_(generations.back(), std::move(error));
 	}
+	mister::Error Deliver(std::uint16_t map, std::uint64_t deadline)
+	{
+		assert(static_cast<bool>(writer_));
+		return writer_(map, deadline);
+	}
 	bool HasActiveCallback() const { return static_cast<bool>(callback_); }
 	std::vector<std::string>& events_;
 	mister::Error open_error;
@@ -1953,33 +1958,41 @@ void TestNativeSaveStopAndWriteRetry()
 	assert(backup.mounted && backup.image_size == 0);
 	assert(access(launch.save_path.c_str(), F_OK) != 0);
 	backup.ram[0] = 0x42;
-	// Force atomic rename failure after the snapshot; retry must use retained bytes.
+	// Force atomic rename failure after the snapshot. Resuming play must discard
+	// those stale bytes so the retry captures current RAM.
 	assert(mkdir(launch.save_path.c_str(), 0700) == 0);
 	assert(f.hardware.FlushSave().code == mister::ErrorCode::save_failed);
 	assert(backup.snapshots == 1);
 	assert(Find(f.events, "input.stop") < Find(f.events, "save.snapshot"));
 	const int programs = f.fpga.calls;
+	const int input_opens = f.input.open_calls;
+	const int input_starts = f.input.start_calls;
 	backup.ram[0] = 0x99;
+	assert(f.hardware.RestoreInput(1).ok());
+	assert(f.input.open_calls == input_opens + 1 &&
+		f.input.start_calls == input_starts + 1);
+	assert(f.input.generations.back() == 1);
+	assert(f.input.Deliver(0x20, 999).ok());
 	assert(rmdir(launch.save_path.c_str()) == 0);
 	assert(f.hardware.FlushSave().ok());
 	f.temporary.files.push_back(launch.save_path);
-	assert(backup.snapshots == 1 && f.fpga.calls == programs);
+	assert(backup.snapshots == 2 && f.fpga.calls == programs);
 	mister::native::SaveFile saved;
-	assert(saved.Prepare(launch.save_path, 2048).ok() && saved.bytes()[0] == 0x42);
+	assert(saved.Prepare(launch.save_path, 2048).ok() && saved.bytes()[0] == 0x99);
 	assert(f.hardware.LoadIdle().error.ok());
-	assert(f.hardware.FlushSave().ok() && backup.snapshots == 1);
+	assert(f.hardware.FlushSave().ok() && backup.snapshots == 2);
 	backup = mister_test::SnesSaveSpi{};
 	backup.ram.assign(2048, 0xff);
 	f.events.clear();
 	assert(f.hardware.Launch(launch, 2).error.ok());
-	assert(backup.ram[0] == 0x42);
+	assert(backup.ram[0] == 0x99);
 	assert(Find(f.events, "save.restore") < Find(f.events, "input.start:2"));
 	// Generic fault/failed-launch cleanup never publishes SRAM.
 	backup.ram[0] = 0x77;
 	assert(f.hardware.LoadIdle().error.ok());
 	assert(backup.snapshots == 0);
 	mister::native::SaveFile intact;
-	assert(intact.Prepare(launch.save_path, 2048).ok() && intact.bytes()[0] == 0x42);
+	assert(intact.Prepare(launch.save_path, 2048).ok() && intact.bytes()[0] == 0x99);
 	backup = mister_test::SnesSaveSpi{};
 	backup.ram.assign(2048, 0xff);
 	f.input.start_error = {mister::ErrorCode::io_failed, "input start failed"};
