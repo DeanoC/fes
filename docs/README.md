@@ -71,6 +71,11 @@ describe immutable host installation, compatibility inspection and explicit
 ROM-less library selections. The operator commands and UI-facing API contract
 are linked from the [core package guide](core-packages.md).
 
+[Persistent core settings and progress](superpowers/specs/2026-09-09-core-persistence-design.md)
+is the proposed next contract: stable target-local data across compatible
+package versions, starting with standalone Pong. It is awaiting design review
+and does not describe an implemented feature.
+
 ## Earlier designs and plans
 
 [Native parent design](native-parent-design.md),
