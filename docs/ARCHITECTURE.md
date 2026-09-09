@@ -603,34 +603,39 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 ## Native kit launcher
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
-with a living-room platform wheel and a live 4×3 catalog grid renderer.
+with a living-room platform wheel and a live catalog browse renderer.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
 Mega Drive, and SNES). On the wheel, D-pad, left stick, shoulder L/R, and
-Select cycle platforms; A/South enters the filtered 4×3 grid for that system.
-East/B on the grid returns to the wheel. In the grid, shoulder L/R and Select
+Select cycle platforms; A/South enters the filtered browse view for that system
+(default 4×3 grid). East/B on browse returns to the wheel. Y (North) on browse
+cycles Grid → Coverflow → Wall → Grid; it is ignored on the wheel, title pane,
+and attract (any pad input still dismisses attract). Coverflow is a scaled
+focus row of five titles; wall is a denser 6×3 mosaic. In browse, shoulder L/R and Select
 still cycle shelves as a secondary filter; the themed header shows
-`FOGCAST  MEGADRIVE 12/40`. The hero paints an attract still, presentation
+`FOGCAST  MEGADRIVE 12/40`, plus `FLOW` or `WALL` when that layout is active. The hero paints an attract still, presentation
 `backdrop_artwork_id`, or representative cover when a handle exists, otherwise
 a theme-tinted placeholder, with game-count chrome and a representative title
 when one is cheap from the loaded catalog. Wheel cells use a representative
 `logo_id` when presentation has one, else a bold wordmark. D-pad
-and left-stick focus in the grid moves in two
+and left-stick focus in the grid and wall moves in two
 dimensions through `fbgrid.MoveFocus`: left/right clamp on the current row,
-up/down step by four cells, and leaving a page of 12 changes the painted page.
+up/down step by the layout column count (4 on the grid, 6 on the wall), and
+leaving a page changes the painted window. Coverflow uses one row of the
+whole shelf so left/right walk titles and down opens the strip or title pane.
 Focus changes play a short `anim.Tween` / `EaseInOut` pop (highlight ring
 scale ~1.06 over ~160ms); confirm eases a white pulse out over
 `ConfirmFrames` ticks. Unfocused cells keep their layout origins. The kit
 paints dimmed presentation `backdrop_artwork_id` (or an attract backdrop)
-cover-fill behind the wheel, 4×3 grid, strip, and title pane when that
+cover-fill behind the wheel, browse layouts, strip, and title pane when that
 handle decodes; otherwise a cover-wall of visible decoded covers; otherwise
 the solid theme background. Atmosphere is paint-only. The kit
 also loads `GET /api/v1/games` with `collection=recents` and
 `collection=favorites` (best-effort; a miss hides the row) and paints a
-single horizontal strip under the grid when at least one title exists.
+single horizontal strip under browse when at least one title exists.
 Last-row Down enters that strip; L/R move among tiles; A opens the title
-pane; B or Up return to the grid. Down that
+pane; B or Up return to browse. Down that
 cannot move focus further (last catalog row) opens a focused title pane
 through `fbgrid.PaintDetail` when the strip is hidden (large cover, title at `TitlePx`, meta from
 catalog plus `GET /api/v1/presentation/games/{id}` when the pane is open).
@@ -643,7 +648,7 @@ payload), the pane paints an honest motion preview: it auto-cycles
 `screenshot_ids` then unique backdrop/cover posters under a VIDEO badge and
 a `preview` caption. The CGO-free kit binary does not decode H.264; titles
 without a video handle keep the still screenshot carousel.
-A/South still launches from the grid. The pane's A plays the
+A/South still launches from browse. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
 The pane opens with a cheap fade-from-black overlay. Attract does not arm while the pane is open. Catalog cells paint decoded box-art from
@@ -652,8 +657,8 @@ presentation `cover_artwork_id` is present. Presentation `logo_id` (LaunchBox
 Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
 paints on the detail title and grid label bar; tiles and titles without a
 logo keep the existing text labels. The kit prefetches
-`GET /api/v1/presentation/games/{id}` for the visible 4×3 page and the next
-page without blocking present; missing or failed lookups keep the placeholder.
+`GET /api/v1/presentation/games/{id}` for the visible browse page and a cheap
+next window without blocking present; missing or failed lookups keep the placeholder.
 `DecodeCover` Catmull–Rom downscales once to the cover cell so Software Draw
 stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
@@ -688,5 +693,5 @@ sofa maps remapped logical codes onto the existing `tenfoot.Command` set.
 
 See [kit adapter](kit-launcher.md) and [host connection contract](launcher-host.md)
 for setup, controls, exact routes, timeouts and ownership. The existing browser
-listener remains loopback-only. The SDL sofa layout and the kit grid are separate
+listener remains loopback-only. The SDL sofa layout and the kit browse views are separate
 renderers over the same session model and do not own physical transitions.

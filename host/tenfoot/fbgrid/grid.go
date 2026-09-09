@@ -122,6 +122,8 @@ type Grid struct {
 	// When nil, Paint uses a dimmed cover-wall of decoded tile/strip covers.
 	// When those are also empty, the stage stays the solid theme background.
 	Atmosphere *image.RGBA
+	// Kind selects the catalog presentation. Zero is the 4×3 box grid.
+	Kind BrowseKind
 }
 
 // New lays out FakeTiles for a w×h framebuffer.
@@ -175,6 +177,35 @@ func ApplyTheme(g *Grid, th theme.Theme) {
 }
 
 func (g *Grid) layout() {
+	switch g.Kind {
+	case BrowseWall:
+		g.Columns = WallColumns
+	case BrowseCoverflow:
+		n := g.count()
+		if n < 1 {
+			n = 1
+		}
+		g.Columns = n
+		g.layoutStrip()
+		if r, ok := g.coverflowRect(g.Focus); ok {
+			g.CellW = int(r.W)
+			g.CellH = int(r.H)
+		} else {
+			g.CellW = coverflowFocusW
+			g.CellH = coverflowFocusH
+		}
+		if g.CellW < 1 {
+			g.CellW = 1
+		}
+		if g.CellH < 1 {
+			g.CellH = 1
+		}
+		return
+	default:
+		if g.Columns < 1 {
+			g.Columns = DefaultColumns
+		}
+	}
 	if g.Columns < 1 {
 		g.Columns = 1
 	}
@@ -263,6 +294,14 @@ func (g *Grid) Move(dx, dy int) {
 
 // CellOrigin is the top-left pixel of tile i.
 func (g Grid) CellOrigin(i int) (x, y int, ok bool) {
+	r, ok := g.tileBaseRect(i)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(r.X), int(r.Y), true
+}
+
+func (g Grid) gridCellOrigin(i int) (x, y int, ok bool) {
 	if i < 0 || i >= g.count() || g.Columns < 1 {
 		return 0, 0, false
 	}

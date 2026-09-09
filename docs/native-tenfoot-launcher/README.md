@@ -144,8 +144,9 @@ screenshot/poster motion preview when the staged title has a video handle
 (no H.264 decode; full clip playback is a follow-up). Four or more stills-backed
 titles with a video handle paint a 2×2 attract wall. Any pad input returns to
 the platform wheel or catalog grid. The kit
-opens on a platform wheel (`fbgrid.PaintWheel`) and A enters the 4×3 grid; East/B
-on the grid returns to the wheel. A Recent / Favorites strip paints under the grid when those host collections
+opens on a platform wheel (`fbgrid.PaintWheel`) and A enters catalog browse
+(default 4×3 grid); East/B on browse returns to the wheel. Y cycles Grid →
+Coverflow → Wall → Grid. A Recent / Favorites strip paints under the grid when those host collections
 return titles, and hides when they are empty. Last-row Down enters the
 strip; A opens the title pane; B or Up return to the grid. The kit title pane is a
 sibling `fbgrid.PaintDetail` over the same catalog focus: last-row

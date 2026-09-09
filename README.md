@@ -76,19 +76,27 @@ display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
 Stop and returns to the library. Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
-a small 4×3 cover grid through `host/tenfoot/fbgrid`. Shoulder L/R (and Select)
+a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
+4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
+Wall (6×3 mosaic) → Grid without stealing D-pad browse. Coverflow keeps the
+focused title largest and paints its name at the title role (or a clear logo
+when one is ready). Wall uses caption labels on denser cells. Empty catalogs
+hide tiles and keep chrome. Shoulder L/R (and Select)
 cycle platforms on the wheel and still cycle system shelves in the grid
 (`All` plus each system present in the loaded catalog); the
-header shows the active shelf and counts (`MEGADRIVE 12/40`). A/South on the
-wheel enters that system's grid; East/B on the grid returns to the wheel.
+header shows the active shelf and counts (`MEGADRIVE 12/40`), plus `FLOW` or
+`WALL` when that layout is active. A/South on the
+wheel enters that system's browse view; East/B on the browse view returns to the wheel.
 The focused platform paints hardware/fanart/backdrop when attract, presentation
 `backdrop_artwork_id`, or a representative cover handle exists, otherwise a
 theme-tinted placeholder, with game-count chrome. Wheel cells use a
 representative clear logo when presentation has `logo_id`, else a bold
 wordmark. D-pad and left
 stick move focus in
-two dimensions (left/right clamp on the row; up/down by four cells, paging
-when `Focus` leaves the visible 12). A short ease-in-out pop grows the
+two dimensions on the grid and wall (left/right clamp on the row; up/down by
+the layout column count, paging when `Focus` leaves the visible page).
+Coverflow is one row: left/right walk titles, and down that cannot move further
+enters the recent strip or title pane. A short ease-in-out pop grows the
 focused tile's highlight ring (~1.06 scale, ~160ms) when focus changes;
 confirm is a white pulse that eases out over `ConfirmFrames` rather than a
 flat flash. Browse paints a dimmed fanart/backdrop behind chrome when presentation
@@ -120,7 +128,8 @@ Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of
 a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
 `library_media` RoleLogo overlay) paints on the detail title and grid label
-bar; missing logos keep the existing bold/regular text labels. The visible 4×3 page and the next page prefetch those
+bar; missing logos keep the existing bold/regular text labels. The visible page (12 on the grid, 5 around coverflow focus, 18 on the wall)
+and a cheap next window prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows an attract stage (title chrome plus backdrop/cover/marquee artwork)
 and returns to the same shelf and focus on any input. When the staged title has
