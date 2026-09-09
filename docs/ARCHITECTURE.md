@@ -722,7 +722,7 @@ with a living-room platform wheel and a live catalog browse renderer.
 `/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
 ROM cache). Boot paints that shelf from disk before host games HTTP, decodes
 visible covers from disk first, and labels an absent host `Offline - local library`.
-Launch still requires the host.
+Local D-pad/A still browse that snapshot. Launch still requires the host.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,

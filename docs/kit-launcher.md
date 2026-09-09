@@ -21,8 +21,8 @@ service error and retry. A successful host catalog fetch also writes
 artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache;
 replacing the system image does not wipe it. Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
-host shows `Offline - local library` rather than an endless reconnect. Launch still
-requires the host. See [the host connection contract](launcher-host.md) for listener
+host shows `Offline - local library` rather than an endless reconnect. Local D-pad
+and A still browse that snapshot. Launch still requires the host. See [the host connection contract](launcher-host.md) for listener
 configuration and exact HTTP/input-stream schemas. Host endpoint configuration is
 explicit; target discovery is separate.
 

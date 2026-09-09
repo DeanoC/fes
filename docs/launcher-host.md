@@ -29,8 +29,8 @@ paired identity. Target settings updates and admitted launcher operations are
 serialized so an address/selection edit cannot redirect an in-flight launch.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
-`Offline - local library`. Launch and session APIs still require the host; this is
-not hostless play.
+`Offline - local library`. Local D-pad/A still browse that snapshot. Launch and
+session APIs still require the host; this is not hostless play.
 
 Allowed operations are:
 

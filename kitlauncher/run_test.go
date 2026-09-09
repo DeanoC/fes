@@ -203,6 +203,9 @@ func TestRunPaintsLocalCatalogBeforeHostHTTP(t *testing.T) {
 			if len(m.Catalog) != 1 || m.Catalog[0].ID != "sonic" || m.Catalog[0].Cover != handle {
 				t.Errorf("first paint catalog %#v", m.Catalog)
 			}
+			if m.Message != OfflineMessage {
+				t.Errorf("first paint message %q", m.Message)
+			}
 			if gamesHits.Load() != 0 {
 				t.Errorf("first paint waited on games HTTP hits=%d", gamesHits.Load())
 			}

@@ -67,6 +67,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	lastAttract := time.Time{}
 	if applyLocalSnapshot(&m, c) {
 		catalogLoaded = true
+		m.Message = OfflineMessage
 	}
 	if present != nil {
 		present(m)
