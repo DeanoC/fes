@@ -547,6 +547,7 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		CoverArtworkHandle:    safePresentationHandle(result.Presentation.CoverArtworkID),
 		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
 		LogoHandle:            safePresentationHandle(result.Presentation.LogoArtworkID),
+		MarqueeHandle:         safePresentationHandle(result.Presentation.MarqueeArtworkID),
 	}, presentationAttribution{Provider: string(result.Attribution.Provider), Label: label}, true
 }
 

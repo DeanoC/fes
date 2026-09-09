@@ -246,6 +246,8 @@ func TestLaunchBoxCatalogSelectsClearLogoHandle(t *testing.T) {
 		`<Type>Clear Logo</Type></GameImage>` +
 		`<GameImage><DatabaseID>42</DatabaseID><FileName>fanart_42.jpg</FileName>` +
 		`<Type>Fanart - Background</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>banner_42.png</FileName>` +
+		`<Type>Banner</Type></GameImage>` +
 		`</LaunchBox>`
 	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
 	if err != nil {
@@ -259,14 +261,49 @@ func TestLaunchBoxCatalogSelectsClearLogoHandle(t *testing.T) {
 	}
 	wantCover := launchBoxArtworkHandle("cover_42.jpg")
 	wantLogo := launchBoxArtworkHandle("logo_42.png")
+	wantMarquee := launchBoxArtworkHandle("banner_42.png")
 	if result.Presentation.CoverArtworkID != wantCover {
 		t.Fatalf("cover = %q want %q", result.Presentation.CoverArtworkID, wantCover)
 	}
 	if result.Presentation.LogoArtworkID != wantLogo {
 		t.Fatalf("logo = %q want %q", result.Presentation.LogoArtworkID, wantLogo)
 	}
+	if result.Presentation.MarqueeArtworkID != wantMarquee {
+		t.Fatalf("marquee = %q want %q", result.Presentation.MarqueeArtworkID, wantMarquee)
+	}
 	if _, ok := catalog.covers[wantLogo]; !ok {
 		t.Fatal("logo filename missing from artwork map")
+	}
+	if _, ok := catalog.covers[wantMarquee]; !ok {
+		t.Fatal("marquee filename missing from artwork map")
+	}
+}
+
+func TestLaunchBoxCatalogPrefersArcadeMarqueeOverBanner(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>7</DatabaseID><Name>OutRun</Name>` +
+		`<Platform>Sega Genesis</Platform></Game>` +
+		`<GameImage><DatabaseID>7</DatabaseID><FileName>banner_7.png</FileName>` +
+		`<Type>Banner</Type></GameImage>` +
+		`<GameImage><DatabaseID>7</DatabaseID><FileName>marquee_7.png</FileName>` +
+		`<Type>Arcade - Marquee</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "OutRun", System: protocol.SystemMegaDrive})
+	if err != nil || result.Outcome != OutcomeExact {
+		t.Fatalf("Lookup = %+v err=%v", result, err)
+	}
+	want := launchBoxArtworkHandle("marquee_7.png")
+	if result.Presentation.MarqueeArtworkID != want {
+		t.Fatalf("marquee = %q want arcade %q", result.Presentation.MarqueeArtworkID, want)
+	}
+	if result.Presentation.CoverArtworkID != "" || result.Presentation.LogoArtworkID != "" {
+		t.Fatalf("unexpected cover/logo %+v", result.Presentation)
 	}
 }
 

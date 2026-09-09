@@ -187,6 +187,9 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	if got := VideoHandle(pres); got != strings.Repeat("ef", 32) {
 		t.Fatalf("video = %q", got)
 	}
+	if got := MarqueeHandle(pres); got != "" {
+		t.Fatalf("unexpected marquee %q", got)
+	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
 	if err != nil || ctype != "image/png" || string(data) != "png-bytes" {
 		t.Fatalf("artwork = %q %q %v", data, ctype, err)
@@ -1101,6 +1104,35 @@ func TestAttractPreviewHandlesMotionAndStillsFallback(t *testing.T) {
 	empty := AttractPreviewHandles(AttractItem{Video: video}, Presentation{})
 	if empty != nil {
 		t.Fatalf("video-only %#v", empty)
+	}
+
+	fromPres := AttractPreviewHandles(AttractItem{Video: video, Backdrop: backdrop}, Presentation{
+		Presentation: &PresentationInfo{VideoID: video, MarqueeID: marquee},
+	})
+	if len(fromPres) != 2 || fromPres[0] != backdrop || fromPres[1] != marquee {
+		t.Fatalf("presentation marquee %#v", fromPres)
+	}
+}
+
+func TestAttractMarqueeHandlePrefersPresentationThenItem(t *testing.T) {
+	t.Parallel()
+	item := strings.Repeat("aa", 32)
+	pres := strings.Repeat("bb", 32)
+	row := AttractItem{Marquee: item, Backdrop: strings.Repeat("cc", 32)}
+	if got := AttractMarqueeHandle(row, Presentation{}); got != item {
+		t.Fatalf("item = %q", got)
+	}
+	if got := AttractMarqueeHandle(row, Presentation{Presentation: &PresentationInfo{MarqueeID: pres}}); got != pres {
+		t.Fatalf("presentation = %q", got)
+	}
+	if got := AttractMarqueeHandle(AttractItem{}, Presentation{}); got != "" {
+		t.Fatalf("empty = %q", got)
+	}
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{MarqueeID: pres, LogoID: item}}); got != pres {
+		t.Fatalf("presentation handle = %q", got)
+	}
+	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{LogoID: item}}); got != "" {
+		t.Fatalf("logo-only = %q", got)
 	}
 }
 

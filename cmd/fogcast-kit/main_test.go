@@ -434,6 +434,27 @@ func TestSceneFXStartsOnMeaningfulCutsAndHonorsNone(t *testing.T) {
 	}
 }
 
+func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseMarqueeGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-marquee PASS") || !strings.Contains(report, "selftest-transition PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "attract marquee=") || !strings.Contains(report, "detail marquee=") || !strings.Contains(report, "attract hide=1") || !strings.Contains(report, "detail hide=1") {
+		t.Fatalf("missing marquee evidence: %s", report)
+	}
+}
+
 func TestExerciseTransitionGridPaintsCurtainWipeGlitchAndNestsPacks(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

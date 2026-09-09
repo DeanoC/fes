@@ -126,7 +126,11 @@ recents order) when admitted. D-pad L/R move among strip
 tiles, A opens that title's pane, and B or Up return to the grid.
 A/South still launches from the grid. The pane's A plays the title, East/B
 and Up return to the same shelf and focus, and L/R (or shoulders) cycle
-screenshots when `screenshot_ids` has two or more. When presentation
+screenshots when `screenshot_ids` has two or more. Presentation `marquee_id`
+(LaunchBox Arcade-Marquee or Banner, or a `library_media` RoleMarquee overlay
+that wins when present) paints a wide strip under the header; missing handles
+hide the strip rather than reserving an empty band, and cover, meta, badges,
+and the screenshot/video slot keep their existing layout. When presentation
 `video_id` (library_media video overlay) is present, the pane shows an honest
 motion preview: it auto-cycles those screenshots plus backdrop/cover posters
 under a VIDEO badge and a `preview` caption. The CGO-free kit path does not
@@ -147,8 +151,11 @@ a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
 bar; missing logos keep the existing bold/regular text labels. The visible page (12 on the grid, 5 around coverflow focus, 18 on the wall, 8 around split focus)
 and a cheap next window prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
-kit shows an attract stage (title chrome plus backdrop/cover/marquee artwork)
+kit shows an attract stage (title chrome plus backdrop/cover artwork)
 and returns to the same shelf and focus on any input. When the staged title has
+a distinct `marquee_id` or attract `marquee` handle, a banner strip paints
+under the header alongside the still or motion preview; a marquee-only row
+keeps today's still fallback and hides the duplicate strip. When the staged title has
 a video handle plus stills, attract auto-cycles those stills under a VIDEO badge
 and a `preview` caption — the same kit-safe motion path as title-detail, not
 H.264 decode. Four or more stills-backed titles with at least one video handle

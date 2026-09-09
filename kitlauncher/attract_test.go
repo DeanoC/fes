@@ -406,6 +406,52 @@ func TestAttractStillsFallbackHidesMotionChrome(t *testing.T) {
 	}
 }
 
+func TestAttractMarqueeStripWhenDistinctAndHidesWhenSame(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true, AttractActive: true}
+	m.attractItems = []tenfoot.AttractItem{{
+		GameID: "mario", Title: "Mario", Platform: "snes",
+		Backdrop: handleAA(), Marquee: handleBB(), Launchable: true,
+	}}
+	view := m.AttractView(time.Unix(1, 0))
+	if view.Handle != handleAA() || view.Marquee != handleBB() {
+		t.Fatalf("distinct %+v", view)
+	}
+	got := m.AttractPrefetchHandles()
+	found := false
+	for _, h := range got {
+		if h == handleBB() {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("prefetch missing marquee %v", got)
+	}
+
+	m.attractItems[0].Marquee = handleAA()
+	view = m.AttractView(time.Unix(1, 0))
+	if view.Handle != handleAA() || view.Marquee != "" {
+		t.Fatalf("same-handle strip %+v", view)
+	}
+
+	m.attractItems[0].Marquee = ""
+	m.ApplyAttractPresentation("mario", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{MarqueeID: handleCC()},
+	})
+	view = m.AttractView(time.Unix(1, 0))
+	if view.Marquee != handleCC() {
+		t.Fatalf("presentation marquee %+v", view)
+	}
+
+	only := Model{Connected: true, TargetReady: true, AttractActive: true}
+	only.attractItems = []tenfoot.AttractItem{{
+		GameID: "pong", Title: "Pong", Marquee: handleDD(), Launchable: true,
+	}}
+	view = only.AttractView(time.Unix(1, 0))
+	if view.Handle != handleDD() || view.Marquee != "" {
+		t.Fatalf("marquee-only still %+v", view)
+	}
+}
+
 func TestAttractMotionUsesPresentationScreenshots(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, AttractActive: true}
 	m.attractItems = []tenfoot.AttractItem{videoItem("mario", "Mario", handleEE(), handleAA(), "")}

@@ -335,6 +335,109 @@ func TestPaintDetailVideoBadgeAndPreviewCaption(t *testing.T) {
 	assertBGRX(t, dst, cfg, sx, sy, 64, 200, 32, 0)
 }
 
+func TestPaintDetailMarqueeStripLeavesCoverMetaAndVideo(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	marquee := image.NewRGBA(image.Rect(0, 0, 80, 12))
+	shot := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+			shot.Set(x, y, color.RGBA{R: 32, G: 200, B: 64, A: 255})
+		}
+	}
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 80; x++ {
+			marquee.Set(x, y, color.RGBA{R: 16, G: 200, B: 48, A: 255})
+		}
+	}
+	frame := DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Sonic",
+		Meta: "MEGADRIVE  ·  1991", Hint: "A play | B back | L/R preview",
+		Cover: cover, CoverKind: CoverPresent, Marquee: marquee,
+		Shot: shot, ShotCaption: "preview", VideoBadge: true,
+		Badges: ComposeBadges("2", "", "", false), Theme: th,
+	}
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintDetail(d, frame)
+	d.Present()
+	mx, my, ok := DetailMarqueeSample(w, h, th, marquee)
+	if !ok {
+		t.Fatal("marquee sample")
+	}
+	assertBGRX(t, dst, cfg, mx, my, 48, 200, 16, 0)
+	cx, cy, ok := DetailCoverSampleFor(w, h, th, frame)
+	if !ok {
+		t.Fatal("cover sample")
+	}
+	assertBGRX(t, dst, cfg, cx, cy, 160, 32, 255, 0)
+	if cy <= my {
+		t.Fatalf("cover y=%d did not sit below marquee y=%d", cy, my)
+	}
+	_, originY, ok := DetailCoverSample(w, h, th)
+	if !ok {
+		t.Fatal("origin cover")
+	}
+	if cy <= originY {
+		t.Fatalf("marquee did not push cover down origin=%d got=%d", originY, cy)
+	}
+	bx, by, ok := DetailVideoBadgeSample(w, h, th, frame)
+	if !ok {
+		t.Fatal("video badge")
+	}
+	assertBGRX(t, dst, cfg, bx, by, 0, 220, 255, 0)
+	sx, sy, ok := DetailShotSample(w, h, th, frame)
+	if !ok {
+		t.Fatal("shot")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, 64, 200, 32, 0)
+	badgeX, badgeY, ok := DetailBadgeSample(w, h, th, frame)
+	if !ok {
+		t.Fatal("badge")
+	}
+	assertBGRX(t, dst, cfg, badgeX, badgeY, th.Highlight.B, th.Highlight.G, th.Highlight.R, 0)
+
+	rec := gfx.NewRecorder()
+	PaintDetail(rec, frame)
+	var sawMeta, sawVideo, sawPreview bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if strings.Contains(c.Text, "1991") {
+			sawMeta = true
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawMeta || !sawVideo || !sawPreview {
+		t.Fatalf("crushed chrome meta=%v video=%v preview=%v ops=%v", sawMeta, sawVideo, sawPreview, rec.Ops())
+	}
+
+	hidden := DetailFrame{Width: w, Height: h, Title: "Pong", Cover: cover, CoverKind: CoverPresent, Theme: th}
+	PaintDetail(d, hidden)
+	d.Present()
+	gotB, gotG, gotR, _, err := gfx.SampleBGRX(dst, cfg, mx, my)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotB == 48 && gotG == 200 && gotR == 16 {
+		t.Fatal("absent marquee kept banner pixels")
+	}
+}
+
 func descriptionCopy(rec *gfx.Recorder, th theme.Theme) string {
 	var b strings.Builder
 	for _, c := range rec.Calls {

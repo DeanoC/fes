@@ -27,7 +27,9 @@ type AttractFrame struct {
 	VideoBadge    bool
 	Caption       string
 	Wall          []AttractWallTile
-	Theme         theme.Theme
+	// Marquee is optional banner/marquee strip art. Nil hides the strip.
+	Marquee *image.RGBA
+	Theme   theme.Theme
 }
 
 // PaintAttract draws title chrome and a still (or empty idle panel) using
@@ -65,6 +67,15 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 		stageY = 0
 	}
 	stage := gfx.Rect{X: 0, Y: float32(stageY), W: float32(f.Width), H: float32(stageH)}
+	if band := AttractMarqueeRect(f.Width, f.Height, f.Marquee, th); band.H >= 1 {
+		paintCover(d, f.Marquee, band)
+		gap := float32(attractMarqueeGap)
+		stage.Y = band.Y + band.H + gap
+		stage.H = float32(f.Height-footerH) - stage.Y
+		if stage.H < 1 {
+			stage.H = 1
+		}
+	}
 	if f.Empty || (f.Image == nil && f.Next == nil && len(f.Wall) < 4) {
 		paintAttractIdlePanel(d, stage, th)
 	} else if len(f.Wall) >= 4 {
@@ -72,7 +83,7 @@ func PaintAttract(d gfx.Device, f AttractFrame) {
 	} else {
 		paintAttractStill(d, stage, f.Image, f.Next, f.FadeT)
 		if f.VideoBadge {
-			dest := AttractStillDest(f.Width, f.Height, f.Image, th)
+			dest := AttractStillDestFor(f)
 			paintVideoBadge(d, dest, th)
 		}
 	}
@@ -261,7 +272,12 @@ func AttractWallCell(width, height, index int, th theme.Theme) gfx.Rect {
 
 // AttractVideoBadgeSample is a pixel inside the VIDEO badge fill on a still stage.
 func AttractVideoBadgeSample(width, height int, img *image.RGBA, th theme.Theme) (x, y int, ok bool) {
-	dest := AttractStillDest(width, height, img, th)
+	return AttractVideoBadgeSampleFor(AttractFrame{Width: width, Height: height, Image: img, Theme: th})
+}
+
+// AttractVideoBadgeSampleFor is the VIDEO badge sample for a full attract frame.
+func AttractVideoBadgeSampleFor(f AttractFrame) (x, y int, ok bool) {
+	dest := AttractStillDestFor(f)
 	if dest.W < 24 || dest.H < 12 {
 		return 0, 0, false
 	}
@@ -279,6 +295,44 @@ func AttractWallBadgeSample(width, height int, th theme.Theme) (x, y int, ok boo
 
 // AttractStillDest is the aspect-fit rectangle used for a still inside the stage.
 func AttractStillDest(width, height int, img *image.RGBA, th theme.Theme) gfx.Rect {
+	return AttractStillDestFor(AttractFrame{Width: width, Height: height, Image: img, Theme: th})
+}
+
+// AttractStillDestFor is the still dest after an optional marquee strip.
+func AttractStillDestFor(f AttractFrame) gfx.Rect {
+	th := f.Theme.Complete()
+	stageY := th.HeaderH
+	stageH := f.Height - th.HeaderH - th.FooterH
+	if stageH < 1 {
+		stageY = 0
+		stageH = f.Height
+	}
+	if band := AttractMarqueeRect(f.Width, f.Height, f.Marquee, th); band.H >= 1 {
+		stageY = int(band.Y + band.H + float32(attractMarqueeGap))
+		stageH = f.Height - th.FooterH - stageY
+		if stageH < 1 {
+			stageH = 1
+		}
+	}
+	if f.Image == nil {
+		return gfx.Rect{X: 0, Y: float32(stageY), W: float32(f.Width), H: float32(stageH)}
+	}
+	b := f.Image.Bounds()
+	dx, dy, dw, dh := tenfoot.CoverDestRect(0, stageY, f.Width, stageH, b.Dx(), b.Dy())
+	return gfx.Rect{X: dx, Y: dy, W: dw, H: dh}
+}
+
+const (
+	attractMarqueeMaxH = 72
+	attractMarqueeGap  = 6
+	attractMarqueeMinH = 24
+)
+
+// AttractMarqueeRect is the banner strip under the header, or empty when hidden.
+func AttractMarqueeRect(width, height int, img *image.RGBA, th theme.Theme) gfx.Rect {
+	if img == nil || width < 8 || height < 1 {
+		return gfx.Rect{}
+	}
 	th = th.Complete()
 	stageY := th.HeaderH
 	stageH := height - th.HeaderH - th.FooterH
@@ -286,10 +340,21 @@ func AttractStillDest(width, height int, img *image.RGBA, th theme.Theme) gfx.Re
 		stageY = 0
 		stageH = height
 	}
-	if img == nil {
-		return gfx.Rect{X: 0, Y: float32(stageY), W: float32(width), H: float32(stageH)}
+	bandH := logoFitHeight(img, width, attractMarqueeMaxH)
+	if bandH < 1 {
+		return gfx.Rect{}
 	}
-	b := img.Bounds()
-	dx, dy, dw, dh := tenfoot.CoverDestRect(0, stageY, width, stageH, b.Dx(), b.Dy())
-	return gfx.Rect{X: dx, Y: dy, W: dw, H: dh}
+	if bandH+attractMarqueeGap+attractMarqueeMinH > stageH {
+		return gfx.Rect{}
+	}
+	return gfx.Rect{X: 0, Y: float32(stageY), W: float32(width), H: float32(bandH)}
+}
+
+// AttractMarqueeSample is a pixel inside a painted marquee strip.
+func AttractMarqueeSample(width, height int, img *image.RGBA, th theme.Theme) (x, y int, ok bool) {
+	r := AttractMarqueeRect(width, height, img, th)
+	if r.W < 4 || r.H < 4 {
+		return 0, 0, false
+	}
+	return int(r.X + r.W/2), int(r.Y + r.H/2), true
 }

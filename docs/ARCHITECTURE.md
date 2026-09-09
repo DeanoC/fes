@@ -661,6 +661,10 @@ payload), the pane paints an honest motion preview: it auto-cycles
 `screenshot_ids` then unique backdrop/cover posters under a VIDEO badge and
 a `preview` caption. The CGO-free kit binary does not decode H.264; titles
 without a video handle keep the still screenshot carousel.
+Presentation `marquee_id` (LaunchBox Arcade-Marquee or Banner, with
+`library_media` RoleMarquee winning when present) paints a wide strip under
+the header; a missing handle hides the strip. Cover, meta, badges, and the
+screenshot or video-preview slot keep their existing layout.
 A/South still launches from browse. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
@@ -686,7 +690,10 @@ placeholder (lettermark when missing; a distinct panel while loading) instead
 of a flat system fill. After host `idle_seconds` from
 `GET /api/v1/library/attract` with no pad input, the kit paints attract through
 `DecodeStill` and `fbgrid.PaintAttract`. Video-only rows stay dropped because
-the CGO-free kit binary does not decode H.264. When a staged row has a video
+the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
+presentation `marquee_id` paints a banner strip under the header alongside the
+still, motion preview, or 2×2 wall; a marquee-only row keeps the still
+fallback and hides the duplicate strip. When a staged row has a video
 handle plus stills (item backdrop/cover/marquee, or presentation
 `screenshot_ids` when that payload is fetched), attract auto-cycles those
 stills under a VIDEO badge and a `preview` caption — the same honest motion

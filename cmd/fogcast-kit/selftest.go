@@ -406,6 +406,273 @@ func runPacksSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runMarqueeSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseMarqueeGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
+func exerciseMarqueeGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	cfg := d.Config()
+	var b strings.Builder
+	aa := strings.Repeat("aa", 32)
+	bb := strings.Repeat("bb", 32)
+	cc := strings.Repeat("cc", 32)
+	ee := strings.Repeat("ee", 32)
+	still := solidStill(255, 32, 160, 40, 8)
+	banner := solidStill(16, 200, 48, 80, 12)
+	shot := solidStill(32, 200, 64, 8, 8)
+	stills := map[string]*image.RGBA{aa: still, bb: banner, cc: shot}
+
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(mixedShelfGames())
+	m.Focus = 1
+	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Backdrop: aa, Marquee: bb, Launchable: true},
+	}})
+	m.SetAttractIdle(20 * time.Millisecond)
+	m.SetAttractCycle(10 * time.Second)
+	t0 := time.Now()
+	m.Tick(t0)
+	m.Tick(t0.Add(40 * time.Millisecond))
+	if !m.AttractActive {
+		return b.String(), fmt.Errorf("attract did not arm")
+	}
+	view := m.AttractView(t0.Add(40 * time.Millisecond))
+	if view.Handle != aa || view.Marquee != bb {
+		return b.String(), fmt.Errorf("attract view %+v", view)
+	}
+	paintAttractModel(d, view, stills, th)
+	mx, my, ok := fbgrid.AttractMarqueeSample(cfg.Width, cfg.Height, banner, th)
+	if !ok {
+		return b.String(), fmt.Errorf("attract marquee sample")
+	}
+	gotB, gotG, gotR, gotX, err := gfx.SampleBGRX(d.Destination(), cfg, mx, my)
+	if err != nil {
+		return b.String(), err
+	}
+	if gotB != 48 || gotG != 200 || gotR != 16 || gotX != 0 {
+		return b.String(), fmt.Errorf("attract marquee bgrx %d,%d,%d,%d", gotB, gotG, gotR, gotX)
+	}
+	frame := attractFrameFromStills(view, stills, th, cfg.Width, cfg.Height)
+	dest := fbgrid.AttractStillDestFor(frame)
+	sx := int(dest.X + dest.W/2)
+	sy := int(dest.Y + dest.H/2)
+	sB, sG, sR, sX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	if sB != 160 || sG != 32 || sR != 255 || sX != 0 {
+		return b.String(), fmt.Errorf("attract still crushed bgrx %d,%d,%d,%d", sB, sG, sR, sX)
+	}
+	if sy <= my {
+		return b.String(), fmt.Errorf("still y=%d not below marquee y=%d", sy, my)
+	}
+	fmt.Fprintf(&b, "attract marquee=(%d,%d) bgrx=%d,%d,%d,%d still=(%d,%d) bgrx=%d,%d,%d,%d\n",
+		mx, my, gotB, gotG, gotR, gotX, sx, sy, sB, sG, sR, sX)
+
+	hidden := kitlauncher.Model{Connected: true, TargetReady: true, AttractActive: true}
+	hidden.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Backdrop: aa, Launchable: true},
+	}})
+	hidden.AttractActive = true
+	hiddenView := hidden.AttractView(t0)
+	if hiddenView.Marquee != "" {
+		return b.String(), fmt.Errorf("absent marquee handle %q", hiddenView.Marquee)
+	}
+	paintAttractModel(d, hiddenView, stills, th)
+	hB, hG, hR, _, err := gfx.SampleBGRX(d.Destination(), cfg, mx, my)
+	if err != nil {
+		return b.String(), err
+	}
+	if hB == 48 && hG == 200 && hR == 16 {
+		return b.String(), fmt.Errorf("absent attract marquee kept banner pixels")
+	}
+	fmt.Fprintf(&b, "attract hide=1\n")
+
+	only := kitlauncher.Model{Connected: true, TargetReady: true, AttractActive: true}
+	only.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "pong", Title: "Pong", Marquee: bb, Launchable: true},
+	}})
+	only.AttractActive = true
+	onlyView := only.AttractView(t0)
+	if onlyView.Handle != bb || onlyView.Marquee != "" {
+		return b.String(), fmt.Errorf("marquee-only %+v", onlyView)
+	}
+	fmt.Fprintf(&b, "attract marquee-only still=1 strip=0\n")
+
+	motion := kitlauncher.Model{Connected: true, TargetReady: true}
+	motion.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+		{GameID: "mario", Title: "Mario", Platform: "snes", Video: ee, Backdrop: aa, Cover: cc, Marquee: bb, Launchable: true},
+	}})
+	motion.SetAttractIdle(20 * time.Millisecond)
+	motion.SetAttractCycle(10 * time.Second)
+	tMotion := time.Now()
+	motion.Tick(tMotion)
+	motion.Tick(tMotion.Add(40 * time.Millisecond))
+	motionView := motion.AttractView(tMotion.Add(40 * time.Millisecond))
+	if !motionView.Motion || motionView.Marquee != bb {
+		return b.String(), fmt.Errorf("motion marquee %+v", motionView)
+	}
+	paintAttractModel(d, motionView, stills, th)
+	motionFrame := attractFrameFromStills(motionView, stills, th, cfg.Width, cfg.Height)
+	bx, by, ok := fbgrid.AttractVideoBadgeSampleFor(motionFrame)
+	if !ok {
+		return b.String(), fmt.Errorf("motion badge sample")
+	}
+	bB, bG, bR, bX, err := gfx.SampleBGRX(d.Destination(), cfg, bx, by)
+	if err != nil {
+		return b.String(), err
+	}
+	if bB != 0 || bG != 220 || bR != 255 || bX != 0 {
+		return b.String(), fmt.Errorf("motion badge bgrx %d,%d,%d,%d", bB, bG, bR, bX)
+	}
+	fmt.Fprintf(&b, "attract motion-marquee=1 badge=(%d,%d)\n", bx, by)
+
+	press(&m, "b")
+	if m.AttractActive {
+		return b.String(), fmt.Errorf("dismiss failed")
+	}
+	m.ApplyPresentation(m.Games[m.Focus].ID, tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{
+			MarqueeID:     bb,
+			Studio:        "SEGA",
+			Year:          "1991",
+			Players:       "1-2",
+			VideoID:       ee,
+			ScreenshotIDs: []string{cc},
+		},
+	})
+	press(&m, "b")
+	if !m.DetailOpen {
+		return b.String(), fmt.Errorf("detail closed")
+	}
+	if m.FocusMarqueeHandle() != bb {
+		return b.String(), fmt.Errorf("detail marquee handle %q", m.FocusMarqueeHandle())
+	}
+	dframe := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	dframe.Cover = still
+	dframe.CoverKind = fbgrid.CoverPresent
+	dframe.Marquee = banner
+	dframe.Shot = shot
+	dframe.VideoBadge = true
+	dframe.ShotCaption = "preview"
+	fbgrid.PaintDetail(d, dframe)
+	d.Present()
+	dx, dy, ok := fbgrid.DetailMarqueeSample(cfg.Width, cfg.Height, th, banner)
+	if !ok {
+		return b.String(), fmt.Errorf("detail marquee sample")
+	}
+	dB, dG, dR, dX, err := gfx.SampleBGRX(d.Destination(), cfg, dx, dy)
+	if err != nil {
+		return b.String(), err
+	}
+	if dB != 48 || dG != 200 || dR != 16 || dX != 0 {
+		return b.String(), fmt.Errorf("detail marquee bgrx %d,%d,%d,%d", dB, dG, dR, dX)
+	}
+	cx, cy, ok := fbgrid.DetailCoverSampleFor(cfg.Width, cfg.Height, th, dframe)
+	if !ok {
+		return b.String(), fmt.Errorf("detail cover sample")
+	}
+	cB, cG, cR, cX, err := gfx.SampleBGRX(d.Destination(), cfg, cx, cy)
+	if err != nil {
+		return b.String(), err
+	}
+	if cB != 160 || cG != 32 || cR != 255 || cX != 0 {
+		return b.String(), fmt.Errorf("detail cover crushed bgrx %d,%d,%d,%d", cB, cG, cR, cX)
+	}
+	vbX, vbY, ok := fbgrid.DetailVideoBadgeSample(cfg.Width, cfg.Height, th, dframe)
+	if !ok {
+		return b.String(), fmt.Errorf("detail video sample")
+	}
+	vB, vG, vR, vX, err := gfx.SampleBGRX(d.Destination(), cfg, vbX, vbY)
+	if err != nil {
+		return b.String(), err
+	}
+	if vB != 0 || vG != 220 || vR != 255 || vX != 0 {
+		return b.String(), fmt.Errorf("detail video crushed bgrx %d,%d,%d,%d", vB, vG, vR, vX)
+	}
+	badgeX, badgeY, ok := fbgrid.DetailBadgeSample(cfg.Width, cfg.Height, th, dframe)
+	if !ok {
+		return b.String(), fmt.Errorf("detail badge sample")
+	}
+	bdB, bdG, bdR, _, err := gfx.SampleBGRX(d.Destination(), cfg, badgeX, badgeY)
+	if err != nil {
+		return b.String(), err
+	}
+	if bdB != th.Highlight.B || bdG != th.Highlight.G || bdR != th.Highlight.R {
+		return b.String(), fmt.Errorf("detail badge crushed bgrx %d,%d,%d", bdB, bdG, bdR)
+	}
+	rec := gfx.NewRecorder()
+	fbgrid.PaintDetail(rec, dframe)
+	var sawMeta, sawVideo, sawPreview bool
+	for _, c := range rec.Calls {
+		if c.Op != "DrawText" {
+			continue
+		}
+		if strings.Contains(c.Text, "1991") {
+			sawMeta = true
+		}
+		if c.Text == "VIDEO" {
+			sawVideo = true
+		}
+		if strings.Contains(c.Text, "preview") {
+			sawPreview = true
+		}
+	}
+	if !sawMeta || !sawVideo || !sawPreview {
+		return b.String(), fmt.Errorf("detail chrome meta=%v video=%v preview=%v ops=%v", sawMeta, sawVideo, sawPreview, rec.Ops())
+	}
+	fmt.Fprintf(&b, "detail marquee=(%d,%d) cover=(%d,%d) video=1 badge=1 meta=1\n", dx, dy, cx, cy)
+
+	plain := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	plain.Cover = still
+	plain.CoverKind = fbgrid.CoverPresent
+	plain.Marquee = nil
+	fbgrid.PaintDetail(d, plain)
+	d.Present()
+	pB, pG, pR, _, err := gfx.SampleBGRX(d.Destination(), cfg, dx, dy)
+	if err != nil {
+		return b.String(), err
+	}
+	if pB == 48 && pG == 200 && pR == 16 {
+		return b.String(), fmt.Errorf("absent detail marquee kept banner pixels")
+	}
+	fmt.Fprintf(&b, "detail hide=1\n")
+
+	press(&m, "b")
+	if m.DetailOpen {
+		return b.String(), fmt.Errorf("detail stayed open")
+	}
+	press(&m, "y")
+	if m.Browse != fbgrid.BrowseCoverflow {
+		return b.String(), fmt.Errorf("y stole browse %s", m.Browse)
+	}
+	press(&m, "x")
+	if m.Pack != theme.PackNeon {
+		return b.String(), fmt.Errorf("x stole pack %s", m.Pack)
+	}
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if action := m.Input(a, time.Now()); action != "launch" {
+		return b.String(), fmt.Errorf("A after marquee %q", action)
+	}
+	fmt.Fprintf(&b, "nav-still y=%s x=%s launch=1\n", m.Browse, m.Pack)
+
+	nested, err := exerciseTransitionGrid(d, th)
+	b.WriteString(nested)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-marquee PASS attract=1 hide=1 stills-fallback=1 motion=1 detail=1 nested-transition=1\n")
+	return b.String(), nil
+}
+
 func runTransitionSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {
@@ -2617,6 +2884,9 @@ func attractFrameFromStills(view kitlauncher.AttractView, stills map[string]*ima
 	if stills != nil {
 		frame.Image = stills[view.Handle]
 		frame.Next = stills[view.NextHandle]
+		if view.Marquee != "" {
+			frame.Marquee = stills[view.Marquee]
+		}
 		if len(view.Wall) >= 4 {
 			wall := make([]fbgrid.AttractWallTile, 4)
 			for i := 0; i < 4; i++ {

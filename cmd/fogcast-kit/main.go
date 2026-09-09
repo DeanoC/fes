@@ -56,6 +56,7 @@ func run() error {
 	selftestPacks := flag.Bool("selftest-packs", false, "paint Classic/Neon/Sofa Dim packs, cycle X, then exit")
 	selftestBadges := flag.Bool("selftest-badges", false, "paint tile/detail badges and wheel play-stats, then exit")
 	selftestTransition := flag.Bool("selftest-transition", false, "paint curtain, wipe, and glitch scene overlays, then exit")
+	selftestMarquee := flag.Bool("selftest-marquee", false, "paint attract and detail marquee/banner strips, then exit")
 	noTransition := flag.Bool("no-transition", false, "disable kit scene transition overlays")
 	flag.Parse()
 	if !*noTransition {
@@ -85,7 +86,7 @@ func run() error {
 		}
 		return runThemeSelftest(fb)
 	}
-	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition {
+	if *selftestNav || *selftestShelf || *selftestText || *selftestBold || *selftestCover || *selftestAttract || *selftestDetail || *selftestMotion || *selftestWheel || *selftestStrip || *selftestAtmosphere || *selftestLayouts || *selftestPacks || *selftestBadges || *selftestTransition || *selftestMarquee {
 		fb := "/dev/fb0"
 		configTheme := ""
 		if c, err := kitlauncher.LoadConfig(*configPath); err == nil {
@@ -97,6 +98,9 @@ func run() error {
 		th, err := loadKitTheme(*themeSpec, configTheme)
 		if err != nil {
 			return err
+		}
+		if *selftestMarquee {
+			return runMarqueeSelftest(fb, th)
 		}
 		if *selftestMotion {
 			return runMotionSelftest(fb, th)
@@ -278,6 +282,12 @@ func run() error {
 				if handle := tenfoot.LogoHandle(pres); handle != "" {
 					handles = append(handles, handle)
 				}
+				if handle := tenfoot.MarqueeHandle(pres); handle != "" {
+					backdropHandles = append(backdropHandles, handle)
+				}
+			}
+			if handle := m.FocusMarqueeHandle(); handle != "" {
+				backdropHandles = append(backdropHandles, handle)
 			}
 		}
 		covers.Keep(handles)
@@ -303,6 +313,13 @@ func run() error {
 		if m.DetailOpen {
 			frame := modelDetailFrame(m, covers, presentations, look, w, h)
 			frame.Atmosphere = stillImage(stills, atmosphereHandle(m, presentations))
+			mq := m.FocusMarqueeHandle()
+			if mq == "" {
+				if game, ok := m.FocusedGame(); ok {
+					mq = tenfoot.MarqueeHandle(presentations.Get(game.ID))
+				}
+			}
+			frame.Marquee = stillImage(stills, mq)
 			fbgrid.PaintDetail(d, frame)
 			paintSceneFX(d, w, h, fx, now, look)
 			d.Present()
@@ -692,6 +709,9 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 		frame.Image = stills.Image(view.Handle)
 		if view.NextHandle != "" && view.FadeT > 0 {
 			frame.Next = stills.Image(view.NextHandle)
+		}
+		if view.Marquee != "" {
+			frame.Marquee = stills.Image(view.Marquee)
 		}
 	}
 	if len(view.Wall) >= 4 {

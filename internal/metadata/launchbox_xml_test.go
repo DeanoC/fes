@@ -20,8 +20,29 @@ func TestValidLaunchBoxImageTypeAdmitsClearLogo(t *testing.T) {
 	if validLaunchBoxImageTypeRank("cover", "Clear Logo") >= 0 {
 		t.Fatal("Clear Logo ranked as cover")
 	}
-	if validLaunchBoxImageType("Banner") {
-		t.Fatal("Banner admitted")
+}
+
+func TestValidLaunchBoxImageTypeAdmitsBannerAndArcadeMarquee(t *testing.T) {
+	if !validLaunchBoxImageType("Banner") {
+		t.Fatal("Banner rejected")
+	}
+	if !validLaunchBoxImageType("Arcade - Marquee") {
+		t.Fatal("Arcade - Marquee rejected")
+	}
+	if validLaunchBoxImageTypeRank("marquee", "Arcade - Marquee") != 0 {
+		t.Fatalf("Arcade - Marquee rank = %d", validLaunchBoxImageTypeRank("marquee", "Arcade - Marquee"))
+	}
+	if validLaunchBoxImageTypeRank("marquee", "Banner") != 1 {
+		t.Fatalf("Banner rank = %d", validLaunchBoxImageTypeRank("marquee", "Banner"))
+	}
+	if validLaunchBoxImageTypeRank("cover", "Banner") >= 0 {
+		t.Fatal("Banner ranked as cover")
+	}
+	if validLaunchBoxImageTypeRank("logo", "Arcade - Marquee") >= 0 {
+		t.Fatal("Arcade - Marquee ranked as logo")
+	}
+	if validLaunchBoxImageType("Steam Banner") {
+		t.Fatal("Steam Banner admitted")
 	}
 }
 

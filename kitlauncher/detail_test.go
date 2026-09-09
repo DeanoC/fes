@@ -216,6 +216,43 @@ func TestFocusLogoHandleAndDetailPrefetchIncludesLogo(t *testing.T) {
 	}
 }
 
+func TestFocusMarqueeHandleAndDetailPrefetchIncludesMarquee(t *testing.T) {
+	marquee := strings.Repeat("aa", 32)
+	cover := strings.Repeat("bb", 32)
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	now := time.Unix(1, 0)
+	pressNamed(&m, "dpad-right", now)
+	if m.Games[m.Focus].ID != "sonic" {
+		t.Fatalf("focus %s", m.Games[m.Focus].ID)
+	}
+	m.ApplyPresentation("sonic", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{MarqueeID: marquee, CoverArtworkID: cover},
+	})
+	if got := m.FocusMarqueeHandle(); got != marquee {
+		t.Fatalf("marquee %q", got)
+	}
+	handles := m.DetailPrefetchHandles()
+	foundMarquee, foundCover := false, false
+	for _, h := range handles {
+		if h == marquee {
+			foundMarquee = true
+		}
+		if h == cover {
+			foundCover = true
+		}
+	}
+	if !foundMarquee || !foundCover {
+		t.Fatalf("prefetch %#v", handles)
+	}
+	m.ApplyPresentation("sonic", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{CoverArtworkID: cover},
+	})
+	if got := m.FocusMarqueeHandle(); got != "" {
+		t.Fatalf("absent marquee %q", got)
+	}
+}
+
 func TestFocusDetailSurfacesRegionPlayersAndSummary(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	games := mixedCatalog()

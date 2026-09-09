@@ -250,6 +250,15 @@ func (m Model) FocusLogoHandle() string {
 	return tenfoot.LogoHandle(m.presentationFor(game.ID))
 }
 
+// FocusMarqueeHandle is the presentation banner/marquee for the focused title.
+func (m Model) FocusMarqueeHandle() string {
+	game, ok := m.focusedGame()
+	if !ok {
+		return ""
+	}
+	return tenfoot.MarqueeHandle(m.presentationFor(game.ID))
+}
+
 // DetailPrefetchHandles is the focused cover, logo, and current screenshot.
 func (m Model) DetailPrefetchHandles() []string {
 	out := make([]string, 0, 3)
@@ -267,6 +276,7 @@ func (m Model) DetailPrefetchHandles() []string {
 	}
 	add(m.FocusCoverHandle())
 	add(m.FocusLogoHandle())
+	add(m.FocusMarqueeHandle())
 	for _, handle := range m.previewHandles() {
 		add(handle)
 	}
