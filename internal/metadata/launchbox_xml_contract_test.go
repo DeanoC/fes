@@ -636,6 +636,7 @@ func TestLaunchBoxSelectedFieldLimitsAcceptExactByteAndRuneBounds(t *testing.T) 
 		{family: "Game", field: "Developer"},
 		{family: "Game", field: "Publisher"},
 		{family: "Game", field: "MaxPlayers"},
+		{family: "Game", field: "Series"},
 		{family: "GameAlternateName", field: "DatabaseID"},
 		{family: "GameAlternateName", field: "AlternateName"},
 		{family: "GameAlternateName", field: "Region"},

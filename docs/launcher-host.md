@@ -38,7 +38,8 @@ Allowed operations are:
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover
   handles, `logo_id`, `marquee_id`, studio, players, screenshots, `video_id`). Optional
-  `rating`, `completion`, and `portable` decode when present.
+  `rating`, `completion`, `portable`, `series`, `related` / `related_ids`, and
+  `collection` decode when present.
 - `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog or metadata cover, logo, and marquee handles.
 - `GET /api/v1/session` and `/api/v1/session/input`.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.

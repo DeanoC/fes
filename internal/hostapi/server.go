@@ -108,6 +108,7 @@ type presentationPayload struct {
 	Genre                 string   `json:"genre"`
 	Studio                string   `json:"studio"`
 	Players               string   `json:"players"`
+	Series                string   `json:"series,omitempty"`
 	CoverArtworkHandle    string   `json:"cover_artwork_id,omitempty"`
 	BackdropArtworkHandle string   `json:"backdrop_artwork_id,omitempty"`
 	LogoHandle            string   `json:"logo_id,omitempty"`
@@ -532,6 +533,7 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		{result.Presentation.Genre, 40},
 		{result.Presentation.Studio, 60},
 		{result.Presentation.Players, 40},
+		{result.Presentation.Series, 80},
 	}
 	for _, value := range values {
 		if !utf8.ValidString(value.value) {
@@ -544,6 +546,7 @@ func safePresentation(result metadata.Result) (presentationPayload, presentation
 		Genre:                 boundedPresentationText(result.Presentation.Genre, 40),
 		Studio:                boundedPresentationText(result.Presentation.Studio, 60),
 		Players:               boundedPresentationText(result.Presentation.Players, 40),
+		Series:                boundedPresentationText(result.Presentation.Series, 80),
 		CoverArtworkHandle:    safePresentationHandle(result.Presentation.CoverArtworkID),
 		BackdropArtworkHandle: safePresentationHandle(result.Presentation.BackdropArtworkID),
 		LogoHandle:            safePresentationHandle(result.Presentation.LogoArtworkID),

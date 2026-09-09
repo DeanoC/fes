@@ -18,7 +18,8 @@ const launchBoxSampleXML = `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
 	`<Game><DatabaseID>42</DatabaseID><Name>Sonic the Hedgehog</Name>` +
 	`<Platform>Sega Genesis</Platform><Overview>Blue hedgehog.</Overview>` +
 	`<ReleaseYear>1991</ReleaseYear><Genres>Platform;Action</Genres>` +
-	`<Developer>Sonic Team</Developer><Publisher>SEGA</Publisher><MaxPlayers>1</MaxPlayers></Game>` +
+	`<Developer>Sonic Team</Developer><Publisher>SEGA</Publisher><MaxPlayers>1</MaxPlayers>` +
+	`<Series>Sonic the Hedgehog</Series></Game>` +
 	`<GameAlternateName><DatabaseID>42</DatabaseID><AlternateName>Sonic</AlternateName></GameAlternateName>` +
 	`<GameImage><DatabaseID>42</DatabaseID><FileName>cover_42.jpg</FileName>` +
 	`<Type>Box - Front</Type><CRC32>1</CRC32></GameImage>` +
@@ -39,7 +40,8 @@ func TestLaunchBoxCatalogMatchesGenesisTitleAndIgnoresOtherPlatforms(t *testing.
 		t.Fatalf("Lookup: %v", err)
 	}
 	if result.Outcome != OutcomeExact || result.Presentation.Summary != "Blue hedgehog." || result.Presentation.Year != "1991" ||
-		result.Presentation.Genre != "Platform" || result.Presentation.Studio != "Sonic Team" || result.Presentation.Players != "1" {
+		result.Presentation.Genre != "Platform" || result.Presentation.Studio != "Sonic Team" || result.Presentation.Players != "1" ||
+		result.Presentation.Series != "Sonic the Hedgehog" {
 		t.Fatalf("presentation = %+v", result.Presentation)
 	}
 	if result.Attribution.Provider != ProviderLaunchBox || result.Attribution.Label != "Data from LaunchBox Games Database" {

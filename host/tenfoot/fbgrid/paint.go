@@ -104,7 +104,7 @@ func paintTile(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		fill = g.confirmFill(tile.Color, th.Flash)
 	}
 	inner := r
-	focused := i == g.Focus && !g.StripActive
+	focused := i == g.Focus && !g.StripActive && !g.SeriesActive
 	if focused {
 		d.FillRect(r, th.Highlight)
 		if in, ok := g.tileInner(i); ok {
@@ -206,7 +206,7 @@ func paintSplitRow(d gfx.Device, g Grid, th theme.Theme, i int, tile Tile) {
 		fill = g.confirmFill(tile.Color, th.Flash)
 	}
 	inner := r
-	focused := i == g.Focus && !g.StripActive
+	focused := i == g.Focus && !g.StripActive && !g.SeriesActive
 	if focused {
 		d.FillRect(r, th.Highlight)
 		if in, ok := g.tileInner(i); ok {
@@ -302,16 +302,74 @@ func paintSplitHero(d gfx.Device, g Grid, th theme.Theme) {
 		return
 	}
 	lines := splitMetaLines(tile.Meta, th, int(metaR.W))
-	if len(lines) == 0 {
+	if len(lines) > 0 && metaR.W >= 1 && metaR.H >= 1 {
+		metaSize := th.BodyPx()
+		metaW := th.BodyWeight()
+		lineH := gfx.TextHeightWeight(metaSize, metaW)
+		y := int(metaR.Y)
+		for _, line := range lines {
+			d.DrawTextWeight(int(metaR.X), y, line, metaSize, metaW, th.Label)
+			y += lineH
+		}
+	}
+	paintSplitSeries(d, g, th)
+}
+
+func paintSplitSeries(d gfx.Device, g Grid, th theme.Theme) {
+	n := g.splitSeriesVisible()
+	if d == nil || n == 0 {
 		return
 	}
-	metaSize := th.BodyPx()
-	metaW := th.BodyWeight()
-	lineH := gfx.TextHeightWeight(metaSize, metaW)
-	y := int(metaR.Y)
-	for _, line := range lines {
-		d.DrawTextWeight(int(metaR.X), y, line, metaSize, metaW, th.Label)
-		y += lineH
+	if lx, ly, ok := g.splitSeriesLabelOrigin(); ok {
+		label := g.SeriesLabel
+		if label == "" {
+			label = "Series"
+		}
+		size := th.CaptionPx()
+		weight := th.CaptionWeight()
+		maxW := g.Width - 2*g.Pad
+		if maxW < 1 {
+			maxW = 1
+		}
+		label = gfx.FitTextWeight(label, size, maxW, weight)
+		textH := gfx.TextHeightWeight(size, weight)
+		d.DrawTextWeight(lx, chromeTextY(ly, textH+2, textH, true), label, size, weight, th.Header)
+	}
+	for i := 0; i < n; i++ {
+		r, ok := g.splitSeriesTileRect(i)
+		if !ok {
+			continue
+		}
+		tile := g.Series[i]
+		fill := tile.Color
+		inner := r
+		focused := g.SeriesActive && i == g.SeriesFocus
+		if focused {
+			d.FillRect(r, th.Highlight)
+			inset := float32(g.Border)
+			if inset < 1 {
+				inset = 1
+			}
+			inner = gfx.Rect{X: r.X + inset, Y: r.Y + inset, W: r.W - 2*inset, H: r.H - 2*inset}
+			if inner.W < 1 {
+				inner.W = 1
+			}
+			if inner.H < 1 {
+				inner.H = 1
+			}
+			d.FillRect(inner, fill)
+		} else {
+			d.FillRect(r, fill)
+		}
+		if tile.Cover != nil {
+			d.FillRect(inner, letterboxFill(fill, th))
+			paintCover(d, tile.Cover, inner)
+		} else {
+			paintPlaceholder(d, inner, tile.Name, fill, th, tile.CoverKind == CoverLoading)
+		}
+		if focused {
+			paintRectOutline(d, inner, 1, th.Highlight)
+		}
 	}
 }
 

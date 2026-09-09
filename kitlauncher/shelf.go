@@ -130,6 +130,7 @@ func (m *Model) applyFilter(keepID string) {
 	m.Shelf = normalizeShelf(m.Shelf)
 	m.Games = filterSearch(m.baseGames(), m.SearchQuery)
 	m.Focus = focusIndex(m.Games, keepID)
+	m.refreshSeries()
 	if m.DetailOpen && m.detailFromStrip {
 		if _, ok := m.stripGame(); !ok {
 			m.closeDetail()

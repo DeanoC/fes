@@ -14,6 +14,8 @@ const (
 	splitRowGap           = 2
 	splitHeroMetaMaxLines = 2
 	splitHeroCopyGap      = 6
+	splitSeriesCellH      = 40
+	splitSeriesCellWMax   = 72
 )
 
 // SplitLayout is the left list column and right hero column for a split
@@ -154,13 +156,14 @@ func (g Grid) splitHeroSlots() (cover, title, meta gfx.Rect) {
 			metaH = len(lines)*gfx.TextHeightWeight(th.BodyPx(), th.BodyWeight()) + splitHeroCopyGap
 		}
 	}
-	coverH := int(hero.H) - titleH - metaH - splitHeroCopyGap
+	seriesH := g.splitSeriesReserve()
+	coverH := int(hero.H) - titleH - metaH - splitHeroCopyGap - seriesH
 	if coverH < 48 {
 		coverH = int(hero.H) * 62 / 100
 		if coverH < 48 {
 			coverH = 48
 		}
-		remain := int(hero.H) - coverH - splitHeroCopyGap
+		remain := int(hero.H) - coverH - splitHeroCopyGap - seriesH
 		if remain < titleH {
 			titleH = remain
 			metaH = 0
@@ -225,4 +228,103 @@ func (g Grid) SplitHeroTitleOrigin() (x, y int, ok bool) {
 		return 0, 0, false
 	}
 	return int(title.X), int(title.Y), true
+}
+
+func (g Grid) splitSeriesVisible() int {
+	n := len(g.Series)
+	if n > StripMaxTiles {
+		n = StripMaxTiles
+	}
+	return n
+}
+
+func (g Grid) splitSeriesReserve() int {
+	if g.Kind != BrowseSplit || g.splitSeriesVisible() == 0 {
+		return 0
+	}
+	th := g.Theme.Complete()
+	labelH := gfx.TextHeightWeight(th.CaptionPx(), th.CaptionWeight()) + 2
+	if labelH < 12 {
+		labelH = 12
+	}
+	return labelH + splitSeriesCellH + splitHeroCopyGap
+}
+
+func (g Grid) splitSeriesOrigin(i int) (x, y int, ok bool) {
+	n := g.splitSeriesVisible()
+	if i < 0 || i >= n {
+		return 0, 0, false
+	}
+	_, hero := g.splitColumns()
+	if hero.W < 1 || hero.H < 1 {
+		return 0, 0, false
+	}
+	reserve := g.splitSeriesReserve()
+	if reserve < 1 {
+		return 0, 0, false
+	}
+	cellW := splitSeriesCellWMax
+	innerW := int(hero.W) - (n-1)*g.Gap
+	if n > 0 && innerW > 0 {
+		w := innerW / n
+		if w < cellW {
+			cellW = w
+		}
+	}
+	if cellW < 1 {
+		cellW = 1
+	}
+	x = int(hero.X) + i*(cellW+g.Gap)
+	y = int(hero.Y+hero.H) - splitSeriesCellH
+	return x, y, true
+}
+
+func (g Grid) splitSeriesTileRect(i int) (gfx.Rect, bool) {
+	x, y, ok := g.splitSeriesOrigin(i)
+	if !ok {
+		return gfx.Rect{}, false
+	}
+	n := g.splitSeriesVisible()
+	cellW := splitSeriesCellWMax
+	_, hero := g.splitColumns()
+	innerW := int(hero.W) - (n-1)*g.Gap
+	if n > 0 && innerW > 0 {
+		w := innerW / n
+		if w < cellW {
+			cellW = w
+		}
+	}
+	if cellW < 1 {
+		cellW = 1
+	}
+	return gfx.Rect{X: float32(x), Y: float32(y), W: float32(cellW), H: float32(splitSeriesCellH)}, true
+}
+
+// SplitSeriesHighlightSample is a pixel on the focused split-hero series tile.
+func (g Grid) SplitSeriesHighlightSample() (x, y int, ok bool) {
+	if !g.SeriesActive {
+		return 0, 0, false
+	}
+	r, ok := g.splitSeriesTileRect(g.SeriesFocus)
+	if !ok || r.W < 2 || r.H < 2 {
+		return 0, 0, false
+	}
+	return int(r.X + 1), int(r.Y + 1), true
+}
+
+func (g Grid) splitSeriesLabelOrigin() (x, y int, ok bool) {
+	r, ok := g.splitSeriesTileRect(0)
+	if !ok {
+		return 0, 0, false
+	}
+	th := g.Theme.Complete()
+	h := gfx.TextHeightWeight(th.CaptionPx(), th.CaptionWeight()) + 2
+	if h < 12 {
+		h = 12
+	}
+	y = int(r.Y) - h
+	if y < 0 {
+		y = 0
+	}
+	return int(r.X), y, true
 }

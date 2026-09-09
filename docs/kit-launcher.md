@@ -149,7 +149,13 @@ on East/B or Up and restores the same shelf and focus. A on the pane launches
 the focused title through the same session path as the grid. Shoulder L/R and
 D-pad L/R cycle presentation `screenshot_ids` when two or more handles are
 present; otherwise those controls do nothing in the pane (shelf cycling stays
-on the grid). When presentation `video_id` is present, the screenshot slot
+on the grid). When presentation `series`, `related` / `related_ids`, or
+`collection` admits at least one other loaded catalog title, a Series strip
+paints at the bottom of the pane. Down focuses it; L/R move; A opens that title's pane
+(and its system shelf when the mate lives elsewhere); B or Up return to the
+title. The row hides when no sibling exists. Split Right focuses the same
+mates in the hero; Left/B return to the list. Y and X stay layout and theme.
+When presentation `video_id` is present, the screenshot slot
 becomes a kit-safe motion preview: it auto-cycles screenshots then unique
 backdrop/cover posters every two seconds, paints a VIDEO badge, and captions
 the slot `preview` (or `preview N / M`). That path does not decode H.264 on
@@ -172,7 +178,9 @@ placeholder path as the grid. The wheel footer hint is
 keeps `A play | B detail | L/R | Y flow`; the strip footer is
 `A detail | B grid | L/R`; the pane footer is `A play | B back`
 (or `A play | B back | L/R shots` when screenshots can cycle, or
-`A play | B back | L/R preview` when a video preview can cycle). Shelves are `All` plus
+`A play | B back | L/R preview` when a video preview can cycle, plus
+`Down series` when mates exist; the focused series row is
+`A open | B title | L/R`). Shelves are `All` plus
 each system present in the loaded catalog. Changing shelf filters the browse page
 and keeps focus when that game is still visible; otherwise focus lands on the
 first launchable title. The last shelf is stored in `launcher.json` when that
@@ -311,10 +319,13 @@ paints admitted meta and wrapped description (and omits empty description),
 paints a VIDEO preview badge and `preview` caption when `video_id` is present
 (and keeps a neighbour still-only carousel without that badge),
 launches from the pane, holds attract while open, and re-runs attract (which
-re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-motion` moves
+re-runs cover, text, nav, and shelf). `fogcast-kit -selftest-series` paints
+series mates on the title pane, enters the row from Down, jumps with A, hides
+an empty row, enters split-hero mates from Right, keeps Y/X, and re-runs
+detail. `fogcast-kit -selftest-motion` moves
 focus, ticks a mid-pop, samples a gap pixel that the highlight ring grows
 into, confirms and samples a mid-pulse interior that is neither full flash
-nor the tile fill, and re-runs detail (which re-runs attract, cover, text,
+nor the tile fill, and re-runs series (which re-runs detail, attract, cover, text,
 nav, and shelf). `fogcast-kit -selftest-fpga` records a timed attract still/crossfade
 and sprite move through `gfx.NewFPGA` (FC2D software-replay, `IsStub` true,
 `HW=not-yet`) and, when `/dev/fb0` opens, Replays the stream onto linuxfb.

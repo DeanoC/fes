@@ -678,6 +678,14 @@ screenshot or video-preview slot keep their existing layout.
 A/South still launches from browse. The pane's A plays the
 focused title, East/B and Up return to the same shelf and focus, and
 shoulder or D-pad L/R cycle `screenshot_ids` (or preview stills) when two or more are present.
+When presentation `series`, `related` / `related_ids`, or `collection` names
+at least one other catalog title, a Series strip paints at the bottom of the
+pane (related IDs and collection membership first, then an in-catalog filter
+by the admitted series string). The row hides when no sibling exists. Down enters that strip;
+L/R move among tiles; A opens that title's pane (switching shelf when needed);
+B or Up return to the same title. Y and X stay layout/theme and do not steal
+the chord. Split Right enters the same mates in the hero when they exist;
+Left/B return to the list. The short split meta line still omits series.
 Meaningful scene cuts (detail open/close, attract show/hide, wheel
 enter/leave, Y layout, X pack, search OSK open/close) paint a short CGO-free overlay from the
 theme `transition` token through `host/tenfoot/anim`: Classic a curtain,
@@ -690,7 +698,8 @@ Clear Logo, or a `library_media` RoleLogo overlay that wins when present)
 paints on the detail title, grid label bar, and split list rows; tiles and titles without a
 logo keep the existing text labels. Split paints the focused cover and
 admitted short meta (platform, year, genre, studio, players, region) in the
-right column; it omits summary, series, last-played, and play-count there.
+right column; it omits summary, last-played, and play-count there. Series mates
+paint as a small hero strip when at least one sibling is in catalog.
 The kit prefetches
 `GET /api/v1/presentation/games/{id}` for the visible browse page and a cheap
 next window without blocking present; missing or failed lookups keep the placeholder.

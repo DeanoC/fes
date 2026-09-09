@@ -79,13 +79,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		load := !catalogLoaded || time.Since(lastCatalog) > 30*time.Second
 		loadAttract := !attractLoaded || time.Since(lastAttract) > attractIdleRefresh
 		detailID := ""
-		if m.DetailOpen {
-			if game, ok := m.focusedGame(); ok {
-				detailID = game.ID
-			}
-		} else if m.AttractActive {
+		if m.AttractActive && !m.DetailOpen {
 			if item, ok := m.currentAttractItem(); ok {
 				detailID = strings.TrimSpace(item.GameID)
+			}
+		} else if !m.WheelOpen {
+			if game, ok := m.seriesSubject(); ok {
+				detailID = game.ID
 			}
 		}
 		go func() {
@@ -226,10 +226,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					lastAttract = time.Now()
 				}
 				if o.haveDetail {
-					if m.DetailOpen {
-						m.ApplyPresentation(o.detailID, o.presentation)
-					} else if m.AttractActive {
+					if m.AttractActive && !m.DetailOpen {
 						m.ApplyAttractPresentation(o.detailID, o.presentation)
+					} else {
+						m.ApplyPresentation(o.detailID, o.presentation)
 					}
 				}
 			}

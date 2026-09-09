@@ -50,6 +50,7 @@ type Game struct {
 	PlayCount    int64    `json:"play_count,omitempty"`
 	LastPlayedAt int64    `json:"last_played_at,omitempty"`
 	Collections  []string `json:"collections,omitempty"`
+	Series       string   `json:"series,omitempty"`
 	Variants     []Game   `json:"variants,omitempty"`
 }
 
@@ -77,6 +78,10 @@ type PresentationInfo struct {
 	Completion        string   `json:"completion,omitempty"`
 	Portable          bool     `json:"portable,omitempty"`
 	ScreenshotIDs     []string `json:"screenshot_ids,omitempty"`
+	Series            string   `json:"series,omitempty"`
+	Related           []string `json:"related,omitempty"`
+	RelatedIDs        []string `json:"related_ids,omitempty"`
+	Collection        string   `json:"collection,omitempty"`
 }
 
 // PresentationAttribution is the provider label the public API returns with ready metadata.

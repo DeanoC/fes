@@ -130,6 +130,61 @@ func TestSplitTitleUsesThemeTitleRoleAndMetaBody(t *testing.T) {
 	}
 }
 
+func TestPaintSplitSeriesInHeroAndHideEmpty(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default().Complete()
+	tiles := []Tile{{Name: "SONIC", Color: gfx.RGB(40, 90, 200), Meta: "MEGADRIVE | 1991"}}
+	g := NewWithTiles(w, h, tiles)
+	g.Kind = BrowseSplit
+	ApplyTheme(&g, th)
+	g.Series = []Tile{
+		{Name: "SONIC 2", Color: gfx.RGB(200, 40, 40)},
+		{Name: "SONIC 3", Color: gfx.RGB(40, 180, 80)},
+	}
+	g.SeriesLabel = "Sonic the Hedgehog"
+	g.SeriesFocus = 0
+	g.SeriesActive = true
+	rec := gfx.NewRecorder()
+	Paint(rec, g)
+	var sawLabel bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic the Hedgehog" && c.SizePx == th.CaptionPx() {
+			sawLabel = true
+		}
+		if c.Op == "DebugText" {
+			t.Fatalf("split series DebugText")
+		}
+	}
+	if !sawLabel {
+		t.Fatalf("missing split series label ops=%v", rec.Ops())
+	}
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	Paint(d, g)
+	d.Present()
+	sx, sy, ok := g.SplitSeriesHighlightSample()
+	if !ok {
+		t.Fatal("split series highlight")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, th.Highlight.B, th.Highlight.G, th.Highlight.R, 0)
+	plain := NewWithTiles(w, h, tiles)
+	plain.Kind = BrowseSplit
+	ApplyTheme(&plain, th)
+	hideRec := gfx.NewRecorder()
+	Paint(hideRec, plain)
+	for _, c := range hideRec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic the Hedgehog" {
+			t.Fatalf("empty split painted series")
+		}
+	}
+}
+
 func TestSplitLogoReplacesListTextKeepsHeroTitle(t *testing.T) {
 	t.Parallel()
 	logo := image.NewRGBA(image.Rect(0, 0, 24, 8))

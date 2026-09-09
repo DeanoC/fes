@@ -438,6 +438,135 @@ func TestPaintDetailMarqueeStripLeavesCoverMetaAndVideo(t *testing.T) {
 	}
 }
 
+func TestPaintDetailSeriesStripAndHideEmpty(t *testing.T) {
+	t.Parallel()
+	th := theme.Default()
+	frame := DetailFrame{
+		Width: 640, Height: 480, Title: "Sonic", Hint: "A play | B back | Down series",
+		Theme: th, SeriesLabel: "Sonic the Hedgehog",
+		Series: []Tile{
+			{Name: "SONIC 2", Color: gfx.RGB(40, 90, 200)},
+			{Name: "SONIC 3", Color: gfx.RGB(40, 180, 80)},
+		},
+	}
+	rec := gfx.NewRecorder()
+	PaintDetail(rec, frame)
+	var sawLabel, sawSonic2 bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic the Hedgehog" && c.SizePx == th.Complete().CaptionPx() {
+			sawLabel = true
+		}
+		if c.Op == "DrawText" && strings.Contains(c.Text, "SONIC 2") {
+			sawSonic2 = true
+		}
+		if c.Op == "DebugText" {
+			t.Fatalf("series DebugText %+v", c)
+		}
+	}
+	if !sawLabel {
+		t.Fatalf("missing series label ops=%v", rec.Ops())
+	}
+	_ = sawSonic2
+	hidden := DetailFrame{Width: 640, Height: 480, Title: "Pong", Theme: th}
+	hideRec := gfx.NewRecorder()
+	PaintDetail(hideRec, hidden)
+	for _, c := range hideRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "Series" || c.Text == "Sonic the Hedgehog") {
+			t.Fatalf("hidden series painted %q", c.Text)
+		}
+	}
+	frame.SeriesActive = true
+	frame.SeriesFocus = 1
+	sx, sy, ok := DetailSeriesHighlightSample(frame)
+	if !ok {
+		t.Fatal("series highlight sample")
+	}
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintDetail(d, frame)
+	d.Present()
+	assertBGRX(t, dst, cfg, sx, sy, th.Complete().Highlight.B, th.Complete().Highlight.G, th.Complete().Highlight.R, 0)
+}
+
+func TestPaintDetailMarqueeTopSeriesBottom(t *testing.T) {
+	t.Parallel()
+	const w, h = 640, 480
+	th := theme.Default()
+	cover := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	marquee := image.NewRGBA(image.Rect(0, 0, 80, 12))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 8; x++ {
+			cover.Set(x, y, color.RGBA{R: 255, G: 32, B: 160, A: 255})
+		}
+	}
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 80; x++ {
+			marquee.Set(x, y, color.RGBA{R: 16, G: 200, B: 48, A: 255})
+		}
+	}
+	frame := DetailFrame{
+		Width: w, Height: h, Header: "FOGCAST", Title: "Sonic",
+		Meta: "MEGADRIVE", Hint: "A play | B back | Down series",
+		Cover: cover, CoverKind: CoverPresent, Marquee: marquee,
+		Theme: th, SeriesLabel: "Sonic the Hedgehog",
+		Series: []Tile{
+			{Name: "SONIC 2", Color: gfx.RGB(40, 90, 200)},
+			{Name: "SONIC 3", Color: gfx.RGB(40, 180, 80)},
+		},
+		SeriesActive: true, SeriesFocus: 0,
+	}
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	PaintDetail(d, frame)
+	d.Present()
+	mx, my, ok := DetailMarqueeSample(w, h, th, marquee)
+	if !ok {
+		t.Fatal("marquee sample")
+	}
+	assertBGRX(t, dst, cfg, mx, my, 48, 200, 16, 0)
+	cx, cy, ok := DetailCoverSampleFor(w, h, th, frame)
+	if !ok {
+		t.Fatal("cover sample")
+	}
+	assertBGRX(t, dst, cfg, cx, cy, 160, 32, 255, 0)
+	sx, sy, ok := DetailSeriesHighlightSample(frame)
+	if !ok {
+		t.Fatal("series sample")
+	}
+	assertBGRX(t, dst, cfg, sx, sy, th.Complete().Highlight.B, th.Complete().Highlight.G, th.Complete().Highlight.R, 0)
+	if cy <= my {
+		t.Fatalf("cover y=%d did not sit below marquee y=%d", cy, my)
+	}
+	if sy <= cy {
+		t.Fatalf("series y=%d did not sit below cover y=%d", sy, cy)
+	}
+	if sy <= my {
+		t.Fatalf("series y=%d did not sit below marquee y=%d", sy, my)
+	}
+	rec := gfx.NewRecorder()
+	PaintDetail(rec, frame)
+	var sawSeries bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic the Hedgehog" && c.SizePx == th.Complete().CaptionPx() {
+			sawSeries = true
+		}
+	}
+	if !sawSeries {
+		t.Fatalf("missing series label ops=%v", rec.Ops())
+	}
+}
+
 func descriptionCopy(rec *gfx.Recorder, th theme.Theme) string {
 	var b strings.Builder
 	for _, c := range rec.Calls {

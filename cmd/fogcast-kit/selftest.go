@@ -156,6 +156,17 @@ func runAttractSelftest(fbPath string, th theme.Theme) error {
 	return err
 }
 
+func runSeriesSelftest(fbPath string, th theme.Theme) error {
+	d, err := gfx.OpenLinuxFB(fbPath)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	report, err := exerciseSeriesGrid(d, th)
+	fmt.Print(report)
+	return err
+}
+
 func runDetailSelftest(fbPath string, th theme.Theme) error {
 	d, err := gfx.OpenLinuxFB(fbPath)
 	if err != nil {
@@ -2069,12 +2080,12 @@ func exerciseMotionGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 		return b.String(), fmt.Errorf("confirm-mid amount %v", g.ConfirmPulseAmount())
 	}
 
-	detail, err := exerciseDetailGrid(d, th)
-	b.WriteString(detail)
+	series, err := exerciseSeriesGrid(d, th)
+	b.WriteString(series)
 	if err != nil {
 		return b.String(), err
 	}
-	fmt.Fprintf(&b, "selftest-motion PASS pop=1 confirm=1 nested-detail=1\n")
+	fmt.Fprintf(&b, "selftest-motion PASS pop=1 confirm=1 nested-series=1\n")
 	return b.String(), nil
 }
 
@@ -2566,6 +2577,143 @@ func textImagesDiffer(a, b *image.RGBA) bool {
 		}
 	}
 	return false
+}
+
+func seriesSelftestGames() []tenfoot.Game {
+	return []tenfoot.Game{
+		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", Launchable: true},
+		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", Launchable: true},
+		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+	}
+}
+
+func exerciseSeriesGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
+	th = th.Complete()
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	m.SetCatalog(seriesSelftestGames())
+	cfg := d.Config()
+	var b strings.Builder
+	press(&m, "b")
+	if !m.DetailOpen {
+		return b.String(), fmt.Errorf("open detail")
+	}
+	m.ApplyPresentation("sonic1", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	})
+	if len(m.Series) != 2 {
+		return b.String(), fmt.Errorf("mates %d", len(m.Series))
+	}
+	frame := modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	fbgrid.PaintDetail(d, frame)
+	d.Present()
+	rec := gfx.NewRecorder()
+	fbgrid.PaintDetail(rec, frame)
+	var sawLabel bool
+	for _, c := range rec.Calls {
+		if c.Op == "DrawText" && c.Text == "Sonic the Hedgehog" && c.SizePx == th.CaptionPx() {
+			sawLabel = true
+		}
+		if c.Op == "DebugText" {
+			return b.String(), fmt.Errorf("series DebugText")
+		}
+	}
+	if !sawLabel {
+		return b.String(), fmt.Errorf("missing series label ops=%v", rec.Ops())
+	}
+	fmt.Fprintf(&b, "series-idle n=%d label=%q footer=%q\n", len(m.Series), frame.SeriesLabel, frame.Hint)
+
+	press(&m, "dpad-down")
+	if !m.SeriesActive || m.SeriesFocus != 0 {
+		return b.String(), fmt.Errorf("enter series active=%v focus=%d", m.SeriesActive, m.SeriesFocus)
+	}
+	frame = modelDetailFrame(m, nil, nil, th, cfg.Width, cfg.Height)
+	fbgrid.PaintDetail(d, frame)
+	d.Present()
+	sx, sy, ok := fbgrid.DetailSeriesHighlightSample(frame)
+	if !ok {
+		return b.String(), fmt.Errorf("series highlight")
+	}
+	sB, sG, sR, sX, err := gfx.SampleBGRX(d.Destination(), cfg, sx, sy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "enter-series focus=%d highlight=(%d,%d) bgrx=%d,%d,%d,%d footer=%q\n",
+		m.SeriesFocus, sx, sy, sB, sG, sR, sX, frame.Hint)
+	if sB != th.Highlight.B || sG != th.Highlight.G || sR != th.Highlight.R || sX != 0 {
+		return b.String(), fmt.Errorf("series highlight bgrx %d,%d,%d,%d", sB, sG, sR, sX)
+	}
+
+	press(&m, "dpad-right")
+	if m.SeriesFocus != 1 {
+		return b.String(), fmt.Errorf("series right %d", m.SeriesFocus)
+	}
+	press(&m, "a")
+	game, ok := m.FocusedGame()
+	if !ok || game.ID != "sonic3" || !m.DetailOpen || m.SeriesActive {
+		return b.String(), fmt.Errorf("jump id=%s open=%v series=%v", game.ID, m.DetailOpen, m.SeriesActive)
+	}
+	fmt.Fprintf(&b, "series-jump id=%s shelf=%s\n", game.ID, m.Shelf)
+	press(&m, "b")
+	if m.DetailOpen || m.Games[m.Focus].ID != "sonic3" {
+		return b.String(), fmt.Errorf("back browse open=%v id=%s", m.DetailOpen, focusedSelftestID(m))
+	}
+
+	alone := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
+	alone.SetCatalog([]tenfoot.Game{{ID: "pong", Title: "Pong", System: "pong", Launchable: true}})
+	press(&alone, "b")
+	alone.ApplyPresentation("pong", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{Series: "Pong"},
+	})
+	if len(alone.Series) != 0 {
+		return b.String(), fmt.Errorf("alone mates %d", len(alone.Series))
+	}
+	hide := modelDetailFrame(alone, nil, nil, th, cfg.Width, cfg.Height)
+	hideRec := gfx.NewRecorder()
+	fbgrid.PaintDetail(hideRec, hide)
+	for _, c := range hideRec.Calls {
+		if c.Op == "DrawText" && (c.Text == "Series" || c.Text == "Pong") && c.SizePx == th.CaptionPx() {
+			if c.Text == "Series" {
+				return b.String(), fmt.Errorf("hidden series painted")
+			}
+		}
+	}
+	fmt.Fprintf(&b, "hide-empty n=%d\n", len(alone.Series))
+
+	split := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Browse: fbgrid.BrowseSplit}
+	split.SetCatalog(seriesSelftestGames())
+	split.ApplyPresentation("sonic1", tenfoot.Presentation{
+		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	})
+	press(&split, "dpad-right")
+	if !split.SeriesActive || split.Focus != 0 {
+		return b.String(), fmt.Errorf("split right series=%v focus=%d", split.SeriesActive, split.Focus)
+	}
+	g := paintModel(d, split, th)
+	hx, hy, ok := g.SplitSeriesHighlightSample()
+	if !ok {
+		return b.String(), fmt.Errorf("split series highlight")
+	}
+	hB, hG, hR, hX, err := gfx.SampleBGRX(d.Destination(), cfg, hx, hy)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "split-series highlight=(%d,%d) bgrx=%d,%d,%d,%d\n", hx, hy, hB, hG, hR, hX)
+	if hB != th.Highlight.B || hG != th.Highlight.G || hR != th.Highlight.R || hX != 0 {
+		return b.String(), fmt.Errorf("split series bgrx %d,%d,%d,%d", hB, hG, hR, hX)
+	}
+	press(&split, "y")
+	if split.Browse != fbgrid.BrowseGrid || split.SeriesActive {
+		return b.String(), fmt.Errorf("Y stole split series browse=%s series=%v", split.Browse, split.SeriesActive)
+	}
+
+	detail, err := exerciseDetailGrid(d, th)
+	b.WriteString(detail)
+	if err != nil {
+		return b.String(), err
+	}
+	fmt.Fprintf(&b, "selftest-series PASS enter=1 nav=1 jump=1 hide=1 split=1 nested-detail=1\n")
+	return b.String(), nil
 }
 
 func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {

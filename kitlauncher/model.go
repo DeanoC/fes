@@ -50,6 +50,10 @@ type Model struct {
 	StripActive                                       bool
 	Recents                                           []tenfoot.Game
 	detailFromStrip                                   bool
+	Series                                            []tenfoot.Game
+	SeriesLabel                                       string
+	SeriesFocus                                       int
+	SeriesActive                                      bool
 	Browse                                            fbgrid.BrowseKind
 	Pack                                              string
 	SearchOpen                                        bool
@@ -93,6 +97,9 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			return ""
 		}
 		return m.inputWheel(e, dx, dy, now)
+	}
+	if m.SeriesActive {
+		return m.inputSeriesBrowse(e, dx, dy, now)
 	}
 	if significantPad(e, dx, dy) {
 		m.noteActivity(now)
@@ -149,7 +156,12 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 			m.openDetail(now)
 			return ""
 		}
+		if dx > 0 && next == m.Focus && m.Browse == fbgrid.BrowseSplit && len(m.Series) > 0 {
+			m.enterSeries()
+			return ""
+		}
 		m.Focus = next
+		m.refreshSeries()
 	}
 	return ""
 }
