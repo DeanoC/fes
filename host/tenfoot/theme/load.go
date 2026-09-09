@@ -37,6 +37,8 @@ type fileTheme struct {
 	VignetteA         *int              `json:"vignette_alpha" toml:"vignette_alpha"`
 	Bezel             string            `json:"bezel" toml:"bezel"`
 	BezelWidth        int               `json:"bezel_width" toml:"bezel_width"`
+	Cabinet           string            `json:"cabinet" toml:"cabinet"`
+	CabinetWidth      int               `json:"cabinet_width" toml:"cabinet_width"`
 	Transition        string            `json:"transition" toml:"transition"`
 	Pad               int               `json:"pad" toml:"pad"`
 	Gap               int               `json:"gap" toml:"gap"`
@@ -126,6 +128,7 @@ func (raw fileTheme) theme() (Theme, error) {
 		Name:            strings.TrimSpace(raw.Name),
 		CoverFrameWidth: raw.CoverFrameWidth,
 		BezelWidth:      raw.BezelWidth,
+		CabinetWidth:    raw.CabinetWidth,
 		Pad:             raw.Pad,
 		Gap:             raw.Gap,
 		Border:          raw.Border,
@@ -211,6 +214,9 @@ func (raw fileTheme) theme() (Theme, error) {
 		return Theme{}, err
 	}
 	if t.Bezel, err = parseHex(raw.Bezel); err != nil {
+		return Theme{}, err
+	}
+	if t.Cabinet, err = parseHex(raw.Cabinet); err != nil {
 		return Theme{}, err
 	}
 	if len(raw.Systems) > 0 {

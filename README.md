@@ -172,7 +172,13 @@ drawn as an empty box. Cells show host cover art when a catalog
 `Game.Cover` or LaunchBox/IGDB presentation cover handle is available,
 Catmull–Rom downscaled at decode, with a theme-tinted
 placeholder (lettermark when missing, a distinct panel while loading) instead of
-a flat system fill. Presentation `logo_id` (LaunchBox Clear Logo, or a
+a flat system fill. The focused browse tile, split hero, and title-detail
+cover prefer presentation `box3d_id` (LaunchBox Box-3D, Cart-3D, or Box-Spine,
+or a `library_media` RoleBox3D overlay that wins when present). Missing 3D art
+uses a cheap CPU perspective of the 2D cover; missing both hides the 3D look
+and keeps today's placeholder. Unfocused tiles stay 2D covers. Neon and Sofa
+Dim paint a thin theme-driven cabinet/bezel around that focused art; Classic
+leaves the extra chrome off. Presentation `logo_id` (LaunchBox Clear Logo, or a
 `library_media` RoleLogo overlay) paints on the detail title and grid label
 bar; missing logos keep the existing bold/regular text labels. The visible page (12 on the grid, 5 around coverflow focus, 18 on the wall, 8 around split focus)
 and a cheap next window prefetch those

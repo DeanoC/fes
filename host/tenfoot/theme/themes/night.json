@@ -17,6 +17,8 @@
   "vignette_alpha": 128,
   "bezel": "#3db8ff",
   "bezel_width": 2,
+  "cabinet": "#081018",
+  "cabinet_width": 6,
   "transition": "wipe",
   "pad": 16,
   "gap": 8,

@@ -88,6 +88,25 @@ func TestLogoHandleAndCollectLogoHandles(t *testing.T) {
 	if got := CollectLogoHandles(games, 0, len(games), nil); got != nil {
 		t.Fatalf("nil presentation = %#v", got)
 	}
+	box := strings.Repeat("99", 32)
+	if got := Box3DHandle(Presentation{Presentation: &PresentationInfo{Box3DID: box}}); got != box {
+		t.Fatalf("box3d = %q", got)
+	}
+	if got := Box3DHandle(Presentation{Presentation: &PresentationInfo{CoverArtworkID: strings.Repeat("11", 32)}}); got != "" {
+		t.Fatalf("cover-only box3d = %q", got)
+	}
+	got = CollectBox3DHandles(games, 0, len(games), func(id string) Presentation {
+		if id == "sonic" {
+			return Presentation{Presentation: &PresentationInfo{Box3DID: box}}
+		}
+		if id == "mario" {
+			return Presentation{Presentation: &PresentationInfo{Box3DID: other}}
+		}
+		return pres[id]
+	})
+	if len(got) != 2 || got[0] != box || got[1] != other {
+		t.Fatalf("box3d handles = %#v", got)
+	}
 	backdrop := strings.Repeat("ef", 32)
 	if got := BackdropHandle(Presentation{Presentation: &PresentationInfo{BackdropArtworkID: backdrop}}); got != backdrop {
 		t.Fatalf("backdrop = %q", got)

@@ -63,6 +63,8 @@ type launchBoxIndexedGame struct {
 	logoType    string
 	marquee     string
 	marqueeType string
+	box3d       string
+	box3dType   string
 	system      protocol.System
 }
 
@@ -182,6 +184,11 @@ func LoadLaunchBoxCatalog(reader io.Reader) (*LaunchBoxCatalog, error) {
 			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkMarquee, ID: handle})
 			catalog.covers[handle] = game.marquee
 		}
+		if game.box3d != "" {
+			handle := launchBoxArtworkHandle(game.box3d)
+			candidate.Artwork = append(candidate.Artwork, ArtworkRef{Role: ArtworkBox3D, ID: handle})
+			catalog.covers[handle] = game.box3d
+		}
 		catalog.candidates[game.system] = append(catalog.candidates[game.system], candidate)
 	}
 	return catalog, nil
@@ -284,6 +291,12 @@ func (b *launchBoxCatalogBatch) putLaunchBoxRecord(record launchBoxRecord) error
 				current.marqueeType = record.image.typeName
 			}
 		}
+		if rank := validLaunchBoxImageTypeRank("box3d", record.image.typeName); rank >= 0 {
+			if current.box3d == "" || rank < validLaunchBoxImageTypeRank("box3d", current.box3dType) {
+				current.box3d = record.image.fileName
+				current.box3dType = record.image.typeName
+			}
+		}
 	}
 	return nil
 }
@@ -320,7 +333,7 @@ type cachedLaunchBoxCover struct {
 	body []byte
 }
 
-// NewLaunchBoxRuntime serves catalog text and official covers, logos, and marquees.
+// NewLaunchBoxRuntime serves catalog text and official covers, logos, marquees, and 3D box/cart art.
 func NewLaunchBoxRuntime(catalog *LaunchBoxCatalog, client *http.Client) Runtime {
 	return newLaunchBoxCatalogRuntime(catalog, client, "")
 }
@@ -391,6 +404,10 @@ func (r *launchBoxCatalogRuntime) Lookup(_ context.Context, input LookupInput) (
 		case ArtworkMarquee:
 			if result.Presentation.MarqueeArtworkID == "" {
 				result.Presentation.MarqueeArtworkID = art.ID
+			}
+		case ArtworkBox3D:
+			if result.Presentation.Box3DArtworkID == "" {
+				result.Presentation.Box3DArtworkID = art.ID
 			}
 		}
 	}

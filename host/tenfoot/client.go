@@ -68,6 +68,7 @@ type PresentationInfo struct {
 	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
 	LogoID            string   `json:"logo_id,omitempty"`
 	MarqueeID         string   `json:"marquee_id,omitempty"`
+	Box3DID           string   `json:"box3d_id,omitempty"`
 	VideoID           string   `json:"video_id,omitempty"`
 	Summary           string   `json:"summary"`
 	Year              string   `json:"year"`
@@ -711,6 +712,14 @@ func MarqueeHandle(presentation Presentation) string {
 		return ""
 	}
 	return normalizeHandle(presentation.Presentation.MarqueeID)
+}
+
+// Box3DHandle returns a 64-hex 3D box/cart/spine handle from presentation.
+func Box3DHandle(presentation Presentation) string {
+	if presentation.Presentation == nil {
+		return ""
+	}
+	return normalizeHandle(presentation.Presentation.Box3DID)
 }
 
 // AttractMarqueeHandle prefers presentation marquee_id, then the attract row.

@@ -281,6 +281,42 @@ func TestLaunchBoxCatalogSelectsClearLogoHandle(t *testing.T) {
 	}
 }
 
+func TestLaunchBoxCatalogSelectsBox3DOverCartAndSpine(t *testing.T) {
+	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
+		`<Game><DatabaseID>42</DatabaseID><Name>Sonic the Hedgehog</Name>` +
+		`<Platform>Sega Genesis</Platform></Game>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>spine_42.png</FileName>` +
+		`<Type>Box - Spine</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>cart_42.png</FileName>` +
+		`<Type>Cart - 3D</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>box3d_42.png</FileName>` +
+		`<Type>Box - 3D</Type></GameImage>` +
+		`<GameImage><DatabaseID>42</DatabaseID><FileName>cover_42.jpg</FileName>` +
+		`<Type>Box - Front</Type></GameImage>` +
+		`</LaunchBox>`
+	catalog, err := LoadLaunchBoxCatalog(strings.NewReader(xml))
+	if err != nil {
+		t.Fatalf("LoadLaunchBoxCatalog: %v", err)
+	}
+	runtime := NewLaunchBoxRuntime(catalog, nil)
+	t.Cleanup(func() { _ = runtime.Close() })
+	result, err := runtime.Lookup(context.Background(), LookupInput{Title: "Sonic the Hedgehog", System: protocol.SystemMegaDrive})
+	if err != nil {
+		t.Fatalf("Lookup: %v", err)
+	}
+	wantBox := launchBoxArtworkHandle("box3d_42.png")
+	wantCover := launchBoxArtworkHandle("cover_42.jpg")
+	if result.Presentation.Box3DArtworkID != wantBox {
+		t.Fatalf("box3d = %q want %q", result.Presentation.Box3DArtworkID, wantBox)
+	}
+	if result.Presentation.CoverArtworkID != wantCover {
+		t.Fatalf("cover = %q want %q", result.Presentation.CoverArtworkID, wantCover)
+	}
+	if _, ok := catalog.covers[wantBox]; !ok {
+		t.Fatal("box3d filename missing from artwork map")
+	}
+}
+
 func TestLaunchBoxCatalogPrefersArcadeMarqueeOverBanner(t *testing.T) {
 	xml := `<?xml version="1.0" standalone="yes"?><LaunchBox>` +
 		`<Game><DatabaseID>7</DatabaseID><Name>OutRun</Name>` +

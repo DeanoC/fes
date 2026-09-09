@@ -22,6 +22,33 @@ func TestValidLaunchBoxImageTypeAdmitsClearLogo(t *testing.T) {
 	}
 }
 
+func TestValidLaunchBoxImageTypeAdmitsBox3DCartAndSpine(t *testing.T) {
+	if !validLaunchBoxImageType("Box - 3D") {
+		t.Fatal("Box - 3D rejected")
+	}
+	if !validLaunchBoxImageType("Cart - 3D") {
+		t.Fatal("Cart - 3D rejected")
+	}
+	if !validLaunchBoxImageType("Box - Spine") {
+		t.Fatal("Box - Spine rejected")
+	}
+	if validLaunchBoxImageTypeRank("box3d", "Box - 3D") != 0 {
+		t.Fatalf("Box - 3D rank = %d", validLaunchBoxImageTypeRank("box3d", "Box - 3D"))
+	}
+	if validLaunchBoxImageTypeRank("box3d", "Cart - 3D") != 1 {
+		t.Fatalf("Cart - 3D rank = %d", validLaunchBoxImageTypeRank("box3d", "Cart - 3D"))
+	}
+	if validLaunchBoxImageTypeRank("box3d", "Box - Spine") != 2 {
+		t.Fatalf("Box - Spine rank = %d", validLaunchBoxImageTypeRank("box3d", "Box - Spine"))
+	}
+	if validLaunchBoxImageTypeRank("cover", "Box - 3D") >= 0 {
+		t.Fatal("Box - 3D ranked as cover")
+	}
+	if validLaunchBoxImageType("Box - Back") {
+		t.Fatal("Box - Back admitted")
+	}
+}
+
 func TestValidLaunchBoxImageTypeAdmitsBannerAndArcadeMarquee(t *testing.T) {
 	if !validLaunchBoxImageType("Banner") {
 		t.Fatal("Banner rejected")

@@ -20,12 +20,14 @@ type DetailFrame struct {
 	Hint          string
 	Cover         *image.RGBA
 	CoverKind     CoverKind
-	Logo          *image.RGBA
-	Color         gfx.Color
-	Shot          *image.RGBA
-	ShotCaption   string
-	VideoBadge    bool
-	Badges        []Badge
+	// Box is optional 3D box/cart art for the hero. Paint prefers it over Cover.
+	Box         *image.RGBA
+	Logo        *image.RGBA
+	Color       gfx.Color
+	Shot        *image.RGBA
+	ShotCaption string
+	VideoBadge  bool
+	Badges      []Badge
 	// Marquee is optional banner/marquee strip art. Nil hides the strip.
 	Marquee *image.RGBA
 	// Atmosphere is optional fanart behind chrome. When nil, PaintDetail
@@ -95,6 +97,7 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		fill = th.SystemColor("")
 	}
 	inner := cover
+	paintFocusCabinet(d, cover, th)
 	if th.CoverFrameWidth > 0 && inner.W > float32(2*th.CoverFrameWidth) && inner.H > float32(2*th.CoverFrameWidth) {
 		d.FillRect(inner, th.CoverFrame)
 		fw := float32(th.CoverFrameWidth)
@@ -105,9 +108,9 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 			H: inner.H - 2*fw,
 		}
 	}
-	if f.Cover != nil {
+	if art := heroBoxArt(f.Box, f.Cover); art != nil {
 		d.FillRect(inner, letterboxFill(fill, th))
-		paintCover(d, f.Cover, inner)
+		paintCover(d, art, inner)
 	} else {
 		paintPlaceholder(d, inner, f.Title, fill, th, f.CoverKind == CoverLoading)
 	}

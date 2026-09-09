@@ -434,6 +434,27 @@ func TestSceneFXStartsOnMeaningfulCutsAndHonorsNone(t *testing.T) {
 	}
 }
 
+func TestExerciseBoxesGridPaints3DFauxCabinetAndNestsSearch(t *testing.T) {
+	const w, h = 640, 480
+	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}
+	dst := make([]byte, cfg.Height*cfg.Stride)
+	d, err := gfx.NewLinuxFB(w, h, dst, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	report, err := exerciseBoxesGrid(d, theme.Default())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, report)
+	}
+	if !strings.Contains(report, "selftest-boxes PASS") || !strings.Contains(report, "selftest-search PASS") {
+		t.Fatalf("report %s", report)
+	}
+	if !strings.Contains(report, "focus-3d=") || !strings.Contains(report, "faux-cover=") || !strings.Contains(report, "hide-missing=1") || !strings.Contains(report, "cabinet arcade=") || !strings.Contains(report, "detail 3d=") || !strings.Contains(report, "split-hero 3d=") {
+		t.Fatalf("missing box evidence: %s", report)
+	}
+}
+
 func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
 	const w, h = 640, 480
 	cfg := gfx.FBConfig{Width: w, Height: h, Stride: 2560, BPP: 32}

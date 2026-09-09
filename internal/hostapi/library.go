@@ -631,7 +631,7 @@ func overlayPresentation(ctx context.Context, service Service, game catalog.Game
 	if err != nil {
 		return result
 	}
-	if media.Cover == "" && media.Backdrop == "" && media.Logo == "" && media.Marquee == "" && media.Video == "" && len(media.Screenshot) == 0 {
+	if media.Cover == "" && media.Backdrop == "" && media.Logo == "" && media.Marquee == "" && media.Box3D == "" && media.Video == "" && len(media.Screenshot) == 0 {
 		return result
 	}
 	payload := presentationPayload{}
@@ -650,10 +650,13 @@ func overlayPresentation(ctx context.Context, service Service, game catalog.Game
 	if media.Marquee != "" {
 		payload.MarqueeHandle = media.Marquee
 	}
+	if media.Box3D != "" {
+		payload.Box3DHandle = media.Box3D
+	}
 	payload.VideoHandle = media.Video
 	payload.ScreenshotHandles = media.Screenshot
 	result.Presentation = &payload
-	if strings.EqualFold(result.State, "offline") && (media.Cover != "" || media.Backdrop != "" || media.Logo != "" || media.Marquee != "") {
+	if strings.EqualFold(result.State, "offline") && (media.Cover != "" || media.Backdrop != "" || media.Logo != "" || media.Marquee != "" || media.Box3D != "") {
 		result.State = "ready"
 	}
 	return result
