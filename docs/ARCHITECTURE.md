@@ -314,7 +314,8 @@ The host also sets an optional `flight_id` UUID on those events: one new id
 per session launch, development-RBF or described-package load, and per
 orphaned stop. Related events in that flight (launch through active through
 stop of that session) repeat the same id. User stop of an active session
-reuses the launch id. The field is omitted until a flight has been allocated.
+reuses the launch id. A failed launch leaves the previous id in place. The
+field is omitted until a flight has been allocated.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, and the look name are local to the tenfoot process (CLI `-safe-area` /

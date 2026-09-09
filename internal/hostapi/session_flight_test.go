@@ -3,6 +3,7 @@ package hostapi_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -227,4 +228,76 @@ func TestDescribedPackageLaunchEventsIncludeFlightID(t *testing.T) {
 		t.Fatalf("package launch events = %s", body)
 	}
 	requireFlightID(t, launches[0].FlightID)
+}
+
+func TestFailedReplacementLaunchKeepsPreviousFlightID(t *testing.T) {
+	gameID := "megadrive-sonic-test"
+	system := protocol.SystemMegaDrive
+	service := &fakeService{
+		launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}},
+		status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system},
+		stopped: protocol.Status{State: protocol.StateIdle},
+	}
+	handler := hostapi.New(service)
+	if response := launchSession(t, handler, gameID); response.Code != http.StatusOK {
+		t.Fatalf("launch = %d %s", response.Code, response.Body.String())
+	}
+	_, events := decodeSessionEvents(t, handler)
+	launches := eventsNamed(events, "session.launch")
+	if len(launches) != 1 {
+		t.Fatalf("launch events = %d", len(launches))
+	}
+	requireFlightID(t, launches[0].FlightID)
+	previous := launches[0].FlightID
+
+	service.launchErr = errors.New("launch failed")
+	if response := launchSession(t, handler, "snes-other-test"); response.Code == http.StatusOK {
+		t.Fatalf("replacement launch succeeded: %s", response.Body.String())
+	}
+
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", status.Code, status.Body.String())
+	}
+	stop := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
+	if stop.Code != http.StatusOK {
+		t.Fatalf("stop = %d %s", stop.Code, stop.Body.String())
+	}
+
+	body, events := decodeSessionEvents(t, handler)
+	launches = eventsNamed(events, "session.launch")
+	if len(launches) != 1 {
+		t.Fatalf("failed replacement recorded a launch: %s", body)
+	}
+	statuses := eventsNamed(events, "session.status")
+	stops := eventsNamed(events, "session.stop")
+	if len(statuses) == 0 || len(stops) != 1 {
+		t.Fatalf("events = %s", body)
+	}
+	if statuses[len(statuses)-1].FlightID != previous {
+		t.Fatalf("status after failed replacement flight_id = %q, want %q body=%s", statuses[len(statuses)-1].FlightID, previous, body)
+	}
+	if stops[0].FlightID != previous {
+		t.Fatalf("stop flight_id = %q, want launch %q body=%s", stops[0].FlightID, previous, body)
+	}
+}
+
+func TestFailedFirstLaunchOmitsFlightIDOnLaterStatus(t *testing.T) {
+	handler := hostapi.New(&fakeService{launchErr: errors.New("launch failed")})
+	if response := launchSession(t, handler, "megadrive-sonic-test"); response.Code == http.StatusOK {
+		t.Fatalf("launch succeeded: %s", response.Body.String())
+	}
+	status := serve(t, handler, http.MethodGet, "/api/v1/session")
+	if status.Code != http.StatusOK {
+		t.Fatalf("status = %d %s", status.Code, status.Body.String())
+	}
+	body, events := decodeSessionEvents(t, handler)
+	if strings.Contains(body, `"flight_id"`) {
+		t.Fatalf("failed launch leaked flight_id: %s", body)
+	}
+	for _, event := range events {
+		if event.FlightID != "" {
+			t.Fatalf("event %#v included flight_id", event)
+		}
+	}
 }

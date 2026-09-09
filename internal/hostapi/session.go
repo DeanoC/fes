@@ -114,6 +114,12 @@ func (s *sessionCoordinator) beginFlight() {
 	s.mu.Unlock()
 }
 
+func (s *sessionCoordinator) restoreFlight(id string) {
+	s.mu.Lock()
+	s.flightID = id
+	s.mu.Unlock()
+}
+
 func (s *sessionCoordinator) ensureFlight() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -397,6 +403,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	}
 	s.mu.Lock()
 	previousExecution := s.execution
+	previousFlight := s.flightID
 	s.mu.Unlock()
 	if err := s.stopMediaBounded(previousExecution); err != nil {
 		return sessionResult{}, err
@@ -415,6 +422,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	if execution == fogcast.ExecutionHostOnly {
 		if err := s.startMedia(ctx, id, execution); err != nil {
 			s.restoreExecution(previousExecution)
+			s.restoreFlight(previousFlight)
 			return sessionResult{}, err
 		}
 	}
@@ -426,6 +434,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string) (sessionResu
 	if err != nil {
 		_ = s.stopMediaBounded(execution)
 		s.restoreExecution(previousExecution)
+		s.restoreFlight(previousFlight)
 		return sessionResult{}, err
 	}
 	result := s.publicSession(resp.Status, &progress)
