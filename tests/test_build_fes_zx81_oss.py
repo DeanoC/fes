@@ -52,6 +52,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
         self.assertIn("3", nextpnr)
+        self.assertIn("router1", nextpnr)
         self.assertIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
         self.assertIn("cores/fes-zx81/constraints-oss.qsf", joined)

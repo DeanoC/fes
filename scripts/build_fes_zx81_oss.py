@@ -189,6 +189,7 @@ def build_commands(
         "--sdc", SDC,
         "--freq", "74.25",
         "--seed", "3",
+        "--router", "router1",
         "--tmg-ripup",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",

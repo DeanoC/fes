@@ -1151,8 +1151,9 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-nextpnr `d8a96b58` folds unused M10K clocks off TCLK. Seed 3 uses
-`--tmg-ripup` so `clk_sys` meets 50 MHz (seed 1 routed at about 49.5 MHz). The recipe requires two `altera_pll` cells
+nextpnr `d8a96b58` folds unused M10K clocks off TCLK. Place-and-route
+uses `router1` and `--tmg-ripup` so `clk_sys` meets 50 MHz (router2
+seed 1 was about 44–49 MHz). The recipe requires two `altera_pll` cells
 (checked 50 MHz integer system clock and 74.25 MHz pixel). nextpnr cannot
 form the Quartus 52 MHz integer from its 300/320 MHz VCO tuples, so OSS
 keeps the /16 and /8 enables at 3.125/6.25 MHz. Also required: the HPS GP
