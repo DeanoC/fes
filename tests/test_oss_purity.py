@@ -119,6 +119,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/460_dsp_reg/rtl/top.v",
             "experiments/470_mlab_init/rtl/top.v",
             "experiments/500_m10k_be20/rtl/top.v",
+            "experiments/680_m10k_mix20be10/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -270,6 +271,20 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
         self.assertNotIn("-nobram", commands)
         self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_and_router1_for_mixed_byte_enable(self) -> None:
+        result = self._run("--print-commands", "--experiment", "680_m10k_mix20be10")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/680_m10k_mix20be10/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_mixbe_model.v", commands)
+        self.assertIn("--router router1", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")

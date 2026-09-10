@@ -42,6 +42,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `ram_style="m10k_mixed"`: independent 10/20/40-bit write and read ports on
   one block, including 40↔10. Place-and-route uses router1 for those
   experiments.
+- Cyclone V mixed-width M10K byte enables on a 512×20 write port with a
+  1024×10 read port. Locked Yosys does not infer that combined shape; the
+  experiment instantiates one `MISTRAL_M10K` with `CFG_BYTE_ENABLE=1`.
+  Place-and-route uses router1.
 - Cyclone V equal-width M10K true dual-port RAM through
   `ram_style="m10k_tdp"`: 1024×10 and 512×20 with two enabled read/write
   ports, independent clocks, and own-port NEW_DATA. Place-and-route uses
@@ -271,6 +275,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   PIN_W15, and `altiobuf_bidir` on PIN_V16 with a fabric GPI beat.
   Simulation uses digital buffer stand-ins; analog pad delay is not
   modelled. Run `make sim EXP=670_altiobuf` and `make oss EXP=670_altiobuf`;
+  no Quartus comparison lane is implemented.
+- `680_m10k_mix20be10`, mixed-width M10K SDP with 512-by-20 byte-masked writes
+  and 1024-by-10 reads on HPS GP. Locked Yosys does not infer that combined
+  shape, so the experiment instantiates one `MISTRAL_M10K`. Run
+  `make sim EXP=680_m10k_mix20be10` and `make oss EXP=680_m10k_mix20be10`;
   no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
