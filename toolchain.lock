@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
 order = 10
-rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr d990fb2d for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, and DDR bidirectional I/O registers; fixed reviewed local commit."
+rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 88cda8ae for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; fixed reviewed local commit."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "d990fb2d92931e3ec1fc5d35e5ca1342558fa248"
+commit = "88cda8aeedf1d6cd48406844a5e8dced415c6ae5"
 order = 30
-rationale = "Adds Cyclone V DDR bidirectional I/O registers (merged PR #46 d990fb2d: width-one altddio_bidir packs into MISTRAL_DDRBIDIR on the existing DQS16 GPIO geometry; missing data, inverted clocks, extra controls and used oe_out fail closed) stacked on 9020c5f4. Feature commit fe411b39. Preserves mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Adds Cyclone V M10K asynchronous clear (merged PR #49 88cda8ae: ACLR0/ACLR1 map to ACLR[0:1], omitted ports materialise as inactive PIN_0, fabric or inverted controls enable the matching output-clear register; address-clear enables stay disabled) on d990fb2d. Feature commit 71426e88. Preserves DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

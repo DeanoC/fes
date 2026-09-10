@@ -286,6 +286,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   analog GPIO-register delay is not modelled. Run `make sim EXP=690_ddr_bidir`
   and `make oss EXP=690_ddr_bidir`; no Quartus comparison lane is
   implemented.
+- `700_m10k_aclr`, independent-clock 512-by-20 M10K with fabric `ACLR1` on
+  GPO[5]. Locked Yosys omits that port, so OSS attaches it after synthesis.
+  Run `make sim EXP=700_m10k_aclr` and `make oss EXP=700_m10k_aclr`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
