@@ -50,7 +50,7 @@ executable_list=$(find "$build" -maxdepth 1 -type f \
 	exit 1
 }
 
-built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|fence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
+built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|backendfence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
 # The generated ProgressTag constant's C++ mangling ends in "sTagE".
 # Exclude only that exact generated symbol, retaining the historic-name guard.
 for output in "$archive" "$daemon"; do
@@ -72,6 +72,7 @@ core_data.o
 core_driver.o
 core_loader.o
 core_package.o
+diagnostic.o
 fes_gp.o
 fpga_manager.o
 framebuffer.o

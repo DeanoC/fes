@@ -68,7 +68,12 @@ contract. Package paths are accepted only below the production roots
 `/tmp/fogcast-development/core-packages` and
 `/usr/share/mister-runtime/core-packages`, with descriptor-relative no-follow
 traversal. The raw diagnostic path is
-`/tmp/fogcast-development/core.rbf`. Replacing a running game
+`/tmp/fogcast-development/core.rbf`. The daemon also keeps a bounded
+diagnostic event ring matching the FogCast mister-agent #206 JSON shape and
+publishes it to `/run/mister-runtime.events.json` for FIFO consume, artifact
+descriptor opens, FPGA-manager state, CORENAME leave-MENU, Main-process
+start/exit, and typed ownership/handoff/program/abi/recovery fences. Join
+fields `flight_id`, `lease_gen`, and `run_id` are copied only when present. Replacing a running game
 with a package first joins and
 neutralizes the old input session; an ambiguously failed outgoing-driver
 quiesce is not repeated during the one bounded Menu recovery.

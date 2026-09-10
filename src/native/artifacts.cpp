@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/artifacts.hpp"
+#include "native/diagnostic.hpp"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -70,8 +71,13 @@ Error PosixArtifactOpener::Open(const std::string& path,
 		return {ErrorCode::io_failed, "artifact path contains a NUL byte"};
 	errno = 0;
 	const int descriptor = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-	if (descriptor < 0) return IoError("open failed", path);
-	return ValidateAndAdopt(descriptor, path, maximum_size, output);
+	if (descriptor < 0) {
+		EmitCapFdOpen(false, path);
+		return IoError("open failed", path);
+	}
+	const Error error = ValidateAndAdopt(descriptor, path, maximum_size, output);
+	EmitCapFdOpen(error.ok(), path);
+	return error;
 }
 
 Error PosixArtifactOpener::OpenRelative(int directory_fd,
@@ -86,8 +92,13 @@ Error PosixArtifactOpener::OpenRelative(int directory_fd,
 	const int descriptor = openat(directory_fd, name.c_str(),
 		O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
 	const std::string path = directory_path + "/" + name;
-	if (descriptor < 0) return IoError("open failed", path);
-	return ValidateAndAdopt(descriptor, path, maximum_size, output);
+	if (descriptor < 0) {
+		EmitCapFdOpen(false, path);
+		return IoError("open failed", path);
+	}
+	const Error error = ValidateAndAdopt(descriptor, path, maximum_size, output);
+	EmitCapFdOpen(error.ok(), path);
+	return error;
 }
 
 Error PosixArtifactOpener::ValidateAndAdopt(int descriptor,

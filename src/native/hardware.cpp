@@ -8,6 +8,7 @@
 #include "native/core_package.hpp"
 #include "native/core_data.hpp"
 #include "native/core_loader.hpp"
+#include "native/diagnostic.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/input.hpp"
 #include "native/video.hpp"
@@ -41,6 +42,40 @@ Error ProgramError(Error error)
 	error.code = ErrorCode::program_failed;
 	if (error.message.empty()) error.message = "FPGA programming failed";
 	return WithPhase(std::move(error), "programming");
+}
+
+void ObserveIdentify(const std::string& expected, const CoreDriverResult& identified)
+{
+	if (identified.error.code == ErrorCode::core_mismatch) {
+		std::vector<DiagnosticField> detail;
+		detail.push_back(DiagnosticString("operation", "identity"));
+		detail.push_back(DiagnosticBool("ok", false));
+		if (!expected.empty())
+			detail.push_back(DiagnosticString("expected", expected));
+		if (!identified.observed_core.empty())
+			detail.push_back(DiagnosticString("observed", identified.observed_core));
+		else if (!identified.error.observed.empty())
+			detail.push_back(DiagnosticString("observed", identified.error.observed));
+		if (!identified.error.expected.empty() && expected.empty())
+			detail.push_back(DiagnosticString("expected", identified.error.expected));
+		EmitDiagnostic(kDiagnosticLayerRuntime, kDiagnosticKindFenceAbi, "error",
+			detail);
+		return;
+	}
+	if (identified.error.ok() && !identified.observed_core.empty())
+		EmitCoreNameChange(expected, identified.observed_core, true);
+}
+
+void ObserveProgram(const char* operation, const NativeResult& programmed)
+{
+	EmitFence(kDiagnosticKindFenceProgram,
+		programmed.error.ok() ? "ok" : "error", operation, programmed.error.ok());
+}
+
+void ObserveHandoff(const char* operation, const Error& error)
+{
+	EmitFence(kDiagnosticKindFenceHandoff, error.ok() ? "ok" : "error",
+		operation, error.ok());
 }
 
 Error CoreIoError(Error error, const char* phase = "transport")
@@ -256,13 +291,19 @@ HardwareResult NativeHardware::QuiesceForReplacement(const char* operation,
 	const VideoQuiesceResult video = game_video_.Quiesce(
 		Deadline(clock_, timeouts_.video_ms));
 	log_.Write({operation, system, core, "hdmi_quiesce", video.error});
-	if (!video.error.ok())
+	if (!video.error.ok()) {
+		ObserveHandoff(operation, video.error);
 		return {WithPhase(video.error, "quiesce"),
 			video.mutation_attempted, ""};
-	if (active_driver_ == nullptr) return {{}, video.mutation_attempted, ""};
+	}
+	if (active_driver_ == nullptr) {
+		ObserveHandoff(operation, {});
+		return {{}, video.mutation_attempted, ""};
+	}
 	const CoreDriverResult driver = active_driver_->Quiesce(active_context_,
 		Deadline(clock_, timeouts_.core_io_ms));
 	log_.Write({operation, system, core, "driver_quiesce", driver.error});
+	ObserveHandoff(operation, driver.error);
 	if (!driver.error.ok() && driver.mutation_attempted) ForgetActiveCore();
 	return {WithPhase(driver.error, "quiesce"),
 		video.mutation_attempted || driver.mutation_attempted,
@@ -558,6 +599,7 @@ HardwareResult NativeHardware::LoadCore(
 	}
 	const NativeResult programmed = fpga_.Program(admitted->opened_.payload,
 		admitted->profile_, Deadline(clock_, timeouts_.program_ms));
+	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 		if (programmed.mutation_attempted) ForgetActiveCore();
@@ -579,6 +621,7 @@ HardwareResult NativeHardware::LoadCore(
 	}
 	CoreDriverResult identified = admitted->driver_->Identify(
 		admitted->context_, Deadline(clock_, timeouts_.core_io_ms));
+	ObserveIdentify(admitted->context_.expected_core, identified);
 	if (!identified.error.ok()) {
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 		if (fes_gp && !identified.safe_to_quiesce)
@@ -675,6 +718,7 @@ HardwareResult NativeHardware::LoadIdle()
 	const NativeResult programmed = fpga_.Program(artifact,
 		ProgrammingProfile::mister_v1,
 		Deadline(clock_, timeouts_.program_ms));
+	ObserveProgram("start", programmed);
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"start", "", "", "program", error});
 	if (!error.ok()) {
@@ -746,6 +790,7 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 	const NativeResult programmed = fpga_.Program(artifacts.rbf,
 		ProgrammingProfile::mister_v1,
 		Deadline(clock_, timeouts_.program_ms));
+	ObserveProgram("launch", programmed);
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"launch", launch.system, launch.expected_core, "program", error});
 	if (!error.ok()) {
@@ -772,6 +817,7 @@ HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
 
 	CoreDriverResult identified = mister_driver_.Identify(driver_context,
 		core_deadline);
+	ObserveIdentify(launch.expected_core, identified);
 	error = identified.error;
 	if (!error.ok() && error.code != ErrorCode::core_mismatch)
 		error = CoreIoError(error, "transport");
@@ -875,6 +921,7 @@ HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
 	const NativeResult programmed = fpga_.Program(artifact,
 		profile,
 		Deadline(clock_, timeouts_.program_ms));
+	ObserveProgram("load_development_rbf", programmed);
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
 	log_.Write({"load_development_rbf", "", "", "program", error});
 	if (!error.ok()) {
@@ -896,6 +943,7 @@ HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
 	}
 	CoreDriverResult identified = driver->Identify(context,
 		Deadline(clock_, timeouts_.core_io_ms));
+	ObserveIdentify(context.expected_core, identified);
 	error = identified.error;
 	if (!error.ok() && error.code == ErrorCode::core_mismatch)
 		error = WithPhase(std::move(error), "identity");

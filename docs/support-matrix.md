@@ -34,6 +34,7 @@ fixtures verify software mechanics and do not establish system support.
 | Explicit programming profiles | containment-first `mister-v1`, `fes-gp-v1`, and `development-contained-v1` manager recipes | software: yes | hardware: pending |
 | Described-core persistence | FES Pong 1.0 settings/progress codec, production-factory data operations, atomic records, library restore/flush, CAS and explicit failed-save resume | software: yes | hardware: pending |
 | FES GP core driver | production bounded GPO/GPI identity and controls, fixed ADV7513-only video, normalized generation-bound input | software: yes | hardware: pending |
+| Target diagnostic event ring | FogCast #206 event shape for FIFO consume (including persistence mutation completion), named-cap/fd, fpga_manager, CORENAME, Main pid, and typed fences | software: yes | hardware: not applicable |
 
 Production native construction is available for the image-owned idle baseline,
 including a software-tested fixed menu-core 1280x720@60 video path. This idle

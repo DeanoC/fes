@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "capture_diagnostic.hpp"
 #include "native/artifacts.hpp"
 
 #include <assert.h>
@@ -75,6 +76,24 @@ void TestEmbeddedNulCannotSelectATruncatedPosixPath()
 	mister::native::Artifact artifact;
 	assert(opener.Open(deceptive, 0, &artifact).code == mister::ErrorCode::io_failed);
 	assert(artifact.fd() == -1);
+}
+
+void TestArtifactOpenEmitsCapFdEvents()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	TempDirectory temporary;
+	const std::string path = temporary.File("core.rbf", 4);
+	mister::native::PosixArtifactOpener opener;
+	mister::native::Artifact artifact;
+	assert(opener.Open("/definitely/missing/libmister", 0, &artifact).code ==
+		mister::ErrorCode::io_failed);
+	assert(opener.Open(path, 4, &artifact).ok());
+	assert(capture.Count("cap.fd.open") == 2);
+	const std::vector<mister::DiagnosticEvent> events = capture.events();
+	assert(mister_test::HasBool(events[0], "ok", false));
+	assert(mister_test::HasBool(events[1], "ok", true));
+	assert(mister_test::HasString(events[1], "path", path));
 }
 
 void TestAbsoluteAndRelativeOpenUseTheSameFileAdmission()
@@ -200,9 +219,10 @@ int main()
 	TestMissingDirectoryAndZeroLengthAreRejected();
 	TestOversizeRbfIsRejected();
 	TestEmbeddedNulCannotSelectATruncatedPosixPath();
+	TestArtifactOpenEmitsCapFdEvents();
 	TestAbsoluteAndRelativeOpenUseTheSameFileAdmission();
 	TestCompleteSetFailureDoesNotAssignOutput();
 	TestMultiFilePreflightRetainsAndClosesDescriptors();
-	puts("artifacts_test: 7 passed");
+	puts("artifacts_test: 8 passed");
 	return 0;
 }

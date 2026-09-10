@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "libmister-runtime/runtime.h"
+#include "native/diagnostic.hpp"
 
 #include <algorithm>
 #include <condition_variable>
@@ -21,6 +22,11 @@ Error Busy(const char* message)
 Error Invalid(const char* message)
 {
 	return {ErrorCode::invalid_request, message, "request"};
+}
+
+void EmitBusyFence(const char* operation)
+{
+	EmitFence(kDiagnosticKindFenceOwnership, "warn", operation, false);
 }
 
 Error IdleFailure(const Error& cause)
@@ -141,6 +147,7 @@ public:
 		}
 		if (rejected) {
 			log_.Write(rejection);
+			EmitBusyFence("start");
 			return rejection.error;
 		}
 		Log("start", "", "", "validate");
@@ -155,6 +162,7 @@ public:
 				busy_ = false;
 			}
 			Log("start", "", "", "failure", error);
+			EmitFence(kDiagnosticKindFenceRecovery, "error", "start", false);
 			return error;
 		}
 		{
@@ -164,6 +172,8 @@ public:
 		}
 		condition_.notify_all();
 		Log("start", "", "", "idle");
+		if (!result.observed_core.empty())
+			EmitCoreNameChange("MENU", result.observed_core, true);
 		return {};
 	}
 
@@ -205,6 +215,7 @@ public:
 		}
 		if (rejected) {
 			log_.Write(rejection);
+			EmitBusyFence("launch");
 			return rejection.error;
 		}
 
@@ -239,6 +250,13 @@ public:
 				"observed core does not match profile", "identity",
 				prepared.expected_core, result.observed_core};
 			result.mutation_attempted = true;
+			EmitDiagnostic(kDiagnosticLayerRuntime, kDiagnosticKindFenceAbi, "error",
+				{
+					DiagnosticString("operation", "launch"),
+					DiagnosticBool("ok", false),
+					DiagnosticString("expected", prepared.expected_core),
+					DiagnosticString("observed", result.observed_core),
+				});
 		}
 		if (result.error.ok()) {
 			{
@@ -284,6 +302,7 @@ public:
 		}
 		if (rejected) {
 			log_.Write(rejection);
+			EmitBusyFence("load_core");
 			return rejection.error;
 		}
 		if (!ValidAbsolutePath(directory) || !ValidPackageId(expected_package_id)) {
@@ -446,6 +465,7 @@ public:
 		}
 		if (rejected) {
 			log_.Write(rejection);
+			EmitBusyFence("load_development_rbf");
 			return rejection.error;
 		}
 		if (!ValidAbsolutePath(rbf)) {
@@ -520,6 +540,8 @@ public:
 		}
 		if (return_immediately) {
 			log_.Write(immediate);
+			if (immediate.error.code == ErrorCode::busy)
+				EmitBusyFence("stop");
 			return immediate.error;
 		}
 		const Error saved = hardware_.FlushSave();
@@ -543,6 +565,7 @@ public:
 				busy_ = false;
 			}
 			Log("stop", "", "", "failure", error);
+			EmitFence(kDiagnosticKindFenceRecovery, "error", "stop", false);
 			return error;
 		}
 		{
@@ -594,6 +617,7 @@ public:
 		}
 		condition_.notify_all();
 		Log(operation, system, core, "recovery", recovery);
+		EmitFence(kDiagnosticKindFenceRecovery, "error", operation.c_str(), false);
 		return recovery;
 	}
 
@@ -634,6 +658,7 @@ public:
 				busy_ = false;
 			}
 			condition_.notify_all();
+			EmitFence(kDiagnosticKindFenceRecovery, "ok", operation.c_str(), true);
 			return primary;
 		}
 		const Error idle_error = IdleFailure(cleanup.error);
@@ -645,6 +670,7 @@ public:
 		}
 		condition_.notify_all();
 		Log(operation, system, core, "cleanup", idle_error);
+		EmitFence(kDiagnosticKindFenceRecovery, "error", operation.c_str(), false);
 		return idle_error;
 	}
 
@@ -689,6 +715,7 @@ public:
 				}
 				condition_.notify_all();
 				Log("input_fault", system, core, "idle", fault.error);
+				EmitFence(kDiagnosticKindFenceRecovery, "ok", "input_fault", true);
 				continue;
 			}
 
@@ -701,6 +728,7 @@ public:
 			}
 			condition_.notify_all();
 			Log("input_fault", system, core, "cleanup", idle_error);
+			EmitFence(kDiagnosticKindFenceRecovery, "error", "input_fault", false);
 		}
 	}
 

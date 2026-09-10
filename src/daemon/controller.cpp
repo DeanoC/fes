@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "daemon/protocol.hpp"
+#include "native/diagnostic.hpp"
 
 namespace mister {
 namespace daemon {
@@ -29,6 +30,7 @@ std::string Controller::Handle(const std::string& line)
 		break;
 	case Operation::launch:
 		result = runtime_.LaunchGame(request.launch);
+		EmitFifoConsume("launch", result.ok());
 		break;
 	case Operation::inspect_core:
 		result = runtime_.InspectCore(request.package_path,
@@ -38,6 +40,7 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::load_library_core:
 		result =
 			runtime_.LoadLibraryCore(request.package_path, request.package_id, request.data_root);
+		EmitFifoConsume("load_library_core", result.ok());
 		break;
 	case Operation::inspect_core_data:
 		result = runtime_.InspectCoreData(
@@ -48,19 +51,23 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::update_core_settings:
 		result = runtime_.UpdateCoreSettings(request.package_path, request.package_id,
 			request.data_root, request.expected_revision, request.paddle_speed, &data);
+		EmitFifoConsume("update_core_settings", result.ok());
 		if (result.ok())
 			core_data = &data;
 		break;
 	case Operation::load_core:
 		result = runtime_.LoadCore(request.package_path, request.package_id);
+		EmitFifoConsume("load_core", result.ok());
 		break;
 	case Operation::load_development_rbf:
 		result = request.protocol == 2 ?
 			runtime_.LoadContainedDevelopmentRBF(request.rbf) :
 			runtime_.LoadDevelopmentRBF(request.rbf);
+		EmitFifoConsume("load_development_rbf", result.ok());
 		break;
 	case Operation::stop:
 		result = runtime_.Stop();
+		EmitFifoConsume("stop", result.ok());
 		break;
 	}
 	return Respond(request.protocol, result, inspected, core_data);

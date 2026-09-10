@@ -1,6 +1,7 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "capture_diagnostic.hpp"
 #include "capture_log.hpp"
 #include "fake_hardware.hpp"
 #include "libmister-runtime/runtime.h"
@@ -375,6 +376,22 @@ void TestBlockedLaunchPublishesStarting()
 	assert(status.system == "test_cart");
 	fixture.hardware.ReleaseLaunch();
 	launch.join();
+}
+
+void TestBusyAndMismatchEmitTypedFences()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	Fixture fixture;
+	Start(fixture);
+	assert(fixture.runtime.Start().code == ErrorCode::busy);
+	assert(capture.Count("fence.ownership") >= 1);
+	capture.Clear();
+	fixture.hardware.launch_result.observed_core = "WRONG";
+	fixture.hardware.launch_result.mutation_attempted = true;
+	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::core_mismatch);
+	assert(capture.Count("fence.abi") >= 1);
+	assert(capture.Count("fence.recovery") >= 1);
 }
 
 void TestConcurrentMutationReturnsBusyWithoutQueueing()
@@ -916,6 +933,7 @@ int main()
 	TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault();
 	TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
+	TestBusyAndMismatchEmitTypedFences();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
 	TestRejectedMutationLogCanReadStatusWithoutDeadlock();
 	TestStatusRemainsReadableDuringMutation();
@@ -946,6 +964,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 40 passed");
+	puts("runtime_test: 41 passed");
 	return 0;
 }
