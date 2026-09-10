@@ -112,9 +112,11 @@ sim-fes-pong:
 sim-fes-zx81:
 	@mkdir -p build/sim/fes-zx81-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-Wno-PINCONNECTEMPTY \
 		-Icores/fes-zx81/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp" \
-		cores/fes-zx81/rtl/fes_computer_gp.v "$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
+		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
+		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
 	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \

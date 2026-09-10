@@ -11,9 +11,9 @@ module fes_computer_gp (
     output wire [39:0]  keyboard,
     output reg          media_ready,
     output reg  [14:0]  media_size,
-    output wire [7:0]   media_byte0,
-    output wire [7:0]   media_byte1,
-    output wire [7:0]   media_byte2,
+    output reg  [7:0]   media_byte0,
+    output reg  [7:0]   media_byte1,
+    output reg  [7:0]   media_byte2,
     input  wire [13:0]  media_addr,
     output wire [7:0]   media_q
 );
@@ -42,7 +42,6 @@ module fes_computer_gp (
     integer row;
 
     reg [4:0] key_rows [0:7];
-    reg [7:0] media_bytes [0:16383];
     reg media_open;
     reg [14:0] media_ptr;
     reg [14:0] media_expected;
@@ -65,10 +64,31 @@ module fes_computer_gp (
 
     assign keyboard = {key_rows[7], key_rows[6], key_rows[5], key_rows[4],
                        key_rows[3], key_rows[2], key_rows[1], key_rows[0]};
-    assign media_byte0 = media_bytes[0];
-    assign media_byte1 = media_bytes[1];
-    assign media_byte2 = media_bytes[2];
-    assign media_q = media_bytes[media_addr];
+
+    wire media_cmd = (request_sync != acknowledged_toggle) &&
+                     (command_opcode == `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_DATA) &&
+                     media_open;
+    wire media_pair = media_cmd &&
+                      (command_index == `FES_SIMPLE_COMPUTER_MEDIA_DATA_PAIR_INDEX) &&
+                      ({1'b0, media_ptr} + 16'd2 <= {1'b0, media_expected});
+    wire media_tail = media_cmd &&
+                      (command_index == `FES_SIMPLE_COMPUTER_MEDIA_DATA_TAIL_INDEX) &&
+                      (command_argument[15:8] == 8'h00) &&
+                      ({1'b0, media_ptr} + 16'd1 <= {1'b0, media_expected});
+    wire media_we_a = media_pair | media_tail;
+    wire media_we_b = media_pair;
+
+    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384)) media_ram (
+        .clock(clk),
+        .address_a(media_we_a ? media_ptr[13:0] : media_addr),
+        .data_a(command_argument[7:0]),
+        .wren_a(media_we_a),
+        .q_a(media_q),
+        .address_b(media_ptr[13:0] + 14'd1),
+        .data_b(command_argument[15:8]),
+        .wren_b(media_we_b),
+        .q_b()
+    );
 
     function [15:0] identity_word;
         input [31:0] index;
@@ -131,6 +151,9 @@ module fes_computer_gp (
         media_ptr = 15'd0;
         media_expected = 15'd0;
         media_size = 15'd0;
+        media_byte0 = 8'h00;
+        media_byte1 = 8'h00;
+        media_byte2 = 8'h00;
         for (row = 0; row < 8; row = row + 1)
             key_rows[row] = KEYBOARD_NEUTRAL[4:0];
     end
@@ -195,8 +218,16 @@ module fes_computer_gp (
                         if ({1'b0, media_ptr} + 16'd2 > {1'b0, media_expected})
                             reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
                         else begin
-                            media_bytes[media_ptr[13:0]] <= command_argument[7:0];
-                            media_bytes[media_ptr[13:0] + 14'd1] <= command_argument[15:8];
+                            if (media_ptr[13:0] == 14'd0)
+                                media_byte0 <= command_argument[7:0];
+                            if (media_ptr[13:0] == 14'd0)
+                                media_byte1 <= command_argument[15:8];
+                            else if (media_ptr[13:0] == 14'd1)
+                                media_byte1 <= command_argument[7:0];
+                            if (media_ptr[13:0] == 14'd1)
+                                media_byte2 <= command_argument[15:8];
+                            else if (media_ptr[13:0] == 14'd2)
+                                media_byte2 <= command_argument[7:0];
                             media_ptr <= media_ptr + 15'd2;
                         end
                     end else if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_DATA_TAIL_INDEX) begin
@@ -205,7 +236,12 @@ module fes_computer_gp (
                         else if ({1'b0, media_ptr} + 16'd1 > {1'b0, media_expected})
                             reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
                         else begin
-                            media_bytes[media_ptr[13:0]] <= command_argument[7:0];
+                            if (media_ptr[13:0] == 14'd0)
+                                media_byte0 <= command_argument[7:0];
+                            if (media_ptr[13:0] == 14'd1)
+                                media_byte1 <= command_argument[7:0];
+                            if (media_ptr[13:0] == 14'd2)
+                                media_byte2 <= command_argument[7:0];
                             media_ptr <= media_ptr + 15'd1;
                         end
                     end else

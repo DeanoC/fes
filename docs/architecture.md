@@ -1115,10 +1115,11 @@ reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
 `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` match FES Pong. The Z80 is VHDL T80pa
 from ZX81_MiSTer Release 20260603; Verilator keeps TV80.
 
-The compile defines `QUARTUS=1`. ROM and 16 KB RAM instantiate `altsyncram`
-bidirectional dual-port with unregistered outputs and `zx8x.mif`; simulation
-keeps inferred combo-read RAM and `zx8x.hex`. The 720p capture buffer is a
-one-dimensional M10K array written on `clk_sys` and registered on `pixel_clk`.
+The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
+instantiate `altsyncram` bidirectional dual-port M10K with unregistered
+outputs; ROM init is `zx8x.mif`. Simulation keeps inferred combo-read RAM
+and `zx8x.hex`. The 720p capture buffer is a one-dimensional M10K array
+written on `clk_sys` and registered on `pixel_clk`.
 
 The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
 tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`

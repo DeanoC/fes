@@ -62,6 +62,7 @@ module zx81_dpram #(
         altsyncram_component.clock_enable_output_b = "BYPASS",
         altsyncram_component.intended_device_family = "Cyclone V",
         altsyncram_component.lpm_type = "altsyncram",
+        altsyncram_component.ram_block_type = "M10K",
         altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
         altsyncram_component.outdata_aclr_a = "NONE",
         altsyncram_component.outdata_aclr_b = "NONE",
