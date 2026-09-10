@@ -1,6 +1,6 @@
 //go:build sdl3
 
-// SDL window, event, gamepad, and text-input loop for the tenfoot launcher.
+// SDL window, event, gamepad, mouse, and text-input loop for the tenfoot launcher.
 // 2D draw, present, and texture upload go through gfx.Device (SDL3 backend).
 
 package tenfoot
@@ -20,7 +20,9 @@ enum {
 	FC_EV_AXIS,
 	FC_EV_PAD_ADDED,
 	FC_EV_PAD_REMOVED,
-	FC_EV_TEXT
+	FC_EV_TEXT,
+	FC_EV_MOUSE_MOVE,
+	FC_EV_MOUSE_BUTTON
 };
 
 typedef struct FogcastEvent {
@@ -29,6 +31,8 @@ typedef struct FogcastEvent {
 	int value;
 	int which;
 	int down;
+	int x;
+	int y;
 	char *text;
 } FogcastEvent;
 
@@ -37,10 +41,12 @@ void fogcast_update_pads(void) {
 	SDL_UpdateGamepads();
 }
 
-int fogcast_poll(FogcastEvent *out) {
+int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
 		out->text = NULL;
+		out->x = 0;
+		out->y = 0;
 		switch (e.type) {
 		case SDL_EVENT_QUIT:
 			out->kind = FC_EV_QUIT;
@@ -53,6 +59,25 @@ int fogcast_poll(FogcastEvent *out) {
 			out->kind = FC_EV_KEY;
 			out->code = (int)e.key.key;
 			out->down = e.key.down ? 1 : 0;
+			return 1;
+		case SDL_EVENT_MOUSE_MOTION:
+			if (renderer != NULL) {
+				SDL_ConvertEventToRenderCoordinates(renderer, &e);
+			}
+			out->kind = FC_EV_MOUSE_MOVE;
+			out->x = (int)e.motion.x;
+			out->y = (int)e.motion.y;
+			return 1;
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+			if (renderer != NULL) {
+				SDL_ConvertEventToRenderCoordinates(renderer, &e);
+			}
+			out->kind = FC_EV_MOUSE_BUTTON;
+			out->code = (int)e.button.button;
+			out->down = e.button.down ? 1 : 0;
+			out->x = (int)e.button.x;
+			out->y = (int)e.button.y;
 			return 1;
 		case SDL_EVENT_TEXT_INPUT:
 			out->kind = FC_EV_TEXT;
@@ -176,13 +201,15 @@ import (
 )
 
 const (
-	evQuit       = C.FC_EV_QUIT
-	evKey        = C.FC_EV_KEY
-	evButton     = C.FC_EV_BUTTON
-	evAxis       = C.FC_EV_AXIS
-	evPadAdded   = C.FC_EV_PAD_ADDED
-	evPadRemoved = C.FC_EV_PAD_REMOVED
-	evText       = C.FC_EV_TEXT
+	evQuit        = C.FC_EV_QUIT
+	evKey         = C.FC_EV_KEY
+	evButton      = C.FC_EV_BUTTON
+	evAxis        = C.FC_EV_AXIS
+	evPadAdded    = C.FC_EV_PAD_ADDED
+	evPadRemoved  = C.FC_EV_PAD_REMOVED
+	evText        = C.FC_EV_TEXT
+	evMouseMove   = C.FC_EV_MOUSE_MOVE
+	evMouseButton = C.FC_EV_MOUSE_BUTTON
 )
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -267,7 +294,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	defer destroyTextures(dev, labels)
 
 	if opts.Smoke {
-		return runSmoke(ctx, opts, app, dev, pads, textures, labels)
+		return runSmoke(ctx, opts, app, dev, pads, textures, labels, renderer)
 	}
 
 	var stick stickTracker
@@ -282,7 +309,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		C.fogcast_update_pads()
 		for {
 			var ev C.FogcastEvent
-			if C.fogcast_poll(&ev) == 0 {
+			if C.fogcast_poll(&ev, renderer) == 0 {
 				break
 			}
 			if quit := handleSDLEvent(app, pads, &ev, now, &stick); quit {
@@ -351,7 +378,7 @@ func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
 	}
 }
 
-func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture) error {
+func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture, renderer *C.SDL_Renderer) error {
 	evidence := map[string]any{
 		"api": opts.APIBase,
 	}
@@ -360,7 +387,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: library load timeout: %w", err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		pollGamepads(app, pads, map[Command]bool{}, nil, time.Now())
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -382,7 +409,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: no cover artwork decoded: %w", err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		app.Tick(time.Now())
 		snap = app.Snapshot()
 		_ = presentFrame(dev, snap, textures, labels, snap.GPUParked)
@@ -401,6 +428,9 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	if err := smokeKeyboardNav(app, pads, evidence); err != nil {
 		return err
 	}
+	if err := smokeMouseNav(app, pads, evidence); err != nil {
+		return err
+	}
 
 	id := C.fogcast_attach_virtual_gamepad()
 	if id != 0 {
@@ -413,7 +443,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 			if err := ctx.Err(); err != nil {
 				break
 			}
-			pumpSDL(app, pads, time.Now())
+			pumpSDL(app, pads, time.Now(), renderer)
 			if pads[id] != nil {
 				break
 			}
@@ -457,9 +487,10 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %w", err)
 	}
-	if err := virtualKey(app, pads, C.SDLK_RETURN); err != nil {
+	if err := virtualMouseClickSelected(app, pads); err != nil {
 		return err
 	}
+	evidence["mouse_launch"] = true
 	for {
 		launch := app.Snapshot().Launch
 		if launch.HTTPStatus != 0 || launch.Phase == "ok" || launch.Phase == "host" || launch.Phase == "error" {
@@ -468,7 +499,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v: %w", launch, err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		app.Tick(time.Now())
 		C.SDL_Delay(10)
 	}
@@ -578,6 +609,59 @@ func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, eviden
 	return nil
 }
 
+func smokeMouseNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+	if !app.focusIndex(0) {
+		return fmt.Errorf("smoke: mouse failed to focus first title (%s)", padDump(app, pads))
+	}
+	grid := app.Snapshot().Grid
+	x, y, w, h, ok := grid.CellRect(1)
+	if !ok {
+		return fmt.Errorf("smoke: mouse target cell is offscreen (%s)", padDump(app, pads))
+	}
+	if err := virtualMouseMove(app, pads, x+w/2, y+h/2); err != nil {
+		return err
+	}
+	focus := app.Snapshot().Grid.Focus
+	evidence["mouse_focus_after"] = focus
+	if focus != 1 {
+		return fmt.Errorf("smoke: mouse hover did not move focus (got %d want 1; %s)", focus, padDump(app, pads))
+	}
+	evidence["mouse_nav"] = true
+	return nil
+}
+
+func virtualMouseMove(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+	now := time.Now()
+	ev := C.FogcastEvent{kind: evMouseMove, x: C.int(x), y: C.int(y)}
+	if handleSDLEvent(app, pads, &ev, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	return nil
+}
+
+func virtualMouseClick(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+	now := time.Now()
+	down := C.FogcastEvent{kind: evMouseButton, code: C.SDL_BUTTON_LEFT, down: 1, x: C.int(x), y: C.int(y)}
+	if handleSDLEvent(app, pads, &down, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	up := C.FogcastEvent{kind: evMouseButton, code: C.SDL_BUTTON_LEFT, down: 0, x: C.int(x), y: C.int(y)}
+	_ = handleSDLEvent(app, pads, &up, now, nil)
+	app.Tick(now)
+	return nil
+}
+
+func virtualMouseClickSelected(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad) error {
+	snap := app.Snapshot()
+	x, y, w, h, ok := snap.Grid.CellRect(snap.Grid.Focus)
+	if !ok {
+		return fmt.Errorf("smoke: focused cell is offscreen for mouse click (%s)", padDump(app, pads))
+	}
+	return virtualMouseClick(app, pads, x+w/2, y+h/2)
+}
+
 func virtualKey(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, key C.int) error {
 	now := time.Now()
 	down := C.FogcastEvent{kind: evKey, code: key, down: 1}
@@ -603,7 +687,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	}
 	C.SDL_PumpEvents()
 	now := time.Now()
-	pumpSDL(app, pads, now)
+	pumpSDL(app, pads, now, nil)
 	if pollGamepads(app, pads, held, nil, now) {
 		return nil
 	}
@@ -619,7 +703,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	}
 	C.SDL_PumpEvents()
 	now = time.Now()
-	pumpSDL(app, pads, now)
+	pumpSDL(app, pads, now, nil)
 	pollGamepads(app, pads, held, nil, now)
 	app.Tick(now)
 	return nil
@@ -630,12 +714,12 @@ type stickTracker struct {
 	cmd  Command
 }
 
-func pumpSDL(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, now time.Time) {
+func pumpSDL(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, now time.Time, renderer *C.SDL_Renderer) {
 	var stick stickTracker
 	C.fogcast_update_pads()
 	for {
 		var ev C.FogcastEvent
-		if C.fogcast_poll(&ev) == 0 {
+		if C.fogcast_poll(&ev, renderer) == 0 {
 			return
 		}
 		_ = handleSDLEvent(app, pads, &ev, now, &stick)
@@ -749,6 +833,15 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		// Gamepad buttons and sticks are polled each frame so virtual devices
 		// and dummy video still drive the focus graph.
 		return false
+	case evMouseMove:
+		app.PointerMove(int(ev.x), int(ev.y), now)
+	case evMouseButton:
+		if ev.code != C.SDL_BUTTON_LEFT {
+			return false
+		}
+		if ev.down != 0 {
+			app.PointerClick(int(ev.x), int(ev.y), now)
+		}
 	case evPadAdded:
 		id := C.SDL_JoystickID(ev.which)
 		if pads[id] != nil {

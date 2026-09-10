@@ -571,7 +571,7 @@ func (a *App) Stop() {
 	a.drainAttractResults()
 }
 
-// HandleCommand applies a gamepad or USB-keyboard command.
+// HandleCommand applies a gamepad, USB-keyboard, or pointer-mapped command.
 func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if cmd == CmdNone {
 		return
@@ -1521,6 +1521,10 @@ func (a *App) moveFocusLocked(dx, dy int) {
 func (a *App) focusIndex(i int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.focusIndexLocked(i)
+}
+
+func (a *App) focusIndexLocked(i int) bool {
 	if i < 0 || i >= len(a.games) {
 		return false
 	}
@@ -1705,6 +1709,10 @@ func (a *App) lockRetryStopLocked(code, message string) {
 func (a *App) ForwardsCoreKeyboard() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.forwardsCoreKeyboardLocked()
+}
+
+func (a *App) forwardsCoreKeyboardLocked() bool {
 	if !a.session.CoreKeyboard || a.session.State != "active" {
 		return false
 	}

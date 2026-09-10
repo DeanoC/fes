@@ -7,7 +7,8 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-// Command is one focus-graph action from a gamepad or USB keyboard.
+// Command is one focus-graph action from a gamepad, USB keyboard, or
+// pointer activation (primary click maps onto the same Select/confirm path).
 type Command int
 
 const (

@@ -302,6 +302,27 @@ func (g *Grid) PrefetchRange(extraRows int) (int, int) {
 	return start, end
 }
 
+// CellRect is the on-screen pixel box of catalog index i, or false if offscreen.
+func (g Grid) CellRect(i int) (x, y, w, h int, ok bool) {
+	x, y, ok = g.CellOrigin(i)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
+	return x, y, g.CellW, g.CellH, true
+}
+
+// HitIndex returns the visible catalog index whose cell contains (px, py).
+func (g Grid) HitIndex(px, py int) (int, bool) {
+	start, end := g.VisibleRange()
+	for i := start; i < end; i++ {
+		x, y, w, h, ok := g.CellRect(i)
+		if ok && px >= x && py >= y && px < x+w && py < y+h {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 // CellOrigin returns the top-left pixel of catalog index i, or false if offscreen.
 func (g *Grid) CellOrigin(i int) (x, y int, ok bool) {
 	g.defaults()
