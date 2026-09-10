@@ -273,6 +273,8 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `build/rebuild/pong/`. The diagnostic build has passed native gameplay,
   controls and HDMI audio checks.
 - FES GP mailbox and fixed 1280x720p60 Pong shell with `make sim-fes-pong`.
+  Package `fes.pong` 1.1.0 exposes staged persistence for paddle speed and best
+  rally, with snapshot/freeze and resume that preserve the running game.
   `make build-fes-pong` uses the pinned OSS tools and the checked 50→74.25 MHz
   fractional PLL to build and seal its format-2 package. The build requires a
   clean committed source tree; recipe presence alone is no RBF, timing, video

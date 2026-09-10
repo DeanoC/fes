@@ -39,11 +39,12 @@ module emu (
     wire tone;
     pong_game #(.CLOCK_HZ(20000000)) game (
         .clk(clk_sys), .reset(RESET | status[0] | buttons[1]),
+        .freeze(1'b0), .paddle_speed(2'd1),
         .frame_tick(frame_tick), .up(joystick[3]), .down(joystick[2]),
         .start(joystick[7]), .pixel_x(x), .pixel_y(y),
         .red(VGA_R), .green(VGA_G), .blue(VGA_B), .tone(tone),
         .playing(LED_USER), .ball_x(), .ball_y(), .player_y(), .ai_y(),
-        .player_score(), .ai_score()
+        .player_score(), .ai_score(), .player_return(), .point()
     );
     assign VIDEO_ARX = 13'd4;
     assign VIDEO_ARY = 13'd3;

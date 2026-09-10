@@ -90,7 +90,7 @@ sim-fes-pong:
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-gp" \
 		cores/fes-pong/rtl/fes_gp.v "$(CURDIR)/cores/fes-pong/sim/gp_tb.cpp"
-	@build/sim/fes-pong-gp/Vfes_gp "$(CURDIR)/cores/fes-pong/generated/exchanges.json"
+	@build/sim/fes-pong-gp/Vfes_gp "$(CURDIR)/cores/fes-pong/generated/persistence-exchanges.json"
 	@mkdir -p build/sim/fes-pong-video
 	$(VERILATOR) --cc --exe --build --top-module fes_pong_core -Wall \
 		-Icores/fes-pong/generated \

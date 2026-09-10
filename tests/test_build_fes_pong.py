@@ -497,6 +497,14 @@ class BuildFesPongTests(unittest.TestCase):
                 self.assertEqual(validate_build_evidence(output)["status"], "pass")
                 decoded = tomllib.loads(manifest.decode("utf-8"))
                 self.assertEqual(decoded["build"]["id"], build_identity((output / "build-inputs.json").read_bytes()))
+                self.assertEqual(decoded["core"]["version"], "1.1.0")
+                self.assertEqual(decoded["abi"], {"id": "fes.simple-game", "major": 1, "minor": 0})
+                self.assertEqual(decoded["interfaces"], [
+                    {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
+                    {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+                    {"id": "fes.persistence.words", "major": 1, "minor": 0, "required": True},
+                    {"id": "fes.pong.progress", "major": 1, "minor": 0, "required": True},
+                ])
                 self.assertEqual(payload, output / "core.rbf")
                 self.assertEqual(destination, package_store)
                 return package_store / ("f" * 64)

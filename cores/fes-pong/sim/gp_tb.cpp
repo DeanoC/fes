@@ -51,9 +51,7 @@ std::vector<Exchange> read_fixture(const char *path, std::string &build_id,
             "fixture lacks a 128-bit lowercase build ID");
     build_id = match[1];
 
-    const std::regex row(
-        "\\{\\\"name\\\":\\\"([^\\\"]+)\\\",\\\"gpo\\\":\\[([0-9]+),([0-9]+)\\],"
-        "\\\"gpi\\\":([0-9]+),\\\"data\\\":[0-9]+\\}");
+    const std::regex row(R"fixture(\{\s*"name"\s*:\s*"([^"]+)"[^}]*"gpo"\s*:\s*\[\s*([0-9]+)\s*,\s*([0-9]+)\s*\]\s*,\s*"gpi"\s*:\s*([0-9]+)[^}]*\})fixture");
     std::vector<Exchange> exchanges;
     for (auto it = std::sregex_iterator(json.begin(), json.end(), row);
          it != std::sregex_iterator(); ++it) {
@@ -61,7 +59,7 @@ std::vector<Exchange> read_fixture(const char *path, std::string &build_id,
                              uint32_t(std::stoull((*it)[3])),
                              uint32_t(std::stoull((*it)[4]))});
     }
-    require(exchanges.size() == 22, "fixture exchange count changed");
+    require(exchanges.size() == 47, "fixture exchange count changed");
     return exchanges;
 }
 
@@ -72,7 +70,7 @@ uint32_t hex_word(const std::string &text, size_t offset) {
 struct Mailbox {
     Vfes_gp dut;
 
-    Mailbox() { dut.clk = 0; dut.gpo = 0; dut.eval(); }
+    Mailbox() { dut.player_return = 0; dut.point = 0; dut.clk = 0; dut.gpo = 0; dut.eval(); }
 
     void tick() {
         dut.clk = 1;
@@ -91,11 +89,13 @@ struct Mailbox {
     }
 
     void wait_for_ack(bool toggle, uint32_t expected, const std::string &name) {
+        const uint32_t previous = dut.gpi;
         for (unsigned cycle = 0; cycle != 8; ++cycle) {
             if (((uint32_t(dut.gpi) >> 23) & 1u) == unsigned(toggle)) {
                 require(uint32_t(dut.gpi) == expected, name + ": response mismatch");
                 return;
             }
+            require(uint32_t(dut.gpi) == previous, name + ": response changed before ACK");
             tick();
         }
         fail(name + ": acknowledgement timeout");
@@ -183,8 +183,7 @@ int main(int argc, char **argv) {
                 item.name + ": ACK differs from request toggle");
     }
 
-    require(mailbox.dut.game_reset && mailbox.dut.buttons == 0,
-            "fixture must finish held in reset with neutral buttons");
+    exchange(mailbox, toggle, 2, 0, 0, response(!toggle, false, 0), "reset after fixture");
 
     exchange(mailbox, toggle, 2, 0, 1, response(!toggle, false, 0),
              "gameplay release");
@@ -210,6 +209,57 @@ int main(int argc, char **argv) {
     require(mailbox.dut.game_reset,
             "reset command changed mailbox semantics on duplicate toggle");
 
-    std::cout << "FES GP: stateful golden fixture, CDC settling, one-toggle effects, errors and reset passed\n";
+    exchange(mailbox, toggle, 7, 0, 0, response(!toggle, false, 2), "persistence word count");
+    exchange(mailbox, toggle, 4, 0, 0, response(!toggle, true, 4), "freeze while reset rejected");
+    exchange(mailbox, toggle, 4, 0, 1, response(!toggle, false, 0), "begin restore");
+    exchange(mailbox, toggle, 6, 0, 2, response(!toggle, false, 0), "stage fast speed");
+    exchange(mailbox, toggle, 4, 0, 2, response(!toggle, true, 4), "partial commit rejected");
+    exchange(mailbox, toggle, 6, 1, 17, response(!toggle, false, 0), "stage best rally");
+    exchange(mailbox, toggle, 4, 0, 2, response(!toggle, false, 0), "commit restore");
+    exchange(mailbox, toggle, 2, 0, 1, response(!toggle, false, 0), "release restored game");
+    exchange(mailbox, toggle, 4, 0, 0, response(!toggle, false, 0), "freeze snapshot");
+    exchange(mailbox, toggle, 5, 0, 0, response(!toggle, false, 2), "read restored speed");
+    exchange(mailbox, toggle, 5, 1, 0, response(!toggle, false, 17), "read restored rally");
+    exchange(mailbox, toggle, 4, 0, 0, response(!toggle, false, 0), "repeat freeze");
+    exchange(mailbox, toggle, 4, 0, 3, response(!toggle, false, 0), "resume snapshot");
+    require(!mailbox.dut.game_reset, "resume must not reset gameplay");
+
+    auto rejected = [&](uint8_t opcode, uint8_t index, uint16_t argument, uint16_t error) {
+        auto frozen=mailbox.dut.game_frozen;
+        auto reset=mailbox.dut.game_reset;
+        auto speed=mailbox.dut.paddle_speed;
+        exchange(mailbox, toggle, opcode, index, argument, response(!toggle, true, error), "invalid persistence request");
+        require(mailbox.dut.game_frozen==frozen && mailbox.dut.game_reset==reset &&
+                mailbox.dut.paddle_speed==speed, "invalid request modified control/live setting");
+    };
+    rejected(4,0,3,4); // Resume requires frozen state.
+    rejected(4,0,2,4); rejected(4,0,1,4); // Restore requires reset.
+    rejected(4,1,0,2); rejected(4,0,4,3);
+    rejected(5,0,1,3); rejected(5,255,0,2);
+    rejected(6,255,1,2); rejected(6,0,1,4);
+    rejected(7,0,1,3); rejected(7,255,0,2);
+    exchange(mailbox,toggle,2,0,0,response(!toggle,false,0),"hold for fresh staging");
+    exchange(mailbox,toggle,4,0,1,response(!toggle,false,0),"begin staging");
+    exchange(mailbox,toggle,6,1,99,response(!toggle,false,0),"stage record only");
+    exchange(mailbox,toggle,4,0,1,response(!toggle,false,0),"begin clears completeness");
+    exchange(mailbox,toggle,6,0,0,response(!toggle,false,0),"stage slow only");
+    rejected(4,0,2,4);
+    require(mailbox.dut.paddle_speed==2,"partial commit changed live speed");
+    exchange(mailbox,toggle,6,1,99,response(!toggle,false,0),"complete staged record");
+    exchange(mailbox,toggle,6,0,65535,response(!toggle,false,0),"stage invalid word");
+    rejected(4,0,2,3);
+    exchange(mailbox,toggle,2,0,1,response(!toggle,false,0),"release live data after failed commit");
+    exchange(mailbox,toggle,4,0,0,response(!toggle,false,0),"snapshot after failed commit");
+    exchange(mailbox,toggle,5,0,0,response(!toggle,false,2),"live speed unchanged");
+    exchange(mailbox,toggle,5,1,0,response(!toggle,false,17),"live progress unchanged");
+
+    Mailbox fresh;
+    bool fresh_toggle=false;
+    exchange(fresh,fresh_toggle,2,0,1,response(true,false,0),"volatile defaults release");
+    exchange(fresh,fresh_toggle,4,0,0,response(false,false,0),"defaults freeze");
+    exchange(fresh,fresh_toggle,5,0,0,response(true,false,1),"default speed");
+    exchange(fresh,fresh_toggle,5,1,0,response(false,false,0),"default record");
+
+    std::cout << "FES GP: persistent golden fixture, staging atomicity, defaults, invalid states and CDC passed\n";
     return EXIT_SUCCESS;
 }

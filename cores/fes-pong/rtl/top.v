@@ -7,6 +7,10 @@ module fes_pong_core (
     input  wire        pixel_clk,
     input  wire        game_reset,
     input  wire [7:0]  buttons,
+    input  wire        game_frozen,
+    input  wire [1:0]  paddle_speed,
+    output wire        player_return,
+    output wire        point,
     output wire [23:0] hdmi_rgb,
     output wire        hdmi_de,
     output wire        hdmi_hs,
@@ -35,6 +39,8 @@ module fes_pong_core (
     pong_game #(.CLOCK_HZ(74250000)) game (
         .clk(pixel_clk),
         .reset(game_reset),
+        .freeze(game_frozen),
+        .paddle_speed(paddle_speed),
         .frame_tick(frame_tick),
         .up(up),
         .down(down),
@@ -51,7 +57,9 @@ module fes_pong_core (
         .player_y(),
         .ai_y(),
         .player_score(),
-        .ai_score()
+        .ai_score(),
+        .player_return(player_return),
+        .point(point)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
@@ -112,6 +120,9 @@ module top #(
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
     wire mailbox_reset;
+    wire game_frozen;
+    wire [1:0] paddle_speed;
+    wire player_return, point;
     wire [7:0] mailbox_buttons;
     wire pixel_clk;
 
@@ -126,7 +137,11 @@ module top #(
         .build_id(BUILD_ID),
         .gpi(fpga_to_hps),
         .game_reset(mailbox_reset),
-        .buttons(mailbox_buttons)
+        .buttons(mailbox_buttons),
+        .game_frozen(game_frozen),
+        .paddle_speed(paddle_speed),
+        .player_return(player_return),
+        .point(point)
     );
 
     pixel_pll video_clock (
@@ -140,6 +155,10 @@ module top #(
         .pixel_clk(pixel_clk),
         .game_reset(mailbox_reset),
         .buttons(mailbox_buttons),
+        .game_frozen(game_frozen),
+        .paddle_speed(paddle_speed),
+        .player_return(player_return),
+        .point(point),
         .hdmi_rgb(HDMI_TX_D),
         .hdmi_de(HDMI_TX_DE),
         .hdmi_hs(HDMI_TX_HS),
