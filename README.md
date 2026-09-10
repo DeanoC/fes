@@ -276,9 +276,11 @@ does not program hardware.
 `make build-fes-zx81` authenticates the repository-local Yosys,
 nextpnr-mistral and Mistral cache against `toolchain.lock`, synthesizes the
 same board shell with Verilog T80pa/TV80 and M10K allowed, and seals
-`build/fes-zx81-oss/` when 52 MHz and 74.25 MHz timing pass. Recipe presence
-alone is no RBF, timing or hardware-support evidence. The command never
-programs a kit.
+`build/fes-zx81-oss/` when the checked 50 MHz system clock and 74.25 MHz
+pixel clock pass timing. nextpnr cannot form the Quartus 52 MHz integer
+PLL, so OSS keeps the same enable dividers at 3.125/6.25 MHz. Recipe
+presence alone is no RBF, timing or hardware-support evidence. The
+command never programs a kit.
 
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the

@@ -35,8 +35,8 @@ TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-oss")
 RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
-QSF = "cores/fes-zx81/constraints.qsf"
-SDC = "cores/fes-zx81/clocks.sdc"
+QSF = "cores/fes-zx81/constraints-oss.qsf"
+SDC = "cores/fes-zx81/clocks-oss.sdc"
 RTL_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
@@ -152,7 +152,7 @@ def create_build_record(
         "parameters": {
             "device": TARGET,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 50_000_000,
             "reference_clock_hz": 50_000_000,
             "seed": 1,
             "top": TOP,
@@ -210,12 +210,19 @@ def _prepare_output(root: Path) -> Path:
     return output
 
 
-def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
+def _frequency_row(
+    fmax: object,
+    expected: float,
+    label: str,
+    name_contains: str | None = None,
+) -> tuple[str, float, float]:
     if not isinstance(fmax, dict):
         raise BuildError("timing report has no structured fmax data")
     matches: list[tuple[str, float, float]] = []
     for name, fields in fmax.items():
         if not isinstance(name, str) or not isinstance(fields, dict):
+            continue
+        if name_contains is not None and name_contains not in name:
             continue
         constraint = fields.get("constraint")
         achieved = fields.get("achieved")
@@ -260,7 +267,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.0, "system clock")
+    system = _frequency_row(timing.get("fmax"), 50.0, "system clock", "system_clock")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
@@ -287,7 +294,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 52.0,
+                "requested_mhz": 50.0,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },

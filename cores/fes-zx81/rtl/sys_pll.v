@@ -11,7 +11,13 @@ module sys_pll (
     altera_pll #(
         .reference_clock_frequency("50.0 MHz"),
         .number_of_clocks(1),
+`ifdef FES_ZX81_OSS
+        // nextpnr integer PLLs only divide checked 300/320 MHz VCOs; 52 MHz
+        // is not one of those outputs. Quartus keeps the ZX81 52 MHz clock.
+        .output_clock_frequency0("50.0 MHz"),
+`else
         .output_clock_frequency0("52.0 MHz"),
+`endif
         .phase_shift0("0 ps"),
         .duty_cycle0(50),
         .operation_mode("direct"),
