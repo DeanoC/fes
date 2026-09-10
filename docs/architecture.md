@@ -154,9 +154,12 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`5e31bf41`.
+`d8a96b58`.
 
-The current nextpnr pin `5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0` adds
+The current nextpnr pin `d8a96b581e608736ea346c34a2a0ce8161d2e1ab` is
+merged PR #51: it folds a constant unused M10K clock off the `CLKIN[1]`
+TCLK sink and maps only live clocks. That pin sits on
+`5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0`, which adds
 the four existing HPS peripheral I2C sites, HDMI routing checks, and a GPIO
 input-buffer fix that preserves external input on bidirectional pads. It also
 routes explicit constant-zero and constant-one `MISTRAL_FF.DATAIN` values
@@ -1148,7 +1151,9 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-The recipe requires two `altera_pll` cells
+nextpnr `d8a96b58` folds unused M10K clocks off TCLK. Seed 1 uses
+`--tmg-ripup` so `clk_sys` meets 50 MHz (without it, routed Fmax was
+about 44 MHz). The recipe requires two `altera_pll` cells
 (checked 50 MHz integer system clock and 74.25 MHz pixel). nextpnr cannot
 form the Quartus 52 MHz integer from its 300/320 MHz VCO tuples, so OSS
 keeps the /16 and /8 enables at 3.125/6.25 MHz. Also required: the HPS GP
@@ -1169,7 +1174,6 @@ matching workaround rather than keep both.
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
 | QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
 | 52 MHz integer PLL | `ERROR: PLL 'system_clock.pll': unsupported PLL output frequency/duty; require exact decimal MHz from 1 to 100 and an exact integer C divider from a checked 300/320 MHz tuple.` 52 MHz does not divide the 300 or 320 MHz analog tuples. `select_fractional` only accepts 11.2896, 12.288 or 74.25 MHz. | OSS `sys_pll` emits the checked 50 MHz integer (`M=12 N=2 C6=6`). Enable dividers stay /16 and /8, so CPU/pixel enables are 3.125/6.25 MHz. Quartus keeps 52 MHz. |
-| M10K TCLK vs two PLLs | After both PLLs pack (`50→74.25` at `altera_pll.0.14.0`, `50→50` at `altera_pll.0.31.0`) and `clk_sys`/`pixel_clk` go onto globals, router2 fails `$PACKER_GND_NET` to `TCLK.*.*.1`. Reproduced with 17× 8192×1 dual-clock SDP, 135× 1024×10 dual-clock SDP, and a stub with **one** same-clock `MISTRAL_M10K_TDP` and no framebuffer. `--router router1` and `--seed 2` fail the same way. Isolated `480_m10k_sdp20` (one dual-clock M10K, one PLL + `clkena`) still routes. | Open. TDP is used because mailbox media writes two bytes in one cycle; the 720p buffer is dual-clock SDP. Packer should tie unused/invert clock with bitstream `TCLK_SEL`, not a fabric GND net. |
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 

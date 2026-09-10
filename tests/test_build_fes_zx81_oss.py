@@ -50,6 +50,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("cores/fes-zx81/rtl/top.v", program)
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
+        self.assertIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
         self.assertIn("cores/fes-zx81/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-zx81/clocks-oss.sdc", joined)
