@@ -281,6 +281,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   shape, so the experiment instantiates one `MISTRAL_M10K`. Run
   `make sim EXP=680_m10k_mix20be10` and `make oss EXP=680_m10k_mix20be10`;
   no Quartus comparison lane is implemented.
+- `690_ddr_bidir`, dedicated DDR bidirectional I/O register on PIN_W15 with
+  a fabric GPI beat. Simulation uses a digital `altddio_bidir` stand-in;
+  analog GPIO-register delay is not modelled. Run `make sim EXP=690_ddr_bidir`
+  and `make oss EXP=690_ddr_bidir`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
