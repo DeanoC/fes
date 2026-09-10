@@ -1140,7 +1140,9 @@ bring-up lane.
 `fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. The Z80 is Verilog T80pa/TV80.
+M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use registered
+`ram_style="m10k_tdp"` tables; simulation keeps combo-read. The 720p
+capture buffer is a dual-clock M10K SDP. The Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). The recipe requires two `altera_pll` cells
 (52 MHz system and 74.25 MHz pixel), the HPS GP mailbox, the I2C bridge,

@@ -73,6 +73,36 @@ module zx81_dpram #(
         altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
         altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ";
 `else
+`ifdef FES_ZX81_OSS
+    // Registered true dual-port M10K. Combo-read 16 KB tables explode ABC.
+    (* ram_style = "m10k_tdp" *) reg [DATAWIDTH-1:0] ram [0:NUMWORDS-1];
+    reg [DATAWIDTH-1:0] q_a_r;
+    reg [DATAWIDTH-1:0] q_b_r;
+
+    initial begin
+        if (MEM_INIT_FILE != "")
+            $readmemh(MEM_INIT_FILE, ram);
+    end
+
+    always @(posedge clock) begin
+        if (wren_a) begin
+            ram[address_a] <= data_a;
+            q_a_r <= data_a;
+        end else
+            q_a_r <= ram[address_a];
+    end
+
+    always @(posedge clock) begin
+        if (wren_b) begin
+            ram[address_b] <= data_b;
+            q_b_r <= data_b;
+        end else
+            q_b_r <= ram[address_b];
+    end
+
+    assign q_a = q_a_r;
+    assign q_b = q_b_r;
+`else
     (* ramstyle = "M10K" *) reg [DATAWIDTH-1:0] ram [0:NUMWORDS-1];
 
     initial begin
@@ -89,5 +119,6 @@ module zx81_dpram #(
 
     assign q_a = ram[address_a];
     assign q_b = ram[address_b];
+`endif
 `endif
 endmodule

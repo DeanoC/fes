@@ -35,6 +35,7 @@ module zx81_video_720p (
     reg [8:0] cap_y;
     reg old_hblank;
     (* ramstyle = "M10K" *) reg fb [0:(270 * 512) - 1];
+    wire fb_we = ce_6m5 && !hblank && !vblank && cap_x < SRC_W;
 
     always @(posedge clk_sys) begin
         if (ce_6m5) begin
@@ -49,11 +50,14 @@ module zx81_video_720p (
                 if (cap_y != SRC_H - 1'b1)
                     cap_y <= cap_y + 1'b1;
             end else if (!hblank && !vblank && cap_x < SRC_W) begin
-                fb[{cap_y, cap_x[8:0]}] <= zx_pixel;
                 cap_x <= cap_x + 1'b1;
             end
         end
     end
+
+    always @(posedge clk_sys)
+        if (fb_we)
+            fb[{cap_y, cap_x[8:0]}] <= zx_pixel;
 
     reg [10:0] horizontal;
     reg [9:0] vertical;

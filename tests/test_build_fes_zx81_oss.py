@@ -43,6 +43,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         program = yosys[2]
         self.assertIn("tv80_core.v", program)
         self.assertIn("t80pa.v", program)
+        self.assertIn("-DFES_ZX81_OSS=1", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("-nobram", program)
         self.assertNotIn("T80pa.vhd", program)
@@ -57,6 +58,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0"', top)
         self.assertIn("`ifdef QUARTUS", top)
         self.assertIn("hdmi_scl_low ? 1'b0 : 1'bz", top)
+        dpram = (ROOT / "cores/fes-zx81/rtl/zx81_dpram.v").read_text(encoding="utf-8")
+        self.assertIn("`ifdef FES_ZX81_OSS", dpram)
+        self.assertIn('ram_style = "m10k_tdp"', dpram)
+        self.assertIn("assign q_a = ram[address_a]", dpram)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):
