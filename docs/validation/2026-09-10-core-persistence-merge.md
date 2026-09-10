@@ -21,11 +21,13 @@ change the kit.
   duplicated FPGA initialization introduced by the ancestry merge. Persistence
   mutation RPCs emit diagnostic completion events. The inherited timestamp
   buffer is enlarged to satisfy GCC14's truncation check without changing format.
-- FogCast: `c1ca79df30f459dc8c957ed76c6a76c3e5df31b8` merges current main,
+- FogCast: `cd70be1167b8e99259654aaf6bf69093855ac62f` merges current main,
   preserving its UI, offline-cache and diagnostic changes. Library load and
   protocol-v2 Stop retain diagnostic dispatch hooks. The native runtime lock and
   its fixture select the merged runtime above.
-- FES selects these three merged commits. Its misteross selection remains the
+- FogCast tip later advanced to `cd70be1167b8e99259654aaf6bf69093855ac62f` (SuperGrok High fix: protocol-2 Stop must not be captured by retired staging). FES selects that tip.
+
+FES selects these three merged commits. Its misteross selection remains the
   previously tested `4a8b8635cf338b22648e9e94272243b1fce42a79`; that PR did not
   have a merge conflict.
 
