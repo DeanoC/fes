@@ -39,7 +39,8 @@ help:
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
-		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81 (not Mistral)" \
+		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
+		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
 		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
@@ -68,7 +69,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 build-fes-zx81-quartus build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 build-fes-zx81-quartus build-fes-zx81 build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -143,6 +144,9 @@ sim-fes-zx81:
 
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
+
+build-fes-zx81:
+	$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"
 
 build-fes-pong:
 	$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"

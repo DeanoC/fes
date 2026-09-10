@@ -1131,7 +1131,22 @@ Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0 with
 the 52 MHz system clock and the derived 74.25/74.27 MHz pixel clock named,
 then seals `manifest.toml` + `core.rbf` through the existing format-2
 exporter. Failed compiles delete the RBF, manifest and passing summary.
-The command never programs hardware.
+The command never programs hardware. Quartus remains the kit-proven
+bring-up lane.
+
+## FES ZX81 OSS package
+
+`make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
+`fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
+`build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
+record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
+M10K allowed and DSP/MLAB forbidden. The Z80 is Verilog T80pa/TV80.
+HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
+(`QUARTUS` is not defined). The recipe requires two `altera_pll` cells
+(52 MHz system and 74.25 MHz pixel), the HPS GP mailbox, the I2C bridge,
+and at least one M10K. It seals the format-2 exporter only when both
+clocks meet their constraints. Recipe presence is not RBF, timing or
+kit evidence. The command never programs hardware.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
