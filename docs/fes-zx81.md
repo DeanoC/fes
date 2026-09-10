@@ -18,7 +18,7 @@ editing. Current described-core commands remain in
 | Path | Branch / pin | Role |
 | --- | --- | --- |
 | `out/dev/zx81/fes` | `feat/zx81` @ FES `de2b917d` | Parent docs and later pin integration |
-| `out/dev/zx81/mister-packages` | `feat/zx81` @ `98d9874` | ABI, registry, generated consumers |
+| `out/dev/zx81/mister-packages` | `feat/zx81` @ `82b78c4` | ABI, registry, generated consumers |
 | `out/dev/zx81/misteross` | `feat/zx81` @ `4a8b863` | RTL, sim, Quartus then Mistral recipes |
 | `out/dev/zx81/libmister-runtime` | `feat/zx81` @ `2bfff81` | Computer driver, keyboard, media |
 | `out/dev/zx81/FogCast` | `feat/zx81` @ `cd70be1` | Package load and host keyboard |

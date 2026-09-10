@@ -76,11 +76,12 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 12, 'source_pin_copies': 4, 'fixture_copies': 9})
+            'generated_files': 14, 'source_pin_copies': 4, 'fixture_copies': 11})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
             'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
             'packages/system/pong.yaml', 'packages/system/snes.yaml', 'packages/system/nes.yaml',
-            'packages/abi/fes_simple_game.yaml', 'packages/programming/de10_nano.yaml',
+            'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
+            'packages/programming/de10_nano.yaml',
             'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml', 'packages/source/nes_mister.yaml'})
 
     def test_shared_fixture_copy_drift(self):
