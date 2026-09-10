@@ -34,9 +34,17 @@ session APIs still require the host; this is not hostless play.
 
 Allowed operations are:
 
-- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`.
+- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`,
+  `/api/v1/library/cache`.
   Games may include `play_count` and `last_played_at` when user library state
-  already has them (omitted when zero).
+  already has them (omitted when zero). When the selected target answers a
+  lease-free cache inventory, games with remembered content also include
+  `rom_cached` (`true` if that digest is in `/media/fat/fogcast/cache`,
+  `false` if the target is up and the digest is absent). The field is omitted
+  when the host cannot probe, and for ROM-less rows. It does not change launch
+  admission. `GET /api/v1/library/cache` returns
+  `{rom:{used_bytes,max_bytes,free_bytes,reachable}, synced_unix}` from that
+  same inventory. Cover used/free stay on the kit `launcher-cache` store.
 - `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover

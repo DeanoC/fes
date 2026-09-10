@@ -155,6 +155,25 @@ func TestInventoryRetainsDirectStalePartsAndAccountsConservatively(t *testing.T)
 	}
 }
 
+func TestCacheIndexReportsBudgetAndInventory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	content := []byte("valid-snes")
+	identity := contentIdentity(content, "sfc")
+	writeCacheFile(t, root, protocol.SystemSNES, identity, content)
+	manager := openTestManager(t, root)
+	index := manager.CacheIndex()
+	if index.UsedBytes != int64(len(content)) || index.MaxBytes != 64<<20 {
+		t.Fatalf("budget used=%d max=%d", index.UsedBytes, index.MaxBytes)
+	}
+	if index.FreeBytes != index.MaxBytes-index.UsedBytes {
+		t.Fatalf("free=%d", index.FreeBytes)
+	}
+	if len(index.Entries) != 1 || index.Entries[0].System != protocol.SystemSNES || index.Entries[0].SHA256 != identity.SHA256 || index.Entries[0].Extension != "sfc" {
+		t.Fatalf("entries %#v", index.Entries)
+	}
+}
+
 func TestInventoryExcludesInvalidEntryKindsWithoutOpeningThem(t *testing.T) {
 	t.Parallel()
 

@@ -259,26 +259,16 @@ func run() error {
 			return
 		}
 		if m.WheelOpen && !m.Busy {
-			ids := m.WheelPrefetchIDs()
+			ids := kitlauncher.PrefetchPresentationIDs(m, 0, 0, 0)
 			presentations.Keep(ids)
 			presentations.Request(ctx, client.Library, ids)
 			heroHandles := make([]string, 0, 2)
-			logoHandles := make([]string, 0, len(ids))
-			for _, id := range ids {
-				pres := presentations.Get(id)
-				if handle := tenfoot.LogoHandle(pres); handle != "" {
-					logoHandles = append(logoHandles, handle)
-				}
-			}
 			focusedPres := tenfoot.Presentation{}
 			if game, ok := m.WheelGame(m.Shelf); ok {
 				focusedPres = presentations.Get(game.ID)
 			}
 			if handle := m.WheelHeroHandle(focusedPres); handle != "" {
 				heroHandles = append(heroHandles, handle)
-			}
-			if handle := m.WheelLogoHandle(focusedPres); handle != "" {
-				logoHandles = append(logoHandles, handle)
 			}
 			stills.Keep(heroHandles)
 			stills.Request(ctx, client.Library, heroHandles)
@@ -287,9 +277,7 @@ func run() error {
 			if prefetch > len(m.Games) {
 				prefetch = len(m.Games)
 			}
-			coverHandles := append([]string{}, logoHandles...)
-			coverHandles = append(coverHandles, tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)...)
-			coverHandles = append(coverHandles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
+			coverHandles := kitlauncher.PrefetchArtworkHandles(m, presentations.Get, start, end, prefetch, heroHandles, nil)
 			covers.Keep(coverHandles)
 			covers.Request(ctx, client.Library, coverHandles)
 			cfg := d.Config()
@@ -326,34 +314,15 @@ func run() error {
 		if prefetch > len(m.Games) {
 			prefetch = len(m.Games)
 		}
-		ids := tenfoot.PageIDs(m.Games, start, prefetch)
-		ids = append(ids, tenfoot.PageIDs(m.Strip, 0, len(m.Strip))...)
-		ids = append(ids, tenfoot.PageIDs(m.Series, 0, len(m.Series))...)
+		ids := kitlauncher.PrefetchPresentationIDs(m, start, end, prefetch)
 		presentations.Keep(ids)
 		presentations.Request(ctx, client.Library, ids)
-		handles := tenfoot.CollectCoverHandles(m.Games, start, prefetch, presentations.Get)
-		handles = append(handles, tenfoot.CollectLogoHandles(m.Games, start, prefetch, presentations.Get)...)
-		handles = append(handles, tenfoot.CollectBox3DHandles(m.Games, start, prefetch, presentations.Get)...)
-		handles = append(handles, tenfoot.CollectCoverHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
-		handles = append(handles, tenfoot.CollectLogoHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
-		handles = append(handles, tenfoot.CollectBox3DHandles(m.Strip, 0, len(m.Strip), presentations.Get)...)
-		handles = append(handles, tenfoot.CollectCoverHandles(m.Series, 0, len(m.Series), presentations.Get)...)
-		handles = append(handles, tenfoot.CollectLogoHandles(m.Series, 0, len(m.Series), presentations.Get)...)
-		handles = append(handles, tenfoot.CollectBox3DHandles(m.Series, 0, len(m.Series), presentations.Get)...)
 		backdropHandles := atmospherePrefetchHandles(m, presentations, start, prefetch)
+		extra := []string(nil)
 		if m.DetailOpen {
-			handles = append(handles, m.DetailPrefetchHandles()...)
+			extra = append(extra, m.DetailPrefetchHandles()...)
 			if game, ok := m.FocusedGame(); ok {
 				pres := presentations.Get(game.ID)
-				if handle := tenfoot.CoverHandle(game, pres); handle != "" {
-					handles = append(handles, handle)
-				}
-				if handle := tenfoot.LogoHandle(pres); handle != "" {
-					handles = append(handles, handle)
-				}
-				if handle := tenfoot.Box3DHandle(pres); handle != "" {
-					handles = append(handles, handle)
-				}
 				if handle := tenfoot.MarqueeHandle(pres); handle != "" {
 					backdropHandles = append(backdropHandles, handle)
 				}
@@ -362,6 +331,7 @@ func run() error {
 				backdropHandles = append(backdropHandles, handle)
 			}
 		}
+		handles := kitlauncher.PrefetchArtworkHandles(m, presentations.Get, start, end, prefetch, extra, nil)
 		covers.Keep(handles)
 		covers.Request(ctx, client.Library, handles)
 		stills.Keep(backdropHandles)

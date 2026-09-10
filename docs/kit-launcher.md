@@ -19,7 +19,15 @@ its launcher setup/media workflow. Missing configuration causes a readable
 service error and retry. A successful host catalog fetch also writes
 `/media/fat/fogcast/launcher-cache/` (catalog snapshot plus cover files keyed by
 artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache;
-replacing the system image does not wipe it. Boot paints the last-good shelf from
+replacing the system image does not wipe it. Catalog.json is still published
+atomically; a later host fetch merges in place when titles/covers are unchanged
+so the grid does not blank. Covers use a 512 MiB LRU budget under
+`launcher-cache/covers/` and never evict the ROM cache. Prefetch order is
+focus → page → next page → strip → attract (three concurrent fetches).
+`GET /api/v1/library/cache` returns ROM used/free from the target; the kit store
+reports cover used/free and last sync. `rom_cached` on a games row is a host
+probe of that inventory while the host is up — not a hostless launch grant.
+Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
 host shows `Offline - local library` rather than an endless reconnect. Local D-pad
 and A still browse that snapshot. Launch still requires the host. See [the host connection contract](launcher-host.md) for listener

@@ -253,6 +253,9 @@ func validV2RouteShape(escapedPath string, decodedPath string) bool {
 	if len(decodedSegments) == 3 && decodedSegments[0] == "" && decodedSegments[1] == "v2" && decodedSegments[2] == "launch" {
 		return len(escapedSegments) == 3 && escapedSegments[0] == "" && escapedSegments[1] == "v2" && escapedSegments[2] == "launch"
 	}
+	if len(decodedSegments) == 3 && decodedSegments[0] == "" && decodedSegments[1] == "v2" && decodedSegments[2] == "cache" {
+		return len(escapedSegments) == 3 && escapedSegments[0] == "" && escapedSegments[1] == "v2" && escapedSegments[2] == "cache"
+	}
 	if len(decodedSegments) == 5 && decodedSegments[0] == "" && decodedSegments[1] == "v2" && decodedSegments[2] == "cache" && decodedSegments[3] != "" && decodedSegments[4] != "" {
 		return len(escapedSegments) == 5 && escapedSegments[0] == "" && escapedSegments[1] == "v2" && escapedSegments[2] == "cache"
 	}

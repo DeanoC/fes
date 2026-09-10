@@ -2213,6 +2213,8 @@ func (f *fakeServicePreparer) Prepare(ctx context.Context, root catalog.Root, ga
 }
 
 type fakeServiceClient struct {
+	cacheIndex         func(context.Context) (protocol.CacheIndex, error)
+	cacheIndexCalls    int
 	probe              func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
 	upload             func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
 	launch             func(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
@@ -3641,6 +3643,14 @@ func TestMergeTargetAgentsUsesExplicitRenameIdentityBeforeDestinationName(t *tes
 	}); err == nil {
 		t.Fatal("duplicate current target identity was accepted")
 	}
+}
+
+func (f *fakeServiceClient) CacheIndex(ctx context.Context) (protocol.CacheIndex, error) {
+	f.cacheIndexCalls++
+	if f.cacheIndex == nil {
+		return protocol.CacheIndex{}, errors.New("unexpected cache index")
+	}
+	return f.cacheIndex(ctx)
 }
 
 func (f *fakeServiceClient) ProbeContent(ctx context.Context, system protocol.System, content protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {

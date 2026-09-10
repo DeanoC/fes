@@ -116,13 +116,16 @@ func (m Model) WheelStats() string {
 		games = fmt.Sprintf("%d games", n)
 	}
 	plays := m.WheelPlayCount()
-	if plays < 1 {
-		return games
+	switch {
+	case plays == 1:
+		games = games + "  |  1 play"
+	case plays > 1:
+		games = games + fmt.Sprintf("  |  %d plays", plays)
 	}
-	if plays == 1 {
-		return games + "  |  1 play"
+	if chrome := m.Cache.Chrome(); chrome != "" {
+		return games + "  |  " + chrome
 	}
-	return games + fmt.Sprintf("  |  %d plays", plays)
+	return games
 }
 
 // WheelPlayCount sums admitted play_count values on the focused shelf.

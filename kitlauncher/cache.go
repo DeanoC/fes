@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,10 @@ const (
 	maxCatalogBytes  = 32 << 20
 	maxCoverBytes    = 8 << 20
 	artworkHandleLen = 64
+
+	// DefaultCoverMaxBytes is the FAT cover budget under launcher-cache.
+	// It is separate from ROM cache_max_bytes (2GiB) and never uses targetcache.
+	DefaultCoverMaxBytes int64 = 512 << 20
 )
 
 // CatalogSnapshot is the last-good kit browse list written after a successful
@@ -42,6 +47,7 @@ type CatalogSnapshot struct {
 	Strip      []tenfoot.Game
 	StripLabel string
 	Recents    []tenfoot.Game
+	SavedUnix  int64
 }
 
 type catalogFile struct {
@@ -57,9 +63,21 @@ type catalogFile struct {
 // atomic; cover blobs are keyed by 64-hex artwork handle. It is not the ROM
 // cache and never evicts `/media/fat/fogcast/cache`.
 type DiskStore struct {
-	root       string
-	mu         sync.Mutex
-	catalogKey string
+	root         string
+	mu           sync.Mutex
+	catalogKey   string
+	lastSyncUnix int64
+	coverMax     int64
+	coverUsed    int64
+	clock        func() time.Time
+}
+
+// StoreStatus is kit-local cover used/free plus last catalog publish time.
+type StoreStatus struct {
+	CoverUsedBytes int64 `json:"cover_used_bytes"`
+	CoverMaxBytes  int64 `json:"cover_max_bytes"`
+	CoverFreeBytes int64 `json:"cover_free_bytes"`
+	LastSyncUnix   int64 `json:"last_sync_unix,omitempty"`
 }
 
 // OpenDiskStore creates root/covers at 0700. root must be absolute.
@@ -72,7 +90,11 @@ func OpenDiskStore(root string) (*DiskStore, error) {
 	if err := os.MkdirAll(covers, 0700); err != nil {
 		return nil, err
 	}
-	return &DiskStore{root: root}, nil
+	store := &DiskStore{root: root, coverMax: DefaultCoverMaxBytes, clock: time.Now}
+	store.mu.Lock()
+	store.recountCoversLocked()
+	store.mu.Unlock()
+	return store, nil
 }
 
 func cacheRoot(c Config) string {
@@ -124,7 +146,11 @@ func (s *DiskStore) LoadCatalog() (CatalogSnapshot, bool) {
 	if len(snap.Games) == 0 && len(snap.Strip) == 0 {
 		return CatalogSnapshot{}, false
 	}
+	snap.SavedUnix = file.SavedUnix
 	s.catalogKey = snapshotKey(snap)
+	if file.SavedUnix > 0 {
+		s.lastSyncUnix = file.SavedUnix
+	}
 	return snap, true
 }
 
@@ -138,9 +164,17 @@ func (s *DiskStore) SaveCatalog(snap CatalogSnapshot) error {
 		snap.Games = []tenfoot.Game{}
 	}
 	key := snapshotKey(snap)
+	path := filepath.Join(s.root, catalogFileName)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nowUnix := s.now().Unix()
+	if key != "" && key == s.catalogKey {
+		s.lastSyncUnix = nowUnix
+		return nil
+	}
 	file := catalogFile{
 		Format:     catalogFormat,
-		SavedUnix:  time.Now().Unix(),
+		SavedUnix:  nowUnix,
 		Games:      snap.Games,
 		Strip:      snap.Strip,
 		StripLabel: snap.StripLabel,
@@ -153,16 +187,11 @@ func (s *DiskStore) SaveCatalog(snap CatalogSnapshot) error {
 	if len(data) > maxCatalogBytes {
 		return errors.New("launcher catalog is too large")
 	}
-	path := filepath.Join(s.root, catalogFileName)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if key != "" && key == s.catalogKey {
-		return nil
-	}
 	if err := writeAtomic(path, data); err != nil {
 		return err
 	}
 	s.catalogKey = key
+	s.lastSyncUnix = nowUnix
 	return nil
 }
 
@@ -185,6 +214,8 @@ func (s *DiskStore) LoadArtwork(handle string) ([]byte, bool) {
 	if err != nil || len(data) == 0 || len(data) > maxCoverBytes {
 		return nil, false
 	}
+	now := s.now()
+	_ = os.Chtimes(path, now, now)
 	return data, true
 }
 
@@ -204,9 +235,143 @@ func (s *DiskStore) SaveArtwork(handle string, data []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if prev, err := os.ReadFile(path); err == nil && bytes.Equal(prev, data) {
+		now := s.now()
+		_ = os.Chtimes(path, now, now)
 		return nil
 	}
-	return writeAtomic(path, data)
+	if err := writeAtomic(path, data); err != nil {
+		return err
+	}
+	now := s.now()
+	_ = os.Chtimes(path, now, now)
+	s.evictCoversLocked()
+	return nil
+}
+
+func (s *DiskStore) now() time.Time {
+	if s != nil && s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
+}
+
+// SetCoverMaxBytes replaces the cover FAT budget and evicts to fit. n <= 0
+// restores DefaultCoverMaxBytes. This never calls targetcache.
+func (s *DiskStore) SetCoverMaxBytes(n int64) {
+	if s == nil {
+		return
+	}
+	if n <= 0 {
+		n = DefaultCoverMaxBytes
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.coverMax = n
+	s.evictCoversLocked()
+}
+
+// Status is kit-local cover used/free and last catalog sync time.
+func (s *DiskStore) Status() StoreStatus {
+	if s == nil {
+		return StoreStatus{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recountCoversLocked()
+	free := s.coverMax - s.coverUsed
+	if free < 0 {
+		free = 0
+	}
+	return StoreStatus{
+		CoverUsedBytes: s.coverUsed,
+		CoverMaxBytes:  s.coverMax,
+		CoverFreeBytes: free,
+		LastSyncUnix:   s.lastSyncUnix,
+	}
+}
+
+type coverItem struct {
+	path   string
+	handle string
+	size   int64
+	mod    time.Time
+}
+
+func (s *DiskStore) recountCoversLocked() {
+	dir := filepath.Join(s.root, coversDirName)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		s.coverUsed = 0
+		return
+	}
+	var used int64
+	for _, ent := range ents {
+		if !ent.Type().IsRegular() {
+			continue
+		}
+		if normalizeArtworkHandle(ent.Name()) == "" {
+			continue
+		}
+		info, err := ent.Info()
+		if err != nil {
+			continue
+		}
+		used += info.Size()
+	}
+	s.coverUsed = used
+}
+
+func (s *DiskStore) evictCoversLocked() {
+	dir := filepath.Join(s.root, coversDirName)
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		s.coverUsed = 0
+		return
+	}
+	items := make([]coverItem, 0, len(ents))
+	var used int64
+	for _, ent := range ents {
+		if !ent.Type().IsRegular() {
+			continue
+		}
+		handle := ent.Name()
+		if normalizeArtworkHandle(handle) == "" {
+			continue
+		}
+		info, err := ent.Info()
+		if err != nil {
+			continue
+		}
+		used += info.Size()
+		items = append(items, coverItem{
+			path:   filepath.Join(dir, handle),
+			handle: handle,
+			size:   info.Size(),
+			mod:    info.ModTime(),
+		})
+	}
+	s.coverUsed = used
+	if s.coverMax <= 0 || used <= s.coverMax {
+		return
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].mod.Equal(items[j].mod) {
+			return items[i].handle < items[j].handle
+		}
+		return items[i].mod.Before(items[j].mod)
+	})
+	for _, item := range items {
+		if s.coverUsed <= s.coverMax {
+			break
+		}
+		if err := os.Remove(item.path); err != nil {
+			continue
+		}
+		s.coverUsed -= item.size
+		if s.coverUsed < 0 {
+			s.coverUsed = 0
+		}
+	}
 }
 
 func (s *DiskStore) coverPath(handle string) (string, error) {
@@ -286,6 +451,27 @@ func persistSnapshot(c *Client, snap CatalogSnapshot) {
 		return
 	}
 	_ = c.Cache.SaveCatalog(snap)
+}
+
+func mergeCacheStatus(store *DiskStore, host tenfoot.LibraryCache, haveHost bool) CacheStatus {
+	out := CacheStatus{}
+	if store != nil {
+		local := store.Status()
+		out.CoverUsedBytes = local.CoverUsedBytes
+		out.CoverMaxBytes = local.CoverMaxBytes
+		out.CoverFreeBytes = local.CoverFreeBytes
+		out.LastSyncUnix = local.LastSyncUnix
+	}
+	if haveHost {
+		out.ROMReachable = host.ROM.Reachable
+		out.ROMUsedBytes = host.ROM.UsedBytes
+		out.ROMMaxBytes = host.ROM.MaxBytes
+		out.ROMFreeBytes = host.ROM.FreeBytes
+		if host.SyncedUnix > 0 {
+			out.LastSyncUnix = host.SyncedUnix
+		}
+	}
+	return out
 }
 
 func isTransientStatus(message string) bool {

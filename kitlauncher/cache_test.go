@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 )
@@ -171,6 +172,65 @@ func TestDefaultCacheRootIsFATBesideLauncherJSON(t *testing.T) {
 	}
 	if filepath.Dir(root) != filepath.Dir(cfg.path) {
 		t.Fatalf("root %q config %q", root, cfg.path)
+	}
+}
+
+func TestDiskStoreCoverLRURespectsSeparateBudget(t *testing.T) {
+	t.Parallel()
+	store := mustOpenStore(t)
+	store.SetCoverMaxBytes(12)
+	now := time.Unix(1000, 0)
+	store.clock = func() time.Time { return now }
+	first := strings.Repeat("aa", 32)
+	second := strings.Repeat("bb", 32)
+	if err := store.SaveArtwork(first, []byte("12345678")); err != nil {
+		t.Fatal(err)
+	}
+	now = time.Unix(2000, 0)
+	if err := store.SaveArtwork(second, []byte("abcdefgh")); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.LoadArtwork(first); ok {
+		t.Fatal("oldest cover was not evicted")
+	}
+	if _, ok := store.LoadArtwork(second); !ok {
+		t.Fatal("newest cover was evicted")
+	}
+	status := store.Status()
+	if status.CoverUsedBytes != 8 || status.CoverMaxBytes != 12 || status.CoverFreeBytes != 4 {
+		t.Fatalf("status %#v", status)
+	}
+}
+
+func TestDiskStoreCoverLRUTouchesOnLoad(t *testing.T) {
+	t.Parallel()
+	store := mustOpenStore(t)
+	store.SetCoverMaxBytes(20)
+	now := time.Unix(1000, 0)
+	store.clock = func() time.Time { return now }
+	first := strings.Repeat("aa", 32)
+	second := strings.Repeat("bb", 32)
+	third := strings.Repeat("cc", 32)
+	if err := store.SaveArtwork(first, []byte("12345678")); err != nil {
+		t.Fatal(err)
+	}
+	now = time.Unix(2000, 0)
+	if err := store.SaveArtwork(second, []byte("abcdefgh")); err != nil {
+		t.Fatal(err)
+	}
+	now = time.Unix(3000, 0)
+	if _, ok := store.LoadArtwork(first); !ok {
+		t.Fatal("first cover missing before third save")
+	}
+	now = time.Unix(4000, 0)
+	if err := store.SaveArtwork(third, []byte("zzzzzzzz")); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.LoadArtwork(second); ok {
+		t.Fatal("untouched cover was not evicted")
+	}
+	if _, ok := store.LoadArtwork(first); !ok {
+		t.Fatal("touched cover was evicted")
 	}
 }
 

@@ -23,6 +23,23 @@ type CacheProbeResponse struct {
 	Content *ContentIdentity `json:"content,omitempty"`
 }
 
+// CacheIndexEntry is one verified ROM cache object on the target FAT tree.
+type CacheIndexEntry struct {
+	System    System `json:"system"`
+	SHA256    string `json:"sha256"`
+	Size      int64  `json:"size"`
+	Extension string `json:"extension"`
+}
+
+// CacheIndex is GET /v2/cache: ROM cache used/free against cache_max_bytes.
+// It is lease-free, like a per-object probe. Cover files are not included.
+type CacheIndex struct {
+	UsedBytes int64             `json:"used_bytes"`
+	MaxBytes  int64             `json:"max_bytes"`
+	FreeBytes int64             `json:"free_bytes"`
+	Entries   []CacheIndexEntry `json:"entries"`
+}
+
 type CacheUploadResult string
 
 const (
