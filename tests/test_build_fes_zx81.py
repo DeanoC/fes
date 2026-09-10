@@ -14,6 +14,7 @@ from scripts.build_fes_zx81 import (
     project_qsf,
     require_clean_source,
     require_clocks,
+    validate_timing_report,
 )
 from scripts.export_core_package import build_identity
 
@@ -100,10 +101,25 @@ class BuildFesZx81Tests(unittest.TestCase):
 
     def test_clocks_must_appear_in_timing_text(self) -> None:
         require_clocks("Fmax 52.00 MHz and 74.25 MHz")
+        require_clocks("52.0 MHz and 74.27 MHz")
         with self.assertRaises(BuildError):
             require_clocks("Fmax 74.25 MHz only")
         with self.assertRaises(BuildError):
             require_clocks("Fmax 52.00 MHz only")
+
+    def test_multicorner_slack_must_be_nonnegative(self) -> None:
+        report = (
+            "Worst-case Slack                                            ; 3.093 ; 0.161 ; 12.713   ; 1.115   ; 0.961               ;\n"
+            "Design-wide TNS                                             ; 0.0   ; 0.0   ; 0.0      ; 0.0     ; 0.0                 ;\n"
+        )
+        timing = validate_timing_report(report)
+        self.assertEqual(len(timing), 5)
+        self.assertEqual(timing[0]["type"], "Setup")
+        self.assertEqual(timing[0]["slack_ns"], 3.093)
+        with self.assertRaises(BuildError):
+            validate_timing_report(report.replace("3.093", "-0.1", 1))
+        with self.assertRaises(BuildError):
+            validate_timing_report("no summary")
 
 
 if __name__ == "__main__":

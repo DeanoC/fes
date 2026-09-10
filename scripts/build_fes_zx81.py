@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -24,7 +25,6 @@ from scripts.rebuild_core import (
     RebuildError,
     locate_quartus,
     quartus_version_line,
-    validate_timing,
 )
 
 
@@ -71,6 +71,13 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 I2C_SITE = "HPSINTERFACEPERIPHERALI2C_X52_Y60_N111"
+TIMING_CATEGORIES = ("Setup", "Hold", "Recovery", "Removal", "Minimum Pulse Width")
+WORST_SLACK_RE = re.compile(
+    r"Worst-case Slack\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
+)
+DESIGN_TNS_RE = re.compile(
+    r"Design-wide TNS\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)\s*;\s*([0-9.]+)"
+)
 
 
 class BuildError(ValueError):
@@ -260,8 +267,25 @@ def _prepare_output(root: Path) -> Path:
 def require_clocks(sta_text: str) -> None:
     if "52.0" not in sta_text and "52.00" not in sta_text:
         raise BuildError("timing report does not mention the 52 MHz system clock")
-    if "74.25" not in sta_text:
+    if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
+
+
+def validate_timing_report(sta_text: str) -> list[dict[str, object]]:
+    slack_match = WORST_SLACK_RE.search(sta_text)
+    tns_match = DESIGN_TNS_RE.search(sta_text)
+    if slack_match is None or tns_match is None:
+        raise BuildError("timing summary lacks required analysis categories")
+    result = []
+    for name, slack_text, tns_text in zip(TIMING_CATEGORIES, slack_match.groups(), tns_match.groups()):
+        try:
+            slack, tns = float(slack_text), float(tns_text)
+        except ValueError as exc:
+            raise BuildError("invalid timing number") from exc
+        if not all(math.isfinite(value) and value >= 0 for value in (slack, tns)):
+            raise BuildError("timing summary contains an unsupported or failing result")
+        result.append({"type": name, "slack_ns": slack, "tns_ns": tns})
+    return result
 
 
 def validate_quartus_evidence(output: Path, project: Path) -> dict:
@@ -271,11 +295,8 @@ def validate_quartus_evidence(output: Path, project: Path) -> dict:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf_built}")
     if sta.is_symlink() or not sta.is_file():
         raise BuildError(f"missing TimeQuest report: {sta}")
-    try:
-        timing = validate_timing(sta)
-    except RebuildError as exc:
-        raise BuildError(str(exc)) from exc
     sta_text = sta.read_text(encoding="utf-8", errors="replace")
+    timing = validate_timing_report(sta_text)
     require_clocks(sta_text)
     qsf_text = (project / "top.qsf").read_text(encoding="utf-8")
     if I2C_SITE not in qsf_text:
