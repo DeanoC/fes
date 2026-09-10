@@ -1084,8 +1084,22 @@ keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
 committed blob stays. The checked-in `cores/fes-zx81/generated/fes_simple_computer.vh`
 and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
-plays that fixture and checks keyboard/media side effects. This is not a ZX81
-ULA, Quartus recipe, or kit result.
+plays that fixture and checks keyboard/media side effects.
+
+## FES ZX81 machine simulation
+
+`cores/fes-zx81/rtl/zx81_machine.sv` is the first-slice ZX81 extracted from
+MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
+CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
+mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
+the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
+`CEN_p` at 3.25 MHz from the 52 MHz enable divider.
+
+`make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
+a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
+display, and the ULA has emitted visible pixels. A 720p raster module
+`zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
+This is simulation, not a Quartus RBF or kit result.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad

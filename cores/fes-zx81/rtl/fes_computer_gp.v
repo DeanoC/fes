@@ -13,7 +13,9 @@ module fes_computer_gp (
     output reg  [14:0]  media_size,
     output wire [7:0]   media_byte0,
     output wire [7:0]   media_byte1,
-    output wire [7:0]   media_byte2
+    output wire [7:0]   media_byte2,
+    input  wire [13:0]  media_addr,
+    output wire [7:0]   media_q
 );
     localparam [31:0] CAPABILITIES =
         `FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK |
@@ -66,6 +68,7 @@ module fes_computer_gp (
     assign media_byte0 = media_bytes[0];
     assign media_byte1 = media_bytes[1];
     assign media_byte2 = media_bytes[2];
+    assign media_q = media_bytes[media_addr];
 
     function [15:0] identity_word;
         input [31:0] index;

@@ -38,7 +38,7 @@ help:
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
-		"  sim-fes-zx81  Test the FES simple-computer GP mailbox" \
+		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
@@ -115,6 +115,27 @@ sim-fes-zx81:
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp" \
 		cores/fes-zx81/rtl/fes_computer_gp.v "$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
 	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
+	@mkdir -p build/sim/fes-zx81-machine
+	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX \
+		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
+		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/tv80/tv80_core.v \
+		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
+		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
+	@build/sim/fes-zx81-machine/Vzx81_machine
+	@mkdir -p build/sim/fes-zx81-video
+	$(VERILATOR) --cc --exe --build --top-module zx81_video_720p -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-video" \
+		cores/fes-zx81/rtl/zx81_video_720p.v \
+		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
+	@build/sim/fes-zx81-video/Vzx81_video_720p
 
 build-fes-pong:
 	$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"

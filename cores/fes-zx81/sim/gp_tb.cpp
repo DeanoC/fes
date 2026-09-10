@@ -70,7 +70,12 @@ uint32_t hex_word(const std::string &text, size_t offset) {
 struct Mailbox {
     Vfes_computer_gp dut;
 
-    Mailbox() { dut.clk = 0; dut.gpo = 0; dut.eval(); }
+    Mailbox() {
+        dut.clk = 0;
+        dut.gpo = 0;
+        dut.media_addr = 0;
+        dut.eval();
+    }
 
     void tick() {
         dut.clk = 1;
