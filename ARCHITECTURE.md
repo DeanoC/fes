@@ -109,10 +109,11 @@ The package registry consumes checked-in generated C++14 headers
 `src/native/generated/fes_gp.hpp`,
 `src/native/generated/fes_simple_computer.hpp`, and
 `src/native/generated/de10_nano_programming.hpp`.
-The programming table lists `fes.simple-computer` 1.0 on `fes-gp-v1`.
-`CheckCoreCompatibility` accepts that pairing and then returns
-`unsupported_abi` / "ABI driver is unavailable" because
-`FesGpCoreDriver` still only identifies `fes.simple-game`. The programming-profile header retains the reviewed mister-packages tree
+The programming table lists `fes.simple-game` 1.0 and `fes.simple-computer` 1.0
+on `fes-gp-v1`. `CheckCoreCompatibility` and `FesGpCoreDriver` identify both
+ABIs over the same GP transport: tag 1 with gamepad plus fixed 720p60 for
+Pong, tag 2 with keyboard, fixed 720p60 and media blob for ZX81. Gamepad
+input stays disabled for the computer ABI. The programming-profile header retains the reviewed mister-packages tree
 `85a7771470ef0ff872e7a27d9fbf87d102e4a30f`. The GP header and persistence
 fixtures are generated from mister-packages
 `bfc4b2bc8232c93d67f88bd452223986768bfe4f`; target builds do not run Go.

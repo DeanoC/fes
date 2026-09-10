@@ -6,6 +6,7 @@
 #include "native/core_package.hpp"
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/mmio.hpp"
 
@@ -223,11 +224,25 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		static_cast<std::uint16_t>(FesGpTransportMajor);
 	expected[FesGpIdentityTransportMinorIndex] =
 		static_cast<std::uint16_t>(FesGpTransportMinor);
-	expected[FesGpIdentityAbiTagIndex] = static_cast<std::uint16_t>(FesGpAbiTag);
+	const bool computer = descriptor.abi.id == FesSimpleComputerABIID;
+	expected[FesGpIdentityAbiTagIndex] = static_cast<std::uint16_t>(
+		computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
 	expected[FesGpIdentityAbiMajorIndex] = static_cast<std::uint16_t>(descriptor.abi.major);
 	expected[FesGpIdentityAbiMinorIndex] = static_cast<std::uint16_t>(descriptor.abi.minor);
 	std::uint16_t capabilities = 0;
 	for (const CoreInterface& interface : descriptor.interfaces) {
+		if (computer) {
+			if (interface.id == FesSimpleComputerInterfaceKeyboardID)
+				capabilities = static_cast<std::uint16_t>(capabilities |
+					FesSimpleComputerCapabilityKeyboard);
+			else if (interface.id == FesSimpleComputerInterfaceVideoFixed720p60ID)
+				capabilities = static_cast<std::uint16_t>(capabilities |
+					FesSimpleComputerCapabilityVideoFixed720p60);
+			else if (interface.id == FesSimpleComputerInterfaceMediaBlobID)
+				capabilities = static_cast<std::uint16_t>(capabilities |
+					FesSimpleComputerCapabilityMediaBlob);
+			continue;
+		}
 		if (interface.id == FesGpInterfaceGamepadID)
 			capabilities = static_cast<std::uint16_t>(capabilities |
 				FesGpCapabilityGamepad);

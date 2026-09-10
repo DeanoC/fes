@@ -10,6 +10,7 @@
 #include "native/core_loader.hpp"
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include "native/input.hpp"
 #include "native/video.hpp"
 
@@ -35,6 +36,14 @@ Error WithPhase(Error error, const char* phase)
 {
 	if (!error.ok() && error.phase.empty()) error.phase = phase;
 	return error;
+}
+
+bool RequiresFesGamepad(const CoreDescriptor& descriptor)
+{
+	for (const CoreInterface& interface : descriptor.interfaces)
+		if (interface.id == generated::FesGpInterfaceGamepadID && interface.required)
+			return true;
+	return false;
 }
 
 Error ProgramError(Error error)
@@ -541,6 +550,23 @@ Capabilities NativeHardware::capabilities() const
 		std::sort(fes.interfaces.begin(), fes.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(fes));
+		SupportedABI computer;
+		computer.id = generated::FesSimpleComputerABIID;
+		computer.major = generated::FesSimpleComputerABIMajor;
+		computer.minor = generated::FesSimpleComputerABIMinor;
+		computer.interfaces = {
+			{generated::FesSimpleComputerInterfaceKeyboardID,
+				generated::FesSimpleComputerInterfaceKeyboardMajor,
+				generated::FesSimpleComputerInterfaceKeyboardMinor},
+			{generated::FesSimpleComputerInterfaceVideoFixed720p60ID,
+				generated::FesSimpleComputerInterfaceVideoFixed720p60Major,
+				generated::FesSimpleComputerInterfaceVideoFixed720p60Minor},
+			{generated::FesSimpleComputerInterfaceMediaBlobID,
+				generated::FesSimpleComputerInterfaceMediaBlobMajor,
+				generated::FesSimpleComputerInterfaceMediaBlobMinor}};
+		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
+		result.abis.insert(result.abis.begin() + 1, std::move(computer));
 	}
 	return result;
 }
@@ -566,12 +592,14 @@ HardwareResult NativeHardware::LoadCore(
 			false, ""};
 
 	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1;
+	const bool fes_gamepad = fes_gp &&
+		RequiresFesGamepad(admitted->opened_.descriptor);
 	error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 		admitted->opened_.descriptor.core.id, "input_stop", error});
 	if (!error.ok()) return {WithPhase(error, "input"), true, ""};
 	std::shared_ptr<std::atomic<bool>> identity_verified;
-	if (fes_gp) {
+	if (fes_gamepad) {
 		identity_verified = std::make_shared<std::atomic<bool>>(false);
 		CoreDriver* const input_driver = admitted->driver_;
 		CoreDriverContext input_context;
@@ -643,7 +671,8 @@ HardwareResult NativeHardware::LoadCore(
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
 	}
 	if (fes_gp) {
-		identity_verified->store(true);
+		if (identity_verified)
+			identity_verified->store(true);
 		const VideoResult video = game_video_.BringUpCustom(
 			Deadline(clock_, timeouts_.video_ms));
 		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
@@ -654,21 +683,25 @@ HardwareResult NativeHardware::LoadCore(
 				WithPhase(stopped, "input"),
 				true, identified.observed_core};
 		}
-		error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
-		if (!error.ok()) return {CoreIoError(error, "input"), true,
-			identified.observed_core};
+		if (fes_gamepad) {
+			error = input_.Neutralize(Deadline(clock_, timeouts_.core_io_ms));
+			if (!error.ok()) return {CoreIoError(error, "input"), true,
+				identified.observed_core};
+		}
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
 			"transport"), true, identified.observed_core};
-		error = input_.Start(generation,
-			[this](std::uint64_t reported_generation, Error fault) {
-				ForwardInputFault(reported_generation, std::move(fault));
-			});
-		if (!error.ok()) return {CoreIoError(error, "input"), true,
-			identified.observed_core};
+		if (fes_gamepad) {
+			error = input_.Start(generation,
+				[this](std::uint64_t reported_generation, Error fault) {
+					ForwardInputFault(reported_generation, std::move(fault));
+				});
+			if (!error.ok()) return {CoreIoError(error, "input"), true,
+				identified.observed_core};
+		}
 	}
-	if (fes_gp) {
+	if (fes_gamepad) {
 		active_input_recipe_ = FesGpInputRecipe();
 		has_active_input_recipe_ = true;
 	} else {

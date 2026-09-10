@@ -6,6 +6,7 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 
 #include <assert.h>
@@ -352,6 +353,45 @@ void TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup()
 	}
 }
 
+void TestIdentifyAcceptsSimpleComputerTagAndCapabilities()
+{
+	const std::string build_id = "00112233445566778899aabbccddeeff";
+	mister::native::CoreDescriptor descriptor;
+	descriptor.core.id = "fes.zx81";
+	descriptor.abi = {FesSimpleComputerABIID, FesSimpleComputerABIMajor,
+		FesSimpleComputerABIMinor};
+	descriptor.interfaces = {
+		{FesSimpleComputerInterfaceKeyboardID,
+			FesSimpleComputerInterfaceKeyboardMajor,
+			FesSimpleComputerInterfaceKeyboardMinor, true},
+		{FesSimpleComputerInterfaceVideoFixed720p60ID,
+			FesSimpleComputerInterfaceVideoFixed720p60Major,
+			FesSimpleComputerInterfaceVideoFixed720p60Minor, true},
+		{FesSimpleComputerInterfaceMediaBlobID,
+			FesSimpleComputerInterfaceMediaBlobMajor,
+			FesSimpleComputerInterfaceMediaBlobMinor, true},
+	};
+	descriptor.build.id = build_id;
+	std::vector<std::uint16_t> words = IdentityWords(build_id);
+	words[FesGpIdentityAbiTagIndex] =
+		static_cast<std::uint16_t>(FesSimpleComputerAbiTag);
+	words[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(
+		FesSimpleComputerCapabilityKeyboard |
+		FesSimpleComputerCapabilityVideoFixed720p60 |
+		FesSimpleComputerCapabilityMediaBlob);
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	ScriptIdentity(&mmio, words);
+	const mister::native::CoreDriverResult result = driver.Identify(context, 10000);
+	assert(result.error.ok());
+	assert(result.observed_core == "fes.zx81");
+	assert(result.safe_to_quiesce);
+}
+
 void TestCoreDriverRoutesGeneratedControlsAndChecksResponses()
 {
 	mister_test::FakeMmio mmio;
@@ -529,8 +569,9 @@ int main()
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
 	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
+	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 9 groups passed");
+	puts("fes_gp_test: 10 groups passed");
 	return 0;
 }

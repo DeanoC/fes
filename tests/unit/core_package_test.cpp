@@ -228,6 +228,27 @@ void TestDescriptorFieldsAndCompatibilityAreSeparate()
 	assert(!mister::native::CheckCoreCompatibility(incompatible).ok());
 }
 
+void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
+{
+	mister::native::CoreDescriptor descriptor;
+	descriptor.target.platform = "de10_nano";
+	descriptor.target.device = "5CSEBA6U23I7";
+	descriptor.target.programming_profile = "fes-gp-v1";
+	descriptor.abi = {"fes.simple-computer", 1, 0};
+	descriptor.interfaces = {
+		{"fes.keyboard", 1, 0, true},
+		{"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.media.blob", 1, 0, true},
+	};
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	auto missing = descriptor;
+	missing.interfaces.pop_back();
+	assert(!mister::native::CheckCoreCompatibility(missing).ok());
+	auto gamepad = descriptor;
+	gamepad.interfaces.push_back({"fes.gamepad", 1, 0, true});
+	assert(!mister::native::CheckCoreCompatibility(gamepad).ok());
+}
+
 void TestDirectoryAdmissionAndRetainedPayload()
 {
 	TempDirectory rooted = PackageFromFixture("valid-basic");
@@ -424,11 +445,12 @@ int main()
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();
 	TestDescriptorFieldsAndCompatibilityAreSeparate();
+	TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia();
 	TestDirectoryAdmissionAndRetainedPayload();
 	TestExpectedIdentityAndParserExceptions();
 	TestRepositoryMatchesSharedRfc3986Contract();
 	TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission();
 	TestMissingOrNonTableCoreIsRejectedWithoutChangingResult();
-	puts("core_package_test: 8 groups passed");
+	puts("core_package_test: 9 groups passed");
 	return 0;
 }
