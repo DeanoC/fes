@@ -1076,6 +1076,17 @@ The retained `exchanges.json` remains the original volatile fixture with bits
 verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
 one effect per toggle and error isolation.
 
+## FES simple-computer mailbox
+
+`cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
+the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
+keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
+begin/data/commit. Hold reset clears in-flight media and the keyboard; a
+committed blob stays. The checked-in `cores/fes-zx81/generated/fes_simple_computer.vh`
+and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
+plays that fixture and checks keyboard/media side effects. This is not a ZX81
+ULA, Quartus recipe, or kit result.
+
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
 and fixed video. Base ABI and transport remain 1.0. Data-info opcode 7 reports

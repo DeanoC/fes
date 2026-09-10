@@ -11,6 +11,7 @@ __pycache__/
 *.json
 !cores/fes-pong/generated/exchanges.json
 !cores/fes-pong/generated/persistence-exchanges.json
+!cores/fes-zx81/generated/exchanges.json
 # Canonical format-2 conformance inputs use generated-output extensions.
 !tests/fixtures/core-bundle-v2/cases.json
 *.rbf

@@ -38,6 +38,7 @@ help:
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
+		"  sim-fes-zx81  Test the FES simple-computer GP mailbox" \
 		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
@@ -66,7 +67,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -106,6 +107,14 @@ sim-fes-pong:
 		cores/fes-pong/rtl/fes_gp.v cores/fes-pong/rtl/video_720p.v \
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/board_tb.cpp"
 	@build/sim/fes-pong-board/Vtop
+
+sim-fes-zx81:
+	@mkdir -p build/sim/fes-zx81-gp
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-Icores/fes-zx81/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp" \
+		cores/fes-zx81/rtl/fes_computer_gp.v "$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
+	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 
 build-fes-pong:
 	$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"

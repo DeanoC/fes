@@ -261,6 +261,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
 reuse an installed tool. `make build-pong` adds the MiSTer board wrapper and
 produces a programmable RBF.
 
+`make sim-fes-zx81` tests the `fes.simple-computer` 1.0 mailbox: identity tag 2,
+keyboard rows, a bounded media blob, and error isolation. It is simulation of
+the GP contract, not a ZX81 machine, Quartus RBF, or hardware evidence.
+
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
