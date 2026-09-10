@@ -910,8 +910,8 @@ without acquiring a physical lease or replacing input. The target runtime
 remains the compatibility authority. Target transitions can report busy;
 failed inspection cleanup cannot report compatibility success.
 
-Package-backed `session/launch` uses the same confirmed-package transition as
-the development loader, before ordinary game launch detaches prior input/media.
+Package-backed `session/launch` uses the confirmed-package transition with
+explicit library context, before ordinary game launch detaches prior input/media.
 The service resolves selected immutable bytes under lifecycle admission, then
 records the library identity only for the exact confirmed package generation.
 Changing the selection affects future launches. Runtime status stays truthful;
@@ -924,3 +924,41 @@ retains the host owner and a package recovery marker, reports the observed
 FPGA package with the recovery error, and blocks input attachment. Stop or a
 subsequent package launch retries target recovery and host cleanup before
 clearing either pending owner.
+
+
+## Described-core persistent data
+
+`fogcast/core_data.go` resolves a selected immutable library package under the
+existing lifecycle admission, binds each data result to that package and the
+current target, and exposes settings/progress APIs documented in
+[the package library guide](core-package-library.md#persistent-settings-and-progress).
+Host code consumes the runtime's `persistence_layout` metadata without a second
+ABI registry. Selection rejects persistent-to-missing/different-layout changes,
+including when no record has yet been written, and checks durable target data.
+
+`host/core_data_client.go` sends bounded archives and expected package IDs to
+`internal/httpapi/core_data.go`; writes and library loads use the existing kit
+lease. Read-only data inspection does not claim hardware. The target coordinator
+serializes these calls against lifecycle operations. `internal/misterruntime/core_data.go`
+privately stages/admit-checks exact bytes, supplies the fixed trusted
+`/media/fat/fogcast/core-data` root, and calls protocol-2 `inspect_core_data`,
+`update_core_settings`, or `load_library_core`. No network caller supplies a
+filesystem path. Failed cleanup remains owned, and an ambiguous settings write
+is never replayed. A successful settings-only write or definite admission/revision rejection
+releases only the grant acquired for that operation; an existing session grant
+stays held. Described-package Stop uses protocol 2 so retained unsafe
+persistence recovery cannot trigger the legacy development autoreboot path.
+Leftover staging from a failed inspect or settings cleanup does not divert a
+later native-game Stop onto that protocol-2 path. Explicit library loads and
+described-package Stop retain the same diagnostic dispatch events and native
+event-dump import as the other runtime operations.
+
+The runtime owns bounded record validation, revision CAS, settings/progress
+semantics, atomic publication, and physical restore/capture. It refreshes a
+same-core incoming record after outgoing flush, before activating the next
+generation. Development `load_core` remains volatile. Active package status
+reports persistence mode separately from its historical development execution
+label and host library association. A safely resumed save failure preserves
+its exact generation and can restore host input; unsafe persistence recovery
+retains package/generation attribution in failed status and blocks input.
+Existing post-activation HostOnly cleanup recovery remains unchanged.

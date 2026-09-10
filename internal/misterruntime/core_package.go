@@ -1,6 +1,9 @@
 package misterruntime
 
-import "github.com/DeanoC/FogCast/internal/corepackage"
+import (
+	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
+)
 
 type Protocol2Contract struct {
 	ID    string `json:"id"`
@@ -33,14 +36,16 @@ type Protocol2Observed struct {
 }
 
 type Protocol2ActivePackage struct {
-	PackageID  string                 `json:"package_id"`
-	Descriptor corepackage.Descriptor `json:"descriptor"`
-	Observed   Protocol2Observed      `json:"observed"`
+	PersistenceMode string                 `json:"persistence_mode,omitempty"`
+	PackageID       string                 `json:"package_id"`
+	Descriptor      corepackage.Descriptor `json:"descriptor"`
+	Observed        Protocol2Observed      `json:"observed"`
 }
 
 type Protocol2Inspection struct {
-	PackageID          string                 `json:"package_id"`
-	Descriptor         corepackage.Descriptor `json:"descriptor"`
-	Compatible         bool                   `json:"compatible"`
-	CompatibilityError *Protocol2Error        `json:"compatibility_error"`
+	PersistenceLayout  *protocol.RuntimeContract `json:"persistence_layout,omitempty"`
+	PackageID          string                    `json:"package_id"`
+	Descriptor         corepackage.Descriptor    `json:"descriptor"`
+	Compatible         bool                      `json:"compatible"`
+	CompatibilityError *Protocol2Error           `json:"compatibility_error"`
 }

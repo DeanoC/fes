@@ -141,7 +141,7 @@ func (s *Service) inspectInstalledCore(ctx context.Context, id string) (CoreComp
 	if err != nil {
 		return CoreCompatibility{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if result.PackageID != value.PackageID || !reflect.DeepEqual(result.Descriptor, value.Descriptor) || result.Compatible != (result.CompatibilityError == nil) {
+	if result.PackageID != value.PackageID || !reflect.DeepEqual(result.Descriptor, value.Descriptor) || result.Compatible != (result.CompatibilityError == nil) || !validPersistenceLayout(result.Descriptor, result.PersistenceLayout) {
 		return CoreCompatibility{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	state := "incompatible"
@@ -194,12 +194,37 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if !ok {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
+	var current *CoreCompatibility
+	if gameID != "" {
+		entry, err := store.CoreEntry(ctx, gameID)
+		if err != nil {
+			return catalog.CoreEntry{}, mapCoreEntryError(err)
+		}
+		if entry.PackageID != expected {
+			return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
+		}
+		old, err := s.inspectInstalledCore(ctx, entry.PackageID)
+		if err != nil {
+			return catalog.CoreEntry{}, err
+		}
+		current = &old
+	}
 	check, err := s.inspectInstalledCore(ctx, id)
 	if err != nil {
 		return catalog.CoreEntry{}, err
 	}
 	if !check.Compatible {
 		return catalog.CoreEntry{}, check.CompatibilityError
+	}
+	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeIncompatibleData, nil)
+	}
+	data, err := s.inspectInstalledCoreData(ctx, id, nil)
+	if err != nil {
+		return catalog.CoreEntry{}, err
+	}
+	if !reflect.DeepEqual(data.Layout, check.PersistenceLayout) {
+		return catalog.CoreEntry{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {

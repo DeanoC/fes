@@ -179,7 +179,7 @@ func writeCoreLibraryError(w http.ResponseWriter, err error) {
 			code = http.StatusBadRequest
 		case protocol.CodeROMNotFound:
 			code = http.StatusNotFound
-		case protocol.CodeBusy:
+		case protocol.CodeBusy, protocol.CodeCorruptData, protocol.CodeIncompatibleData, protocol.CodeStaleRevision:
 			code = http.StatusConflict
 		case protocol.CodeMiSTerUnavailable:
 			code = http.StatusServiceUnavailable

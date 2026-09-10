@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "core-install", "core-list", "core-check", "core-entry", "core-select":
+	case "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
 		return true
 	}
 	return false
@@ -31,6 +32,24 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 	expectedID := ""
 	var expectedInspection *corepackage.Inspection
 	switch args[0] {
+	case "core-settings", "core-progress", "core-settings-set":
+		if protocol.ValidateGameID(args[1]) != nil {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}, exit: 1}
+		}
+		path = "/api/v1/library/core-entries/" + url.PathEscape(args[1]) + "/settings"
+		if args[0] == "core-progress" {
+			path = "/api/v1/library/core-entries/" + url.PathEscape(args[1]) + "/progress"
+		}
+		if args[0] == "core-settings-set" {
+			speed, err := strconv.ParseUint(args[4], 10, 16)
+			update := protocol.CoreSettingsUpdate{ExpectedPackageID: args[2], ExpectedRevision: args[3], PaddleSpeed: protocol.PaddleSpeed(speed)}
+			if err != nil || !update.Valid() {
+				return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core settings require package ID, revision and speed 0, 1 or 2"}, exit: 1}
+			}
+			method = http.MethodPut
+			data, _ = json.Marshal(update)
+		}
+
 	case "core-install":
 		snapshot, err := snapshotCoreArchive(args[1])
 		if err != nil {

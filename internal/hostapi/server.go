@@ -181,6 +181,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	}
 	mux := http.NewServeMux()
 	registerCoreLibrary(mux, service)
+	registerCoreData(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
@@ -653,6 +654,14 @@ func writeMetadataError(w http.ResponseWriter, err error) {
 
 func publicErrorMessage(code protocol.ErrorCode) string {
 	switch code {
+	case protocol.CodeCorruptData:
+		return "stored core data is corrupt"
+	case protocol.CodeIncompatibleData:
+		return "stored or selected core data is incompatible"
+	case protocol.CodeStaleRevision:
+		return "core package selection or data revision changed; refresh before retrying"
+	case protocol.CodeSaveFailed:
+		return "core data could not be durably written; inspect status before retrying"
 	case protocol.CodeBadRequest:
 		return "FogCast request is invalid"
 	case protocol.CodeUnauthorized:

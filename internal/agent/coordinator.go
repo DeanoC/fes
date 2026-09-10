@@ -409,6 +409,9 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 }
 
 func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	return c.loadCore(parent, size, content, "")
+}
+func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -422,13 +425,32 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 	previous := c.Status()
 	observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
 	defer cancel()
-	activation, attempted, apiErr := runtime.LoadCoreOwned(parent, observation,
-		c.operationContext, size, content)
+	var activation misterruntime.CoreActivation
+	var attempted bool
+	var apiErr *protocol.APIError
+	if libraryID != "" {
+		library, ok := c.runtime.(libraryCoreRuntime)
+		if !ok {
+			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+		}
+		activation, attempted, apiErr = library.LoadLibraryCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+	} else {
+		activation, attempted, apiErr = runtime.LoadCoreOwned(parent, observation, c.operationContext, size, content)
+	}
 	if apiErr != nil {
 		c.record(flightdiag.KindFenceABI, "error", map[string]any{"operation": "core_package", "ok": false})
 		if !attempted {
 			c.set(previous)
 			return c.Status(), apiErr
+		}
+		if previous.CorePackage != nil && apiErr.Phase == "recovery" {
+			check, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
+			retained := c.runtime.Reconcile(check)
+			cancel()
+			if sameCoreGeneration(previous, retained) && retained.State == protocol.StateFailed && retained.Recovery != "" {
+				c.set(retained)
+				return c.Status(), apiErr
+			}
 		}
 		if runtime, ok := c.runtime.(idleConfirmingRuntime); ok && runtime.ConfirmIdle(c.operationContext) {
 			c.set(protocol.Status{State: protocol.StateIdle, LastError: cloneAPIError(apiErr)})
@@ -459,7 +481,7 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
-		Gamepad: activation.Gamepad,
+		Gamepad: activation.Gamepad, PersistenceMode: activation.PersistenceMode,
 	}
 	c.set(active)
 	return c.Status(), nil
@@ -542,8 +564,25 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	if apiErr == nil && recovery != "" {
 		apiErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	}
+	if apiErr != nil && (apiErr.Code == protocol.CodeSaveFailed || apiErr.Phase == "recovery") && current.CorePackage != nil {
+		checkCtx, cancel := context.WithTimeout(c.operationContext, c.stopTimeout)
+		observed := c.runtime.Reconcile(checkCtx)
+		cancel()
+		if observed.State == protocol.StateActive && observed.Development && observed.Recovery == "" && observed.CorePackage != nil &&
+			observed.CorePackage.PackageID == current.CorePackage.PackageID && observed.CorePackage.Generation == current.CorePackage.Generation &&
+			(observed.LastError == nil || (observed.LastError.Code == protocol.CodeSaveFailed && observed.LastError.Phase == "save")) {
+			current.LastError = cloneAPIError(apiErr)
+			c.set(current)
+			return c.Status(), apiErr
+		}
+		if sameCoreGeneration(current, observed) && observed.State == protocol.StateFailed && observed.Recovery != "" {
+			c.set(observed)
+			return c.Status(), apiErr
+		}
+	}
 	if apiErr != nil {
 		failed := cloneStatus(stopping)
+		failed.Recovery = recovery
 		failed.State = protocol.StateFailed
 		failed.LastError = cloneAPIError(apiErr)
 		if observed == "" {
@@ -654,4 +693,8 @@ func cloneAPIError(apiErr *protocol.APIError) *protocol.APIError {
 	}
 	copy := *apiErr
 	return &copy
+}
+
+func sameCoreGeneration(left, right protocol.Status) bool {
+	return left.CorePackage != nil && right.CorePackage != nil && left.CorePackage.PackageID == right.CorePackage.PackageID && left.CorePackage.Generation == right.CorePackage.Generation
 }

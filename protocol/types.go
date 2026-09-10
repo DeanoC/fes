@@ -79,6 +79,7 @@ type ErrorEnvelope struct {
 // CoreInspection is the target runtime's read-only compatibility observation
 // for one exact core package.
 type CoreInspection struct {
+	PersistenceLayout  *RuntimeContract       `json:"persistence_layout,omitempty"`
 	PackageID          string                 `json:"package_id"`
 	Descriptor         corepackage.Descriptor `json:"descriptor"`
 	Compatible         bool                   `json:"compatible"`
@@ -108,6 +109,7 @@ type RuntimeInterface struct {
 }
 
 type CorePackageStatus struct {
+	PersistenceMode  string             `json:"persistence_mode,omitempty"`
 	PackageID        string             `json:"package_id"`
 	Generation       uint64             `json:"generation"`
 	ABI              RuntimeContract    `json:"abi"`

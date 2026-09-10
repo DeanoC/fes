@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 var errProtocol2Unsupported = errors.New("runtime protocol 2 is unsupported")
@@ -35,6 +36,7 @@ type Protocol2Error struct {
 }
 
 type Protocol2Response struct {
+	CoreData         *protocol.CoreData      `json:"core_data,omitempty"`
 	Protocol         int                     `json:"protocol"`
 	OK               bool                    `json:"ok"`
 	State            string                  `json:"state"`
@@ -61,10 +63,19 @@ func (client *Client) Protocol2Status(ctx context.Context) (Protocol2Response, e
 	if err != nil {
 		return Protocol2Response{}, err
 	}
-	if response.InspectedPackage != nil || (!response.OK && response.State != "reboot_required") {
+	if response.InspectedPackage != nil || (!response.OK && response.State != "reboot_required" && !protocol2ResumedSaveFailure(response)) {
 		return Protocol2Response{}, errInvalidRuntimeResponse
 	}
 	return response, nil
+}
+
+func protocol2ResumedSaveFailure(response Protocol2Response) bool {
+	return response.Error != nil && response.Error.Code == "save_failed" && response.Error.Phase == "save" &&
+		(response.State == "running_development" || response.State == "running_game")
+}
+
+func describedPackageRuntimeState(response Protocol2Response) bool {
+	return response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil)
 }
 
 func (client *Client) LoadCore(ctx context.Context, path, packageID string) (Protocol2Response, error) {
@@ -73,6 +84,16 @@ func (client *Client) LoadCore(ctx context.Context, path, packageID string) (Pro
 }
 
 func (client *Client) loadCoreWithStatus(ctx context.Context, path, packageID string) (Protocol2Response, Protocol2Response, error) {
+	return client.loadCoreWithRoot(ctx, path, packageID, "")
+}
+func (client *Client) loadCoreOperation(ctx context.Context, path, id, root string) (Protocol2Response, error) {
+	if !validRuntimePath(root) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	response, _, err := client.loadCoreWithRoot(ctx, path, id, root)
+	return response, err
+}
+func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, root string) (Protocol2Response, Protocol2Response, error) {
 	if !validRuntimePath(path) || !protocol2Hex64.MatchString(packageID) {
 		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
 	}
@@ -80,12 +101,17 @@ func (client *Client) loadCoreWithStatus(ctx context.Context, path, packageID st
 	if err != nil {
 		return Protocol2Response{}, Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
 	}
+	operation := "load_core"
+	if root != "" {
+		operation = "load_library_core"
+	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
 		Protocol    int    `json:"protocol"`
 		Operation   string `json:"operation"`
 		PackagePath string `json:"package_path"`
 		PackageID   string `json:"package_id"`
-	}{Protocol: 2, Operation: "load_core", PackagePath: path, PackageID: packageID})
+		DataRoot    string `json:"data_root,omitempty"`
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root})
 	if err != nil {
 		return Protocol2Response{}, before, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -175,7 +201,7 @@ func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
 
 func validateProtocol2Shape(line []byte) error {
 	var root json.RawMessage = line
-	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, nil)
+	object, err := exactRawObject(root, []string{"protocol", "ok", "state", "execution", "system", "core", "error", "version", "capabilities", "active_package", "generation", "inspected_package"}, []string{"core_data"})
 	if err != nil {
 		return err
 	}
@@ -188,6 +214,11 @@ func validateProtocol2Shape(line []byte) error {
 		"inspected_package": rawNullableObject,
 	}); err != nil {
 		return err
+	}
+	if data, ok := object["core_data"]; ok && !isNull(data) {
+		if err := validateCoreDataShape(data); err != nil {
+			return err
+		}
 	}
 	if !isNull(object["error"]) {
 		if err := validateErrorShape(object["error"]); err != nil {
@@ -228,7 +259,7 @@ func validateProtocol2Shape(line []byte) error {
 		return err
 	}
 	if !isNull(object["active_package"]) {
-		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, nil)
+		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, []string{"persistence_mode"})
 		if err != nil {
 			return err
 		}
@@ -237,6 +268,12 @@ func validateProtocol2Shape(line []byte) error {
 			"observed": rawObject,
 		}); err != nil {
 			return err
+		}
+		if mode, ok := active["persistence_mode"]; ok {
+			var value string
+			if json.Unmarshal(mode, &value) != nil || (value != "persistent" && value != "volatile") {
+				return errInvalidRuntimeResponse
+			}
 		}
 		if err := validateDescriptorShape(active["descriptor"]); err != nil {
 			return err
@@ -263,7 +300,7 @@ func validateProtocol2Shape(line []byte) error {
 		}
 	}
 	if !isNull(object["inspected_package"]) {
-		inspection, err := exactRawObject(object["inspected_package"], []string{"package_id", "descriptor", "compatible", "compatibility_error"}, nil)
+		inspection, err := exactRawObject(object["inspected_package"], []string{"package_id", "descriptor", "compatible", "compatibility_error"}, []string{"persistence_layout"})
 		if err != nil {
 			return err
 		}
@@ -272,6 +309,11 @@ func validateProtocol2Shape(line []byte) error {
 			"compatible": rawBoolean, "compatibility_error": rawNullableObject,
 		}); err != nil {
 			return err
+		}
+		if layout, ok := inspection["persistence_layout"]; ok && !isNull(layout) {
+			if err := validateSupportedInterfaceShape(layout); err != nil {
+				return err
+			}
 		}
 		if err := validateDescriptorShape(inspection["descriptor"]); err != nil {
 			return err
@@ -558,6 +600,9 @@ func consumeJSONValue(decoder *json.Decoder) error {
 }
 
 func validProtocol2Response(response Protocol2Response) bool {
+	if response.CoreData != nil && !response.CoreData.Valid() {
+		return false
+	}
 	if response.Protocol != 2 || response.Version == "" ||
 		(response.Error == nil && !response.OK) ||
 		(response.Error != nil && !validProtocol2Error(*response.Error)) ||
@@ -608,8 +653,14 @@ func validProtocol2Response(response Protocol2Response) bool {
 			return false
 		}
 	case "reboot_required":
-		if response.Execution != "none" || identity != identityNone || response.Generation != nil || !noActive ||
-			response.Error == nil || response.Error.Code != "idle_failed" {
+		if response.Error == nil || response.Error.Code != "idle_failed" {
+			return false
+		}
+		if response.ActivePackage != nil {
+			if response.Execution != "development" || identity != identityCore || !positive(response.Generation) || response.ActivePackage.PersistenceMode != "persistent" || response.Error.Phase != "recovery" || !validActivePackage(*response.ActivePackage, response.Capabilities) {
+				return false
+			}
+		} else if response.Execution != "none" || identity != identityNone || response.Generation != nil || !noActive {
 			return false
 		}
 	default:
@@ -623,12 +674,12 @@ func validProtocol2Response(response Protocol2Response) bool {
 
 func validProtocol2Error(remote Protocol2Error) bool {
 	switch remote.Code {
-	case "invalid_request", "unsupported_protocol", "unknown_system", "missing_media", "busy", "program_failed", "core_mismatch", "io_failed", "idle_failed", "save_failed", "invalid_package", "unsupported_target", "unsupported_programming_profile", "unsupported_abi", "unsupported_interface":
+	case "invalid_request", "unsupported_protocol", "unknown_system", "missing_media", "busy", "program_failed", "core_mismatch", "io_failed", "idle_failed", "save_failed", "invalid_package", "unsupported_target", "unsupported_programming_profile", "unsupported_abi", "unsupported_interface", "corrupt_data", "incompatible_data", "stale_revision":
 	default:
 		return false
 	}
 	switch remote.Phase {
-	case "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle":
+	case "core_data", "request", "admission", "compatibility", "save", "quiesce", "programming", "transport", "identity", "video", "input", "recovery", "lifecycle":
 		return true
 	default:
 		return false
@@ -697,6 +748,17 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 }
 
 func validInspection(inspection Protocol2Inspection, capabilities Protocol2Capabilities) bool {
+	if layout := inspection.PersistenceLayout; layout != nil {
+		found := false
+		for _, i := range inspection.Descriptor.Interfaces {
+			if i.Required && i.ID == layout.ID && i.Major == int64(layout.Major) && i.Minor == int64(layout.Minor) {
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
 	if !protocol2Hex64.MatchString(inspection.PackageID) || !validDescriptor(inspection.Descriptor) {
 		return false
 	}

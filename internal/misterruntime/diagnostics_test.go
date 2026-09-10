@@ -1,6 +1,7 @@
 package misterruntime_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -108,5 +109,43 @@ func TestNativeDrainOmitsJoinFieldsWhenTheDumpHasNone(t *testing.T) {
 	}
 	if sink.events[0].FlightID != "" || sink.events[0].LeaseGen != "" || sink.events[0].RunID != "" {
 		t.Fatalf("invented join fields: %#v", sink.events[0])
+	}
+}
+
+// Library loading and described-package Stop must retain main's diagnostic
+// dispatch hooks when they use the explicit persistence protocol paths.
+type diagnosticDataControl struct{ dataControl }
+
+func (c *diagnosticDataControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{OK: true, State: "idle", Execution: "none"}, nil
+}
+
+func TestLibraryPersistenceDispatchKeepsDiagnostics(t *testing.T) {
+	archive := canonicalCoreArchive(t)
+	control := &diagnosticDataControl{}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+		misterruntime.WithCorePackageRoot(t.TempDir()),
+		misterruntime.WithDiagnosticEventsPath(filepath.Join(t.TempDir(), "absent.json")))
+	sink := &recordingSink{}
+	runtime.ConfigureDiagnostics(sink)
+	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
+	if apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	_, _, apiErr = runtime.LoadLibraryCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID)
+	if apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	if _, apiErr = runtime.Stop(context.Background()); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	if len(sink.events) != 2 {
+		t.Fatalf("dispatch events = %#v", sink.events)
+	}
+	for i, operation := range []string{"load_library_core", "stop"} {
+		event := sink.events[i]
+		if event.Kind != flightdiag.KindFIFODispatch || event.Detail["operation"] != operation || event.Detail["ok"] != true {
+			t.Fatalf("dispatch %d = %#v", i, event)
+		}
 	}
 }

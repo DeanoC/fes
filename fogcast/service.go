@@ -1230,7 +1230,16 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
 	}
-	status, err := loader.LoadCore(ctx, size, content)
+	var status protocol.Status
+	if selected.entry != nil {
+		library, ok := client.(libraryCoreClient)
+		if !ok {
+			return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+		}
+		status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+	} else {
+		status, err = loader.LoadCore(ctx, size, content)
+	}
 	if err != nil {
 		if corePackagePreMutationFailure(err) {
 			return protocol.Status{}, preserveCorePackageError(err)
@@ -2423,6 +2432,14 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "core transition timed out"
 	case protocol.CodeUnrecognizedCore:
 		message = "active core is unrecognized"
+	case protocol.CodeCorruptData:
+		message = "stored core data is corrupt"
+	case protocol.CodeIncompatibleData:
+		message = "stored or selected core data is incompatible"
+	case protocol.CodeStaleRevision:
+		message = "core package selection or data revision changed; refresh before retrying"
+	case protocol.CodeSaveFailed:
+		message = "core data could not be durably written; inspect status before retrying"
 	case protocol.CodeInternal:
 		message = "FogCast operation failed internally"
 	default:

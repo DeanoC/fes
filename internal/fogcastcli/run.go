@@ -26,7 +26,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>|core-install <path>|core-list|core-check <package-id>|core-entry <title> <package-id>|core-select <game-id> <expected-package-id> <package-id>}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>|core-install <path>|core-list|core-check <package-id>|core-entry <title> <package-id>|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -235,6 +235,10 @@ func validCommand(args []string) bool {
 		return false
 	}
 	switch args[0] {
+	case "core-settings-set":
+		return len(args) == 5
+	case "core-settings", "core-progress":
+		return len(args) == 2
 	case "core-entry":
 		return len(args) == 3
 	case "core-select":
