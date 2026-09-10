@@ -95,6 +95,48 @@ constants:
     value: 0x80
   - name: FesGpButtonMask
     value: 0x00ff
+  - name: FesGpOpcodeDataControl
+    value: 4
+  - name: FesGpOpcodeDataRead
+    value: 5
+  - name: FesGpOpcodeDataWrite
+    value: 6
+  - name: FesGpOpcodeDataInfo
+    value: 7
+  - name: FesGpDataFreeze
+    value: 0
+  - name: FesGpDataBegin
+    value: 1
+  - name: FesGpDataCommit
+    value: 2
+  - name: FesGpDataResume
+    value: 3
+  - name: FesGpErrorInvalidState
+    value: 4
+  - name: FesGpDataInfoWordCountIndex
+    value: 0
+  - name: FesGpDataInfoLayoutTagIndex
+    value: 1
+  - name: FesGpDataInfoLayoutMajorIndex
+    value: 2
+  - name: FesGpDataInfoLayoutMinorIndex
+    value: 3
+  - name: FesGpDataMaximumWords
+    value: 256
+  - name: FesGpPongProgressTag
+    value: 1
+  - name: FesGpPongProgressWordCount
+    value: 2
+  - name: FesGpPongPaddleSpeedIndex
+    value: 0
+  - name: FesGpPongBestRallyIndex
+    value: 1
+  - name: FesGpPongPaddleSpeedSlow
+    value: 0
+  - name: FesGpPongPaddleSpeedNormal
+    value: 1
+  - name: FesGpPongPaddleSpeedFast
+    value: 2
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -104,3 +146,11 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 1
+  - id: fes.persistence.words
+    major: 1
+    minor: 0
+    capability_bit: 2
+  - id: fes.pong.progress
+    major: 1
+    minor: 0
+    capability_bit: 3

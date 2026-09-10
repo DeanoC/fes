@@ -40,7 +40,7 @@ func TestLoadABIFesSimpleGameContract(t *testing.T) {
 			t.Errorf("constant %s = 0x%x, %t; want 0x%x", name, got, ok, want)
 		}
 	}
-	if len(abi.Interfaces) != 2 {
+	if len(abi.Interfaces) != 4 {
 		t.Fatalf("interfaces = %#v", abi.Interfaces)
 	}
 	if abi.Interfaces[0].ID != "fes.gamepad" || abi.Interfaces[0].CapabilityBit != 0 {
