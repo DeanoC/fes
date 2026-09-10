@@ -587,6 +587,38 @@ func (m *Manager) Usage() int64 {
 	return m.usage
 }
 
+// CacheIndex is the lease-free ROM cache used/free snapshot plus inventory
+// keys. Cover files under launcher-cache are not part of this tree.
+func (m *Manager) CacheIndex() protocol.CacheIndex {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	used := m.usage
+	maxBytes := m.config.MaxBytes
+	free := maxBytes - used
+	if free < 0 {
+		free = 0
+	}
+	entries := make([]protocol.CacheIndexEntry, 0, len(m.entries))
+	for id, entry := range m.entries {
+		entries = append(entries, protocol.CacheIndexEntry{
+			System:    id.system,
+			SHA256:    id.digest,
+			Size:      entry.accountedSize,
+			Extension: id.extension,
+		})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].System != entries[j].System {
+			return entries[i].System < entries[j].System
+		}
+		if entries[i].SHA256 != entries[j].SHA256 {
+			return entries[i].SHA256 < entries[j].SHA256
+		}
+		return entries[i].Extension < entries[j].Extension
+	})
+	return protocol.CacheIndex{UsedBytes: used, MaxBytes: maxBytes, FreeBytes: free, Entries: entries}
+}
+
 func (m *Manager) directoriesIntact(system protocol.System) bool {
 	root, err := os.Lstat(m.root)
 	boundRoot, boundErr := m.rootHandle.Stat(".")

@@ -29,6 +29,9 @@ type fakeContentController struct {
 	lookupResponse protocol.CachedIdentityResponse
 	lookupErr      *protocol.APIError
 
+	index       protocol.CacheIndex
+	indexErr    *protocol.APIError
+	indexCalls  int
 	probeCalls  int
 	putCalls    int
 	launchCalls int
@@ -40,6 +43,18 @@ type fakeContentController struct {
 	launch      protocol.CachedLaunchRequest
 	lastLookup  string
 	put         func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, *protocol.APIError)
+}
+
+func (f *fakeContentController) CacheIndex() (protocol.CacheIndex, *protocol.APIError) {
+	f.indexCalls++
+	if f.indexErr != nil {
+		return protocol.CacheIndex{}, f.indexErr
+	}
+	index := f.index
+	if index.Entries == nil {
+		index.Entries = []protocol.CacheIndexEntry{}
+	}
+	return index, nil
 }
 
 func (f *fakeContentController) ProbeContent(_ context.Context, system protocol.System, key protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
@@ -747,6 +762,34 @@ func TestV2LogsUseSanitizedRouteMetadataAndExcludeSecrets(t *testing.T) {
 		if strings.Contains(logText, secret) {
 			t.Errorf("logs expose %q: %s", secret, logText)
 		}
+	}
+}
+
+func TestV2CacheIndexIsLeaseFreeAuthenticatedGET(t *testing.T) {
+	digest := v2Digest
+	content := &fakeContentController{index: protocol.CacheIndex{
+		UsedBytes: 3, MaxBytes: 64, FreeBytes: 61,
+		Entries: []protocol.CacheIndexEntry{{System: protocol.SystemSNES, SHA256: digest, Size: 3, Extension: "sfc"}},
+	}}
+	handler := newContentHandler(content, discardLogger())
+	response := serveContent(handler, newV2Request(http.MethodGet, "/v2/cache", nil, 0, ""))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"used_bytes":3`) || !strings.Contains(response.Body.String(), `"sha256":"`+digest+`"`) {
+		t.Fatalf("body=%s", response.Body.String())
+	}
+	if content.indexCalls != 1 {
+		t.Fatalf("index calls=%d", content.indexCalls)
+	}
+
+	put := serveContent(handler, newV2Request(http.MethodPut, "/v2/cache", nil, 0, ""))
+	if put.Code != http.StatusMethodNotAllowed || put.Header().Get("Allow") != "GET" {
+		t.Fatalf("put status=%d allow=%q", put.Code, put.Header().Get("Allow"))
+	}
+	query := serveContent(handler, newV2Request(http.MethodGet, "/v2/cache?extra=1", nil, 0, ""))
+	if query.Code != http.StatusBadRequest {
+		t.Fatalf("query status=%d body=%s", query.Code, query.Body.String())
 	}
 }
 

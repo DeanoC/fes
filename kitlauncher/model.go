@@ -1,6 +1,7 @@
 package kitlauncher
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -63,6 +64,47 @@ type Model struct {
 	searchField                                       tenfoot.TextField
 	searchRestoreID                                   string
 	searchPool                                        []tenfoot.Game
+	Cache                                             CacheStatus
+}
+
+// CacheStatus is visible ROM/cover used-free plus last catalog sync.
+type CacheStatus struct {
+	ROMUsedBytes   int64
+	ROMMaxBytes    int64
+	ROMFreeBytes   int64
+	ROMReachable   bool
+	CoverUsedBytes int64
+	CoverMaxBytes  int64
+	CoverFreeBytes int64
+	LastSyncUnix   int64
+}
+
+// CacheChrome is compact living-room used/max, omitted when unknown.
+func (s CacheStatus) Chrome() string {
+	parts := make([]string, 0, 2)
+	if s.ROMReachable && s.ROMMaxBytes > 0 {
+		parts = append(parts, "ROM "+formatCacheBytes(s.ROMUsedBytes)+"/"+formatCacheBytes(s.ROMMaxBytes))
+	}
+	if s.CoverMaxBytes > 0 {
+		parts = append(parts, "ART "+formatCacheBytes(s.CoverUsedBytes)+"/"+formatCacheBytes(s.CoverMaxBytes))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func formatCacheBytes(n int64) string {
+	if n < 0 {
+		n = 0
+	}
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1fG", float64(n)/float64(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.0fM", float64(n)/float64(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0fK", float64(n)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%dB", n)
+	}
 }
 
 func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }

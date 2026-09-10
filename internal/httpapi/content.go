@@ -26,6 +26,11 @@ type ContentController interface {
 	LaunchContent(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, *protocol.APIError)
 }
 
+// CacheIndexController is the optional lease-free GET /v2/cache inventory.
+type CacheIndexController interface {
+	CacheIndex() (protocol.CacheIndex, *protocol.APIError)
+}
+
 type serverOptions struct {
 	targetID    string
 	kitLease    *kitlease.Manager
@@ -90,9 +95,57 @@ type CachedIdentityController interface {
 func registerContentRoutes(mux *http.ServeMux, token string, controller ContentController) {
 	mux.Handle("/v2/cache/{system}/{sha256}", authenticate(token, cacheContentHandler(controller)))
 	mux.Handle("/v2/launch", authenticate(token, exactMethod(http.MethodPost, launchContentHandler(controller))))
+	if indexer, ok := controller.(CacheIndexController); ok {
+		mux.Handle("/v2/cache", authenticate(token, cacheIndexHandler(indexer)))
+	}
 	if lookup, ok := controller.(CachedIdentityController); ok {
 		mux.Handle("GET /v2/hostless/identity/{game_id}", authenticate(token, cachedIdentityHandler(lookup)))
 	}
+}
+
+func cacheIndexHandler(controller CacheIndexController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if r.URL.RawQuery != "" {
+			writeContentError(w, r, badContentRequest("cache index does not accept a query"))
+			return
+		}
+		index, apiErr := controller.CacheIndex()
+		if apiErr != nil {
+			writeContentError(w, r, apiErr)
+			return
+		}
+		if !validCacheIndex(index) {
+			writeContentError(w, r, internalContentResponseError())
+			return
+		}
+		writeJSON(w, http.StatusOK, index)
+	})
+}
+
+func validCacheIndex(index protocol.CacheIndex) bool {
+	if index.UsedBytes < 0 || index.MaxBytes < 0 || index.FreeBytes < 0 {
+		return false
+	}
+	if index.Entries == nil {
+		return false
+	}
+	for _, entry := range index.Entries {
+		if protocol.ValidateSystem(entry.System) != nil {
+			return false
+		}
+		if protocol.ValidateContentKey(protocol.ContentKey{SHA256: entry.SHA256, Extension: entry.Extension}) != nil {
+			return false
+		}
+		if entry.Size < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func cachedIdentityHandler(controller CachedIdentityController) http.Handler {

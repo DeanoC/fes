@@ -286,6 +286,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 	if collections, ok := service.(collectionService); ok {
 		membership, _ = collections.CollectionIDsByGame(r.Context(), ids)
 	}
+	presence, romKnown := romCachePresence(r.Context(), service)
 	for index, game := range result.Games {
 		if state, ok := states[game.ID]; ok {
 			applyUserState(&result.Games[index], state)
@@ -297,6 +298,9 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 			result.Games[index].Cover = covers.CoverHandle(r.Context(), game.ID)
 		}
 		result.Games[index] = enrichLaunchable(service, result.Games[index])
+		if index < len(page.Games) {
+			applyROMCached(&result.Games[index], page.Games[index], presence, romKnown)
+		}
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -575,6 +579,47 @@ func enrichLaunchable(service Service, result gameResult) gameResult {
 	return result
 }
 
+type libraryCacheService interface {
+	LibraryCache(context.Context) (fogcast.LibraryCache, error)
+}
+
+type romCachedService interface {
+	ROMCachePresence(context.Context) (map[string]bool, bool)
+}
+
+func handleLibraryCache(w http.ResponseWriter, r *http.Request, service Service) {
+	provider, ok := service.(libraryCacheService)
+	if !ok {
+		writeJSON(w, http.StatusOK, fogcast.LibraryCache{})
+		return
+	}
+	status, err := provider.LibraryCache(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusOK, fogcast.LibraryCache{})
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func romCachePresence(ctx context.Context, service Service) (map[string]bool, bool) {
+	provider, ok := service.(romCachedService)
+	if !ok {
+		return nil, false
+	}
+	return provider.ROMCachePresence(ctx)
+}
+
+func applyROMCached(result *gameResult, game catalog.Game, presence map[string]bool, known bool) {
+	if result == nil || !known {
+		return
+	}
+	if game.Content == nil || strings.TrimSpace(game.Content.SHA256) == "" {
+		return
+	}
+	cached := presence[string(game.System)+"/"+game.Content.SHA256]
+	result.ROMCached = &cached
+}
+
 func handleFacets(w http.ResponseWriter, r *http.Request, service Service) {
 	faceted, ok := service.(interface {
 		Facets(context.Context) (catalog.FacetValues, error)
@@ -599,6 +644,8 @@ func handleFacets(w http.ResponseWriter, r *http.Request, service Service) {
 
 func publicGameWithVariants(ctx context.Context, service Service, game catalog.Game) gameResult {
 	result := publicGame(game)
+	presence, known := romCachePresence(ctx, service)
+	applyROMCached(&result, game, presence, known)
 	grouped, ok := service.(interface {
 		GamesInGroup(context.Context, string) ([]catalog.Game, error)
 	})
@@ -617,6 +664,7 @@ func publicGameWithVariants(ctx context.Context, service Service, game catalog.G
 	for _, variant := range variants {
 		item := publicGame(variant)
 		item.VariantCount = 1
+		applyROMCached(&item, variant, presence, known)
 		result.Variants = append(result.Variants, item)
 	}
 	return result

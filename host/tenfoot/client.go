@@ -46,6 +46,7 @@ type Game struct {
 	State        string   `json:"state"`
 	RootOnline   bool     `json:"root_online"`
 	Launchable   bool     `json:"launchable"`
+	ROMCached    *bool    `json:"rom_cached,omitempty"`
 	Favorite     bool     `json:"favorite,omitempty"`
 	PlayCount    int64    `json:"play_count,omitempty"`
 	LastPlayedAt int64    `json:"last_played_at,omitempty"`
@@ -145,6 +146,20 @@ type AttractItem struct {
 type AttractPlaylist struct {
 	Items       []AttractItem `json:"items"`
 	IdleSeconds int           `json:"idle_seconds"`
+}
+
+// LibraryCache is GET /api/v1/library/cache. Cover used/free are kit-local.
+type LibraryCache struct {
+	ROM        ROMCacheStatus `json:"rom"`
+	SyncedUnix int64          `json:"synced_unix,omitempty"`
+}
+
+// ROMCacheStatus is the target ROM cache budget from a lease-free probe.
+type ROMCacheStatus struct {
+	UsedBytes int64 `json:"used_bytes"`
+	MaxBytes  int64 `json:"max_bytes"`
+	FreeBytes int64 `json:"free_bytes"`
+	Reachable bool  `json:"reachable"`
 }
 
 // BackdropHandle is the 64-hex fanart/backdrop handle, or empty.
@@ -683,6 +698,13 @@ func (c *Client) FetchLibrary(ctx context.Context, query GameListQuery, maxGames
 		cursor = next
 	}
 	return all, nil
+}
+
+// LibraryCache loads GET /api/v1/library/cache (ROM used/free from the target).
+func (c *Client) LibraryCache(ctx context.Context) (LibraryCache, error) {
+	var result LibraryCache
+	err := c.getJSON(ctx, "/api/v1/library/cache", &result)
+	return result, err
 }
 
 // GamePresentation loads presentation metadata, including cover artwork IDs.

@@ -133,7 +133,13 @@ display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
 Stop and returns to the library. After a successful host catalog fetch it keeps a
 last-good snapshot and cover files under `/media/fat/fogcast/launcher-cache/` on
-FAT, separate from the ROM cache. Power-on paints that shelf and visible covers
+FAT, separate from the ROM cache. Catalog refresh merges in place instead of
+blanking the shelf; covers use a 512MiB LRU budget on that tree and never
+evict the ROM cache. Prefetch is focus, then page, then next page, then strip,
+then attract. `GET /api/v1/library/cache` reports ROM used/free from a
+lease-free target inventory; cover used/free and last sync are kit-local.
+Host games may include `rom_cached` when that inventory is reachable.
+Power-on paints that shelf and visible covers
 from disk before host games HTTP; an absent host shows `Offline - local library`.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. When the host is absent, A may launch a title whose ROM is

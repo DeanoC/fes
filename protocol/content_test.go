@@ -36,6 +36,26 @@ func TestCacheProbeResponseJSON(t *testing.T) {
 	}
 }
 
+func TestCacheIndexJSON(t *testing.T) {
+	t.Parallel()
+	index := protocol.CacheIndex{
+		UsedBytes: 1024,
+		MaxBytes:  2048,
+		FreeBytes: 1024,
+		Entries: []protocol.CacheIndexEntry{{
+			System: protocol.SystemSNES, SHA256: testDigest, Size: 1024, Extension: "sfc",
+		}},
+	}
+	got, err := json.Marshal(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"used_bytes":1024,"max_bytes":2048,"free_bytes":1024,"entries":[{"system":"snes","sha256":"` + testDigest + `","size":1024,"extension":"sfc"}]}`
+	if string(got) != want {
+		t.Fatalf("JSON = %s, want %s", got, want)
+	}
+}
+
 func TestCacheUploadResponseJSON(t *testing.T) {
 	t.Parallel()
 

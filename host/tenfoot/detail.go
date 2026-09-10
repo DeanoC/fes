@@ -134,6 +134,13 @@ func GameDetail(game Game, p Presentation) FocusDetail {
 	if d.Series == "" {
 		d.Series = strings.TrimSpace(game.Series)
 	}
+	if game.ROMCached != nil {
+		if *game.ROMCached {
+			d.Cached = "ON KIT"
+		} else {
+			d.Cached = "NEEDS ROM"
+		}
+	}
 	d.Attribution = strings.TrimSpace(p.AttributionLabel())
 	return d
 }

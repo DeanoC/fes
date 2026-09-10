@@ -101,6 +101,84 @@ func (m *Model) SetCatalog(games []tenfoot.Game) {
 	m.applyFilter(keep)
 }
 
+// ApplyCatalog merges a host catalog refresh without blanking the shelf.
+// Identical lists are a no-op. Browse-identical lists (same ids/titles/covers)
+// copy volatile fields in place so search and focus stay put.
+func (m *Model) ApplyCatalog(games []tenfoot.Game) {
+	if m == nil {
+		return
+	}
+	if games == nil {
+		games = []tenfoot.Game{}
+	}
+	if catalogListsEqual(m.Catalog, games) {
+		return
+	}
+	if catalogBrowseEqual(m.Catalog, games) {
+		m.replaceCatalogFields(games)
+		return
+	}
+	m.SetCatalog(games)
+}
+
+func catalogListsEqual(a, b []tenfoot.Game) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Title != b[i].Title || a[i].System != b[i].System ||
+			a[i].Cover != b[i].Cover || a[i].Launchable != b[i].Launchable ||
+			a[i].PlayCount != b[i].PlayCount || a[i].LastPlayedAt != b[i].LastPlayedAt ||
+			a[i].Favorite != b[i].Favorite || romCachedValue(a[i].ROMCached) != romCachedValue(b[i].ROMCached) {
+			return false
+		}
+	}
+	return true
+}
+
+func catalogBrowseEqual(a, b []tenfoot.Game) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID || a[i].Title != b[i].Title || a[i].System != b[i].System ||
+			a[i].Cover != b[i].Cover || a[i].Launchable != b[i].Launchable {
+			return false
+		}
+	}
+	return true
+}
+
+func romCachedValue(v *bool) int {
+	if v == nil {
+		return 0
+	}
+	if *v {
+		return 1
+	}
+	return -1
+}
+
+func (m *Model) replaceCatalogFields(games []tenfoot.Game) {
+	m.Catalog = append([]tenfoot.Game(nil), games...)
+	byID := make(map[string]tenfoot.Game, len(games))
+	for _, game := range games {
+		byID[game.ID] = game
+	}
+	for i, game := range m.Games {
+		if next, ok := byID[game.ID]; ok {
+			m.Games[i] = next
+		}
+	}
+	if m.searchPool != nil {
+		for i, game := range m.searchPool {
+			if next, ok := byID[game.ID]; ok {
+				m.searchPool[i] = next
+			}
+		}
+	}
+}
+
 // CycleShelf moves one system shelf, wrapping through All. Focus stays on the
 // current game when it remains visible; otherwise it lands on the first
 // launchable title of the new shelf.

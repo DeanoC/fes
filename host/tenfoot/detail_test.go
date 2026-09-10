@@ -427,6 +427,16 @@ func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
 	if empty.Region != "" || empty.Summary != "" || empty.Players != "" || empty.MetaFacts() != "pong" {
 		t.Fatalf("empty %+v facts=%q", empty, empty.MetaFacts())
 	}
+	cached := true
+	onKit := GameDetail(Game{Title: "Sonic", System: "megadrive", ROMCached: &cached}, Presentation{})
+	if onKit.Cached != "ON KIT" || !strings.Contains(onKit.MetaFacts(), "ON KIT") {
+		t.Fatalf("cached %+v facts=%q", onKit, onKit.MetaFacts())
+	}
+	missing := false
+	needs := GameDetail(Game{Title: "Sonic", System: "megadrive", ROMCached: &missing}, Presentation{})
+	if needs.Cached != "NEEDS ROM" {
+		t.Fatalf("missing %#v", needs)
+	}
 	ready := GameDetail(Game{Title: "Sonic", System: "megadrive", Region: "japan"}, Presentation{
 		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump.", VideoID: strings.Repeat("ab", 32)},
 	})

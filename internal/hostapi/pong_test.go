@@ -75,6 +75,13 @@ func testPongPublicSession(t *testing.T, delayedStop bool) {
 				return
 			}
 		case "/v1/status":
+		case "/v2/cache":
+			if r.Method != http.MethodGet {
+				t.Errorf("unexpected target operation %s %s", r.Method, r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(protocol.CacheIndex{Entries: []protocol.CacheIndexEntry{}})
+			return
 		default:
 			t.Errorf("unexpected target operation %s", r.URL.Path)
 		}

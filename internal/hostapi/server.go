@@ -52,6 +52,7 @@ type gameResult struct {
 	Collections     []string            `json:"collections,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`
+	ROMCached       *bool               `json:"rom_cached,omitempty"`
 	CanonicalTitle  string              `json:"canonical_title,omitempty"`
 	Region          string              `json:"region,omitempty"`
 	Revision        string              `json:"revision,omitempty"`
@@ -354,6 +355,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/library/attract", func(w http.ResponseWriter, r *http.Request) {
 		handleAttract(w, r, service)
+	})
+	mux.HandleFunc("GET /api/v1/library/cache", func(w http.ResponseWriter, r *http.Request) {
+		handleLibraryCache(w, r, service)
 	})
 	mux.HandleFunc("GET /api/v1/library/facets", func(w http.ResponseWriter, r *http.Request) {
 		handleFacets(w, r, service)

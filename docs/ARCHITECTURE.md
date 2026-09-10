@@ -736,7 +736,16 @@ The native image packages `fogcast-kit`, a CGO-free controller/session adapter
 with a living-room platform wheel and a live catalog browse renderer.
 `fogcast-kit` writes a last-good catalog snapshot and cover blobs under
 `/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
-ROM cache). Boot paints that shelf from disk before host games HTTP, decodes
+ROM cache). Catalog publish stays atomic (`catalog.json` temp+rename); a host
+refresh merges by identity so an unchanged list does not blank the shelf or
+rewrite FAT. Cover files have a 512 MiB LRU cap on that tree and never call
+into `targetcache`. Artwork and presentation prefetch is focus → visible page →
+next page → strip → attract, still capped at three concurrent fetches.
+`GET /api/v1/library/cache` (host and launcher listener) reports ROM cache
+used/free/max from lease-free target `GET /v2/cache`; cover used/free and last
+catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
+when the target inventory is reachable; ROM-less rows omit it. Boot paints that
+shelf from disk before host games HTTP, decodes
 visible covers from disk first, and labels an absent host `Offline - local library`.
 Local D-pad/A still browse that snapshot. When the host is unreachable, A
 may launch a verified ROM cache hit through the target agent lease as owner

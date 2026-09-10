@@ -185,6 +185,7 @@ type FocusDetail struct {
 	Series        string
 	RelatedIDs    []string
 	Collection    string
+	Cached        string
 }
 
 // MetaFacts joins admitted catalog/presentation facts for the detail strip.
@@ -192,7 +193,7 @@ type FocusDetail struct {
 // the kit platform wheel rolls them up when the games payload carries them.
 func (d FocusDetail) MetaFacts() string {
 	parts := make([]string, 0, 6)
-	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region} {
+	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region, d.Cached} {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

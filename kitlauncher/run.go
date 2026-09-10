@@ -31,6 +31,8 @@ type observation struct {
 	detailID       string
 	presentation   tenfoot.Presentation
 	haveDetail     bool
+	cache          tenfoot.LibraryCache
+	haveCache      bool
 	err            error
 	mutation       bool
 	message        string
@@ -71,6 +73,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		catalogLoaded = true
 		m.Message = OfflineMessage
 	}
+	m.Cache = mergeCacheStatus(c.Cache, tenfoot.LibraryCache{}, false)
 	if present != nil {
 		present(m)
 	}
@@ -124,6 +127,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						StripLabel: o.stripLabel,
 						Recents:    o.recents,
 					})
+					if c.Library != nil {
+						if cache, err := c.Library.LibraryCache(ctx); err == nil {
+							o.cache = cache
+							o.haveCache = true
+						}
+					}
 				}
 			}
 			if o.err == nil && !o.hostAbsent && loadAttract {
@@ -290,13 +299,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Message = ""
 				}
 				if o.games != nil {
-					m.SetCatalog(o.games)
+					m.ApplyCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
 				if o.haveStrip {
-					m.SetStrip(o.strip, o.stripLabel)
+					m.ApplyStrip(o.strip, o.stripLabel)
 					m.Recents = append([]tenfoot.Game(nil), o.recents...)
+				}
+				if o.haveCache || c.Cache != nil {
+					m.Cache = mergeCacheStatus(c.Cache, o.cache, o.haveCache)
 				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)
