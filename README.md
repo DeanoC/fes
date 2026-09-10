@@ -266,6 +266,13 @@ ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
 through the tape-loader patch, and 1650×750 HDMI timing for the scaled
 raster. It is simulation, not a Quartus RBF or kit evidence.
 
+`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 bring-up
+recipe for package `fes.zx81` 1.0.0. Set
+`QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. It requires a
+clean committed tree, writes `build/fes-zx81-quartus/build-inputs.json`,
+embeds that build id, and seals a format-2 package when timing passes. This
+is not the Mistral recipe and does not program hardware.
+
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
@@ -323,6 +330,9 @@ build/fes-pong/core.rbf                                 # standalone FES Pong bu
 build/fes-pong/build-inputs.json                        # pre-synthesis canonical inputs
 build/fes-pong/build-summary.json                       # timing/resource/tool evidence
 build/fes-pong/manifest.toml                            # generated format-2 manifest
+build/fes-zx81-quartus/core.rbf                         # Quartus bring-up FES ZX81 RBF
+build/fes-zx81-quartus/build-inputs.json                # pre-compile canonical inputs
+build/fes-zx81-quartus/manifest.toml                    # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest
 build/packages/<package-id>/core.rbf                    # unchanged payload
 build/packages/<package-id>.fcore                       # restricted ustar package

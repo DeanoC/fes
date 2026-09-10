@@ -1105,6 +1105,25 @@ tape-loader patch consumes a 16-byte `.p`. A 720p raster module
 `zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
 This is simulation, not a Quartus RBF or kit result.
 
+## FES ZX81 Quartus bring-up
+
+`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
+`fes.zx81` 1.0.0. It is not a Mistral/nextpnr payload. The board shell
+`cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
+reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
+1650×750). HDMI pins, U10/AA4 I2C pads and the HPS I2C site
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` match FES Pong. The Z80 is VHDL T80pa
+from ZX81_MiSTer Release 20260603; Verilator keeps TV80.
+
+The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
+tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
+before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
+`quartus_sh --flow compile top`, requires TimeQuest Setup/Hold/Recovery/
+Removal/Minimum Pulse Width slack ≥ 0 with both 52 MHz and 74.25 MHz named,
+then seals `manifest.toml` + `core.rbf` through the existing format-2
+exporter. Failed compiles delete the RBF, manifest and passing summary.
+The command never programs hardware.
+
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
 and fixed video. Base ABI and transport remain 1.0. Data-info opcode 7 reports
