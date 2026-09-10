@@ -262,7 +262,8 @@ reuse an installed tool. `make build-pong` adds the MiSTer board wrapper and
 produces a programmable RBF.
 
 `make sim-fes-zx81` tests the `fes.simple-computer` 1.0 mailbox, a 16 KB PAL
-ZX81 machine that reaches BASIC, and 1650×750 HDMI timing for the scaled
+ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
+through the tape-loader patch, and 1650×750 HDMI timing for the scaled
 raster. It is simulation, not a Quartus RBF or kit evidence.
 
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact

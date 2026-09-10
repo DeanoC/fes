@@ -1093,11 +1093,15 @@ MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
 the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
-`CEN_p` at 3.25 MHz from the 52 MHz enable divider.
+Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
+`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` is
+3.25 MHz from the 52 MHz enable divider.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
-display, and the ULA has emitted visible pixels. A 720p raster module
+display, and the ULA has emitted visible pixels. It then types `LOAD ""` on
+the 40-key matrix (J, SHIFT+P, SHIFT+P, ENTER) and checks that the `$0347`
+tape-loader patch consumes a 16-byte `.p`. A 720p raster module
 `zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
 This is simulation, not a Quartus RBF or kit result.
 

@@ -117,6 +117,7 @@ sim-fes-zx81:
 	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
+		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \

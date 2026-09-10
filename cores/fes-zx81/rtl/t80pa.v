@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-// T80pa-compatible wrapper around TV80. CEN_p is the Z80 T-state enable;
-// CEN_n is unused (T80pa half-cycles are not modelled).
+// T80pa-compatible wrapper around TV80. Bus timing follows Sorgelig T80pa.vhd:
+// CEN_p/CEN_n half-cycles, WAIT via CEN gating, M1 refresh MREQ.
+// TV80 one-hot: tstate[1]=T1 .. tstate[4]=T4, mcycle[0]=M1.
 // TV80: https://github.com/hutch31/tv80 commit 66a131c38d05ef58b3d8c4f1507a72e6e4aa5d65
 
 `define TV80DELAY
@@ -26,10 +27,6 @@ module T80pa (
     input  wire [7:0]  DI,
     output wire [7:0]  DO
 );
-    /* verilator lint_off UNUSEDSIGNAL */
-    wire unused_cen_n = CEN_n;
-    /* verilator lint_on UNUSEDSIGNAL */
-
     parameter Mode = 0;
     parameter T2Write = 1;
     parameter IOWait = 1;
@@ -40,22 +37,25 @@ module T80pa (
     wire iorq;
     wire [6:0] mcycle;
     wire [6:0] tstate;
+    wire core_busak_n;
     reg [7:0] di_reg;
+    reg cen_pol;
+    reg [1:0] intcycle_d_n;
 
     tv80_core #(Mode, IOWait) i_tv80_core (
-        .cen(CEN_p),
+        .cen(CEN_p & ~cen_pol),
         .m1_n(M1_n),
         .iorq(iorq),
         .no_read(no_read),
         .write(write),
         .rfsh_n(RFSH_n),
         .halt_n(HALT_n),
-        .wait_n(WAIT_n),
+        .wait_n(1'b1),
         .int_n(INT_n),
         .nmi_n(NMI_n),
         .reset_n(RESET_n),
         .busrq_n(BUSRQ_n),
-        .busak_n(BUSAK_n),
+        .busak_n(core_busak_n),
         .clk(CLK),
         .IntE(),
         .stop(),
@@ -68,44 +68,65 @@ module T80pa (
         .intcycle_n(intcycle_n)
     );
 
+    assign BUSAK_n = core_busak_n;
+
     always @(posedge CLK or negedge RESET_n) begin
         if (!RESET_n) begin
-            RD_n   <= 1'b1;
-            WR_n   <= 1'b1;
+            RD_n <= 1'b1;
+            WR_n <= 1'b1;
             IORQ_n <= 1'b1;
             MREQ_n <= 1'b1;
             di_reg <= 8'h00;
-        end else if (CEN_p) begin
-            RD_n   <= 1'b1;
-            WR_n   <= 1'b1;
-            IORQ_n <= 1'b1;
-            MREQ_n <= 1'b1;
+            cen_pol <= 1'b0;
+            intcycle_d_n <= 2'b11;
+        end else if (CEN_p && !cen_pol) begin
+            cen_pol <= 1'b1;
             if (mcycle[0]) begin
-                if (tstate[1] || (tstate[2] && WAIT_n == 1'b0)) begin
-                    RD_n   <= ~intcycle_n;
+                if (tstate[2]) begin
+                    IORQ_n <= 1'b1;
+                    MREQ_n <= 1'b1;
+                    RD_n <= 1'b1;
+                end
+            end else if (tstate[1] && iorq) begin
+                WR_n <= ~write;
+                RD_n <= write;
+                IORQ_n <= 1'b0;
+            end
+        end else if (CEN_n && cen_pol) begin
+            if (tstate[2])
+                cen_pol <= ~WAIT_n;
+            else
+                cen_pol <= 1'b0;
+            if (tstate[3] && core_busak_n)
+                di_reg <= DI;
+            if (mcycle[0]) begin
+                if (tstate[1]) begin
+                    intcycle_d_n <= {intcycle_d_n[0], intcycle_n};
+                    RD_n <= ~intcycle_n;
                     MREQ_n <= ~intcycle_n;
-                    IORQ_n <= intcycle_n;
+                    IORQ_n <= intcycle_d_n[1];
                 end
+                if (tstate[3]) begin
+                    intcycle_d_n <= 2'b11;
+                    RD_n <= 1'b1;
+                    MREQ_n <= 1'b0;
+                end
+                if (tstate[4])
+                    MREQ_n <= 1'b1;
             end else begin
-                if ((tstate[1] || (tstate[2] && WAIT_n == 1'b0)) && no_read == 1'b0 && write == 1'b0) begin
-                    RD_n   <= 1'b0;
-                    IORQ_n <= ~iorq;
-                    MREQ_n <= iorq;
+                if (!no_read && !iorq && tstate[1]) begin
+                    RD_n <= write;
+                    MREQ_n <= 1'b0;
                 end
-                if (T2Write != 0) begin
-                    if ((tstate[1] || (tstate[2] && WAIT_n == 1'b0)) && write == 1'b1) begin
-                        WR_n   <= 1'b0;
-                        IORQ_n <= ~iorq;
-                        MREQ_n <= iorq;
-                    end
-                end else if (tstate[2] && write == 1'b1) begin
-                    WR_n   <= 1'b0;
-                    IORQ_n <= ~iorq;
-                    MREQ_n <= iorq;
+                if (tstate[2])
+                    WR_n <= ~write;
+                if (tstate[3]) begin
+                    WR_n <= 1'b1;
+                    RD_n <= 1'b1;
+                    IORQ_n <= 1'b1;
+                    MREQ_n <= 1'b1;
                 end
             end
-            if (tstate[2] && WAIT_n == 1'b1 && !write && !no_read)
-                di_reg <= DI;
         end
     end
 endmodule

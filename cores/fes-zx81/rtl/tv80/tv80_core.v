@@ -1176,19 +1176,21 @@ module tv80_core (/*AUTOARG*/
         end 
       else
         begin
+          // T80 samples NMI on every clock, not only CEN. ZX81 hsync NMI
+          // is a pulse that can sit inside a waited T-state.
+          if (nmi_n == 1'b0 && Oldnmi_n == 1'b1 )
+            begin
+              NMI_s <= `TV80DELAY 1'b1;
+            end
+          Oldnmi_n <= `TV80DELAY nmi_n;
           if (cen == 1'b1 ) 
             begin
               BusReq_s <= `TV80DELAY ~ busrq_n;
               INT_s <= `TV80DELAY ~ int_n;
-              if (NMICycle == 1'b1 ) 
+              if (NMICycle == 1'b1 )
                 begin
                   NMI_s <= `TV80DELAY 1'b0;
-                end 
-              else if (nmi_n == 1'b0 && Oldnmi_n == 1'b1 ) 
-                begin
-                  NMI_s <= `TV80DELAY 1'b1;
                 end
-              Oldnmi_n <= `TV80DELAY nmi_n;
             end
         end
     end
