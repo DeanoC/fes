@@ -154,11 +154,21 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`3e314db0`.
+`10a8e890`.
 
-The current nextpnr pin `3e314db00a620caf3cbe09ecac93a4910df5f01a` is
+The current nextpnr pin `10a8e8907f18e312b431e8303c4216f4501e6b3a` is
+merged PR #47 (`e64b6c33521c92c9460c07b43c1d396944895756` onto
+`3e314db00a620caf3cbe09ecac93a4910df5f01a`). It adds
+direct Cyclone V `altiobuf_in`, `altiobuf_out` and `altiobuf_bidir`
+packing: each width-one primitive folds into the already constrained
+`MISTRAL_IB`, `MISTRAL_OB` or `MISTRAL_IO` BEL. Bus hold and differential
+mode stay disabled; the output profile requires `use_oe=FALSE`.
+Bidirectional `dataio` must be the direct pad net of one `MISTRAL_IO`,
+and `MISTRAL_IO.O` keeps the primitive's `dataout` users. Wider channels,
+unsupported parameters and malformed pad topology fail closed. No Mistral
+database tables change. It sits on `3e314db00a620caf3cbe09ecac93a4910df5f01a`,
 merged PR #45 (`3eb10febf42cef0df8cdc62d21dd633211daad9d` onto
-`9144784db9b4b85c1257be4d1943b9ac11ceb3e8`). It adds
+`9144784db9b4b85c1257be4d1943b9ac11ceb3e8`). That pin adds
 fabric-data Cyclone V DDR output registers: a width-one `altddio_out`
 with two connected nonconstant `datain_h`/`datain_l` nets packs into
 `MISTRAL_DDROUT`. High/low data use GPIO `DATAOUT.1`/`DATAOUT.0`
@@ -1155,6 +1165,29 @@ Load JSON timed out; GPI and probe still passed. `stop` completed
 development reboot recovery and left the lease free. This does not
 measure the registered pin waveform and is not output-interface timing
 closure.
+
+`670_altiobuf` captures PIN_Y15 through `altiobuf_in`, drives PIN_W15
+through `altiobuf_out`, and drives PIN_V16 through `altiobuf_bidir`.
+GPI signature `0xAB01` identifies the fabric beat protocol. Simulation
+uses digital stand-ins; it does not model analog pad delay. nextpnr folds
+those cells into the existing `MISTRAL_IB`, `MISTRAL_OB` and `MISTRAL_IO`
+BELs. The kit probe observes fabric counters, not pad waveforms.
+Simulation and OSS are supported; Quartus comparison is not implemented.
+See `experiments/670_altiobuf/expected.md`.
+
+The OSS `670_altiobuf` artifact has SHA-256
+`2420085fae159e394846dd370be2746576871e8a2eda629e0b77f66224d1d072`
+and size 1,953,503 bytes. nextpnr packed `altiobuf_in` into
+`MISTRAL_IO.64.0.0` (PIN_Y15), `altiobuf_out` into `MISTRAL_IO.89.8.1`
+(PIN_W15), and `altiobuf_bidir` into `MISTRAL_IO.89.9.0` (PIN_V16) with
+`I`/`OE`/`O` connected. Its reported Fmax is 339.905 MHz against the
+50 MHz constraint. Utilization is one HPS GP, four IO cells, and no PLL,
+memory or DSP. The current nextpnr pin `10a8e890` with Yosys `fca8ca0a`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10
+returned GPI signature `0xAB01` with changing paired fabric beats for
+ten samples. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free. This
+does not measure pad waveforms and is not I/O-interface timing closure.
 
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18

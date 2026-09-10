@@ -267,6 +267,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   analog GPIO-register delay is not modelled. Run `make sim EXP=660_ddr_data`
   and `make oss EXP=660_ddr_data`; no Quartus comparison lane is
   implemented.
+- `670_altiobuf`, width-one `altiobuf_in` on PIN_Y15, `altiobuf_out` on
+  PIN_W15, and `altiobuf_bidir` on PIN_V16 with a fabric GPI beat.
+  Simulation uses digital buffer stand-ins; analog pad delay is not
+  modelled. Run `make sim EXP=670_altiobuf` and `make oss EXP=670_altiobuf`;
+  no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
