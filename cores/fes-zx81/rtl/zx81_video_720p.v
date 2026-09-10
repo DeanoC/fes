@@ -34,7 +34,7 @@ module zx81_video_720p (
     reg [9:0] cap_x;
     reg [8:0] cap_y;
     reg old_hblank;
-    (* ramstyle = "M10K" *) reg fb [0:269][0:511];
+    (* ramstyle = "M10K" *) reg fb [0:(270 * 512) - 1];
 
     always @(posedge clk_sys) begin
         if (ce_6m5) begin
@@ -49,7 +49,7 @@ module zx81_video_720p (
                 if (cap_y != SRC_H - 1'b1)
                     cap_y <= cap_y + 1'b1;
             end else if (!hblank && !vblank && cap_x < SRC_W) begin
-                fb[cap_y][cap_x] <= zx_pixel;
+                fb[{cap_y, cap_x[8:0]}] <= zx_pixel;
                 cap_x <= cap_x + 1'b1;
             end
         end
@@ -73,8 +73,10 @@ module zx81_video_720p (
                     horizontal < LEFT + (SRC_W << 1) &&
                     vertical >= TOP &&
                     vertical < TOP + (SRC_H << 1);
-    wire pixel = in_image && src_x < {1'b0, SRC_W} && src_y < {1'b0, SRC_H} &&
-                 fb[src_y[8:0]][src_x[8:0]];
+    reg fb_q;
+    always @(posedge pixel_clk)
+        fb_q <= fb[{src_y[8:0], src_x[8:0]}];
+    wire pixel = in_image && src_x < {1'b0, SRC_W} && src_y < {1'b0, SRC_H} && fb_q;
     assign red = pixel ? 8'hff : 8'h00;
     assign green = pixel ? 8'hff : 8'h00;
     assign blue = pixel ? 8'hff : 8'h00;

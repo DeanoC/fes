@@ -120,7 +120,12 @@ module zx81_machine (
         {addr[12:9] + (addr[13] & ram_data_latch[7] & addr[8]), ram_data_latch[5:0], row_counter};
     wire rom_e = ~addr[14] & ~addr[13] & (~addr[12] | ZX81) & low16k_e;
     wire [7:0] rom_out;
-    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE("cores/fes-zx81/rtl/zx8x.hex")) rom (
+`ifdef QUARTUS
+    localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.mif";
+`else
+    localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.hex";
+`endif
+    zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384), .MEM_INIT_FILE(ROM_INIT)) rom (
         .clock(clk_sys),
         .address_a({1'b0, rom_a[12], rom_a[11:0]}),
         .data_a(8'h00),

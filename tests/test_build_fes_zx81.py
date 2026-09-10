@@ -44,6 +44,8 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("sys_pll.v", qsf)
         self.assertIn("pixel_pll.v", qsf)
         self.assertIn("fes_computer_gp.v", qsf)
+        self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
+        self.assertIn(build_fes_zx81.ROM_MIF, build_fes_zx81.PINNED_INPUTS)
         self.assertNotIn("tv80", qsf)
         self.assertNotIn("t80pa.v", qsf)
         self.assertIn("128'h00112233445566778899aabbccddeeff", qsf)

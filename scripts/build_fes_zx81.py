@@ -37,6 +37,7 @@ ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF_PINS = "cores/fes-zx81/constraints.qsf"
 SDC = "cores/fes-zx81/clocks.sdc"
 ROM_HEX = "cores/fes-zx81/rtl/zx8x.hex"
+ROM_MIF = "cores/fes-zx81/rtl/zx8x.mif"
 VERILOG_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
@@ -61,6 +62,7 @@ PINNED_INPUTS = (
     QSF_PINS,
     SDC,
     ROM_HEX,
+    ROM_MIF,
     *VERILOG_SOURCES,
     *SYSTEMVERILOG_SOURCES,
     *VHDL_SOURCES,
@@ -195,6 +197,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/generated"',
+        'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
     ]
@@ -225,6 +228,7 @@ def write_project(root: Path, output: Path, build_id: str) -> Path:
     rom_dir = project / "cores" / "fes-zx81" / "rtl"
     rom_dir.mkdir(parents=True)
     shutil.copyfile(_regular_input(root, ROM_HEX), rom_dir / "zx8x.hex")
+    shutil.copyfile(_regular_input(root, ROM_MIF), rom_dir / "zx8x.mif")
     return project
 
 
