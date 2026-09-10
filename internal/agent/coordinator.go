@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
@@ -73,6 +74,10 @@ func WithOperationContext(ctx context.Context) CoordinatorOption {
 	}
 }
 
+func WithEventSink(sink flightdiag.Sink) CoordinatorOption {
+	return func(coordinator *Coordinator) { coordinator.events = sink }
+}
+
 type Coordinator struct {
 	runtime          Runtime
 	registry         core.Registry
@@ -84,6 +89,19 @@ type Coordinator struct {
 	mu               sync.RWMutex
 	status           protocol.Status
 	updateBlocked    bool
+	events           flightdiag.Sink
+}
+
+func (c *Coordinator) record(kind, severity string, detail map[string]any) {
+	if c.events == nil {
+		return
+	}
+	c.events.Append(flightdiag.Event{
+		Layer:    flightdiag.LayerRuntime,
+		Kind:     kind,
+		Severity: severity,
+		Detail:   detail,
+	})
 }
 
 func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration, options ...CoordinatorOption) *Coordinator {
@@ -244,6 +262,7 @@ func interruptedLaunchStatus(status protocol.Status) protocol.Status {
 }
 
 func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "launch", "game_id": request.GameID})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
@@ -331,6 +350,7 @@ func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, sp
 }
 
 func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "development_rbf", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
@@ -392,6 +412,7 @@ func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Re
 	return c.loadCore(parent, size, content, "")
 }
 func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
@@ -417,6 +438,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		activation, attempted, apiErr = runtime.LoadCoreOwned(parent, observation, c.operationContext, size, content)
 	}
 	if apiErr != nil {
+		c.record(flightdiag.KindFenceABI, "error", map[string]any{"operation": "core_package", "ok": false})
 		if !attempted {
 			c.set(previous)
 			return c.Status(), apiErr
@@ -442,6 +464,10 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		c.set(failed)
 		return c.Status(), apiErr
 	}
+	c.record(flightdiag.KindFenceABI, "ok", map[string]any{
+		"operation": "core_package", "ok": true, "abi_id": activation.Descriptor.ABI.ID,
+		"abi_major": activation.Descriptor.ABI.Major, "abi_minor": activation.Descriptor.ABI.Minor,
+	})
 	active := protocol.Status{State: protocol.StateActive, Development: true}
 	if activation.ObservedCore != "" {
 		active.ObservedCore = &activation.ObservedCore
@@ -478,6 +504,7 @@ func (c *Coordinator) InspectCore(parent context.Context, size int64, content io
 }
 
 func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceHandoff, "ok", map[string]any{"operation": "stop"})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}
@@ -599,6 +626,7 @@ func validActiveDevelopment(status protocol.Status) bool {
 }
 
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
 	}

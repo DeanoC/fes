@@ -155,6 +155,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	drawSettings(dev, snap, labels, used)
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)
+	drawDebugHUD(dev, snap)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -427,6 +428,7 @@ func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 		drawLabel(dev, labels, used, fmt.Sprintf("np-ev-%d", i), x, y, maxW, 15, line)
 		y += 22
 	}
+	drawDebugHUD(dev, snap)
 	for key, item := range labels {
 		if _, ok := used[key]; ok {
 			continue
@@ -1009,6 +1011,30 @@ func fillRect(dev gfx.Device, x, y, w, h float32, r, g, b, a uint8) {
 
 func drawDebug(dev gfx.Device, x, y int, text string, scale int) {
 	dev.DebugText(x, y, text, scale)
+}
+
+func drawDebugHUD(dev gfx.Device, snap Snapshot) {
+	if !snap.DebugHUD.Enabled || len(snap.DebugHUD.Lines) == 0 {
+		return
+	}
+	th := drawTheme(snap)
+	size := th.CaptionPx()
+	if size < 10 {
+		size = 10
+	}
+	x := snap.Grid.contentLeft() + 8
+	y := snap.Grid.footerY() - (size+2)*len(snap.DebugHUD.Lines) - 4
+	if y < snap.Grid.contentTop()+snap.Grid.HeaderHeight {
+		y = snap.Grid.contentTop() + 8
+	}
+	for _, line := range snap.DebugHUD.Lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		dev.DrawText(x, y, line, size, th.Status)
+		y += size + 2
+	}
 }
 
 func fitText(text string, maxChars int) string {

@@ -88,6 +88,7 @@ type tenfootPrefs struct {
 	Layout         string  `json:"layout"`
 	AttractEnabled *bool   `json:"attract_enabled,omitempty"`
 	Theme          string  `json:"theme,omitempty"`
+	DebugHUD       bool    `json:"debug_hud,omitempty"`
 }
 
 func defaultPrefsPath() string {

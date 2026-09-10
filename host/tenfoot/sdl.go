@@ -238,6 +238,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		return fmt.Errorf("theme: %w", err)
 	}
 	app.SetTheme(look)
+	app.SetDebugHUD(opts.DebugHUD)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)

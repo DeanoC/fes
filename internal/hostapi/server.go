@@ -183,6 +183,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
+	uiEvents := newUIEventRing(uiEventRingCapacity)
+	registerDebugUIRoutes(mux, uiEvents)
 	mux.HandleFunc("GET /api/v1/session", func(w http.ResponseWriter, r *http.Request) {
 		result, err := session.status(r.Context())
 		if err != nil {
@@ -206,7 +208,10 @@ func New(service Service, options ...ServerOption) http.Handler {
 	})
 	mux.HandleFunc("POST /api/v1/session/launch", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
-			GameID string `json:"game_id"`
+			GameID       string `json:"game_id"`
+			ClientTsUTC  string `json:"client_ts_utc"`
+			ClientMonoMS *int64 `json:"client_mono_ms"`
+			FlightID     string `json:"flight_id"`
 		}
 		if err := decodeSingleJSON(w, r, &request); err != nil {
 			return
@@ -215,7 +220,8 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "game ID is invalid")
 			return
 		}
-		result, err := session.launch(r.Context(), request.GameID)
+		stamp := parseClientStamp(r, request.ClientTsUTC, request.ClientMonoMS, request.FlightID)
+		result, err := session.launch(r.Context(), request.GameID, stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -230,7 +236,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentRBFBytes)
-		result, err := session.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body)
+		result, err := session.loadDevelopmentRBF(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -245,7 +251,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxArchiveSize)
-		result, err := session.loadDevelopmentCore(r.Context(), r.ContentLength, r.Body)
+		result, err := session.loadDevelopmentCore(r.Context(), r.ContentLength, r.Body, parseClientStamp(r, "", nil, ""))
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -253,11 +259,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
-		if err := rejectBody(w, r); err != nil {
-			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty")
+		stamp, err := decodeOptionalStopStamp(w, r)
+		if err != nil {
 			return
 		}
-		result, err := session.stop(r.Context())
+		result, err := session.stop(r.Context(), stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return

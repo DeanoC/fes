@@ -89,7 +89,7 @@ func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) stri
 	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress {
 		switch e.Code {
 		case remoteinput.ButtonA:
-			if game, ok := m.focusedGame(); ok && game.Launchable {
+			if game, ok := m.focusedGame(); ok && game.Launchable && m.canLaunch() {
 				return "launch"
 			}
 			return ""

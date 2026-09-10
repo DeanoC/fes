@@ -79,12 +79,64 @@ The normal FPGA launch path is:
 5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
    `load_core <menu.rbf>` through the same command path.
 
+## Target diagnostic evidence
+
+The target agent keeps a bounded, in-memory diagnostic ring in the same process
+that owns `/v1/kit/*`; it does not add a second daemon or a second ownership
+control plane. An authenticated read of
+`GET http://mister.lan:8182/v1/kit/debug/events?limit=10000` returns
+`{"events":[...]}` using the event shape `{ts_utc, mono_ms, flight_id?,
+lease_gen?, run_id?, layer, kind, severity, detail}`. `flight_id`, when present,
+is the canonical host UUID v4 from #205; lease generations and run IDs remain
+opaque join strings. The ring includes lease lifecycle events and the target/runtime
+hooks that can be observed locally (FIFO dispatch, descriptor open,
+CORENAME/Main transitions, and ownership/program/recovery fences). The native
+adapter also drains `/run/mister-runtime.events.json` from mister-runtime into
+the same ring when that dump is present. Unavailable Main or `fpga_manager`
+observations are left absent rather than fabricated.
+
+Before an intentional reboot, while holding the current kit lease, persist the
+window with the authenticated target-agent call:
+
+```sh
+curl -H "Authorization: Bearer $KIT_TOKEN" \
+  -H 'X-FogCast-Kit-Lease: <lease-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"run_id":"<run-id>","lease_gen":"<current-generation>","flight_id":"<host-flight-id-if-present>"}' \
+  http://mister.lan:8182/v1/kit/debug/snapshot-before-reboot
+```
+
+The response points at a durable `/media/fat/fogcast/evidence/` directory with
+`evidence_class: "diagnostic"`, the ring window, and bounded copies/metadata
+for the journal, owner, `/tmp/CORENAME`, `fpga_manager`, and FAT-note paths.
+Only after that snapshot should the existing leased development-reboot path be
+called. The snapshot request requires the current opaque `lease_gen` and never
+claims or mutates the kit by itself.
+
+The fog-flight page polls the authenticated kit dump beside its
+existing `/v1/health`, `/v1/kit/lease`, and `/v1/status` polls, render the
+events by `layer`/`severity`, and join to host session events only when a
+`flight_id` is actually present. It should preserve `run_id` and `lease_gen`
+as opaque join fields, label vault results diagnostic, and continue to use the
+host events endpoint at `:8787` when available; launcher `:8789` is not a
+target-event join source. Tenfoot and the sofa browser stamp launch, stop,
+focus, and nav with client wall + monotonic clocks. Host session events repeat
+those client clocks next to host `ts_utc`/`mono_ms`; focus/nav also land on
+`GET /api/v1/debug/ui-events`. fog-flight builds a per-flight latency
+waterfall from client → host → target when both ends are present and leaves
+missing layers labelled missing.
+
 ## On-kit controller launcher
 
 The native image packages the CGO-free `fogcast-kit` adapter for the kit HDMI
 display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
-Stop and returns to the library. Its live catalog opens as a living-room platform wheel
+Stop and returns to the library. After a successful host catalog fetch it keeps a
+last-good snapshot and cover files under `/media/fat/fogcast/launcher-cache/` on
+FAT, separate from the ROM cache. Power-on paints that shelf and visible covers
+from disk before host games HTTP; an absent host shows `Offline - local library`.
+Replacing the system image does not wipe this tree. D-pad and A still browse
+that local shelf; launch still requires the host. Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
 a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →

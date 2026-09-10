@@ -176,6 +176,7 @@ type protocol2StopControl interface {
 
 func (r *Runtime) stopCorePackage(ctx context.Context, control protocol2StopControl) (string, string, *protocol.APIError) {
 	response, err := control.Protocol2Stop(ctx)
+	r.noteDispatch("stop", err == nil)
 	if err != nil {
 		// A lost Stop is observed once; it is never dispatched again.
 		observer, ok := r.control.(protocol2StatusControl)

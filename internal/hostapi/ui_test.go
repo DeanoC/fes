@@ -74,6 +74,7 @@ func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
 		"/api/v1/library/settings",
 		"/api/v1/presentation/media/",
 		"/api/v1/health",
+		"/api/v1/debug/ui-events",
 	} {
 		if !strings.Contains(html, token) {
 			t.Fatalf("assembled UI is missing API endpoint family %q", token)

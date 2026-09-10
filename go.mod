@@ -6,6 +6,7 @@ toolchain go1.26.5
 
 require (
 	github.com/brutella/dnssd v1.2.14
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/mdns v1.0.6
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/image v0.31.0
@@ -17,7 +18,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/miekg/dns v1.1.61 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect

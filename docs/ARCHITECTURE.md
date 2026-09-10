@@ -41,6 +41,20 @@ media. The target agent owns its HTTP API, cache, transient MGLs, and launch
 requests. The MiSTer/Main-compatible process owns FPGA programming and the
 MiSTer core services.
 
+The target agent also exposes an authenticated, read-mostly diagnostic surface
+on the existing kit listener: `GET /v1/kit/debug/events` returns the bounded
+target event ring, and the lease-admitted
+`POST /v1/kit/debug/snapshot-before-reboot` writes a diagnostic evidence
+directory before an intentional reboot. The latter records the ring window and
+bounded evidence for the journal, owner, `/tmp/CORENAME`, FPGA-manager state,
+the native `/run/mister-runtime.events.json` dump when present, and a FAT-side
+note. The native adapter drains that dump into the same ring; it does not invent
+`flight_id`, `lease_gen`, or `run_id`. It reuses the current kit lease and does not create a
+third process or bypass the existing runtime path. `flight_id` is the optional
+canonical host UUID v4 from #205 and is retained only when a caller already has
+one; `lease_gen` and `run_id` remain opaque join strings. The target never
+invents host event schema or joins through the launcher listener.
+
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
@@ -295,12 +309,13 @@ Native SDL3 UI
     players, summary, screenshot_ids, video_id, year, genre, attribution)
   -> GET /api/v1/library/attract (idle video then stills; artwork via the same presentation artwork GET)
   -> GET /api/v1/library/settings and PATCH /api/v1/library/settings (idle seconds, preferred regions, selected target, library roots)
-  -> POST /api/v1/session/launch
+  -> POST /api/v1/session/launch (optional client_ts_utc / client_mono_ms JSON or X-FogCast-Client-* headers)
   -> POST /api/v1/session/development-rbf (raw octet-stream from a local path OSK)
-  -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome)
-  -> GET /api/v1/session/events?after= (poll; sofa event list)
+  -> GET /api/v1/session (poll; now-playing or DIAGNOSTIC development chrome; additive flight_id)
+  -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
+  -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
-  -> POST /api/v1/session/stop
+  -> POST /api/v1/session/stop (empty body or optional client stamp JSON; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
@@ -309,9 +324,25 @@ Native SDL3 UI
   -> existing FPGA launch path
 ```
 
+`GET /api/v1/session/events` keeps the existing protocol 1 event object.
+The host also sets an optional `flight_id` UUID on those events: one new id
+per session launch, development-RBF or described-package load, and per
+orphaned stop. Related events in that flight (launch through active through
+stop of that session) repeat the same id. User stop of an active session
+reuses the launch id. A failed launch leaves the previous id in place. The
+field is omitted until a flight has been allocated. Every event also carries
+host `ts_utc` and `mono_ms`. When tenfoot or the sofa browser stamps a
+launch/stop, the matching event repeats `client_ts_utc` and `client_mono_ms`.
+Invalid client clocks are ignored and do not fail the mutation. The current
+`flight_id` is also additive on `GET /api/v1/session` and on launch/stop
+responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
+`POST /api/v1/debug/ui-events` (`layer=ui`, kinds `ui.launch` / `ui.stop` /
+`ui.focus` / `ui.nav`); fog-flight joins those rows to host and target events
+by `flight_id` when it is present. Token-like detail keys are dropped.
+
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
-attract on/off gate, and the look name are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` and optional `tenfoot.json` prefs). There is no host
+attract on/off gate, the look name, and the optional debug HUD are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` and optional `tenfoot.json` prefs). There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -394,7 +425,9 @@ FES owns compatible source selection and release/media assembly. FogCast supplie
 `cmd/fes-boot`, the target update API, and `cmd/fes-update`. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
-target identity, cache, and SNES saves remain on FAT outside every rootfs.
+target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
+on FAT outside every rootfs. Replacing the system image does not wipe
+`/media/fat/fogcast/cache` or `/media/fat/fogcast/launcher-cache`.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
@@ -696,6 +729,11 @@ coverage; physical reboot and DHCP acceptance belongs to the selected FES image.
 
 The native image packages `fogcast-kit`, a CGO-free controller/session adapter
 with a living-room platform wheel and a live catalog browse renderer.
+`fogcast-kit` writes a last-good catalog snapshot and cover blobs under
+`/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
+ROM cache). Boot paints that shelf from disk before host games HTTP, decodes
+visible covers from disk first, and labels an absent host `Offline - local library`.
+Local D-pad/A still browse that snapshot. Launch still requires the host.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
@@ -910,6 +948,8 @@ is never replayed. A successful settings-only write or definite admission/revisi
 releases only the grant acquired for that operation; an existing session grant
 stays held. Described-package Stop uses protocol 2 so retained unsafe
 persistence recovery cannot trigger the legacy development autoreboot path.
+Explicit library loads and described-package Stop retain the same diagnostic
+dispatch events and native event-dump import as the other runtime operations.
 
 The runtime owns bounded record validation, revision CAS, settings/progress
 semantics, atomic publication, and physical restore/capture. It refreshes a

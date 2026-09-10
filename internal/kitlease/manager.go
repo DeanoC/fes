@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/DeanoC/FogCast/internal/flightdiag"
 )
 
 var (
@@ -64,15 +66,27 @@ type Manager struct {
 	retired      map[string]bool
 	finished     chan struct{}
 	closed       bool
+	events       flightdiag.Sink
+}
+
+type Option func(*Manager)
+
+func WithEventSink(sink flightdiag.Sink) Option {
+	return func(manager *Manager) { manager.events = sink }
 }
 
 // New reconciles/cleans existing target state before allowing the first claim.
 // The callback must return success only after input is neutral and hardware idle.
-func New(ttl time.Duration, cleanup func(context.Context) error) *Manager {
+func New(ttl time.Duration, cleanup func(context.Context) error, options ...Option) *Manager {
 	if ttl <= 0 {
 		ttl = 90 * time.Second
 	}
 	m := &Manager{ttl: ttl, cleanup: cleanup, retired: make(map[string]bool), status: Status{State: "free", Generation: secret()}}
+	for _, option := range options {
+		if option != nil {
+			option(m)
+		}
+	}
 	m.mu.Lock()
 	m.revokeLocked("agent startup reconciliation")
 	m.mu.Unlock()
@@ -108,6 +122,19 @@ func (m *Manager) grantLocked(r ClaimRequest) Grant {
 	m.status = Status{State: "held", Generation: secret(), Owner: r.Owner, Purpose: r.Purpose}
 	m.renewLocked()
 	return Grant{Status: m.snapshotLocked(), Token: m.token}
+}
+
+func (m *Manager) recordLocked(kind, severity string, detail map[string]any) {
+	if m.events == nil {
+		return
+	}
+	m.events.Append(flightdiag.Event{
+		LeaseGen: m.status.Generation,
+		Layer:    flightdiag.LayerTarget,
+		Kind:     kind,
+		Severity: severity,
+		Detail:   detail,
+	})
 }
 func (m *Manager) renewLocked() {
 	m.status.ExpiresAt = time.Now().Add(m.ttl)
@@ -150,7 +177,11 @@ func (m *Manager) Claim(r ClaimRequest) (Grant, error) {
 	}
 	m.pending = nil
 	m.pendingReady = ""
-	return m.grantLocked(r), nil
+	grant := m.grantLocked(r)
+	m.recordLocked(flightdiag.KindLeaseClaim, "ok", map[string]any{
+		"owner": r.Owner, "purpose": r.Purpose, "request_id": r.RequestID,
+	})
+	return grant, nil
 }
 func (m *Manager) ownsLocked(token string) bool {
 	return token != "" && m.token != "" && subtle.ConstantTimeCompare([]byte(token), []byte(m.token)) == 1
@@ -163,6 +194,7 @@ func (m *Manager) Renew(token string) (Grant, error) {
 		return Grant{}, ErrLease
 	}
 	m.renewLocked()
+	m.recordLocked(flightdiag.KindLeaseRenew, "ok", map[string]any{"owner": m.claim.Owner})
 	return Grant{m.snapshotLocked(), m.token}, nil
 }
 
@@ -201,6 +233,7 @@ func (m *Manager) Release(token string) (Status, error) {
 		return m.snapshotLocked(), ErrLease
 	}
 	if m.status.State == "held" {
+		m.recordLocked(flightdiag.KindLeaseRelease, "ok", map[string]any{"owner": m.claim.Owner})
 		m.revokeLocked("owner released lease")
 	}
 	return m.snapshotLocked(), nil
@@ -235,6 +268,9 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 			m.takeover = &r
 			m.pending = nil
 			m.pendingReady = ""
+			m.recordLocked(flightdiag.KindLeaseTakeover, "ok", map[string]any{
+				"owner": r.Owner, "purpose": r.Purpose, "reason": r.Reason,
+			})
 			return g, nil
 		}
 		if m.status.State == "revoking" {
@@ -250,6 +286,9 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 	if m.status.State == "free" {
 		g := m.grantLocked(r.ClaimRequest)
 		m.takeover = &r
+		m.recordLocked(flightdiag.KindLeaseTakeover, "ok", map[string]any{
+			"owner": r.Owner, "purpose": r.Purpose, "reason": r.Reason,
+		})
 		return g, nil
 	}
 	if m.claim.RequestID == r.RequestID {
@@ -257,6 +296,9 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 	}
 	m.pending = &r
 	m.pendingReady = ""
+	m.recordLocked(flightdiag.KindLeaseTakeover, "warn", map[string]any{
+		"owner": r.Owner, "purpose": r.Purpose, "reason": r.Reason, "state": "pending",
+	})
 	m.revokeLocked("operator takeover: " + r.Reason)
 	return Grant{}, ErrBusy
 }
@@ -266,6 +308,7 @@ func (m *Manager) revokeLocked(reason string) {
 	}
 	m.status.State = "revoking"
 	m.status.Reason = reason
+	m.recordLocked(flightdiag.KindFenceOwnership, "warn", map[string]any{"reason": reason})
 	if m.timer != nil {
 		m.timer.Stop()
 	}
@@ -304,6 +347,7 @@ func (m *Manager) revokeLocked(reason string) {
 		m.token = ""
 		m.takeover = nil
 		m.status = Status{State: "free", Generation: secret()}
+		m.recordLocked(flightdiag.KindFenceHandoff, "ok", map[string]any{"reason": reason})
 		if m.pending != nil {
 			m.pendingReady = m.status.Generation
 		}
