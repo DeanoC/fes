@@ -566,7 +566,9 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesSimpleComputerInterfaceMediaBlobMinor}};
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
-		result.abis.insert(result.abis.begin() + 1, std::move(computer));
+		result.abis.insert(result.abis.begin(), std::move(computer));
+		std::sort(result.abis.begin(), result.abis.end(),
+			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
 	}
 	return result;
 }
