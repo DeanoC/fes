@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
@@ -1691,6 +1692,24 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 func (a *App) lockRetryStopLocked(code, message string) {
 	a.retryStopLock = true
 	a.retryStopHint = retryStopStatus(code, message)
+}
+
+func (a *App) ForwardsCoreKeyboard() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.session.CoreKeyboard || a.session.State != "active" {
+		return false
+	}
+	if a.session.Input == nil {
+		return false
+	}
+	return a.session.Input.Ready || a.session.Input.State == "attached" ||
+		a.session.Input.State == "reconnecting"
+}
+
+func (a *App) SendCoreKey(event remoteinput.Event) {
+	client := a.client
+	go func() { _ = client.SendCoreKey(context.Background(), event) }()
 }
 
 func (a *App) pollSession(ctx context.Context) {

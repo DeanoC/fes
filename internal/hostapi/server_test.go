@@ -775,6 +775,23 @@ func TestSessionManualInputRejectsRawDevelopmentWithoutGamepadCapability(t *test
 	}
 }
 
+func TestSessionStatusAttachesKeyboardComputerWithoutGamepad(t *testing.T) {
+	core := "fes.zx81"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, BuildID: strings.Repeat("b", 32),
+			ActiveInterfaces: []protocol.RuntimeInterface{
+				{ID: "fes.keyboard", Major: 1},
+				{ID: "fes.media.blob", Major: 1},
+				{ID: "fes.video.fixed-720p60", Major: 1},
+			}}}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	response := serve(t, hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || len(input.attach) != 1 || input.attach[0] != core {
+		t.Fatalf("response=%d %s attach=%v", response.Code, response.Body.String(), input.attach)
+	}
+}
+
 func TestSessionStatusReconstructsCapablePackageInputAfterHostRestart(t *testing.T) {
 	core := "fes.pong"
 	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,

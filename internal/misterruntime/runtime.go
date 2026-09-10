@@ -110,6 +110,28 @@ type protocol2StatusControl interface {
 	Protocol2Status(context.Context) (Protocol2Response, error)
 }
 
+type protocol2KeyboardControl interface {
+	SetKeyboard(context.Context, uint64) (Protocol2Response, error)
+}
+
+func (r *Runtime) SetKeyboard(ctx context.Context, matrix uint64) error {
+	control, ok := r.control.(protocol2KeyboardControl)
+	if !ok {
+		return unsupportedOperationError()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	response, err := control.SetKeyboard(ctx, matrix)
+	if err != nil {
+		return err
+	}
+	if !response.OK {
+		return mapProtocol2Error(response.Error)
+	}
+	return nil
+}
+
 // InspectCore stages one bounded package for the existing runtime authority,
 // verifies its exact identity and descriptor, and removes the private staging
 // publication without changing the active hardware state.

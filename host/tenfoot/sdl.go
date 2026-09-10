@@ -171,6 +171,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -649,6 +650,12 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
+		if app.ForwardsCoreKeyboard() {
+			if event, ok := coreKeyFromSDL(ev.code, ev.down != 0); ok {
+				app.SendCoreKey(event)
+			}
+			return false
+		}
 		if app.OSKOpen() {
 			return handleSearchKey(app, ev, now)
 		}
@@ -818,6 +825,99 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 		app.Release(commandFromSDLKey(ev.code))
 	}
 	return false
+}
+
+func coreKeyFromSDL(code C.int, down bool) (remoteinput.Event, bool) {
+	var key remoteinput.Code
+	switch C.SDL_Keycode(code) {
+	case C.SDLK_RETURN:
+		key = zx81keys.KeyEnter
+	case C.SDLK_SPACE:
+		key = zx81keys.KeySpace
+	case C.SDLK_LSHIFT, C.SDLK_RSHIFT:
+		key = zx81keys.KeyShift
+	case C.SDLK_PERIOD:
+		key = zx81keys.KeyPeriod
+	case C.SDLK_0:
+		key = zx81keys.Digit(0)
+	case C.SDLK_1:
+		key = zx81keys.Digit(1)
+	case C.SDLK_2:
+		key = zx81keys.Digit(2)
+	case C.SDLK_3:
+		key = zx81keys.Digit(3)
+	case C.SDLK_4:
+		key = zx81keys.Digit(4)
+	case C.SDLK_5:
+		key = zx81keys.Digit(5)
+	case C.SDLK_6:
+		key = zx81keys.Digit(6)
+	case C.SDLK_7:
+		key = zx81keys.Digit(7)
+	case C.SDLK_8:
+		key = zx81keys.Digit(8)
+	case C.SDLK_9:
+		key = zx81keys.Digit(9)
+	case C.SDLK_A:
+		key = zx81keys.Letter('A')
+	case C.SDLK_B:
+		key = zx81keys.Letter('B')
+	case C.SDLK_C:
+		key = zx81keys.Letter('C')
+	case C.SDLK_D:
+		key = zx81keys.Letter('D')
+	case C.SDLK_E:
+		key = zx81keys.Letter('E')
+	case C.SDLK_F:
+		key = zx81keys.Letter('F')
+	case C.SDLK_G:
+		key = zx81keys.Letter('G')
+	case C.SDLK_H:
+		key = zx81keys.Letter('H')
+	case C.SDLK_I:
+		key = zx81keys.Letter('I')
+	case C.SDLK_J:
+		key = zx81keys.Letter('J')
+	case C.SDLK_K:
+		key = zx81keys.Letter('K')
+	case C.SDLK_L:
+		key = zx81keys.Letter('L')
+	case C.SDLK_M:
+		key = zx81keys.Letter('M')
+	case C.SDLK_N:
+		key = zx81keys.Letter('N')
+	case C.SDLK_O:
+		key = zx81keys.Letter('O')
+	case C.SDLK_P:
+		key = zx81keys.Letter('P')
+	case C.SDLK_Q:
+		key = zx81keys.Letter('Q')
+	case C.SDLK_R:
+		key = zx81keys.Letter('R')
+	case C.SDLK_S:
+		key = zx81keys.Letter('S')
+	case C.SDLK_T:
+		key = zx81keys.Letter('T')
+	case C.SDLK_U:
+		key = zx81keys.Letter('U')
+	case C.SDLK_V:
+		key = zx81keys.Letter('V')
+	case C.SDLK_W:
+		key = zx81keys.Letter('W')
+	case C.SDLK_X:
+		key = zx81keys.Letter('X')
+	case C.SDLK_Y:
+		key = zx81keys.Letter('Y')
+	case C.SDLK_Z:
+		key = zx81keys.Letter('Z')
+	default:
+		return remoteinput.Event{}, false
+	}
+	action := remoteinput.ActionRelease
+	if down {
+		action = remoteinput.ActionPress
+	}
+	return remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: action, Code: key}, true
 }
 
 func commandFromSDLKey(code C.int) Command {

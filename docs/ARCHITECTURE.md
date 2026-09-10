@@ -95,7 +95,11 @@ ABI and has no catalogue identity. The native adapter atomically stages one
 bounded upload at `/tmp/fogcast-development/core.rbf`, dispatches it once to
 the runtime, and resolves ambiguous responses through Status without replay.
 Development Stop uses the ordinary native Stop-to-idle path; reboot recovery
-is reserved for an actual native cleanup failure. The separate `native-dev`
+is reserved for an actual native cleanup failure. A `fes.simple-computer`
+package with `fes.keyboard` attaches remote input without `fes.gamepad`.
+Host keyboard events map through the agent onto the runtime 40-bit ZX81
+matrix (`set_keyboard`); Select+Start remains the software Stop chord.
+The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
 input, Stop, and immediate relaunch paths are hardware-tested on the designated
 kit. Native development loading is hardware-tested only for the existing
