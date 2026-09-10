@@ -154,11 +154,22 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`9144784d`.
+`3e314db0`.
 
-The current nextpnr pin `9144784db9b4b85c1257be4d1943b9ac11ceb3e8` is
+The current nextpnr pin `3e314db00a620caf3cbe09ecac93a4910df5f01a` is
+merged PR #45 (`3eb10febf42cef0df8cdc62d21dd633211daad9d` onto
+`9144784db9b4b85c1257be4d1943b9ac11ceb3e8`). It adds
+fabric-data Cyclone V DDR output registers: a width-one `altddio_out`
+with two connected nonconstant `datain_h`/`datain_l` nets packs into
+`MISTRAL_DDROUT`. High/low data use GPIO `DATAOUT.1`/`DATAOUT.0`
+(`D_H`/`D_L`) and the clock uses GPIO `CLKOUT.0`. Complementary constant
+data still takes the existing clock-forwarding path. Mixed or missing
+data, widths above one, dynamic controls, inverted output and used
+`oe_out` fail closed. There is no characterized GPIO output-register
+setup/hold or clock-to-pad model, so those arcs stay outside timing
+analysis. It sits on `9144784db9b4b85c1257be4d1943b9ac11ceb3e8`,
 merged PR #44 (`7a0447cb2c24d4d09ed4d96d1f692420b714441c` onto
-`a1f8dbb5434fd88bc014ce059dd6b7ca74512693`). It adds
+`a1f8dbb5434fd88bc014ce059dd6b7ca74512693`). That pin adds
 dedicated Cyclone V DDR input registers: a width-one `altddio_in` with
 inactive controls packs into `MISTRAL_DDRIN`. High/low captures use GPIO
 `DATAIN.3`/`DATAIN.2` and the clock uses GPIO `CLKIN.0`. Unsupported
@@ -1120,6 +1131,30 @@ GPI signature `0xDD02` with changing paired fabric beats for ten samples.
 Load JSON timed out; GPI and probe still passed. `stop` completed
 development reboot recovery and left the lease free. This does not measure
 the registered pin waveform and is not input-interface timing closure.
+
+`660_ddr_data` drives PIN_W15 through a width-one `altddio_out` with two
+changing fabric data nets. GPI signature `0xDD03` identifies the fabric
+beat protocol. Simulation uses a digital stand-in; it does not model analog
+GPIO-register delay. nextpnr packs that cell into `MISTRAL_DDROUT` on the
+existing GPIO BEL, keeping both data nets. Complementary constant data
+remains the separate clock-forwarding experiment. The packed register is
+outside characterized timing. The kit probe observes fabric counters, not
+the pin waveform. Simulation and OSS are supported; Quartus comparison is
+not implemented. See `experiments/660_ddr_data/expected.md`.
+
+The OSS `660_ddr_data` artifact has SHA-256
+`0caf4bdff0d9019afd30ffc9e014c45d185526d28571ec5a65fc763b101d4843`
+and size 1,953,267 bytes. nextpnr packed `altddio_out` into `MISTRAL_DDROUT`
+on `MISTRAL_IO.89.8.1` (PIN_W15) with both `D_H` and `D_L` connected.
+Its reported Fmax is 363.108 MHz against the 50 MHz constraint.
+Utilization is one HPS GP, two IO cells, and no PLL, memory or DSP. The
+current nextpnr pin `3e314db0` with Yosys `fca8ca0a` reproduces those
+same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10 returned GPI
+signature `0xDD03` with changing paired fabric beats for ten samples.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. This does not
+measure the registered pin waveform and is not output-interface timing
+closure.
 
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18

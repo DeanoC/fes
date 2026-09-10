@@ -1,0 +1,44 @@
+from pathlib import Path
+import unittest
+
+from scripts.experiment_policy import PolicyError, policy_for
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class DdrDataTests(unittest.TestCase):
+    def test_closed_resources_and_sources(self):
+        policy = policy_for("660_ddr_data")
+        self.assertEqual(
+            policy.constraints,
+            (
+                "experiments/660_ddr_data/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+        )
+        self.assertEqual(dict(policy.required_synth_cells), {"altddio_out": 1})
+        self.assertEqual(dict(policy.additional_clocks_mhz), {})
+        rtl = (ROOT / "experiments/660_ddr_data/rtl/top.v").read_text()
+        policy.validate_source_text("experiments/660_ddr_data/rtl/top.v", rtl)
+        self.assertIn("altddio_out", rtl)
+        self.assertIn(".datain_h(high)", rtl)
+        self.assertIn(".datain_l(low)", rtl)
+        self.assertNotIn(".datain_h(1'b1)", rtl)
+        self.assertNotIn(".datain_l(1'b0)", rtl)
+        self.assertIn("16'hDD03", rtl)
+        self.assertIn(".dataout(DDR_OUT)", rtl)
+        self.assertIn(".oe_out()", rtl)
+        qsf = (ROOT / "experiments/660_ddr_data/pins.qsf").read_text()
+        self.assertIn("PIN_W15 -to DDR_OUT", qsf)
+        policy.validate_resources(
+            {
+                "cyclonev_hps_interface_mpu_general_purpose": {"used": 1},
+            }
+        )
+        with self.assertRaises(PolicyError):
+            policy.validate_resources(
+                {
+                    "cyclonev_hps_interface_mpu_general_purpose": {"used": 1},
+                    "altera_pll": {"used": 1},
+                }
+            )
