@@ -36,7 +36,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
   USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
   required); USB mouse/pointer hover moves focus and primary click activates
-  (select/launch/confirm) without a controller; an attached `fes.keyboard`
+  (select/launch/confirm) without a controller; on-screen hints and focus
+  follow the last-used keyboard, mouse, or gamepad, a newly plugged device
+  claims affinity without restart, and unplug returns to a remaining device;
+  an attached `fes.keyboard`
   play session still forwards keys to
   the ZX81 matrix instead of the sofa graph. Mac is the primary sofa target;
   Linux uses the same Makefile target with

@@ -251,6 +251,10 @@ type Snapshot struct {
 	Covers          map[string]*image.RGBA
 	Launch          LaunchSnapshot
 	Gamepads        int
+	Keyboards       int
+	Mice            int
+	Affinity        InputKind
+	AffinityID      int
 	CoverHits       int
 	Platforms       []Platform
 	PlatformID      string
@@ -308,6 +312,9 @@ type App struct {
 	loading   bool
 	launch    LaunchSnapshot
 	gamepads  int
+	keyboards int
+	mice      int
+	affinity  affinityTracker
 	repeat    Repeater
 	remap     *inputmap.Remapper
 	theme     theme.Theme
@@ -1223,6 +1230,10 @@ func (a *App) Snapshot() Snapshot {
 		Covers:          covers,
 		Launch:          a.launch,
 		Gamepads:        a.gamepads,
+		Keyboards:       a.keyboards,
+		Mice:            a.mice,
+		Affinity:        a.affinity.current.Kind,
+		AffinityID:      a.affinity.current.ID,
 		CoverHits:       hits,
 		Platforms:       a.platforms,
 		PlatformID:      a.platformID,
@@ -1276,6 +1287,82 @@ func (a *App) SetGamepads(n int) {
 	a.mu.Unlock()
 }
 
+func (a *App) syncInputCountsLocked() {
+	a.keyboards = a.affinity.count(InputKeyboard)
+	a.mice = a.affinity.count(InputMouse)
+	a.gamepads = a.affinity.count(InputGamepad)
+}
+
+func (a *App) noteInputLocked(kind InputKind, id int) {
+	a.affinity.Note(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// SeedInput records a device present at start without claiming affinity.
+func (a *App) SeedInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Seed(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// AttachInput records a hotplug. A newly seen keyboard, mouse, or gamepad
+// claims hint and focus ownership without moving catalog focus.
+func (a *App) AttachInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Attach(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// DetachInput drops a device. Unplugging the owner restores a remaining one.
+func (a *App) DetachInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Detach(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// NoteInput marks last-used input so hints follow that device.
+func (a *App) NoteInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.noteInputLocked(kind, id)
+}
+
+// FinishInputSeed picks a startup owner: gamepad if any, else keyboard, else mouse.
+func (a *App) FinishInputSeed() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.preferStartup()
+	a.syncInputCountsLocked()
+}
+
+// Affinity reports the device that currently owns sofa hints and focus.
+func (a *App) Affinity() Affinity {
+	if a == nil {
+		return Affinity{}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.affinity.current
+}
+
 func (a *App) oskSnapshotLocked() OSKSnapshot {
 	if a.settingsOSKOpenLocked() {
 		snap := a.settingsOSKField.Snapshot()
@@ -1294,13 +1381,13 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 		case settingsOSKDevelopmentPath:
 			snap.Prompt = "DIAGNOSTIC RBF path"
 		}
-		return snap
+		return a.withOSKHintLocked(snap)
 	}
 	if a.nameEntryOpenLocked() {
 		snap := a.nameField.Snapshot()
 		snap.Open = true
 		snap.Prompt = "Collection name"
-		return snap
+		return a.withOSKHintLocked(snap)
 	}
 	if !a.searchOpen {
 		return OSKSnapshot{}
@@ -1308,6 +1395,11 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 	snap := a.searchField.Snapshot()
 	snap.Open = true
 	snap.Prompt = "Search"
+	return a.withOSKHintLocked(snap)
+}
+
+func (a *App) withOSKHintLocked(snap OSKSnapshot) OSKSnapshot {
+	snap.Hint = oskHintFor(a.affinity.current.Kind, snap.Page)
 	return snap
 }
 
@@ -1897,20 +1989,21 @@ func remoteInputTransitioning(state string) bool {
 	return state == "starting" || state == "reconnecting"
 }
 
-func remoteInputHint(session SessionResult, busy bool, action string) string {
+func remoteInputHint(session SessionResult, busy bool, action string, kind InputKind) string {
+	west := westWord(kind)
 	if busy {
 		switch action {
 		case "detach":
-			return "X detaching"
+			return west + " detaching"
 		default:
-			return "X attaching"
+			return west + " attaching"
 		}
 	}
 	if remoteInputCanDetach(session) {
-		return "X detach"
+		return west + " detach"
 	}
 	if remoteInputCanAttach(session) {
-		return "X attach"
+		return west + " attach"
 	}
 	return ""
 }
@@ -2110,7 +2203,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		Execution:         a.session.Execution,
 		Media:             a.session.Media,
 		InputState:        inputState,
-		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction),
+		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
 		InputBusy:         a.inputBusy || remoteInputTransitioning(inputState),
 		Progress:          progress,
 		Stopping:          a.stopPhase == "stopping",

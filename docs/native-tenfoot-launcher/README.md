@@ -188,7 +188,10 @@ launches; Shift+Tab steps back. USB mouse/pointer is first-class on the same
 path: hover moves focus, and primary click activates (launch on the shelf or
 detail pane, type/confirm on the search OSK). Clicking empty space does not
 launch the previously focused title. Keyboard and mouse coexist; a gamepad is
-not required. Letter shortcuts already patterned stay. While
+not required. Letter shortcuts already patterned stay. On-screen hints and
+focus ownership follow the last-used keyboard, mouse, or gamepad. Plugging a
+keyboard, mouse, or gamepad claims affinity without restarting tenfoot; unplug
+returns hints to a remaining device. While
 a `fes.keyboard` play session is attached, sofa keys forward to the ZX81 matrix
 instead of the focus graph, and pointer browse does not steal that session.
 

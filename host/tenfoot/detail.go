@@ -425,7 +425,7 @@ func (a *App) detailSnapshotLocked() DetailSnapshot {
 		Open:  a.detailOpen,
 		Index: index,
 		Count: len(ids),
-		Hint:  detailHint(len(ids)),
+		Hint:  detailHintFor(a.affinity.current.Kind, len(ids)),
 	}
 }
 

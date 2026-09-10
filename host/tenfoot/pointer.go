@@ -138,17 +138,23 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 // PointerMove updates sofa focus from a pointer coordinate. Hover does not
 // activate; primary click does. Coordinates are logical sofa pixels.
 func (a *App) PointerMove(x, y int, now time.Time) {
+	a.PointerMoveFrom(0, x, y, now)
+}
+
+// PointerMoveFrom is PointerMove with an SDL mouse instance id for affinity.
+func (a *App) PointerMoveFrom(id, x, y int, now time.Time) {
 	if a == nil {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
-	if a.attractActive {
-		a.hideAttractLocked()
+	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
 		return
 	}
-	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
+	a.noteInputLocked(InputMouse, id)
+	if a.attractActive {
+		a.hideAttractLocked()
 		return
 	}
 	a.applyPointerFocusLocked(a.hitTestLocked(x, y))
@@ -158,17 +164,23 @@ func (a *App) PointerMove(x, y int, now time.Time) {
 // (launch, OSK key, overlay confirm). Empty space does not activate the
 // previously focused title.
 func (a *App) PointerClick(x, y int, now time.Time) {
+	a.PointerClickFrom(0, x, y, now)
+}
+
+// PointerClickFrom is PointerClick with an SDL mouse instance id for affinity.
+func (a *App) PointerClickFrom(id, x, y int, now time.Time) {
 	if a == nil {
 		return
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
-	if a.attractActive {
-		a.consumeAttractLocked(CmdSelect, now)
+	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
 		return
 	}
-	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
+	a.noteInputLocked(InputMouse, id)
+	if a.attractActive {
+		a.consumeAttractLocked(CmdSelect, now)
 		return
 	}
 	hit := a.hitTestLocked(x, y)

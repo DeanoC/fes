@@ -386,7 +386,10 @@ Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
 `host/tenfoot/pointer.go`): hover moves focus, primary click activates
 select/launch/confirm on shelf, detail, and search, and it coexists with
-keyboard nav. Letter shortcuts already
+keyboard nav. Hints and focus ownership follow the last-used keyboard, mouse,
+or gamepad (`host/tenfoot/affinity.go`). SDL keyboard, mouse, and gamepad
+add/remove events claim affinity on plug without restarting the process, and
+unplug restores a remaining device. Letter shortcuts already
 patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
 an active `fes.keyboard` session is attached (`ForwardsCoreKeyboard`), those
 keys are forwarded onto the ZX81 matrix (`coreKeyFromSDL`) instead of the sofa
