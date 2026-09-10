@@ -63,10 +63,19 @@ func (client *Client) Protocol2Status(ctx context.Context) (Protocol2Response, e
 	if err != nil {
 		return Protocol2Response{}, err
 	}
-	if response.InspectedPackage != nil || (!response.OK && response.State != "reboot_required" && !(response.State == "running_development" && response.Error != nil && response.Error.Code == "save_failed" && response.Error.Phase == "save")) {
+	if response.InspectedPackage != nil || (!response.OK && response.State != "reboot_required" && !protocol2ResumedSaveFailure(response)) {
 		return Protocol2Response{}, errInvalidRuntimeResponse
 	}
 	return response, nil
+}
+
+func protocol2ResumedSaveFailure(response Protocol2Response) bool {
+	return response.Error != nil && response.Error.Code == "save_failed" && response.Error.Phase == "save" &&
+		(response.State == "running_development" || response.State == "running_game")
+}
+
+func describedPackageRuntimeState(response Protocol2Response) bool {
+	return response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil)
 }
 
 func (client *Client) LoadCore(ctx context.Context, path, packageID string) (Protocol2Response, error) {

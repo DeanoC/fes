@@ -174,6 +174,25 @@ type protocol2StopControl interface {
 	Protocol2Stop(context.Context) (Protocol2Response, error)
 }
 
+func (r *Runtime) shouldStopDescribedPackage(ctx context.Context) bool {
+	r.packageMu.Lock()
+	active := r.activePackage != nil
+	retired := len(r.retiredPackages) != 0
+	r.packageMu.Unlock()
+	if !active && !retired {
+		return false
+	}
+	if active {
+		return true
+	}
+	statusControl, ok := r.control.(protocol2StatusControl)
+	if !ok {
+		return true
+	}
+	response, err := statusControl.Protocol2Status(ctx)
+	return err == nil && describedPackageRuntimeState(response)
+}
+
 func (r *Runtime) stopCorePackage(ctx context.Context, control protocol2StopControl) (string, string, *protocol.APIError) {
 	response, err := control.Protocol2Stop(ctx)
 	r.noteDispatch("stop", err == nil)

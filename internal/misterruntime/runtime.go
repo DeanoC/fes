@@ -527,14 +527,20 @@ func (r *Runtime) ConfirmIdle(ctx context.Context) bool {
 
 func (r *Runtime) StopReady() bool {
 	r.packageMu.Lock()
-	ownsPackage := r.activePackage != nil || len(r.retiredPackages) != 0
+	active := r.activePackage != nil
+	retired := len(r.retiredPackages) != 0
 	r.packageMu.Unlock()
-	if ownsPackage {
+	if active || retired {
 		if control, ok := r.control.(protocol2StatusControl); ok {
 			ctx, cancel := context.WithTimeout(context.Background(), r.healthTimeout)
 			defer cancel()
 			response, err := control.Protocol2Status(ctx)
-			return err == nil && (response.State == "idle" || response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil))
+			if active {
+				return err == nil && (response.State == "idle" || response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil))
+			}
+			if err == nil && (describedPackageRuntimeState(response) || response.State == "idle") {
+				return true
+			}
 		}
 	}
 	response, err := r.boundedStatus(context.Background())
@@ -994,13 +1000,8 @@ func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned b
 		}
 		ctx = operation
 	}
-	r.packageMu.Lock()
-	ownsPackage := r.activePackage != nil || len(r.retiredPackages) != 0
-	r.packageMu.Unlock()
-	if ownsPackage {
-		if control, ok := r.control.(protocol2StopControl); ok {
-			return r.stopCorePackage(ctx, control)
-		}
+	if control, ok := r.control.(protocol2StopControl); ok && r.shouldStopDescribedPackage(ctx) {
+		return r.stopCorePackage(ctx, control)
 	}
 	response, err := r.control.Stop(ctx)
 	r.noteDispatch("stop", err == nil)

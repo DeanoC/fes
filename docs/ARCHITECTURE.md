@@ -948,8 +948,10 @@ is never replayed. A successful settings-only write or definite admission/revisi
 releases only the grant acquired for that operation; an existing session grant
 stays held. Described-package Stop uses protocol 2 so retained unsafe
 persistence recovery cannot trigger the legacy development autoreboot path.
-Explicit library loads and described-package Stop retain the same diagnostic
-dispatch events and native event-dump import as the other runtime operations.
+Leftover staging from a failed inspect or settings cleanup does not divert a
+later native-game Stop onto that protocol-2 path. Explicit library loads and
+described-package Stop retain the same diagnostic dispatch events and native
+event-dump import as the other runtime operations.
 
 The runtime owns bounded record validation, revision CAS, settings/progress
 semantics, atomic publication, and physical restore/capture. It refreshes a
