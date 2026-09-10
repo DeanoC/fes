@@ -53,6 +53,12 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("HPSINTERFACEPERIPHERALI2C_X52_Y60_N111", qsf)
         self.assertIn("PIN_U10 -to HDMI_I2C_SCL", qsf)
         self.assertIn("PIN_AA4 -to HDMI_I2C_SDA", qsf)
+        top = (ROOT / "cores/fes-zx81/rtl/top.v").read_text(encoding="utf-8")
+        self.assertIn(".out_clk(hdmi_scl_low)", top)
+        self.assertIn(".out_data(hdmi_sda_low)", top)
+        self.assertIn("hdmi_scl_low ? 1'b0 : 1'bz", top)
+        self.assertIn("hdmi_sda_low ? 1'b0 : 1'bz", top)
+        self.assertNotIn(".out_clk()", top)
 
     def test_compile_command_is_quartus_flow(self) -> None:
         command = compile_command(Path("/opt/quartus/bin/quartus_sh"))

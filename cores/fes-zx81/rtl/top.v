@@ -41,12 +41,19 @@ module top #(
         .gp_out(hps_to_fpga)
     );
 
+    wire hdmi_scl_low;
+    wire hdmi_sda_low;
+
+    // HPS I2C to ADV7513: same open-drain bridge as FES Pong. Quartus uses
+    // assign-to-Z instead of MISTRAL_IO; out_clk/out_data pull the pads low.
     cyclonev_hps_interface_peripheral_i2c hdmi_i2c (
-        .out_clk(),
+        .out_clk(hdmi_scl_low),
         .scl(HDMI_I2C_SCL),
-        .out_data(),
+        .out_data(hdmi_sda_low),
         .sda(HDMI_I2C_SDA)
     );
+    assign HDMI_I2C_SCL = hdmi_scl_low ? 1'b0 : 1'bz;
+    assign HDMI_I2C_SDA = hdmi_sda_low ? 1'b0 : 1'bz;
 
     sys_pll system_clock (
         .refclk(FPGA_CLK1_50),

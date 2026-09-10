@@ -1111,9 +1111,11 @@ This is simulation, not a Quartus RBF or kit result.
 `fes.zx81` 1.0.0. It is not a Mistral/nextpnr payload. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
 reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
-1650×750). HDMI pins, U10/AA4 I2C pads and the HPS I2C site
-`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` match FES Pong. The Z80 is VHDL T80pa
-from ZX81_MiSTer Release 20260603; Verilator keeps TV80.
+1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
+cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
+pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
+of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
+20260603; Verilator keeps TV80.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `altsyncram` bidirectional dual-port M10K with unregistered
