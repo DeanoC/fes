@@ -43,6 +43,7 @@ LIB_SOURCES := \
 	src/profile.cpp \
 	src/native/artifacts.cpp \
 	src/native/core_package.cpp \
+	src/native/core_data.cpp \
 	src/native/core_driver.cpp \
 	src/native/fes_gp.cpp \
 	src/native/core_loader.cpp \
@@ -76,6 +77,7 @@ TEST_BINS := \
 	$(BUILD_DIR)/tests/unit/diagnostic_test \
 	$(BUILD_DIR)/tests/unit/artifacts_test \
 	$(BUILD_DIR)/tests/unit/core_package_test \
+	$(BUILD_DIR)/tests/unit/core_data_test \
 	$(BUILD_DIR)/tests/unit/fes_gp_test \
 	$(BUILD_DIR)/tests/unit/native_hardware_test \
 	$(BUILD_DIR)/tests/unit/core_loader_test \
@@ -171,6 +173,10 @@ $(BUILD_DIR)/tests/unit/core_package_test: tests/unit/core_package_test.cpp \
 		src/native/core_package.cpp src/native/sha256.cpp \
 		src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
+$(BUILD_DIR)/tests/unit/core_data_test: tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp
+	@mkdir -p "$(dir $@)"
+	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "$@"
+
 $(BUILD_DIR)/tests/unit/fes_gp_test: tests/unit/fes_gp_test.cpp \
 		tests/support/fake_mmio.cpp src/native/fes_gp.cpp
 	@mkdir -p "$(dir $@)"
@@ -259,7 +265,7 @@ $(BUILD_DIR)/tests/unit/off_t_test: tests/unit/off_t_test.cpp
 $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp tests/support/fake_input.cpp \
 		tests/support/fake_mmio.cpp \
-		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/artifacts.cpp src/native/core_package.cpp src/native/core_data.cpp src/native/sha256.cpp \
 		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
@@ -275,7 +281,7 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 		tests/unit/native_hardware_test.cpp \
 		tests/support/capture_log.cpp tests/support/fake_input.cpp \
 		tests/support/fake_mmio.cpp \
-		src/native/artifacts.cpp src/native/core_package.cpp src/native/sha256.cpp \
+		src/native/artifacts.cpp src/native/core_package.cpp src/native/core_data.cpp src/native/sha256.cpp \
 		src/native/core_driver.cpp src/native/core_loader.cpp src/native/input.cpp \
 		src/native/fes_gp.cpp src/native/diagnostic.cpp \
 		src/native/video_recipe.cpp src/native/video.cpp \
@@ -369,8 +375,8 @@ archive-audit: $(ARCHIVE)
 		exit 1; \
 	}; \
 	member_count="$$(printf '%s\n' "$$actual_members" | sed '/^$$/d' | wc -l | tr -d ' ')"; \
-	[[ "$$member_count" == 20 ]] || { \
-		echo "canonical archive must contain exactly 20 production members" >&2; \
+	[[ "$$member_count" == 21 ]] || { \
+		echo "canonical archive must contain exactly 21 production members" >&2; \
 		exit 1; \
 	}; \
 	archive_list="$$(find "$(BUILD_DIR)" -maxdepth 1 -type f -name '*.a' | sed 's|^.*/||' | LC_ALL=C sort)"; \
@@ -384,7 +390,7 @@ archive-audit: $(ARCHIVE)
 		echo "archive members differ from production objects" >&2; \
 		exit 1; \
 	}; \
-	for required in runtime.o profile.o artifacts.o core_package.o core_driver.o fes_gp.o core_loader.o \
+	for required in runtime.o profile.o artifacts.o core_data.o core_package.o core_driver.o fes_gp.o core_loader.o \
 		diagnostic.o sha256.o input.o hardware.o \
 		fpga_manager.o framebuffer.o mmio.o spi.o production_hardware.o video_recipe.o \
 		video.o i2c.o linux_input.o; do \
@@ -401,7 +407,7 @@ archive-audit: $(ARCHIVE)
 		else source="$${relative_object%.o}.cpp"; fi; \
 		[[ -f "$$source" ]] || { echo "object has no production source: $$relative_object" >&2; exit 1; }; \
 		case "$$source" in \
-			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/core_loader.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
+			src/runtime.cpp|src/profile.cpp|src/native/artifacts.cpp|src/native/core_package.cpp|src/native/core_data.cpp|src/native/core_driver.cpp|src/native/fes_gp.cpp|src/native/core_loader.cpp|src/native/diagnostic.cpp|src/native/sha256.cpp|src/native/input.cpp|src/native/video_recipe.cpp|src/native/video.cpp|src/native/hardware.cpp|src/native/linux/fpga_manager.cpp|src/native/linux/framebuffer.cpp|src/native/linux/i2c.cpp|src/native/linux/input.cpp|src/native/linux/mmio.cpp|src/native/linux/spi.cpp|src/linux/production_hardware.cpp) ;; \
 			*) echo "archive contains non-production source: $$source" >&2; exit 1 ;; \
 		esac; \
 		compiled_sources+="$$source"$$'\n'; \
@@ -411,7 +417,7 @@ archive-audit: $(ARCHIVE)
 			printf '%s\n' "$${object#"$(BUILD_DIR)/"}"; \
 		fi; \
 	done < <(printf '%s\n' $(LIB_OBJECTS) | LC_ALL=C sort))"; \
-	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_loader.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/framebuffer.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
+	expected_raw_owners=$$'src/native/artifacts.o\nsrc/native/core_data.o\nsrc/native/core_loader.o\nsrc/native/core_package.o\nsrc/native/diagnostic.o\nsrc/native/linux/fpga_manager.o\nsrc/native/linux/framebuffer.o\nsrc/native/linux/i2c.o\nsrc/native/linux/linux_input.o\nsrc/native/linux/mmio.o'; \
 	[[ "$$raw_owners" == "$$expected_raw_owners" ]] || { \
 		echo "raw I/O ownership differs from the canonical native boundary" >&2; \
 		diff -u <(printf '%s\n' "$$expected_raw_owners") \

@@ -6,6 +6,7 @@
 #include "native/artifacts.hpp"
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
+#include "native/core_data.hpp"
 #include "native/core_loader.hpp"
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -114,6 +115,8 @@ public:
 	CoreDriver* driver_;
 	CoreDriverContext context_;
 	CoreRecipe recipe_;
+	std::unique_ptr<CoreDataFile> data_file_;
+	CoreData data_;
 };
 
 } // namespace
@@ -172,6 +175,33 @@ Error NativeHardware::StopInput(std::uint64_t deadline)
 
 Error NativeHardware::FlushSave()
 {
+	if (core_data_file_) {
+		if (core_data_flushed_)
+			return {};
+		Error error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
+		if (error.ok() && core_snapshot_.empty())
+			error = active_driver_->CaptureData(
+				active_context_, Deadline(clock_, timeouts_.core_io_ms), &core_snapshot_);
+		if (error.ok() && core_snapshot_.size() != generated::FesGpPongProgressWordCount)
+			error = {ErrorCode::save_failed, "incomplete core-data snapshot", "core_data"};
+		if (error.ok()) {
+			CoreData snapshot = durable_data_;
+			snapshot.paddle_speed = core_snapshot_[generated::FesGpPongPaddleSpeedIndex];
+			snapshot.best_rally = core_snapshot_[generated::FesGpPongBestRallyIndex];
+			// Reopen after uncertain publication; never mistake a cached revision for
+			// the current complete record on retry.
+			CoreData current;
+			error = core_data_file_->Read(&current);
+			if (error.ok())
+				error = core_data_file_->Persist(snapshot, current.revision, &durable_data_);
+		}
+		if (!error.ok()) {
+			error.code = ErrorCode::save_failed;
+			return WithPhase(error, "core_data");
+		}
+		core_data_flushed_ = true;
+		return {};
+	}
 	if (!save_ || save_flushed_) return {};
 	Error error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	if (error.ok() && snapshot_.empty())
@@ -190,7 +220,8 @@ Error NativeHardware::FlushSave()
 
 Error NativeHardware::RestoreInput(std::uint64_t generation)
 {
-	if (!save_) return {};
+	if (!save_ && !core_data_file_)
+		return {};
 	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
 		return {ErrorCode::io_failed,
 			"active input cannot be restored", "input"};
@@ -198,6 +229,12 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 		return {ErrorCode::io_failed,
 			"active input was not fully stopped", "input"};
 
+	if (core_data_file_) {
+		const Error resumed =
+			active_driver_->ResumeData(active_context_, Deadline(clock_, timeouts_.core_io_ms));
+		if (!resumed.ok())
+			return resumed;
+	}
 	CoreDriver* const driver = active_driver_;
 	const CoreDriverContext context = active_context_;
 	const std::shared_ptr<std::atomic<bool>> delivery_enabled =
@@ -228,6 +265,9 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 	// The failed write's snapshot described an earlier instant. Once play can
 	// continue, the next save attempt must capture the then-current RAM.
 	snapshot_.clear();
+	core_snapshot_.clear();
+	core_data_flushed_ = false;
+	save_flushed_ = false;
 	log_.Write({"restore_input", "", "", "input", {}});
 	return {};
 }
@@ -362,10 +402,114 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	CorePackageInspection inspection;
 	inspection.package_id = opened.package_id;
 	inspection.descriptor = std::move(opened.descriptor);
+	if (compatibility.ok())
+		compatibility =
+			CorePersistenceLayout(inspection.descriptor, &inspection.persistence_layout);
 	inspection.compatible = compatibility.ok();
 	inspection.compatibility_error = std::move(compatibility);
 	*output = std::move(inspection);
 	return {};
+}
+
+Error NativeHardware::PrepareCoreData(
+	AdmittedCorePackage* package, const std::string& root, CoreData* output)
+{
+	return PrepareCoreDataInternal(package, root, output, true);
+}
+
+Error NativeHardware::PrepareCoreDataInternal(
+	AdmittedCorePackage* package, const std::string& root, CoreData* output, bool writable)
+{
+	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted || !output)
+		return {ErrorCode::invalid_request, "invalid admitted core-data request"};
+	VersionedContract layout;
+	Error error = CorePersistenceLayout(admitted->opened_.descriptor, &layout);
+	if (!error.ok())
+		return error;
+	const std::string& id = admitted->opened_.descriptor.core.id;
+	if (core_data_file_ && durable_data_.core_id == id && layout.id.empty())
+		return {ErrorCode::incompatible_data, "active namespace requires persistence", "core_data"};
+	std::unique_ptr<CoreDataFile> file;
+	error = CoreDataFile::Open(root, id, &file);
+	CoreData data;
+	if (error.ok())
+		error = file->Read(&data);
+	if (!error.ok())
+		return error;
+	if (layout.id.empty() && data.revision != "absent")
+		return {
+			ErrorCode::incompatible_data, "existing namespace requires persistence", "core_data"};
+	if (writable && !layout.id.empty()) {
+		error = file->CheckWritable();
+		if (!error.ok())
+			return error;
+	}
+	data.package_id = admitted->info().package_id;
+	data.layout = layout;
+	data.mode = layout.id.empty() ? "volatile" : "persistent";
+	admitted->data_ = data;
+	// Volatile candidates still admit/inspect the namespace, but never retain a
+	// writer or restore target-owned data into a development session.
+	if (!layout.id.empty())
+		admitted->data_file_ = std::move(file);
+	*output = std::move(data);
+	return {};
+}
+Error NativeHardware::RefreshCoreData(AdmittedCorePackage* package, CoreData* output)
+{
+	auto admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted || !output)
+		return {ErrorCode::invalid_request, "invalid core-data refresh"};
+	if (!admitted->data_file_) {
+		*output = admitted->data_;
+		return {};
+	}
+	CoreData data;
+	Error error = admitted->data_file_->Read(&data);
+	if (!error.ok())
+		return error;
+	data.package_id = admitted->info().package_id;
+	admitted->data_ = data;
+	*output = std::move(data);
+	return {};
+}
+Error NativeHardware::InspectCoreData(
+	const std::string& path, const std::string& id, const std::string& root, CoreData* output)
+{
+	std::unique_ptr<AdmittedCorePackage> admitted;
+	Error error = AdmitCorePackage(path, id, &admitted);
+	if (error.ok())
+		error = PrepareCoreDataInternal(admitted.get(), root, output, false);
+	return error;
+}
+Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::string& id,
+	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+{
+	if (speed > generated::FesGpPongPaddleSpeedFast)
+		return {ErrorCode::invalid_request, "invalid paddle speed", "request"};
+	std::unique_ptr<AdmittedCorePackage> package;
+	Error error = AdmitCorePackage(path, id, &package);
+	if (!error.ok())
+		return error;
+	if (active_package_ && active_package_->info().declared_core == package->info().declared_core)
+		return {ErrorCode::busy, "core-data namespace is active", "core_data"};
+	CoreData data;
+	error = PrepareCoreData(package.get(), root, &data);
+	if (!error.ok())
+		return error;
+	auto admitted = dynamic_cast<NativeAdmittedCore*>(package.get());
+	if (!admitted->data_file_)
+		return {
+			ErrorCode::unsupported_interface, "package has no persistent settings", "core_data"};
+	data.paddle_speed = speed;
+	CoreData published;
+	error = admitted->data_file_->Persist(data, revision, &published);
+	if (error.ok()) {
+		published.package_id = id;
+		*output = std::move(published);
+	}
+	return error;
 }
 
 Capabilities NativeHardware::capabilities() const
@@ -384,12 +528,18 @@ Capabilities NativeHardware::capabilities() const
 		fes.major = generated::FesGpABIMajor;
 		fes.minor = generated::FesGpABIMinor;
 		fes.interfaces = {
-			{generated::FesGpInterfaceGamepadID,
-			 generated::FesGpInterfaceGamepadMajor,
-			 generated::FesGpInterfaceGamepadMinor},
+			{generated::FesGpInterfaceGamepadID, generated::FesGpInterfaceGamepadMajor,
+				generated::FesGpInterfaceGamepadMinor},
 			{generated::FesGpInterfaceVideoFixed720p60ID,
-			 generated::FesGpInterfaceVideoFixed720p60Major,
-			 generated::FesGpInterfaceVideoFixed720p60Minor}};
+				generated::FesGpInterfaceVideoFixed720p60Major,
+				generated::FesGpInterfaceVideoFixed720p60Minor},
+			{generated::FesGpInterfacePersistenceWordsID,
+				generated::FesGpInterfacePersistenceWordsMajor,
+				generated::FesGpInterfacePersistenceWordsMinor},
+			{generated::FesGpInterfacePongProgressID, generated::FesGpInterfacePongProgressMajor,
+				generated::FesGpInterfacePongProgressMinor}};
+		std::sort(fes.interfaces.begin(), fes.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(fes));
 	}
 	return result;
@@ -485,6 +635,13 @@ HardwareResult NativeHardware::LoadCore(
 		}
 		return {identified.error, true, identified.observed_core};
 	}
+	if (admitted->data_file_) {
+		error = admitted->driver_->RestoreData(admitted->context_,
+			{admitted->data_.paddle_speed, admitted->data_.best_rally},
+			Deadline(clock_, timeouts_.core_io_ms));
+		if (!error.ok())
+			return {WithPhase(error, "core_data"), true, identified.observed_core};
+	}
 	if (fes_gp) {
 		identity_verified->store(true);
 		const VideoResult video = game_video_.BringUpCustom(
@@ -517,12 +674,23 @@ HardwareResult NativeHardware::LoadCore(
 	} else {
 		has_active_input_recipe_ = false;
 	}
+	core_data_file_ = std::move(admitted->data_file_);
+	durable_data_ = admitted->data_;
+	core_snapshot_.clear();
+	core_data_flushed_ = false;
+	save_.reset();
+	snapshot_.clear();
+	save_flushed_ = false;
 	return {{}, true, identified.observed_core};
 }
 
 HardwareResult NativeHardware::LoadIdle()
 {
 	// Startup/fault/failed-launch cleanup deliberately has no save side effect.
+	core_data_file_.reset();
+	core_snapshot_.clear();
+	core_data_flushed_ = false;
+	durable_data_ = {};
 	save_.reset();
 	snapshot_.clear();
 	save_flushed_ = false;

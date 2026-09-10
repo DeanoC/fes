@@ -28,6 +28,9 @@ enum class ErrorCode {
 	unsupported_programming_profile,
 	unsupported_abi,
 	unsupported_interface,
+	corrupt_data,
+	incompatible_data,
+	stale_revision,
 };
 
 enum class State {
@@ -169,9 +172,20 @@ struct ActiveCorePackage {
 	ObservedIdentity observed;
 };
 
+struct CoreData {
+	std::string package_id;
+	std::string core_id;
+	VersionedContract layout;
+	std::string mode = "volatile";
+	std::string revision = "absent";
+	std::uint16_t paddle_speed = 1;
+	std::uint16_t best_rally = 0;
+};
+
 struct CorePackageInspection {
 	std::string package_id;
 	CoreDescriptor descriptor;
+	VersionedContract persistence_layout;
 	bool compatible = false;
 	Error compatibility_error;
 };
@@ -185,6 +199,7 @@ struct Status {
 	std::string declared_core;
 	Capabilities capabilities;
 	ActiveCorePackage active_package;
+	CoreData core_data;
 	std::uint64_t generation = 0;
 	Error error;
 };
@@ -325,6 +340,24 @@ public:
 		return {ErrorCode::unsupported_protocol,
 			"core package inspection is unavailable"};
 	}
+	virtual Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*)
+	{
+		return {ErrorCode::unsupported_interface, "core data unavailable"};
+	}
+	virtual Error RefreshCoreData(AdmittedCorePackage*, CoreData*)
+	{
+		return {};
+	}
+	virtual Error InspectCoreData(
+		const std::string&, const std::string&, const std::string&, CoreData*)
+	{
+		return {ErrorCode::unsupported_interface, "core data unavailable"};
+	}
+	virtual Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
+		const std::string&, std::uint16_t, CoreData*)
+	{
+		return {ErrorCode::unsupported_interface, "core data unavailable"};
+	}
 	virtual Capabilities capabilities() const { return {}; }
 	virtual HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t)
@@ -356,6 +389,10 @@ public:
 	Error LaunchGame(const Launch&);
 	Error LoadCore(const std::string& directory,
 		const std::string& expected_package_id);
+	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
+	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
+	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
+		const std::string&, std::uint16_t, CoreData*);
 	Error InspectCore(const std::string& directory,
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadDevelopmentRBF(const std::string&);

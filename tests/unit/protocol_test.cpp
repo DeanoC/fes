@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <assert.h>
+#include <algorithm>
 
 #include <fstream>
 #include <iostream>
@@ -431,10 +432,84 @@ void TestPongRomlessLaunchRequest()
 	assert(pong.launch.media.empty() && pong.launch.settings.empty());
 }
 
+void TestPersistenceRequestsAndResponseFixtures()
+{
+	const auto lines = ReadLines("tests/fixtures/protocol-v2-persistence-responses.jsonl");
+	assert(lines.size() == 6);
+	const std::string fields = "\"package_path\":\"/tmp/p\",\"package_id\":\"" +
+							   std::string(64, 'a') + "\",\"data_root\":\"/tmp/data\"";
+	Request request;
+	for (const auto* operation : {"load_library_core", "inspect_core_data"})
+		assert(Parse(
+			"{\"protocol\":2,\"operation\":\"" + std::string(operation) + "\"," + fields + "}",
+			&request)
+				   .ok());
+	const std::string update = "{\"protocol\":2,\"operation\":\"update_core_settings\"," + fields +
+							   ",\"expected_revision\":\"absent\",\"paddle_speed\":";
+	assert(Parse(update + "2}", &request).ok() && request.paddle_speed == 2 &&
+		   request.expected_revision == "absent");
+	for (const auto* invalid : {"-1", "3", "true", "\"1\"", "1.0", "null"})
+		assert(!Parse(update + invalid + "}", &request).ok());
+	assert(!Parse(
+		"{\"protocol\":2,\"operation\":\"update_core_settings\"," + fields + ",\"paddle_speed\":1}",
+		&request)
+				.ok());
+	Status status;
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	for (const auto* id : {"fes.persistence.words", "fes.pong.progress"})
+		status.capabilities.abis[0].interfaces.push_back({id, 1, 0});
+	std::sort(status.capabilities.abis[0].interfaces.begin(),
+		status.capabilities.abis[0].interfaces.end(),
+		[](const mister::SupportedInterface& a, const mister::SupportedInterface& b) {
+			return a.id < b.id;
+		});
+	mister::CoreData data;
+	data.package_id = std::string(64, 'a');
+	data.core_id = "fes.pong";
+	data.layout = {"fes.pong.progress", 1, 0};
+	data.mode = "persistent";
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture", nullptr, &data) == lines[0]);
+	status.error = {ErrorCode::corrupt_data, "core-data checksum mismatch", "core_data"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == lines[4]);
+	status.error = {ErrorCode::stale_revision, "core-data revision changed", "core_data"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == lines[5]);
+	status.error = {};
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.pong";
+	status.generation = 1;
+	status.core_data = data;
+	status.active_package.package_id = data.package_id;
+	status.active_package.descriptor = FixtureDescriptor();
+	for (const auto* id : {"fes.persistence.words", "fes.pong.progress"})
+		status.active_package.descriptor.interfaces.push_back({id, 1, 0, true});
+	status.active_package.observed = {
+		status.active_package.descriptor.abi, status.active_package.descriptor.build.id};
+	status.capabilities.active_interfaces = {{"fes.gamepad", 1, 0}, {"fes.persistence.words", 1, 0},
+		{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
+	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[1]);
+	status.error = {ErrorCode::save_failed, "core-data publication failed", "save"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == lines[2]);
+	status.state = State::reboot_required;
+	status.error = {ErrorCode::idle_failed, "ambiguous persistence resume", "recovery"};
+	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == lines[3]);
+	assert(
+		mister::daemon::EncodeResponse(false, status, "fixture") ==
+		R"({"protocol":1,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"idle_failed","message":"ambiguous persistence resume"},"version":"fixture"})");
+}
+
 } // namespace
 
 int main()
 {
+	Request persistent;
+	assert(Parse(
+		R"({"protocol":2,"operation":"inspect_core_data","package_path":"/tmp/p","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/tmp/data"})",
+		&persistent)
+			   .ok());
+
+	TestPersistenceRequestsAndResponseFixtures();
 	TestPongRomlessLaunchRequest();
 	TestOptionalSavePath();
 	TestGoldenRequests();
@@ -452,5 +527,5 @@ int main()
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 17 tests passed\n";
+	std::cout << "protocol_test: 18 tests passed\n";
 }

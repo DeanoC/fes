@@ -281,8 +281,8 @@ public:
 			result);
 	}
 
-	Error LoadCore(const std::string& directory,
-		const std::string& expected_package_id)
+	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
+		const std::string& data_root = "")
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -330,6 +330,20 @@ public:
 			Log("load_core", "", "", "validate", error);
 			return error;
 		}
+		CoreData data;
+		data.package_id = package->info().package_id;
+		data.core_id = package->info().declared_core;
+		if (!data_root.empty()) {
+			const Error prepared = hardware_.PrepareCoreData(package.get(), data_root, &data);
+			if (!prepared.ok()) {
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					busy_ = false;
+				}
+				condition_.notify_all();
+				return prepared;
+			}
+		}
 		const CorePackageInfo info = package->info();
 		Log("load_core", info.system, info.declared_core, "validate");
 
@@ -344,6 +358,21 @@ public:
 			if (!saved.ok()) {
 				return RestoreAfterSaveFailure("load_core", info.system,
 					info.declared_core, retired_generation, saved);
+			}
+		}
+
+		if (!data_root.empty()) {
+			const Error refreshed = hardware_.RefreshCoreData(package.get(), &data);
+			if (!refreshed.ok()) {
+				if (replacing)
+					return RestoreAfterSaveFailure("load_library_core", info.system,
+						info.declared_core, retired_generation, refreshed);
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					busy_ = false;
+				}
+				condition_.notify_all();
+				return refreshed;
 			}
 		}
 
@@ -374,6 +403,7 @@ public:
 			status_.declared_core = info.declared_core;
 			status_.package_id = info.package_id;
 			status_.generation = generation;
+			status_.core_data = data;
 			status_.active_package.package_id = info.package_id;
 			status_.active_package.descriptor = info.descriptor;
 			if (info.descriptor.abi.id == "fes.simple-game") {
@@ -388,6 +418,35 @@ public:
 		condition_.notify_all();
 		Log("load_core", info.system, result.observed_core, "running");
 		return {};
+	}
+
+	Error AccessCoreData(const std::string& directory, const std::string& package_id,
+		const std::string& data_root, const std::string& revision, std::uint16_t speed, bool update,
+		CoreData* output)
+	{
+		if (!output || !ValidAbsolutePath(directory) || !ValidAbsolutePath(data_root) ||
+			!ValidPackageId(package_id) ||
+			(update && (speed > 2 || (revision != "absent" && !ValidPackageId(revision)))))
+			return Invalid("invalid core-data request");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state == State::starting || status_.state == State::reboot_required)
+				return Busy("runtime core-data access is busy");
+			busy_ = true;
+		}
+		CoreData data;
+		Error error = update ? hardware_.UpdateCoreSettings(
+								   directory, package_id, data_root, revision, speed, &data)
+							 : hardware_.InspectCoreData(directory, package_id, data_root, &data);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		if (error.ok())
+			*output = std::move(data);
+		return error;
 	}
 
 	Error LoadDevelopmentRBF(const std::string& rbf, bool contained = false)
@@ -549,7 +608,10 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
 			pending_fault_generation_ = 0;
-			status_ = FreshStatus(State::reboot_required);
+			if (status_.core_data.mode == "persistent")
+				status_.state = State::reboot_required;
+			else
+				status_ = FreshStatus(State::reboot_required);
 			status_.error = recovery;
 			busy_ = false;
 		}
@@ -699,6 +761,24 @@ Error Runtime::LoadCore(const std::string& directory,
 {
 	return impl_->LoadCore(directory, expected_package_id);
 }
+Error Runtime::LoadLibraryCore(
+	const std::string& directory, const std::string& id, const std::string& root)
+{
+	if (!ValidAbsolutePath(root))
+		return Invalid("invalid core-data root");
+	return impl_->LoadCore(directory, id, root);
+}
+Error Runtime::InspectCoreData(
+	const std::string& directory, const std::string& id, const std::string& root, CoreData* output)
+{
+	return impl_->AccessCoreData(directory, id, root, "", 0, false, output);
+}
+Error Runtime::UpdateCoreSettings(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& revision, std::uint16_t speed, CoreData* output)
+{
+	return impl_->AccessCoreData(directory, id, root, revision, speed, true, output);
+}
+
 Error Runtime::InspectCore(const std::string& directory,
 	const std::string& expected_package_id, CorePackageInspection* output)
 {
@@ -733,6 +813,12 @@ const char* ErrorCodeName(ErrorCode code)
 	case ErrorCode::unsupported_programming_profile: return "unsupported_programming_profile";
 	case ErrorCode::unsupported_abi: return "unsupported_abi";
 	case ErrorCode::unsupported_interface: return "unsupported_interface";
+	case ErrorCode::corrupt_data:
+		return "corrupt_data";
+	case ErrorCode::incompatible_data:
+		return "incompatible_data";
+	case ErrorCode::stale_revision:
+		return "stale_revision";
 	}
 	return "invalid";
 }

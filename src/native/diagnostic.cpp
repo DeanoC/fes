@@ -76,7 +76,7 @@ std::string FormatUtcNs()
 	clock_gettime(CLOCK_REALTIME, &now);
 	struct tm utc = {};
 	gmtime_r(&now.tv_sec, &utc);
-	char stamp[40] = {};
+	char stamp[96] = {};
 	std::snprintf(stamp, sizeof(stamp),
 		"%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
 		utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday,

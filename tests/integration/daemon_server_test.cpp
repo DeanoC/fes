@@ -462,6 +462,36 @@ void TestIdleStopAcknowledgesSaveAdmissionFailure()
 	assert(fixture.hardware.idle_calls == 1 && fixture.hardware.flush_calls == 0);
 }
 
+void TestPersistenceMutationsEmitFifoCompletionOnRejection()
+{
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
+	Fixture fixture;
+	fixture.Start();
+	mister::daemon::Controller controller(fixture.runtime, "test-version");
+	const std::string fields = std::string(
+		",\"package_path\":\"/packages/custom\",\"package_id\":\"") +
+		kPackageId + "\",\"data_root\":\"/data\"";
+	for (const std::string operation : {"load_library_core", "update_core_settings"}) {
+		const std::string settings = operation == "update_core_settings" ?
+			",\"expected_revision\":\"absent\",\"paddle_speed\":1" : "";
+		Contains(controller.Handle("{\"protocol\":2,\"operation\":\"" + operation +
+			"\"" + fields + settings + "}"), "\"ok\":false");
+	}
+	Contains(controller.Handle("{\"protocol\":2,\"operation\":\"inspect_core_data\"" +
+		fields + "}"), "\"ok\":false");
+	assert(capture.Count("fifo.consume") == 2);
+	bool load = false, update = false;
+	for (const auto& event : capture.events()) {
+		if (event.kind != "fifo.consume") continue;
+		assert(mister_test::HasBool(event, "ok", false));
+		load |= mister_test::HasString(event, "operation", "load_library_core");
+		update |= mister_test::HasString(event, "operation", "update_core_settings");
+	}
+	assert(load && update);
+	assert(fixture.runtime.status().state == mister::State::idle);
+}
+
 void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 {
 	mister_test::CaptureDiagnostic capture;
@@ -1174,6 +1204,7 @@ int main()
 	TestOneRequestGetsOneNewlineResponseAndEof();
 	TestSecondRequestOnAConnectionIsNeverProcessed();
 	TestIncompleteAndOversizedRequestsAreInvalidThenClose();
+	TestPersistenceMutationsEmitFifoCompletionOnRejection();
 	TestMutationRequestsEmitFifoConsumeAndOptionalDump();
 	TestLaunchDevelopmentAndStopMapIdentityAndState();
 	TestProtocol2InspectionActivationDiagnosticAndBothStops();
@@ -1199,6 +1230,6 @@ int main()
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();
-	puts("daemon_server_test: 30 passed");
+	puts("daemon_server_test: 31 passed");
 	return 0;
 }

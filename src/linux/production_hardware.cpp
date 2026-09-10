@@ -187,6 +187,26 @@ public:
 	{
 		return hardware_.InspectCorePackage(directory, expected_id, inspection);
 	}
+	Error PrepareCoreData(
+		AdmittedCorePackage* package, const std::string& root, CoreData* output) override
+	{
+		return hardware_.PrepareCoreData(package, root, output);
+	}
+	Error RefreshCoreData(AdmittedCorePackage* package, CoreData* output) override
+	{
+		return hardware_.RefreshCoreData(package, output);
+	}
+	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
+		const std::string& root, CoreData* output) override
+	{
+		return hardware_.InspectCoreData(directory, expected_id, root, output);
+	}
+	Error UpdateCoreSettings(const std::string& directory, const std::string& expected_id,
+		const std::string& root, const std::string& revision, std::uint16_t speed,
+		CoreData* output) override
+	{
+		return hardware_.UpdateCoreSettings(directory, expected_id, root, revision, speed, output);
+	}
 	Capabilities capabilities() const override { return hardware_.capabilities(); }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
 		std::uint64_t generation) override

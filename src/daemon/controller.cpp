@@ -22,6 +22,8 @@ std::string Controller::Handle(const std::string& line)
 
 	Error result;
 	CorePackageInspection inspection;
+	CoreData data;
+	const CoreData* core_data = nullptr;
 	const CorePackageInspection* inspected = nullptr;
 	switch (request.operation) {
 	case Operation::status:
@@ -34,6 +36,24 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.InspectCore(request.package_path,
 			request.package_id, &inspection);
 		if (result.ok()) inspected = &inspection;
+		break;
+	case Operation::load_library_core:
+		result =
+			runtime_.LoadLibraryCore(request.package_path, request.package_id, request.data_root);
+		EmitFifoConsume("load_library_core", result.ok());
+		break;
+	case Operation::inspect_core_data:
+		result = runtime_.InspectCoreData(
+			request.package_path, request.package_id, request.data_root, &data);
+		if (result.ok())
+			core_data = &data;
+		break;
+	case Operation::update_core_settings:
+		result = runtime_.UpdateCoreSettings(request.package_path, request.package_id,
+			request.data_root, request.expected_revision, request.paddle_speed, &data);
+		EmitFifoConsume("update_core_settings", result.ok());
+		if (result.ok())
+			core_data = &data;
 		break;
 	case Operation::load_core:
 		result = runtime_.LoadCore(request.package_path, request.package_id);
@@ -50,7 +70,7 @@ std::string Controller::Handle(const std::string& line)
 		EmitFifoConsume("stop", result.ok());
 		break;
 	}
-	return Respond(request.protocol, result, inspected);
+	return Respond(request.protocol, result, inspected, core_data);
 }
 
 std::string Controller::InvalidRequest(const std::string& message)
@@ -59,11 +79,11 @@ std::string Controller::InvalidRequest(const std::string& message)
 }
 
 std::string Controller::Respond(std::int64_t protocol, const Error& result,
-	const CorePackageInspection* inspection)
+	const CorePackageInspection* inspection, const CoreData* data)
 {
 	Status observed = runtime_.status();
 	if (!result.ok()) observed.error = result;
-	return EncodeResponse(protocol, result.ok(), observed, version_, inspection);
+	return EncodeResponse(protocol, result.ok(), observed, version_, inspection, data);
 }
 
 } // namespace daemon

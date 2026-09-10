@@ -85,6 +85,17 @@ control deadline for a multi-megabyte cartridge would reject valid content
 before the core can start. The media bound is still finite; a transfer that
 stalls leaves the ordinary failure and idle-recovery path.
 
+## Described-core settings and progress
+
+Protocol 2 adds `load_library_core`, `inspect_core_data`, and
+`update_core_settings` for exact admitted packages. FES Pong library launches
+restore and durably publish its paddle-speed setting and best-rally record at
+successful Stop/replacement. Development `load_core` remains explicitly
+volatile. Status reports `active_package.persistence_mode`; data inspection
+returns durable values and a record revision. See the
+[local API and recovery contract](docs/core-persistence.md). This capability is
+software-tested; hardware acceptance is pending.
+
 ## Build and test
 
 ```sh

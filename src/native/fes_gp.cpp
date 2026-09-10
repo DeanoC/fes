@@ -231,6 +231,10 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (interface.id == FesGpInterfaceGamepadID)
 			capabilities = static_cast<std::uint16_t>(capabilities |
 				FesGpCapabilityGamepad);
+		else if (interface.id == FesGpInterfacePersistenceWordsID)
+			capabilities |= FesGpCapabilityPersistenceWords;
+		else if (interface.id == FesGpInterfacePongProgressID)
+			capabilities |= FesGpCapabilityPongProgress;
 		else if (interface.id == FesGpInterfaceVideoFixed720p60ID)
 			capabilities = static_cast<std::uint16_t>(capabilities |
 				FesGpCapabilityVideoFixed720p60);
@@ -267,6 +271,9 @@ FesGpCoreDriver::FesGpCoreDriver(FesGp& gp) : gp_(gp) {}
 void FesGpCoreDriver::BeginSession()
 {
 	gp_.BeginSession();
+	persistence_verified_ = false;
+	reset_held_ = true;
+	freeze_attempted_ = false;
 }
 
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
@@ -274,6 +281,8 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 {
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
+	if (result.error.ok())
+		reset_held_ = true;
 	result.error = WithPhase(std::move(result.error), "quiesce");
 	return result;
 }
@@ -285,8 +294,34 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		return {{ErrorCode::invalid_request, "missing FES GP descriptor",
 			"request"}, false, ""};
 	bool safe_to_quiesce = false;
-	const Error error = gp_.Identify(*context.descriptor, deadline,
-		&safe_to_quiesce);
+	persistence_verified_ = false;
+	Error error = gp_.Identify(*context.descriptor, deadline, &safe_to_quiesce);
+	if (error.ok()) {
+		bool words = false, pong = false;
+		for (const auto& interface : context.descriptor->interfaces) {
+			if (interface.id == FesGpInterfacePersistenceWordsID)
+				words = interface.required &&
+						interface.major == FesGpInterfacePersistenceWordsMajor &&
+						interface.minor == FesGpInterfacePersistenceWordsMinor;
+			if (interface.id == FesGpInterfacePongProgressID)
+				pong = interface.required && interface.major == FesGpInterfacePongProgressMajor &&
+					   interface.minor == FesGpInterfacePongProgressMinor;
+		}
+		if (words != pong)
+			error = {ErrorCode::unsupported_interface,
+				"persistence requires exactly one supported layout", "compatibility"};
+		if (error.ok() && words) {
+			const std::uint16_t expected[] = {FesGpPongProgressWordCount, FesGpPongProgressTag,
+				FesGpInterfacePongProgressMajor, FesGpInterfacePongProgressMinor};
+			for (std::uint8_t index = 0; index < 4 && error.ok(); ++index) {
+				std::uint16_t value = 0;
+				error = gp_.Exchange(FesGpOpcodeDataInfo, index, 0, deadline, &value);
+				if (error.ok() && value != expected[index])
+					error = Mismatch("live persistence layout differs from package");
+			}
+			persistence_verified_ = error.ok();
+		}
+	}
 	return {error, false, error.ok() ? context.descriptor->core.id : "",
 		safe_to_quiesce};
 }
@@ -329,8 +364,70 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 {
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
+	if (result.error.ok())
+		reset_held_ = false;
 	result.error = WithPhase(std::move(result.error), "transport");
 	return result;
+}
+
+Error FesGpCoreDriver::DataControl(std::uint16_t argument, std::uint64_t deadline)
+{
+	std::uint16_t response = 0;
+	Error error =
+		gp_.Exchange(FesGpOpcodeDataControl, FesGpControlIndex, argument, deadline, &response);
+	if (error.ok() && response != 0)
+		error = Io("invalid persistence control response");
+	return WithPhase(error, "core_data");
+}
+Error FesGpCoreDriver::CaptureData(
+	const CoreDriverContext&, std::uint64_t deadline, std::vector<std::uint16_t>* output)
+{
+	if (!persistence_verified_ || reset_held_ || !output)
+		return Io("persistence snapshot is unavailable");
+	freeze_attempted_ = true;
+	Error error = DataControl(FesGpDataFreeze, deadline);
+	std::vector<std::uint16_t> snapshot;
+	for (std::uint16_t index = 0; index < FesGpPongProgressWordCount && error.ok(); ++index) {
+		std::uint16_t value = 0;
+		error = gp_.Exchange(
+			FesGpOpcodeDataRead, static_cast<std::uint8_t>(index), 0, deadline, &value);
+		if (error.ok())
+			snapshot.push_back(value);
+	}
+	if (error.ok() && snapshot[FesGpPongPaddleSpeedIndex] > FesGpPongPaddleSpeedFast)
+		error = Io("invalid persistence snapshot setting");
+	if (error.ok())
+		*output = std::move(snapshot);
+	return WithPhase(error, "core_data");
+}
+Error FesGpCoreDriver::RestoreData(
+	const CoreDriverContext&, const std::vector<std::uint16_t>& words, std::uint64_t deadline)
+{
+	if (!persistence_verified_ || !reset_held_ || words.size() != FesGpPongProgressWordCount ||
+		words[FesGpPongPaddleSpeedIndex] > FesGpPongPaddleSpeedFast)
+		return Io("persistence restore is unavailable or invalid");
+	Error error = DataControl(FesGpDataBegin, deadline);
+	for (std::size_t index = 0; index < words.size() && error.ok(); ++index) {
+		std::uint16_t response = 0;
+		error = gp_.Exchange(FesGpOpcodeDataWrite, static_cast<std::uint8_t>(index), words[index],
+			deadline, &response);
+		if (error.ok() && response != 0)
+			error = Io("invalid persistence write response");
+	}
+	if (error.ok())
+		error = DataControl(FesGpDataCommit, deadline);
+	return WithPhase(error, "core_data");
+}
+Error FesGpCoreDriver::ResumeData(const CoreDriverContext&, std::uint64_t deadline)
+{
+	if (!persistence_verified_)
+		return Io("persistence resume is unavailable");
+	if (!freeze_attempted_)
+		return {};
+	Error error = DataControl(FesGpDataResume, deadline);
+	if (error.ok())
+		freeze_attempted_ = false;
+	return error;
 }
 
 } // namespace native

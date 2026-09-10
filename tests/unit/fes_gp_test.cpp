@@ -382,16 +382,155 @@ void TestCoreDriverRoutesGeneratedControlsAndChecksResponses()
 		mister::ErrorCode::io_failed);
 }
 
+void TestPersistenceTransfersAndPoisonedSnapshot()
+{
+	const std::string build = "00112233445566778899aabbccddeeff";
+	auto descriptor = Descriptor(build);
+	descriptor.interfaces.push_back({FesGpInterfacePersistenceWordsID, 1, 0, true});
+	descriptor.interfaces.push_back({FesGpInterfacePongProgressID, 1, 0, true});
+	auto words = IdentityWords(build);
+	words[FesGpIdentityCapabilitiesIndex] |= 12;
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	ScriptIdentity(&mmio, words);
+	bool toggle = false;
+	for (auto v : {2, 1, 1, 0}) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, v);
+	}
+	assert(driver.Identify(context, 10000).error.ok());
+	for (unsigned i = 0; i < 4; ++i) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, 0);
+	}
+	assert(driver.RestoreData(context, {2, 17}, 10000).ok());
+	toggle = !toggle;
+	PushCompleted(&mmio, toggle, 0);
+	assert(driver.Start(context, 10000).error.ok());
+	for (auto v : {0, 2, 17}) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, v);
+	}
+	std::vector<std::uint16_t> snapshot;
+	assert(driver.CaptureData(context, 10000, &snapshot).ok());
+	assert(snapshot == std::vector<std::uint16_t>({2, 17}));
+	toggle = !toggle;
+	PushCompleted(&mmio, toggle, 0);
+	assert(driver.ResumeData(context, 10000).ok());
+	assert(!driver.RestoreData(context, {1, 0}, 10000).ok());
+	// Successful freeze plus an ambiguous read cannot expose partial bytes or resume.
+	toggle = !toggle;
+	PushCompleted(&mmio, toggle, 0);
+	snapshot.clear();
+	assert(!driver.CaptureData(context, clock.now_ + 15, &snapshot).ok());
+	assert(snapshot.empty());
+	const auto before = mmio.writes.size();
+	assert(!driver.ResumeData(context, 10000).ok());
+	assert(mmio.writes.size() == before);
+}
+
+void TestSharedPersistenceWireFixtures()
+{
+	const auto source = ReadFile("tests/fixtures/core-persistence-v1/exchanges.json");
+	const std::regex rows(R"rx(\{[^{}]*"opcode"[^{}]*\})rx");
+	const std::regex request(R"rx("gpo"\s*:\s*\[\s*([0-9]+),\s*([0-9]+)\s*\])rx");
+	const std::regex response(R"rx("gpi"\s*:\s*([0-9]+))rx");
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	unsigned count = 0;
+	for (std::sregex_iterator row(source.begin(), source.end(), rows), end; row != end; ++row) {
+		std::string text = row->str();
+		std::smatch q, r;
+		assert(std::regex_search(text, q, request));
+		assert(std::regex_search(text, r, response));
+		auto settled = static_cast<std::uint32_t>(std::stoul(q[1]));
+		auto toggled = static_cast<std::uint32_t>(std::stoul(q[2]));
+		auto gpi = static_cast<std::uint32_t>(std::stoul(r[1]));
+		PushCompleted(&mmio, (gpi & FesGpAckMask) != 0, static_cast<std::uint16_t>(gpi),
+			(gpi & FesGpErrorMask) != 0);
+		std::uint16_t value = 0;
+		auto error = gp.Exchange(static_cast<std::uint8_t>((toggled & FesGpOpcodeMask) >> 24),
+			static_cast<std::uint8_t>((toggled & FesGpIndexMask) >> 16),
+			static_cast<std::uint16_t>(toggled), 100000, &value);
+		assert(error.ok() == ((gpi & FesGpErrorMask) == 0));
+		assert(value == static_cast<std::uint16_t>(gpi));
+		assert(
+			mmio.writes[2 * count].value == settled && mmio.writes[2 * count + 1].value == toggled);
+		++count;
+	}
+	assert(count > 40);
+}
+void TestPersistenceIdentityInfoAndPartialRestoreRejection()
+{
+	const std::string build = "00112233445566778899aabbccddeeff";
+	auto descriptor = Descriptor(build);
+	descriptor.interfaces.push_back({FesGpInterfacePersistenceWordsID, 1, 0, true});
+	descriptor.interfaces.push_back({FesGpInterfacePongProgressID, 1, 0, true});
+	auto words = IdentityWords(build);
+	words[FesGpIdentityCapabilitiesIndex] |= 12;
+	for (unsigned mismatch = 0; mismatch < 6; ++mismatch) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		assert(!driver.RestoreData(context, {1, 0}, 10000).ok() && mmio.writes.empty());
+		auto live = words;
+		if (mismatch >= 4)
+			live[FesGpIdentityCapabilitiesIndex] ^= mismatch == 4 ? 4 : 8;
+		ScriptIdentity(&mmio, live);
+		bool toggle = false;
+		unsigned index = 0;
+		if (mismatch < 4)
+			for (auto value : {2, 1, 1, 0}) {
+				toggle = !toggle;
+				PushCompleted(&mmio, toggle,
+					static_cast<std::uint16_t>(value + (index++ == mismatch ? 1 : 0)));
+			}
+		assert(!driver.Identify(context, 10000).error.ok());
+		auto before = mmio.writes.size();
+		assert(!driver.RestoreData(context, {1, 0}, 10000).ok());
+		assert(mmio.writes.size() == before);
+	}
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	ScriptIdentity(&mmio, words);
+	bool toggle = false;
+	for (auto v : {2, 1, 1, 0}) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, v);
+	}
+	assert(driver.Identify(context, 10000).error.ok());
+	PushCompleted(&mmio, true, 0);
+	PushCompleted(&mmio, false, 0);
+	PushCompleted(&mmio, true, FesGpErrorInvalidState, true);
+	assert(!driver.RestoreData(context, {2, 17}, 10000).ok());
+	assert(mmio.writes.size() == 46); // no commit after rejected second write
+}
+
 } // namespace
 
 int main()
 {
+	TestPersistenceTransfersAndPoisonedSnapshot();
+	TestSharedPersistenceWireFixtures();
+	TestPersistenceIdentityInfoAndPartialRestoreRejection();
 	TestReplaysSharedGoldenExchangeSequence();
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
 	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 6 groups passed");
+	puts("fes_gp_test: 9 groups passed");
 	return 0;
 }

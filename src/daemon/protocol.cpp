@@ -318,17 +318,20 @@ void AppendError(BoundedOutput* output, const Error& error, bool protocol2)
 bool TryEncodeV1Response(bool ok, const Status& status, const std::string& version,
 	std::string* response)
 {
+	const bool retained_recovery =
+		status.state == State::reboot_required && status.core_data.mode == "persistent";
+	const std::string empty;
 	BoundedOutput output(kMaximumResponsePayloadBytes);
 	output.Append("{\"protocol\":1,\"ok\":");
 	output.Append(ok ? "true" : "false");
 	output.Append(",\"state\":");
 	AppendQuoted(&output, StateName(status.state));
 	output.Append(",\"execution\":");
-	AppendQuoted(&output, ExecutionName(status.execution));
+	AppendQuoted(&output, ExecutionName(retained_recovery ? Execution::none : status.execution));
 	output.Append(",\"system\":");
-	AppendIdentity(&output, status.system);
+	AppendIdentity(&output, retained_recovery ? empty : status.system);
 	output.Append(",\"core\":");
-	AppendIdentity(&output, status.core);
+	AppendIdentity(&output, retained_recovery ? empty : status.core);
 	output.Append(",\"error\":");
 	AppendError(&output, status.error, false);
 	output.Append(",\"version\":");
@@ -339,9 +342,8 @@ bool TryEncodeV1Response(bool ok, const Status& status, const std::string& versi
 	return true;
 }
 
-bool TryEncodeV2Response(bool ok, const Status& status,
-	const std::string& version, const CorePackageInspection* inspection,
-	std::string* response)
+bool TryEncodeV2Response(bool ok, const Status& status, const std::string& version,
+	const CorePackageInspection* inspection, const CoreData* core_data, std::string* response)
 {
 	BoundedOutput output(kMaximumResponsePayloadBytes);
 	output.Append("{\"protocol\":2,\"ok\":");
@@ -396,6 +398,8 @@ bool TryEncodeV2Response(bool ok, const Status& status,
 		AppendQuoted(&output, status.active_package.package_id);
 		output.Append(",\"descriptor\":");
 		AppendDescriptor(&output, status.active_package.descriptor);
+		output.Append(",\"persistence_mode\":");
+		AppendQuoted(&output, status.core_data.mode);
 		output.Append(",\"observed\":{\"abi\":");
 		if (status.active_package.observed.abi.id.empty()) output.Append("null");
 		else AppendContract(&output, status.active_package.observed.abi);
@@ -414,10 +418,35 @@ bool TryEncodeV2Response(bool ok, const Status& status,
 		AppendQuoted(&output, inspection->package_id);
 		output.Append(",\"descriptor\":");
 		AppendDescriptor(&output, inspection->descriptor);
+		output.Append(",\"persistence_layout\":");
+		if (inspection->persistence_layout.id.empty())
+			output.Append("null");
+		else
+			AppendContract(&output, inspection->persistence_layout);
 		output.Append(",\"compatible\":");
 		output.Append(inspection->compatible ? "true" : "false");
 		output.Append(",\"compatibility_error\":");
 		AppendError(&output, inspection->compatibility_error, true);
+		output.Append("}");
+	}
+	if (core_data != nullptr) {
+		output.Append(",\"core_data\":{\"package_id\":");
+		AppendQuoted(&output, core_data->package_id);
+		output.Append(",\"core_id\":");
+		AppendQuoted(&output, core_data->core_id);
+		output.Append(",\"layout\":");
+		if (core_data->layout.id.empty())
+			output.Append("null");
+		else
+			AppendContract(&output, core_data->layout);
+		output.Append(",\"mode\":");
+		AppendQuoted(&output, core_data->mode);
+		output.Append(",\"revision\":");
+		AppendQuoted(&output, core_data->revision);
+		output.Append(",\"paddle_speed\":");
+		output.Append(std::to_string(core_data->paddle_speed));
+		output.Append(",\"best_rally\":");
+		output.Append(std::to_string(core_data->best_rally));
 		output.Append("}");
 	}
 	output.Append("}");
@@ -470,6 +499,40 @@ Error ParseRequest(const std::string& line, Request* request)
 				Operation::inspect_core : Operation::load_core;
 			parsed.package_path = *package_path;
 			parsed.package_id = *package_id;
+		} else if (operation->string_value == "load_library_core" ||
+				   operation->string_value == "inspect_core_data" ||
+				   operation->string_value == "update_core_settings") {
+			const bool update = operation->string_value == "update_core_settings";
+			const char* const fields[] = {"protocol", "operation", "package_path", "package_id",
+				"data_root", "expected_revision", "paddle_speed"};
+			if (!HasOnly(root, fields, update ? 7 : 5, &error))
+				return error;
+			const std::string *path = nullptr, *id = nullptr, *data_root = nullptr;
+			if (!StringMember(root, "package_path", &path, &error) ||
+				!StringMember(root, "package_id", &id, &error) ||
+				!StringMember(root, "data_root", &data_root, &error))
+				return error;
+			if (!Path(*path) || !Path(*data_root) || !PackageID(*id))
+				return Invalid("invalid core-data package or root");
+			parsed.package_path = *path;
+			parsed.package_id = *id;
+			parsed.data_root = *data_root;
+			parsed.operation = operation->string_value == "load_library_core"
+								   ? Operation::load_library_core
+								   : Operation::inspect_core_data;
+			if (update) {
+				const std::string* revision = nullptr;
+				const auto* speed = Find(root, "paddle_speed");
+				if (!StringMember(root, "expected_revision", &revision, &error))
+					return error;
+				if ((*revision != "absent" && !PackageID(*revision)) || !speed ||
+					speed->type != json::Type::integer || speed->integer_value < 0 ||
+					speed->integer_value > 2)
+					return Invalid("invalid settings revision or paddle speed");
+				parsed.operation = Operation::update_core_settings;
+				parsed.expected_revision = *revision;
+				parsed.paddle_speed = static_cast<std::uint16_t>(speed->integer_value);
+			}
 		} else if (operation->string_value == "load_development_rbf") {
 			const char* const fields[] = {
 				"protocol", "operation", "rbf", "programming_profile"};
@@ -552,13 +615,13 @@ std::string EncodeResponse(bool ok, const Status& status, const std::string& ver
 		"\"message\":\"response exceeds 65536 bytes\"},\"version\":\"-\"}";
 }
 
-std::string EncodeResponse(std::int64_t protocol, bool ok,
-	const Status& status, const std::string& version,
-	const CorePackageInspection* inspected_package)
+std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
+	const std::string& version, const CorePackageInspection* inspected_package,
+	const CoreData* core_data)
 {
 	if (protocol != 2) return EncodeResponse(ok, status, version);
 	std::string response;
-	if (TryEncodeV2Response(ok, status, version, inspected_package, &response))
+	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, &response))
 		return response;
 	Status fallback = status;
 	fallback.system.clear();
@@ -568,7 +631,7 @@ std::string EncodeResponse(std::int64_t protocol, bool ok,
 	fallback.generation = 0;
 	fallback.error = {ErrorCode::io_failed,
 		"response exceeds 65536 bytes", "lifecycle"};
-	if (TryEncodeV2Response(false, fallback, "-", nullptr, &response))
+	if (TryEncodeV2Response(false, fallback, "-", nullptr, nullptr, &response))
 		return response;
 	return "{\"protocol\":2,\"ok\":false,\"state\":\"idle\","
 		"\"execution\":\"none\",\"system\":null,\"core\":null,"

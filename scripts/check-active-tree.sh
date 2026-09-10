@@ -51,9 +51,12 @@ executable_list=$(find "$build" -maxdepth 1 -type f \
 }
 
 built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|backendfence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
+# The generated ProgressTag constant's C++ mangling ends in "sTagE".
+# Exclude only that exact generated symbol, retaining the historic-name guard.
 for output in "$archive" "$daemon"; do
 	strings "$output" >"$temporary/$(basename "$output").strings"
-	grep -Fv '__gxx_personality_v0' "$temporary/$(basename "$output").strings" \
+	grep -Fv -e '__gxx_personality_v0' \
+		-e '_ZN6mister6native9generatedL20FesGpPongProgressTagE' "$temporary/$(basename "$output").strings" \
 		>"$temporary/$(basename "$output").project-strings" || true
 	if grep -Eai "$built_name_pattern" "$temporary/$(basename "$output").project-strings" \
 		>"$temporary/built-names.log"; then
@@ -65,6 +68,7 @@ done
 
 cat >"$temporary/expected-members" <<'EOF'
 artifacts.o
+core_data.o
 core_driver.o
 core_loader.o
 core_package.o
