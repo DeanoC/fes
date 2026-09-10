@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8"
 order = 10
-rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 3e314db0 for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, and fabric-data DDR output registers; fixed reviewed local commit."
+rationale = "Adds the kept Cyclone V HPS peripheral I2C declaration and synthesis regression on 10891a9e0256a0eac70c329aa64c633902fc6bc6. Preserves that base's CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 10a8e890 for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, and direct altiobuf packing; fixed reviewed local commit."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "3e314db00a620caf3cbe09ecac93a4910df5f01a"
+commit = "10a8e8907f18e312b431e8303c4216f4501e6b3a"
 order = 30
-rationale = "Adds fabric-data Cyclone V DDR output registers (merged PR #45 3e314db0: width-one altddio_out with two nonconstant datain_h/datain_l nets packs into MISTRAL_DDROUT on GPIO DATAOUT.1/DATAOUT.0 and CLKOUT.0; complementary constants still take the clock-forwarding path; mixed/missing data, width≠1, dynamic controls, inverted output and used oe_out fail closed) on 9144784d. Feature commit 3eb10feb. Preserves dedicated DDR input, SDR input/output, DDR clock forwarding, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Adds direct Cyclone V altiobuf packing (merged PR #47 10a8e890: width-one altiobuf_in/out/bidir fold into existing MISTRAL_IB/OB/IO BELs; bus-hold and differential mode disabled; output use_oe=FALSE; unsupported widths, parameters and pad topology fail closed) on 3e314db0. Feature commit e64b6c33. Preserves fabric-data DDR output, dedicated DDR input, SDR input/output, DDR clock forwarding, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys fca8ca0a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

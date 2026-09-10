@@ -87,6 +87,8 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/650_ddr_input/pins.qsf",
             "experiments/660_ddr_data/rtl/top.v",
             "experiments/660_ddr_data/pins.qsf",
+            "experiments/670_altiobuf/rtl/top.v",
+            "experiments/670_altiobuf/pins.qsf",
             "experiments/210_pll_duty/rtl/top.v",
             "experiments/220_pll_phase/rtl/top.v",
             "experiments/230_pll_phase_180/rtl/top.v",
@@ -453,6 +455,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("altddio_out_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_altiobuf(self) -> None:
+        result = self._run("--print-commands", "--experiment", "670_altiobuf")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/670_altiobuf/rtl/top.v", commands)
+        self.assertIn("experiments/670_altiobuf/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altiobuf_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
