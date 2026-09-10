@@ -7,7 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-// Command is one focus-graph action from a gamepad or debug keyboard.
+// Command is one focus-graph action from a gamepad or USB keyboard.
 type Command int
 
 const (
@@ -33,6 +33,8 @@ const (
 	CmdLayoutCycle
 	CmdSettings
 	CmdFilters
+	CmdTab
+	CmdTabPrev
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -167,52 +169,6 @@ func CommandFromButton(button Button) Command {
 	}
 }
 
-// CommandFromKey maps debug keyboard keys. Names are SDL-style identifiers.
-func CommandFromKey(name string) Command {
-	switch name {
-	case "up", "w":
-		return CmdUp
-	case "down":
-		return CmdDown
-	case "left", "a":
-		return CmdLeft
-	case "right", "d":
-		return CmdRight
-	case "return", "space":
-		return CmdSelect
-	case "escape", "backspace":
-		return CmdBack
-	case "s":
-		return CmdStop
-	case "q":
-		return CmdQuit
-	case "leftbracket", "[":
-		return CmdFilterPrev
-	case "rightbracket", "]":
-		return CmdFilterNext
-	case "x":
-		return CmdSortCycle
-	case "/", "slash", "f":
-		return CmdSearch
-	case "c":
-		return CmdViewNext
-	case "v", "*":
-		return CmdFavorite
-	case "-", "minus":
-		return CmdSafeAreaOut
-	case "=", "plus", "equals":
-		return CmdSafeAreaIn
-	case "l":
-		return CmdLayoutCycle
-	case "o":
-		return CmdSettings
-	case "g":
-		return CmdFilters
-	default:
-		return CmdNone
-	}
-}
-
 // CommandFromStick maps a left-stick axis sample to a d-pad command.
 func CommandFromStick(axisX, axisY int) Command {
 	return CommandFromStickHeld(axisX, axisY, CmdNone)
@@ -315,6 +271,11 @@ func (r *Repeater) Up(cmd Command) {
 	if r.held == cmd {
 		r.held = CmdNone
 	}
+}
+
+// Clear drops any armed hold-repeat.
+func (r *Repeater) Clear() {
+	r.held = CmdNone
 }
 
 // Tick returns a movement command when the hold repeat interval elapses.
@@ -440,6 +401,10 @@ func (c Command) String() string {
 		return "settings"
 	case CmdFilters:
 		return "filters"
+	case CmdTab:
+		return "tab"
+	case CmdTabPrev:
+		return "tab-prev"
 	default:
 		return "none"
 	}

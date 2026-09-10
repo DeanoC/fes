@@ -244,6 +244,20 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 	case CmdSelect:
 		a.startLaunchLocked()
 		return true
+	case CmdTab:
+		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
+			a.stepCarouselLocked(1)
+		} else {
+			a.startLaunchLocked()
+		}
+		return true
+	case CmdTabPrev:
+		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
+			a.stepCarouselLocked(-1)
+		} else {
+			a.closeDetailLocked()
+		}
+		return true
 	case CmdStop:
 		a.startStopLocked()
 		return true

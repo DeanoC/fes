@@ -362,10 +362,10 @@ func (a *App) handleSettingsLocked(cmd Command) {
 	case CmdBack:
 		a.closeSettingsLocked()
 		return
-	case CmdUp:
+	case CmdUp, CmdTabPrev:
 		a.settingsIndex = (a.settingsIndex - 1 + rows) % rows
 		return
-	case CmdDown:
+	case CmdDown, CmdTab:
 		a.settingsIndex = (a.settingsIndex + 1) % rows
 		return
 	}
@@ -1045,7 +1045,9 @@ func (a *App) handleSettingsOSKLocked(cmd Command) {
 		a.cancelSettingsOSKLocked()
 	case CmdSearch:
 		a.cancelSettingsOSKLocked()
-	case CmdFilterPrev:
+	case CmdTab:
+		a.submitSettingsOSKLocked()
+	case CmdTabPrev, CmdFilterPrev:
 		a.settingsOSKField.CyclePage(-1)
 	case CmdFilterNext:
 		a.settingsOSKField.CyclePage(1)

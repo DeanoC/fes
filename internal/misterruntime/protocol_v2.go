@@ -51,6 +51,21 @@ type Protocol2Response struct {
 	InspectedPackage *Protocol2Inspection    `json:"inspected_package"`
 }
 
+func (client *Client) SetKeyboard(ctx context.Context, matrix uint64) (Protocol2Response, error) {
+	if matrix > 0xffffffffff {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	line, err := client.callRaw(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+		Matrix    uint64 `json:"matrix"`
+	}{Protocol: 2, Operation: "set_keyboard", Matrix: matrix})
+	if err != nil {
+		return Protocol2Response{}, err
+	}
+	return decodeProtocol2Response(line)
+}
+
 func (client *Client) Protocol2Status(ctx context.Context) (Protocol2Response, error) {
 	line, err := client.callRaw(ctx, struct {
 		Protocol  int    `json:"protocol"`

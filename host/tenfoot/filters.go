@@ -284,9 +284,9 @@ func (a *App) handleFiltersLocked(cmd Command) {
 		a.filterIndex = n - 1
 	}
 	switch cmd {
-	case CmdUp, CmdLeft, CmdViewPrev:
+	case CmdUp, CmdLeft, CmdViewPrev, CmdTabPrev:
 		a.filterIndex = (a.filterIndex - 1 + n) % n
-	case CmdDown, CmdRight, CmdViewNext:
+	case CmdDown, CmdRight, CmdViewNext, CmdTab:
 		a.filterIndex = (a.filterIndex + 1) % n
 	case CmdSelect:
 		a.activateFilterRowLocked(rows[a.filterIndex])

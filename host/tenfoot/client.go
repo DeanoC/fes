@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
@@ -279,6 +281,7 @@ type SessionResult struct {
 	Input                   *SessionInput
 	Development             bool
 	DevelopmentSessionState string
+	CoreKeyboard            bool
 	ErrorCode               string
 	ErrorMessage            string
 	FlightID                string
@@ -1645,6 +1648,29 @@ func (c *Client) SessionInput(ctx context.Context) (SessionInput, error) {
 	return result, nil
 }
 
+// SendCoreKey posts one keyboard event to POST /api/v1/session/input/event.
+func (c *Client) SendCoreKey(ctx context.Context, event remoteinput.Event) error {
+	payload, err := json.Marshal(map[string]any{"event": event})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/input/event", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("input event: HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // AttachInput posts an empty body to POST /api/v1/session/input/attach.
 func (c *Client) AttachInput(ctx context.Context) (SessionResult, error) {
 	return c.postSessionInput(ctx, "/api/v1/session/input/attach")
@@ -1730,7 +1756,14 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 		Development             *bool            `json:"development"`
 		DevelopmentActive       *bool            `json:"development_active"`
 		DevelopmentSessionState string           `json:"development_session_state"`
-		Error                   *struct {
+		CorePackage *struct {
+			ActiveInterfaces []struct {
+				ID    string `json:"id"`
+				Major uint16 `json:"major"`
+				Minor uint16 `json:"minor"`
+			} `json:"active_interfaces"`
+		} `json:"core_package"`
+		Error *struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
 		} `json:"error"`
@@ -1758,6 +1791,14 @@ func decodeSessionBody(status int, body []byte) (SessionResult, error) {
 		result.Development = *wire.Development
 	default:
 		result.Development = result.Execution == "fpga_development"
+	}
+	if wire.CorePackage != nil {
+		for _, contract := range wire.CorePackage.ActiveInterfaces {
+			if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+				result.CoreKeyboard = true
+				break
+			}
+		}
 	}
 	if result.Development && result.Execution == "" {
 		switch result.State {

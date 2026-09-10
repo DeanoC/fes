@@ -34,7 +34,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
   and list layouts that calls the same public host API, including a
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
-  Mac is the primary sofa target; Linux uses the same Makefile target with
+  USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
+  required); an attached `fes.keyboard` play session still forwards keys to
+  the ZX81 matrix instead of the sofa graph. Mac is the primary sofa target;
+  Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
   the production backend; Software is a pure-Go rasterizer for tests/CI;
   FPGA records a versioned FC2D command stream and rasters through Software

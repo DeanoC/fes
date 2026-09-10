@@ -95,7 +95,11 @@ ABI and has no catalogue identity. The native adapter atomically stages one
 bounded upload at `/tmp/fogcast-development/core.rbf`, dispatches it once to
 the runtime, and resolves ambiguous responses through Status without replay.
 Development Stop uses the ordinary native Stop-to-idle path; reboot recovery
-is reserved for an actual native cleanup failure. The separate `native-dev`
+is reserved for an actual native cleanup failure. A `fes.simple-computer`
+package with `fes.keyboard` attaches remote input without `fes.gamepad`.
+Host keyboard events map through the agent onto the runtime 40-bit ZX81
+matrix (`set_keyboard`); Select+Start remains the software Stop chord.
+The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
 input, Stop, and immediate relaunch paths are hardware-tested on the designated
 kit. Native development loading is hardware-tested only for the existing
@@ -376,7 +380,13 @@ helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
 embedded Go Regular and Go Bold, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, and text input remain
-SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
+SDL in `host/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+path (`CommandFromKey` in `host/tenfoot/keyboard.go`): arrows, Enter, Esc, and
+Tab drive shelf, detail, and search without a gamepad. Letter shortcuts already
+patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
+an active `fes.keyboard` session is attached (`ForwardsCoreKeyboard`), those
+keys are forwarded onto the ZX81 matrix (`coreKeyFromSDL`) instead of the sofa
+focus graph. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 

@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 // Service is the host operation surface used by the privacy-safe application API.
@@ -302,6 +303,22 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("POST /api/v1/session/input/event", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Event *remoteinput.Event `json:"event"`
+		}
+		decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&body); err != nil || body.Event == nil {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "input event is invalid")
+			return
+		}
+		if err := session.sendCoreKey(r.Context(), *body.Event); err != nil {
+			writeSessionError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {

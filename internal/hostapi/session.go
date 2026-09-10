@@ -11,6 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/google/uuid"
 )
 
@@ -1047,6 +1048,16 @@ func (s *sessionCoordinator) inputStatus() (host.RemoteInputStatus, bool) {
 	return s.remoteInput.Status(), true
 }
 
+func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.Event) error {
+	sender, ok := s.remoteInput.(interface {
+		SendEvent(context.Context, remoteinput.Event, time.Time) error
+	})
+	if !ok {
+		return remoteInputError()
+	}
+	return sender.SendEvent(ctx, event, time.Now())
+}
+
 func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, error) {
 	if s.remoteInput == nil {
 		return sessionResult{}, remoteInputError()
@@ -1183,7 +1194,20 @@ func inputEligibleStatus(status protocol.Status) bool {
 	if !status.Development {
 		return true
 	}
-	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) && status.CorePackage.Gamepad
+	return (corePackageInputStatus(status) || resumedCoreDataStatus(status)) &&
+		(status.CorePackage.Gamepad || corePackageHasKeyboard(status))
+}
+
+func corePackageHasKeyboard(status protocol.Status) bool {
+	if status.CorePackage == nil {
+		return false
+	}
+	for _, contract := range status.CorePackage.ActiveInterfaces {
+		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func inputBindingForStatus(status protocol.Status) sessionInputBinding {

@@ -141,6 +141,13 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 			return errors.New("native input controller cannot fence core replacement")
 		}
 		nativeRuntime.ConfigureCoreReplacementBarrier(barrier)
+		if keys, ok := controller.(interface {
+			SetKeyboardPoster(func(uint64) error)
+		}); ok {
+			keys.SetKeyboardPoster(func(matrix uint64) error {
+				return nativeRuntime.SetKeyboard(context.Background(), matrix)
+			})
+		}
 		return nil
 	}
 	dependencies.inputBeforeInitialize = true

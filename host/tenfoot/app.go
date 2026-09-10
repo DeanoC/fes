@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
@@ -570,7 +571,7 @@ func (a *App) Stop() {
 	a.drainAttractResults()
 }
 
-// HandleCommand applies a gamepad or debug-keyboard command.
+// HandleCommand applies a gamepad or USB-keyboard command.
 func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if cmd == CmdNone {
 		return
@@ -648,7 +649,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
 		}
 	}
@@ -678,7 +679,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.cyclePlatformLocked(1)
 	case CmdSortCycle:
 		a.cycleSortLocked()
-	case CmdSearch:
+	case CmdSearch, CmdTab:
 		a.openSearchLocked()
 	case CmdViewPrev:
 		a.cycleViewLocked(-1)
@@ -688,6 +689,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.openViewPickerLocked()
 	case CmdFavorite:
 		a.toggleFavoriteLocked()
+	case CmdTabPrev:
+		a.openFiltersLocked()
 	}
 }
 
@@ -731,7 +734,9 @@ func (a *App) handleSearchLocked(cmd Command, now time.Time) {
 		a.searchOpen = false
 	case CmdSearch:
 		a.searchOpen = false
-	case CmdFilterPrev:
+	case CmdTab:
+		a.closeSearchApplyLocked()
+	case CmdTabPrev, CmdFilterPrev:
 		a.searchField.CyclePage(-1)
 	case CmdFilterNext:
 		a.searchField.CyclePage(1)
@@ -1140,6 +1145,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.syncPreviewLocked()
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
+	if a.ForwardsCoreKeyboard() {
+		a.repeat.Clear()
+	}
 	if a.browseHoldEnabled() {
 		if cmd := a.hold.Tick(now); cmd != CmdNone {
 			a.HandleCommand(cmd, now)
@@ -1692,6 +1700,24 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 func (a *App) lockRetryStopLocked(code, message string) {
 	a.retryStopLock = true
 	a.retryStopHint = retryStopStatus(code, message)
+}
+
+func (a *App) ForwardsCoreKeyboard() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.session.CoreKeyboard || a.session.State != "active" {
+		return false
+	}
+	if a.session.Input == nil {
+		return false
+	}
+	return a.session.Input.Ready || a.session.Input.State == "attached" ||
+		a.session.Input.State == "reconnecting"
+}
+
+func (a *App) SendCoreKey(event remoteinput.Event) {
+	client := a.client
+	go func() { _ = client.SendCoreKey(context.Background(), event) }()
 }
 
 func (a *App) pollSession(ctx context.Context) {

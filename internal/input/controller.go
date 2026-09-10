@@ -35,6 +35,7 @@ type TargetController struct {
 	listen        func(network, address string) (net.Listener, error)
 	uinputPath    string
 	persistent    bridge.Sink
+	keyboard      *KeyboardSink
 	needsRelease  bool
 	closed        bool
 	pending       *lease
@@ -65,11 +66,21 @@ func NewTargetControllerWithConfig(listenAddress, uinputPath string) *TargetCont
 }
 
 func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*TargetController, error) {
-	sink, err := bridge.CreateUInputGamepad(uinputPath)
+	pads, err := bridge.CreateUInputGamepad(uinputPath)
 	if err != nil {
 		return nil, err
 	}
-	return newTargetControllerWithSink(listenAddress, sink), nil
+	keys := NewKeyboardSink()
+	controller := newTargetControllerWithSink(listenAddress, muxSink{keys: keys, pads: pads})
+	controller.keyboard = keys
+	return controller, nil
+}
+
+func (c *TargetController) SetKeyboardPoster(poster func(uint64) error) {
+	if c == nil || c.keyboard == nil {
+		return
+	}
+	c.keyboard.SetPoster(poster)
 }
 
 func newTargetControllerWithSink(listenAddress string, sink bridge.Sink) *TargetController {
