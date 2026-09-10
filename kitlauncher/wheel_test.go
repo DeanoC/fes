@@ -9,7 +9,7 @@ import (
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
-func TestOfflineLocalCatalogBrowsesButDoesNotLaunch(t *testing.T) {
+func TestOfflineLocalCatalogBrowsesAndLaunchableTitlesRequestLaunch(t *testing.T) {
 	m := Model{Connected: false, TargetReady: false, WheelOpen: true}
 	m.SetCatalog(mixedCatalog())
 	now := time.Unix(1, 0)
@@ -35,8 +35,8 @@ func TestOfflineLocalCatalogBrowsesButDoesNotLaunch(t *testing.T) {
 	if m.Focus != 1 || m.Games[m.Focus].ID != "streets" {
 		t.Fatalf("offline grid focus=%d games=%v", m.Focus, ids(m.Games))
 	}
-	if action := pressNamed(&m, "a", now); action != "" {
-		t.Fatalf("offline grid A launched %q", action)
+	if action := pressNamed(&m, "a", now); action != "launch" {
+		t.Fatalf("offline grid A %q", action)
 	}
 	m.fromWheel = false
 	if action := pressNamed(&m, "b", now); action != "" {
@@ -45,13 +45,8 @@ func TestOfflineLocalCatalogBrowsesButDoesNotLaunch(t *testing.T) {
 	if !m.DetailOpen {
 		t.Fatal("offline B did not open detail")
 	}
-	if action := pressNamed(&m, "a", now); action != "" {
-		t.Fatalf("offline detail launch %q", action)
-	}
-	m.Connected = true
-	m.TargetReady = true
 	if action := pressNamed(&m, "a", now); action != "launch" {
-		t.Fatalf("online detail A %q", action)
+		t.Fatalf("offline detail A %q", action)
 	}
 }
 

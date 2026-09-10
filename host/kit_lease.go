@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast/internal/kitlease"
 )
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
@@ -18,6 +20,8 @@ var ErrKitLeaseLost = errors.New("kit lease unavailable; inspect target ownershi
 type kitLeaseStatus struct {
 	State       string    `json:"state"`
 	Generation  string    `json:"generation"`
+	Owner       string    `json:"owner,omitempty"`
+	Purpose     string    `json:"purpose,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	ExpiresInMS int64     `json:"expires_in_ms"`
 }
@@ -147,6 +151,8 @@ func (l *KitLease) request(ctx context.Context, path, token string, result any) 
 
 // Release relinquishes this application's grant only. A failed renewal never
 // reacquires ownership for cleanup. The target performs serialized cleanup.
+// A failed release keeps the local grant so the owner can retry; dropping the
+// token while the target still holds it would hide the mutator from this client.
 func (l *KitLease) Release(ctx context.Context) error {
 	if l == nil {
 		return nil
@@ -158,17 +164,23 @@ func (l *KitLease) Release(ctx context.Context) error {
 		l.cancel = nil
 	}
 	token := l.grant.Token
-	l.grant = kitLeaseGrant{}
-	l.requestID = ""
 	if token == "" {
+		l.requestID = ""
 		return nil
 	}
 	var status kitLeaseStatus
 	err := l.request(ctx, "/v1/kit/release", token, &status)
 	if err != nil {
-		l.lost = true
+		if !l.closed && !l.lost && l.cancel == nil {
+			renewCtx, cancel := context.WithCancel(context.Background())
+			l.cancel = cancel
+			go l.renewLoop(renewCtx)
+		}
+		return err
 	}
-	return err
+	l.grant = kitLeaseGrant{}
+	l.requestID = ""
+	return nil
 }
 func (l *KitLease) Close(ctx context.Context) error {
 	if l == nil {
@@ -181,6 +193,14 @@ func (l *KitLease) Close(ctx context.Context) error {
 }
 func (c *Client) WithKitLease(l *KitLease) *Client { c.kitLease = l; return c }
 func (c *Client) KitLease() *KitLease              { return c.kitLease }
+
+func (c *Client) KitLeaseStatus(ctx context.Context) (kitlease.Status, error) {
+	var status kitlease.Status
+	err := c.doJSON(ctx, http.MethodGet, "/v1/kit/lease", nil, &status)
+	return status, err
+}
+
+func (l *KitLease) Held() bool { return l.currentToken() != "" }
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
 	case "/v1/library/core/load", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":

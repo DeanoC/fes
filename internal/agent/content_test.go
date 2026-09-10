@@ -622,6 +622,39 @@ func TestCachedLaunchUsesResolvedRootAndPathThenCommitsObservedCore(t *testing.T
 	}
 }
 
+func TestLookupCachedIdentityRequiresVerifiedProbe(t *testing.T) {
+	identity := protocol.ContentIdentity{SHA256: cachedDigest, Size: 4, Extension: "bin"}
+	request := protocol.CachedLaunchRequest{GameID: "megadrive-sonic2", System: protocol.SystemMegaDrive, Content: identity}
+	store := &recordingContentStore{
+		resolved:      targetcache.Resolved{Root: "/cache", Path: "/cache/megadrive/" + cachedDigest + ".bin"},
+		probeResponse: protocol.CacheProbeResponse{Present: true, System: &request.System, Content: &identity},
+	}
+	runtime := &contentRuntime{health: protocol.Health{Ready: true}, launchObserved: "MegaDrive"}
+	controller := agent.NewContentController(agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second), store)
+	launches, err := targetcache.OpenLaunchMap(filepath.Join(t.TempDir(), targetcache.LaunchMapName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller.SetLaunchMap(launches)
+
+	if _, apiErr := controller.LaunchContent(context.Background(), request); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	got, apiErr := controller.LookupCachedIdentity(context.Background(), request.GameID)
+	if apiErr != nil || !got.Present || got.GameID != request.GameID || got.System == nil || *got.System != request.System || got.Content == nil || *got.Content != identity {
+		t.Fatalf("verified lookup = %#v err=%v", got, apiErr)
+	}
+
+	store.probeResponse = protocol.CacheProbeResponse{Present: false}
+	missing, apiErr := controller.LookupCachedIdentity(context.Background(), request.GameID)
+	if apiErr != nil || missing.Present {
+		t.Fatalf("unverified lookup = %#v err=%v", missing, apiErr)
+	}
+	if _, ok := launches.Lookup(request.GameID); ok {
+		t.Fatal("stale identity was retained")
+	}
+}
+
 func TestCachedLaunchMissPreservesCurrentGameWithoutRuntimeCalls(t *testing.T) {
 	reconciled := protocol.Status{State: protocol.StateActive, System: testSystemPtr(protocol.SystemMegaDrive), ExpectedCore: testStringPtr("MegaDrive"), ObservedCore: testStringPtr("MegaDrive")}
 	runtime := &contentRuntime{health: protocol.Health{Ready: true}, reconciled: reconciled}

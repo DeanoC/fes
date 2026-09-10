@@ -2,6 +2,7 @@ package kitlauncher
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ type observation struct {
 	err            error
 	mutation       bool
 	message        string
+	hostAbsent     bool
 }
 
 // Run keeps device/UI work on one loop. Slow host requests run outside that loop;
@@ -99,10 +101,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		go func() {
 			o := observation{epoch: e}
 			o.session, o.err = c.Session(ctx)
-			if o.err == nil {
+			if o.err != nil {
+				o.hostAbsent = true
+				o.err = nil
+				if c.hostlessHeld() {
+					if st, stErr := c.hostless.status(ctx); stErr == nil {
+						o.session = sessionFromStatus(st)
+					}
+				}
+			}
+			if o.err == nil && !o.hostAbsent {
 				o.health, o.err = c.Library.Health(ctx)
 			}
-			if o.err == nil && load {
+			if o.err == nil && !o.hostAbsent && load {
 				o.games, o.err = loadCatalog(ctx, c)
 				if o.err == nil {
 					o.strip, o.stripLabel, o.recents = loadStrip(ctx, c)
@@ -115,7 +126,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					})
 				}
 			}
-			if o.err == nil && loadAttract {
+			if o.err == nil && !o.hostAbsent && loadAttract {
 				p, err := c.Library.Attract(ctx, defaultAttractLimit)
 				if err == nil {
 					o.attract = p
@@ -124,7 +135,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					o.hydrateAttract = true
 				}
 			}
-			if o.err == nil && detailID != "" {
+			if o.err == nil && !o.hostAbsent && detailID != "" {
 				p, err := c.Library.GamePresentation(ctx, detailID)
 				if err == nil {
 					o.detailID = detailID
@@ -161,21 +172,56 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.Message = "Stopping game"
 			present(m)
 		}
+		game, _ := m.lookupGame(id)
+		hostless := !m.Connected
 		go func() {
 			o := observation{epoch: e, mutation: true}
 			var r tenfoot.SessionResult
 			var err error
 			if action == "launch" {
-				r, err = c.Library.Launch(ctx, id)
+				if hostless {
+					o.hostAbsent = true
+					resp, launchErr := c.hostless.launch(ctx, game)
+					err = launchErr
+					if err == nil {
+						o.session = sessionFromStatus(resp.Status)
+					}
+				} else {
+					r, err = c.Library.Launch(ctx, id)
+				}
+			} else if action == "hostless-yield" {
+				sess, yieldErr := c.hostless.stopAndRelease(ctx)
+				err = yieldErr
+				if c.hostlessHeld() {
+					o.hostAbsent = true
+					if sess.State != "" {
+						o.session = sess
+					}
+				}
+			} else if c.hostlessHeld() {
+				o.hostAbsent = true
+				sess, stopErr := c.hostless.stopAndRelease(ctx)
+				err = stopErr
+				if sess.State != "" {
+					o.session = sess
+				}
 			} else {
 				r, err = c.Library.Stop(ctx)
 			}
-			if err != nil || r.HTTPStatus >= 400 {
+			if err != nil {
+				var refuse hostlessRefuse
+				if errors.As(err, &refuse) {
+					o.message = refuse.reason
+				} else if r.HTTPStatus >= 400 {
+					o.message = "Operation failed; retry Stop with Select + Start"
+				} else {
+					o.message = "Operation failed; retry Stop with Select + Start"
+				}
+			} else if r.HTTPStatus >= 400 {
 				o.message = "Operation failed; retry Stop with Select + Start"
-			} else {
-				o.message = ""
+			} else if !o.hostAbsent && (action != "launch" || !hostless) {
+				o.session, o.err = c.Session(ctx)
 			}
-			o.session, o.err = c.Session(ctx)
 			send(o)
 		}()
 	}
@@ -204,6 +250,27 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Message = OfflineMessage
 				}
 				closeInput()
+				continue
+			}
+			if o.hostAbsent {
+				m.Connected = false
+				if o.session.State != "" {
+					m.Session = o.session
+				}
+				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
+					if m.Message != RefuseNeedsHost && m.Message != RefuseKitInUse {
+						m.Message = OfflineMessage
+					}
+				}
+				// Keep the Select+Start chord across offline polls so a
+				// hostless game can still be stopped.
+				if stream != nil {
+					closeInput()
+				}
+				continue
+			}
+			if c.hostlessHeld() && !o.mutation {
+				mutate("hostless-yield")
 				continue
 			}
 			m.Connected = true

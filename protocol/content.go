@@ -46,3 +46,12 @@ type CachedLaunchResponse struct {
 	Status  Status          `json:"status"`
 	Content ContentIdentity `json:"content"`
 }
+
+// CachedIdentityResponse is a lease-free lookup of a previously launched
+// verified cache entry. Absent responses omit identity fields.
+type CachedIdentityResponse struct {
+	Present bool             `json:"present"`
+	GameID  string           `json:"game_id,omitempty"`
+	System  *System          `json:"system,omitempty"`
+	Content *ContentIdentity `json:"content,omitempty"`
+}

@@ -32,8 +32,8 @@ func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	}
 	m.Connected = false
 	m.Session.State = "idle"
-	if m.Input(a, time.Now()) != "" {
-		t.Fatal("offline launch")
+	if m.Input(a, time.Now()) != "launch" {
+		t.Fatal("offline cache-hit attempt")
 	}
 }
 
