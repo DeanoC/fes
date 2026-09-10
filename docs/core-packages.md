@@ -2,6 +2,9 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
+A later described ZX81 computer is planned on `feat/zx81`; see
+[FES ZX81](fes-zx81.md). It is not installed by this profile.
+
 The default `native-integration-dev` profile installs the standalone FES Pong
 format-2 package alongside the four existing format-1 catalog cores. This is an
 package that can be installed on the host and given an explicit ROM-less

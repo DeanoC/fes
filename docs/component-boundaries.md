@@ -160,6 +160,9 @@ The following assembly milestones remain separate future work:
 2. Define the remaining assembly artifact inputs and move the image recipe once.
 3. Produce a bootable native FES media layout without Main as a production input.
 4. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
+   The planned FES ZX81 computer is that ABI extension: custom
+   `fes.simple-computer`, Quartus bring-up, then nextpnr/mistral. See
+   [FES ZX81](fes-zx81.md). It is not in the selected image.
 
 Current checks and limitations are recorded in
 [integration validation](integration-validation.md). Original image and hardware
