@@ -195,7 +195,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-zx81/generated"',
-        f"set_parameter -name BUILD_ID 128'h{build_id}",
+        f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
     ]
     for source in VHDL_SOURCES:

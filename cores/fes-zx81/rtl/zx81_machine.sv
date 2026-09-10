@@ -35,15 +35,15 @@ module zx81_machine (
     assign halt_n = nHALT;
 
     reg ce_cpu_p, ce_cpu_n, ce_3m25, ce_6m5_r;
+    reg [4:0] ce_counter = 0;
     assign ce_6m5 = ce_6m5_r;
 
     always @(negedge clk_sys) begin
-        static reg [4:0] counter = 0;
-        counter <= counter + 1'd1;
-        ce_cpu_p <= !counter[3] & !counter[2:0];
-        ce_cpu_n <= counter[3] & !counter[2:0];
-        ce_3m25  <= !counter[3:0];
-        ce_6m5_r <= !counter[2:0];
+        ce_counter <= ce_counter + 1'd1;
+        ce_cpu_p <= !ce_counter[3] & !ce_counter[2:0];
+        ce_cpu_n <= ce_counter[3] & !ce_counter[2:0];
+        ce_3m25  <= !ce_counter[3:0];
+        ce_6m5_r <= !ce_counter[2:0];
     end
 
     T80pa cpu (

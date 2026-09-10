@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_simple_computer.vh"
+`ifndef FES_ZX81_BUILD_ID
+`define FES_ZX81_BUILD_ID 128'h00000000000000000000000000000000
+`endif
 
 // Quartus DE10-Nano shell: 52 MHz ZX81 + 74.25 MHz HDMI, FES GP mailbox.
 // BUILD_ID is overridden from the canonical build-input record.
 module top #(
-    parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
+    parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
