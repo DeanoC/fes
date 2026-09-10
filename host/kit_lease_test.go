@@ -301,3 +301,48 @@ func TestDelayedInputAttachRetainsDispatchedKitToken(t *testing.T) {
 		t.Fatal("stale handle stopped replacement input")
 	}
 }
+
+func TestKitLeaseFailedReleaseKeepsGrantForRetry(t *testing.T) {
+	releases := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"keep-me"}`)
+		case "/v1/kit/release":
+			releases++
+			if r.Header.Get(KitLeaseHeader) != "keep-me" {
+				t.Errorf("release token = %q", r.Header.Get(KitLeaseHeader))
+			}
+			if releases == 1 {
+				http.Error(w, `{"error":{"code":"INTERNAL","message":"release failed"}}`, http.StatusInternalServerError)
+				return
+			}
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected", http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	lease := NewKitLease(u, "bearer", server.Client(), "test", "game")
+	defer lease.Close(context.Background())
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err := lease.Authorize(request, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Release(context.Background()); err == nil {
+		t.Fatal("first release succeeded")
+	}
+	if !lease.Held() {
+		t.Fatal("failed release dropped local grant")
+	}
+	if err := lease.Release(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if lease.Held() {
+		t.Fatal("successful retry still held")
+	}
+	if releases != 2 {
+		t.Fatalf("releases=%d", releases)
+	}
+}

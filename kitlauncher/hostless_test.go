@@ -101,6 +101,75 @@ func TestHostlessLaunchVerifiedHitAndFailClosed(t *testing.T) {
 	}
 }
 
+func TestHostlessStopReturnsIdleAndFailedReleaseStaysHeld(t *testing.T) {
+	system := protocol.SystemMegaDrive
+	content := protocol.ContentIdentity{SHA256: hostlessDigest, Size: 4, Extension: "md"}
+	coreName := "MegaDrive"
+	gameID := "megadrive-sonic"
+	var claimed bool
+	releases := 0
+	agentState := "idle"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/kit/lease" && r.Method == http.MethodGet:
+			st := kitlease.Status{State: "free", Generation: "g1"}
+			if claimed {
+				st = kitlease.Status{State: "held", Generation: "g2", Owner: kitlease.HostlessOwner, Purpose: kitlease.HostlessPurpose, ExpiresInMS: 60000}
+			}
+			_ = json.NewEncoder(w).Encode(st)
+		case r.URL.Path == "/v1/kit/claim":
+			claimed = true
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": map[string]any{"state": "held", "generation": "g2", "owner": kitlease.HostlessOwner, "purpose": kitlease.HostlessPurpose, "expires_in_ms": 60000},
+				"token":  "lease-secret",
+			})
+		case r.URL.Path == "/v2/hostless/identity/"+gameID:
+			_ = json.NewEncoder(w).Encode(protocol.CachedIdentityResponse{Present: true, GameID: gameID, System: &system, Content: &content})
+		case r.URL.Path == "/v2/launch":
+			agentState = "active"
+			_ = json.NewEncoder(w).Encode(protocol.CachedLaunchResponse{
+				Status: protocol.Status{
+					State: protocol.StateActive, GameID: &gameID, System: &system,
+					ExpectedCore: &coreName, ObservedCore: &coreName,
+				},
+				Content: content,
+			})
+		case r.URL.Path == "/v1/stop":
+			if r.Header.Get(host.KitLeaseHeader) != "lease-secret" {
+				t.Error("stop missing lease")
+			}
+			agentState = "idle"
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		case r.URL.Path == "/v1/status":
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.State(agentState)})
+		case r.URL.Path == "/v1/kit/release":
+			releases++
+			http.Error(w, `{"error":{"code":"INTERNAL","message":"release failed"}}`, http.StatusInternalServerError)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	h := testHostless(t, server)
+	game := tenfoot.Game{ID: gameID, System: "megadrive", Launchable: true, Title: "Sonic"}
+	if _, err := h.launch(context.Background(), game); err != nil {
+		t.Fatal(err)
+	}
+	session, err := h.stopAndRelease(context.Background())
+	if err == nil {
+		t.Fatal("expected release failure")
+	}
+	if session.State != "idle" {
+		t.Fatalf("session after stop = %#v", session)
+	}
+	if !h.held() {
+		t.Fatal("failed release dropped hostless grant")
+	}
+	if releases != 1 {
+		t.Fatalf("releases=%d", releases)
+	}
+}
+
 func testHostless(t *testing.T, server *httptest.Server) *hostlessRuntime {
 	t.Helper()
 	u, err := url.Parse(server.URL)

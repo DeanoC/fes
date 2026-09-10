@@ -190,12 +190,20 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					r, err = c.Library.Launch(ctx, id)
 				}
 			} else if action == "hostless-yield" {
-				err = c.hostless.yield(ctx)
+				sess, yieldErr := c.hostless.stopAndRelease(ctx)
+				err = yieldErr
+				if c.hostlessHeld() {
+					o.hostAbsent = true
+					if sess.State != "" {
+						o.session = sess
+					}
+				}
 			} else if c.hostlessHeld() {
 				o.hostAbsent = true
-				err = c.hostless.stop(ctx)
-				if err == nil {
-					_ = c.hostless.release(ctx)
+				sess, stopErr := c.hostless.stopAndRelease(ctx)
+				err = stopErr
+				if sess.State != "" {
+					o.session = sess
 				}
 			} else {
 				r, err = c.Library.Stop(ctx)
@@ -211,7 +219,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 			} else if r.HTTPStatus >= 400 {
 				o.message = "Operation failed; retry Stop with Select + Start"
-			} else if action != "launch" || !hostless {
+			} else if !o.hostAbsent && (action != "launch" || !hostless) {
 				o.session, o.err = c.Session(ctx)
 			}
 			send(o)
@@ -254,7 +262,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						m.Message = OfflineMessage
 					}
 				}
-				closeInput()
+				// Keep the Select+Start chord across offline polls so a
+				// hostless game can still be stopped.
+				if stream != nil {
+					closeInput()
+				}
 				continue
 			}
 			if c.hostlessHeld() && !o.mutation {

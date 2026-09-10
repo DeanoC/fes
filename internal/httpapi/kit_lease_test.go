@@ -88,6 +88,14 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 			t.Fatalf("%s: %d", path, response.Code)
 		}
 	}
+	launch := httptest.NewRequest(http.MethodPost, "/v2/launch", nil)
+	launch.Header.Set("Authorization", "Bearer bearer")
+	launch.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	launchResponse := httptest.NewRecorder()
+	handler.ServeHTTP(launchResponse, launch)
+	if launchResponse.Code == http.StatusForbidden {
+		t.Fatal("hostless owner denied cached launch")
+	}
 	stop := httptest.NewRequest(http.MethodPost, "/v1/stop", nil)
 	stop.Header.Set("Authorization", "Bearer bearer")
 	stop.Header.Set(httpapi.KitLeaseHeader, grant.Token)

@@ -158,12 +158,35 @@ func (h *hostlessRuntime) release(ctx context.Context) error {
 	return nil
 }
 
-func (h *hostlessRuntime) yield(ctx context.Context) error {
+func idleHostlessSession() Session {
+	return Session{State: string(protocol.StateIdle)}
+}
+
+// stopAndRelease stops the hostless program then releases the grant. Stop
+// failure still attempts release so a returning host can claim. A failed
+// release keeps the local grant (Held stays true) so the kit can retry.
+func (h *hostlessRuntime) stopAndRelease(ctx context.Context) (Session, error) {
 	if !h.held() {
-		return nil
+		return idleHostlessSession(), nil
 	}
-	_ = h.stop(ctx)
-	return h.release(ctx)
+	stopErr := h.stop(ctx)
+	session := Session{}
+	if stopErr == nil {
+		session = idleHostlessSession()
+		if st, stErr := h.status(ctx); stErr == nil {
+			session = sessionFromStatus(st)
+		}
+	}
+	relErr := h.release(ctx)
+	if stopErr != nil {
+		return session, stopErr
+	}
+	return session, relErr
+}
+
+func (h *hostlessRuntime) yield(ctx context.Context) error {
+	_, err := h.stopAndRelease(ctx)
+	return err
 }
 
 func (h *hostlessRuntime) status(ctx context.Context) (protocol.Status, error) {
