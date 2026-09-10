@@ -3,6 +3,10 @@
 Status: software, diagnostic hardware, exact-image persistence checks and
 ordinary-launcher handoff passed.
 
+Subsequent merges with component main branches are recorded in the
+[September 10 reconciliation](2026-09-10-core-persistence-merge.md). The hardware
+evidence below applies to the listed revisions, not automatically to those merges.
+
 This milestone stores described-core settings and progress, beginning with
 standalone FES Pong. It adds no UI presentation changes. See the
 [usage and API guide](../core-persistence.md).

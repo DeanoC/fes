@@ -31,6 +31,8 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Persistence merge reconciliation](validation/2026-09-10-core-persistence-merge.md):
+  combined-source checks after integrating newer component main branches.
 - [Core persistence](validation/2026-09-09-core-persistence.md): settings, progress,
   version compatibility and save-failure recovery; see the record for acceptance status.
 - [Core package library](validation/2026-09-09-core-package-library.md):
