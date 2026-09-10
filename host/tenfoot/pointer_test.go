@@ -237,6 +237,57 @@ func TestPointerSearchHoverClickConfirms(t *testing.T) {
 	}
 }
 
+func TestPointerOSKPageClickReturnsToLetters(t *testing.T) {
+	t.Parallel()
+	app := pointerCatalog(4)
+	now := time.Now()
+	app.Press(CommandFromKey("tab"), now)
+	if !app.SearchOpen() {
+		t.Fatal("tab should open search")
+	}
+	clickOSKKey(t, app, "page", now)
+	if app.Snapshot().OSK.Page != oskPageSymbols {
+		t.Fatalf("123 click page = %d", app.Snapshot().OSK.Page)
+	}
+	_, keys, ok := oskLayout(app.Snapshot())
+	if !ok {
+		t.Fatal("symbols osk")
+	}
+	var doneKey oskKeyRect
+	for _, key := range keys {
+		if key.ID == "done" {
+			doneKey = key
+			break
+		}
+	}
+	if doneKey.ID == "" {
+		t.Fatal("symbols done")
+	}
+	app.PointerMove(doneKey.X+doneKey.W/2, doneKey.Y+doneKey.H/2, now)
+	if app.Snapshot().OSK.Page != oskPageSymbols {
+		t.Fatalf("hover done jumped to page %d", app.Snapshot().OSK.Page)
+	}
+	clickOSKKey(t, app, "page", now)
+	if app.Snapshot().OSK.Page != oskPageLetters {
+		t.Fatalf("ABC click page = %d", app.Snapshot().OSK.Page)
+	}
+}
+
+func clickOSKKey(t *testing.T, app *App, id string, now time.Time) {
+	t.Helper()
+	_, keys, ok := oskLayout(app.Snapshot())
+	if !ok {
+		t.Fatal("osk layout")
+	}
+	for _, key := range keys {
+		if key.ID == id {
+			app.PointerClick(key.X+key.W/2, key.Y+key.H/2, now)
+			return
+		}
+	}
+	t.Fatalf("osk key %q not found", id)
+}
+
 func TestPointerDoesNotWalkGridDuringPlaySession(t *testing.T) {
 	t.Parallel()
 	app := pointerCatalog(6)
