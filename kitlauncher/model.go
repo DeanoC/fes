@@ -226,9 +226,24 @@ func (m *Model) axisStep(hold *int, value int32) int {
 	return move
 }
 
-// canLaunch is a host session mutation. Local catalog browse does not need it.
+// canLaunch admits host session launch, or a hostless cache-hit attempt when
+// the host is absent. Fail-closed checks run at mutate time.
 func (m Model) canLaunch() bool {
-	return m.Connected && m.TargetReady
+	if m.Connected {
+		return m.TargetReady
+	}
+	return true
+}
+
+func (m Model) lookupGame(id string) (tenfoot.Game, bool) {
+	for _, pool := range [][]tenfoot.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game, true
+			}
+		}
+	}
+	return tenfoot.Game{}, false
 }
 
 func (m *Model) Tick(now time.Time) string {

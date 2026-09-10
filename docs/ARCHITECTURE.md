@@ -629,8 +629,13 @@ native development sessions. Authenticated clients read `GET /v1/kit/lease`,
 claim with `POST /v1/kit/claim` (`request_id`, `owner`, `purpose`), and carry the
 returned secret in `X-FogCast-Kit-Lease` on every hardware mutation and input
 CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
-retries reuse the same ID. Cache transfer and status inspection do not reserve the kit. A Stop
+retries reuse the same ID. Cache transfer, status inspection, and
+`GET /v2/hostless/identity/{game_id}` do not reserve the kit. A Stop
 ends the current runtime session but retains ownership for another launch.
+When the host is absent, `fogcast-kit` claims owner `kit-hostless` with
+purpose `offline-cache-hit-launch` for verified ROM cache hits only. That
+owner cannot cast, attach input, load development images, or reboot; it
+releases before a returning host claims.
 
 Renew and release use empty POST bodies at `/v1/kit/renew` and
 `/v1/kit/release`. The production lease lasts 90 seconds; active clients renew
@@ -739,10 +744,19 @@ next page → strip → attract, still capped at three concurrent fetches.
 `GET /api/v1/library/cache` (host and launcher listener) reports ROM cache
 used/free/max from lease-free target `GET /v2/cache`; cover used/free and last
 catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
-when the target inventory is reachable; ROM-less rows omit it, and launch still
-requires the host. Boot paints that shelf from disk before host games HTTP, decodes
+when the target inventory is reachable; ROM-less rows omit it. Boot paints that
+shelf from disk before host games HTTP, decodes
 visible covers from disk first, and labels an absent host `Offline - local library`.
-Local D-pad/A still browse that snapshot. Launch still requires the host.
+Local D-pad/A still browse that snapshot. When the host is unreachable, A
+may launch a verified ROM cache hit through the target agent lease as owner
+`kit-hostless` / purpose `offline-cache-hit-launch`. That path uses the same
+`/v2/launch` mutation as the host, after a lease-free identity lookup at
+`GET /v2/hostless/identity/{game_id}` and a probe+hash as `targetcache` does
+today. Foreign leases, packages, ROM-less cores, and unverified bytes refuse
+without programming the FPGA. Cache GET/PUT stay lease-free. The hostless
+owner may only `/v2/launch` and `/v1/stop`; cast, input attach, development,
+and reboot stay denied. When the host returns, the kit releases hostless
+ownership before a host claim.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,

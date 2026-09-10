@@ -1,5 +1,6 @@
 // Package kitlauncher connects the on-kit controller shell to FogCast's host.
-// It does not control the FPGA or claim the target lease.
+// When the host is absent it may claim the existing target lease as kit-hostless
+// and launch a verified ROM cache hit through the agent API.
 package kitlauncher
 
 import (
@@ -106,10 +107,11 @@ func validLauncherToken(token string) bool {
 }
 
 type Client struct {
-	config  Config
-	HTTP    *http.Client
-	Library *tenfoot.Client
-	Cache   *DiskStore
+	config   Config
+	HTTP     *http.Client
+	Library  *tenfoot.Client
+	Cache    *DiskStore
+	hostless *hostlessRuntime
 }
 type authenticated struct {
 	base   http.RoundTripper
@@ -134,6 +136,7 @@ func NewClient(c Config) *Client {
 			client.Cache = store
 		}
 	}
+	client.attachHostless()
 	return client
 }
 

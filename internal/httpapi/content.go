@@ -88,11 +88,18 @@ func WithCast(controller CastController) Option {
 	return func(options *serverOptions) { options.cast = controller }
 }
 
+type CachedIdentityController interface {
+	LookupCachedIdentity(context.Context, string) (protocol.CachedIdentityResponse, *protocol.APIError)
+}
+
 func registerContentRoutes(mux *http.ServeMux, token string, controller ContentController) {
 	mux.Handle("/v2/cache/{system}/{sha256}", authenticate(token, cacheContentHandler(controller)))
 	mux.Handle("/v2/launch", authenticate(token, exactMethod(http.MethodPost, launchContentHandler(controller))))
 	if indexer, ok := controller.(CacheIndexController); ok {
 		mux.Handle("/v2/cache", authenticate(token, cacheIndexHandler(indexer)))
+	}
+	if lookup, ok := controller.(CachedIdentityController); ok {
+		mux.Handle("GET /v2/hostless/identity/{game_id}", authenticate(token, cachedIdentityHandler(lookup)))
 	}
 }
 
@@ -139,6 +146,34 @@ func validCacheIndex(index protocol.CacheIndex) bool {
 		}
 	}
 	return true
+}
+
+func cachedIdentityHandler(controller CachedIdentityController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gameID := r.PathValue("game_id")
+		if err := protocol.ValidateGameID(gameID); err != nil {
+			writeContentError(w, r, badContentRequest("game ID is invalid"))
+			return
+		}
+		response, apiErr := controller.LookupCachedIdentity(r.Context(), gameID)
+		if apiErr != nil {
+			writeContentError(w, r, apiErr)
+			return
+		}
+		if !validIdentityResponse(response, gameID) {
+			writeContentError(w, r, internalContentResponseError())
+			return
+		}
+		writeJSON(w, http.StatusOK, response)
+	})
+}
+
+func validIdentityResponse(response protocol.CachedIdentityResponse, gameID string) bool {
+	if !response.Present {
+		return response.GameID == "" && response.System == nil && response.Content == nil
+	}
+	return response.GameID == gameID && response.System != nil && response.Content != nil &&
+		protocol.ValidateSystem(*response.System) == nil && protocol.ValidateContentIdentity(*response.Content) == nil
 }
 
 func cacheContentHandler(controller ContentController) http.Handler {

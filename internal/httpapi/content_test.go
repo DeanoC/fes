@@ -26,6 +26,8 @@ type fakeContentController struct {
 	putErr         *protocol.APIError
 	launchResponse protocol.CachedLaunchResponse
 	launchErr      *protocol.APIError
+	lookupResponse protocol.CachedIdentityResponse
+	lookupErr      *protocol.APIError
 
 	index       protocol.CacheIndex
 	indexErr    *protocol.APIError
@@ -33,11 +35,13 @@ type fakeContentController struct {
 	probeCalls  int
 	putCalls    int
 	launchCalls int
+	lookupCalls int
 	probeSystem protocol.System
 	probeKey    protocol.ContentKey
 	putSystem   protocol.System
 	putContent  protocol.ContentIdentity
 	launch      protocol.CachedLaunchRequest
+	lastLookup  string
 	put         func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, *protocol.APIError)
 }
 
@@ -74,6 +78,12 @@ func (f *fakeContentController) LaunchContent(_ context.Context, request protoco
 	f.launchCalls++
 	f.launch = request
 	return f.launchResponse, f.launchErr
+}
+
+func (f *fakeContentController) LookupCachedIdentity(_ context.Context, gameID string) (protocol.CachedIdentityResponse, *protocol.APIError) {
+	f.lookupCalls++
+	f.lastLookup = gameID
+	return f.lookupResponse, f.lookupErr
 }
 
 func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
@@ -123,6 +133,9 @@ func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
 		"/v2/cache/snes?extension=sfc",
 		"/v2/launch/",
 		"/v2/status",
+		"/v2/hostless",
+		"/v2/hostless/identity",
+		"/v2/hostless/identity/snes-test/extra",
 	} {
 		response := httptest.NewRecorder()
 		withContent.ServeHTTP(response, newV2Request(http.MethodGet, path, nil, 0, ""))
@@ -130,8 +143,26 @@ func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
 			t.Errorf("GET %s status = %d, want 404", path, response.Code)
 		}
 	}
-	if content.probeCalls != 0 || content.putCalls != 0 || content.launchCalls != 0 {
-		t.Fatalf("content calls for wrong routes = probe %d, put %d, launch %d", content.probeCalls, content.putCalls, content.launchCalls)
+	if content.probeCalls != 0 || content.putCalls != 0 || content.launchCalls != 0 || content.lookupCalls != 0 {
+		t.Fatalf("content calls for wrong routes = probe %d, put %d, launch %d lookup %d", content.probeCalls, content.putCalls, content.launchCalls, content.lookupCalls)
+	}
+}
+
+func TestHostlessIdentityLookupIsLeaseFree(t *testing.T) {
+	system := protocol.SystemMegaDrive
+	content := protocol.ContentIdentity{SHA256: v2Digest, Size: 4, Extension: "md"}
+	controller := &fakeContentController{lookupResponse: protocol.CachedIdentityResponse{Present: true, GameID: "megadrive-sonic", System: &system, Content: &content}}
+	response := serveContent(newContentHandler(controller, discardLogger()), newV2Request(http.MethodGet, "/v2/hostless/identity/megadrive-sonic", nil, 0, ""))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body %s", response.Code, response.Body.String())
+	}
+	if controller.lookupCalls != 1 || controller.lastLookup != "megadrive-sonic" {
+		t.Fatalf("lookup calls=%d id=%q", controller.lookupCalls, controller.lastLookup)
+	}
+	absent := &fakeContentController{}
+	missing := serveContent(newContentHandler(absent, discardLogger()), newV2Request(http.MethodGet, "/v2/hostless/identity/megadrive-sonic", nil, 0, ""))
+	if missing.Code != http.StatusOK || missing.Body.String() != "{\"present\":false}\n" {
+		t.Fatalf("absent = status %d body %q", missing.Code, missing.Body.String())
 	}
 }
 

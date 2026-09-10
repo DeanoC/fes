@@ -27,6 +27,7 @@ type ContentStore interface {
 type ContentController struct {
 	coordinator *Coordinator
 	store       ContentStore
+	launches    *targetcache.LaunchMap
 }
 
 func NewContentController(coordinator *Coordinator, store ContentStore) *ContentController {
@@ -54,6 +55,10 @@ func (c *ContentController) CacheIndex() (protocol.CacheIndex, *protocol.APIErro
 		index.Entries = []protocol.CacheIndexEntry{}
 	}
 	return index, nil
+}
+
+func (c *ContentController) SetLaunchMap(launches *targetcache.LaunchMap) {
+	c.launches = launches
 }
 
 func (c *ContentController) ProbeContent(ctx context.Context, system protocol.System, key protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError) {
@@ -107,6 +112,9 @@ func (c *ContentController) LaunchContent(parent context.Context, request protoc
 		response.Status = c.coordinator.Status()
 		return response, apiErr
 	}
+	if c.launches != nil {
+		_ = c.launches.Remember(request.GameID, request.System, request.Content)
+	}
 	if apiErr := c.store.PinForLaunch(request.System, request.Content); apiErr != nil {
 		response.Status = c.coordinator.Status()
 		return response, apiErr
@@ -139,6 +147,36 @@ func (c *ContentController) LaunchContent(parent context.Context, request protoc
 		return response, apiErr
 	}
 	return response, nil
+}
+
+func (c *ContentController) LookupCachedIdentity(ctx context.Context, gameID string) (protocol.CachedIdentityResponse, *protocol.APIError) {
+	absent := protocol.CachedIdentityResponse{Present: false}
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return absent, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}
+	}
+	if c.launches == nil {
+		return absent, nil
+	}
+	entry, ok := c.launches.Lookup(gameID)
+	if !ok {
+		return absent, nil
+	}
+	spec, registered := c.coordinator.registry.Lookup(entry.System)
+	if !registered || spec.ROMless {
+		_ = c.launches.Forget(gameID)
+		return absent, nil
+	}
+	probe, apiErr := c.store.Probe(ctx, entry.System, entry.Content.Key())
+	if apiErr != nil {
+		return absent, apiErr
+	}
+	if !probe.Present || probe.Content == nil || probe.Content.Size != entry.Content.Size {
+		_ = c.launches.Forget(gameID)
+		return absent, nil
+	}
+	system := entry.System
+	content := *probe.Content
+	return protocol.CachedIdentityResponse{Present: true, GameID: gameID, System: &system, Content: &content}, nil
 }
 
 func unsupportedSystemError() *protocol.APIError {

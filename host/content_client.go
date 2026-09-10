@@ -96,6 +96,27 @@ func (c *Client) UploadContent(ctx context.Context, system protocol.System, cont
 	return result, nil
 }
 
+func (c *Client) CachedIdentity(ctx context.Context, gameID string) (protocol.CachedIdentityResponse, error) {
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return protocol.CachedIdentityResponse{}, fmt.Errorf("validate game ID: %w", err)
+	}
+	var response protocol.CachedIdentityResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/v2/hostless/identity/"+gameID, nil, &response); err != nil {
+		return protocol.CachedIdentityResponse{}, err
+	}
+	if !response.Present {
+		if response.GameID != "" || response.System != nil || response.Content != nil {
+			return protocol.CachedIdentityResponse{}, fmt.Errorf("cached identity response includes identity for absent content")
+		}
+		return response, nil
+	}
+	if response.GameID != gameID || response.System == nil || response.Content == nil ||
+		protocol.ValidateSystem(*response.System) != nil || protocol.ValidateContentIdentity(*response.Content) != nil {
+		return protocol.CachedIdentityResponse{}, fmt.Errorf("cached identity response does not match requested game")
+	}
+	return response, nil
+}
+
 func (c *Client) LaunchContent(ctx context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
 	if err := protocol.ValidateGameID(request.GameID); err != nil {
 		return protocol.CachedLaunchResponse{}, fmt.Errorf("validate game ID: %w", err)

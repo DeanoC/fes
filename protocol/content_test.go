@@ -98,6 +98,27 @@ func TestCachedLaunchJSON(t *testing.T) {
 	}
 }
 
+func TestCachedIdentityResponseJSON(t *testing.T) {
+	t.Parallel()
+	absent, err := json.Marshal(protocol.CachedIdentityResponse{Present: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(absent) != `{"present":false}` {
+		t.Fatalf("absent JSON = %s", absent)
+	}
+	system := protocol.SystemSNES
+	content := protocol.ContentIdentity{SHA256: testDigest, Size: 1024, Extension: "sfc"}
+	present, err := json.Marshal(protocol.CachedIdentityResponse{Present: true, GameID: "snes-test", System: &system, Content: &content})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"present":true,"game_id":"snes-test","system":"snes","content":{"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","size":1024,"extension":"sfc"}}`
+	if string(present) != want {
+		t.Fatalf("present JSON = %s, want %s", present, want)
+	}
+}
+
 func TestContentIdentityKeyDropsSize(t *testing.T) {
 	t.Parallel()
 

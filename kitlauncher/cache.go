@@ -22,8 +22,9 @@ const (
 	// Replacing the system image does not wipe it.
 	DefaultCacheRoot = "/media/fat/fogcast/launcher-cache"
 
-	// OfflineMessage is the kit footer when the host is absent. Launch still
-	// needs the host; the shelf may still show the last-good local catalog.
+	// OfflineMessage is the kit footer when the host is absent. Verified ROM
+	// cache hits may launch through the kit-hostless lease; other titles stay
+	// on local browse with a clear refuse reason.
 	OfflineMessage = "Offline - local library"
 
 	connectingMessage = "Connecting to FogCast"
