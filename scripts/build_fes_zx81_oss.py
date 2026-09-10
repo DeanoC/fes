@@ -154,7 +154,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 50_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": 1,
+            "seed": 3,
             "top": TOP,
         },
     }
@@ -188,7 +188,7 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        "--seed", "1",
+        "--seed", "3",
         "--tmg-ripup",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",
