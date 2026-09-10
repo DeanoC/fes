@@ -170,9 +170,15 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `88cda8aeedf1d6cd48406844a5e8dced415c6ae5` is
+The current nextpnr pin `d8a96b581e608736ea346c34a2a0ce8161d2e1ab` is
+merged PR #51 (`9684edd8238f4538d77be2cae5391183c87e6131` stacked onto
+`88cda8aeedf1d6cd48406844a5e8dced415c6ae5`). It folds a constant unused
+M10K clock off the `CLKIN[1]` TCLK sink, maps only live clocks, and
+preserves ACLR0/ACLR1 pin styles. Pair it with Yosys `da6373c0`.
+
+That pin sits on `88cda8aeedf1d6cd48406844a5e8dced415c6ae5`,
 merged PR #49 (`71426e88e0c76de41f3cf06dd40b032dd8d1d467` onto
-`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`). It adds Cyclone V M10K
+`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`). That pin adds Cyclone V M10K
 asynchronous clear: logical `ACLR0`/`ACLR1` map to physical `ACLR[0:1]`.
 Omitted ports materialise as inactive `PIN_0`. Fabric or inverted
 controls enable the matching output-clear register. Address-clear
@@ -1332,6 +1338,23 @@ restored written data after a second clear. Load JSON timed out; GPI and
 probe still passed. `stop` completed development reboot recovery and left
 the lease free.
 
+`730_m10k_tdp_tclk` instantiates `MISTRAL_M10K_TDP` with `CLK2` and `B1EN`
+tied low. GPI signature `0xD429`. nextpnr folds that constant clock off
+`CLKIN[1]`. Simulation checks A-port INIT and write/read. See
+`experiments/730_m10k_tdp_tclk/expected.md`.
+
+The OSS `730_m10k_tdp_tclk` artifact has SHA-256
+`2e197f83df95392073bd8cb68f14d4e97058e2be3df3800818940160f1326e27`
+and size 1,959,552 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with live
+`CLK1` and disconnected `CLK2`. Its reported Fmax is 342.583 MHz against
+the 50 MHz constraint. Utilization is one M10K, one HPS GP, and no PLL,
+DSP or MLAB. The current nextpnr pin `d8a96b58` with Yosys `da6373c0`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-11
+returned GPI signature `0xD429`, initialized A-port words, an A-port
+write with the B clock tied off, and an undisturbed neighbour address.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1351,7 +1374,8 @@ uncharacterized), and dedicated DDR bidirectional I/O registers (fabric GPI
 only; GPIO-register timing uncharacterized), and M10K asynchronous output
 clear (fabric GPI only), and an explicit `MISTRAL_M10K` primitive with
 Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
-asynchronous read-output clear (fabric GPI only). It does not establish native
+asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
+TCLK fold (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game

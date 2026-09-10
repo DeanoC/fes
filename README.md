@@ -299,6 +299,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   maps that reset onto `ACLR1`. Run `make sim EXP=720_m10k_aclr_infer` and
   `make oss EXP=720_m10k_aclr_infer`; no Quartus comparison lane is
   implemented.
+- `730_m10k_tdp_tclk`, true-dual-port 512-by-20 M10K with `CLK2` and `B1EN`
+  tied low. nextpnr folds that constant clock off `CLKIN[1]`. Run
+  `make sim EXP=730_m10k_tdp_tclk` and `make oss EXP=730_m10k_tdp_tclk`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
