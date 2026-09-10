@@ -52,6 +52,13 @@ separate Quartus Lite rebuild that has been loaded on real MiSTer
 hardware. misteross selects the rebuild by default; upstream is the
 fallback.
 
+## FES ZX81 computer ABI
+
+`fes.simple-computer` 1.0 is the declared custom GP ABI for the planned FES
+ZX81 computer. The package tree owns YAML, generated constants, and golden
+exchanges. RTL, runtime driver, and hardware evidence remain consumer work
+and are not established here.
+
 ## Working rules
 
 - Source of truth: package YAML, not Overlord YAML. Generated runtime

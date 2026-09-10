@@ -62,6 +62,30 @@ func TestGenerateABIFesGpMacrosLintWithVerilator(t *testing.T) {
 	}
 }
 
+func TestGenerateABIFesSimpleComputerMacros(t *testing.T) {
+	abi, err := pack.LoadABI("../../packages/abi/fes_simple_computer.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := GenerateABI(abi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"`define FES_SIMPLE_COMPUTER_SIGNATURE 32'hf5000000",
+		"`define FES_SIMPLE_COMPUTER_ABI_TAG 32'h00000002",
+		"`define FES_SIMPLE_COMPUTER_OPCODE_KEYBOARD 32'h00000003",
+		"`define FES_SIMPLE_COMPUTER_OPCODE_MEDIA_COMMIT 32'h00000006",
+		"`define FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK 32'h00000001",
+		"`define FES_SIMPLE_COMPUTER_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK 32'h00000004",
+		"`define FES_SIMPLE_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK 32'h00000002",
+	} {
+		if !strings.Contains(generated, fragment) {
+			t.Fatalf("missing computer Verilog macro %q\n%s", fragment, generated)
+		}
+	}
+}
+
 func TestGenerateABIRejectsGeneratedSymbolCollisions(t *testing.T) {
 	base, err := pack.LoadABI("../../packages/abi/fes_simple_game.yaml")
 	if err != nil {

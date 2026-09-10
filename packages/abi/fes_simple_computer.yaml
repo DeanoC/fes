@@ -1,0 +1,115 @@
+schema: mister-packages.v1
+kind: abi
+id: fes.simple-computer
+description: >-
+  FES general-purpose HPS/FPGA mailbox for a standalone simple computer.
+  Transport bits match fes.simple-game; ABI tag 2, keyboard rows, and a
+  bounded media blob are distinct. This file does not contain MMIO or
+  lifecycle programming instructions.
+major: 1
+minor: 0
+tag: 2
+constants:
+  - name: FesSimpleComputerSignature
+    value: 0xf5000000
+  - name: FesSimpleComputerRequestMask
+    value: 0x80000000
+  - name: FesSimpleComputerOpcodeMask
+    value: 0x7f000000
+  - name: FesSimpleComputerIndexMask
+    value: 0x00ff0000
+  - name: FesSimpleComputerArgumentMask
+    value: 0x0000ffff
+  - name: FesSimpleComputerAckMask
+    value: 0x00800000
+  - name: FesSimpleComputerErrorMask
+    value: 0x00400000
+  - name: FesSimpleComputerResponseMask
+    value: 0x0000ffff
+  - name: FesSimpleComputerIdentityMagic0
+    value: 0x4546
+  - name: FesSimpleComputerIdentityMagic1
+    value: 0x3153
+  - name: FesSimpleComputerTransportMajor
+    value: 1
+  - name: FesSimpleComputerTransportMinor
+    value: 0
+  - name: FesSimpleComputerAbiTag
+    value: 2
+  - name: FesSimpleComputerAbiMajor
+    value: 1
+  - name: FesSimpleComputerAbiMinor
+    value: 0
+  - name: FesSimpleComputerIdentityMagic0Index
+    value: 0
+  - name: FesSimpleComputerIdentityMagic1Index
+    value: 1
+  - name: FesSimpleComputerIdentityTransportMajorIndex
+    value: 2
+  - name: FesSimpleComputerIdentityTransportMinorIndex
+    value: 3
+  - name: FesSimpleComputerIdentityAbiTagIndex
+    value: 4
+  - name: FesSimpleComputerIdentityAbiMajorIndex
+    value: 5
+  - name: FesSimpleComputerIdentityAbiMinorIndex
+    value: 6
+  - name: FesSimpleComputerIdentityCapabilitiesIndex
+    value: 7
+  - name: FesSimpleComputerIdentityBuildIDStartIndex
+    value: 8
+  - name: FesSimpleComputerIdentityWordCount
+    value: 16
+  - name: FesSimpleComputerOpcodeIdentity
+    value: 1
+  - name: FesSimpleComputerOpcodeExecution
+    value: 2
+  - name: FesSimpleComputerOpcodeKeyboard
+    value: 3
+  - name: FesSimpleComputerOpcodeMediaBegin
+    value: 4
+  - name: FesSimpleComputerOpcodeMediaData
+    value: 5
+  - name: FesSimpleComputerOpcodeMediaCommit
+    value: 6
+  - name: FesSimpleComputerControlIndex
+    value: 0
+  - name: FesSimpleComputerExecutionHoldReset
+    value: 0
+  - name: FesSimpleComputerExecutionRelease
+    value: 1
+  - name: FesSimpleComputerErrorInvalidOpcode
+    value: 1
+  - name: FesSimpleComputerErrorInvalidIndex
+    value: 2
+  - name: FesSimpleComputerErrorInvalidArgument
+    value: 3
+  - name: FesSimpleComputerErrorInvalidState
+    value: 4
+  - name: FesSimpleComputerKeyboardRowCount
+    value: 8
+  - name: FesSimpleComputerKeyboardRowMask
+    value: 0x1f
+  - name: FesSimpleComputerKeyboardNeutralRow
+    value: 0x1f
+  - name: FesSimpleComputerMediaMinBytes
+    value: 1
+  - name: FesSimpleComputerMediaMaxBytes
+    value: 16384
+  - name: FesSimpleComputerMediaDataPairIndex
+    value: 0
+  - name: FesSimpleComputerMediaDataTailIndex
+    value: 1
+interfaces:
+  - id: fes.keyboard
+    major: 1
+    minor: 0
+    capability_bit: 0
+  - id: fes.video.fixed-720p60
+    major: 1
+    minor: 0
+    capability_bit: 1
+  - id: fes.media.blob
+    major: 1
+    minor: 0
+    capability_bit: 2

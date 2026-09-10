@@ -220,6 +220,63 @@ static_assert(FesGpInterfaceGamepadID[0] == 'f', "interface id");
 	}
 }
 
+func TestGenerateABIFesSimpleComputerConstantsCompileWithFesGp(t *testing.T) {
+	game, err := pack.LoadABI("../../packages/abi/fes_simple_game.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	computer, err := pack.LoadABI("../../packages/abi/fes_simple_computer.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gameText, err := GenerateABI(game)
+	if err != nil {
+		t.Fatal(err)
+	}
+	computerText, err := GenerateABI(computer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"FesSimpleComputerSignature = 0xf5000000u",
+		"FesSimpleComputerAbiTag = 0x2u",
+		`FesSimpleComputerInterfaceKeyboardID = "fes.keyboard"`,
+		"FesSimpleComputerCapabilityKeyboard = 0x1u",
+		`FesSimpleComputerInterfaceMediaBlobID = "fes.media.blob"`,
+		"FesSimpleComputerCapabilityMediaBlob = 0x4u",
+		"FesSimpleComputerOpcodeMediaCommit = 0x6u",
+	} {
+		if !strings.Contains(computerText, fragment) {
+			t.Fatalf("missing computer ABI constant %q\n%s", fragment, computerText)
+		}
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "fes_gp.hpp"), []byte(gameText), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fes_simple_computer.hpp"), []byte(computerText), 0600); err != nil {
+		t.Fatal(err)
+	}
+	source := `#include "fes_gp.hpp"
+#include "fes_simple_computer.hpp"
+using namespace mister::native::generated;
+static_assert(FesGpSignature == FesSimpleComputerSignature, "shared signature");
+static_assert(FesGpAbiTag == 1u && FesSimpleComputerAbiTag == 2u, "distinct tags");
+static_assert(FesSimpleComputerCapabilityKeyboard == 0x1u, "keyboard");
+static_assert(FesSimpleComputerCapabilityMediaBlob == 0x4u, "media");
+`
+	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	compiler := os.Getenv("CXX")
+	if compiler == "" {
+		compiler = "c++"
+	}
+	if out, err := exec.Command(compiler, "-std=c++14", "-pedantic-errors", "-fsyntax-only", filepath.Join(dir, "test.cpp")).CombinedOutput(); err != nil {
+		t.Fatalf("computer ABI C++14 header: %v\n%s", err, out)
+	}
+}
+
 func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) {
 	profiles, err := pack.LoadProgrammingProfiles("../../packages/programming/de10_nano.yaml")
 	if err != nil {
@@ -232,6 +289,7 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	for _, fragment := range []string{
 		"GeneratedProgrammingProfilePair", `"mister-v1", "mister", 1, false`,
 		`"fes-gp-v1", "fes.simple-game", 1, false`,
+		`"fes-gp-v1", "fes.simple-computer", 1, false`,
 		`"development-contained-v1", nullptr, 0, true`,
 		`kDe10NanoProgrammingPlatform = "de10_nano"`, `kDe10NanoProgrammingDevice = "5CSEBA6U23I7"`,
 	} {
@@ -245,8 +303,8 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	}
 	source := `#include "programming.hpp"
 using namespace mister::native::generated;
-static_assert(kDe10NanoProgrammingProfilePairCount == 3, "registry rows");
-static_assert(kDe10NanoProgrammingProfilePairs[2].diagnostic_only, "diagnostic");
+static_assert(kDe10NanoProgrammingProfilePairCount == 4, "registry rows");
+static_assert(kDe10NanoProgrammingProfilePairs[3].diagnostic_only, "diagnostic");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)
