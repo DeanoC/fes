@@ -154,11 +154,19 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`10a8e890`.
+`9020c5f4`.
 
-The current nextpnr pin `10a8e8907f18e312b431e8303c4216f4501e6b3a` is
+The current nextpnr pin `9020c5f43f085461bc2710da74e59c8a7bc32564` is
+merged PR #48 (`d19c6aeec9b18216e611f1e3895441714a3884e0` onto
+`10a8e8907f18e312b431e8303c4216f4501e6b3a`). It adds mixed-width Cyclone V
+M10K byte enables: a 512×20 write port with two connected `A1BE` bits packs
+onto existing `BYTEENABLEA` lanes together with a 1024×10 or 256×40 read
+port. Missing or extra mask bits, non-20-bit writes, and mixed-width true
+dual-port byte enables fail closed. Equal-width 512×20 byte enables keep
+the ordinary SDP path. No Mistral database tables change. It sits on
+`10a8e8907f18e312b431e8303c4216f4501e6b3a`,
 merged PR #47 (`e64b6c33521c92c9460c07b43c1d396944895756` onto
-`3e314db00a620caf3cbe09ecac93a4910df5f01a`). It adds
+`3e314db00a620caf3cbe09ecac93a4910df5f01a`). That pin adds
 direct Cyclone V `altiobuf_in`, `altiobuf_out` and `altiobuf_bidir`
 packing: each width-one primitive folds into the already constrained
 `MISTRAL_IB`, `MISTRAL_OB` or `MISTRAL_IO` BEL. Bus hold and differential
@@ -1189,13 +1197,36 @@ ten samples. Load JSON timed out; GPI and probe still passed. `stop`
 completed development reboot recovery and left the lease free. This
 does not measure pad waveforms and is not I/O-interface timing closure.
 
+`680_m10k_mix20be10` exposes a mixed-width M10K table on HPS GP: 512-by-20
+byte-masked writes and 1024-by-10 reads. GPI signature `0xD425`. Locked
+Yosys does not infer that combined mapping, so the experiment instantiates
+one `MISTRAL_M10K` with `CFG_MIXED_WIDTH=1` and `CFG_BYTE_ENABLE=1`.
+nextpnr maps `A1BE[0:1]` onto `BYTEENABLEA`. Place-and-route uses router1.
+Simulation and OSS are supported; Quartus comparison is not implemented.
+See `experiments/680_m10k_mix20be10/expected.md`.
+
+The OSS `680_m10k_mix20be10` artifact has SHA-256
+`bcfd525a14ecffdcb05b56d7244f4400aa2211b33eb4082c240a2b5e4df55282`
+and size 1,958,112 bytes. nextpnr packed one `MISTRAL_M10K` at
+`MISTRAL_M10K.5.33.0` with independent `A1BE` nets `wbe[0]` and `wbe[1]`.
+Its reported Fmax is 537.634 MHz against the 50 MHz constraint.
+Utilization is one M10K, one PLL, two clock enables, one HPS GP, and no
+DSP or MLAB. The current nextpnr pin `9020c5f4` with Yosys `fca8ca0a`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10
+returned GPI signature `0xD425` with initialized 10-bit lanes, isolated
+`BYTEENABLEA[0]`/`BYTEENABLEA[1]` updates, a suppressed zero mask, and a
+combined 20-bit write with the read clock stopped. Load JSON timed out;
+GPI and probe still passed. `stop` completed development reboot recovery
+and left the lease free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
 M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
 contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 20-bit M10K byte-enable lanes with independent clocks, mixed-width 40↔10
-M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
+M10K simple dual-port RAM, mixed-width 20-to-10 M10K byte-enable lanes,
+independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
 independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
 50→74.25 MHz fractional-N PLL profile, dedicated 50 MHz DDR clock

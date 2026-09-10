@@ -299,14 +299,15 @@ class ExperimentPolicy:
             raise PolicyError(
                 f"{self.name}: mixed-TDP ports must be 20/10, 10/20, 16/8, or 8/16"
             )
+        if self.m10k_mixed_write_dbits and self.m10k_byte_enable and self.m10k_mixed_write_dbits != 20:
+            raise PolicyError(f"{self.name}: mixed-width byte enables require a 20-bit write port")
         if self.m10k_mixed_write_dbits and (
-            self.m10k_byte_enable
-            or self.m10k_dual_clock_width
+            self.m10k_dual_clock_width
             or self.m10k_tdp_width
             or self.m10k_tdp_byte_width
             or self.m10k_tdp_mixed_a
         ):
-            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine byte-enable, equal-width dual-clock, or TDP policy")
+            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine equal-width dual-clock or TDP policy")
         if self.m10k_tdp_width and (
             self.m10k_byte_enable
             or self.m10k_dual_clock_width
@@ -642,7 +643,7 @@ class ExperimentPolicy:
                 )
         if self.synth_json_mlab_init:
             self._require_mlab_init(design)
-        if self.m10k_byte_enable:
+        if self.m10k_byte_enable and not self.m10k_mixed_write_dbits:
             self._require_m10k_byte_enable(design)
         if self.m10k_dual_clock_width:
             self._require_m10k_dual_clock(design)
@@ -823,7 +824,19 @@ class ExperimentPolicy:
                 f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
             )
         byte_enable = json_bit_parameter(parameters.get("CFG_BYTE_ENABLE"))
-        if byte_enable not in (None, 0):
+        if self.m10k_byte_enable:
+            if byte_enable != 1:
+                raise PolicyError(
+                    f"M10K CFG_BYTE_ENABLE must be 1, got {parameters.get('CFG_BYTE_ENABLE')!r}"
+                )
+            if write_bits != 20:
+                raise PolicyError("mixed-width byte enables require a 20-bit write port")
+            byte_enables = connections.get("A1BE")
+            if not isinstance(byte_enables, list) or len(byte_enables) != 2:
+                raise PolicyError("M10K A1BE must be a two-bit connected port")
+            if byte_enables[0] == byte_enables[1]:
+                raise PolicyError("M10K A1BE lanes must be independent")
+        elif byte_enable not in (None, 0):
             raise PolicyError(
                 f"M10K CFG_BYTE_ENABLE must be omitted or 0, got {parameters.get('CFG_BYTE_ENABLE')!r}"
             )
@@ -4307,6 +4320,65 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/670_altiobuf/sim/altiobuf_model.v",
                     ),
                     tb="experiments/670_altiobuf/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "680_m10k_mix20be10": ExperimentPolicy(
+            name="680_m10k_mix20be10",
+            sources=("experiments/680_m10k_mix20be10/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_mixed_write_dbits=20,
+            m10k_mixed_read_dbits=10,
+            m10k_byte_enable=True,
+            nextpnr_router="router1",
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "B1EN", "A1BE")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/680_m10k_mix20be10/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                        "experiments/680_m10k_mix20be10/sim/m10k_mixbe_model.v",
+                    ),
+                    tb="experiments/680_m10k_mix20be10/sim/tb.cpp",
                 ),
             ),
         ),
