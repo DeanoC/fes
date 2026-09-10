@@ -118,6 +118,36 @@ func TestUSBKeyboardBrowseDetailSearchAndLaunch(t *testing.T) {
 	}
 }
 
+func TestUSBKeyboardRepeatDoesNotSurviveZX81Forward(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(20)
+	now := time.Unix(0, 0)
+	if app.Press(CmdRight, now) != CmdRight {
+		t.Fatal("press right")
+	}
+	if app.repeat.held != CmdRight {
+		t.Fatalf("held = %s", app.repeat.held)
+	}
+	app.session = SessionResult{
+		State:        "active",
+		CoreKeyboard: true,
+		Input:        &SessionInput{State: "attached", Ready: true},
+	}
+	if !app.ForwardsCoreKeyboard() {
+		t.Fatal("expected fes.keyboard forward")
+	}
+	if got := app.Tick(now.Add(repeatDelay + repeatEvery)); got != CmdNone {
+		t.Fatalf("zx81 forward leaked sofa repeat %s", got)
+	}
+	if app.repeat.held != CmdNone {
+		t.Fatalf("held after forward = %s", app.repeat.held)
+	}
+	app.session = SessionResult{State: "idle"}
+	if got := app.Tick(now.Add(2 * (repeatDelay + repeatEvery))); isHoldable(got) {
+		t.Fatalf("ghost walk after zx81 stop: %s", got)
+	}
+}
+
 func TestUSBKeyboardShiftTabOpensFilters(t *testing.T) {
 	t.Parallel()
 	app := catalogApp(4)

@@ -273,6 +273,11 @@ func (r *Repeater) Up(cmd Command) {
 	}
 }
 
+// Clear drops any armed hold-repeat.
+func (r *Repeater) Clear() {
+	r.held = CmdNone
+}
+
 // Tick returns a movement command when the hold repeat interval elapses.
 func (r *Repeater) Tick(now time.Time) Command {
 	if !isHoldable(r.held) {

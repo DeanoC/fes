@@ -1144,6 +1144,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.syncPreviewLocked()
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
+	if a.ForwardsCoreKeyboard() {
+		a.repeat.Clear()
+	}
 	if a.browseHoldEnabled() {
 		if cmd := a.hold.Tick(now); cmd != CmdNone {
 			a.HandleCommand(cmd, now)

@@ -713,6 +713,9 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 	case evKey:
 		if app.ForwardsCoreKeyboard() {
 			// Play-session ZX81 matrix: do not steal keys for sofa browse/nav.
+			// Drop sofa hold-repeat so a direction held at launch cannot walk
+			// the grid after the key is released into this path.
+			app.repeat.Clear()
 			if event, ok := coreKeyFromSDL(ev.code, ev.down != 0); ok {
 				app.SendCoreKey(event)
 			}
