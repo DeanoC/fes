@@ -508,6 +508,46 @@ public:
 		return FinishLaunchFailure("load_development_rbf", "", "", result);
 	}
 
+	Error SetComputerKeyboard(std::uint64_t matrix)
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::running_development)
+				return Busy("FES computer is not running");
+			busy_ = true;
+		}
+		const Error error = hardware_.SetComputerKeyboard(matrix);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("set_keyboard", status_.system, status_.core,
+			error.ok() ? "running" : "input", error);
+		return error;
+	}
+
+	Error LoadComputerMedia(const std::string& path)
+	{
+		if (!ValidAbsolutePath(path))
+			return Invalid("invalid computer media path");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::running_development)
+				return Busy("FES computer is not running");
+			busy_ = true;
+		}
+		const Error error = hardware_.LoadComputerMedia(path);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("load_media", status_.system, status_.core,
+			error.ok() ? "running" : "request", error);
+		return error;
+	}
+
 	Error Stop()
 	{
 		LogRecord immediate;
@@ -788,6 +828,14 @@ Error Runtime::InspectCore(const std::string& directory,
 Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
+}
+Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
+{
+	return impl_->SetComputerKeyboard(matrix);
+}
+Error Runtime::LoadComputerMedia(const std::string& path)
+{
+	return impl_->LoadComputerMedia(path);
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {

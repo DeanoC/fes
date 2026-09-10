@@ -9,6 +9,7 @@
 #include "native/core_data.hpp"
 #include "native/core_loader.hpp"
 #include "native/diagnostic.hpp"
+#include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/input.hpp"
@@ -16,8 +17,13 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <memory>
+#include <string>
+#include <vector>
 #include <utility>
 
 namespace mister {
@@ -571,6 +577,39 @@ Capabilities NativeHardware::capabilities() const
 			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
 	}
 	return result;
+}
+
+Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"FES computer is not active", "input"};
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->SetKeyboardMatrix(
+		matrix, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+Error NativeHardware::LoadComputerMedia(const std::string& path)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"FES computer is not active", "request"};
+	if (path.size() < 3)
+		return {ErrorCode::invalid_request, "computer media path is invalid",
+			"request"};
+	const std::string suffix = path.substr(path.size() - 2);
+	if (suffix != ".p" && suffix != ".P")
+		return {ErrorCode::invalid_request, "computer media must be a .p file",
+			"request"};
+	std::ifstream in(path.c_str(), std::ios::binary);
+	if (!in)
+		return {ErrorCode::invalid_request, "computer media could not be opened",
+			"request"};
+	std::vector<std::uint8_t> bytes(
+		(std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	if (!in && !in.eof())
+		return {ErrorCode::io_failed, "computer media could not be read", "request"};
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMedia(
+		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 HardwareResult NativeHardware::LoadCore(

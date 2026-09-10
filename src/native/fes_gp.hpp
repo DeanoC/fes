@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <vector>
 
 namespace mister {
 namespace native {
@@ -48,14 +49,18 @@ public:
 	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t,
 		std::uint64_t) override;
 	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
+	Error SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t deadline);
+	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
+	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
 	Error DataControl(std::uint16_t, std::uint64_t);
 	FesGp& gp_;
 	bool persistence_verified_ = false;
 	bool reset_held_ = true;
 	bool freeze_attempted_ = false;
+	bool computer_ = false;
 };
 
 } // namespace native

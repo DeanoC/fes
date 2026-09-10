@@ -59,6 +59,12 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadCore(request.package_path, request.package_id);
 		EmitFifoConsume("load_core", result.ok());
 		break;
+	case Operation::set_keyboard:
+		result = runtime_.SetComputerKeyboard(request.keyboard_matrix);
+		break;
+	case Operation::load_media:
+		result = runtime_.LoadComputerMedia(request.media_path);
+		break;
 	case Operation::load_development_rbf:
 		result = request.protocol == 2 ?
 			runtime_.LoadContainedDevelopmentRBF(request.rbf) :

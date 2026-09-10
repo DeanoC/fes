@@ -289,6 +289,7 @@ void FesGpCoreDriver::BeginSession()
 	persistence_verified_ = false;
 	reset_held_ = true;
 	freeze_attempted_ = false;
+	computer_ = false;
 }
 
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
@@ -311,6 +312,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	bool safe_to_quiesce = false;
 	persistence_verified_ = false;
 	Error error = gp_.Identify(*context.descriptor, deadline, &safe_to_quiesce);
+	computer_ = error.ok() && context.descriptor->abi.id == FesSimpleComputerABIID;
 	if (error.ok()) {
 		bool words = false, pong = false;
 		for (const auto& interface : context.descriptor->interfaces) {
@@ -374,9 +376,96 @@ CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
 	return {{}, true, ""};
 }
 
+CoreDriverResult FesGpCoreDriver::NeutralizeKeyboard(std::uint64_t deadline)
+{
+	for (std::uint8_t row = 0; row < FesSimpleComputerKeyboardRowCount; ++row) {
+		std::uint16_t response = 0;
+		const Error error = gp_.Exchange(
+			static_cast<std::uint8_t>(FesSimpleComputerOpcodeKeyboard), row,
+			static_cast<std::uint16_t>(FesSimpleComputerKeyboardNeutralRow),
+			deadline, &response);
+		if (!error.ok())
+			return {WithPhase(error, "input"), true, ""};
+		if (response != 0)
+			return {{ErrorCode::io_failed, "FES computer keyboard row is invalid",
+				"input"}, true, ""};
+	}
+	return {{}, true, ""};
+}
+
+Error FesGpCoreDriver::SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t deadline)
+{
+	if (!computer_)
+		return {ErrorCode::unsupported_interface, "FES computer keyboard is inactive",
+			"input"};
+	if ((matrix & ~0xffffffffffull) != 0)
+		return {ErrorCode::invalid_request, "FES computer keyboard matrix is invalid",
+			"input"};
+	for (std::uint8_t row = 0; row < FesSimpleComputerKeyboardRowCount; ++row) {
+		const std::uint16_t mask = static_cast<std::uint16_t>(
+			(matrix >> (row * 5u)) & FesSimpleComputerKeyboardRowMask);
+		std::uint16_t response = 0;
+		const Error error = gp_.Exchange(
+			static_cast<std::uint8_t>(FesSimpleComputerOpcodeKeyboard), row, mask,
+			deadline, &response);
+		if (!error.ok()) return WithPhase(error, "input");
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES computer keyboard row is invalid",
+				"input"};
+	}
+	return {};
+}
+
+Error FesGpCoreDriver::LoadMedia(
+	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
+{
+	if (!computer_)
+		return {ErrorCode::unsupported_interface, "FES computer media is inactive",
+			"input"};
+	if (bytes.size() < FesSimpleComputerMediaMinBytes ||
+		bytes.size() > FesSimpleComputerMediaMaxBytes)
+		return {ErrorCode::invalid_request, "FES computer media size is invalid",
+			"request"};
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+		static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
+		static_cast<std::uint16_t>(bytes.size()), deadline, &response);
+	if (!error.ok()) return WithPhase(error, "input");
+	if (response != 0)
+		return {ErrorCode::io_failed, "FES computer media begin failed", "input"};
+	for (std::size_t offset = 0; offset + 1 < bytes.size(); offset += 2) {
+		const std::uint16_t pair = static_cast<std::uint16_t>(
+			bytes[offset] | (static_cast<std::uint16_t>(bytes[offset + 1]) << 8));
+		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaData),
+			static_cast<std::uint8_t>(FesSimpleComputerMediaDataPairIndex), pair,
+			deadline, &response);
+		if (!error.ok()) return WithPhase(error, "input");
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES computer media data failed", "input"};
+	}
+	if ((bytes.size() % 2) != 0) {
+		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaData),
+			static_cast<std::uint8_t>(FesSimpleComputerMediaDataTailIndex),
+			bytes.back(), deadline, &response);
+		if (!error.ok()) return WithPhase(error, "input");
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES computer media tail failed", "input"};
+	}
+	error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaCommit),
+		static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+	if (!error.ok()) return WithPhase(error, "input");
+	if (response != 0)
+		return {ErrorCode::io_failed, "FES computer media commit failed", "input"};
+	return {};
+}
+
 CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
+	if (computer_) {
+		CoreDriverResult neutralized = NeutralizeKeyboard(deadline);
+		if (!neutralized.error.ok()) return neutralized;
+	}
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
 	if (result.error.ok())
