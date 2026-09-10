@@ -124,7 +124,7 @@ can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
 padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override
-the saved pref for that run; gamepad **Select/View** (SDL Back) and debug
+the saved pref for that run; gamepad **Select/View** (SDL Back) and
 keyboard `l` cycle grid → shelf → list → grid. The choice is stored
 in the same `tenfoot.json` as `layout`. Shelf is one row of larger covers:
 Left/Right move one title, Up/Down jump by a visible page of covers. List is
@@ -180,7 +180,15 @@ wheel rolls them up from host games when those fields are admitted. A presentati
 paints a VIDEO badge and cycles screenshot/poster stills as an honest
 motion preview (no H.264 decode on the CGO-free kit).
 
-Gamepad is the intended control path (d-pad / left stick to move, South/A to
+USB keyboard is first-class browse/nav on the SDL path (no gamepad required):
+arrows move focus, Enter launches or confirms, Esc backs out, Tab opens search
+(or confirms an open search; Shift+Tab opens filters, or pages an OSK). In the
+detail pane Tab cycles screenshots when more than one is present, otherwise it
+launches; Shift+Tab steps back. Letter shortcuts already patterned stay. While
+a `fes.keyboard` play session is attached, sofa keys forward to the ZX81 matrix
+instead of the focus graph.
+
+Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
 open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
 applies the shared `host/tenfoot/inputmap` remapper after SDL button
@@ -193,8 +201,8 @@ still opens search, and Select/View still cycles layout.
 Shoulders cycle the platform filter
 (All, then each host platform). West/X tap cycles sort (title, recently added,
 system) while browsing. Hold West/X opens the sofa filter overlay (genre,
-year, region, hide prerelease, hide hacks). Debug keyboard `g` toggles the
-same overlay. D-pad moves rows, South/A confirms, East/B backs out of a list
+year, region, hide prerelease, hide hacks). Keyboard `g` (or Shift+Tab)
+toggles the same overlay. D-pad moves rows, South/A confirms, East/B backs out of a list
 or closes. Genre and year options come from `GET /api/v1/library/facets`;
 region uses the web dump-region tokens (USA, Japan, Europe, …, Other). Empty
 facet lists still offer Any plus an honest empty hint. Changing a facet
@@ -233,18 +241,20 @@ West/X attaches or detaches remote input when the session is `active` with
 header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
 `kit not ready` from `GET /api/v1/health` (and `GET /api/v1/status` 503
 `TARGET_UNAVAILABLE`) so a down kit is obvious inside the TV safe-area.
-Keyboard is debug-only: arrows/WASD (S is stop, not down),
+USB keyboard browse/nav: arrows/WASD (S is stop, not down),
 Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
+Tab to open search (Shift+Tab opens filters; Tab confirms an open search),
 Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
 shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
 `o` to open settings, `g` to open the filter overlay, `-` / `=` to nudge the overscan inset. Down arrow still
-moves focus when idle, and opens the detail pane from the last row.
+moves focus when idle, and opens the detail pane from the last row. Mac tenfoot
+is bring-up; the target product path is Pi kit tenfoot with a real USB keyboard.
 
 ## Sofa settings
 
-Guide (debug keyboard `o`) opens a gamepad-first overlay inside the TV
+Guide (keyboard `o`) opens a gamepad-first overlay inside the TV
 safe-area. Up/Down move rows, Left/Right change the focused row, South/A
 confirms, East/B closes. Attract does not arm while the overlay is open.
 Select/View still cycles layout and `-` / `=` still nudge overscan, including

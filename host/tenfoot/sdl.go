@@ -398,54 +398,44 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		return fmt.Errorf("smoke: no cover artwork decoded")
 	}
 
-	id := C.fogcast_attach_virtual_gamepad()
-	if id == 0 {
-		return fmt.Errorf("smoke: virtual gamepad: %s", sdlError())
-	}
-	defer C.SDL_DetachVirtualJoystick(id)
-
-	padReady := time.Now().Add(2 * time.Second)
-	if deadline, ok := ctx.Deadline(); ok && deadline.Before(padReady) {
-		padReady = deadline
-	}
-	for time.Now().Before(padReady) {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("smoke: virtual gamepad: %w", err)
-		}
-		pumpSDL(app, pads, time.Now())
-		if pads[id] != nil {
-			break
-		}
-		C.SDL_Delay(5)
-	}
-	if pads[id] == nil {
-		pad := C.SDL_OpenGamepad(id)
-		if pad != nil {
-			pads[id] = pad
-			app.SetGamepads(len(pads))
-		}
-	}
-	if pads[id] == nil {
-		return fmt.Errorf("smoke: virtual gamepad was not opened")
-	}
-	evidence["gamepad"] = true
-	evidence["gamepads"] = len(pads)
-
-	focusBefore := app.Snapshot().Grid.Focus
-	evidence["focus_before"] = focusBefore
-	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err != nil {
+	if err := smokeKeyboardNav(app, pads, evidence); err != nil {
 		return err
 	}
-	focusAfter := app.Snapshot().Grid.Focus
-	if focusAfter == focusBefore {
-		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_DOWN); err != nil {
-			return err
+
+	id := C.fogcast_attach_virtual_gamepad()
+	if id != 0 {
+		defer C.SDL_DetachVirtualJoystick(id)
+		padReady := time.Now().Add(2 * time.Second)
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(padReady) {
+			padReady = deadline
 		}
-		focusAfter = app.Snapshot().Grid.Focus
+		for time.Now().Before(padReady) {
+			if err := ctx.Err(); err != nil {
+				break
+			}
+			pumpSDL(app, pads, time.Now())
+			if pads[id] != nil {
+				break
+			}
+			C.SDL_Delay(5)
+		}
+		if pads[id] == nil {
+			pad := C.SDL_OpenGamepad(id)
+			if pad != nil {
+				pads[id] = pad
+				app.SetGamepads(len(pads))
+			}
+		}
 	}
-	evidence["focus_after"] = focusAfter
-	if focusAfter == focusBefore {
-		return fmt.Errorf("smoke: gamepad navigation did not move focus (%s)", padDump(app, pads))
+	evidence["gamepads"] = len(pads)
+	evidence["gamepad"] = pads[id] != nil
+	if pads[id] != nil {
+		padFocusBefore := app.Snapshot().Grid.Focus
+		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err == nil {
+			if app.Snapshot().Grid.Focus != padFocusBefore {
+				evidence["gamepad_nav"] = true
+			}
+		}
 	}
 
 	snap = app.Snapshot()
@@ -467,7 +457,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %w", err)
 	}
-	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_SOUTH); err != nil {
+	if err := virtualKey(app, pads, C.SDLK_RETURN); err != nil {
 		return err
 	}
 	for {
@@ -527,6 +517,77 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		return err
 	}
 	fmt.Printf("tenfoot-smoke %s\n", payload)
+	return nil
+}
+
+func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+	focusBefore := app.Snapshot().Grid.Focus
+	evidence["keyboard_focus_before"] = focusBefore
+	if err := virtualKey(app, pads, C.SDLK_RIGHT); err != nil {
+		return err
+	}
+	focusAfter := app.Snapshot().Grid.Focus
+	if focusAfter == focusBefore {
+		if err := virtualKey(app, pads, C.SDLK_DOWN); err != nil {
+			return err
+		}
+		focusAfter = app.Snapshot().Grid.Focus
+	}
+	evidence["keyboard_focus_after"] = focusAfter
+	if focusAfter == focusBefore {
+		return fmt.Errorf("smoke: keyboard navigation did not move focus (%s)", padDump(app, pads))
+	}
+
+	snap := app.Snapshot()
+	cols := snap.Grid.Columns
+	if cols < 1 {
+		cols = 1
+	}
+	if n := len(snap.Games); n > 0 {
+		rowStart := ((n - 1) / cols) * cols
+		if !app.focusIndex(rowStart) {
+			return fmt.Errorf("smoke: keyboard failed to focus last row (%s)", padDump(app, pads))
+		}
+	}
+	if err := virtualKey(app, pads, C.SDLK_DOWN); err != nil {
+		return err
+	}
+	if !app.Snapshot().Detail.Open {
+		return fmt.Errorf("smoke: keyboard did not open detail (%s)", padDump(app, pads))
+	}
+	if err := virtualKey(app, pads, C.SDLK_ESCAPE); err != nil {
+		return err
+	}
+	if app.Snapshot().Detail.Open {
+		return fmt.Errorf("smoke: Esc did not close detail")
+	}
+
+	if err := virtualKey(app, pads, C.SDLK_TAB); err != nil {
+		return err
+	}
+	if !app.Snapshot().SearchOpen {
+		return fmt.Errorf("smoke: Tab did not open search")
+	}
+	if err := virtualKey(app, pads, C.SDLK_ESCAPE); err != nil {
+		return err
+	}
+	if app.Snapshot().SearchOpen {
+		return fmt.Errorf("smoke: Esc did not close search")
+	}
+	evidence["keyboard_nav"] = true
+	return nil
+}
+
+func virtualKey(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, key C.int) error {
+	now := time.Now()
+	down := C.FogcastEvent{kind: evKey, code: key, down: 1}
+	if handleSDLEvent(app, pads, &down, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	up := C.FogcastEvent{kind: evKey, code: key, down: 0}
+	_ = handleSDLEvent(app, pads, &up, now, nil)
+	app.Tick(now)
 	return nil
 }
 
@@ -651,6 +712,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		}
 	case evKey:
 		if app.ForwardsCoreKeyboard() {
+			// Play-session ZX81 matrix: do not steal keys for sofa browse/nav.
 			if event, ok := coreKeyFromSDL(ev.code, ev.down != 0); ok {
 				app.SendCoreKey(event)
 			}
@@ -661,8 +723,13 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		}
 		cmd := commandFromSDLKey(ev.code)
 		if ev.down != 0 {
-			if C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0 && cmd == CmdViewNext {
-				cmd = CmdViewPrev
+			if C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0 {
+				switch cmd {
+				case CmdViewNext:
+					cmd = CmdViewPrev
+				case CmdTab:
+					cmd = CmdTabPrev
+				}
 			}
 			if cmd == CmdQuit {
 				return true
@@ -803,6 +870,11 @@ func commandFromSDLButton(code C.int) Command {
 
 func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 	key := C.SDL_Keycode(ev.code)
+	shift := C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0
+	tabCmd := CmdTab
+	if shift {
+		tabCmd = CmdTabPrev
+	}
 	if ev.down != 0 {
 		switch key {
 		case C.SDLK_BACKSPACE:
@@ -811,6 +883,8 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 			app.Press(CmdBack, now)
 		case C.SDLK_RETURN:
 			app.ConfirmSearch(now)
+		case C.SDLK_TAB:
+			app.Press(tabCmd, now)
 		case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
 			app.Press(commandFromSDLKey(ev.code), now)
 		}
@@ -821,12 +895,16 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 		app.Release(CmdBack)
 	case C.SDLK_RETURN:
 		app.Release(CmdSelect)
+	case C.SDLK_TAB:
+		app.Release(tabCmd)
 	case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
 		app.Release(commandFromSDLKey(ev.code))
 	}
 	return false
 }
 
+// coreKeyFromSDL maps play-session keys onto the ZX81 matrix. Browse/nav
+// uses CommandFromKey; this path runs only while ForwardsCoreKeyboard.
 func coreKeyFromSDL(code C.int, down bool) (remoteinput.Event, bool) {
 	var key remoteinput.Code
 	switch C.SDL_Keycode(code) {
@@ -921,47 +999,67 @@ func coreKeyFromSDL(code C.int, down bool) (remoteinput.Event, bool) {
 }
 
 func commandFromSDLKey(code C.int) Command {
+	return CommandFromKey(sdlKeyName(code))
+}
+
+func sdlKeyName(code C.int) string {
 	switch C.SDL_Keycode(code) {
-	case C.SDLK_UP, C.SDLK_W:
-		return CmdUp
+	case C.SDLK_UP:
+		return "up"
+	case C.SDLK_W:
+		return "w"
 	case C.SDLK_DOWN:
-		return CmdDown
+		return "down"
 	case C.SDLK_S:
-		return CmdStop
-	case C.SDLK_LEFT, C.SDLK_A:
-		return CmdLeft
-	case C.SDLK_RIGHT, C.SDLK_D:
-		return CmdRight
-	case C.SDLK_RETURN, C.SDLK_SPACE:
-		return CmdSelect
-	case C.SDLK_ESCAPE, C.SDLK_BACKSPACE:
-		return CmdBack
+		return "s"
+	case C.SDLK_LEFT:
+		return "left"
+	case C.SDLK_A:
+		return "a"
+	case C.SDLK_RIGHT:
+		return "right"
+	case C.SDLK_D:
+		return "d"
+	case C.SDLK_RETURN:
+		return "return"
+	case C.SDLK_SPACE:
+		return "space"
+	case C.SDLK_ESCAPE:
+		return "escape"
+	case C.SDLK_BACKSPACE:
+		return "backspace"
+	case C.SDLK_TAB:
+		return "tab"
 	case C.SDLK_Q:
-		return CmdQuit
+		return "q"
 	case C.SDLK_LEFTBRACKET:
-		return CmdFilterPrev
+		return "leftbracket"
 	case C.SDLK_RIGHTBRACKET:
-		return CmdFilterNext
+		return "rightbracket"
 	case C.SDLK_X:
-		return CmdSortCycle
-	case C.SDLK_SLASH, C.SDLK_F:
-		return CmdSearch
+		return "x"
+	case C.SDLK_SLASH:
+		return "slash"
+	case C.SDLK_F:
+		return "f"
 	case C.SDLK_C:
-		return CmdViewNext
+		return "c"
 	case C.SDLK_V:
-		return CmdFavorite
+		return "v"
 	case C.SDLK_MINUS:
-		return CmdSafeAreaOut
-	case C.SDLK_EQUALS, C.SDLK_PLUS:
-		return CmdSafeAreaIn
+		return "minus"
+	case C.SDLK_EQUALS:
+		return "equals"
+	case C.SDLK_PLUS:
+		return "plus"
 	case C.SDLK_L:
-		return CmdLayoutCycle
+		return "l"
 	case C.SDLK_O:
-		return CmdSettings
+		return "o"
 	case C.SDLK_G:
-		return CmdFilters
+		return "g"
 	default:
-		return CmdNone
+		return ""
 	}
 }
 

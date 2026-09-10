@@ -380,7 +380,13 @@ helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
 embedded Go Regular and Go Bold, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, and text input remain
-SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
+SDL in `host/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+path (`CommandFromKey` in `host/tenfoot/keyboard.go`): arrows, Enter, Esc, and
+Tab drive shelf, detail, and search without a gamepad. Letter shortcuts already
+patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
+an active `fes.keyboard` session is attached (`ForwardsCoreKeyboard`), those
+keys are forwarded onto the ZX81 matrix (`coreKeyFromSDL`) instead of the sofa
+focus graph. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 

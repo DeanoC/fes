@@ -570,7 +570,7 @@ func (a *App) Stop() {
 	a.drainAttractResults()
 }
 
-// HandleCommand applies a gamepad or debug-keyboard command.
+// HandleCommand applies a gamepad or USB-keyboard command.
 func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if cmd == CmdNone {
 		return
@@ -648,7 +648,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
 		}
 	}
@@ -678,7 +678,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.cyclePlatformLocked(1)
 	case CmdSortCycle:
 		a.cycleSortLocked()
-	case CmdSearch:
+	case CmdSearch, CmdTab:
 		a.openSearchLocked()
 	case CmdViewPrev:
 		a.cycleViewLocked(-1)
@@ -688,6 +688,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.openViewPickerLocked()
 	case CmdFavorite:
 		a.toggleFavoriteLocked()
+	case CmdTabPrev:
+		a.openFiltersLocked()
 	}
 }
 
@@ -731,7 +733,9 @@ func (a *App) handleSearchLocked(cmd Command, now time.Time) {
 		a.searchOpen = false
 	case CmdSearch:
 		a.searchOpen = false
-	case CmdFilterPrev:
+	case CmdTab:
+		a.closeSearchApplyLocked()
+	case CmdTabPrev, CmdFilterPrev:
 		a.searchField.CyclePage(-1)
 	case CmdFilterNext:
 		a.searchField.CyclePage(1)
