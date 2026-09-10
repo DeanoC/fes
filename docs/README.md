@@ -18,6 +18,7 @@ host software and target root filesystem.
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
+| Use described-core settings and progress | [Core persistence](core-persistence.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
@@ -30,6 +31,10 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Persistence merge reconciliation](validation/2026-09-10-core-persistence-merge.md):
+  combined-source checks after integrating newer component main branches.
+- [Core persistence](validation/2026-09-09-core-persistence.md): settings, progress,
+  version compatibility and save-failure recovery; see the record for acceptance status.
 - [Core package library](validation/2026-09-09-core-package-library.md):
   installed versions, normal library launch, checked selection and rollback.
 - [RBF ABI acceptance](validation/2026-09-09-rbf-abi-acceptance.md):
@@ -70,6 +75,11 @@ and its [implementation plan](superpowers/plans/2026-09-09-core-package-library.
 describe immutable host installation, compatibility inspection and explicit
 ROM-less library selections. The operator commands and UI-facing API contract
 are linked from the [core package guide](core-packages.md).
+
+[Persistent core settings and progress](superpowers/specs/2026-09-09-core-persistence-design.md)
+is implemented: stable target-local data across compatible package versions,
+starting with standalone Pong. See the [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
+and [acceptance record](validation/2026-09-09-core-persistence.md).
 
 ## Earlier designs and plans
 
