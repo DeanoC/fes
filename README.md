@@ -290,6 +290,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   GPO[5]. Locked Yosys omits that port, so OSS attaches it after synthesis.
   Run `make sim EXP=700_m10k_aclr` and `make oss EXP=700_m10k_aclr`; no
   Quartus comparison lane is implemented.
+- `710_m10k_aclr_prim`, explicit `MISTRAL_M10K` with `.ACLR1(gp_out[5])`.
+  Yosys emits that port; OSS does not patch it. Run
+  `make sim EXP=710_m10k_aclr_prim` and `make oss EXP=710_m10k_aclr_prim`;
+  no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

@@ -239,6 +239,7 @@ class ExperimentPolicy:
     nextpnr_router: str = ""
     require_read_clock_arc: bool = False
     m10k_aclr1_gpo_bit: int | None = None
+    m10k_require_aclr1: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -273,6 +274,7 @@ class ExperimentPolicy:
             ("synth_json_mlab_init", self.synth_json_mlab_init),
             ("m10k_byte_enable", self.m10k_byte_enable),
             ("require_read_clock_arc", self.require_read_clock_arc),
+            ("m10k_require_aclr1", self.m10k_require_aclr1),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -653,7 +655,7 @@ class ExperimentPolicy:
             self._require_m10k_byte_enable(design)
         if self.m10k_dual_clock_width:
             self._require_m10k_dual_clock(design)
-        if self.m10k_aclr1_gpo_bit is not None:
+        if self.m10k_aclr1_gpo_bit is not None or self.m10k_require_aclr1:
             self._require_m10k_aclr1(design)
         if self.m10k_mixed_write_dbits:
             self._require_m10k_mixed_width(design)
@@ -1373,6 +1375,7 @@ class ExperimentPolicy:
             **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
             **({"m10k_aclr1_gpo_bit": self.m10k_aclr1_gpo_bit}
                if self.m10k_aclr1_gpo_bit is not None else {}),
+            **({"m10k_require_aclr1": True} if self.m10k_require_aclr1 else {}),
         }
 
 
@@ -4541,6 +4544,63 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/360_pll_clkena/sim/clkena_model.v",
                     ),
                     tb="experiments/700_m10k_aclr/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "710_m10k_aclr_prim": ExperimentPolicy(
+            name="710_m10k_aclr_prim",
+            sources=("experiments/710_m10k_aclr_prim/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            m10k_require_aclr1=True,
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/710_m10k_aclr_prim/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                        "experiments/710_m10k_aclr_prim/sim/m10k_aclr_model.v",
+                    ),
+                    tb="experiments/710_m10k_aclr_prim/sim/tb.cpp",
                 ),
             ),
         ),
