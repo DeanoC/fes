@@ -45,6 +45,24 @@ func TestGridVisibleRangeFollowsFocus(t *testing.T) {
 	}
 }
 
+func TestGridHitIndexFindsVisibleCell(t *testing.T) {
+	t.Parallel()
+	grid := Grid{}
+	grid.Layout(1280, 720)
+	grid.SetCount(20)
+	x, y, w, h, ok := grid.CellRect(1)
+	if !ok || w < 1 || h < 1 {
+		t.Fatalf("cell rect ok=%v %dx%d", ok, w, h)
+	}
+	got, hit := grid.HitIndex(x+w/2, y+h/2)
+	if !hit || got != 1 {
+		t.Fatalf("hit = %d ok=%v", got, hit)
+	}
+	if _, hit := grid.HitIndex(1, 1); hit {
+		t.Fatal("header should miss catalog cells")
+	}
+}
+
 func TestGridEmptyMoveIsNoop(t *testing.T) {
 	t.Parallel()
 	grid := Grid{}

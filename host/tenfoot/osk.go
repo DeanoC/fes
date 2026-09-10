@@ -177,18 +177,36 @@ func (k *OSK) CyclePage(delta int) {
 	k.clamp()
 }
 
-// SelectID focuses the key with id, switching page if needed.
+// SelectID focuses the key with id. Action keys reuse IDs on both pages, so
+// the current page is searched first; unique ids may still switch page.
 func (k *OSK) SelectID(id string) bool {
 	if id == "" {
 		return false
 	}
-	for p, rows := range oskLayouts() {
-		for r, row := range rows {
-			for c, key := range row {
-				if key.ID == id {
-					k.page, k.row, k.col = p, r, c
-					return true
-				}
+	if k.selectIDOnPage(id, k.page) {
+		return true
+	}
+	for p := range oskLayouts() {
+		if p == k.page {
+			continue
+		}
+		if k.selectIDOnPage(id, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func (k *OSK) selectIDOnPage(id string, p int) bool {
+	pages := oskLayouts()
+	if p < 0 || p >= len(pages) {
+		return false
+	}
+	for r, row := range pages[p] {
+		for c, key := range row {
+			if key.ID == id {
+				k.page, k.row, k.col = p, r, c
+				return true
 			}
 		}
 	}

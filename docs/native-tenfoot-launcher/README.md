@@ -46,7 +46,7 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 - GPU park destroys textures individually (preview is the parked exception)
 
 UI helpers in `host/tenfoot/draw.go` do not call `SDL_Render*` or
-`SDL_CreateTexture`. Window creation, events, gamepad, and text input stay
+`SDL_CreateTexture`. Window creation, events, gamepad, mouse, and text input stay
 in `host/tenfoot/sdl.go` until a later slice.
 
 | Backend | Construction | Role |
@@ -184,9 +184,13 @@ USB keyboard is first-class browse/nav on the SDL path (no gamepad required):
 arrows move focus, Enter launches or confirms, Esc backs out, Tab opens search
 (or confirms an open search; Shift+Tab opens filters, or pages an OSK). In the
 detail pane Tab cycles screenshots when more than one is present, otherwise it
-launches; Shift+Tab steps back. Letter shortcuts already patterned stay. While
+launches; Shift+Tab steps back. USB mouse/pointer is first-class on the same
+path: hover moves focus, and primary click activates (launch on the shelf or
+detail pane, type/confirm on the search OSK). Clicking empty space does not
+launch the previously focused title. Keyboard and mouse coexist; a gamepad is
+not required. Letter shortcuts already patterned stay. While
 a `fes.keyboard` play session is attached, sofa keys forward to the ZX81 matrix
-instead of the focus graph.
+instead of the focus graph, and pointer browse does not steal that session.
 
 Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
@@ -249,8 +253,11 @@ shelf while the view picker is open; attach/detach while now-playing), `/` or `f
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
 `o` to open settings, `g` to open the filter overlay, `-` / `=` to nudge the overscan inset. Down arrow still
-moves focus when idle, and opens the detail pane from the last row. Mac tenfoot
-is bring-up; the target product path is Pi kit tenfoot with a real USB keyboard.
+moves focus when idle, and opens the detail pane from the last row. USB mouse
+browse/nav: move the pointer over a cover, list row, overlay row, or OSK key to
+focus it; primary click launches or confirms. Mac tenfoot
+is bring-up; the target product path is Pi kit tenfoot with a real USB keyboard
+and mouse.
 
 ## Sofa settings
 
