@@ -347,7 +347,7 @@ class ManifestTests(unittest.TestCase):
                 },
             "authenticated_tools": {
                 "yosys": {
-                    "commit": "758968907c116f685f586e0ce8186bae0f8b448c",
+                    "commit": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
                     "path": "build/toolchain/install/bin/yosys",
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
@@ -358,7 +358,7 @@ class ManifestTests(unittest.TestCase):
                 },
             },
             "tool_pins": {
-                "yosys": "758968907c116f685f586e0ce8186bae0f8b448c",
+                "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
                 "nextpnr": "88cda8aeedf1d6cd48406844a5e8dced415c6ae5",
             },
             "reproducibility": {

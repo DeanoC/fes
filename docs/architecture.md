@@ -145,12 +145,19 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `758968907c116f685f586e0ce8186bae0f8b448c` is
+The current Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
+`758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
+asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
+`ACLR1`, with `ACLR0` tied low. Nonzero reset values remain fabric.
+Pair it with nextpnr `88cda8ae`.
+
+That pin sits on `758968907c116f685f586e0ce8186bae0f8b448c`,
 merged PR #11 (`74d285754bfbe78005cc4a65c7f849d3b8cf403f` onto
-`ae5db2a9cd2c0bd1ebc73fada70d6a76f1b908d1`). It exposes active-high
+`ae5db2a9cd2c0bd1ebc73fada70d6a76f1b908d1`). That pin exposes active-high
 `ACLR0`/`ACLR1` on `MISTRAL_M10K` and `MISTRAL_M10K_TDP` so an explicit
-primitive can drive the Mistral clear inputs. Inferred asynchronous
-read-output resets remain fabric. Pair it with nextpnr `88cda8ae`.
+primitive can drive the Mistral clear inputs. Pair that ACLR-port baseline
+with nextpnr `88cda8ae`.
 
 That pin sits on `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8`, which adds
 the HPS peripheral I2C primitive on `10891a9e0256a0eac70c329aa64c633902fc6bc6`.
@@ -1305,6 +1312,26 @@ INIT after release, a post-clear write, and restored written data after a
 second clear. Load JSON timed out; GPI and probe still passed. `stop`
 completed development reboot recovery and left the lease free.
 
+`720_m10k_aclr_infer` infers a 512-by-20 dual-clock M10K table with an
+asynchronous zero clear of the registered read output on GPO[5]. GPI
+signature `0xD428`. Yosys maps that reset onto `ACLR1`; OSS does not patch
+the port. Simulation checks INIT, write/read and the RTL async clear.
+See `experiments/720_m10k_aclr_infer/expected.md`.
+
+The OSS `720_m10k_aclr_infer` artifact has SHA-256
+`7d1118689ea7f471ec38a25d96718990e21fdf60ad5aff871f7c506552747961`
+and size 1,959,184 bytes. Yosys `da6373c0` inferred `ACLR1` onto `gp_out[5]`
+and `ACLR0` as constant 0 with `CFG_BYTE_ENABLE=1`. nextpnr packed one
+`MISTRAL_M10K` at `MISTRAL_M10K.5.33.0`. Its reported Fmax is 473.485 MHz
+against the 50 MHz constraint. Utilization is one M10K, one PLL, one HPS
+GP, and no DSP or MLAB. The current Yosys pin `da6373c0` with nextpnr
+`88cda8ae` reproduces those same RBF bytes. Exact-artifact kit diagnostics on
+2026-09-10 returned GPI signature `0xD428`, INIT words, output-register
+clear on GPO[5], restored INIT after release, a post-clear write, and
+restored written data after a second clear. Load JSON timed out; GPI and
+probe still passed. `stop` completed development reboot recovery and left
+the lease free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1323,7 +1350,8 @@ dedicated DDR input registers (fabric GPI only; GPIO-register timing
 uncharacterized), and dedicated DDR bidirectional I/O registers (fabric GPI
 only; GPIO-register timing uncharacterized), and M10K asynchronous output
 clear (fabric GPI only), and an explicit `MISTRAL_M10K` primitive with
-Yosys-emitted `ACLR1` (fabric GPI only). It does not establish native
+Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
+asynchronous read-output clear (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game
