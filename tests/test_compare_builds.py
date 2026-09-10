@@ -335,7 +335,7 @@ class CompareBuildsTests(unittest.TestCase):
                 if lane == "oracle"
                 else {
                     "yosys": {
-                        "commit": "758968907c116f685f586e0ce8186bae0f8b448c",
+                        "commit": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
                         "path": "build/toolchain/install/bin/yosys",
                         "sha256": _sha256(oss_yosys),
                     },
@@ -350,7 +350,7 @@ class CompareBuildsTests(unittest.TestCase):
                 {"quartus": provenance}
                 if lane == "oracle"
                 else {
-                    "yosys": "758968907c116f685f586e0ce8186bae0f8b448c",
+                    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
                     "nextpnr": "88cda8aeedf1d6cd48406844a5e8dced415c6ae5",
                 }
             ),
