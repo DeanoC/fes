@@ -269,7 +269,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 50.0, "system clock", "system_clock")
+    system = _frequency_row(timing.get("fmax"), 50.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
