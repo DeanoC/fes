@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast/internal/kitlease"
 )
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
@@ -18,6 +20,8 @@ var ErrKitLeaseLost = errors.New("kit lease unavailable; inspect target ownershi
 type kitLeaseStatus struct {
 	State       string    `json:"state"`
 	Generation  string    `json:"generation"`
+	Owner       string    `json:"owner,omitempty"`
+	Purpose     string    `json:"purpose,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	ExpiresInMS int64     `json:"expires_in_ms"`
 }
@@ -181,6 +185,14 @@ func (l *KitLease) Close(ctx context.Context) error {
 }
 func (c *Client) WithKitLease(l *KitLease) *Client { c.kitLease = l; return c }
 func (c *Client) KitLease() *KitLease              { return c.kitLease }
+
+func (c *Client) KitLeaseStatus(ctx context.Context) (kitlease.Status, error) {
+	var status kitlease.Status
+	err := c.doJSON(ctx, http.MethodGet, "/v1/kit/lease", nil, &status)
+	return status, err
+}
+
+func (l *KitLease) Held() bool { return l.currentToken() != "" }
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
 	case "/v1/library/core/load", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":

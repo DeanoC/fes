@@ -136,7 +136,13 @@ last-good snapshot and cover files under `/media/fat/fogcast/launcher-cache/` on
 FAT, separate from the ROM cache. Power-on paints that shelf and visible covers
 from disk before host games HTTP; an absent host shows `Offline - local library`.
 Replacing the system image does not wipe this tree. D-pad and A still browse
-that local shelf; launch still requires the host. Its live catalog opens as a living-room platform wheel
+that local shelf. When the host is absent, A may launch a title whose ROM is
+already verified under `/media/fat/fogcast/cache` by claiming the existing
+target lease as owner `kit-hostless` / purpose `offline-cache-hit-launch`.
+Foreign leases, unverified or `.part` bytes, ROM-less cores, and packages are
+refused with a clear reason and no FPGA mutation. Host return releases that
+hostless grant before the host claims. Package/ABI offline launch remains
+hold. D-pad browse does not take a lease. Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
 a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →

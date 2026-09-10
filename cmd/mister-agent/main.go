@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -202,6 +203,11 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second,
 		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics))
 	content := agent.NewContentController(coordinator, cache)
+	if launches, mapErr := targetcache.OpenLaunchMap(filepath.Join(targetCacheRoot, targetcache.LaunchMapName)); mapErr == nil {
+		content.SetLaunchMap(launches)
+	} else {
+		logger.Error("hostless launch map unavailable", "error", mapErr)
+	}
 	startup, cancel := context.WithTimeout(ctx, 40*time.Second)
 	coordinator.Initialize(startup)
 	cancel()

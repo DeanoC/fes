@@ -60,6 +60,44 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	}
 }
 
+func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	deadline := time.Now().Add(time.Second)
+	var grant kitlease.Grant
+	for {
+		var err error
+		grant, err = manager.Claim(kitlease.ClaimRequest{RequestID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Owner: kitlease.HostlessOwner, Purpose: kitlease.HostlessPurpose})
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	content := &fakeContentController{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithContent(content))
+	for _, path := range []string{"/v1/launch", "/v1/cast/start", "/v1/development/rbf", "/v1/input/attach"} {
+		request := httptest.NewRequest(http.MethodPost, path, nil)
+		request.Header.Set("Authorization", "Bearer bearer")
+		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("%s: %d", path, response.Code)
+		}
+	}
+	stop := httptest.NewRequest(http.MethodPost, "/v1/stop", nil)
+	stop.Header.Set("Authorization", "Bearer bearer")
+	stop.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	stopResponse := httptest.NewRecorder()
+	handler.ServeHTTP(stopResponse, stop)
+	if stopResponse.Code != 200 {
+		t.Fatalf("hostless stop: %d", stopResponse.Code)
+	}
+}
+
 type leaseStreamController struct{ backend net.Conn }
 
 func (*leaseStreamController) Attach(context.Context, input.Spec) error { return nil }

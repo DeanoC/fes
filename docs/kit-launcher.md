@@ -22,7 +22,10 @@ artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache
 replacing the system image does not wipe it. Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
 host shows `Offline - local library` rather than an endless reconnect. Local D-pad
-and A still browse that snapshot. Launch still requires the host. See [the host connection contract](launcher-host.md) for listener
+and A still browse that snapshot. Offline A launches only a verified ROM cache
+hit by claiming the on-kit agent lease as `kit-hostless` / `offline-cache-hit-launch`;
+cache misses, packages, ROM-less titles, and a foreign lease stay on the shelf
+with `Needs host` or `Kit in use`. See [the host connection contract](launcher-host.md) for listener
 configuration and exact HTTP/input-stream schemas. Host endpoint configuration is
 explicit; target discovery is separate.
 
