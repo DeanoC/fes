@@ -154,11 +154,18 @@ including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`d990fb2d`.
+`88cda8ae`.
 
-The current nextpnr pin `d990fb2d92931e3ec1fc5d35e5ca1342558fa248` is
+The current nextpnr pin `88cda8aeedf1d6cd48406844a5e8dced415c6ae5` is
+merged PR #49 (`71426e88e0c76de41f3cf06dd40b032dd8d1d467` onto
+`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`). It adds Cyclone V M10K
+asynchronous clear: logical `ACLR0`/`ACLR1` map to physical `ACLR[0:1]`.
+Omitted ports materialise as inactive `PIN_0`. Fabric or inverted
+controls enable the matching output-clear register. Address-clear
+enables stay disabled. No Mistral database tables change. It sits on
+`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`,
 merged PR #46 (`fe411b3953d364a31493f7e6d457b0f7094695b1` stacked onto
-`9020c5f43f085461bc2710da74e59c8a7bc32564`). It adds Cyclone V DDR
+`9020c5f43f085461bc2710da74e59c8a7bc32564`). That pin adds Cyclone V DDR
 bidirectional I/O registers: a width-one `altddio_bidir` with connected
 `datain_h`/`datain_l`, `dataout_h`/`dataout_l`, `combout`, shared clock
 and OE packs into `MISTRAL_DDRBIDIR` on the existing GPIO/DQS16 site.
@@ -1251,6 +1258,27 @@ beats for ten samples. Load JSON timed out; GPI and probe still passed.
 This does not measure the registered pin waveform and is not
 bidirectional-interface timing closure.
 
+`700_m10k_aclr` exposes a 512-by-20 dual-clock M10K table on HPS GP with
+fabric `ACLR1` on GPO[5]. GPI signature `0xD426`. Locked Yosys has no
+`ACLR` ports on `MISTRAL_M10K`, so OSS attaches GPO[5] after synthesis.
+nextpnr maps that net onto `ACLR[1]` and enables the bottom output-clear
+register. Simulation checks INIT and write/read; the kit probe checks that
+asserting GPO[5] clears sampled `q` while leaving memory contents intact.
+See `experiments/700_m10k_aclr/expected.md`.
+
+The OSS `700_m10k_aclr` artifact has SHA-256
+`90bea3cb8720ed917818bef87cee79efa38491a47092351b831547b3fb330f77`
+and size 1,959,323 bytes. nextpnr packed one `MISTRAL_M10K` at
+`MISTRAL_M10K.5.34.0` with fabric `ACLR1` and omitted `ACLR0`. Its
+reported Fmax is 470.367 MHz against the 50 MHz constraint. Utilization
+is one M10K, one PLL, one HPS GP, and no DSP or MLAB. The current
+nextpnr pin `88cda8ae` with Yosys `fca8ca0a` reproduces those same RBF bytes.
+Exact-artifact kit diagnostics on 2026-09-10 returned GPI signature
+`0xD426`, INIT words, output-register clear on GPO[5], restored INIT
+after release, a post-clear write, and restored written data after a
+second clear. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1267,7 +1295,8 @@ only; GPIO-register timing uncharacterized), and dedicated SDR input
 registers (fabric GPI only; GPIO-register timing uncharacterized), and
 dedicated DDR input registers (fabric GPI only; GPIO-register timing
 uncharacterized), and dedicated DDR bidirectional I/O registers (fabric GPI
-only; GPIO-register timing uncharacterized). It does not establish native
+only; GPIO-register timing uncharacterized), and M10K asynchronous output
+clear (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game
