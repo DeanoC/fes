@@ -26,7 +26,7 @@ BOARD_CONSTRAINTS = (
     "boards/de10nano/clocks.sdc",
 )
 ORDINARY_RESOURCES = frozenset(
-    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO", "MISTRAL_DDROUT", "MISTRAL_SDROUT", "MISTRAL_SDRIN", "MISTRAL_DDRIN"}
+    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO", "MISTRAL_DDROUT", "MISTRAL_SDROUT", "MISTRAL_SDRIN", "MISTRAL_DDRIN", "MISTRAL_DDRBIDIR"}
 )
 MLAB_INIT_CELL = re.compile(r"^storage\.stored\.([0-7])\.0\.0$")
 
@@ -4379,6 +4379,43 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/680_m10k_mix20be10/sim/m10k_mixbe_model.v",
                     ),
                     tb="experiments/680_m10k_mix20be10/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "690_ddr_bidir": ExperimentPolicy(
+            name="690_ddr_bidir",
+            sources=("experiments/690_ddr_bidir/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/690_ddr_bidir/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altddio_bidir": 1,
+            },
+            required_synth_cells={"altddio_bidir": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/690_ddr_bidir/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/690_ddr_bidir/sim/altddio_bidir_model.v",
+                    ),
+                    tb="experiments/690_ddr_bidir/sim/tb.cpp",
                 ),
             ),
         ),
