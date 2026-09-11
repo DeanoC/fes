@@ -51,7 +51,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertIn("3", nextpnr)
+        self.assertIn("7", nextpnr)
         self.assertIn("router1", nextpnr)
         self.assertIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
