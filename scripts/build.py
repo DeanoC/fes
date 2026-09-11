@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the pinned native system using the existing component recipes."""
+"""Build the pinned native system using the FES image recipe."""
 import argparse
 import fcntl
 import hashlib
@@ -20,6 +20,7 @@ import bundle as core_bundle
 from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
+IMAGE = ROOT / "image"
 MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/media.py", "scripts/media_inputs.py", "scripts/media_container.py",
     "scripts/media_inside.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
@@ -29,6 +30,25 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "containers/boot-media/packages.sha256"))
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
                            if path not in MEDIA_RECIPE_FILES)
+IMAGE_RECIPE_NAMES = (
+    "Makefile",
+    "build/target-image.sources.lock.toml",
+    "build/target-image-container-packages.sha256",
+    "build/target-image-kernel-defconfig.sha256",
+)
+IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts")
+
+
+def image_recipe_files(root=ROOT):
+    image = root / "image"
+    paths = [image / name for name in IMAGE_RECIPE_NAMES if (image / name).is_file()]
+    for directory in IMAGE_RECIPE_DIRS:
+        base = image / directory
+        if not base.is_dir():
+            continue
+        paths.extend(path for path in sorted(base.rglob("*")) if path.is_file()
+                     and "tests" not in path.parts)
+    return tuple(paths)
 
 def run(args, **kwargs):
     print("+ " + " ".join(map(str, args)), flush=True)
@@ -99,7 +119,8 @@ def build_fingerprint(revisions, profile, toolchain):
     host_profile = dict(profile)
     host_profile.pop("fpga_packages", None)
     data = {"sources": revisions, "profile": host_profile, "go": toolchain,
-            "recipe": recipe_fingerprint(BUILD_RECIPE_FILES)}
+            "recipe": recipe_fingerprint(BUILD_RECIPE_FILES),
+            "image_recipe": recipe_fingerprint(image_recipe_files())}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -508,29 +529,32 @@ def main():
             image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
+        env["FOGCAST_DIR"] = str(fogcast)
         # The host has a small /tmp tmpfs; Go temporary files belong in out/.
         temp = ROOT / "out/tmp"
         temp.mkdir(exist_ok=True)
         env["GOTMPDIR"] = str(temp)
-        child_make = ["make", "-C", fogcast, "CONTAINER_RUNTIME=" + container, "VERSION=" + profile["version"]]
+        fogcast_make = ["make", "-C", fogcast, "CONTAINER_RUNTIME=" + container, "VERSION=" + profile["version"]]
+        image_make = ["make", "-C", IMAGE, "FOGCAST_DIR=" + str(fogcast),
+                      "CONTAINER_RUNTIME=" + container]
         if args.action == "dev":
             if profile.get("bundle_interface") != "selection":
                 raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
             bundles = build_bundles(revisions, env, cores)
-            build_development(ROOT, fogcast, runtime, args.profile, profile, image_info,
-                              image_fp, env, child_make, bundles, package)
+            build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
+                              image_fp, env, fogcast_make, image_make, bundles, package)
             return
         if args.action in ("build", "host", "rebuild"):
             if args.action != "rebuild" and reusable(output, "host", fp):
                 print("Host: reusing verified output", flush=True)
             else:
-                run(child_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
+                run(fogcast_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
                     "FOGCAST_GOARCH=" + profile["host_arch"],
                     "FOGCAST_OUTPUT=" + str(output / "fogcast"),
                     "REVISION=" + revisions["FogCast"]], env=env)
-                run(child_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
+                run(fogcast_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
                     "FOGCAST_GOARCH=" + profile["host_arch"],
                     "FOGCAST_API_OUTPUT=" + str(output / "fogcast-api"),
                     "REVISION=" + revisions["FogCast"]], env=env)
@@ -546,14 +570,15 @@ def main():
                         validate_bundle(output, recipe_source, revisions["misteross"], core)
             else:
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
-                source_lock = tomllib.loads((fogcast / "build/target-image.sources.lock.toml").read_text())
+                source_lock = tomllib.loads((IMAGE / "build/target-image.sources.lock.toml").read_text())
                 base = source_lock["container"]
                 ref = base["image"] + "@" + base["digest"]
                 present = subprocess.run([container, "image", "inspect", ref], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if present.returncode:
                     run([container, "pull", "--platform", base["platform"], ref])
-                run(child_make + ["build-target-image-lock-container"], env=env)
-                run([fogcast / "scripts/target-image-container.sh", "fetch",
+                run(fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
+                run(image_make + ["build-target-image-lock-container"], env=env)
+                run([IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=env)
                 if profile.get("fpga_source") == "misteross":
                     bundles = build_bundles(revisions, env, cores, args.action == "rebuild")
@@ -562,26 +587,25 @@ def main():
                     recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
                     manifest = core_bundle.load(bundle_dir, recipe_sha)
                     if profile.get("bundle_interface") == "selection":
-                        run(child_make + ["target-image-native",
+                        run(image_make + ["target-image-native",
                             "LIBMISTER_RUNTIME_DIR=" + str(runtime),
                             *bundle_arguments(cores, bundles), *package_arguments(package)], env=env)
                     else:
-                        run([fogcast / "scripts/target-image-container.sh", "fetch",
+                        run([IMAGE / "scripts/target-image-container.sh", "fetch",
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
-                        core_bundle.prepare(fogcast, bundle_dir, recipe_sha)
-                        run(child_make + ["build-agent"], env=env)
-                        run([fogcast / "scripts/build-target-image.sh", "--fetch", "native-dev"],
+                        core_bundle.prepare(fogcast, bundle_dir, recipe_sha, cache_root=IMAGE)
+                        run([IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
                             env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
-                        run([fogcast / "scripts/build-target-image.sh", "native-dev"],
+                        run([IMAGE / "scripts/build-target-image.sh", "native-dev"],
                             env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
                 else:
                     manifest = None
-                    run(child_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
+                    run(image_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
-                run(child_make + ["target-image-native-verify"],
+                run(image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                              **dict(argument.split("=", 1) for argument in package_arguments(package))))
-                built = fogcast / "build/output/target-image/native-dev"
+                built = IMAGE / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
                 if profile.get("bundle_interface") == "selection":
                     names.extend(core + ".selection.toml" for core in cores)
@@ -608,21 +632,20 @@ def main():
                 recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
                 for core in cores:
                     validate_bundle(output, recipe_source, revisions["misteross"], core)
-                # A new invocation starts from the pinned FogCast commit. Recreate the
-                # generated lock/cache overlay from the published bundle before asking
-                # FogCast to verify the already-built image.
+                # Recreate the generated lock/cache overlay from the published bundle
+                # before verifying the already-built image.
                 if profile.get("bundle_interface") != "selection":
-                    core_bundle.prepare(fogcast, output, recipe_sha)
-            built = fogcast / "build/output/target-image/native-dev/linux.img"
+                    core_bundle.prepare(fogcast, output, recipe_sha, cache_root=IMAGE)
+            built = IMAGE / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
-            run(child_make + ["target-image-native-verify"],
+            run(image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                              **dict(argument.split("=", 1) for argument in package_arguments(package))))
-            run(child_make + ["target-image-native-qemu-smoke"],
+            run(image_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                          **dict(argument.split("=", 1) for argument in package_arguments(package))))
-            shutil.copy2(fogcast / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
+            shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
             if evidence.get("run_1_sha256") != actual or evidence.get("run_2_sha256") != actual:

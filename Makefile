@@ -25,6 +25,7 @@ doctor build host image verify rebuild dev:
 	$(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
 test:
 	$(PYTHON) -m unittest discover -s tests -v
+	$(MAKE) -C image test FOGCAST_DIR="$(abspath sources/FogCast)"
 check:
 	$(PYTHON) scripts/consistency.py
 

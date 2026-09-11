@@ -379,13 +379,15 @@ def prepare(root, profile):
     cold['reproducibility_sha256'] = digest(output / 'reproducibility.txt')
     lock = MediaLock.load(root / 'boot-media.lock.toml')
     payloads = resolve_payloads(root, lock, cold_build.run)
-    inputs = ImageInputs(output / 'linux.img', fogcast / 'build/cache/target-image/native/idle.rbf',
+    image = root / 'image'
+    inputs = ImageInputs(output / 'linux.img', image / 'build/cache/target-image/native/idle.rbf',
                          payloads.kernel, payloads.uboot, provenance=provenance_for(root, fogcast, cold))
     verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
     env = dict(env, NATIVE_RUNTIME_SYSTEMS=' '.join(cores),
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
-               TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'))
-    return cold, fogcast, env, inputs, lock
+               TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
+               FOGCAST_DIR=str(fogcast))
+    return cold, fogcast, image, env, inputs, lock
 
 
 def media_fingerprint(cold, lock_path, provision_sha, launcher_sha=None):
@@ -398,8 +400,8 @@ def media_fingerprint(cold, lock_path, provision_sha, launcher_sha=None):
 
 
 @contextmanager
-def child_scratch(fogcast):
-    base = fogcast / 'build/output/target-image'
+def child_scratch(image):
+    base = image / 'build/output/target-image'
     base.mkdir(parents=True, exist_ok=True)
     staged = base / 'media-verify'
     log = base / 'native-dev/qemu-smoke.log'
@@ -451,9 +453,9 @@ def child_scratch(fogcast):
             shutil.rmtree(saved)
 
 
-def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env, *, rootfs_verified=True):
+def validate_artifact(generation, inputs, lock, provision_sha, runner, image, env, *, rootfs_verified=True):
     runner.verify(generation, inputs, lock, provision_sha, rootfs_verified=rootfs_verified)
-    with child_scratch(fogcast) as staged:
+    with child_scratch(image) as staged:
         extracted = staged / 'linux.img'
         runner.extract(generation, extracted)
         if (extracted.is_symlink() or not extracted.is_file()
@@ -461,7 +463,7 @@ def validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, 
                 or digest(extracted) != digest(inputs.rootfs)):
             raise ValueError('embedded rootfs differs from verified cold image')
         extracted.chmod(0o600)
-        runner.child_verify(fogcast, staged, env)
+        runner.child_verify(image, staged, env)
 
 
 def receipt_for(generation, fingerprint, info, assembly_hashes):
@@ -551,7 +553,7 @@ def current_generation(media_root):
         raise ValueError('media current is missing or invalid; run make media') from None
 
 
-def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env, expected_image=None):
+def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, image, env, expected_image=None):
     candidate = scratch / 'generation'
     candidate.mkdir(mode=0o700)
     hashes = runner.assemble(candidate, inputs, lock)
@@ -562,7 +564,7 @@ def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner,
         raise ValueError('retained disk differs from current assembly policy or selected inputs')
     for path in candidate.iterdir():
         path.chmod(0o600)
-    validate_artifact(candidate, inputs, lock, provision_sha, runner, fogcast, env, rootfs_verified=False)
+    validate_artifact(candidate, inputs, lock, provision_sha, runner, image, env, rootfs_verified=False)
     write_manifest(candidate / 'fes-media.toml', manifest_data(candidate / 'fes.img', inputs, lock,
                    provision_sha, hashes, rootfs_verified=True))
     runner.verify(candidate, inputs, lock, provision_sha, rootfs_verified=True)
@@ -578,7 +580,7 @@ def assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner,
     return candidate
 
 
-def retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env):
+def retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, image, env):
     image_sha = digest(candidate / 'fes.img')
     evidence_sha = digest(candidate / 'media.json')
     generation = generation_path(media_root, image_sha + '/' + evidence_sha)
@@ -587,7 +589,7 @@ def retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fo
         raise ValueError('media disk identity directory must be owner-only')
     if generation.exists():
         provision_sha = validate_receipt(generation, cold, root)
-        validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
+        validate_artifact(generation, inputs, lock, provision_sha, runner, image, env)
     else:
         os.rename(candidate, generation)
         fsync_dir(generation.parent)
@@ -628,7 +630,7 @@ def build(root, profile=PROFILE, agent_config=None, runner=None, *, auto_agent_c
     root = Path(root).resolve()
     require_profile(profile)
     with operation(root, profile):
-        cold, fogcast, env, inputs, lock = prepare(root, profile)
+        cold, fogcast, image, env, inputs, lock = prepare(root, profile)
         media_root = root / 'out' / profile / 'media'
         if media_root.is_symlink() or (media_root / 'generations').is_symlink():
             raise ValueError('media publication directories must not be symlinks')
@@ -639,19 +641,19 @@ def build(root, profile=PROFILE, agent_config=None, runner=None, *, auto_agent_c
             launcher, launcher_sha = resolve_launcher_config(snapshot, scratch, auto=auto_agent_config and agent_config is None)
             inputs = replace(inputs, agent_config=snapshot, launcher_config=launcher, launcher_config_sha256=launcher_sha)
             runner = runner or Runner(root, lock, env)
-            candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env)
-            generation = retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
+            candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, image, env)
+            generation = retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, image, env)
             publish_current(media_root, generation, scratch)
             return Result(generation)
 
 
-def verify_selected(root, media_root, generation, scratch, cold, fogcast, env, inputs, lock, runner):
+def verify_selected(root, media_root, generation, scratch, cold, image, env, inputs, lock, runner):
     receipt = read_receipt(generation)
     provision_sha = receipt['inputs']['provision_sha256']
     fp, info = media_fingerprint(cold, root / 'boot-media.lock.toml', provision_sha, receipt['inputs'].get('launcher_config_sha256'))
     inputs = replace(inputs, launcher_config_sha256=receipt['inputs'].get('launcher_config_sha256'))
     if generation.parent.name != 'generations' and receipt['fingerprint'] == fp and receipt['inputs'] == info:
-        validate_artifact(generation, inputs, lock, provision_sha, runner, fogcast, env)
+        validate_artifact(generation, inputs, lock, provision_sha, runner, image, env)
         return generation
     # Historical evidence never authorizes current checks. Reassemble twice
     # with the current recipe and require exactly the retained disk bytes.
@@ -671,22 +673,22 @@ def verify_selected(root, media_root, generation, scratch, cold, fogcast, env, i
             raise ValueError('embedded launcher config differs from retained evidence')
         launcher.chmod(0o600)
     inputs = replace(inputs, agent_config=snapshot, launcher_config=launcher)
-    candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, fogcast, env,
+    candidate = assemble_candidate(scratch, cold, root, inputs, lock, provision_sha, runner, image, env,
                                    expected_image=receipt['image_sha256'])
-    return retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, fogcast, env)
+    return retain_candidate(candidate, media_root, cold, root, inputs, lock, runner, image, env)
 
 
 def verify(root, profile=PROFILE, runner=None):
     root = Path(root).resolve()
     require_profile(profile)
     with operation(root, profile):
-        cold, fogcast, env, inputs, lock = prepare(root, profile)
+        cold, fogcast, image, env, inputs, lock = prepare(root, profile)
         media_root = root / 'out' / profile / 'media'
         generation = current_generation(media_root)  # Resolve the selector once.
         runner = runner or Runner(root, lock, env)
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
-            selected = verify_selected(root, media_root, generation, scratch, cold, fogcast, env, inputs, lock, runner)
+            selected = verify_selected(root, media_root, generation, scratch, cold, image, env, inputs, lock, runner)
             if selected != generation:
                 publish_current(media_root, selected, scratch, previous_target=generation.relative_to(media_root))
             return Result(selected)
@@ -696,13 +698,13 @@ def rollback(root, generation, profile=PROFILE, runner=None):
     root = Path(root).resolve()
     require_profile(profile)
     with operation(root, profile):
-        cold, fogcast, env, inputs, lock = prepare(root, profile)
+        cold, fogcast, image, env, inputs, lock = prepare(root, profile)
         media_root = root / 'out' / profile / 'media'
         candidate = generation_path(media_root, generation)
         runner = runner or Runner(root, lock, env)
         with tempfile.TemporaryDirectory(prefix='.staging-', dir=media_root) as temporary:
             scratch = Path(temporary)
-            selected = verify_selected(root, media_root, candidate, scratch, cold, fogcast, env, inputs, lock, runner)
+            selected = verify_selected(root, media_root, candidate, scratch, cold, image, env, inputs, lock, runner)
             publish_current(media_root, selected, scratch)
             return Result(selected)
 
@@ -842,7 +844,7 @@ class Runner:
         self.disk(['mcopy', '-i', self.path(generation / 'fes.img') + '@@' + str(PART1_OFFSET),
                    '::/fogcast/launcher.json', self.path(destination)])
 
-    def child_verify(self, fogcast, staged, env):
+    def child_verify(self, image, staged, env):
         write_private(staged / 'verify.sh', CHILD_VERIFY.encode())
         guard = staged / 'bin'
         guard.mkdir(mode=0o700)
@@ -851,7 +853,7 @@ class Runner:
         name = 'fes-media-' + uuid.uuid4().hex
         runtime_shim = staged / 'container-runtime'
         runtime = shlex.quote(self.runtime)
-        # The selected FogCast wrapper constructs its pinned container arguments;
+        # The FES image wrapper constructs its pinned container arguments;
         # turn only its final run into create, then start the returned ID here.
         write_private(runtime_shim, ('#!/bin/sh\nif [ "${1:-}" = run ]; then\n'
                       '  shift\n  exec ' + runtime + ' create --name ' + name
@@ -859,7 +861,7 @@ class Runner:
                       + ' "$@"\nfi\nexec ' + runtime + ' "$@"\n').encode())
         runtime_shim.chmod(0o700)
         try:
-            self.create_and_start([fogcast / 'scripts/target-image-container.sh', 'run', 'sh',
+            self.create_and_start([image / 'scripts/target-image-container.sh', 'run', 'sh',
                       '/work/build/output/target-image/media-verify/verify.sh'], name,
                      env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)))
         except ValueError:

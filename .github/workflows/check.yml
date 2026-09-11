@@ -23,6 +23,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.FES_COMPONENTS_TOKEN }}
           persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: sources/FogCast/go.mod
+          cache-dependency-path: sources/FogCast/go.sum
       - name: Provision pinned boot-media test container
         run: |
           python3 - <<'PY'

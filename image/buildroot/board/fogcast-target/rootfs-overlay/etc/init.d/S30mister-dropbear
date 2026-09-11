@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+case "${1:-start}" in
+  start)
+    /bin/mkdir -p /run/dropbear
+    /bin/chmod 0700 /run/dropbear
+    ;;
+  stop) : ;;
+  *)
+    printf 'usage: %s start|stop\n' "$0" >&2
+    exit 2
+    ;;
+esac

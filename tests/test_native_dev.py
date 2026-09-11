@@ -27,7 +27,9 @@ class NativeDevTest(unittest.TestCase):
     def test_base_key_tracks_recipes_not_application_revision(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            image = root / 'image'
+            fogcast = root / 'fogcast'
+            subprocess.run(['git', 'init', '-q', str(image)], check=True)
             files = {
                 'buildroot/configs/native': 'base',
                 'containers/target-image/Dockerfile': 'compiler',
@@ -35,31 +37,35 @@ class NativeDevTest(unittest.TestCase):
                 'build/target-image-container-packages.sha256': 'packages',
                 'scripts/build-target-image.sh': 'recipe',
                 'Makefile': 'make',
-                'cmd/mister-agent/main.go': 'agent',
-                'build/native-runtime.inputs.lock.toml': '[mister_runtime]\ncommit="old"\nrepository="repo"\n',
             }
             for name, data in files.items():
-                path = root / name
+                path = image / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(data)
-            subprocess.run(['git', '-C', str(root), 'add', '.'], check=True)
-            before = native_dev.base_key(root)
-            for name in ('cmd/mister-agent/main.go', 'build/native-runtime.inputs.lock.toml'):
-                (root / name).write_text('[mister_runtime]\ncommit="new"\nrepository="repo"\n' if name.endswith('.toml') else 'changed')
-            self.assertEqual(before, native_dev.base_key(root))
+            (fogcast / 'build').mkdir(parents=True)
+            (fogcast / 'cmd/mister-agent').mkdir(parents=True)
+            (fogcast / 'cmd/mister-agent/main.go').write_text('agent')
+            (fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+                '[mister_runtime]\ncommit="old"\nrepository="repo"\n')
+            subprocess.run(['git', '-C', str(image), 'add', '.'], check=True)
+            before = native_dev.base_key(image, fogcast)
+            (fogcast / 'cmd/mister-agent/main.go').write_text('changed')
+            (fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+                '[mister_runtime]\ncommit="new"\nrepository="repo"\n')
+            self.assertEqual(before, native_dev.base_key(image, fogcast))
             for name in ('buildroot/configs/native', 'containers/target-image/Dockerfile',
                          'build/target-image.sources.lock.toml',
                          'build/target-image-container-packages.sha256',
                          'scripts/build-target-image.sh', 'Makefile'):
                 with self.subTest(name=name):
-                    original = (root / name).read_bytes()
-                    (root / name).write_bytes(b'changed base')
-                    self.assertNotEqual(before, native_dev.base_key(root))
-                    (root / name).write_bytes(original)
-            path = root / 'buildroot/new-patch'
+                    original = (image / name).read_bytes()
+                    (image / name).write_bytes(b'changed base')
+                    self.assertNotEqual(before, native_dev.base_key(image, fogcast))
+                    (image / name).write_bytes(original)
+            path = image / 'buildroot/new-patch'
             path.write_text('new')
-            subprocess.run(['git', '-C', str(root), 'add', str(path)], check=True)
-            self.assertNotEqual(before, native_dev.base_key(root))
+            subprocess.run(['git', '-C', str(image), 'add', str(path)], check=True)
+            self.assertNotEqual(before, native_dev.base_key(image, fogcast))
 
     def test_seed_requires_matching_sources_and_intact_cold_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -108,21 +114,22 @@ class NativeDevTest(unittest.TestCase):
             (output / 'linux.img').write_bytes(b'dev')
             build.write_receipt(output, 'development', 'same-inputs', ['linux.img'])
             with patch.object(native_dev, 'run', side_effect=AssertionError('unexpected rebuild')):
-                native_dev.build_development(root, None, None, 'native-integration-dev',
-                    {'bundle_interface': 'selection'}, {}, 'same-inputs', {}, [], None)
+                native_dev.build_development(root, None, None, None, 'native-integration-dev',
+                    {'bundle_interface': 'selection'}, {}, 'same-inputs', {}, [], [], None)
 
     def test_four_core_build_receipts_cover_every_selected_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            image = root / 'image'
             fogcast = root / 'FogCast'
-            (fogcast / 'build').mkdir(parents=True)
-            (fogcast / 'scripts').mkdir()
-            (fogcast / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
-            (fogcast / 'build/target-image.sources.lock.toml').write_text(
+            (image / 'build').mkdir(parents=True)
+            (image / 'scripts').mkdir()
+            (image / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
+            (image / 'build/target-image.sources.lock.toml').write_text(
                 '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
             cores = ('megadrive', 'pong', 'snes', 'nes')
             bundles = {core: root / core for core in cores}
-            built = fogcast / 'build/output/target-image/fes-development'
+            built = image / 'build/output/target-image/fes-development'
             built.mkdir(parents=True)
             for name in ['linux.img', 'manifest.tsv', 'library-report.tsv']:
                 (built / name).write_text(name)
@@ -154,9 +161,9 @@ class NativeDevTest(unittest.TestCase):
                  patch.object(native_dev, 'git', return_value='a' * 40), \
                  patch.object(native_dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)), \
                  patch.object(native_dev, 'run') as run:
-                native_dev.build_development(root, fogcast, root / 'runtime', 'native-integration-dev',
+                native_dev.build_development(root, image, fogcast, root / 'runtime', 'native-integration-dev',
                     {'bundle_interface': 'selection', 'fpga_cores': list(cores)}, {}, 'candidate',
-                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], bundles, package)
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'], bundles, package)
             for call in run.call_args_list:
                 if str(call.args[0][0]).endswith('verify-target-image.sh'):
                     self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
@@ -179,11 +186,11 @@ class NativeDevTest(unittest.TestCase):
             published.chmod(0o555)
             with patch.object(native_dev, 'run', side_effect=AssertionError('must not rebuild')), \
                  self.assertRaisesRegex(ValueError, 'changed|differs'):
-                native_dev.build_development(root, fogcast, root / 'runtime',
+                native_dev.build_development(root, image, fogcast, root / 'runtime',
                     'native-integration-dev',
                     {'bundle_interface': 'selection', 'fpga_cores': list(cores)}, {},
                     'candidate', {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'],
-                    bundles, package)
+                    ['make'], bundles, package)
             published.chmod(0o755)
             (published / '.unreceipted').unlink()
             published.chmod(0o555)
@@ -194,18 +201,19 @@ class NativeDevTest(unittest.TestCase):
     def test_package_free_development_rebuild_removes_previous_package_outputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            image = root / 'image'
             fogcast = root / 'FogCast'
-            (fogcast / 'build').mkdir(parents=True)
-            (fogcast / 'scripts').mkdir()
-            (fogcast / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
-            (fogcast / 'build/target-image.sources.lock.toml').write_text(
+            (image / 'build').mkdir(parents=True)
+            (image / 'scripts').mkdir()
+            (image / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
+            (image / 'build/target-image.sources.lock.toml').write_text(
                 '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
             cores = ('megadrive',)
             bundles = {'megadrive': root / 'megadrive'}
             bundles['megadrive'].mkdir()
             for name in ('megadrive.rbf', 'megadrive-rbf.toml'):
                 (bundles['megadrive'] / name).write_text(name)
-            built = fogcast / 'build/output/target-image/fes-development'
+            built = image / 'build/output/target-image/fes-development'
             built.mkdir(parents=True)
             for name in ('linux.img', 'manifest.tsv', 'library-report.tsv',
                          'megadrive.selection.toml'):
@@ -221,10 +229,10 @@ class NativeDevTest(unittest.TestCase):
                  patch.object(native_dev, 'git', return_value='a' * 40), \
                  patch.object(native_dev.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)), \
                  patch.object(native_dev, 'run'):
-                native_dev.build_development(root, fogcast, root / 'runtime',
+                native_dev.build_development(root, image, fogcast, root / 'runtime',
                     'native-integration-dev', {'bundle_interface': 'selection'}, {},
                     'package-free', {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'},
-                    ['make'], bundles, None)
+                    ['make'], ['make'], bundles, None)
             self.assertFalse((output / 'fes-pong.package-selection.toml').exists())
             self.assertFalse((output / 'core-packages').exists())
             build.verify_package_outputs(output, None)

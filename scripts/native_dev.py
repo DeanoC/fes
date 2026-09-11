@@ -1,4 +1,4 @@
-"""One persistent diagnostic build using the selected child's image recipes."""
+"""One persistent diagnostic build using the FES image recipe."""
 import hashlib
 import json
 import os
@@ -19,9 +19,9 @@ WORK = '/target-image-output/work-2-native-dev'
 EXPORT = '/work/build/output/target-image/fes-development'
 
 
-def base_key(fogcast):
-    names = git(fogcast, 'ls-files', '-z').split('\0')
-    files = {name: digest(fogcast / name) for name in names if name and (
+def base_key(image, fogcast):
+    names = git(image, 'ls-files', '-z').split('\0')
+    files = {name: digest(image / name) for name in names if name and (
         name.startswith(('buildroot/', 'containers/target-image/', 'scripts/'))
         or name in ('Makefile', 'build/target-image.sources.lock.toml',
                     'build/target-image-container-packages.sha256'))}
@@ -88,8 +88,8 @@ mv /dest/seed-in-progress /dest/work-2-native-dev
          sha, os.getuid(), os.getgid()])
 
 
-def build_development(root, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, child_make, bundles, package=None):
+def build_development(root, image, fogcast, runtime, profile_name, profile, info,
+                      fingerprint, env, fogcast_make, image_make, bundles, package=None):
     if profile.get('bundle_interface') != 'selection':
         raise ValueError('make dev requires native-integration-dev; historical profiles stay cold')
     output = root / 'out' / profile_name / 'development'
@@ -99,13 +99,13 @@ def build_development(root, fogcast, runtime, profile_name, profile, info,
         return
     cores = selected_cores(profile)
     selection_args = bundle_arguments(cores, bundles) + package_arguments(package)
-    key = base_key(fogcast)
+    key = base_key(image, fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
     # A failed invocation must not leave an older success receipt for this run.
     (output / 'development.json').unlink(missing_ok=True)
-    env = dict(env, TARGET_IMAGE_OUTPUT_VOLUME=volume)
-    source_lock = tomllib.loads((fogcast / 'build/target-image.sources.lock.toml').read_text())
+    env = dict(env, TARGET_IMAGE_OUTPUT_VOLUME=volume, FOGCAST_DIR=str(fogcast))
+    source_lock = tomllib.loads((image / 'build/target-image.sources.lock.toml').read_text())
     base = source_lock['container']
     container = env['TARGET_IMAGE_CONTAINER_RUNTIME']
     ref = base['image'] + '@' + base['digest']
@@ -114,18 +114,19 @@ def build_development(root, fogcast, runtime, profile_name, profile, info,
         run([container, 'pull', '--platform', base['platform'], ref])
     seed_base(container, base, output_volume(root, profile_name), volume,
               seed_digest(output.parent, info))
-    run(child_make + ['build-target-image-lock-container'], env=env)
-    run([fogcast / 'scripts/target-image-container.sh', 'fetch',
+    run(fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
+    run(image_make + ['build-target-image-lock-container'], env=env)
+    run([image / 'scripts/target-image-container.sh', 'fetch',
          '/work/scripts/fetch-target-image-sources.sh'], env=env)
-    run(child_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
+    run(image_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))
     env['LIBMISTER_RUNTIME_DIR'] = str(runtime)
     # Read the authoritative epoch; do not invent another image configuration.
-    recipe = (fogcast / 'scripts/build-target-image.sh').read_text()
+    recipe = (image / 'scripts/build-target-image.sh').read_text()
     epoch_match = re.search(r'^epoch=([0-9]+)$', recipe, re.MULTILINE)
     if not epoch_match:
-        raise ValueError('selected child has no supported fixed image epoch')
+        raise ValueError('FES image recipe has no supported fixed image epoch')
     epoch = epoch_match.group(1)
     make = shlex.join(['make', '-C', '/work/build/cache/target-image/buildroot',
                       'O=' + WORK, 'BR2_EXTERNAL=/work/buildroot',
@@ -164,10 +165,10 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
 {selection_copy}
 '''
     print(f'Development: persistent base {key[:16]} in {volume}', flush=True)
-    run([fogcast / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
-    built = fogcast / 'build/output/target-image/fes-development'
+    run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
+    built = image / 'build/output/target-image/fes-development'
     exported = Path(EXPORT)
-    run([fogcast / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
+    run([image / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
          exported / 'manifest.tsv', exported / 'library-report.tsv',
          exported / 'megadrive.selection.toml'], env=env)
     names = ['linux.img', 'manifest.tsv', 'library-report.tsv'] + [
