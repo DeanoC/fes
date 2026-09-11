@@ -170,7 +170,17 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `4d055daef276840c58fafc723bf189882b9e5d21` is
+The current nextpnr pin `c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa` is
+merged PR #55 (`adc288243ad9139403e53ae96d9783e90515b998` onto
+`4d055daef276840c58fafc723bf189882b9e5d21`). It adds asynchronous M10K
+read ports: `CFG_ASYNC_READ` and an absent `B1EN` keep `B1ADDR`/`B1DATA`
+combinational and reject active ACLR. The packer ties the omitted read
+enable to `$PACKER_VCC_NET` on `ENABLE[0]`, fans `CLK1` to both `CLKIN`
+sinks, and uses Quartus-compatible bottom clock selectors. Pair it with
+Yosys `da6373c0`. Locked Yosys still emits `clocks 1 1`, so OSS rewrites
+the primitive JSON after synthesis.
+
+That pin sits on `4d055daef276840c58fafc723bf189882b9e5d21`,
 merged PR #54 (`8bbd94146826b32decb9df516243d3471bfc12a7` onto
 `d22eaef1a858e2d81bcbe971b580f69265e59bde`). It adds a generic 520 MHz
 PLL feedback profile so 52 MHz and the other exact 520 MHz divisors are
@@ -1433,6 +1443,27 @@ probe still passed. `stop` completed development reboot recovery and
 left the lease free. The current nextpnr pin `4d055dae` with Yosys
 `da6373c0` reproduces those same RBF bytes.
 
+`770_m10k_async_read` instantiates one `MISTRAL_M10K` with a combinational
+read port. GPI signature `0xD42B`. Locked Yosys still emits a clocked
+read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
+There is no second PLL. Simulation uses a digital combinational stand-in.
+The 1.5 ns host arc is an estimate. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/770_m10k_async_read/expected.md`.
+
+The OSS `770_m10k_async_read` artifact has SHA-256
+`69a1f9bf2ca2b399af12249f36f3e534815249270ffeacd6d3d26a46d643d4b2`
+and size 1,959,851 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
+`CFG_ASYNC_READ=1`, packer `ENABLE[0]` tied high, both `CLKIN.0` and
+`CLKIN.1`, `BOT_CORECLK_SEL=1`, and default-zero `BOT_INCLK_SEL`.
+Reported Fmax is 352.609 MHz against 50 MHz. Utilization is one M10K
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
+signature `0xD42B`, INIT `0xA6` at address 0, a write without a user
+read enable, and an undisturbed neighbour. Load JSON timed out; GPI and
+probe still passed. `stop` completed development reboot recovery and
+left the lease free. The current nextpnr pin `c528c238` with Yosys
+`da6373c0` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1456,7 +1487,8 @@ asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
 TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
 router2 (fabric GPI only), and native 18x19 dual products (fabric GPI
 only), and a 50→52 MHz integer PLL on the 520 MHz feedback profile
-(fabric GPI only). It does not establish native
+(fabric GPI only), and a combinational M10K read port with packer
+`ENABLE[0]` (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game
