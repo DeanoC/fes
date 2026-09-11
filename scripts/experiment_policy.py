@@ -243,6 +243,7 @@ class ExperimentPolicy:
     m10k_tdp_constant_clk2: bool = False
     m10k_async_read: bool = False
     m10k_addrstalla_gpo_bit: int | None = None
+    m10k_out_reg_b: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -280,6 +281,7 @@ class ExperimentPolicy:
             ("m10k_require_aclr1", self.m10k_require_aclr1),
             ("m10k_tdp_constant_clk2", self.m10k_tdp_constant_clk2),
             ("m10k_async_read", self.m10k_async_read),
+            ("m10k_out_reg_b", self.m10k_out_reg_b),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -679,6 +681,8 @@ class ExperimentPolicy:
             self._require_m10k_async_read(design)
         if self.m10k_addrstalla_gpo_bit is not None:
             self._require_m10k_addrstalla(design)
+        if self.m10k_out_reg_b:
+            self._require_m10k_out_reg_b(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -877,6 +881,31 @@ class ExperimentPolicy:
         stall = connections.get("ADDRSTALLA")
         if not isinstance(stall, list) or len(stall) != 1 or stall[0] in (0, 1, "0", "1"):
             raise PolicyError("TDP M10K ADDRSTALLA must be a connected fabric net")
+
+    def _require_m10k_out_reg_b(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+            raise PolicyError(
+                f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+            )
+        out_a = json_bit_parameter(parameters.get("CFG_OUT_REG_A"))
+        if out_a not in (None, 0):
+            raise PolicyError(f"narrow SDP CFG_OUT_REG_A must be omitted or 0, got {parameters.get('CFG_OUT_REG_A')!r}")
+        async_read = json_bit_parameter(parameters.get("CFG_ASYNC_READ"))
+        if async_read not in (None, 0):
+            raise PolicyError("registered-output M10K cannot set CFG_ASYNC_READ")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk2, list) or not clk2 or clk2[0] in ("0", "1"):
+            raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
+        if "B1DATA" not in connections or "B1ADDR" not in connections:
+            raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1187,6 +1216,7 @@ class ExperimentPolicy:
             and self.m10k_aclr1_gpo_bit is None
             and not self.m10k_async_read
             and self.m10k_addrstalla_gpo_bit is None
+            and not self.m10k_out_reg_b
         ):
             return
         try:
@@ -1211,6 +1241,8 @@ class ExperimentPolicy:
             if self._apply_m10k_async_read(cells):
                 changed = True
             if self._attach_m10k_addrstalla(cells):
+                changed = True
+            if self._apply_m10k_out_reg_b(cells):
                 changed = True
             for cell in cells.values():
                 if not isinstance(cell, dict):
@@ -1333,6 +1365,31 @@ class ExperimentPolicy:
             if connections.get("ADDRSTALLA") != [net] or directions.get("ADDRSTALLA") != "input":
                 connections["ADDRSTALLA"] = [net]
                 directions["ADDRSTALLA"] = "input"
+                changed = True
+        return changed
+
+    def _apply_m10k_out_reg_b(self, cells: dict[str, Any]) -> bool:
+        """Request the M10K B-port output register after Yosys omits it."""
+
+        if not self.m10k_out_reg_b:
+            return False
+        changed = False
+        found = 0
+        for cell in cells.values():
+            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_M10K":
+                continue
+            found += 1
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = {}
+                cell["parameters"] = parameters
+            registered = f"{1:032b}"
+            unregistered = f"{0:032b}"
+            if parameters.get("CFG_OUT_REG_B") != registered:
+                parameters["CFG_OUT_REG_B"] = registered
+                changed = True
+            if parameters.get("CFG_OUT_REG_A") not in (None, unregistered):
+                parameters["CFG_OUT_REG_A"] = unregistered
                 changed = True
         return changed
 
@@ -1534,6 +1591,7 @@ class ExperimentPolicy:
             **({"m10k_async_read": True} if self.m10k_async_read else {}),
             **({"m10k_addrstalla_gpo_bit": self.m10k_addrstalla_gpo_bit}
                if self.m10k_addrstalla_gpo_bit is not None else {}),
+            **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
         }
 
 
@@ -5162,6 +5220,62 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/790_m10k_addrstall/sim/m10k_addrstall_model.v",
                     ),
                     tb="experiments/790_m10k_addrstall/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "800_m10k_out_reg": ExperimentPolicy(
+            name="800_m10k_out_reg",
+            sources=("experiments/800_m10k_out_reg/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            m10k_out_reg_b=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "A1BE",
+                    "B1EN",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/800_m10k_out_reg/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/800_m10k_out_reg/sim/m10k_out_reg_model.v",
+                    ),
+                    tb="experiments/800_m10k_out_reg/sim/tb.cpp",
                 ),
             ),
         ),
