@@ -75,7 +75,12 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 The native FES appliance also has a release/update client and a fixed bootstrap
 with watchdog-bounded trial boots. These require FES bootstrap media; ordinary
-direct-root images do not expose the update API. Build the operator client with
+direct-root images do not expose the update API. A card with leftover capacity
+already formatted as `FESDATA3` bind-mounts cache, saves, core-data,
+launcher-cache and evidence from that partition at agent startup unless
+`GET /v1/update` shows trial, pending, or corrupt. Releases stay on the 1 GiB
+FAT. The assembler still ships the fixed 1 GiB image; expanding leftover space
+is a live-card mutation. Build the operator client with
 `make build-fes-update`, then use `bin/fes-update --action status` with the existing
 private host configuration. See [appliance updates](docs/appliance-updates.md).
 Hardware acceptance of this new boot path is tracked separately from game tests.
