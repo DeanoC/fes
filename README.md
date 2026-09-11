@@ -325,6 +325,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `-entity`). Simulation uses the 090 digital toggling stand-in. Run
   `make sim EXP=780_quartus_sdc` and `make oss EXP=780_quartus_sdc`; no
   Quartus comparison lane is implemented.
+- `790_m10k_addrstall`, TDP M10K A-port address stall. Locked Yosys has
+  no stall ports, so OSS attaches GPO[29] to `ADDRSTALLA`. Packed
+  `ADDRSTALLA` holds while GPO[29] is 0. Run
+  `make sim EXP=790_m10k_addrstall` and `make oss EXP=790_m10k_addrstall`;
+  no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

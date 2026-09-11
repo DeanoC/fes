@@ -100,7 +100,7 @@ PLL_ROUTE_LOG = (
 )
 EXPECTED_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "1e1745dcb40f9722d5b74389c1b411c56a27c8a8",
+    "nextpnr": "74aab451fc767996e1c6195531a86d36c14b82c9",
     "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
 }
 
