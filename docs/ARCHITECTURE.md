@@ -470,6 +470,15 @@ target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
 on FAT outside every rootfs. Replacing the system image does not wipe
 `/media/fat/fogcast/cache` or `/media/fat/fogcast/launcher-cache`.
 
+When leftover card capacity has already been formatted as partition 3 with
+label `FESDATA3`, agent startup bind-mounts that ext4 volume over
+`/media/fat/fogcast/{cache,saves,core-data,launcher-cache,evidence}`. Existing
+files are copied onto p3 first and never overwritten there. Releases,
+`agent.toml`, `launcher.json`, `target-id`, and known-good images stay on the
+1 GiB FAT. The helper does not create, grow, or format partitions and does not
+run from `fes-boot`. Bind is refused while `GET /v1/update` shows trial,
+pending, or corrupt; the agent still starts and keeps those trees on FAT.
+
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
@@ -492,6 +501,7 @@ leaves reset armed. Known-good boots do not require the host to be online.
 
 `internal/appliance` owns bounded raw-image admission, immutable publication,
 cross-process locking, checksummed state, and consumed-trial selection.
+`internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 `internal/applianceboot` owns fallback ordering; `internal/bootlinux` owns the
 Linux mounts, loops and watchdog. The bootstrap records its selected image in
 `/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only

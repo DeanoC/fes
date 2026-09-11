@@ -18,6 +18,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
@@ -58,6 +59,7 @@ const (
 )
 
 type runDependencies struct {
+	prepareDataPartition  func() error
 	openCache             func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime            func(agentconfig.Config, core.Registry) agent.Runtime
 	configureRuntime      func(agent.Runtime, httpapi.InputController) error
@@ -161,6 +163,22 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 	return dependencies, nil
 }
 
+func bindApplianceData(logger *slog.Logger) error {
+	result, err := appliancedata.Prepare(appliancedata.ProductionConfig())
+	if err != nil {
+		logger.Error("appliance data partition bind failed", "error", err, "skipped", result.Skipped)
+		return nil
+	}
+	if result.Skipped != "" {
+		logger.Info("appliance data partition bind skipped", "reason", result.Skipped, "device", result.Device)
+		return nil
+	}
+	if len(result.Bound) > 0 {
+		logger.Info("appliance data partition bound", "device", result.Device, "paths", result.Bound)
+	}
+	return nil
+}
+
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
 	_ = os.MkdirAll(developmentCoreRoot, 0o700)
 	// The fixed target data root outlives package staging and image updates.
@@ -187,6 +205,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	registry := core.DefaultRegistry()
+	if dependencies.prepareDataPartition == nil {
+		dependencies.prepareDataPartition = func() error {
+			return bindApplianceData(logger)
+		}
+	}
+	if err := dependencies.prepareDataPartition(); err != nil {
+		logger.Error("appliance data partition bind failed", "error", err)
+	}
 	cache, err := dependencies.openCache(targetcache.Config{
 		Root:         targetCacheRoot,
 		ActiveRecord: targetCacheActiveRecord,

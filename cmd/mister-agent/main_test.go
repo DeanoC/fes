@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
+	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -388,6 +389,49 @@ func TestRunComposesTargetInputController(t *testing.T) {
 	}
 	if inputController.closed != 1 {
 		t.Fatalf("target input close calls = %d, want 1", inputController.closed)
+	}
+}
+
+func TestRunBindsDataPartitionBeforeOpeningCache(t *testing.T) {
+	configPath := writeCompositionConfig(t, "")
+	var order []string
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	deps := runDependencies{
+		prepareDataPartition: func() error {
+			order = append(order, "data")
+			return errors.New("trial blocks bind")
+		},
+		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+			order = append(order, "cache")
+			return &compositionStore{}, nil
+		},
+		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
+			order = append(order, "runtime")
+			return &compositionRuntime{}
+		},
+		serve: func(*http.Server) error {
+			order = append(order, "serve")
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(order, ","); got != "data,cache,runtime,serve" {
+		t.Fatalf("startup order = %q", got)
+	}
+}
+
+func TestBindApplianceDataSkipsAbsentPartitionWithoutFailing(t *testing.T) {
+	t.Parallel()
+	if err := bindApplianceData(slog.New(slog.NewJSONHandler(io.Discard, nil))); err != nil {
+		t.Fatal(err)
+	}
+	cfg := appliancedata.ProductionConfig()
+	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence" {
+		t.Fatalf("production bind names = %s", got)
 	}
 }
 
