@@ -138,11 +138,11 @@ build-fes-boot:
 
 build-agent: build-fogcast-kit
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
 
 build-bridge:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/mister-bridge-linux-armv7 ./cmd/mister-bridge
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/mister-bridge-linux-armv7 ./cmd/mister-bridge
 
 build-target-image-lock:
 	mkdir -p bin

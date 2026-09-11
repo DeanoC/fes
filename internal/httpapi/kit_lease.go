@@ -83,7 +83,7 @@ func hostlessMutationDenied(status kitlease.Status, path string) bool {
 		return true
 	}
 	switch path {
-	case "/v2/launch", "/v1/stop":
+	case "/v2/launch", "/v1/stop", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream":
 		return false
 	default:
 		return true

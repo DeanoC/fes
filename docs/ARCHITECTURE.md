@@ -72,7 +72,7 @@ they are not a distributed ownership, failover, or recovery protocol.
 
 Target `GET /v1/health` may include an `artifacts` object: the SHA-256 of the
 installed `/usr/share/mister-runtime/build-inputs` record, the runtime commit,
-agent and kit digests from that record, idle and catalog core digests, the
+agent revision (stamped at `make build-agent`), agent and kit digests from that record, idle and catalog core digests, the
 optional format-2 package id, and on an appliance boot the bootstrap ticket
 `image_sha256`. The agent does not hash live binaries on each poll. Missing
 fields mean there is no sealed record (for example a Main-backend image), not
@@ -829,7 +829,8 @@ may launch a verified ROM cache hit through the target agent lease as owner
 `GET /v2/hostless/identity/{game_id}` and a probe+hash as `targetcache` does
 today. Foreign leases, packages, ROM-less cores, and unverified bytes refuse
 without programming the FPGA. Cache GET/PUT stay lease-free. The hostless
-owner may only `/v2/launch` and `/v1/stop`; cast, input attach, development,
+owner may `/v2/launch`, `/v1/stop`, and local `/v1/input/attach|stream|detach`
+so a pad on the kit does not hairpin through the host. Cast, development,
 and reboot stay denied. When the host returns, the kit releases hostless
 ownership before a host claim.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark

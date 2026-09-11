@@ -78,7 +78,7 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	}
 	content := &fakeContentController{}
 	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithContent(content))
-	for _, path := range []string{"/v1/launch", "/v1/cast/start", "/v1/development/rbf", "/v1/input/attach"} {
+	for _, path := range []string{"/v1/launch", "/v1/cast/start", "/v1/development/rbf"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Authorization", "Bearer bearer")
 		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
@@ -103,6 +103,16 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	handler.ServeHTTP(stopResponse, stop)
 	if stopResponse.Code != 200 {
 		t.Fatalf("hostless stop: %d", stopResponse.Code)
+	}
+	inputHandler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithInput(&leaseStreamController{}))
+	attach := httptest.NewRequest(http.MethodPost, "/v1/input/attach", strings.NewReader(`{"session":1,"token":"0123456789abcdef","core":"SNES"}`))
+	attach.Header.Set("Authorization", "Bearer bearer")
+	attach.Header.Set("Content-Type", "application/json")
+	attach.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	attachResponse := httptest.NewRecorder()
+	inputHandler.ServeHTTP(attachResponse, attach)
+	if attachResponse.Code == http.StatusForbidden {
+		t.Fatal("hostless owner denied local input attach")
 	}
 }
 

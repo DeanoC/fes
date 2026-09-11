@@ -67,3 +67,16 @@ if grep -q 'GOOS=darwin GOARCH=arm64' "$fixture/api-linux.n"; then
   echo 'fogcast-build: linux fogcast-api recipe still hard-codes Darwin' >&2
   exit 1
 fi
+
+make -C "$repo" build-agent \
+  VERSION=9.8.7 \
+  REVISION="$expected_revision"
+agent=$repo/bin/mister-agent-linux-armv7
+if ! strings "$agent" | grep -Fqx "$expected_revision"; then
+  echo 'fogcast-build: mister-agent is missing stamped revision' >&2
+  exit 1
+fi
+if go version -m "$agent" | grep -q '[[:space:]]vcs\.'; then
+  echo 'fogcast-build: mister-agent automatic Go VCS metadata is present' >&2
+  exit 1
+fi
