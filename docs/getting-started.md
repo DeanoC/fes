@@ -85,7 +85,8 @@ make doctor PROFILE=native-source-dev
 ```
 
 `make verify` requires both host and clean-image receipts, so run `make host`
-as well if you previously built only `make image`.
+as well if you previously built only `make image`. The host receipt names
+linux/amd64; a Darwin sofa binary is a separate FogCast-native product.
 
 `make media` expects the private host FogCast configuration described in step 3
 so it can embed the selected target agent automatically. Set up that file before

@@ -39,7 +39,23 @@ class MediaHostTests(unittest.TestCase):
             'host_receipt_sha256': build.digest(self.output / 'host.json'),
             'fogcast_sha256': build.digest(self.output / 'fogcast'),
             'fogcast_api_sha256': build.digest(self.output / 'fogcast-api'),
+            'os': 'linux',
+            'arch': 'amd64',
         })
+
+    def test_linux_and_darwin_host_receipts_are_distinct_products(self):
+        linux = build.load_verified_host(self.output, 'cold-fingerprint', os_name='linux', arch='amd64')
+        self.assertEqual((linux['os'], linux['arch']), ('linux', 'amd64'))
+        with self.assertRaises(ValueError):
+            build.load_verified_host(self.output, 'cold-fingerprint', os_name='darwin', arch='arm64')
+        build.write_receipt(self.output, 'host', 'cold-fingerprint', ['fogcast', 'fogcast-api'],
+                            os_name='darwin', arch='arm64')
+        darwin = build.load_verified_host(self.output, 'cold-fingerprint', os_name='darwin', arch='arm64')
+        self.assertEqual((darwin['os'], darwin['arch']), ('darwin', 'arm64'))
+        with self.assertRaises(ValueError):
+            build.load_verified_host(self.output, 'cold-fingerprint')
+        with self.assertRaises(ValueError):
+            build.host_platform('windows', 'amd64')
 
     def test_missing_stale_and_malformed_host_receipts_rejected(self):
         path = self.output / 'host.json'

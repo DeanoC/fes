@@ -30,8 +30,8 @@ That 1:1 coupling is the later session work, not this inventory.
 
 | Artifact | Typical OS/arch | Produced by | Locked by |
 | --- | --- | --- | --- |
-| Host API/CLI | linux/amd64 | FES `make host` | `host.json` receipt |
-| Host API (sofa) | darwin/arm64 | FogCast `build-fogcast-api` / signed app | FogCast-native; not the FES Linux receipt |
+| Host API/CLI | linux/amd64 | FES `make host` | `host.json` (`os`, `arch`, binary hashes) |
+| Host API (sofa) | darwin/arm64 | FogCast on a Mac (`build-fogcast-api` / signed app) | same receipt schema with `os=darwin`; not the FES Linux `host.json` |
 | Tenfoot | darwin/arm64 or linux + SDL3 | FogCast `build-fogcast-tenfoot` | not a parent output |
 | Target agent | linux/armv7 | FogCast image recipe | `mister_agent_sha256` in `build-inputs` |
 | Kit launcher | linux/armv7 | FogCast image recipe | `fogcast_kit_sha256` in `build-inputs` |
@@ -43,8 +43,12 @@ That 1:1 coupling is the later session work, not this inventory.
 | ABI snapshot | generated C++/Go | mister-packages | `make check` consumers |
 | Bootstrap / kernel | locked boot | FES media lock | `boot-media.lock.toml` |
 
-`make host` on Linux does not prove the Mac sofa binary. FogCast’s Makefile
-still defaults some targets to Darwin/arm64; that is a different product.
+`make host` on Linux writes `host.json` with `os=linux` and `arch=amd64`. That
+receipt cannot be presented as Darwin. A Darwin sofa receipt uses the same JSON
+schema (`inputs`, `files`, `fes_revision`, `os`, `arch`) produced on a Mac with
+FogCast `make build-fogcast` / `build-fogcast-api` (GOOS/GOARCH default to that
+machine). `load_verified_host(..., os_name='darwin', arch='arm64')` verifies it.
+The signed `FogCastHost.app` remains Darwin-only.
 
 ## On-wire identity
 
