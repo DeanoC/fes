@@ -22,6 +22,7 @@ test:
 	sh scripts/tests/native-extra-cores_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh
+	sh scripts/tests/kit-init_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/verify-target-image-cleanup_test.sh
