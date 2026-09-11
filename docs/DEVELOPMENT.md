@@ -185,30 +185,44 @@ Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 
 The designated disposable kit is:
 
-- Host: `powerboat`
-- MiSTer Pi: `192.168.10.239`, SSH `root` / `1`
+- Host: `powerboat` (`192.168.10.203`)
+- Native MiSTer Pi: `192.168.10.84`, SSH `root` / `1`
 - ROM share: `//DEANO-CLAWZ/Games`
 - ROM directory inside the share: `Games`
 - Powerboat mount: `/mnt/fogcast-games` (read-only, configured locally)
 - Host config: `~/.config/fogcast/config.toml` (untracked, mode `0600`)
 - Host API: `http://127.0.0.1:8787`
-- Target API: `http://192.168.10.239:8182`
+- Target API: `http://192.168.10.84:8182`
+- HDMI capture: ShadowCast 3 on `/dev/video0`
+
+Smoke and deploy scripts default to that Pi. Override with
+`FOGCAST_TARGET_HOST` and `FOGCAST_TARGET_API` when using another device.
+The private `config.toml` `[[targets]]` address must match the designated
+kit. Do not commit credentials or print them in logs.
 
 The Powerboat kit host (`192.168.10.203:8789`, `fogcast-api-sofa` plus
 `launcher-host.json`) uses the same private `config.toml`. Run that binary
 with `--headless` so the kit listener stays up without DISPLAY, DRM, or
-V4L2/FFmpeg preview. `fogcast-kit` reconnects to
+V4L2/FFmpeg preview. On Powerboat the API binds `127.0.0.1:8787` and the
+launcher binds `*:8789`. `fogcast-kit` reconnects to
 `http://192.168.10.203:8789` with the existing `launcher.json` API URL.
 Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
-Do not commit credentials or print them in logs.
 
-The target boots `/media/fat/linux/linux.img`. Its boot scripts start the
-MiSTer/Main-compatible process and then the FAT-side agent using
-`/media/fat/fogcast/agent.toml` and `/media/fat/fogcast/mister-agent`. Before
-Main starts, the legacy image sets `osd_timeout=0` and `video_off=0` in
-`/media/fat/MiSTer.ini` so an unattended Menu remains visible over HDMI. The
-first changed file is retained as `/media/fat/MiSTer.ini.fogcast-backup`.
+The designated kit runs the native appliance image. Init starts
+`mister-runtime` and `mister-agent --runtime native` from `/usr/sbin`, then
+`fogcast-kit`. Agent configuration is `/media/fat/fogcast/agent.toml`. There
+is no Main process and no `/dev/MiSTer_cmd`. HDMI idle uses the locked idle
+RBF through the runtime. Native health reports `mister_process: false` and
+`command_pipe: false`. FAT holds agent config, launcher cache and content;
+the root filesystem is the immutable loop image.
+
+The conventional Main development image still boots
+`/media/fat/linux/linux.img`, starts Main, then the FAT-side
+`/media/fat/fogcast/mister-agent`. Before Main starts it sets
+`osd_timeout=0` and `video_off=0` in `/media/fat/MiSTer.ini`; the first
+changed file is `/media/fat/MiSTer.ini.fogcast-backup`. That image is not
+the designated kit.
 
 The fixture uses the stock MiSTer login and changing SSH host keys after a
 rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
@@ -243,9 +257,11 @@ Run a real catalog launch through the same host API used by the browser:
 make target-smoke GAME_ID=YOUR_GAME_ID EXPECTED_CORE=YOUR_CORE_NAME
 ```
 
-The smoke command checks host and target health, calls
-`POST /api/v1/session/launch`, polls `/tmp/CORENAME`, calls
-`POST /api/v1/session/stop`, and waits for `MENU`. Direct equivalents are:
+The smoke command is the conventional Main catalog path: it checks host
+and target health, calls `POST /api/v1/session/launch`, polls
+`/tmp/CORENAME`, calls `POST /api/v1/session/stop`, and waits for `MENU`.
+Native package launches use `session/launch` or `core-load` and runtime
+status; they do not create `/tmp/CORENAME`. Direct Main equivalents are:
 
 ```sh
 curl --get --data-urlencode 'q=Sonic the Hedgehog 2' \
@@ -267,19 +283,35 @@ curl --fail -X POST http://127.0.0.1:8787/api/v1/session/stop
 ```
 
 The active response is `{"state":"active","execution":"fpga_development"}`.
-Stop may take roughly one target boot cycle. For a non-MiSTer RBF it first
-receives `reboot_required` from the target, requests the reboot separately,
-and waits for health to report a new Linux boot ID plus Menu idle before
-returning `{"state":"idle"}`. Do not treat a sampled disconnect or the stale
-`/tmp/CORENAME` left by an incompatible core as recovery evidence.
+On the conventional Main backend, Stop may take roughly one target boot
+cycle. For a non-MiSTer RBF it first receives `reboot_required` from the
+target, requests the reboot separately, and waits for health to report a
+new Linux boot ID plus Menu idle before returning `{"state":"idle"}`. Do
+not treat a sampled disconnect or the stale `/tmp/CORENAME` left by an
+incompatible core as recovery evidence.
+
+On the designated native kit, raw `development-rbf` programs without a
+package ABI. A non-Main core fails the identity probe; Stop restores the
+locked idle RBF. Format-2 `.fcore` packages (Pong, ZX81) use the native
+`fes-gp-v1` path:
+
+```sh
+fogcast --json --api http://127.0.0.1:8787 core-load /absolute/path/core.fcore
+```
+
+That POSTs `/api/v1/session/development-core`. Success reports the package
+id, ABI, build id and generation. `fes.keyboard` cores attach the matrix
+path; raw RBF input stays disabled. Host `request_timeout_seconds` bounds
+host-to-target RPCs and must cover inspect plus program of the archive,
+not only the upload to the host API.
 
 When target access is needed directly:
 
 ```sh
 sshpass -p 1 ssh -o StrictHostKeyChecking=no \
-  -o UserKnownHostsFile=/dev/null root@192.168.10.239 \
-  'cat /tmp/CORENAME; curl --version'
-curl --fail http://192.168.10.239:8182/v1/health
+  -o UserKnownHostsFile=/dev/null root@192.168.10.84 \
+  'curl --version'
+curl --fail http://192.168.10.84:8182/v1/health
 ```
 
 ## Change discipline

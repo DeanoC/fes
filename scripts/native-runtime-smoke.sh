@@ -10,8 +10,8 @@ lock=$repo/build/native-runtime.inputs.lock.toml
 selection_file=${1:-${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}}
 
 host_api=${FOGCAST_HOST_API:-http://127.0.0.1:8787}
-target_api=${FOGCAST_TARGET_API:-http://192.168.10.239:8182}
-target_host=${FOGCAST_TARGET_HOST:-192.168.10.239}
+target_api=${FOGCAST_TARGET_API:-http://192.168.10.84:8182}
+target_host=${FOGCAST_TARGET_HOST:-192.168.10.84}
 target_user=${FOGCAST_TARGET_USER:-root}
 target_password=${FOGCAST_TARGET_PASSWORD:-1}
 poll_attempts=${FOGCAST_POLL_ATTEMPTS:-60}

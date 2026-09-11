@@ -3,7 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 image=${1:-$repo/build/output/target-image/dev/linux.img}
-target_host=${FOGCAST_TARGET_HOST:-192.168.10.239}
+target_host=${FOGCAST_TARGET_HOST:-192.168.10.84}
 target_user=${FOGCAST_TARGET_USER:-root}
 target_password=${FOGCAST_TARGET_PASSWORD:-1}
 remote_image=/media/fat/linux/linux.img.new
