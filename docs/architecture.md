@@ -170,7 +170,15 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa` is
+The current nextpnr pin `1e1745dcb40f9722d5b74389c1b411c56a27c8a8` is
+merged PR #56 (`f854e966d690a6d54409425ee20ed55cdee046ca` onto
+`c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa`). It accepts the Quartus
+SDC/QSF subset used by ZX81: `get_clocks`, `derive_pll_clocks`,
+`derive_clock_uncertainty`, multiline `set_clock_groups`, and `-entity`
+on `set_instance_assignment`. PLL clocks still come from packed
+`altera_pll` cells. Pair it with Yosys `da6373c0`.
+
+That pin sits on `c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa`,
 merged PR #55 (`adc288243ad9139403e53ae96d9783e90515b998` onto
 `4d055daef276840c58fafc723bf189882b9e5d21`). It adds asynchronous M10K
 read ports: `CFG_ASYNC_READ` and an absent `B1EN` keep `B1ADDR`/`B1DATA`
@@ -1464,6 +1472,24 @@ probe still passed. `stop` completed development reboot recovery and
 left the lease free. The current nextpnr pin `c528c238` with Yosys
 `da6373c0` reproduces those same RBF bytes.
 
+`780_quartus_sdc` measures PIN_V11 50 MHz → 25 MHz through one
+`altera_pll`, using Quartus SDC/QSF forms. GPI signature `0xD780`.
+Simulation uses the 090 digital toggling stand-in. Memory and DSP remain
+forbidden. Simulation and OSS are supported; Quartus comparison is not
+implemented. See `experiments/780_quartus_sdc/expected.md`.
+
+The OSS `780_quartus_sdc` artifact has SHA-256
+`639d0a9fc10b3a96947bdb64c865b94509ab499be05f47da98ec999fa2fd07ba`
+and size 1,955,806 bytes. nextpnr accepted `derive_pll_clocks`,
+`get_clocks`, multiline `set_clock_groups`, and `-entity`. Reported Fmax
+is 211.551 MHz against 50 MHz and 354.233 MHz against 25 MHz.
+Utilization is one `altera_pll` and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-11 returned GPI signature `0xD780` and count 2048
+on three successive measurements with lock asserted. Load JSON timed
+out; GPI and probe still passed. `stop` completed development reboot
+recovery and left the lease free. The current nextpnr pin `1e1745dc` with
+Yosys `da6373c0` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1488,7 +1514,8 @@ TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
 router2 (fabric GPI only), and native 18x19 dual products (fabric GPI
 only), and a 50→52 MHz integer PLL on the 520 MHz feedback profile
 (fabric GPI only), and a combinational M10K read port with packer
-`ENABLE[0]` (fabric GPI only). It does not establish native
+`ENABLE[0]` (fabric GPI only), and a 50→25 MHz PLL routed with Quartus
+SDC/QSF forms (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game

@@ -130,6 +130,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/750_dsp18x19/rtl/top.v",
             "experiments/760_pll_52/rtl/top.v",
             "experiments/770_m10k_async_read/rtl/top.v",
+            "experiments/780_quartus_sdc/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -167,7 +168,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
-            "nextpnr": "c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa",
+            "nextpnr": "1e1745dcb40f9722d5b74389c1b411c56a27c8a8",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -780,6 +781,20 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("m10k_async_model.v", commands)
         self.assertNotIn("--router", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_uses_quartus_constraint_files_for_780(self) -> None:
+        result = self._run("--print-commands", "--experiment", "780_quartus_sdc")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/780_quartus_sdc/rtl/top.v", commands)
+        self.assertIn("--qsf experiments/780_quartus_sdc/pins.qsf", commands)
+        self.assertIn("--sdc experiments/780_quartus_sdc/clocks.sdc", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
