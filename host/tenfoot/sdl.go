@@ -1,6 +1,6 @@
 //go:build sdl3
 
-// SDL window, event, gamepad, and text-input loop for the tenfoot launcher.
+// SDL window, event, gamepad, mouse, and text-input loop for the tenfoot launcher.
 // 2D draw, present, and texture upload go through gfx.Device (SDL3 backend).
 
 package tenfoot
@@ -20,7 +20,13 @@ enum {
 	FC_EV_AXIS,
 	FC_EV_PAD_ADDED,
 	FC_EV_PAD_REMOVED,
-	FC_EV_TEXT
+	FC_EV_TEXT,
+	FC_EV_MOUSE_MOVE,
+	FC_EV_MOUSE_BUTTON,
+	FC_EV_KEY_ADDED,
+	FC_EV_KEY_REMOVED,
+	FC_EV_MOUSE_ADDED,
+	FC_EV_MOUSE_REMOVED
 };
 
 typedef struct FogcastEvent {
@@ -29,6 +35,8 @@ typedef struct FogcastEvent {
 	int value;
 	int which;
 	int down;
+	int x;
+	int y;
 	char *text;
 } FogcastEvent;
 
@@ -37,10 +45,13 @@ void fogcast_update_pads(void) {
 	SDL_UpdateGamepads();
 }
 
-int fogcast_poll(FogcastEvent *out) {
+int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
 		out->text = NULL;
+		out->x = 0;
+		out->y = 0;
+		out->which = 0;
 		switch (e.type) {
 		case SDL_EVENT_QUIT:
 			out->kind = FC_EV_QUIT;
@@ -53,6 +64,28 @@ int fogcast_poll(FogcastEvent *out) {
 			out->kind = FC_EV_KEY;
 			out->code = (int)e.key.key;
 			out->down = e.key.down ? 1 : 0;
+			out->which = (int)e.key.which;
+			return 1;
+		case SDL_EVENT_MOUSE_MOTION:
+			if (renderer != NULL) {
+				SDL_ConvertEventToRenderCoordinates(renderer, &e);
+			}
+			out->kind = FC_EV_MOUSE_MOVE;
+			out->which = (int)e.motion.which;
+			out->x = (int)e.motion.x;
+			out->y = (int)e.motion.y;
+			return 1;
+		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+			if (renderer != NULL) {
+				SDL_ConvertEventToRenderCoordinates(renderer, &e);
+			}
+			out->kind = FC_EV_MOUSE_BUTTON;
+			out->code = (int)e.button.button;
+			out->down = e.button.down ? 1 : 0;
+			out->which = (int)e.button.which;
+			out->x = (int)e.button.x;
+			out->y = (int)e.button.y;
 			return 1;
 		case SDL_EVENT_TEXT_INPUT:
 			out->kind = FC_EV_TEXT;
@@ -104,6 +137,22 @@ int fogcast_poll(FogcastEvent *out) {
 		case SDL_EVENT_GAMEPAD_REMOVED:
 			out->kind = FC_EV_PAD_REMOVED;
 			out->which = (int)e.gdevice.which;
+			return 1;
+		case SDL_EVENT_KEYBOARD_ADDED:
+			out->kind = FC_EV_KEY_ADDED;
+			out->which = (int)e.kdevice.which;
+			return 1;
+		case SDL_EVENT_KEYBOARD_REMOVED:
+			out->kind = FC_EV_KEY_REMOVED;
+			out->which = (int)e.kdevice.which;
+			return 1;
+		case SDL_EVENT_MOUSE_ADDED:
+			out->kind = FC_EV_MOUSE_ADDED;
+			out->which = (int)e.mdevice.which;
+			return 1;
+		case SDL_EVENT_MOUSE_REMOVED:
+			out->kind = FC_EV_MOUSE_REMOVED;
+			out->which = (int)e.mdevice.which;
 			return 1;
 		default:
 			continue;
@@ -164,6 +213,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 	"unsafe"
@@ -171,18 +221,23 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
-	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
-	evQuit       = C.FC_EV_QUIT
-	evKey        = C.FC_EV_KEY
-	evButton     = C.FC_EV_BUTTON
-	evAxis       = C.FC_EV_AXIS
-	evPadAdded   = C.FC_EV_PAD_ADDED
-	evPadRemoved = C.FC_EV_PAD_REMOVED
-	evText       = C.FC_EV_TEXT
+	evQuit         = C.FC_EV_QUIT
+	evKey          = C.FC_EV_KEY
+	evButton       = C.FC_EV_BUTTON
+	evAxis         = C.FC_EV_AXIS
+	evPadAdded     = C.FC_EV_PAD_ADDED
+	evPadRemoved   = C.FC_EV_PAD_REMOVED
+	evText         = C.FC_EV_TEXT
+	evMouseMove    = C.FC_EV_MOUSE_MOVE
+	evMouseButton  = C.FC_EV_MOUSE_BUTTON
+	evKeyAdded     = C.FC_EV_KEY_ADDED
+	evKeyRemoved   = C.FC_EV_KEY_REMOVED
+	evMouseAdded   = C.FC_EV_MOUSE_ADDED
+	evMouseRemoved = C.FC_EV_MOUSE_REMOVED
 )
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -260,6 +315,9 @@ func runWindow(ctx context.Context, opts Options) error {
 		}
 	}()
 	openExistingGamepads(pads, app)
+	seedSDLKeyboards(app)
+	seedSDLMice(app)
+	app.FinishInputSeed()
 
 	textures := map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
@@ -267,7 +325,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	defer destroyTextures(dev, labels)
 
 	if opts.Smoke {
-		return runSmoke(ctx, opts, app, dev, pads, textures, labels)
+		return runSmoke(ctx, opts, app, dev, pads, textures, labels, renderer)
 	}
 
 	var stick stickTracker
@@ -282,7 +340,7 @@ func runWindow(ctx context.Context, opts Options) error {
 		C.fogcast_update_pads()
 		for {
 			var ev C.FogcastEvent
-			if C.fogcast_poll(&ev) == 0 {
+			if C.fogcast_poll(&ev, renderer) == 0 {
 				break
 			}
 			if quit := handleSDLEvent(app, pads, &ev, now, &stick); quit {
@@ -351,7 +409,7 @@ func openGFXDevice(opts Options, renderer unsafe.Pointer) (gfx.Device, error) {
 	}
 }
 
-func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture) error {
+func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, textures, labels map[string]gpuTexture, renderer *C.SDL_Renderer) error {
 	evidence := map[string]any{
 		"api": opts.APIBase,
 	}
@@ -360,7 +418,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: library load timeout: %w", err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		pollGamepads(app, pads, map[Command]bool{}, nil, time.Now())
 		app.Tick(time.Now())
 		snap := app.Snapshot()
@@ -382,7 +440,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: no cover artwork decoded: %w", err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		app.Tick(time.Now())
 		snap = app.Snapshot()
 		_ = presentFrame(dev, snap, textures, labels, snap.GPUParked)
@@ -398,54 +456,47 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		return fmt.Errorf("smoke: no cover artwork decoded")
 	}
 
-	id := C.fogcast_attach_virtual_gamepad()
-	if id == 0 {
-		return fmt.Errorf("smoke: virtual gamepad: %s", sdlError())
-	}
-	defer C.SDL_DetachVirtualJoystick(id)
-
-	padReady := time.Now().Add(2 * time.Second)
-	if deadline, ok := ctx.Deadline(); ok && deadline.Before(padReady) {
-		padReady = deadline
-	}
-	for time.Now().Before(padReady) {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("smoke: virtual gamepad: %w", err)
-		}
-		pumpSDL(app, pads, time.Now())
-		if pads[id] != nil {
-			break
-		}
-		C.SDL_Delay(5)
-	}
-	if pads[id] == nil {
-		pad := C.SDL_OpenGamepad(id)
-		if pad != nil {
-			pads[id] = pad
-			app.SetGamepads(len(pads))
-		}
-	}
-	if pads[id] == nil {
-		return fmt.Errorf("smoke: virtual gamepad was not opened")
-	}
-	evidence["gamepad"] = true
-	evidence["gamepads"] = len(pads)
-
-	focusBefore := app.Snapshot().Grid.Focus
-	evidence["focus_before"] = focusBefore
-	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err != nil {
+	if err := smokeKeyboardNav(app, pads, evidence); err != nil {
 		return err
 	}
-	focusAfter := app.Snapshot().Grid.Focus
-	if focusAfter == focusBefore {
-		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_DOWN); err != nil {
-			return err
-		}
-		focusAfter = app.Snapshot().Grid.Focus
+	if err := smokeMouseNav(app, pads, evidence); err != nil {
+		return err
 	}
-	evidence["focus_after"] = focusAfter
-	if focusAfter == focusBefore {
-		return fmt.Errorf("smoke: gamepad navigation did not move focus (%s)", padDump(app, pads))
+
+	id := C.fogcast_attach_virtual_gamepad()
+	if id != 0 {
+		defer C.SDL_DetachVirtualJoystick(id)
+		padReady := time.Now().Add(2 * time.Second)
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(padReady) {
+			padReady = deadline
+		}
+		for time.Now().Before(padReady) {
+			if err := ctx.Err(); err != nil {
+				break
+			}
+			pumpSDL(app, pads, time.Now(), renderer)
+			if pads[id] != nil {
+				break
+			}
+			C.SDL_Delay(5)
+		}
+		if pads[id] == nil {
+			pad := C.SDL_OpenGamepad(id)
+			if pad != nil {
+				pads[id] = pad
+				app.SetGamepads(len(pads))
+			}
+		}
+	}
+	evidence["gamepads"] = len(pads)
+	evidence["gamepad"] = pads[id] != nil
+	if pads[id] != nil {
+		padFocusBefore := app.Snapshot().Grid.Focus
+		if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_DPAD_RIGHT); err == nil {
+			if app.Snapshot().Grid.Focus != padFocusBefore {
+				evidence["gamepad_nav"] = true
+			}
+		}
 	}
 
 	snap = app.Snapshot()
@@ -467,9 +518,10 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %w", err)
 	}
-	if err := virtualPress(app, pads, id, C.SDL_GAMEPAD_BUTTON_SOUTH); err != nil {
+	if err := virtualMouseClickSelected(app, pads); err != nil {
 		return err
 	}
+	evidence["mouse_launch"] = true
 	for {
 		launch := app.Snapshot().Launch
 		if launch.HTTPStatus != 0 || launch.Phase == "ok" || launch.Phase == "host" || launch.Phase == "error" {
@@ -478,7 +530,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("smoke: host launch did not POST /api/v1/session/launch: %#v: %w", launch, err)
 		}
-		pumpSDL(app, pads, time.Now())
+		pumpSDL(app, pads, time.Now(), renderer)
 		app.Tick(time.Now())
 		C.SDL_Delay(10)
 	}
@@ -530,6 +582,132 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	return nil
 }
 
+func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+	focusBefore := app.Snapshot().Grid.Focus
+	evidence["keyboard_focus_before"] = focusBefore
+	if err := virtualKey(app, pads, C.SDLK_RIGHT); err != nil {
+		return err
+	}
+	focusAfter := app.Snapshot().Grid.Focus
+	if focusAfter == focusBefore {
+		if err := virtualKey(app, pads, C.SDLK_DOWN); err != nil {
+			return err
+		}
+		focusAfter = app.Snapshot().Grid.Focus
+	}
+	evidence["keyboard_focus_after"] = focusAfter
+	if focusAfter == focusBefore {
+		return fmt.Errorf("smoke: keyboard navigation did not move focus (%s)", padDump(app, pads))
+	}
+
+	snap := app.Snapshot()
+	cols := snap.Grid.Columns
+	if cols < 1 {
+		cols = 1
+	}
+	if n := len(snap.Games); n > 0 {
+		rowStart := ((n - 1) / cols) * cols
+		if !app.focusIndex(rowStart) {
+			return fmt.Errorf("smoke: keyboard failed to focus last row (%s)", padDump(app, pads))
+		}
+	}
+	if err := virtualKey(app, pads, C.SDLK_DOWN); err != nil {
+		return err
+	}
+	if !app.Snapshot().Detail.Open {
+		return fmt.Errorf("smoke: keyboard did not open detail (%s)", padDump(app, pads))
+	}
+	if err := virtualKey(app, pads, C.SDLK_ESCAPE); err != nil {
+		return err
+	}
+	if app.Snapshot().Detail.Open {
+		return fmt.Errorf("smoke: Esc did not close detail")
+	}
+
+	if err := virtualKey(app, pads, C.SDLK_TAB); err != nil {
+		return err
+	}
+	if !app.Snapshot().SearchOpen {
+		return fmt.Errorf("smoke: Tab did not open search")
+	}
+	if err := virtualKey(app, pads, C.SDLK_ESCAPE); err != nil {
+		return err
+	}
+	if app.Snapshot().SearchOpen {
+		return fmt.Errorf("smoke: Esc did not close search")
+	}
+	evidence["keyboard_nav"] = true
+	evidence["affinity_after_keyboard"] = app.Affinity().Kind.String()
+	return nil
+}
+
+func smokeMouseNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence map[string]any) error {
+	if !app.focusIndex(0) {
+		return fmt.Errorf("smoke: mouse failed to focus first title (%s)", padDump(app, pads))
+	}
+	grid := app.Snapshot().Grid
+	x, y, w, h, ok := grid.CellRect(1)
+	if !ok {
+		return fmt.Errorf("smoke: mouse target cell is offscreen (%s)", padDump(app, pads))
+	}
+	if err := virtualMouseMove(app, pads, x+w/2, y+h/2); err != nil {
+		return err
+	}
+	focus := app.Snapshot().Grid.Focus
+	evidence["mouse_focus_after"] = focus
+	if focus != 1 {
+		return fmt.Errorf("smoke: mouse hover did not move focus (got %d want 1; %s)", focus, padDump(app, pads))
+	}
+	evidence["mouse_nav"] = true
+	evidence["affinity_after_mouse"] = app.Affinity().Kind.String()
+	return nil
+}
+
+func virtualMouseMove(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+	now := time.Now()
+	ev := C.FogcastEvent{kind: evMouseMove, x: C.int(x), y: C.int(y)}
+	if handleSDLEvent(app, pads, &ev, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	return nil
+}
+
+func virtualMouseClick(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, x, y int) error {
+	now := time.Now()
+	down := C.FogcastEvent{kind: evMouseButton, code: C.SDL_BUTTON_LEFT, down: 1, x: C.int(x), y: C.int(y)}
+	if handleSDLEvent(app, pads, &down, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	up := C.FogcastEvent{kind: evMouseButton, code: C.SDL_BUTTON_LEFT, down: 0, x: C.int(x), y: C.int(y)}
+	_ = handleSDLEvent(app, pads, &up, now, nil)
+	app.Tick(now)
+	return nil
+}
+
+func virtualMouseClickSelected(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad) error {
+	snap := app.Snapshot()
+	x, y, w, h, ok := snap.Grid.CellRect(snap.Grid.Focus)
+	if !ok {
+		return fmt.Errorf("smoke: focused cell is offscreen for mouse click (%s)", padDump(app, pads))
+	}
+	return virtualMouseClick(app, pads, x+w/2, y+h/2)
+}
+
+func virtualKey(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, key C.int) error {
+	now := time.Now()
+	down := C.FogcastEvent{kind: evKey, code: key, down: 1}
+	if handleSDLEvent(app, pads, &down, now, nil) {
+		return nil
+	}
+	app.Tick(now)
+	up := C.FogcastEvent{kind: evKey, code: key, down: 0}
+	_ = handleSDLEvent(app, pads, &up, now, nil)
+	app.Tick(now)
+	return nil
+}
+
 func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_JoystickID, button C.int) error {
 	held := map[Command]bool{}
 	pad := pads[id]
@@ -542,7 +720,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	}
 	C.SDL_PumpEvents()
 	now := time.Now()
-	pumpSDL(app, pads, now)
+	pumpSDL(app, pads, now, nil)
 	if pollGamepads(app, pads, held, nil, now) {
 		return nil
 	}
@@ -558,7 +736,7 @@ func virtualPress(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, id C.SDL_J
 	}
 	C.SDL_PumpEvents()
 	now = time.Now()
-	pumpSDL(app, pads, now)
+	pumpSDL(app, pads, now, nil)
 	pollGamepads(app, pads, held, nil, now)
 	app.Tick(now)
 	return nil
@@ -569,12 +747,12 @@ type stickTracker struct {
 	cmd  Command
 }
 
-func pumpSDL(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, now time.Time) {
+func pumpSDL(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, now time.Time, renderer *C.SDL_Renderer) {
 	var stick stickTracker
 	C.fogcast_update_pads()
 	for {
 		var ev C.FogcastEvent
-		if C.fogcast_poll(&ev) == 0 {
+		if C.fogcast_poll(&ev, renderer) == 0 {
 			return
 		}
 		_ = handleSDLEvent(app, pads, &ev, now, &stick)
@@ -594,10 +772,12 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 	}
 	stickCmd := CmdNone
 	remap := app.remapper()
-	for _, pad := range pads {
+	active := make([]int, 0, len(pads))
+	for id, pad := range pads {
 		if pad == nil {
 			continue
 		}
+		used := false
 		for _, button := range []C.int{
 			C.SDL_GAMEPAD_BUTTON_DPAD_UP,
 			C.SDL_GAMEPAD_BUTTON_DPAD_DOWN,
@@ -615,6 +795,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		} {
 			if bool(C.SDL_GetGamepadButton(pad, C.SDL_GamepadButton(button))) {
 				pressed[remapSDLCommand(remap, commandFromSDLButton(button))] = true
+				used = true
 			}
 		}
 		x := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTX))
@@ -622,12 +803,35 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		if cmd := CommandFromStickHeld(x, y, prevStick); cmd != CmdNone {
 			pressed[cmd] = true
 			stickCmd = cmd
+			used = true
+		}
+		if used {
+			active = append(active, int(id))
 		}
 	}
 	if stick != nil {
 		stick.cmd = stickCmd
 	}
+	if len(active) > 0 {
+		app.NoteInput(InputGamepad, pickActiveGamepad(app, active))
+	}
 	return applyPressed(app, pressed, held, now)
+}
+
+func pickActiveGamepad(app *App, ids []int) int {
+	if len(ids) == 1 {
+		return ids[0]
+	}
+	cur := app.Affinity()
+	if cur.Kind == InputGamepad {
+		for _, id := range ids {
+			if id == cur.ID {
+				return id
+			}
+		}
+	}
+	sort.Ints(ids)
+	return ids[0]
 }
 
 func takeEventText(ev *C.FogcastEvent) string {
@@ -640,6 +844,11 @@ func takeEventText(ev *C.FogcastEvent) string {
 	return text
 }
 
+func dispatchSyntheticSDL(app *App, kind, which int) bool {
+	ev := C.FogcastEvent{kind: C.int(kind), which: C.int(which)}
+	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, time.Now(), nil)
+}
+
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
 	switch ev.kind {
 	case evQuit:
@@ -650,19 +859,24 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if app.ForwardsCoreKeyboard() {
-			if event, ok := coreKeyFromSDL(ev.code, ev.down != 0); ok {
-				app.SendCoreKey(event)
-			}
+		if app.HandlePlayHIDKey(sdlPlayKeyName(ev.code), ev.down != 0, now) {
 			return false
+		}
+		if ev.down != 0 {
+			app.NoteInput(InputKeyboard, int(ev.which))
 		}
 		if app.OSKOpen() {
 			return handleSearchKey(app, ev, now)
 		}
 		cmd := commandFromSDLKey(ev.code)
 		if ev.down != 0 {
-			if C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0 && cmd == CmdViewNext {
-				cmd = CmdViewPrev
+			if C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0 {
+				switch cmd {
+				case CmdViewNext:
+					cmd = CmdViewPrev
+				case CmdTab:
+					cmd = CmdTabPrev
+				}
 			}
 			if cmd == CmdQuit {
 				return true
@@ -679,6 +893,15 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		// Gamepad buttons and sticks are polled each frame so virtual devices
 		// and dummy video still drive the focus graph.
 		return false
+	case evMouseMove:
+		app.PointerMoveFrom(int(ev.which), int(ev.x), int(ev.y), now)
+	case evMouseButton:
+		if ev.code != C.SDL_BUTTON_LEFT {
+			return false
+		}
+		if ev.down != 0 {
+			app.PointerClickFrom(int(ev.which), int(ev.x), int(ev.y), now)
+		}
 	case evPadAdded:
 		id := C.SDL_JoystickID(ev.which)
 		if pads[id] != nil {
@@ -687,6 +910,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		pad := C.SDL_OpenGamepad(id)
 		if pad != nil {
 			pads[id] = pad
+			app.AttachInput(InputGamepad, int(id))
 			app.SetGamepads(len(pads))
 		}
 	case evPadRemoved:
@@ -694,8 +918,17 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		if pad := pads[id]; pad != nil {
 			C.SDL_CloseGamepad(pad)
 			delete(pads, id)
+			app.DetachInput(InputGamepad, int(id))
 			app.SetGamepads(len(pads))
 		}
+	case evKeyAdded:
+		app.AttachInput(InputKeyboard, int(ev.which))
+	case evKeyRemoved:
+		app.DetachInput(InputKeyboard, int(ev.which))
+	case evMouseAdded:
+		app.AttachInput(InputMouse, int(ev.which))
+	case evMouseRemoved:
+		app.DetachInput(InputMouse, int(ev.which))
 	}
 	return false
 }
@@ -715,9 +948,36 @@ func openExistingGamepads(pads map[C.SDL_JoystickID]*C.SDL_Gamepad, app *App) {
 		pad := C.SDL_OpenGamepad(id)
 		if pad != nil {
 			pads[id] = pad
+			app.SeedInput(InputGamepad, int(id))
 		}
 	}
 	app.SetGamepads(len(pads))
+}
+
+func seedSDLKeyboards(app *App) {
+	var count C.int
+	ids := C.SDL_GetKeyboards(&count)
+	if ids == nil {
+		return
+	}
+	defer C.SDL_free(unsafe.Pointer(ids))
+	slice := unsafe.Slice(ids, int(count))
+	for _, id := range slice {
+		app.SeedInput(InputKeyboard, int(id))
+	}
+}
+
+func seedSDLMice(app *App) {
+	var count C.int
+	ids := C.SDL_GetMice(&count)
+	if ids == nil {
+		return
+	}
+	defer C.SDL_free(unsafe.Pointer(ids))
+	slice := unsafe.Slice(ids, int(count))
+	for _, id := range slice {
+		app.SeedInput(InputMouse, int(id))
+	}
 }
 
 func remapSDLCommand(remap *inputmap.Remapper, cmd Command) Command {
@@ -803,6 +1063,11 @@ func commandFromSDLButton(code C.int) Command {
 
 func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 	key := C.SDL_Keycode(ev.code)
+	shift := C.SDL_GetModState()&C.SDL_KMOD_SHIFT != 0
+	tabCmd := CmdTab
+	if shift {
+		tabCmd = CmdTabPrev
+	}
 	if ev.down != 0 {
 		switch key {
 		case C.SDLK_BACKSPACE:
@@ -811,6 +1076,8 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 			app.Press(CmdBack, now)
 		case C.SDLK_RETURN:
 			app.ConfirmSearch(now)
+		case C.SDLK_TAB:
+			app.Press(tabCmd, now)
 		case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
 			app.Press(commandFromSDLKey(ev.code), now)
 		}
@@ -821,147 +1088,138 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 		app.Release(CmdBack)
 	case C.SDLK_RETURN:
 		app.Release(CmdSelect)
+	case C.SDLK_TAB:
+		app.Release(tabCmd)
 	case C.SDLK_UP, C.SDLK_DOWN, C.SDLK_LEFT, C.SDLK_RIGHT:
 		app.Release(commandFromSDLKey(ev.code))
 	}
 	return false
 }
 
-func coreKeyFromSDL(code C.int, down bool) (remoteinput.Event, bool) {
-	var key remoteinput.Code
-	switch C.SDL_Keycode(code) {
-	case C.SDLK_RETURN:
-		key = zx81keys.KeyEnter
-	case C.SDLK_SPACE:
-		key = zx81keys.KeySpace
-	case C.SDLK_LSHIFT, C.SDLK_RSHIFT:
-		key = zx81keys.KeyShift
-	case C.SDLK_PERIOD:
-		key = zx81keys.KeyPeriod
-	case C.SDLK_0:
-		key = zx81keys.Digit(0)
-	case C.SDLK_1:
-		key = zx81keys.Digit(1)
-	case C.SDLK_2:
-		key = zx81keys.Digit(2)
-	case C.SDLK_3:
-		key = zx81keys.Digit(3)
-	case C.SDLK_4:
-		key = zx81keys.Digit(4)
-	case C.SDLK_5:
-		key = zx81keys.Digit(5)
-	case C.SDLK_6:
-		key = zx81keys.Digit(6)
-	case C.SDLK_7:
-		key = zx81keys.Digit(7)
-	case C.SDLK_8:
-		key = zx81keys.Digit(8)
-	case C.SDLK_9:
-		key = zx81keys.Digit(9)
-	case C.SDLK_A:
-		key = zx81keys.Letter('A')
-	case C.SDLK_B:
-		key = zx81keys.Letter('B')
-	case C.SDLK_C:
-		key = zx81keys.Letter('C')
-	case C.SDLK_D:
-		key = zx81keys.Letter('D')
-	case C.SDLK_E:
-		key = zx81keys.Letter('E')
-	case C.SDLK_F:
-		key = zx81keys.Letter('F')
-	case C.SDLK_G:
-		key = zx81keys.Letter('G')
-	case C.SDLK_H:
-		key = zx81keys.Letter('H')
-	case C.SDLK_I:
-		key = zx81keys.Letter('I')
-	case C.SDLK_J:
-		key = zx81keys.Letter('J')
-	case C.SDLK_K:
-		key = zx81keys.Letter('K')
-	case C.SDLK_L:
-		key = zx81keys.Letter('L')
-	case C.SDLK_M:
-		key = zx81keys.Letter('M')
-	case C.SDLK_N:
-		key = zx81keys.Letter('N')
-	case C.SDLK_O:
-		key = zx81keys.Letter('O')
-	case C.SDLK_P:
-		key = zx81keys.Letter('P')
-	case C.SDLK_Q:
-		key = zx81keys.Letter('Q')
-	case C.SDLK_R:
-		key = zx81keys.Letter('R')
-	case C.SDLK_S:
-		key = zx81keys.Letter('S')
-	case C.SDLK_T:
-		key = zx81keys.Letter('T')
-	case C.SDLK_U:
-		key = zx81keys.Letter('U')
-	case C.SDLK_V:
-		key = zx81keys.Letter('V')
-	case C.SDLK_W:
-		key = zx81keys.Letter('W')
-	case C.SDLK_X:
-		key = zx81keys.Letter('X')
-	case C.SDLK_Y:
-		key = zx81keys.Letter('Y')
-	case C.SDLK_Z:
-		key = zx81keys.Letter('Z')
-	default:
-		return remoteinput.Event{}, false
-	}
-	action := remoteinput.ActionRelease
-	if down {
-		action = remoteinput.ActionPress
-	}
-	return remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: action, Code: key}, true
+func commandFromSDLKey(code C.int) Command {
+	return CommandFromKey(sdlKeyName(code))
 }
 
-func commandFromSDLKey(code C.int) Command {
+func sdlPlayKeyName(code C.int) string {
+	if name := sdlKeyName(code); name != "" {
+		return name
+	}
 	switch C.SDL_Keycode(code) {
-	case C.SDLK_UP, C.SDLK_W:
-		return CmdUp
-	case C.SDLK_DOWN:
-		return CmdDown
-	case C.SDLK_S:
-		return CmdStop
-	case C.SDLK_LEFT, C.SDLK_A:
-		return CmdLeft
-	case C.SDLK_RIGHT, C.SDLK_D:
-		return CmdRight
-	case C.SDLK_RETURN, C.SDLK_SPACE:
-		return CmdSelect
-	case C.SDLK_ESCAPE, C.SDLK_BACKSPACE:
-		return CmdBack
-	case C.SDLK_Q:
-		return CmdQuit
-	case C.SDLK_LEFTBRACKET:
-		return CmdFilterPrev
-	case C.SDLK_RIGHTBRACKET:
-		return CmdFilterNext
-	case C.SDLK_X:
-		return CmdSortCycle
-	case C.SDLK_SLASH, C.SDLK_F:
-		return CmdSearch
-	case C.SDLK_C:
-		return CmdViewNext
-	case C.SDLK_V:
-		return CmdFavorite
-	case C.SDLK_MINUS:
-		return CmdSafeAreaOut
-	case C.SDLK_EQUALS, C.SDLK_PLUS:
-		return CmdSafeAreaIn
-	case C.SDLK_L:
-		return CmdLayoutCycle
-	case C.SDLK_O:
-		return CmdSettings
-	case C.SDLK_G:
-		return CmdFilters
+	case C.SDLK_LSHIFT, C.SDLK_RSHIFT:
+		return "shift"
+	case C.SDLK_PERIOD:
+		return "period"
+	case C.SDLK_0:
+		return "0"
+	case C.SDLK_1:
+		return "1"
+	case C.SDLK_2:
+		return "2"
+	case C.SDLK_3:
+		return "3"
+	case C.SDLK_4:
+		return "4"
+	case C.SDLK_5:
+		return "5"
+	case C.SDLK_6:
+		return "6"
+	case C.SDLK_7:
+		return "7"
+	case C.SDLK_8:
+		return "8"
+	case C.SDLK_9:
+		return "9"
+	case C.SDLK_B:
+		return "b"
+	case C.SDLK_E:
+		return "e"
+	case C.SDLK_H:
+		return "h"
+	case C.SDLK_I:
+		return "i"
+	case C.SDLK_J:
+		return "j"
+	case C.SDLK_K:
+		return "k"
+	case C.SDLK_M:
+		return "m"
+	case C.SDLK_N:
+		return "n"
+	case C.SDLK_P:
+		return "p"
+	case C.SDLK_R:
+		return "r"
+	case C.SDLK_T:
+		return "t"
+	case C.SDLK_U:
+		return "u"
+	case C.SDLK_Y:
+		return "y"
+	case C.SDLK_Z:
+		return "z"
 	default:
-		return CmdNone
+		return ""
+	}
+}
+
+func sdlKeyName(code C.int) string {
+	switch C.SDL_Keycode(code) {
+	case C.SDLK_UP:
+		return "up"
+	case C.SDLK_W:
+		return "w"
+	case C.SDLK_DOWN:
+		return "down"
+	case C.SDLK_S:
+		return "s"
+	case C.SDLK_LEFT:
+		return "left"
+	case C.SDLK_A:
+		return "a"
+	case C.SDLK_RIGHT:
+		return "right"
+	case C.SDLK_D:
+		return "d"
+	case C.SDLK_RETURN:
+		return "return"
+	case C.SDLK_SPACE:
+		return "space"
+	case C.SDLK_ESCAPE:
+		return "escape"
+	case C.SDLK_BACKSPACE:
+		return "backspace"
+	case C.SDLK_TAB:
+		return "tab"
+	case C.SDLK_Q:
+		return "q"
+	case C.SDLK_LEFTBRACKET:
+		return "leftbracket"
+	case C.SDLK_RIGHTBRACKET:
+		return "rightbracket"
+	case C.SDLK_X:
+		return "x"
+	case C.SDLK_SLASH:
+		return "slash"
+	case C.SDLK_F:
+		return "f"
+	case C.SDLK_C:
+		return "c"
+	case C.SDLK_V:
+		return "v"
+	case C.SDLK_MINUS:
+		return "minus"
+	case C.SDLK_EQUALS:
+		return "equals"
+	case C.SDLK_PLUS:
+		return "plus"
+	case C.SDLK_L:
+		return "l"
+	case C.SDLK_O:
+		return "o"
+	case C.SDLK_G:
+		return "g"
+	default:
+		return ""
 	}
 }
 

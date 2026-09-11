@@ -295,6 +295,18 @@ produce H.264 frames for the existing MJPEG preview endpoint. macOS keeps its
 native AVFoundation capture adapter; other platforms report capture as
 unavailable.
 
+A kit-only host runs `fogcast-api` with `--launcher-config` and does not open
+the SDL sofa window. Pass `--headless` so that process does not compose local
+capture or the MJPEG preview pipeline; kit catalog, attract, session, and
+input stay on the launcher listener. Folder-watch still polls configured
+library roots every five seconds, but it only re-opens a source when size or
+mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
+search index. A long scan waits a full interval before the next poll, so the
+watcher cannot run back-to-back.
+
+The kit reconnects with the existing `launcher.json` API URL on that launcher
+listener. See [the host connection contract](launcher-host.md).
+
 ## Native 10-foot launcher
 
 `cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,
@@ -327,6 +339,7 @@ Native SDL3 UI
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
   -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
+  -> POST /api/v1/session/input/event (play-session HID; fail-closed on a foreign kit lease)
   -> host session service
   -> existing FPGA launch path
 ```
@@ -382,8 +395,29 @@ Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
 helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
 embedded Go Regular and Go Bold, and
-`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, and text input remain
-SDL in `host/tenfoot/sdl.go`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
+`DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
+SDL in `host/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+path (`CommandFromKey` in `host/tenfoot/keyboard.go`): arrows, Enter, Esc, and
+Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
+first-class on the same path (`PointerMove` / `PointerClick` in
+`host/tenfoot/pointer.go`): hover moves focus, primary click activates
+select/launch/confirm on shelf, detail, and search, and it coexists with
+keyboard nav. Hints and focus ownership follow the last-used keyboard, mouse,
+or gamepad (`host/tenfoot/affinity.go`). SDL keyboard, mouse, and gamepad
+add/remove events claim affinity on plug without restarting the process, and
+unplug restores a remaining device. Letter shortcuts already
+patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
+an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
+`POST /api/v1/session/input/event` instead of the sofa focus graph and do not
+steal browse or ZX81/session affinity; pointer browse stays off that session.
+Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+A `fes.keyboard` core maps those keys onto the ZX81 matrix. Native SNES/MD
+encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
+route them to `set_keyboard` and reconnect replay does not treat matrix codes
+as axes. Foreign kit leases and `recovery-required` connections fail closed
+and drop HID. On the kit,
+USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
+packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 
@@ -636,8 +670,13 @@ native development sessions. Authenticated clients read `GET /v1/kit/lease`,
 claim with `POST /v1/kit/claim` (`request_id`, `owner`, `purpose`), and carry the
 returned secret in `X-FogCast-Kit-Lease` on every hardware mutation and input
 CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
-retries reuse the same ID. Cache transfer and status inspection do not reserve the kit. A Stop
+retries reuse the same ID. Cache transfer, status inspection, and
+`GET /v2/hostless/identity/{game_id}` do not reserve the kit. A Stop
 ends the current runtime session but retains ownership for another launch.
+When the host is absent, `fogcast-kit` claims owner `kit-hostless` with
+purpose `offline-cache-hit-launch` for verified ROM cache hits only. That
+owner cannot cast, attach input, load development images, or reboot; it
+releases before a returning host claims.
 
 Renew and release use empty POST bodies at `/v1/kit/renew` and
 `/v1/kit/release`. The production lease lasts 90 seconds; active clients renew
@@ -738,9 +777,27 @@ The native image packages `fogcast-kit`, a CGO-free controller/session adapter
 with a living-room platform wheel and a live catalog browse renderer.
 `fogcast-kit` writes a last-good catalog snapshot and cover blobs under
 `/media/fat/fogcast/launcher-cache/` (beside `launcher.json`, separate from the
-ROM cache). Boot paints that shelf from disk before host games HTTP, decodes
+ROM cache). Catalog publish stays atomic (`catalog.json` temp+rename); a host
+refresh merges by identity so an unchanged list does not blank the shelf or
+rewrite FAT. Cover files have a 512 MiB LRU cap on that tree and never call
+into `targetcache`. Artwork and presentation prefetch is focus → visible page →
+next page → strip → attract, still capped at three concurrent fetches.
+`GET /api/v1/library/cache` (host and launcher listener) reports ROM cache
+used/free/max from lease-free target `GET /v2/cache`; cover used/free and last
+catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
+when the target inventory is reachable; ROM-less rows omit it. Boot paints that
+shelf from disk before host games HTTP, decodes
 visible covers from disk first, and labels an absent host `Offline - local library`.
-Local D-pad/A still browse that snapshot. Launch still requires the host.
+Local D-pad/A still browse that snapshot. When the host is unreachable, A
+may launch a verified ROM cache hit through the target agent lease as owner
+`kit-hostless` / purpose `offline-cache-hit-launch`. That path uses the same
+`/v2/launch` mutation as the host, after a lease-free identity lookup at
+`GET /v2/hostless/identity/{game_id}` and a probe+hash as `targetcache` does
+today. Foreign leases, packages, ROM-less cores, and unverified bytes refuse
+without programming the FPGA. Cache GET/PUT stay lease-free. The hostless
+owner may only `/v2/launch` and `/v1/stop`; cast, input attach, development,
+and reboot stay denied. When the host returns, the kit releases hostless
+ownership before a host claim.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,
@@ -887,7 +944,8 @@ when the string exceeds the chrome or cell width. A paired, authenticated host l
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
-pad. Kit input discovers every eligible USB gamepad (`event*` only), merges
+pad. Kit input discovers every eligible USB gamepad (`event*` only) plus
+physical USB keyboards for play-session HID, merges
 polls in stable device-id order through `host/tenfoot/inputmap`, and remaps
 logical codes with a JSON profile (default identity). Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the

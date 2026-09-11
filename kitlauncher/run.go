@@ -2,12 +2,15 @@ package kitlauncher
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -30,9 +33,12 @@ type observation struct {
 	detailID       string
 	presentation   tenfoot.Presentation
 	haveDetail     bool
+	cache          tenfoot.LibraryCache
+	haveCache      bool
 	err            error
 	mutation       bool
 	message        string
+	hostAbsent     bool
 }
 
 // Run keeps device/UI work on one loop. Slow host requests run outside that loop;
@@ -69,6 +75,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		catalogLoaded = true
 		m.Message = OfflineMessage
 	}
+	m.Cache = mergeCacheStatus(c.Cache, tenfoot.LibraryCache{}, false)
 	if present != nil {
 		present(m)
 	}
@@ -99,10 +106,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		go func() {
 			o := observation{epoch: e}
 			o.session, o.err = c.Session(ctx)
-			if o.err == nil {
+			if o.err != nil {
+				o.hostAbsent = true
+				o.err = nil
+				if c.hostlessHeld() {
+					if st, stErr := c.hostless.status(ctx); stErr == nil {
+						o.session = sessionFromStatus(st)
+					}
+				}
+			}
+			if o.err == nil && !o.hostAbsent {
 				o.health, o.err = c.Library.Health(ctx)
 			}
-			if o.err == nil && load {
+			if o.err == nil && !o.hostAbsent && load {
 				o.games, o.err = loadCatalog(ctx, c)
 				if o.err == nil {
 					o.strip, o.stripLabel, o.recents = loadStrip(ctx, c)
@@ -113,9 +129,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						StripLabel: o.stripLabel,
 						Recents:    o.recents,
 					})
+					if c.Library != nil {
+						if cache, err := c.Library.LibraryCache(ctx); err == nil {
+							o.cache = cache
+							o.haveCache = true
+						}
+					}
 				}
 			}
-			if o.err == nil && loadAttract {
+			if o.err == nil && !o.hostAbsent && loadAttract {
 				p, err := c.Library.Attract(ctx, defaultAttractLimit)
 				if err == nil {
 					o.attract = p
@@ -124,7 +146,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					o.hydrateAttract = true
 				}
 			}
-			if o.err == nil && detailID != "" {
+			if o.err == nil && !o.hostAbsent && detailID != "" {
 				p, err := c.Library.GamePresentation(ctx, detailID)
 				if err == nil {
 					o.detailID = detailID
@@ -161,21 +183,56 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.Message = "Stopping game"
 			present(m)
 		}
+		game, _ := m.lookupGame(id)
+		hostless := !m.Connected
 		go func() {
 			o := observation{epoch: e, mutation: true}
 			var r tenfoot.SessionResult
 			var err error
 			if action == "launch" {
-				r, err = c.Library.Launch(ctx, id)
+				if hostless {
+					o.hostAbsent = true
+					resp, launchErr := c.hostless.launch(ctx, game)
+					err = launchErr
+					if err == nil {
+						o.session = sessionFromStatus(resp.Status)
+					}
+				} else {
+					r, err = c.Library.Launch(ctx, id)
+				}
+			} else if action == "hostless-yield" {
+				sess, yieldErr := c.hostless.stopAndRelease(ctx)
+				err = yieldErr
+				if c.hostlessHeld() {
+					o.hostAbsent = true
+					if sess.State != "" {
+						o.session = sess
+					}
+				}
+			} else if c.hostlessHeld() {
+				o.hostAbsent = true
+				sess, stopErr := c.hostless.stopAndRelease(ctx)
+				err = stopErr
+				if sess.State != "" {
+					o.session = sess
+				}
 			} else {
 				r, err = c.Library.Stop(ctx)
 			}
-			if err != nil || r.HTTPStatus >= 400 {
+			if err != nil {
+				var refuse hostlessRefuse
+				if errors.As(err, &refuse) {
+					o.message = refuse.reason
+				} else if r.HTTPStatus >= 400 {
+					o.message = "Operation failed; retry Stop with Select + Start"
+				} else {
+					o.message = "Operation failed; retry Stop with Select + Start"
+				}
+			} else if r.HTTPStatus >= 400 {
 				o.message = "Operation failed; retry Stop with Select + Start"
-			} else {
-				o.message = ""
+			} else if !o.hostAbsent && (action != "launch" || !hostless) {
+				o.session, o.err = c.Session(ctx)
 			}
-			o.session, o.err = c.Session(ctx)
 			send(o)
 		}()
 	}
@@ -206,7 +263,35 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				closeInput()
 				continue
 			}
+			if o.hostAbsent {
+				m.Connected = false
+				if o.session.State != "" {
+					m.Session = o.session
+				}
+				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
+					if m.Message != RefuseNeedsHost && m.Message != RefuseKitInUse {
+						m.Message = OfflineMessage
+					}
+				}
+				// Keep the Select+Start chord across offline polls so a
+				// hostless game can still be stopped.
+				if stream != nil {
+					closeInput()
+				}
+				continue
+			}
+			if c.hostlessHeld() && !o.mutation {
+				mutate("hostless-yield")
+				continue
+			}
 			m.Connected = true
+			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
+				State: o.health.Connection.State,
+				Owner: o.health.Connection.Owner,
+			})
+			if m.ForeignLease && stream != nil {
+				closeInput()
+			}
 			if streamKey != "" && streamKey != inputStreamKey(o.session) {
 				closeInput()
 			}
@@ -223,13 +308,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Message = ""
 				}
 				if o.games != nil {
-					m.SetCatalog(o.games)
+					m.ApplyCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
 				}
 				if o.haveStrip {
-					m.SetStrip(o.strip, o.stripLabel)
+					m.ApplyStrip(o.strip, o.stripLabel)
 					m.Recents = append([]tenfoot.Game(nil), o.recents...)
+				}
+				if o.haveCache || c.Cache != nil {
+					m.Cache = mergeCacheStatus(c.Cache, o.cache, o.haveCache)
 				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)
@@ -278,8 +366,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					closeInput()
 					nextPad = now.Add(time.Second)
 				} else {
-					key := inputStreamKey(m.Session)
-					if stream == nil && m.Connected && !m.Busy && key != "" && now.After(nextPad) {
+					key := playHIDStreamKey(m)
+					if stream == nil && m.Connected && !m.Busy && !m.ForeignLease && key != "" && now.After(nextPad) {
 						streamKey = key
 						stream = c.OpenInput(ctx, m.Session.Input.SessionID)
 						nextPad = now.Add(time.Second)
@@ -294,11 +382,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						if m.Pack != prevPack {
 							persistPack(c, m.Pack)
 						}
-						if stream != nil && streamKey == inputStreamKey(m.Session) {
-							select {
-							case <-stream.Ready:
-								stream.Send(e)
-							default:
+						if stream != nil && !m.ForeignLease && streamKey == playHIDStreamKey(m) {
+							if encoded, ok := encodePlayHIDEvent(m.Session, e); ok {
+								select {
+								case <-stream.Ready:
+									stream.Send(encoded)
+								default:
+								}
 							}
 						}
 						if action != "" {
@@ -318,6 +408,17 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 }
 
+func playHIDStreamKey(m Model) string {
+	if m.ForeignLease {
+		return ""
+	}
+	return inputStreamKey(m.Session)
+}
+
+func encodePlayHIDEvent(session Session, e remoteinput.Event) (remoteinput.Event, bool) {
+	return playhid.StreamEvent(e, session.CorePackage.HasKeyboard())
+}
+
 func inputStreamKey(session Session) string {
 	if session.State != "active" || (!session.Input.Ready && session.Input.State != "reconnecting") || session.Input.SessionID == "" {
 		return ""
@@ -326,7 +427,10 @@ func inputStreamKey(session Session) string {
 	case "fpga_native":
 		return session.Execution + ":" + session.Input.SessionID
 	case "fpga_development":
-		if session.CorePackage == nil || !session.CorePackage.Gamepad || session.CorePackage.Generation == 0 {
+		if session.CorePackage == nil || session.CorePackage.Generation == 0 {
+			return ""
+		}
+		if !session.CorePackage.Gamepad && !session.CorePackage.HasKeyboard() {
 			return ""
 		}
 		return session.Execution + ":" + session.Input.SessionID + ":" + strconv.FormatUint(session.CorePackage.Generation, 10)

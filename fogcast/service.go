@@ -252,6 +252,9 @@ type Service struct {
 	catalogCloseOnce            sync.Once
 	catalogCloseErr             error
 	closeErr                    error
+
+	romCacheMu   sync.Mutex
+	romCacheSnap romCacheSnapshot
 }
 
 const catalogCloseScanTimeout = 2 * time.Second

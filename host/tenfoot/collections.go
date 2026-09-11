@@ -81,9 +81,9 @@ func (a *App) handleViewPickerLocked(cmd Command) {
 		a.viewPickerIndex = n - 1
 	}
 	switch cmd {
-	case CmdUp, CmdLeft, CmdViewPrev:
+	case CmdUp, CmdLeft, CmdViewPrev, CmdTabPrev:
 		a.viewPickerIndex = (a.viewPickerIndex - 1 + n) % n
-	case CmdDown, CmdRight, CmdViewNext:
+	case CmdDown, CmdRight, CmdViewNext, CmdTab:
 		a.viewPickerIndex = (a.viewPickerIndex + 1) % n
 	case CmdSelect:
 		row := rows[a.viewPickerIndex]
@@ -207,9 +207,9 @@ func (a *App) handleCollectionManageLocked(cmd Command) {
 		a.collectionManageIndex = n - 1
 	}
 	switch cmd {
-	case CmdUp, CmdLeft, CmdViewPrev:
+	case CmdUp, CmdLeft, CmdViewPrev, CmdTabPrev:
 		a.collectionManageIndex = (a.collectionManageIndex - 1 + n) % n
-	case CmdDown, CmdRight, CmdViewNext:
+	case CmdDown, CmdRight, CmdViewNext, CmdTab:
 		a.collectionManageIndex = (a.collectionManageIndex + 1) % n
 	case CmdSelect:
 		if a.collectionManageIndex == 0 {
@@ -224,7 +224,7 @@ func (a *App) handleCollectionManageLocked(cmd Command) {
 
 func (a *App) handleCollectionConfirmLocked(cmd Command) {
 	switch cmd {
-	case CmdSelect:
+	case CmdSelect, CmdTab:
 		if a.collectionBusy {
 			a.status = "collection busy"
 			return
@@ -233,7 +233,7 @@ func (a *App) handleCollectionConfirmLocked(cmd Command) {
 		a.closeCollectionManageLocked()
 		a.viewPickerOpen = false
 		a.deleteCollectionLocked(id)
-	case CmdBack, CmdViewPicker, CmdSearch:
+	case CmdBack, CmdViewPicker, CmdSearch, CmdTabPrev:
 		a.collectionConfirmOpen = false
 	}
 }
@@ -295,7 +295,9 @@ func (a *App) handleNameEntryLocked(cmd Command) {
 		a.closeNameEntryLocked()
 	case CmdSearch:
 		a.closeNameEntryLocked()
-	case CmdFilterPrev:
+	case CmdTab:
+		a.submitNameEntryLocked()
+	case CmdTabPrev, CmdFilterPrev:
 		a.nameField.CyclePage(-1)
 	case CmdFilterNext:
 		a.nameField.CyclePage(1)
@@ -439,7 +441,7 @@ func (a *App) collectionMenuSnapshotLocked() CollectionMenuSnapshot {
 		return CollectionMenuSnapshot{
 			Open:    true,
 			Title:   "Delete " + name + "?",
-			Hint:    "A delete  B cancel",
+			Hint:    collectionHintFor(a.affinity.current.Kind, true),
 			Confirm: true,
 		}
 	}
@@ -451,7 +453,7 @@ func (a *App) collectionMenuSnapshotLocked() CollectionMenuSnapshot {
 		return CollectionMenuSnapshot{
 			Open:  true,
 			Title: name,
-			Hint:  "A select  B back",
+			Hint:  collectionHintFor(a.affinity.current.Kind, false),
 			Rows:  []string{"Rename", "Delete"},
 			Index: a.collectionManageIndex,
 		}

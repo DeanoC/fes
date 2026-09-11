@@ -1,6 +1,7 @@
 package kitlauncher
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -15,54 +16,95 @@ const axisDeadzone int32 = 8000
 // Model is the kit/UI boundary. A renderer consumes it without owning network,
 // framebuffer enablement, controller capture, or the target session lease.
 type Model struct {
-	Catalog                                           []tenfoot.Game
-	Games                                             []tenfoot.Game
-	Shelves                                           []string
-	Shelf                                             string
-	Focus                                             int
-	Session                                           Session
-	Connected, TargetReady, Busy, ControllerConnected bool
-	Message                                           string
-	AttractActive                                     bool
-	DetailOpen                                        bool
-	WheelOpen                                         bool
-	fromWheel                                         bool
-	chord                                             controller.Chord
-	presentationID                                    string
-	presentation                                      tenfoot.Presentation
-	shotIndex                                         int
-	previewAt                                         time.Time
-	axisX, axisY                                      int
-	lastInput                                         time.Time
-	attractIdle                                       time.Duration
-	attractCycle                                      time.Duration
-	attractIdleReady                                  bool
-	attractItems                                      []tenfoot.AttractItem
-	attractIndex                                      int
-	attractShownAt                                    time.Time
-	attractCycleAt                                    time.Time
-	attractPresentationID                             string
-	attractPresentation                               tenfoot.Presentation
-	attractShotIndex                                  int
-	attractPreviewAt                                  time.Time
-	launchID                                          string
-	Strip                                             []tenfoot.Game
-	StripLabel                                        string
-	StripFocus                                        int
-	StripActive                                       bool
-	Recents                                           []tenfoot.Game
-	detailFromStrip                                   bool
-	Series                                            []tenfoot.Game
-	SeriesLabel                                       string
-	SeriesFocus                                       int
-	SeriesActive                                      bool
-	Browse                                            fbgrid.BrowseKind
-	Pack                                              string
-	SearchOpen                                        bool
-	SearchQuery                                       string
-	searchField                                       tenfoot.TextField
-	searchRestoreID                                   string
-	searchPool                                        []tenfoot.Game
+	Catalog                                                         []tenfoot.Game
+	Games                                                           []tenfoot.Game
+	Shelves                                                         []string
+	Shelf                                                           string
+	Focus                                                           int
+	Session                                                         Session
+	Connected, TargetReady, Busy, ControllerConnected, ForeignLease bool
+	Message                                                         string
+	AttractActive                                                   bool
+	DetailOpen                                                      bool
+	WheelOpen                                                       bool
+	fromWheel                                                       bool
+	chord                                                           controller.Chord
+	presentationID                                                  string
+	presentation                                                    tenfoot.Presentation
+	shotIndex                                                       int
+	previewAt                                                       time.Time
+	axisX, axisY                                                    int
+	lastInput                                                       time.Time
+	attractIdle                                                     time.Duration
+	attractCycle                                                    time.Duration
+	attractIdleReady                                                bool
+	attractItems                                                    []tenfoot.AttractItem
+	attractIndex                                                    int
+	attractShownAt                                                  time.Time
+	attractCycleAt                                                  time.Time
+	attractPresentationID                                           string
+	attractPresentation                                             tenfoot.Presentation
+	attractShotIndex                                                int
+	attractPreviewAt                                                time.Time
+	launchID                                                        string
+	Strip                                                           []tenfoot.Game
+	StripLabel                                                      string
+	StripFocus                                                      int
+	StripActive                                                     bool
+	Recents                                                         []tenfoot.Game
+	detailFromStrip                                                 bool
+	Series                                                          []tenfoot.Game
+	SeriesLabel                                                     string
+	SeriesFocus                                                     int
+	SeriesActive                                                    bool
+	Browse                                                          fbgrid.BrowseKind
+	Pack                                                            string
+	SearchOpen                                                      bool
+	SearchQuery                                                     string
+	searchField                                                     tenfoot.TextField
+	searchRestoreID                                                 string
+	searchPool                                                      []tenfoot.Game
+	Cache                                                           CacheStatus
+}
+
+// CacheStatus is visible ROM/cover used-free plus last catalog sync.
+type CacheStatus struct {
+	ROMUsedBytes   int64
+	ROMMaxBytes    int64
+	ROMFreeBytes   int64
+	ROMReachable   bool
+	CoverUsedBytes int64
+	CoverMaxBytes  int64
+	CoverFreeBytes int64
+	LastSyncUnix   int64
+}
+
+// CacheChrome is compact living-room used/max, omitted when unknown.
+func (s CacheStatus) Chrome() string {
+	parts := make([]string, 0, 2)
+	if s.ROMReachable && s.ROMMaxBytes > 0 {
+		parts = append(parts, "ROM "+formatCacheBytes(s.ROMUsedBytes)+"/"+formatCacheBytes(s.ROMMaxBytes))
+	}
+	if s.CoverMaxBytes > 0 {
+		parts = append(parts, "ART "+formatCacheBytes(s.CoverUsedBytes)+"/"+formatCacheBytes(s.CoverMaxBytes))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func formatCacheBytes(n int64) string {
+	if n < 0 {
+		n = 0
+	}
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%.1fG", float64(n)/float64(1<<30))
+	case n >= 1<<20:
+		return fmt.Sprintf("%.0fM", float64(n)/float64(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0fK", float64(n)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%dB", n)
+	}
 }
 
 func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }
@@ -184,9 +226,24 @@ func (m *Model) axisStep(hold *int, value int32) int {
 	return move
 }
 
-// canLaunch is a host session mutation. Local catalog browse does not need it.
+// canLaunch admits host session launch, or a hostless cache-hit attempt when
+// the host is absent. Fail-closed checks run at mutate time.
 func (m Model) canLaunch() bool {
-	return m.Connected && m.TargetReady
+	if m.Connected {
+		return m.TargetReady
+	}
+	return true
+}
+
+func (m Model) lookupGame(id string) (tenfoot.Game, bool) {
+	for _, pool := range [][]tenfoot.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game, true
+			}
+		}
+	}
+	return tenfoot.Game{}, false
 }
 
 func (m *Model) Tick(now time.Time) string {

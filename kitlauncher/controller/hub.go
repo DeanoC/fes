@@ -160,7 +160,7 @@ func (h *Hub) remember(id string, e remoteinput.Event) {
 		h.holds[id] = st
 	}
 	switch e.Kind {
-	case remoteinput.KindButton:
+	case remoteinput.KindButton, remoteinput.KindKey:
 		if e.Action == remoteinput.ActionPress {
 			st.pressed[e.Code] = true
 		} else {
@@ -184,7 +184,7 @@ func (h *Hub) release(id string) []remoteinput.Event {
 	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
 	out := make([]remoteinput.Event, 0, len(codes)+len(st.axes))
 	for _, c := range codes {
-		out = append(out, remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: c})
+		out = append(out, releaseEvent(c))
 	}
 	var axes []remoteinput.Code
 	for c, v := range st.axes {
@@ -197,6 +197,10 @@ func (h *Hub) release(id string) []remoteinput.Event {
 		out = append(out, remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: c, Value: 0})
 	}
 	return out
+}
+
+func releaseEvent(c remoteinput.Code) remoteinput.Event {
+	return remoteinput.EventForCode(c, remoteinput.ActionRelease)
 }
 
 func (h *Hub) add(p padSource) {

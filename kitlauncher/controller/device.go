@@ -10,6 +10,12 @@ import (
 func eligible(bus uint16, name string, buttons bool) bool {
 	return bus != 6 && name != "FogCast Virtual Gamepad" && buttons
 }
+
+// eligibleKeyboard admits a physical QWERTY for play-session HID. Gamepads
+// stay on the pad path even when they also expose keys.
+func eligibleKeyboard(bus uint16, name string, keys bool) bool {
+	return bus != 6 && name != "FogCast Virtual Gamepad" && keys
+}
 func decode(b []byte) (uint16, uint16, int32, error) {
 	if len(b) != 16 && len(b) != 24 {
 		return 0, 0, 0, errors.New("invalid input record")

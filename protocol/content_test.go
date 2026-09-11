@@ -36,6 +36,26 @@ func TestCacheProbeResponseJSON(t *testing.T) {
 	}
 }
 
+func TestCacheIndexJSON(t *testing.T) {
+	t.Parallel()
+	index := protocol.CacheIndex{
+		UsedBytes: 1024,
+		MaxBytes:  2048,
+		FreeBytes: 1024,
+		Entries: []protocol.CacheIndexEntry{{
+			System: protocol.SystemSNES, SHA256: testDigest, Size: 1024, Extension: "sfc",
+		}},
+	}
+	got, err := json.Marshal(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"used_bytes":1024,"max_bytes":2048,"free_bytes":1024,"entries":[{"system":"snes","sha256":"` + testDigest + `","size":1024,"extension":"sfc"}]}`
+	if string(got) != want {
+		t.Fatalf("JSON = %s, want %s", got, want)
+	}
+}
+
 func TestCacheUploadResponseJSON(t *testing.T) {
 	t.Parallel()
 
@@ -75,6 +95,27 @@ func TestCachedLaunchJSON(t *testing.T) {
 	}
 	if want := `{"status":{"state":"active","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null},"content":{"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","size":1024,"extension":"sfc"}}`; string(response) != want {
 		t.Fatalf("response JSON = %s, want %s", response, want)
+	}
+}
+
+func TestCachedIdentityResponseJSON(t *testing.T) {
+	t.Parallel()
+	absent, err := json.Marshal(protocol.CachedIdentityResponse{Present: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(absent) != `{"present":false}` {
+		t.Fatalf("absent JSON = %s", absent)
+	}
+	system := protocol.SystemSNES
+	content := protocol.ContentIdentity{SHA256: testDigest, Size: 1024, Extension: "sfc"}
+	present, err := json.Marshal(protocol.CachedIdentityResponse{Present: true, GameID: "snes-test", System: &system, Content: &content})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"present":true,"game_id":"snes-test","system":"snes","content":{"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","size":1024,"extension":"sfc"}}`
+	if string(present) != want {
+		t.Fatalf("present JSON = %s, want %s", present, want)
 	}
 }
 

@@ -162,6 +162,45 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+type sourceIndex struct {
+	Kind        SourceKind
+	State       SourceState
+	Reason      string
+	Fingerprint Fingerprint
+}
+
+func (s *Store) sourceIndexForRoot(ctx context.Context, rootID string) (map[string]sourceIndex, error) {
+	if s == nil {
+		return nil, errors.New("catalog store is unavailable")
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT relative_path, source_kind, source_state, reason,
+		       source_size, modified_ns, zip_member, zip_size, zip_crc32, zip_entry_count
+		FROM games WHERE library_id = ?`, rootID)
+	if err != nil {
+		return nil, fmt.Errorf("read source index for root %q: %w", rootID, err)
+	}
+	defer rows.Close()
+	index := make(map[string]sourceIndex)
+	for rows.Next() {
+		var relativePath string
+		var record sourceIndex
+		if err := rows.Scan(
+			&relativePath, &record.Kind, &record.State, &record.Reason,
+			&record.Fingerprint.SourceSize, &record.Fingerprint.ModifiedNS,
+			&record.Fingerprint.ZIPMember, &record.Fingerprint.ZIPSize,
+			&record.Fingerprint.ZIPCRC32, &record.Fingerprint.ZIPEntryCount,
+		); err != nil {
+			return nil, fmt.Errorf("read source index for root %q: %w", rootID, err)
+		}
+		index[relativePath] = record
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read source index for root %q: %w", rootID, err)
+	}
+	return index, nil
+}
+
 func (s *Store) acquireRootScanLease(ctx context.Context, root Root) (func() error, error) {
 	if s.scanLeaseDirectory == "" {
 		select {
@@ -361,10 +400,14 @@ func (x *ScanSession) Observe(ctx context.Context, candidate Candidate) (Change,
 			previous.kind == candidate.Kind && previous.state == candidate.State &&
 			previous.reason == candidate.Reason && previous.fingerprint == candidate.Fingerprint
 		if unchanged {
+			_, err = x.tx.ExecContext(ctx, `UPDATE games SET seen_generation = ? WHERE game_id = ?`, x.generation, candidate.ID)
+			if err != nil {
+				return "", fmt.Errorf("touch candidate %q: %w", candidate.ID, err)
+			}
 			change = ChangeUnchanged
-		} else {
-			change = ChangeUpdated
+			break
 		}
+		change = ChangeUpdated
 		preserveContent := previous.kind == candidate.Kind && previous.fingerprint == candidate.Fingerprint
 		contentUpdate := ""
 		if !preserveContent {

@@ -37,7 +37,19 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
   and list layouts that calls the same public host API, including a
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
-  Mac is the primary sofa target; Linux uses the same Makefile target with
+  A kit-only host is `fogcast-api --headless --launcher-config`: catalog and
+  session stay up without local capture or an SDL window, and `fogcast-kit`
+  reconnects to the launcher listener.
+  USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
+  required); USB mouse/pointer hover moves focus and primary click activates
+  (select/launch/confirm) without a controller; on-screen hints and focus
+  follow the last-used keyboard, mouse, or gamepad, a newly plugged device
+  claims affinity without restart, and unplug returns to a remaining device;
+  an attached play session forwards USB keyboard HID to the core/session path
+  instead of the sofa graph (ZX81 still uses the matrix; native SNES/MD encode
+  as gamepad buttons; Esc/Backspace still stop); pointer browse does
+  not steal that session, and a foreign or recovery-required kit lease fails closed. Mac is the primary sofa target;
+  Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
   the production backend; Software is a pure-Go rasterizer for tests/CI;
   FPGA records a versioned FC2D command stream and rasters through Software
@@ -136,10 +148,22 @@ display and USB controller. It uses an explicitly paired host listener and the
 existing session/input ownership path; Select + Start held for one second requests
 Stop and returns to the library. After a successful host catalog fetch it keeps a
 last-good snapshot and cover files under `/media/fat/fogcast/launcher-cache/` on
-FAT, separate from the ROM cache. Power-on paints that shelf and visible covers
+FAT, separate from the ROM cache. Catalog refresh merges in place instead of
+blanking the shelf; covers use a 512MiB LRU budget on that tree and never
+evict the ROM cache. Prefetch is focus, then page, then next page, then strip,
+then attract. `GET /api/v1/library/cache` reports ROM used/free from a
+lease-free target inventory; cover used/free and last sync are kit-local.
+Host games may include `rom_cached` when that inventory is reachable.
+Power-on paints that shelf and visible covers
 from disk before host games HTTP; an absent host shows `Offline - local library`.
 Replacing the system image does not wipe this tree. D-pad and A still browse
-that local shelf; launch still requires the host. Its live catalog opens as a living-room platform wheel
+that local shelf. When the host is absent, A may launch a title whose ROM is
+already verified under `/media/fat/fogcast/cache` by claiming the existing
+target lease as owner `kit-hostless` / purpose `offline-cache-hit-launch`.
+Foreign leases, unverified or `.part` bytes, ROM-less cores, and packages are
+refused with a clear reason and no FPGA mutation. Host return releases that
+hostless grant before the host claims. Package/ABI offline launch remains
+hold. D-pad browse does not take a lease. Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
 a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →

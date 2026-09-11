@@ -1,5 +1,6 @@
 // Package kitlauncher connects the on-kit controller shell to FogCast's host.
-// It does not control the FPGA or claim the target lease.
+// When the host is absent it may claim the existing target lease as kit-hostless
+// and launch a verified ROM cache hit through the agent API.
 package kitlauncher
 
 import (
@@ -106,10 +107,11 @@ func validLauncherToken(token string) bool {
 }
 
 type Client struct {
-	config  Config
-	HTTP    *http.Client
-	Library *tenfoot.Client
-	Cache   *DiskStore
+	config   Config
+	HTTP     *http.Client
+	Library  *tenfoot.Client
+	Cache    *DiskStore
+	hostless *hostlessRuntime
 }
 type authenticated struct {
 	base   http.RoundTripper
@@ -134,6 +136,7 @@ func NewClient(c Config) *Client {
 			client.Cache = store
 		}
 	}
+	client.attachHostless()
 	return client
 }
 
@@ -150,8 +153,25 @@ type Session struct {
 }
 
 type CorePackageSession struct {
-	Generation uint64 `json:"generation"`
-	Gamepad    bool   `json:"gamepad"`
+	Generation       uint64 `json:"generation"`
+	Gamepad          bool   `json:"gamepad"`
+	ActiveInterfaces []struct {
+		ID    string `json:"id"`
+		Major uint16 `json:"major"`
+		Minor uint16 `json:"minor"`
+	} `json:"active_interfaces"`
+}
+
+func (p *CorePackageSession) HasKeyboard() bool {
+	if p == nil {
+		return false
+	}
+	for _, contract := range p.ActiveInterfaces {
+		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) Session(ctx context.Context) (Session, error) {

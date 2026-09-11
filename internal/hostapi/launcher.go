@@ -94,7 +94,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 
 func launcherOperation(method, path string) bool {
 	switch method + " " + path {
-	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
+	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path))
@@ -209,7 +209,7 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if packet.Event != nil {
-			if !launcherGamepadEvent(*packet.Event) {
+			if !launcherPlayHIDEvent(*packet.Event) {
 				return
 			}
 			if source.SendEvent(r.Context(), *packet.Event, time.Now()) != nil {
@@ -217,6 +217,20 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
+}
+
+func launcherPlayHIDEvent(e remoteinput.Event) bool {
+	if launcherKeyboardEvent(e) {
+		return true
+	}
+	return launcherGamepadEvent(e)
+}
+
+func launcherKeyboardEvent(e remoteinput.Event) bool {
+	if e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || e.Value != 0 {
+		return false
+	}
+	return e.Action == remoteinput.ActionPress || e.Action == remoteinput.ActionRelease
 }
 
 func launcherGamepadEvent(e remoteinput.Event) bool {

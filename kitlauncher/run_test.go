@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -146,6 +147,16 @@ func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *te
 	if next := inputStreamKey(custom); next == "" || next == first {
 		t.Fatalf("generation replacement did not retire stream: %q then %q", first, next)
 	}
+	keys := Session{State: "active", Execution: "fpga_development",
+		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
+			ID    string `json:"id"`
+			Major uint16 `json:"major"`
+			Minor uint16 `json:"minor"`
+		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
+	keys.Input.State, keys.Input.Ready, keys.Input.SessionID = "attached", true, "keyboard-session"
+	if inputStreamKey(keys) == "" {
+		t.Fatal("fes.keyboard session was not eligible")
+	}
 	for name, session := range map[string]Session{
 		"raw":        {State: "active", Execution: "fpga_development"},
 		"not-ready":  func() Session { v := custom; v.Input.Ready = false; return v }(),
@@ -156,6 +167,40 @@ func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *te
 		if got := inputStreamKey(session); got != "" {
 			t.Errorf("%s stream key = %q", name, got)
 		}
+	}
+}
+
+func TestPlayHIDStreamKeyFailClosedOnForeignLease(t *testing.T) {
+	native := Session{State: "active", Execution: "fpga_native"}
+	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
+	if playHIDStreamKey(Model{Session: native}) == "" {
+		t.Fatal("ours was not eligible")
+	}
+	if playHIDStreamKey(Model{Session: native, ForeignLease: true}) != "" {
+		t.Fatal("foreign lease must fail closed")
+	}
+}
+
+func TestEncodePlayHIDEventNativeGamepadNotZX81(t *testing.T) {
+	native := Session{State: "active", Execution: "fpga_native"}
+	zx := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('J')}
+	if _, ok := encodePlayHIDEvent(native, zx); ok {
+		t.Fatal("native must not forward ZX81 letter J")
+	}
+	w := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('W')}
+	got, ok := encodePlayHIDEvent(native, w)
+	if !ok || got.Device != remoteinput.DeviceGamepad || got.Code != remoteinput.ButtonDPadUp {
+		t.Fatalf("native W = %+v ok=%v", got, ok)
+	}
+	keys := Session{State: "active", Execution: "fpga_development",
+		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
+			ID    string `json:"id"`
+			Major uint16 `json:"major"`
+			Minor uint16 `json:"minor"`
+		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
+	keep, ok := encodePlayHIDEvent(keys, zx)
+	if !ok || keep.Code != zx81keys.Letter('J') {
+		t.Fatalf("fes.keyboard J = %+v ok=%v", keep, ok)
 	}
 }
 
@@ -478,6 +523,112 @@ func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 		t.Fatal("launch not attempted")
 	}
 }
+
+func TestRunHostlessStopReturnsToShelf(t *testing.T) {
+	system := "megadrive"
+	gameID := "megadrive-sonic"
+	digest := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	coreName := "MegaDrive"
+	var active atomic.Bool
+	host := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer host.Close()
+	grant := map[string]any{
+		"status": map[string]any{"state": "held", "generation": "g2", "owner": "kit-hostless", "purpose": "offline-cache-hit-launch", "expires_in_ms": 60000},
+		"token":  "lease-secret",
+	}
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/lease":
+			st := map[string]any{"state": "free", "generation": "g1"}
+			if active.Load() {
+				st = map[string]any{"state": "held", "generation": "g2", "owner": "kit-hostless", "purpose": "offline-cache-hit-launch", "expires_in_ms": 60000}
+			}
+			_ = json.NewEncoder(w).Encode(st)
+		case "/v1/kit/claim", "/v1/kit/renew":
+			_ = json.NewEncoder(w).Encode(grant)
+		case "/v2/hostless/identity/" + gameID:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"present": true, "game_id": gameID, "system": system,
+				"content": map[string]any{"sha256": digest, "size": 4, "extension": "md"},
+			})
+		case "/v2/launch":
+			active.Store(true)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": map[string]any{
+					"state": "active", "game_id": gameID, "system": system,
+					"expected_core": coreName, "observed_core": coreName, "last_error": nil,
+				},
+				"content": map[string]any{"sha256": digest, "size": 4, "extension": "md"},
+			})
+		case "/v1/stop":
+			active.Store(false)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "idle", "game_id": nil, "system": nil, "expected_core": nil, "observed_core": nil, "last_error": nil})
+		case "/v1/status":
+			st := map[string]any{"state": "idle", "game_id": nil, "system": nil, "expected_core": nil, "observed_core": nil, "last_error": nil}
+			if active.Load() {
+				st = map[string]any{"state": "active", "game_id": gameID, "system": system, "expected_core": coreName, "observed_core": coreName, "last_error": nil}
+			}
+			_ = json.NewEncoder(w).Encode(st)
+		case "/v1/kit/release":
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "free"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer agent.Close()
+	cfg := writeKitConfig(t, t.TempDir(), host.URL)
+	client := NewClient(cfg)
+	if err := client.Cache.SaveCatalog(CatalogSnapshot{
+		Games: []tenfoot.Game{{ID: gameID, Title: "Sonic", System: "megadrive", Launchable: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	client.hostless = testHostless(t, agent)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var loading, idle atomic.Bool
+	pad := &hostlessStopPad{loading: &loading}
+	err := Run(ctx, client, func(m Model) {
+		if m.Busy && m.Message == "Loading game" {
+			loading.Store(true)
+		}
+		if loading.Load() && !m.Busy && m.Session.State == "idle" {
+			idle.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !idle.Load() {
+		t.Fatal("hostless stop did not return to shelf")
+	}
+}
+
+type hostlessStopPad struct {
+	loading *atomic.Bool
+	presses int
+	holding bool
+}
+
+func (p *hostlessStopPad) Poll() ([]remoteinput.Event, error) {
+	if p.loading != nil && p.loading.Load() {
+		p.holding = true
+		selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+		startPress, _ := remoteinput.NormalizeGamepad("start", true)
+		return []remoteinput.Event{selectPress, startPress}, nil
+	}
+	if p.presses >= 2 {
+		return nil, nil
+	}
+	p.presses++
+	e, _ := remoteinput.NormalizeGamepad("a", true)
+	return []remoteinput.Event{e}, nil
+}
+func (*hostlessStopPad) Close() error { return nil }
 
 type silentPad struct{}
 

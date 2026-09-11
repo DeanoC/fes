@@ -12,6 +12,31 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+func (c *Client) CacheIndex(ctx context.Context) (protocol.CacheIndex, error) {
+	var index protocol.CacheIndex
+	if err := c.doJSON(ctx, http.MethodGet, "/v2/cache", nil, &index); err != nil {
+		return protocol.CacheIndex{}, err
+	}
+	if index.UsedBytes < 0 || index.MaxBytes < 0 || index.FreeBytes < 0 {
+		return protocol.CacheIndex{}, fmt.Errorf("cache index has invalid byte counts")
+	}
+	if index.Entries == nil {
+		index.Entries = []protocol.CacheIndexEntry{}
+	}
+	for _, entry := range index.Entries {
+		if err := protocol.ValidateSystem(entry.System); err != nil {
+			return protocol.CacheIndex{}, fmt.Errorf("cache index entry system is invalid")
+		}
+		if err := protocol.ValidateContentKey(protocol.ContentKey{SHA256: entry.SHA256, Extension: entry.Extension}); err != nil {
+			return protocol.CacheIndex{}, fmt.Errorf("cache index entry is invalid")
+		}
+		if entry.Size < 0 {
+			return protocol.CacheIndex{}, fmt.Errorf("cache index entry size is invalid")
+		}
+	}
+	return index, nil
+}
+
 func (c *Client) ProbeContent(ctx context.Context, system protocol.System, content protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
 	path, query, err := contentEndpoint(system, content)
 	if err != nil {
@@ -69,6 +94,27 @@ func (c *Client) UploadContent(ctx context.Context, system protocol.System, cont
 		return protocol.CacheUploadResponse{}, fmt.Errorf("cache upload response does not match requested content")
 	}
 	return result, nil
+}
+
+func (c *Client) CachedIdentity(ctx context.Context, gameID string) (protocol.CachedIdentityResponse, error) {
+	if err := protocol.ValidateGameID(gameID); err != nil {
+		return protocol.CachedIdentityResponse{}, fmt.Errorf("validate game ID: %w", err)
+	}
+	var response protocol.CachedIdentityResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/v2/hostless/identity/"+gameID, nil, &response); err != nil {
+		return protocol.CachedIdentityResponse{}, err
+	}
+	if !response.Present {
+		if response.GameID != "" || response.System != nil || response.Content != nil {
+			return protocol.CachedIdentityResponse{}, fmt.Errorf("cached identity response includes identity for absent content")
+		}
+		return response, nil
+	}
+	if response.GameID != gameID || response.System == nil || response.Content == nil ||
+		protocol.ValidateSystem(*response.System) != nil || protocol.ValidateContentIdentity(*response.Content) != nil {
+		return protocol.CachedIdentityResponse{}, fmt.Errorf("cached identity response does not match requested game")
+	}
+	return response, nil
 }
 
 func (c *Client) LaunchContent(ctx context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {

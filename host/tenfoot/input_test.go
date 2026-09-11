@@ -68,6 +68,9 @@ func TestCommandFromKeyAndStick(t *testing.T) {
 	if CommandFromKey("right") != CmdRight || CommandFromKey("return") != CmdSelect {
 		t.Fatal("keyboard mapping")
 	}
+	if CommandFromKey("tab") != CmdTab || CommandFromKey("shift-tab") != CmdTabPrev {
+		t.Fatal("tab keyboard mapping")
+	}
 	if CommandFromKey("s") != CmdStop || CommandFromKey("down") != CmdDown || CommandFromKey("backspace") != CmdBack {
 		t.Fatal("stop keyboard mapping")
 	}

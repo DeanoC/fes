@@ -6,6 +6,11 @@ header restriction. Both listeners share the same library services, session
 coordinator, and target/input lease owner.
 
 Pass `--launcher-config /absolute/private/launcher-host.json` to `fogcast-api`.
+On a machine with no local sofa UI, also pass `--headless` so FPGA launches do
+not start the optional V4L2/FFmpeg session preview. Catalog, attract, session,
+and controller-stream routes stay on this listener; `fogcast-kit` reconnects
+with the existing `launcher.json` API URL.
+
 The file is a regular file readable only by its owner, containing:
 
 ```json
@@ -29,14 +34,25 @@ paired identity. Target settings updates and admitted launcher operations are
 serialized so an address/selection edit cannot redirect an in-flight launch.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
-`Offline - local library`. Local D-pad/A still browse that snapshot. Launch and
-session APIs still require the host; this is not hostless play.
+`Offline - local library`. Local D-pad/A still browse that snapshot. Offline
+play is limited to verified ROM cache hits: the kit process claims the target
+agent lease as `kit-hostless` / `offline-cache-hit-launch` and calls the
+existing cached-launch API. It does not SSH, write `/dev/MiSTer_cmd`, or take
+a foreign lease. Package and ROM-less titles still need the host.
 
 Allowed operations are:
 
-- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`.
+- `GET /api/v1/games`, `/api/v1/platforms`, `/api/v1/health`, `/api/v1/status`,
+  `/api/v1/library/cache`.
   Games may include `play_count` and `last_played_at` when user library state
-  already has them (omitted when zero).
+  already has them (omitted when zero). When the selected target answers a
+  lease-free cache inventory, games with remembered content also include
+  `rom_cached` (`true` if that digest is in `/media/fat/fogcast/cache`,
+  `false` if the target is up and the digest is absent). The field is omitted
+  when the host cannot probe, and for ROM-less rows. It does not change launch
+  admission. `GET /api/v1/library/cache` returns
+  `{rom:{used_bytes,max_bytes,free_bytes,reachable}, synced_unix}` from that
+  same inventory. Cover used/free stay on the kit `launcher-cache` store.
 - `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover

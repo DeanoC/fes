@@ -15,20 +15,20 @@ var dumpRegionTokens = []string{
 }
 
 var dumpRegionLabels = map[string]string{
-	"usa":        "USA",
-	"japan":      "Japan",
-	"europe":     "Europe",
-	"world":      "World",
-	"brazil":     "Brazil",
-	"korea":      "Korea",
-	"asia":       "Asia",
-	"australia":  "Australia",
-	"france":     "France",
-	"germany":    "Germany",
-	"spain":      "Spain",
-	"italy":      "Italy",
-	"canada":     "Canada",
-	"other":      "Other",
+	"usa":       "USA",
+	"japan":     "Japan",
+	"europe":    "Europe",
+	"world":     "World",
+	"brazil":    "Brazil",
+	"korea":     "Korea",
+	"asia":      "Asia",
+	"australia": "Australia",
+	"france":    "France",
+	"germany":   "Germany",
+	"spain":     "Spain",
+	"italy":     "Italy",
+	"canada":    "Canada",
+	"other":     "Other",
 }
 
 const (
@@ -97,11 +97,12 @@ func (a *App) filtersSnapshotLocked() FilterSnapshot {
 		a.filterIndex = n - 1
 	}
 	title := "Filters"
-	hint := "A select  B back"
+	kind := a.affinity.current.Kind
+	hint := filterHintFor(kind, false)
 	switch a.filterPane {
 	case filterPaneGenre:
 		title = "Genre"
-		hint = "A apply  B back"
+		hint = filterHintFor(kind, true)
 		if a.filtersLoading {
 			hint = "loading facets"
 		} else if len(a.facets.Genres) == 0 {
@@ -109,7 +110,7 @@ func (a *App) filtersSnapshotLocked() FilterSnapshot {
 		}
 	case filterPaneYear:
 		title = "Year"
-		hint = "A apply  B back"
+		hint = filterHintFor(kind, true)
 		if a.filtersLoading {
 			hint = "loading facets"
 		} else if len(a.facets.Years) == 0 {
@@ -117,7 +118,7 @@ func (a *App) filtersSnapshotLocked() FilterSnapshot {
 		}
 	case filterPaneRegion:
 		title = "Region"
-		hint = "A apply  B back"
+		hint = filterHintFor(kind, true)
 	}
 	status := a.filterStatus
 	if a.filtersLoading && a.filterPane == filterPaneRoot {
@@ -284,9 +285,9 @@ func (a *App) handleFiltersLocked(cmd Command) {
 		a.filterIndex = n - 1
 	}
 	switch cmd {
-	case CmdUp, CmdLeft, CmdViewPrev:
+	case CmdUp, CmdLeft, CmdViewPrev, CmdTabPrev:
 		a.filterIndex = (a.filterIndex - 1 + n) % n
-	case CmdDown, CmdRight, CmdViewNext:
+	case CmdDown, CmdRight, CmdViewNext, CmdTab:
 		a.filterIndex = (a.filterIndex + 1) % n
 	case CmdSelect:
 		a.activateFilterRowLocked(rows[a.filterIndex])

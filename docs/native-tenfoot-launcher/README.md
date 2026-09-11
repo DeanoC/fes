@@ -46,7 +46,7 @@ Cover grid, labels, attract, now-playing, and session preview draw through
 - GPU park destroys textures individually (preview is the parked exception)
 
 UI helpers in `host/tenfoot/draw.go` do not call `SDL_Render*` or
-`SDL_CreateTexture`. Window creation, events, gamepad, and text input stay
+`SDL_CreateTexture`. Window creation, events, gamepad, mouse, and text input stay
 in `host/tenfoot/sdl.go` until a later slice.
 
 | Backend | Construction | Role |
@@ -124,7 +124,7 @@ can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
 padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override
-the saved pref for that run; gamepad **Select/View** (SDL Back) and debug
+the saved pref for that run; gamepad **Select/View** (SDL Back) and
 keyboard `l` cycle grid → shelf → list → grid. The choice is stored
 in the same `tenfoot.json` as `layout`. Shelf is one row of larger covers:
 Left/Right move one title, Up/Down jump by a visible page of covers. List is
@@ -180,7 +180,24 @@ wheel rolls them up from host games when those fields are admitted. A presentati
 paints a VIDEO badge and cycles screenshot/poster stills as an honest
 motion preview (no H.264 decode on the CGO-free kit).
 
-Gamepad is the intended control path (d-pad / left stick to move, South/A to
+USB keyboard is first-class browse/nav on the SDL path (no gamepad required):
+arrows move focus, Enter launches or confirms, Esc backs out, Tab opens search
+(or confirms an open search; Shift+Tab opens filters, or pages an OSK). In the
+detail pane Tab cycles screenshots when more than one is present, otherwise it
+launches; Shift+Tab steps back. USB mouse/pointer is first-class on the same
+path: hover moves focus, and primary click activates (launch on the shelf or
+detail pane, type/confirm on the search OSK). Clicking empty space does not
+launch the previously focused title. Keyboard and mouse coexist; a gamepad is
+not required. Letter shortcuts already patterned stay. On-screen hints and
+focus ownership follow the last-used keyboard, mouse, or gamepad. Plugging a
+keyboard, mouse, or gamepad claims affinity without restarting tenfoot; unplug
+returns hints to a remaining device. While
+an attached play session is live, sofa keys forward to
+`POST /api/v1/session/input/event` instead of the focus graph (ZX81 still uses
+the matrix), pointer browse does not steal that session, and a foreign kit
+lease fails closed.
+
+Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
 open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
 applies the shared `host/tenfoot/inputmap` remapper after SDL button
@@ -193,8 +210,8 @@ still opens search, and Select/View still cycles layout.
 Shoulders cycle the platform filter
 (All, then each host platform). West/X tap cycles sort (title, recently added,
 system) while browsing. Hold West/X opens the sofa filter overlay (genre,
-year, region, hide prerelease, hide hacks). Debug keyboard `g` toggles the
-same overlay. D-pad moves rows, South/A confirms, East/B backs out of a list
+year, region, hide prerelease, hide hacks). Keyboard `g` (or Shift+Tab)
+toggles the same overlay. D-pad moves rows, South/A confirms, East/B backs out of a list
 or closes. Genre and year options come from `GET /api/v1/library/facets`;
 region uses the web dump-region tokens (USA, Japan, Europe, …, Other). Empty
 facet lists still offer Any plus an honest empty hint. Changing a facet
@@ -233,18 +250,23 @@ West/X attaches or detaches remote input when the session is `active` with
 header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
 `kit not ready` from `GET /api/v1/health` (and `GET /api/v1/status` 503
 `TARGET_UNAVAILABLE`) so a down kit is obvious inside the TV safe-area.
-Keyboard is debug-only: arrows/WASD (S is stop, not down),
-Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
+USB keyboard browse/nav: arrows/WASD (S is stop, not down),
+Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active, including while play HID is attached; letter `s` stays a ZX81/core key on that path),
+Tab to open search (Shift+Tab opens filters; Tab confirms an open search),
 Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
 shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
 custom shelf while the picker is open), `c` / Shift+`c` to cycle views,
 `v` to favorite, `l` to cycle layout,
 `o` to open settings, `g` to open the filter overlay, `-` / `=` to nudge the overscan inset. Down arrow still
-moves focus when idle, and opens the detail pane from the last row.
+moves focus when idle, and opens the detail pane from the last row. USB mouse
+browse/nav: move the pointer over a cover, list row, overlay row, or OSK key to
+focus it; primary click launches or confirms. Mac tenfoot
+is bring-up; the target product path is Pi kit tenfoot with a real USB keyboard
+and mouse.
 
 ## Sofa settings
 
-Guide (debug keyboard `o`) opens a gamepad-first overlay inside the TV
+Guide (keyboard `o`) opens a gamepad-first overlay inside the TV
 safe-area. Up/Down move rows, Left/Right change the focused row, South/A
 confirms, East/B closes. Attract does not arm while the overlay is open.
 Select/View still cycles layout and `-` / `=` still nudge overscan, including
@@ -418,9 +440,14 @@ make tenfoot-smoke
   failed call keeps the prior `input.state` and shows a short status line
   without host path text. Attract does not arm during an in-flight
   attach/detach.
+- `POST /api/v1/session/input/event` while a play session is attached. USB
+  keyboard HID uses this path; a foreign or recovery-required kit lease is
+  fail-closed. `fes.keyboard` posts ZX81 matrix codes; native SNES/MD post
+  gamepad buttons so reconnect replay cannot treat those keys as axes.
 - `POST /api/v1/session/stop` with an empty body. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). SNES `save_failed` and other Stop errors that keep
+  Esc/Backspace, or `s`). Esc/Backspace still stop while play HID is attached;
+  letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep
   the session or lease retain launch lockout until a successful Stop.
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
   client timer. On Darwin, video handles stream with `Accept: video/*` to a

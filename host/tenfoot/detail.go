@@ -134,6 +134,13 @@ func GameDetail(game Game, p Presentation) FocusDetail {
 	if d.Series == "" {
 		d.Series = strings.TrimSpace(game.Series)
 	}
+	if game.ROMCached != nil {
+		if *game.ROMCached {
+			d.Cached = "ON KIT"
+		} else {
+			d.Cached = "NEEDS ROM"
+		}
+	}
 	d.Attribution = strings.TrimSpace(p.AttributionLabel())
 	return d
 }
@@ -236,6 +243,20 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 		return true
 	case CmdSelect:
 		a.startLaunchLocked()
+		return true
+	case CmdTab:
+		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
+			a.stepCarouselLocked(1)
+		} else {
+			a.startLaunchLocked()
+		}
+		return true
+	case CmdTabPrev:
+		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
+			a.stepCarouselLocked(-1)
+		} else {
+			a.closeDetailLocked()
+		}
 		return true
 	case CmdStop:
 		a.startStopLocked()
@@ -404,7 +425,7 @@ func (a *App) detailSnapshotLocked() DetailSnapshot {
 		Open:  a.detailOpen,
 		Index: index,
 		Count: len(ids),
-		Hint:  detailHint(len(ids)),
+		Hint:  detailHintFor(a.affinity.current.Kind, len(ids)),
 	}
 }
 

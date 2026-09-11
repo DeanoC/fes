@@ -77,6 +77,19 @@ func (m *Model) SetStrip(games []tenfoot.Game, label string) {
 	}
 }
 
+// ApplyStrip updates the recent/favorites row without resetting focus when
+// the membership is unchanged.
+func (m *Model) ApplyStrip(games []tenfoot.Game, label string) {
+	if m == nil {
+		return
+	}
+	label = strings.TrimSpace(label)
+	if catalogListsEqual(m.Strip, games) && m.StripLabel == label {
+		return
+	}
+	m.SetStrip(games, label)
+}
+
 func (m *Model) stripGame() (tenfoot.Game, bool) {
 	if m == nil || m.StripFocus < 0 || m.StripFocus >= len(m.Strip) {
 		return tenfoot.Game{}, false

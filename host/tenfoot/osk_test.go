@@ -67,6 +67,12 @@ func TestOSKCyclePageAndSelectID(t *testing.T) {
 	if k.page != oskPageSymbols || k.Focused().Text != "/" {
 		t.Fatalf("slash = page %d %#v", k.page, k.Focused())
 	}
+	if !k.SelectID("page") {
+		t.Fatal("select page on symbols")
+	}
+	if k.page != oskPageSymbols || k.Focused().Kind != OSKPage {
+		t.Fatalf("symbols page key jumped to page %d %#v", k.page, k.Focused())
+	}
 }
 
 func TestTextFieldActivateInsertBackspaceClearDone(t *testing.T) {

@@ -32,8 +32,8 @@ func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 	}
 	m.Connected = false
 	m.Session.State = "idle"
-	if m.Input(a, time.Now()) != "" {
-		t.Fatal("offline launch")
+	if m.Input(a, time.Now()) != "launch" {
+		t.Fatal("offline cache-hit attempt")
 	}
 }
 
@@ -64,6 +64,21 @@ func TestSessionChromeDoesNotStealEastOrStart(t *testing.T) {
 	m.Session.State = "active"
 	if m.SessionChrome().State != "stopping" {
 		t.Fatalf("busy stop chrome %+v", m.SessionChrome())
+	}
+}
+
+func TestPlaySessionKeyboardDoesNotStealBrowse(t *testing.T) {
+	m := Model{
+		Games:     []tenfoot.Game{{ID: "sonic", Launchable: true}, {ID: "pong", Launchable: true}},
+		Connected: true, TargetReady: true,
+	}
+	m.Session.State = "active"
+	e := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: 260}
+	if action := m.Input(e, time.Now()); action != "" {
+		t.Fatalf("keyboard stole %q", action)
+	}
+	if m.Focus != 0 {
+		t.Fatalf("keyboard stole browse focus %d", m.Focus)
 	}
 }
 
@@ -362,6 +377,32 @@ func TestInitialShelfFromConfig(t *testing.T) {
 	m.SetCatalog(mixedCatalog())
 	if m.Shelf != "megadrive" || len(m.Games) != 3 || m.Games[0].ID != "sonic" {
 		t.Fatalf("initial shelf=%q n=%d games=%v", m.Shelf, len(m.Games), ids(m.Games))
+	}
+}
+
+func TestApplyCatalogSkipsIdenticalAndUpdatesRomCachedInPlace(t *testing.T) {
+	m := Model{Connected: true, TargetReady: true}
+	m.SetCatalog(mixedCatalog())
+	m.Focus = 1
+	keepID := m.Games[m.Focus].ID
+	cached := true
+	updated := mixedCatalog()
+	updated[0].ROMCached = &cached
+	updated[0].PlayCount = 4
+	m.ApplyCatalog(updated)
+	if m.Games[m.Focus].ID != keepID {
+		t.Fatalf("focus moved to %s", m.Games[m.Focus].ID)
+	}
+	if m.Catalog[0].PlayCount != 4 || m.Catalog[0].ROMCached == nil || !*m.Catalog[0].ROMCached {
+		t.Fatalf("in-place fields %#v", m.Catalog[0])
+	}
+	m.ApplyCatalog(updated)
+	if m.Games[m.Focus].ID != keepID {
+		t.Fatal("identical apply moved focus")
+	}
+	m.ApplyCatalog([]tenfoot.Game{{ID: "only", Title: "Only", System: "snes", Launchable: true}})
+	if len(m.Catalog) != 1 || m.Catalog[0].ID != "only" {
+		t.Fatalf("structural replace %#v", m.Catalog)
 	}
 }
 

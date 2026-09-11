@@ -53,6 +53,7 @@ type gameResult struct {
 	Collections     []string            `json:"collections,omitempty"`
 	Cover           string              `json:"cover,omitempty"`
 	Launchable      bool                `json:"launchable"`
+	ROMCached       *bool               `json:"rom_cached,omitempty"`
 	CanonicalTitle  string              `json:"canonical_title,omitempty"`
 	Region          string              `json:"region,omitempty"`
 	Revision        string              `json:"revision,omitempty"`
@@ -371,6 +372,9 @@ func New(service Service, options ...ServerOption) http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/library/attract", func(w http.ResponseWriter, r *http.Request) {
 		handleAttract(w, r, service)
+	})
+	mux.HandleFunc("GET /api/v1/library/cache", func(w http.ResponseWriter, r *http.Request) {
+		handleLibraryCache(w, r, service)
 	})
 	mux.HandleFunc("GET /api/v1/library/facets", func(w http.ResponseWriter, r *http.Request) {
 		handleFacets(w, r, service)
@@ -697,6 +701,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "game source is unavailable"
 	case protocol.CodeTransferFailed:
 		return "content transfer failed"
+	case protocol.CodeKitLeaseDenied:
+		return "kit lease is foreign; HID is fail-closed"
 	case protocol.CodeMiSTerUnavailable:
 		return "MiSTer is unavailable"
 	case protocol.CodeCoreTimeout:
@@ -823,6 +829,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		status := http.StatusInternalServerError
 		if apiErr.Code == protocol.CodeBusy {
 			status = http.StatusConflict
+		}
+		if apiErr.Code == protocol.CodeKitLeaseDenied {
+			status = http.StatusForbidden
 		}
 		if apiErr.Code == protocol.CodeROMNotFound {
 			status = http.StatusNotFound

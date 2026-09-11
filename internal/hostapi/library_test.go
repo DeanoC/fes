@@ -66,6 +66,82 @@ func TestGamesListMarksPromotedGBCPlatformLaunchable(t *testing.T) {
 	}
 }
 
+func TestGamesListOmitsRomCachedWhenTargetUnknown(t *testing.T) {
+	service := &queryCaptureFake{page: catalog.Page{Games: []catalog.Game{{
+		ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+		Content: &catalog.Content{SHA256: strings.Repeat("ab", 32), Size: 3, Extension: "sfc"},
+	}}}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "rom_cached") {
+		t.Fatalf("invented rom_cached: %s", response.Body.String())
+	}
+}
+
+func TestGamesListSetsRomCachedFromTargetInventory(t *testing.T) {
+	digest := strings.Repeat("ab", 32)
+	service := &romCachedFake{
+		queryCaptureFake: queryCaptureFake{page: catalog.Page{Games: []catalog.Game{
+			{ID: "snes-mario-test", Title: "Mario", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: digest, Size: 3, Extension: "sfc"}},
+			{ID: "snes-missing-test", Title: "Missing", System: protocol.SystemSNES, Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, Content: &catalog.Content{SHA256: strings.Repeat("cd", 32), Size: 3, Extension: "sfc"}},
+			{ID: "pong", Title: "Pong", System: protocol.SystemPong, Kind: catalog.SourceKindBuiltin, State: catalog.SourceStateAvailable, RootOnline: true},
+		}}},
+		presence: map[string]bool{string(protocol.SystemSNES) + "/" + digest: true},
+		known:    true,
+	}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	var result struct {
+		Games []struct {
+			ID        string `json:"id"`
+			ROMCached *bool  `json:"rom_cached"`
+		} `json:"games"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Games) != 3 || result.Games[0].ROMCached == nil || !*result.Games[0].ROMCached {
+		t.Fatalf("hit %#v", result.Games)
+	}
+	if result.Games[1].ROMCached == nil || *result.Games[1].ROMCached {
+		t.Fatalf("miss %#v", result.Games[1])
+	}
+	if result.Games[2].ROMCached != nil {
+		t.Fatalf("pong invented rom_cached %#v", result.Games[2])
+	}
+}
+
+func TestLibraryCacheEndpointReportsROMBudget(t *testing.T) {
+	service := &romCachedFake{cache: fogcast.LibraryCache{ROM: fogcast.ROMCacheStatus{UsedBytes: 8, MaxBytes: 64, FreeBytes: 56, Reachable: true}, SyncedUnix: 9}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/library/cache")
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"used_bytes":8`) || !strings.Contains(response.Body.String(), `"reachable":true`) {
+		t.Fatalf("body=%s", response.Body.String())
+	}
+}
+
+type romCachedFake struct {
+	queryCaptureFake
+	presence map[string]bool
+	known    bool
+	cache    fogcast.LibraryCache
+}
+
+func (s *romCachedFake) ROMCachePresence(context.Context) (map[string]bool, bool) {
+	return s.presence, s.known
+}
+
+func (s *romCachedFake) LibraryCache(context.Context) (fogcast.LibraryCache, error) {
+	return s.cache, nil
+}
+
 func TestAttractEndpointReturnsBoundedPlaylistWithoutQueryService(t *testing.T) {
 	response := serve(t, hostapi.New(&fakeService{}), http.MethodGet, "/api/v1/library/attract?limit=8")
 	if response.Code != http.StatusOK {

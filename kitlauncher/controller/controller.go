@@ -2,14 +2,17 @@
 package controller
 
 import (
-	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/remoteinput"
 	"time"
+
+	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/internal/playhid"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 type Range struct{ Min, Max int32 }
 type Mapper struct {
 	fixture    bool
+	keyboard   bool
 	axes       map[uint16]Range
 	suppressed map[uint16]bool
 }
@@ -17,8 +20,21 @@ type Mapper struct {
 func NewMapper(vendor, product uint16, axes map[uint16]Range) *Mapper {
 	return &Mapper{fixture: vendor == 0x081f && product == 0xe401, axes: axes, suppressed: map[uint16]bool{}}
 }
+
+func NewKeyboardMapper() *Mapper {
+	return &Mapper{keyboard: true, suppressed: map[uint16]bool{}}
+}
 func (m *Mapper) Suppress(code uint16) { m.suppressed[code] = true }
 func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if m != nil && m.keyboard {
+		if typ == 1 && m.suppressed[code] {
+			if value == 0 {
+				delete(m.suppressed, code)
+			}
+			return remoteinput.Event{}, false
+		}
+		return mapKeyboard(typ, code, value)
+	}
 	if typ == 1 {
 		if m.suppressed[code] {
 			if value == 0 {
@@ -73,7 +89,17 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	return e, err == nil
 }
 
+func mapKeyboard(typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if typ != 1 || (value != 0 && value != 1) {
+		return remoteinput.Event{}, false
+	}
+	return playhid.PhysicalEvent(code, value == 1)
+}
+
 func (m *Mapper) mapWith(remap *inputmap.Remapper, typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if m != nil && m.keyboard {
+		return mapKeyboard(typ, code, value)
+	}
 	if typ == 1 && remap != nil {
 		if dst, ok := remap.PhysicalButton(code); ok {
 			if m.suppressed[code] {

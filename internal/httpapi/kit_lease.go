@@ -75,6 +75,21 @@ func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *kitlease.
 	}
 }
 
+func hostlessMutationDenied(status kitlease.Status, path string) bool {
+	if status.Owner != kitlease.HostlessOwner {
+		return false
+	}
+	if !kitlease.HostlessSession(status) {
+		return true
+	}
+	switch path {
+	case "/v2/launch", "/v1/stop":
+		return false
+	default:
+		return true
+	}
+}
+
 func guardKitLease(next http.Handler, token string, manager *kitlease.Manager) http.Handler {
 	guarded := authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		leaseContext, done, err := manager.Begin(r.Header.Get(KitLeaseHeader))
@@ -83,6 +98,10 @@ func guardKitLease(next http.Handler, token string, manager *kitlease.Manager) h
 			return
 		}
 		defer done()
+		if hostlessMutationDenied(manager.Status(), r.URL.Path) {
+			writeError(w, http.StatusForbidden, "KIT_LEASE_DENIED", "hostless owner cannot mutate this path")
+			return
+		}
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		// Cancellation must interrupt a stalled upload, including net/http body reads.

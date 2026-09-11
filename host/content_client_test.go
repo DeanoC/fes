@@ -19,6 +19,33 @@ import (
 
 const contentDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
+func TestCacheIndexRequestContract(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.EscapedPath() != "/v2/cache" {
+			t.Errorf("request = %s %s", r.Method, r.URL.EscapedPath())
+		}
+		if r.URL.RawQuery != "" {
+			t.Errorf("query = %q", r.URL.RawQuery)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Errorf("authorization = %q", got)
+		}
+		_, _ = io.WriteString(w, `{"used_bytes":3,"max_bytes":64,"free_bytes":61,"entries":[{"system":"snes","sha256":"`+contentDigest+`","size":3,"extension":"sfc"}]}`)
+	}))
+	defer server.Close()
+	baseURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index, err := host.NewClient(baseURL, "test-token", server.Client()).CacheIndex(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index.UsedBytes != 3 || index.MaxBytes != 64 || len(index.Entries) != 1 || index.Entries[0].SHA256 != contentDigest {
+		t.Fatalf("index %#v", index)
+	}
+}
+
 func TestProbeContentRequestContractAndAbsentResponse(t *testing.T) {
 	content := protocol.ContentIdentity{SHA256: contentDigest, Size: 3, Extension: "sfc"}
 	requestCount := 0

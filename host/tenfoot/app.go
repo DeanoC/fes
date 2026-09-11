@@ -11,6 +11,8 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -186,6 +188,7 @@ type FocusDetail struct {
 	Series        string
 	RelatedIDs    []string
 	Collection    string
+	Cached        string
 }
 
 // MetaFacts joins admitted catalog/presentation facts for the detail strip.
@@ -193,7 +196,7 @@ type FocusDetail struct {
 // the kit platform wheel rolls them up when the games payload carries them.
 func (d FocusDetail) MetaFacts() string {
 	parts := make([]string, 0, 6)
-	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region} {
+	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region, d.Cached} {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
@@ -250,6 +253,10 @@ type Snapshot struct {
 	Covers          map[string]*image.RGBA
 	Launch          LaunchSnapshot
 	Gamepads        int
+	Keyboards       int
+	Mice            int
+	Affinity        InputKind
+	AffinityID      int
 	CoverHits       int
 	Platforms       []Platform
 	PlatformID      string
@@ -307,6 +314,9 @@ type App struct {
 	loading   bool
 	launch    LaunchSnapshot
 	gamepads  int
+	keyboards int
+	mice      int
+	affinity  affinityTracker
 	repeat    Repeater
 	remap     *inputmap.Remapper
 	theme     theme.Theme
@@ -570,7 +580,7 @@ func (a *App) Stop() {
 	a.drainAttractResults()
 }
 
-// HandleCommand applies a gamepad or debug-keyboard command.
+// HandleCommand applies a gamepad, USB-keyboard, or pointer-mapped command.
 func (a *App) HandleCommand(cmd Command, now time.Time) {
 	if cmd == CmdNone {
 		return
@@ -648,7 +658,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
 		}
 	}
@@ -678,7 +688,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.cyclePlatformLocked(1)
 	case CmdSortCycle:
 		a.cycleSortLocked()
-	case CmdSearch:
+	case CmdSearch, CmdTab:
 		a.openSearchLocked()
 	case CmdViewPrev:
 		a.cycleViewLocked(-1)
@@ -688,6 +698,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.openViewPickerLocked()
 	case CmdFavorite:
 		a.toggleFavoriteLocked()
+	case CmdTabPrev:
+		a.openFiltersLocked()
 	}
 }
 
@@ -731,7 +743,9 @@ func (a *App) handleSearchLocked(cmd Command, now time.Time) {
 		a.searchOpen = false
 	case CmdSearch:
 		a.searchOpen = false
-	case CmdFilterPrev:
+	case CmdTab:
+		a.closeSearchApplyLocked()
+	case CmdTabPrev, CmdFilterPrev:
 		a.searchField.CyclePage(-1)
 	case CmdFilterNext:
 		a.searchField.CyclePage(1)
@@ -1140,6 +1154,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.syncPreviewLocked()
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
+	if a.ForwardsPlayHID() {
+		a.repeat.Clear()
+	}
 	if a.browseHoldEnabled() {
 		if cmd := a.hold.Tick(now); cmd != CmdNone {
 			a.HandleCommand(cmd, now)
@@ -1215,6 +1232,10 @@ func (a *App) Snapshot() Snapshot {
 		Covers:          covers,
 		Launch:          a.launch,
 		Gamepads:        a.gamepads,
+		Keyboards:       a.keyboards,
+		Mice:            a.mice,
+		Affinity:        a.affinity.current.Kind,
+		AffinityID:      a.affinity.current.ID,
 		CoverHits:       hits,
 		Platforms:       a.platforms,
 		PlatformID:      a.platformID,
@@ -1268,6 +1289,82 @@ func (a *App) SetGamepads(n int) {
 	a.mu.Unlock()
 }
 
+func (a *App) syncInputCountsLocked() {
+	a.keyboards = a.affinity.count(InputKeyboard)
+	a.mice = a.affinity.count(InputMouse)
+	a.gamepads = a.affinity.count(InputGamepad)
+}
+
+func (a *App) noteInputLocked(kind InputKind, id int) {
+	a.affinity.Note(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// SeedInput records a device present at start without claiming affinity.
+func (a *App) SeedInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Seed(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// AttachInput records a hotplug. A newly seen keyboard, mouse, or gamepad
+// claims hint and focus ownership without moving catalog focus.
+func (a *App) AttachInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Attach(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// DetachInput drops a device. Unplugging the owner restores a remaining one.
+func (a *App) DetachInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.Detach(kind, id)
+	a.syncInputCountsLocked()
+}
+
+// NoteInput marks last-used input so hints follow that device.
+func (a *App) NoteInput(kind InputKind, id int) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.noteInputLocked(kind, id)
+}
+
+// FinishInputSeed picks a startup owner: gamepad if any, else keyboard, else mouse.
+func (a *App) FinishInputSeed() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.affinity.preferStartup()
+	a.syncInputCountsLocked()
+}
+
+// Affinity reports the device that currently owns sofa hints and focus.
+func (a *App) Affinity() Affinity {
+	if a == nil {
+		return Affinity{}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.affinity.current
+}
+
 func (a *App) oskSnapshotLocked() OSKSnapshot {
 	if a.settingsOSKOpenLocked() {
 		snap := a.settingsOSKField.Snapshot()
@@ -1286,13 +1383,13 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 		case settingsOSKDevelopmentPath:
 			snap.Prompt = "DIAGNOSTIC RBF path"
 		}
-		return snap
+		return a.withOSKHintLocked(snap)
 	}
 	if a.nameEntryOpenLocked() {
 		snap := a.nameField.Snapshot()
 		snap.Open = true
 		snap.Prompt = "Collection name"
-		return snap
+		return a.withOSKHintLocked(snap)
 	}
 	if !a.searchOpen {
 		return OSKSnapshot{}
@@ -1300,6 +1397,11 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 	snap := a.searchField.Snapshot()
 	snap.Open = true
 	snap.Prompt = "Search"
+	return a.withOSKHintLocked(snap)
+}
+
+func (a *App) withOSKHintLocked(snap OSKSnapshot) OSKSnapshot {
+	snap.Hint = oskHintFor(a.affinity.current.Kind, snap.Page)
 	return snap
 }
 
@@ -1513,6 +1615,10 @@ func (a *App) moveFocusLocked(dx, dy int) {
 func (a *App) focusIndex(i int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.focusIndexLocked(i)
+}
+
+func (a *App) focusIndexLocked(i int) bool {
 	if i < 0 || i >= len(a.games) {
 		return false
 	}
@@ -1697,7 +1803,24 @@ func (a *App) lockRetryStopLocked(code, message string) {
 func (a *App) ForwardsCoreKeyboard() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.session.CoreKeyboard || a.session.State != "active" {
+	return a.forwardsCoreKeyboardLocked()
+}
+
+func (a *App) forwardsCoreKeyboardLocked() bool {
+	if !a.session.CoreKeyboard {
+		return false
+	}
+	return a.forwardsPlayHIDLocked()
+}
+
+func (a *App) ForwardsPlayHID() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.forwardsPlayHIDLocked()
+}
+
+func (a *App) forwardsPlayHIDLocked() bool {
+	if a.session.State != "active" {
 		return false
 	}
 	if a.session.Input == nil {
@@ -1707,9 +1830,83 @@ func (a *App) ForwardsCoreKeyboard() bool {
 		a.session.Input.State == "reconnecting"
 }
 
+// ConsumePlayHID keeps USB keys on the play-session path: no sofa browse and
+// no affinity steal. False means browse/nav may handle the key.
+func (a *App) ConsumePlayHID() bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.forwardsPlayHIDLocked() {
+		return false
+	}
+	a.repeat.Clear()
+	return true
+}
+
+// HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
+// Backspace stop the session without NoteInput; other keys encode for the
+// attached core. Letter s is a ZX81/core key, not chrome stop.
+func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
+	if !a.ConsumePlayHID() {
+		return false
+	}
+	if playhid.ChromeStop(name) {
+		cmd := CommandFromKey(strings.ToLower(strings.TrimSpace(name)))
+		if down {
+			a.Press(cmd, now)
+		} else {
+			a.Release(cmd)
+		}
+		return true
+	}
+	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
+		a.SendPlayHID(event)
+	}
+	return true
+}
+
+func (a *App) playHIDFailClosedLocked() bool {
+	if a.healthHave && kitlease.ForeignHID(kitlease.Status{
+		State: a.health.Connection.State,
+		Owner: a.health.Connection.Owner,
+	}) {
+		return true
+	}
+	if !a.kitLeaseHave || a.kitLease.Unavailable {
+		return false
+	}
+	switch strings.TrimSpace(a.kitLease.ErrorCode) {
+	case "KIT_LEASE_DENIED", "KIT_LEASE_BUSY":
+		return true
+	}
+	return kitlease.ForeignHID(kitlease.Status{
+		State:   a.kitLease.State,
+		Owner:   a.kitLease.Owner,
+		Purpose: a.kitLease.Purpose,
+	})
+}
+
 func (a *App) SendCoreKey(event remoteinput.Event) {
+	a.SendPlayHID(event)
+}
+
+// SendPlayHID posts one play-session HID event. Foreign kit leases fail closed.
+func (a *App) SendPlayHID(event remoteinput.Event) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	ready := a.forwardsPlayHIDLocked()
+	foreign := a.playHIDFailClosedLocked()
 	client := a.client
+	a.mu.Unlock()
+	if !ready || foreign || client == nil {
+		return false
+	}
 	go func() { _ = client.SendCoreKey(context.Background(), event) }()
+	return true
 }
 
 func (a *App) pollSession(ctx context.Context) {
@@ -1881,20 +2078,21 @@ func remoteInputTransitioning(state string) bool {
 	return state == "starting" || state == "reconnecting"
 }
 
-func remoteInputHint(session SessionResult, busy bool, action string) string {
+func remoteInputHint(session SessionResult, busy bool, action string, kind InputKind) string {
+	west := westWord(kind)
 	if busy {
 		switch action {
 		case "detach":
-			return "X detaching"
+			return west + " detaching"
 		default:
-			return "X attaching"
+			return west + " attaching"
 		}
 	}
 	if remoteInputCanDetach(session) {
-		return "X detach"
+		return west + " detach"
 	}
 	if remoteInputCanAttach(session) {
-		return "X attach"
+		return west + " attach"
 	}
 	return ""
 }
@@ -2094,7 +2292,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		Execution:         a.session.Execution,
 		Media:             a.session.Media,
 		InputState:        inputState,
-		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction),
+		InputHint:         remoteInputHint(a.session, a.inputBusy, a.inputAction, a.affinity.current.Kind),
 		InputBusy:         a.inputBusy || remoteInputTransitioning(inputState),
 		Progress:          progress,
 		Stopping:          a.stopPhase == "stopping",

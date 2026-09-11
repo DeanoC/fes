@@ -71,8 +71,15 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 5 {
-		t.Fatalf("user_version = %d, want 5", version)
+	if version != 6 {
+		t.Fatalf("user_version = %d, want 6", version)
+	}
+	var triggerSQL string
+	if err := db.QueryRowContext(ctx, "SELECT sql FROM sqlite_master WHERE name = 'games_au'").Scan(&triggerSQL); err != nil {
+		t.Fatalf("read games_au: %v", err)
+	}
+	if !strings.Contains(triggerSQL, "new.search_text IS NOT old.search_text") {
+		t.Fatalf("games_au = %q, want search_text WHEN clause", triggerSQL)
 	}
 	rows, err := db.QueryContext(ctx, "SELECT name FROM sqlite_master WHERE type IN ('table', 'index') AND name IN ('core_entries', 'games', 'libraries', 'games_fts', 'games_system_title_id') ORDER BY name")
 	if err != nil {
@@ -94,7 +101,7 @@ func TestSchemaMigratesNewDatabaseAndRejectsFutureVersion(t *testing.T) {
 		t.Fatalf("schema objects = %v, want %v", names, want)
 	}
 
-	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 6"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA user_version = 7"); err != nil {
 		t.Fatalf("set future user_version: %v", err)
 	}
 	if err := db.Close(); err != nil {
@@ -326,6 +333,47 @@ func TestScanSessionCountsGenerationsAndRetainsMissingRows(t *testing.T) {
 	}
 	if len(games) != 2 {
 		t.Fatalf("Games length = %d, want retained 2", len(games))
+	}
+}
+
+func TestUnchangedObserveDoesNotRewriteSearchText(t *testing.T) {
+	ctx := context.Background()
+	store := openStore(t)
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
+	first, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan(first): %v", err)
+	}
+	mustObserve(t, first, candidate("snes-keep", "Keep", "keep.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeAdded)
+	if got := mustComplete(t, first); got.Added != 1 {
+		t.Fatalf("first report = %+v", got)
+	}
+
+	db, err := sql.Open("sqlite", store.path)
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	defer db.Close()
+	var before int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM games_fts_data").Scan(&before); err != nil {
+		t.Fatalf("fts_data before: %v", err)
+	}
+
+	second, err := store.BeginRootScan(ctx, root)
+	if err != nil {
+		t.Fatalf("BeginRootScan(second): %v", err)
+	}
+	mustObserve(t, second, candidate("snes-keep", "Keep", "keep.sfc", catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA), catalog.ChangeUnchanged)
+	if got := mustComplete(t, second); got.Unchanged != 1 {
+		t.Fatalf("second report = %+v", got)
+	}
+
+	var after int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM games_fts_data").Scan(&after); err != nil {
+		t.Fatalf("fts_data after: %v", err)
+	}
+	if after != before {
+		t.Fatalf("unchanged observe rebuilt FTS (%d -> %d rows)", before, after)
 	}
 }
 
