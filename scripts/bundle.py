@@ -85,11 +85,11 @@ def _replace(text, key, value):
     return changed
 
 
-def prepare(fogcast, directory, expected_recipe_sha256=None):
+def prepare(fogcast, directory, expected_recipe_sha256=None, cache_root=None):
     fogcast = Path(fogcast)
     directory = Path(directory)
     manifest = load(directory, expected_recipe_sha256)
-    cache = fogcast / "build/cache/target-image/native"
+    cache = Path(cache_root or fogcast) / "build/cache/target-image/native"
     lock_path = fogcast / "build/native-runtime.inputs.lock.toml"
     lock = lock_path.read_text()
     section = lock.index("[megadrive_rbf]")

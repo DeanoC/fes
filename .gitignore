@@ -1,2 +1,5 @@
 /out/
 __pycache__/
+/image/bin/
+/image/build/cache/
+/image/build/output/

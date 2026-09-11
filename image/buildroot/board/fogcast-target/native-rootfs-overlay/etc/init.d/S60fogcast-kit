@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eu
+
+supervisor_pid=/run/fogcast-kit-supervisor.pid
+child_pid=/run/fogcast-kit.pid
+
+read_pid() {
+  [ -f "$1" ] || return 1
+  IFS= read -r pid < "$1"
+  case "$pid" in ''|*[!0-9]*|0|1) return 1 ;; esac
+}
+
+stop_service() {
+  read_pid "$supervisor_pid" || return 0
+  supervisor=$pid
+  /bin/kill "$supervisor" 2>/dev/null || true
+  stop_wait=5
+  while /bin/kill -0 "$supervisor" 2>/dev/null && [ "$stop_wait" -gt 0 ]; do
+    /bin/sleep 1
+    stop_wait=$((stop_wait - 1))
+  done
+  if /bin/kill -0 "$supervisor" 2>/dev/null; then
+    if read_pid "$child_pid"; then
+      /bin/kill -KILL "$pid" 2>/dev/null || true
+    fi
+    /bin/kill -KILL "$supervisor" 2>/dev/null || true
+  fi
+  /bin/rm -f "$supervisor_pid" "$child_pid"
+}
+
+case "${1:-start}" in
+  start)
+    if read_pid "$supervisor_pid" && /bin/kill -0 "$pid" 2>/dev/null; then
+      exit 0
+    fi
+    # Config, networking and the host may appear later. The shared supervisor
+    # retries an unsuccessful process without holding up the boot sequence.
+    /usr/sbin/mister-supervise fogcast-kit /usr/sbin/fogcast-kit \
+      --config /media/fat/fogcast/launcher.json &
+    printf '%s\n' "$!" > "$supervisor_pid"
+    ;;
+  stop) stop_service ;;
+  restart) stop_service; "$0" start ;;
+  *) printf 'usage: %s start|stop|restart\n' "$0" >&2; exit 2 ;;
+esac

@@ -33,10 +33,10 @@ That 1:1 coupling is the later session work, not this inventory.
 | Host API/CLI | linux/amd64 | FES `make host` | `host.json` (`os`, `arch`, binary hashes) |
 | Host API (sofa) | darwin/arm64 | FogCast on a Mac (`build-fogcast-api` / signed app) | same receipt schema with `os=darwin`; not the FES Linux `host.json` |
 | Tenfoot | darwin/arm64 or linux + SDL3 | FogCast `build-fogcast-tenfoot` | not a parent output |
-| Target agent | linux/armv7 | FogCast image recipe | `mister_agent_sha256` in `build-inputs` |
-| Kit launcher | linux/armv7 | FogCast image recipe | `fogcast_kit_sha256` in `build-inputs` |
-| Runtime daemon | linux/armv7 | libmister-runtime via image recipe | `mister_runtime_commit` in `build-inputs` |
-| Rootfs / appliance image | ARMv7 ext4 | FogCast recipe, FES assemble | `image.json`, appliance `image_sha256` |
+| Target agent | linux/armv7 | FogCast binary, FES `image/` install | `mister_agent_sha256` in `build-inputs` |
+| Kit launcher | linux/armv7 | FogCast binary, FES `image/` install | `fogcast_kit_sha256` in `build-inputs` |
+| Runtime daemon | linux/armv7 | libmister-runtime via FES `image/` | `mister_runtime_commit` in `build-inputs` |
+| Rootfs / appliance image | ARMv7 ext4 | FES `image/` recipe | `image.json`, appliance `image_sha256` |
 | Idle RBF | FPGA bitstream | Distribution_MiSTer pin | `idle_sha256` |
 | Catalog cores | FPGA bitstream | misteross bundles | `*_sha256` / selection records |
 | Format-2 package | manifest + RBF | misteross | package id + payload sha |
@@ -89,5 +89,5 @@ FES              → selected tuple + receipts + media
 ```
 
 Changing tenfoot must not require Quartus. Changing a core must not require a
-Darwin sofa rebuild. Image assembly still lives in the selected FogCast recipe
-until that migration completes; FES orchestrates it and records the tuple.
+Darwin sofa rebuild. Image assembly lives in FES `image/`; FogCast remains an
+input for agent, kit and lock artifacts.

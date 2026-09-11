@@ -88,8 +88,8 @@ Coordinate shared expensive runs rather than starting one per agent.
 
 Run `make dev` for the selected `native-integration-dev` revisions. It publishes
 `out/native-integration-dev/development/linux.img` and a `development.json`
-receipt after structural validation. It uses the same pinned child package,
-overlay and image recipes as the clean build. It does not deploy, run QEMU,
+receipt after structural validation. It uses the same pinned package,
+FES `image/` overlay and image recipes as the clean build. It does not deploy, run QEMU,
 produce two-pass evidence, or replace the clean image and receipts.
 
 The development Buildroot volume retains the compiler, libraries and package
@@ -110,11 +110,11 @@ The clean volume is mounted read-only. Without a compatible seed, the first run
 builds the base once. Subsequent runs retain it. Internal Buildroot paths remain
 identical because its generated host tools are not generally relocatable.
 
-The cache key covers the child's Buildroot tree (configuration, overlays,
+The cache key covers the FES `image/` Buildroot tree (configuration, overlays,
 patches and package recipes), container inputs, source/package locks, scripts,
-Makefile, native input policy except the runtime commit, and the parent
+Makefile, FogCast native input policy except the runtime commit, and the parent
 incremental runner. Changes to these inputs select a separate fresh volume.
-Application-source changes and runtime commit changes retain the base. The child
+Application-source changes and runtime commit changes retain the base. The
 container cache identity uses input contents rather than checkout locations, so
 identical compiler containers are shared across component worktrees. RBF
 selection from different source-built bundles is installed during finalization;

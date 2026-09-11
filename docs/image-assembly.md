@@ -1,11 +1,11 @@
 # Native image assembly ownership
 
-FES is the parent image command. The selected FogCast gitlink is still the
-authoritative **recipe** for Buildroot, rootfs layout and native image
-scripts. Do not copy those scripts into FES and leave two builders.
+FES is the parent image command and the authoritative **recipe** for
+Buildroot, rootfs layout and native image scripts. FogCast supplies the
+agent, kit launcher, extra-core selector and native-runtime lock as
+inputs through `FOGCAST_DIR`.
 
-This is the freeze for the assembly migration: name the recipe, keep one
-operator path, move the files once later.
+Do not invoke FogCast `make target-image-native` as a second builder.
 
 ## Operator path
 
@@ -18,36 +18,36 @@ From the FES root:
 | Flashable disk | `make media` after verify |
 | Versioned appliance | `make release` / `make appliance-media` |
 
-Do not run FogCast `make target-image-native` as the parent integration path.
-That target remains the recipe implementation FES invokes on a staged FogCast
-clone.
+Those commands build FogCast agent/kit/lock binaries, then run
+`make -C image FOGCAST_DIR=<FogCast checkout>`. Do not run FogCast
+`make target-image-native` as the parent integration path.
 
-## Recipe identity (FogCast pin)
+## Recipe identity (FES `image/`)
 
-These paths in the selected FogCast revision are the native image recipe.
-Changing any of them is an image-recipe change and requires a parent pin:
+These paths in the FES tree are the native image recipe. Changing any of
+them is an image-recipe change:
 
-- `Makefile` (`target-image-native` and related targets)
-- `scripts/target-image-container.sh`
-- `scripts/fetch-target-image-sources.sh`
-- `scripts/fetch-native-runtime-inputs.sh`
-- `scripts/build-target-image.sh`
-- `scripts/verify-target-image.sh`
-- `scripts/verify-target-image-source-cache.sh`
-- `scripts/qemu-smoke-target-image.sh`
-- `scripts/native-extra-cores.sh`
-- `build/target-image.sources.lock.toml`
-- `build/native-runtime.inputs.lock.toml`
-- `buildroot/`
-- `containers/target-image/`
-- `cmd/target-image-lock/`
+- `image/Makefile` (`target-image-native` and related targets)
+- `image/scripts/target-image-container.sh`
+- `image/scripts/fetch-target-image-sources.sh`
+- `image/scripts/fetch-native-runtime-inputs.sh`
+- `image/scripts/build-target-image.sh`
+- `image/scripts/verify-target-image.sh`
+- `image/scripts/verify-target-image-source-cache.sh`
+- `image/scripts/qemu-smoke-target-image.sh`
+- `image/scripts/native-extra-cores.sh`
+- `image/build/target-image.sources.lock.toml`
+- `image/buildroot/`
+- `image/containers/target-image/`
 
-Agent and runtime **binaries** are component outputs consumed by that recipe.
+The container mounts FES `image/` as `/work` and FogCast as `/fogcast:ro`.
+
+## FogCast inputs
+
+The selected FogCast gitlink still owns:
+
+- `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
+- `cmd/target-image-lock` (extra-core selector / lock verifier)
+- `build/native-runtime.inputs.lock.toml` (runtime/idle/Mega Drive policy)
+
 FPGA cores enter as sealed bundles / packages, not as a second image builder.
-
-## After the migration
-
-FES will own Buildroot configuration and SD/media assembly. FogCast will keep
-the agent, host apps and recipe *inputs* (locks, extra-core selection). The
-move is one cut: no lingering FogCast `target-image-native` as a second
-authority.

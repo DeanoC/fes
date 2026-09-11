@@ -1,0 +1,3 @@
+menu "FogCast target"
+source "$BR2_EXTERNAL_FOGCAST_TARGET_PATH/package/mister-runtime/Config.in"
+endmenu

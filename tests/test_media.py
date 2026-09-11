@@ -66,10 +66,10 @@ class FakeRunner:
         destination.write_bytes((generation / 'fes.img').read_bytes().split(b'\0LAUNCHER\0')[1])
         destination.chmod(0o600)
 
-    def child_verify(self, fogcast, staged, env):
+    def child_verify(self, image, staged, env):
         self.asserted_env = env
         (staged / 'manifest.tsv').write_text('manifest')
-        (fogcast / 'build/output/target-image/native-dev/qemu-smoke.log').write_text('new smoke')
+        (image / 'build/output/target-image/native-dev/qemu-smoke.log').write_text('new smoke')
         if self.fail:
             raise ValueError('verification failed')
 
@@ -85,8 +85,9 @@ class MediaTests(unittest.TestCase):
         self.output = self.root / 'out/native-integration-dev'
         self.output.mkdir(parents=True)
         self.fogcast = self.root / 'fogcast'
-        (self.fogcast / 'build/output/target-image/native-dev').mkdir(parents=True)
-        self.log = self.fogcast / 'build/output/target-image/native-dev/qemu-smoke.log'
+        self.image = self.root / 'image'
+        (self.image / 'build/output/target-image/native-dev').mkdir(parents=True)
+        self.log = self.image / 'build/output/target-image/native-dev/qemu-smoke.log'
         self.log.write_text('original smoke')
         self.log.chmod(0o640)
         (self.output / 'linux.img').write_bytes(b'rootfs')
@@ -109,8 +110,9 @@ class MediaTests(unittest.TestCase):
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.
-        (self.fogcast / 'build/cache/target-image/native').mkdir(parents=True)
-        (self.fogcast / 'build/cache/target-image/native/idle.rbf').write_bytes(b'idle')
+        (self.image / 'build/cache/target-image/native').mkdir(parents=True)
+        (self.image / 'build/cache/target-image/native/idle.rbf').write_bytes(b'idle')
+        (self.fogcast / 'build').mkdir(parents=True, exist_ok=True)
         (self.fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
             '[idle_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
             'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + hashlib.sha256(b'idle').hexdigest()
@@ -446,7 +448,7 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(self.runner.asserted_env['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
         self.assertEqual(self.runner.asserted_env['TARGET_IMAGE_OUTPUT_VOLUME'], cold_build.output_volume(self.root, 'native-integration-dev'))
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
-        self.assertFalse((self.fogcast / 'build/output/target-image/media-verify').exists())
+        self.assertFalse((self.image / 'build/output/target-image/media-verify').exists())
 
     def test_private_snapshot_survives_original_mutation(self):
         config = self.root / 'config'
@@ -567,7 +569,7 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(os.readlink(self.log), 'missing-original-log')
 
     def test_failed_restoration_retains_recoverable_backup(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir(mode=0o750)
         (staged / 'keep').write_text('preserved')
         replace = os.replace
@@ -587,7 +589,7 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(self.log.read_text(), 'original smoke')
 
     def test_cancelled_container_is_removed_before_scratch_restoration(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir()
         (staged / 'keep').write_text('preserved')
         runtime = self.root / 'runtime'
@@ -597,7 +599,7 @@ class MediaTests(unittest.TestCase):
         runner = object.__new__(media.Runner)
         runner.runtime = str(runtime)
         with self.assertRaises(Exception) as caught:
-            with media.termination_handling(), media.child_scratch(self.fogcast):
+            with media.termination_handling(), media.child_scratch(self.image):
                 runner.run([sys.executable, '-c', 'import os,signal,time; os.kill(os.getppid(),signal.SIGTERM); time.sleep(60)'], container_id='a' * 64)
         self.assertIsInstance(caught.exception, media.TerminationRequested)
         self.assertEqual(removed.read_text(), 'a' * 64)
@@ -616,10 +618,10 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(removed.read_text(), 'b' * 64)
 
     def test_signal_before_container_identity_cannot_leave_daemon_writer(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir(mode=0o750)
         (staged / 'keep').write_text('preserved')
-        scripts = self.fogcast / 'scripts'
+        scripts = self.image / 'scripts'
         scripts.mkdir()
         wrapper = scripts / 'target-image-container.sh'
         wrapper.write_text('#!/bin/sh\nexec "$TARGET_IMAGE_CONTAINER_RUNTIME" run --rm fixture-image true\n')
@@ -667,14 +669,14 @@ else:
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 import media
-root,fogcast,runtime=map(Path,sys.argv[2:5])
+root,image,runtime=map(Path,sys.argv[2:5])
 mode=sys.argv[5]
 def build(*args):
-    with media.child_scratch(fogcast) as scratch:
+    with media.child_scratch(image) as scratch:
         runner=object.__new__(media.Runner)
         runner.root=root; runner.runtime=str(runtime); runner.container='fixture-image'
         if mode == 'disk': runner.disk(['true'])
-        else: runner.child_verify(fogcast,scratch,{})
+        else: runner.child_verify(image,scratch,{})
 media.build=build
 sys.argv=['media.py','build']
 media.main()
@@ -682,7 +684,7 @@ media.main()
         for mode in ('disk', 'child'):
             with self.subTest(mode=mode):
                 for path in fixture.iterdir(): path.unlink()
-                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.root), str(self.fogcast), str(runtime), mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.root), str(self.image), str(runtime), mode], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
                 try:
                     deadline = time.monotonic() + 5
                     while not (fixture / 'ready').exists() and process.poll() is None and time.monotonic() < deadline:
@@ -722,7 +724,7 @@ media.main()
             + 'elif sys.argv[1] == "start": print("payload output")\n'
             + 'elif sys.argv[1] == "inspect": print("No such container",file=sys.stderr); sys.exit(1)\n')
         runtime.chmod(0o700)
-        scripts = self.fogcast / 'scripts'
+        scripts = self.image / 'scripts'
         scripts.mkdir()
         wrapper = scripts / 'target-image-container.sh'
         wrapper.write_text('#!/bin/sh\nexec "$TARGET_IMAGE_CONTAINER_RUNTIME" run --rm fixture-image true\n')
@@ -734,11 +736,11 @@ media.main()
         for mode in ('disk', 'child'):
             with self.subTest(mode=mode):
                 calls.unlink(missing_ok=True)
-                with media.child_scratch(self.fogcast) as staged:
+                with media.child_scratch(self.image) as staged:
                     if mode == 'disk':
                         self.assertEqual(runner.disk(['true']), 'payload output\n')
                     else:
-                        runner.child_verify(self.fogcast, staged, {})
+                        runner.child_verify(self.image, staged, {})
                 commands = [json.loads(line) for line in calls.read_text().splitlines()]
                 self.assertEqual([command[0] for command in commands], ['create', 'start', 'rm', 'inspect'])
                 name = commands[0][commands[0].index('--name') + 1]
@@ -749,7 +751,7 @@ media.main()
                 self.assertEqual(commands[3][-1], 'd' * 64)
 
     def test_cli_signals_stop_live_child_before_restoring_scratch(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir(mode=0o750)
         (staged / 'keep').write_text('preserved')
         (staged / 'keep').chmod(0o640)
@@ -769,12 +771,12 @@ while True: time.sleep(1)
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 import media
-fogcast,ready,stopped=map(Path,sys.argv[2:5])
+image,ready,stopped=map(Path,sys.argv[2:5])
 child_code=sys.argv[5]
 def build(*args):
-    with media.child_scratch(fogcast) as scratch:
+    with media.child_scratch(image) as scratch:
         runner=object.__new__(media.Runner)
-        runner.run([sys.executable,'-c',child_code,ready,stopped,scratch,fogcast/'build/output/target-image/native-dev/qemu-smoke.log'])
+        runner.run([sys.executable,'-c',child_code,ready,stopped,scratch,image/'build/output/target-image/native-dev/qemu-smoke.log'])
 media.build=build
 sys.argv=['media.py','build']
 media.main()
@@ -783,7 +785,7 @@ media.main()
             with self.subTest(signal=signum):
                 ready.unlink(missing_ok=True)
                 stopped.unlink(missing_ok=True)
-                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.fogcast), str(ready), str(stopped), child_code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+                process = subprocess.Popen([sys.executable, '-c', parent_code, str(ROOT / 'scripts'), str(self.image), str(ready), str(stopped), child_code], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
                 child_pid = None
                 try:
                     deadline = time.monotonic() + 5
@@ -818,7 +820,7 @@ media.main()
                             pass
 
     def test_child_failure_restores_existing_scratch_and_log(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir()
         (staged / 'keep').write_text('preserved')
         def fail(fogcast, scratch, env):
@@ -832,7 +834,7 @@ media.main()
         self.assertFalse((self.output / 'media/current').exists())
 
     def test_child_setup_failure_restores_existing_scratch(self):
-        staged = self.fogcast / 'build/output/target-image/media-verify'
+        staged = self.image / 'build/output/target-image/media-verify'
         staged.mkdir()
         (staged / 'keep').write_text('preserved')
         mkdir = Path.mkdir

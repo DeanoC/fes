@@ -23,13 +23,13 @@ four-system software slice. Use the same selected runtime checkout and Mega
 Drive bundle, then provide the three additional sealed bundles:
 
 ```sh
-export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'
-export PONG_RBF_BUNDLE=/absolute/path/to/pong-bundle
-export SNES_RBF_BUNDLE=/absolute/path/to/snes-bundle
-export NES_RBF_BUNDLE=/absolute/path/to/nes-bundle
-make target-image-native
-make target-image-native-verify
+make build
+make verify
 ```
+
+The parent profile already exports the four-system selection into the FES
+`image/` recipe. Do not run FogCast `make target-image-native` as the
+integration path.
 
 The NES producer is pinned to
 `https://github.com/MiSTer-devel/NES_MiSTer` commit

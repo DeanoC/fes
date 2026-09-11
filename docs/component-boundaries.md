@@ -3,7 +3,7 @@
 FES means Fogger Entertainment System. This document distinguishes the
 whole system from the narrower native build currently implemented in its
 parent repository. The ownership direction below governs component work. The current integration
-profile consumes the component graph; image-assembly migration remains separate.
+profile consumes the component graph; native image assembly lives in FES `image/`.
 
 ## Ownership
 
@@ -126,11 +126,12 @@ generated consumers so standalone target compilation does not require Go.
 Changes to package definitions and affected consumers must land as one compatible
 parent selection; `make check` detects drift.
 
-Whole-system Buildroot/image configuration and final SD-card assembly should move
-into FES in a separate migration. Component compilation remains component-owned.
-Do not copy the scripts and leave two authoritative image builders: the selected
-FogCast recipe remains authoritative until the migration is complete. The freeze
-list and operator path are in [image assembly ownership](image-assembly.md).
+Whole-system Buildroot/image configuration and final SD-card assembly live in
+FES `image/`. Component compilation remains component-owned. FogCast keeps the
+agent, kit, extra-core selector and native-runtime lock; FES invokes
+`make -C image FOGCAST_DIR=...`. Do not restore FogCast `target-image-native`
+as a second builder. The recipe list and operator path are in
+[image assembly ownership](image-assembly.md).
 
 Use a small artifact interface: agent, runtime, core bundle and package-derived
 definitions with component identities, hashes and installation destinations.
@@ -158,9 +159,8 @@ The following assembly milestones remain separate future work:
 1. Use the incremental native development path for component integration; retain
    clean reproducibility checks at stabilized milestones. Extend its cache
    granularity only when measurements justify it.
-2. Define the remaining assembly artifact inputs and move the image recipe once.
-3. Produce a bootable native FES media layout without Main as a production input.
-4. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
+2. Produce a bootable native FES media layout without Main as a production input.
+3. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
    The planned FES ZX81 computer is that ABI extension: custom
    `fes.simple-computer`, Quartus bring-up, then nextpnr/mistral. See
    [FES ZX81](fes-zx81.md). It is not in the selected image.

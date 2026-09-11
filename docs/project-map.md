@@ -55,9 +55,9 @@ and FPGA source, and describe upstream core sources. FogCast consumes the
 runtime-advertised ABI registry without a second static Go allowlist. misteross
 produces format-1 FPGA bundles and the described format-2 FES Pong package. FES
 selects component commits, checks that their definitions and locks agree, then
-invokes the selected FogCast image recipes to assemble the agent, runtime,
-libraries, catalog RBFs and the described package. Moving whole-system image assembly into FES is a
-separate planned migration; there is currently one authoritative child recipe.
+invokes the FES `image/` recipe to assemble the agent, runtime,
+libraries, catalog RBFs and the described package. FogCast remains an input
+(agent, kit, extra-core selector and native-runtime lock) via `FOGCAST_DIR`.
 
 ## Directory guide
 
@@ -68,6 +68,7 @@ separate planned migration; there is currently one authoritative child recipe.
 | `profiles/` | Build settings and historical revision overrides | Integrator-owned |
 | `scripts/inputs.py` | Component pin and runtime-lock checks | Parent implementation |
 | `scripts/consistency.py` | Package generation and source-pin checks | Parent implementation |
+| `image/` | Native Buildroot, container and SD/rootfs assembly | Parent image recipe |
 | `scripts/build.py`, `scripts/native_dev.py` | Clean and incremental orchestration | Parent implementation |
 | `scripts/appliance.py`, `scripts/appliance_media.py` | Versioned releases, bootstrap and provisioned appliance card files | Parent assembly; see [the release guide](appliance-releases.md) |
 | `scripts/bundle.py`, `scripts/environment.py` | Bundle validation and build environment | Parent implementation |
