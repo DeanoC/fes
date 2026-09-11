@@ -129,7 +129,8 @@ parent selection; `make check` detects drift.
 Whole-system Buildroot/image configuration and final SD-card assembly should move
 into FES in a separate migration. Component compilation remains component-owned.
 Do not copy the scripts and leave two authoritative image builders: the selected
-FogCast recipe remains authoritative until the migration is complete.
+FogCast recipe remains authoritative until the migration is complete. The freeze
+list and operator path are in [image assembly ownership](image-assembly.md).
 
 Use a small artifact interface: agent, runtime, core bundle and package-derived
 definitions with component identities, hashes and installation destinations.
