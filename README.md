@@ -11,7 +11,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   selection do not replace a running core. Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
-  expose durable data. Development package loads remain volatile.
+  expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`
+  entry (`fes.keyboard`, no gamepad); `POST /api/v1/session/launch` with its
+  `game_id` programs the package and attaches keyboard input. Development
+  package loads remain volatile.
 
 
 - Thousands of catalogued games across the systems in
