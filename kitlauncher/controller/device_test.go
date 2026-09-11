@@ -16,6 +16,18 @@ func TestOnlyPhysicalGamepadEligible(t *testing.T) {
 		t.Fatal("physical pad rejected")
 	}
 }
+
+func TestPhysicalKeyboardEligibleForPlayHID(t *testing.T) {
+	if eligibleKeyboard(6, "FogCast Virtual Gamepad", true) {
+		t.Fatal("virtual keyboard")
+	}
+	if eligibleKeyboard(3, "USB gamepad", false) {
+		t.Fatal("pad without keys")
+	}
+	if !eligibleKeyboard(3, "USB Keyboard", true) {
+		t.Fatal("physical keyboard rejected")
+	}
+}
 func TestDecodeArchitectureAndDroppedEvents(t *testing.T) {
 	for _, size := range []int{16, 24} {
 		b := make([]byte, size)

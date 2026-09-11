@@ -146,6 +146,16 @@ func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *te
 	if next := inputStreamKey(custom); next == "" || next == first {
 		t.Fatalf("generation replacement did not retire stream: %q then %q", first, next)
 	}
+	keys := Session{State: "active", Execution: "fpga_development",
+		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
+			ID    string `json:"id"`
+			Major uint16 `json:"major"`
+			Minor uint16 `json:"minor"`
+		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
+	keys.Input.State, keys.Input.Ready, keys.Input.SessionID = "attached", true, "keyboard-session"
+	if inputStreamKey(keys) == "" {
+		t.Fatal("fes.keyboard session was not eligible")
+	}
 	for name, session := range map[string]Session{
 		"raw":        {State: "active", Execution: "fpga_development"},
 		"not-ready":  func() Session { v := custom; v.Input.Ready = false; return v }(),
@@ -156,6 +166,17 @@ func TestInputStreamKeyAdmitsNativeAndCapableCustomAndRetiresOtherSessions(t *te
 		if got := inputStreamKey(session); got != "" {
 			t.Errorf("%s stream key = %q", name, got)
 		}
+	}
+}
+
+func TestPlayHIDStreamKeyFailClosedOnForeignLease(t *testing.T) {
+	native := Session{State: "active", Execution: "fpga_native"}
+	native.Input.State, native.Input.Ready, native.Input.SessionID = "attached", true, "native-session"
+	if playHIDStreamKey(Model{Session: native}) == "" {
+		t.Fatal("ours was not eligible")
+	}
+	if playHIDStreamKey(Model{Session: native, ForeignLease: true}) != "" {
+		t.Fatal("foreign lease must fail closed")
 	}
 }
 

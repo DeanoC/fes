@@ -39,9 +39,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   (select/launch/confirm) without a controller; on-screen hints and focus
   follow the last-used keyboard, mouse, or gamepad, a newly plugged device
   claims affinity without restart, and unplug returns to a remaining device;
-  an attached `fes.keyboard`
-  play session still forwards keys to
-  the ZX81 matrix instead of the sofa graph. Mac is the primary sofa target;
+  an attached play session forwards USB keyboard HID to the core/session path
+  instead of the sofa graph (ZX81 still uses the matrix); pointer browse does
+  not steal that session, and a foreign kit lease fails closed. Mac is the primary sofa target;
   Linux uses the same Makefile target with
   system SDL3 (`pkg-config sdl3`). Draw goes through `gfx.Device`: SDL3 is
   the production backend; Software is a pure-Go rasterizer for tests/CI;

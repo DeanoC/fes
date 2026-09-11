@@ -860,18 +860,16 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
-		if ev.down != 0 {
-			app.NoteInput(InputKeyboard, int(ev.which))
-		}
-		if app.ForwardsCoreKeyboard() {
-			// Play-session ZX81 matrix: do not steal keys for sofa browse/nav.
-			// Drop sofa hold-repeat so a direction held at launch cannot walk
-			// the grid after the key is released into this path.
-			app.repeat.Clear()
+		if app.ConsumePlayHID() {
+			// Play-session HID: USB keys reach the core/session path and must
+			// not steal sofa browse or ZX81/session affinity.
 			if event, ok := coreKeyFromSDL(ev.code, ev.down != 0); ok {
-				app.SendCoreKey(event)
+				app.SendPlayHID(event)
 			}
 			return false
+		}
+		if ev.down != 0 {
+			app.NoteInput(InputKeyboard, int(ev.which))
 		}
 		if app.OSKOpen() {
 			return handleSearchKey(app, ev, now)
@@ -1105,7 +1103,7 @@ func handleSearchKey(app *App, ev *C.FogcastEvent, now time.Time) bool {
 }
 
 // coreKeyFromSDL maps play-session keys onto the ZX81 matrix. Browse/nav
-// uses CommandFromKey; this path runs only while ForwardsCoreKeyboard.
+// uses CommandFromKey; this path runs only while ForwardsPlayHID.
 func coreKeyFromSDL(code C.int, down bool) (remoteinput.Event, bool) {
 	var key remoteinput.Code
 	switch C.SDL_Keycode(code) {

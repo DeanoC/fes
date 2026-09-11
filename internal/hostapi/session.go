@@ -10,6 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/google/uuid"
@@ -1049,6 +1050,16 @@ func (s *sessionCoordinator) inputStatus() (host.RemoteInputStatus, bool) {
 }
 
 func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.Event) error {
+	if s.playHIDForeign() {
+		return playHIDLeaseError()
+	}
+	if s.remoteInput == nil {
+		return remoteInputError()
+	}
+	status := s.remoteInput.Status()
+	if status.State != host.RemoteInputAttached && status.State != host.RemoteInputReconnecting {
+		return remoteInputError()
+	}
 	sender, ok := s.remoteInput.(interface {
 		SendEvent(context.Context, remoteinput.Event, time.Time) error
 	})
@@ -1056,6 +1067,21 @@ func (s *sessionCoordinator) sendCoreKey(ctx context.Context, event remoteinput.
 		return remoteInputError()
 	}
 	return sender.SendEvent(ctx, event, time.Now())
+}
+
+func (s *sessionCoordinator) playHIDForeign() bool {
+	provider, ok := s.service.(interface {
+		TargetConnection() fogcast.TargetConnection
+	})
+	if !ok {
+		return false
+	}
+	c := provider.TargetConnection()
+	return kitlease.ForeignHID(kitlease.Status{State: c.State, Owner: c.Owner})
+}
+
+func playHIDLeaseError() error {
+	return &protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "kit lease is foreign; HID is fail-closed"}
 }
 
 func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, error) {

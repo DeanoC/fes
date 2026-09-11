@@ -153,8 +153,25 @@ type Session struct {
 }
 
 type CorePackageSession struct {
-	Generation uint64 `json:"generation"`
-	Gamepad    bool   `json:"gamepad"`
+	Generation       uint64 `json:"generation"`
+	Gamepad          bool   `json:"gamepad"`
+	ActiveInterfaces []struct {
+		ID    string `json:"id"`
+		Major uint16 `json:"major"`
+		Minor uint16 `json:"minor"`
+	} `json:"active_interfaces"`
+}
+
+func (p *CorePackageSession) HasKeyboard() bool {
+	if p == nil {
+		return false
+	}
+	for _, contract := range p.ActiveInterfaces {
+		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) Session(ctx context.Context) (Session, error) {

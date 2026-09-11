@@ -192,8 +192,10 @@ not required. Letter shortcuts already patterned stay. On-screen hints and
 focus ownership follow the last-used keyboard, mouse, or gamepad. Plugging a
 keyboard, mouse, or gamepad claims affinity without restarting tenfoot; unplug
 returns hints to a remaining device. While
-a `fes.keyboard` play session is attached, sofa keys forward to the ZX81 matrix
-instead of the focus graph, and pointer browse does not steal that session.
+an attached play session is live, sofa keys forward to
+`POST /api/v1/session/input/event` instead of the focus graph (ZX81 still uses
+the matrix), pointer browse does not steal that session, and a foreign kit
+lease fails closed.
 
 Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
@@ -438,6 +440,8 @@ make tenfoot-smoke
   failed call keeps the prior `input.state` and shows a short status line
   without host path text. Attract does not arm during an in-flight
   attach/detach.
+- `POST /api/v1/session/input/event` while a play session is attached. USB
+  keyboard HID uses this path; a foreign kit lease is fail-closed.
 - `POST /api/v1/session/stop` with an empty body. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
   Esc/Backspace, or `s`). SNES `save_failed` and other Stop errors that keep

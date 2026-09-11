@@ -59,17 +59,24 @@ func openDevice(path string) (*Device, error) {
 	}
 	bus, vendor, product := binary.LittleEndian.Uint16(id), binary.LittleEndian.Uint16(id[2:]), binary.LittleEndian.Uint16(id[4:])
 	fixture := vendor == 0x081f && product == 0xe401
-	if !eligible(bus, cstring(name), bit(keys, 304) || (fixture && bit(keys, 288))) {
+	isPad := bit(keys, 304) || (fixture && bit(keys, 288))
+	isKey := !isPad && bit(keys, 30)
+	if !eligible(bus, cstring(name), isPad) && !eligibleKeyboard(bus, cstring(name), isKey) {
 		return nil, errors.New("not a physical gamepad")
 	}
-	axes := map[uint16]Range{}
-	for _, code := range []uint16{0, 1, 16, 17} {
-		info := make([]byte, 24)
-		if ioctl(fd, byte(0x40+code), info) == nil {
-			axes[code] = Range{int32(binary.LittleEndian.Uint32(info[4:])), int32(binary.LittleEndian.Uint32(info[8:]))}
+	var mapper *Mapper
+	if isKey && !isPad {
+		mapper = NewKeyboardMapper()
+	} else {
+		axes := map[uint16]Range{}
+		for _, code := range []uint16{0, 1, 16, 17} {
+			info := make([]byte, 24)
+			if ioctl(fd, byte(0x40+code), info) == nil {
+				axes[code] = Range{int32(binary.LittleEndian.Uint32(info[4:])), int32(binary.LittleEndian.Uint32(info[8:]))}
+			}
 		}
+		mapper = NewMapper(vendor, product, axes)
 	}
-	mapper := NewMapper(vendor, product, axes)
 	held := make([]byte, 96)
 	if err := ioctl(fd, 0x18, held); err != nil {
 		return nil, err
