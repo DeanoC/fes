@@ -23,8 +23,10 @@ A machine may play several roles.
 | FPGA target | `mister-agent` + `mister-runtime` on the DE10-Nano |
 | Builder | Quartus, misteross OSS tools, Buildroot — never on the play path |
 
-`selected_target` is the host session's FPGA target, not a process identity.
-Idle switches are allowed; an active FPGA session still refuses. One
+`selected_target` is the default host-session FPGA target, not a process
+identity. `POST /api/v1/session/launch` may bind a different configured
+target without rewriting that default. Idle `selected_target` switches are
+allowed; an active FPGA session still refuses a second live target. One
 coordinator process still runs one session. Binding any surface to a second
 concurrent target is later session work.
 
