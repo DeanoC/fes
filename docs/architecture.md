@@ -1497,6 +1497,115 @@ The retained `exchanges.json` remains the original volatile fixture with bits
 verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
 one effect per toggle and error isolation.
 
+## FES simple-computer mailbox
+
+`cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
+the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
+keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
+begin/data/commit. Hold reset clears in-flight media and the keyboard; a
+committed blob stays. The checked-in `cores/fes-zx81/generated/fes_simple_computer.vh`
+and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
+plays that fixture and checks keyboard/media side effects.
+
+## FES ZX81 machine simulation
+
+`cores/fes-zx81/rtl/zx81_machine.sv` is the first-slice ZX81 extracted from
+MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
+CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
+mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
+the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
+Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
+`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` is
+3.25 MHz from the 52 MHz enable divider.
+
+`make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
+a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
+display, and the ULA has emitted visible pixels. It then types `LOAD ""` on
+the 40-key matrix (J, SHIFT+P, SHIFT+P, ENTER) and checks that the `$0347`
+tape-loader patch consumes a 16-byte `.p`. `LOAD ""` always hits that
+patch: a committed mailbox blob is copied into RAM; with no blob the
+patch sets carry immediately so BASIC reports `0/0` instead of hanging
+in the original cassette waiter with the display off. A 720p raster module
+`zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
+This is simulation, not a Quartus RBF or kit result.
+
+## FES ZX81 Quartus bring-up
+
+`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
+`fes.zx81` 1.0.0. It is not a Mistral/nextpnr payload. The board shell
+`cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
+reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
+1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
+cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
+pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
+of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
+20260603; Verilator keeps TV80.
+
+The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
+instantiate `altsyncram` bidirectional dual-port M10K with unregistered
+outputs; ROM init is `zx8x.mif`. Simulation keeps inferred combo-read RAM
+and `zx8x.hex`. The 720p capture buffer is a one-dimensional M10K array
+written on `clk_sys` and registered on `pixel_clk`.
+
+The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
+tracked inputs. It writes canonical `build/fes-zx81-quartus/build-inputs.json`
+before compile, embeds that record's 128-bit id as `BUILD_ID`, runs
+`quartus_sh --flow compile top`, requires TimeQuest multicorner
+Setup/Hold/Recovery/Removal/Minimum Pulse Width worst-case slack ≥ 0 with
+the 52 MHz system clock and the derived 74.25/74.27 MHz pixel clock named,
+then seals `manifest.toml` + `core.rbf` through the existing format-2
+exporter. Failed compiles delete the RBF, manifest and passing summary.
+The command never programs hardware. Quartus remains the kit-proven
+bring-up lane.
+
+## FES ZX81 OSS package
+
+`make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
+`fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
+`build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
+record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
+M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use registered
+`ram_style="m10k_tdp"` tables; simulation keeps combo-read. The 720p
+capture buffer is a dual-clock M10K SDP. The Z80 is Verilog T80pa/TV80.
+HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
+(`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
+The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
+reference and nextpnr derives the PLL outputs. The Quartus files keep
+`HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
+nextpnr `d8a96b58` folds unused M10K clocks off TCLK. Place-and-route
+uses `router1` and `--tmg-ripup` so `clk_sys` meets 50 MHz (router2
+seed 1 was about 44–49 MHz). The recipe requires two `altera_pll` cells
+(checked 50 MHz integer system clock and 74.25 MHz pixel). nextpnr cannot
+form the Quartus 52 MHz integer from its 300/320 MHz VCO tuples, so OSS
+keeps the /16 and /8 enables at 3.125/6.25 MHz. Also required: the HPS GP
+mailbox, the I2C bridge,
+and at least one M10K. It seals the format-2 exporter only when both
+clocks meet their constraints. The command never programs hardware.
+
+A sealed OSS package has been used for a **hardware diagnostic** on the
+designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
+`.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
+and does not inherit the Quartus bring-up result (TV80, 50 MHz system
+clock, registered M10K). FogCast library install/launch of that package
+is a host concern; this recipe only seals the `.fcore`.
+
+### ZX81 OSS toolchain gaps
+
+These are the Yosys/nextpnr-mistral/Mistral limits the ZX81 recipe currently
+works around. A toolchain change that removes a gap should delete the
+matching workaround rather than keep both.
+
+| Gap | Observed failure | Current ZX81 workaround |
+| --- | --- | --- |
+| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` becomes LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | `FES_ZX81_OSS` uses registered `ram_style="m10k_tdp"` write-first ports. Simulation keeps combo-read. Quartus keeps `altsyncram`. |
+| SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
+| QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
+| 52 MHz integer PLL | `ERROR: PLL 'system_clock.pll': unsupported PLL output frequency/duty; require exact decimal MHz from 1 to 100 and an exact integer C divider from a checked 300/320 MHz tuple.` 52 MHz does not divide the 300 or 320 MHz analog tuples. `select_fractional` only accepts 11.2896, 12.288 or 74.25 MHz. | OSS `sys_pll` emits the checked 50 MHz integer (`M=12 N=2 C6=6`). Enable dividers stay /16 and /8, so CPU/pixel enables are 3.125/6.25 MHz. Quartus keeps 52 MHz. |
+
+What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
+
+Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
+
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
 and fixed video. Base ABI and transport remain 1.0. Data-info opcode 7 reports
