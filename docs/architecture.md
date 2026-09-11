@@ -1162,8 +1162,14 @@ form the Quartus 52 MHz integer from its 300/320 MHz VCO tuples, so OSS
 keeps the /16 and /8 enables at 3.125/6.25 MHz. Also required: the HPS GP
 mailbox, the I2C bridge,
 and at least one M10K. It seals the format-2 exporter only when both
-clocks meet their constraints. Recipe presence is not RBF, timing or
-kit evidence. The command never programs hardware.
+clocks meet their constraints. The command never programs hardware.
+
+A sealed OSS package has been used for a **hardware diagnostic** on the
+designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
+`.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
+and does not inherit the Quartus bring-up result (TV80, 50 MHz system
+clock, registered M10K). FogCast library install/launch of that package
+is a host concern; this recipe only seals the `.fcore`.
 
 ### ZX81 OSS toolchain gaps
 
