@@ -41,7 +41,7 @@ class M10kAsyncReadTests(unittest.TestCase):
         self.assertNotIn("0x40000000", probe)
         self.assertNotIn("0x60000000", probe)
 
-    def test_apply_synth_json_drops_b1en_and_clk2(self) -> None:
+    def test_apply_synth_json_preserves_constant_b1en_and_drops_legacy_clk2(self) -> None:
         policy = policy_for("770_m10k_async_read")
         design = {
             "modules": {
@@ -64,11 +64,11 @@ class M10kAsyncReadTests(unittest.TestCase):
                                 "B1DATA": "output",
                             },
                             "connections": {
-                                "CLK1": [1],
-                                "CLK2": [2],
+                                "CLK1": [100],
+                                "CLK2": [101],
                                 "A1EN": [3],
                                 "A1BE": [4, 5],
-                                "B1EN": [6],
+                                "B1EN": ["1"],
                                 "B1ADDR": list(range(40, 49)),
                                 "B1DATA": list(range(10, 30)),
                             },
@@ -84,7 +84,7 @@ class M10kAsyncReadTests(unittest.TestCase):
             cell = json.loads(path.read_text(encoding="utf-8"))["modules"]["top"]["cells"]["mem"]
             self.assertEqual(cell["parameters"]["CFG_ASYNC_READ"][-1], "1")
             self.assertEqual(int(cell["parameters"]["CFG_DUAL_CLOCK"], 2), 0)
-            self.assertNotIn("B1EN", cell["connections"])
+            self.assertEqual(cell["connections"]["B1EN"], ["1"])
             self.assertNotIn("CLK2", cell["connections"])
             policy.validate_synth_json(path)
             broken = json.loads(path.read_text(encoding="utf-8"))
