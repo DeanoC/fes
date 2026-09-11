@@ -494,7 +494,7 @@ class BuildFesPongTests(unittest.TestCase):
             build_fes_pong.EXPECTED_TOOL_COMMITS,
             {
                 "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-                "nextpnr": "0523e0c68e4a6ee8cfc7f324f3ed641f67fe52af",
+                "nextpnr": "517eb7c6b838dee5b0072b1551f9c8e914331102",
                 "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
             },
         )
