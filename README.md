@@ -28,7 +28,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   rewriting configuration.
 - Target-side content caching, input, stop, and active-core observation.
 - Stable target identity and local DNS-SD reconnection after reboot/address
-  changes. In browser target settings, choose **Prepare identity**
+  changes. `GET /api/v1/session` reports the host session `id` and the bound
+  FPGA `target`. `selected_target` is that session binding, not a process
+  identity: it can change while idle even when remote input or media is
+  enabled. An active FPGA session still refuses the switch. In browser target
+  settings, choose **Prepare identity**
   before assembling new media; the existing settings API accepts
   `PATCH /api/v1/library/settings` with `{"prepare_target":"dev"}`. An already
   running agent can bind its identity through authenticated health at the

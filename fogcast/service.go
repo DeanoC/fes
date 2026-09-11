@@ -208,8 +208,9 @@ type Service struct {
 	selectedTarget          string
 	targetClients           map[string]serviceClient
 	targetClientFactory     func(TargetConfig) (serviceClient, error)
-	// Existing media/input composition captures its selected connection at startup.
-	targetSwitchLocked       bool
+	// targetOrigin rebinds input/media to the selected target. It must not call
+	// back into Service (same rule as targetReset).
+	targetOrigin             func(TargetConfig)
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
@@ -432,9 +433,8 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		catalog: store, scanner: scanner, preparer: preparer,
 		roots: roots, rootsByID: rootsByID,
 		targets: append([]TargetConfig(nil), config.Targets...), selectedTarget: config.SelectedTarget,
-		targetClients:      make(map[string]serviceClient),
-		targetSwitchLocked: config.RemoteInput.Enabled || config.Media.Enabled,
-		requestTimeout:     config.RequestTimeout, uploadTimeout: config.UploadTimeout,
+		targetClients:  make(map[string]serviceClient),
+		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
 		attractIdle:              config.Library.AttractIdleSeconds,
@@ -2554,8 +2554,36 @@ func safeOpenError(message string, err error) error {
 	return errors.New(message)
 }
 
-// KitLease returns the application-owned lease shared with the input bridge.
-// Input-enabled composition already fixes the target connection at startup.
+// SetTargetOrigin registers a hook that follows selected-target identity changes.
+// The callback must not call back into Service or send network cleanup requests.
+func (s *Service) SetTargetOrigin(hook func(TargetConfig)) {
+	s.targetMu.Lock()
+	s.targetOrigin = hook
+	s.targetMu.Unlock()
+}
+
+// SessionTarget is the FPGA target bound to the host session: the active
+// execution target, or the selected configured target when idle.
+func (s *Service) SessionTarget() (name, targetID string) {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	name = s.activeTarget
+	s.executionMu.Unlock()
+	if name == "" {
+		name = s.selectedTarget
+	}
+	return name, targetByName(s.targets, name).TargetID
+}
+
+// SelectedTargetConfig returns the configured selected target.
+func (s *Service) SelectedTargetConfig() TargetConfig {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	return targetByName(s.targets, s.selectedTarget)
+}
+
+// KitLease returns the application-owned lease for the selected session target.
 func (s *Service) KitLease() *host.KitLease {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()

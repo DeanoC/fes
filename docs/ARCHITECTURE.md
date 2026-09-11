@@ -34,6 +34,16 @@ writes the MGL atomically and sends `load_core <mgl>` to `/dev/MiSTer_cmd`.
 FogCast waits for the expected value in `/tmp/CORENAME`. Stop uses the same
 command path with `menu.rbf` and waits for `MENU`.
 
+`GET /api/v1/session` names the host session (`id`) and the FPGA target it is
+bound to (`target`, `target_id`). That binding is the selected configured
+target from `[[targets]]`. Remote input and host media follow the session's
+target at attach and start time; they do not freeze the process to the
+startup connection. Changing `selected_target` is allowed while the session
+is idle. An active launch, development load, or attached FPGA execution still
+refuses a target switch. The kit lease remains the target-side ownership
+authority; switching to another configured target uses that target's lease.
+This host process still runs one session.
+
 ## Process ownership
 
 The host owns the catalog, UI, user intent, content selection, and host-side

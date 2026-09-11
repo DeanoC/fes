@@ -274,6 +274,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		// composition order stops those dependants before closing metadata.
 		cleanup = append(cleanup, metadataRuntime.Close)
 	}
+	var mediaOwner *compositionMediaSession
 	if config.Media.Enabled {
 		var err error
 		if (config.Media.Decoder == "ffplay" || config.Media.Decoder == "mjpeg") && config.Media.Audio.Enabled {
@@ -301,7 +302,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 				_ = closeComposition(cleanup)
 				return nil, nil, errors.New("fogcast-api: media configuration failed")
 			}
-			mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(component, noopMediaComponent{})), nil, "", "", 0)
+			mediaOwner = newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(component, noopMediaComponent{})), nil, "", "", 0)
 			cleanup = append(cleanup, mediaOwner.Close)
 			serverOptions = append(serverOptions, hostapi.WithMediaSession(mediaOwner), hostapi.WithMediaPreview(previewHandler))
 		} else {
@@ -347,7 +348,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 				_ = closeComposition(cleanup)
 				return nil, nil, errors.New("fogcast-api: media configuration failed")
 			}
-			mediaOwner := newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), mediaTarget, config.Media.Session, config.Token, config.Media.Generation)
+			mediaOwner = newCompositionMediaSession(hostapi.NewMediaSessionAdapter(mediasession.New(sender, receiver)), mediaTarget, config.Media.Session, config.Token, config.Media.Generation)
 			if config.Media.Audio.Enabled {
 				mediaOwner.mediaSet = &protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}
 			}
@@ -356,6 +357,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		}
 	}
 	if !config.RemoteInput.Enabled {
+		bindSessionTargetOrigin(service, nil, mediaOwner)
 		return hostapi.New(service, serverOptions...), func() error { return closeComposition(cleanup) }, nil
 	}
 	if makeStarter == nil {
@@ -367,9 +369,12 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 		_ = closeComposition(cleanup)
 		return nil, nil, errors.New("fogcast-api: remote input configuration failed")
 	}
-	if provider, ok := service.(interface{ KitLease() *host.KitLease }); ok {
-		if targetStarter, ok := starter.(*host.HTTPBridgeStarter); ok {
+	var targetStarter *host.HTTPBridgeStarter
+	if typed, ok := starter.(*host.HTTPBridgeStarter); ok {
+		targetStarter = typed
+		if provider, ok := service.(interface{ KitLease() *host.KitLease }); ok {
 			targetStarter.WithKitLease(provider.KitLease())
+			targetStarter.WithKitLeaseSource(provider.KitLease)
 		}
 	}
 	remoteInput, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
@@ -380,10 +385,32 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	if provider, ok := service.(interface{ SetTargetReset(func()) }); ok {
 		provider.SetTargetReset(remoteInput.Invalidate)
 	}
+	bindSessionTargetOrigin(service, targetStarter, mediaOwner)
 	serverOptions = append(serverOptions, hostapi.WithRemoteInput(remoteInput))
 	return hostapi.New(service, serverOptions...), func() error {
 		return closeAPIComposition(remoteInput.Close, cleanup)
 	}, nil
+}
+
+func bindSessionTargetOrigin(service service, starter *host.HTTPBridgeStarter, media *compositionMediaSession) {
+	apply := func(target fogcast.TargetConfig) {
+		if starter != nil && strings.TrimSpace(target.Address) != "" {
+			if parsed, err := url.Parse(target.Address); err == nil {
+				_ = starter.SetOrigin(parsed, target.Agent)
+			}
+		}
+		if media != nil {
+			media.SetCastTarget(target)
+		}
+	}
+	if origin, ok := service.(interface {
+		SetTargetOrigin(func(fogcast.TargetConfig))
+	}); ok {
+		origin.SetTargetOrigin(apply)
+	}
+	if selected, ok := service.(interface{ SelectedTargetConfig() fogcast.TargetConfig }); ok {
+		apply(selected.SelectedTargetConfig())
+	}
 }
 
 type managedSenderComponent struct {
@@ -571,6 +598,23 @@ type compositionMediaSession struct {
 
 func newCompositionMediaSession(media hostapi.MediaSession, target targetCast, session, token string, generation uint64) *compositionMediaSession {
 	return &compositionMediaSession{media: media, target: target, session: session, token: token, generation: generation}
+}
+
+func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.target == nil || strings.TrimSpace(target.Address) == "" || strings.TrimSpace(target.Agent) == "" {
+		return
+	}
+	parsed, err := url.Parse(target.Address)
+	if err != nil {
+		return
+	}
+	s.target = host.NewClient(parsed, target.Agent, nil)
+	s.token = target.Agent
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {

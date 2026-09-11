@@ -697,9 +697,6 @@ func (s *Service) setLibrarySettingsLocked(next LibraryConfig) (bool, error) {
 	if active && (selectedNameChanged || selectedConnectionChanged) {
 		return false, canonicalError(protocol.CodeBadRequest, nil)
 	}
-	if s.targetSwitchLocked && ((!selectedRenamesCurrent && selectedNameChanged) || selectedConnectionChanged) {
-		return false, canonicalError(protocol.CodeBadRequest, nil)
-	}
 	var selectedClient serviceClient
 	if selected.Enabled {
 		if !selectedConnectionChanged && (!selectedNameChanged || selectedRenamesCurrent) {
@@ -848,6 +845,12 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 		s.selectedTargetReconciled = !targetByName(s.targets, s.selectedTarget).Enabled
 		s.selectedTargetRepairAllowed = false
 		s.executionMu.Unlock()
+		if s.targetReset != nil {
+			s.targetReset()
+		}
+		if s.targetOrigin != nil {
+			s.targetOrigin(targetByName(s.targets, s.selectedTarget))
+		}
 	}
 	return nil
 }

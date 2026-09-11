@@ -64,6 +64,8 @@ type fakeService struct {
 	executionErr           error
 	reconstructedExecution string
 	order                  *[]string
+	sessionTarget          string
+	sessionTargetID        string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -75,6 +77,9 @@ func (s *fakeService) Search(_ context.Context, query string) ([]catalog.Game, e
 }
 func (s *fakeService) SessionExecution(context.Context, string) (string, error) {
 	return s.execution, s.executionErr
+}
+func (s *fakeService) SessionTarget() (string, string) {
+	return s.sessionTarget, s.sessionTargetID
 }
 func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr

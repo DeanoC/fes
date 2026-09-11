@@ -55,6 +55,9 @@ type sessionProgress struct {
 }
 
 type sessionResult struct {
+	ID          string                      `json:"id"`
+	Target      string                      `json:"target,omitempty"`
+	TargetID    string                      `json:"target_id,omitempty"`
 	State       protocol.State              `json:"state"`
 	GameID      *string                     `json:"game_id,omitempty"`
 	System      *protocol.System            `json:"system,omitempty"`
@@ -87,6 +90,7 @@ type sessionEvent struct {
 }
 
 type sessionCoordinator struct {
+	id              string
 	service         sessionService
 	remoteInput     host.RemoteInputController
 	media           MediaSession
@@ -112,7 +116,7 @@ type sessionInputBinding struct {
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
-	return &sessionCoordinator{service: service, remoteInput: remoteInput, media: media, started: time.Now()}
+	return &sessionCoordinator{id: uuid.NewString(), service: service, remoteInput: remoteInput, media: media, started: time.Now()}
 }
 
 func (s *sessionCoordinator) beginFlight() {
@@ -1152,8 +1156,12 @@ func (s *sessionCoordinator) end() {
 func (s *sessionCoordinator) publicSession(st protocol.Status, progress *sessionProgress) sessionResult {
 	result := publicSession(st, progress)
 	s.mu.Lock()
+	result.ID = s.id
 	result.FlightID = s.flightID
 	s.mu.Unlock()
+	if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
+		result.Target, result.TargetID = binder.SessionTarget()
+	}
 	if s.remoteInput != nil {
 		input := s.remoteInput.Status()
 		result.Input = &input

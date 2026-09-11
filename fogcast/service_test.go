@@ -3517,7 +3517,7 @@ func TestStopDeadlineIsBoundedWhileNamedTargetLaunchIsBlocked(t *testing.T) {
 	}
 }
 
-func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) {
+func TestIdleNamedTargetSwitchAllowedWithStartupBoundInputAndMedia(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		config func(*Config)
@@ -3526,6 +3526,8 @@ func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) 
 		{name: "media", config: func(config *Config) { config.Media.Enabled = true }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			dev := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+			spare := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
 			config := Config{
 				Targets: []TargetConfig{
 					{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
@@ -3535,7 +3537,17 @@ func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) 
 				Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
 			}
 			test.config(&config)
-			service := newService(config, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+			service := newService(config, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+				withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+					if target.Name == "spare" {
+						return spare, nil
+					}
+					return dev, nil
+				}),
+			)
+			if _, err := service.Status(context.Background()); err != nil {
+				t.Fatalf("reconcile selected target: %v", err)
+			}
 			if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
 				AttractIdleSeconds: 60,
 				PreferredRegions:   []string{"usa"},
@@ -3558,7 +3570,7 @@ func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) 
 			}); err != nil {
 				t.Fatalf("unselected target edit: %v", err)
 			}
-			err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+			if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
 				AttractIdleSeconds: 60,
 				PreferredRegions:   []string{"usa"},
 				Targets: []TargetConfig{
@@ -3566,12 +3578,64 @@ func TestNamedTargetSwitchRejectsStartupBoundComposedDependencies(t *testing.T) 
 					{Name: "spare", Enabled: true, Address: "http://192.0.2.12:8182"},
 				},
 				SelectedTarget: "spare",
-			})
-			var apiErr *protocol.APIError
-			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest {
-				t.Fatalf("target switch error = %v", err)
+			}); err != nil {
+				t.Fatalf("idle target switch: %v", err)
+			}
+			if got := service.LibrarySettings().SelectedTarget; got != "spare" {
+				t.Fatalf("selected target = %q", got)
+			}
+			name, _ := service.SessionTarget()
+			if name != "spare" {
+				t.Fatalf("session target = %q", name)
 			}
 		})
+	}
+}
+
+func TestSelectedTargetIdentityChangeRebindsOriginAndInvalidatesInput(t *testing.T) {
+	dev := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	spare := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateIdle}}
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RemoteInput:    RemoteInputConfig{Enabled: true},
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	var origins []string
+	resets := 0
+	service.SetTargetReset(func() { resets++ })
+	service.SetTargetOrigin(func(target TargetConfig) { origins = append(origins, target.Name+":"+target.Address) })
+	if _, err := service.Status(context.Background()); err != nil {
+		t.Fatalf("reconcile selected target: %v", err)
+	}
+	if err := service.SetLibrarySettings(context.Background(), LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		SelectedTarget: "spare",
+	}); err != nil {
+		t.Fatalf("idle target switch: %v", err)
+	}
+	if resets != 1 {
+		t.Fatalf("target resets = %d", resets)
+	}
+	if len(origins) != 1 || origins[0] != "spare:http://192.0.2.11:8182" {
+		t.Fatalf("origins = %#v", origins)
 	}
 }
 

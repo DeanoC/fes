@@ -34,12 +34,14 @@ type HTTPBridgeStarterConfig struct {
 }
 
 type HTTPBridgeStarter struct {
-	kitLease     *KitLease
-	baseURL      url.URL
-	token        string
-	httpClient   *http.Client
-	readyTimeout time.Duration
-	dialTimeout  time.Duration
+	mu             sync.Mutex
+	kitLease       *KitLease
+	kitLeaseSource func() *KitLease
+	baseURL        url.URL
+	token          string
+	httpClient     *http.Client
+	readyTimeout   time.Duration
+	dialTimeout    time.Duration
 }
 
 func NewHTTPBridgeStarter(config HTTPBridgeStarterConfig) (*HTTPBridgeStarter, error) {
@@ -113,13 +115,14 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Authorization", "Bearer "+s.token)
+	_, token, lease := s.currentOrigin()
+	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	if kitToken != "" {
-		if err := s.kitLease.authorizeExisting(request, kitToken); err != nil {
+		if err := lease.authorizeExisting(request, kitToken); err != nil {
 			return err
 		}
-	} else if err := s.kitLease.Authorize(request, path == "/v1/input/attach"); err != nil {
+	} else if err := lease.Authorize(request, path == "/v1/input/attach"); err != nil {
 		return err
 	}
 	// Bind an input handle to the exact grant used for dispatch, even when
@@ -145,10 +148,23 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	return nil
 }
 
+func (s *HTTPBridgeStarter) currentOrigin() (url.URL, string, *KitLease) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	lease := s.kitLease
+	if s.kitLeaseSource != nil {
+		if current := s.kitLeaseSource(); current != nil {
+			lease = current
+		}
+	}
+	return s.baseURL, s.token, lease
+}
+
 func (s *HTTPBridgeStarter) endpoint(path string) *url.URL {
-	endpoint := s.baseURL
-	if s.kitLease != nil {
-		endpoint = *s.kitLease.Endpoint()
+	baseURL, _, lease := s.currentOrigin()
+	endpoint := baseURL
+	if lease != nil {
+		endpoint = *lease.Endpoint()
 	}
 	endpoint.Path = path
 	endpoint.RawPath = ""
@@ -194,9 +210,10 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 		Host:   h.starter.endpoint("").Host,
 		Header: make(http.Header),
 	}
-	request.Header.Set("Authorization", "Bearer "+h.starter.token)
+	_, token, lease := h.starter.currentOrigin()
+	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("X-FogCast-Input-Session", strconv.FormatUint(h.session, 10))
-	if err := h.starter.kitLease.authorizeExisting(request, h.kitToken); err != nil {
+	if err := lease.authorizeExisting(request, h.kitToken); err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
@@ -226,7 +243,8 @@ func (h *httpBridgeHandle) Stop(ctx context.Context) error {
 	}
 	h.stopped = true
 	h.mu.Unlock()
-	if h.starter.kitLease != nil && h.starter.kitLease.currentToken() != h.kitToken {
+	_, _, lease := h.starter.currentOrigin()
+	if lease != nil && lease.currentToken() != h.kitToken {
 		return ErrKitLeaseLost
 	}
 	requestBody := struct {
@@ -259,4 +277,31 @@ var _ BridgeHandle = (*httpBridgeHandle)(nil)
 var _ BridgeDialer = (*httpBridgeHandle)(nil)
 
 // WithKitLease must be called at composition time before starting input.
-func (s *HTTPBridgeStarter) WithKitLease(lease *KitLease) { s.kitLease = lease }
+func (s *HTTPBridgeStarter) WithKitLease(lease *KitLease) {
+	s.mu.Lock()
+	s.kitLease = lease
+	s.mu.Unlock()
+}
+
+// WithKitLeaseSource resolves the current session target's lease at attach time.
+func (s *HTTPBridgeStarter) WithKitLeaseSource(source func() *KitLease) {
+	s.mu.Lock()
+	s.kitLeaseSource = source
+	s.mu.Unlock()
+}
+
+// SetOrigin updates the fallback agent origin used when no kit lease is bound.
+func (s *HTTPBridgeStarter) SetOrigin(baseURL *url.URL, token string) error {
+	if baseURL == nil || baseURL.Scheme != "http" || baseURL.Host == "" || baseURL.User != nil || baseURL.Path != "" || baseURL.RawQuery != "" || baseURL.Fragment != "" {
+		return ErrRemoteInputInvalid
+	}
+	if strings.TrimSpace(token) == "" {
+		return ErrRemoteInputInvalid
+	}
+	copied := *baseURL
+	s.mu.Lock()
+	s.baseURL = copied
+	s.token = token
+	s.mu.Unlock()
+	return nil
+}
