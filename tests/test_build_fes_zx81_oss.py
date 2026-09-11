@@ -51,7 +51,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertIn("2", nextpnr)
+        self.assertIn("5", nextpnr)
         self.assertIn("--placer-heap-timingweight", nextpnr)
         self.assertIn("300", nextpnr)
         self.assertIn("--placer-heap-critexp", nextpnr)
