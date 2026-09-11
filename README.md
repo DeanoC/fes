@@ -34,8 +34,8 @@ development possible with both the open-source Mistral toolchain and Quartus.
   including low startup, running/gated branches, `enaout` status, and
   double-register mode.
 - Three parallel 9×9 multipliers packed into one physical Cyclone V DSP block.
-- Cyclone V DSP `M18X18P36` and `M27X27` modes, M9 preadder subtract, M18 36-bit
-  addend, and DSP input/output registers.
+- Cyclone V DSP `M18X18P36` and `M27X27` modes, native 18x19 dual products,
+  M9 preadder subtract, M18 36-bit addend, and DSP input/output registers.
 - Cyclone V MLAB power-up contents through a numeric `INIT` on each
   `MISTRAL_MLAB` lane. Yosys infers those parameters from initialized RTL.
 - Cyclone V mixed-width M10K simple dual-port RAM through
@@ -307,6 +307,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   router2 may retry with router1 when timing margin is under 10%. Run
   `make sim EXP=740_m10k_dual_pll` and `make oss EXP=740_m10k_dual_pll`; no
   Quartus comparison lane is implemented.
+- `750_dsp18x19`, two unsigned 18x19 products in one Cyclone V DSP block.
+  Locked Yosys has no 18x19 cell, so OSS maps a keep blackbox after
+  synthesis. Run `make sim EXP=750_dsp18x19` and `make oss EXP=750_dsp18x19`;
+  no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

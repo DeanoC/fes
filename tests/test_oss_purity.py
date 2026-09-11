@@ -127,6 +127,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/720_m10k_aclr_infer/rtl/top.v",
             "experiments/730_m10k_tdp_tclk/rtl/top.v",
             "experiments/740_m10k_dual_pll/rtl/top.v",
+            "experiments/750_dsp18x19/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -820,6 +821,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             ("440_dsp_preadder", "setparam -set PREADDER_EN 1"),
             ("450_dsp_mac", "chtype -set MISTRAL_MUL18X18 t:dsp18_mac"),
             ("460_dsp_reg", "setparam -set INREG_CTRL_AX 1"),
+            ("750_dsp18x19", "chtype -set MISTRAL_MUL18X19 t:dsp18x19"),
         ):
             result = self._run("--print-commands", "--experiment", experiment)
             self.assertEqual(result.returncode, 0, result.stderr)
