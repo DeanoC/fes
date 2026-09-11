@@ -26,7 +26,7 @@ BOARD_CONSTRAINTS = (
     "boards/de10nano/clocks.sdc",
 )
 ORDINARY_RESOURCES = frozenset(
-    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
+    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO", "MISTRAL_DDROUT", "MISTRAL_SDROUT", "MISTRAL_SDRIN", "MISTRAL_DDRIN", "MISTRAL_DDRBIDIR"}
 )
 MLAB_INIT_CELL = re.compile(r"^storage\.stored\.([0-7])\.0\.0$")
 
@@ -238,6 +238,9 @@ class ExperimentPolicy:
     m10k_tdp_mixed_b: int = 0
     nextpnr_router: str = ""
     require_read_clock_arc: bool = False
+    m10k_aclr1_gpo_bit: int | None = None
+    m10k_require_aclr1: bool = False
+    m10k_tdp_constant_clk2: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -272,11 +275,18 @@ class ExperimentPolicy:
             ("synth_json_mlab_init", self.synth_json_mlab_init),
             ("m10k_byte_enable", self.m10k_byte_enable),
             ("require_read_clock_arc", self.require_read_clock_arc),
+            ("m10k_require_aclr1", self.m10k_require_aclr1),
+            ("m10k_tdp_constant_clk2", self.m10k_tdp_constant_clk2),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
         if self.m10k_dual_clock_width not in (0, 20, 40):
             raise PolicyError(f"{self.name}: m10k_dual_clock_width must be 0, 20, or 40")
+        if self.m10k_aclr1_gpo_bit is not None:
+            if not isinstance(self.m10k_aclr1_gpo_bit, int) or isinstance(self.m10k_aclr1_gpo_bit, bool):
+                raise PolicyError(f"{self.name}: m10k_aclr1_gpo_bit must be an integer or None")
+            if not 0 <= self.m10k_aclr1_gpo_bit <= 31:
+                raise PolicyError(f"{self.name}: m10k_aclr1_gpo_bit must be in 0..31")
         mixed_ports = (self.m10k_mixed_write_dbits, self.m10k_mixed_read_dbits)
         if mixed_ports == (0, 0):
             pass
@@ -299,14 +309,15 @@ class ExperimentPolicy:
             raise PolicyError(
                 f"{self.name}: mixed-TDP ports must be 20/10, 10/20, 16/8, or 8/16"
             )
+        if self.m10k_mixed_write_dbits and self.m10k_byte_enable and self.m10k_mixed_write_dbits != 20:
+            raise PolicyError(f"{self.name}: mixed-width byte enables require a 20-bit write port")
         if self.m10k_mixed_write_dbits and (
-            self.m10k_byte_enable
-            or self.m10k_dual_clock_width
+            self.m10k_dual_clock_width
             or self.m10k_tdp_width
             or self.m10k_tdp_byte_width
             or self.m10k_tdp_mixed_a
         ):
-            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine byte-enable, equal-width dual-clock, or TDP policy")
+            raise PolicyError(f"{self.name}: mixed-width M10K cannot combine equal-width dual-clock or TDP policy")
         if self.m10k_tdp_width and (
             self.m10k_byte_enable
             or self.m10k_dual_clock_width
@@ -642,10 +653,12 @@ class ExperimentPolicy:
                 )
         if self.synth_json_mlab_init:
             self._require_mlab_init(design)
-        if self.m10k_byte_enable:
+        if self.m10k_byte_enable and not self.m10k_mixed_write_dbits:
             self._require_m10k_byte_enable(design)
         if self.m10k_dual_clock_width:
             self._require_m10k_dual_clock(design)
+        if self.m10k_aclr1_gpo_bit is not None or self.m10k_require_aclr1:
+            self._require_m10k_aclr1(design)
         if self.m10k_mixed_write_dbits:
             self._require_m10k_mixed_width(design)
         if self.m10k_tdp_width:
@@ -803,6 +816,19 @@ class ExperimentPolicy:
                     f"M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
                 )
 
+    def _require_m10k_aclr1(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        connections = cells[0].get("connections")
+        if not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing connections")
+        aclr1 = connections.get("ACLR1")
+        if not isinstance(aclr1, list) or len(aclr1) != 1:
+            raise PolicyError("M10K ACLR1 must be a connected one-bit fabric net")
+        if aclr1[0] in (0, 1, "0", "1"):
+            raise PolicyError("M10K ACLR1 must be a connected fabric net")
+
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
         read_bits = self.m10k_mixed_read_dbits
@@ -823,7 +849,19 @@ class ExperimentPolicy:
                 f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
             )
         byte_enable = json_bit_parameter(parameters.get("CFG_BYTE_ENABLE"))
-        if byte_enable not in (None, 0):
+        if self.m10k_byte_enable:
+            if byte_enable != 1:
+                raise PolicyError(
+                    f"M10K CFG_BYTE_ENABLE must be 1, got {parameters.get('CFG_BYTE_ENABLE')!r}"
+                )
+            if write_bits != 20:
+                raise PolicyError("mixed-width byte enables require a 20-bit write port")
+            byte_enables = connections.get("A1BE")
+            if not isinstance(byte_enables, list) or len(byte_enables) != 2:
+                raise PolicyError("M10K A1BE must be a two-bit connected port")
+            if byte_enables[0] == byte_enables[1]:
+                raise PolicyError("M10K A1BE lanes must be independent")
+        elif byte_enable not in (None, 0):
             raise PolicyError(
                 f"M10K CFG_BYTE_ENABLE must be omitted or 0, got {parameters.get('CFG_BYTE_ENABLE')!r}"
             )
@@ -901,12 +939,21 @@ class ExperimentPolicy:
             raise PolicyError("TDP M10K CLK1 must be connected")
         if not isinstance(clk2, list) or not clk2:
             raise PolicyError("TDP M10K CLK2 must be connected")
-        if clk1 == clk2:
+        if self.m10k_tdp_constant_clk2:
+            if clk2 != ["0"]:
+                raise PolicyError("TDP M10K CLK2 must be tied low")
+            if clk1[0] in ("0", "1"):
+                raise PolicyError("TDP M10K CLK1 must be a live fabric clock")
+        elif clk1 == clk2:
             raise PolicyError("TDP M10K CLK1 and CLK2 must be independent")
         for port in ("A1EN", "B1EN", "A1WE", "B1WE"):
             nets = connections.get(port)
             if not isinstance(nets, list) or not nets:
                 raise PolicyError(f"TDP M10K {port} must be connected")
+        if self.m10k_tdp_constant_clk2:
+            b1en = connections.get("B1EN")
+            if b1en != ["0"]:
+                raise PolicyError("TDP M10K B1EN must be tied low with constant CLK2")
         write_a = connections.get("A1DATA")
         write_b = connections.get("B1DATA")
         if not isinstance(write_a, list) or len(write_a) != width:
@@ -1085,7 +1132,11 @@ class ExperimentPolicy:
         Unknown ports on known library cells default to output.
         """
 
-        if not self.synth_json_input_ports and not self.synth_json_tied_low:
+        if (
+            not self.synth_json_input_ports
+            and not self.synth_json_tied_low
+            and self.m10k_aclr1_gpo_bit is None
+        ):
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -1104,6 +1155,8 @@ class ExperimentPolicy:
             cells = module.get("cells")
             if not isinstance(cells, dict):
                 continue
+            if self._attach_m10k_aclr1(cells):
+                changed = True
             for cell in cells.values():
                 if not isinstance(cell, dict):
                     continue
@@ -1140,6 +1193,47 @@ class ExperimentPolicy:
             raise PolicyError("synth json is missing cells that need extra input ports: " + ", ".join(missing))
         if changed:
             Path(path).write_text(json.dumps(design) + "\n", encoding="utf-8")
+
+    def _attach_m10k_aclr1(self, cells: dict[str, Any]) -> bool:
+        """Connect M10K ACLR1 to the selected HPS GPO bit after Yosys omits it."""
+
+        bit = self.m10k_aclr1_gpo_bit
+        if bit is None:
+            return False
+        gp_out = None
+        memories: list[dict[str, Any]] = []
+        for cell in cells.values():
+            if not isinstance(cell, dict):
+                continue
+            if cell.get("type") == "cyclonev_hps_interface_mpu_general_purpose":
+                connections = cell.get("connections")
+                if isinstance(connections, dict):
+                    bits = connections.get("gp_out")
+                    if isinstance(bits, list) and len(bits) > bit:
+                        gp_out = bits
+            if cell.get("type") == "MISTRAL_M10K":
+                memories.append(cell)
+        if not memories:
+            return False
+        if gp_out is None:
+            raise PolicyError("synth json has no HPS gp_out for M10K ACLR1")
+        net = gp_out[bit]
+        if net in (0, 1, "0", "1"):
+            raise PolicyError("M10K ACLR1 GPO bit must be a fabric net")
+        changed = False
+        for cell in memories:
+            connections = cell.get("connections")
+            if not isinstance(connections, dict):
+                raise PolicyError("M10K cell is missing connections")
+            directions = cell.get("port_directions")
+            if not isinstance(directions, dict):
+                directions = {}
+                cell["port_directions"] = directions
+            if connections.get("ACLR1") != [net] or directions.get("ACLR1") != "input":
+                connections["ACLR1"] = [net]
+                directions["ACLR1"] = "input"
+                changed = True
+        return changed
 
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
@@ -1290,6 +1384,10 @@ class ExperimentPolicy:
             ),
             **({"nextpnr_router": self.nextpnr_router} if self.nextpnr_router else {}),
             **({"require_read_clock_arc": True} if self.require_read_clock_arc else {}),
+            **({"m10k_aclr1_gpo_bit": self.m10k_aclr1_gpo_bit}
+               if self.m10k_aclr1_gpo_bit is not None else {}),
+            **({"m10k_require_aclr1": True} if self.m10k_require_aclr1 else {}),
+            **({"m10k_tdp_constant_clk2": True} if self.m10k_tdp_constant_clk2 else {}),
         }
 
 
@@ -4089,6 +4187,593 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                     sources=("experiments/610_pll_frac_7425/rtl/top.v",),
                     tb="experiments/090_pll_clock/sim/meter_sim.cpp",
                     parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "620_ddr_clock": ExperimentPolicy(
+            name="620_ddr_clock",
+            sources=("experiments/620_ddr_clock/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/620_ddr_clock/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altddio_out": 1,
+            },
+            required_synth_cells={"altddio_out": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/620_ddr_clock/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/620_ddr_clock/sim/ddr_model.v",
+                    ),
+                    tb="experiments/620_ddr_clock/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "630_sdr_output": ExperimentPolicy(
+            name="630_sdr_output",
+            sources=("experiments/630_sdr_output/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/630_sdr_output/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/630_sdr_output/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/630_sdr_output/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "640_sdr_input": ExperimentPolicy(
+            name="640_sdr_input",
+            sources=("experiments/640_sdr_input/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/640_sdr_input/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/640_sdr_input/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/640_sdr_input/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "650_ddr_input": ExperimentPolicy(
+            name="650_ddr_input",
+            sources=("experiments/650_ddr_input/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/650_ddr_input/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altddio_in": 1,
+            },
+            required_synth_cells={"altddio_in": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/650_ddr_input/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/650_ddr_input/sim/altddio_in_model.v",
+                    ),
+                    tb="experiments/650_ddr_input/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "660_ddr_data": ExperimentPolicy(
+            name="660_ddr_data",
+            sources=("experiments/660_ddr_data/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/660_ddr_data/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altddio_out": 1,
+            },
+            required_synth_cells={"altddio_out": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/660_ddr_data/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/660_ddr_data/sim/altddio_out_model.v",
+                    ),
+                    tb="experiments/660_ddr_data/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "670_altiobuf": ExperimentPolicy(
+            name="670_altiobuf",
+            sources=("experiments/670_altiobuf/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/670_altiobuf/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altiobuf_in": 1,
+                "altiobuf_out": 1,
+                "altiobuf_bidir": 1,
+            },
+            required_synth_cells={"altiobuf_in": 1, "altiobuf_out": 1, "altiobuf_bidir": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/670_altiobuf/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/670_altiobuf/sim/altiobuf_model.v",
+                    ),
+                    tb="experiments/670_altiobuf/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "680_m10k_mix20be10": ExperimentPolicy(
+            name="680_m10k_mix20be10",
+            sources=("experiments/680_m10k_mix20be10/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_mixed_write_dbits=20,
+            m10k_mixed_read_dbits=10,
+            m10k_byte_enable=True,
+            nextpnr_router="router1",
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "B1EN", "A1BE")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/680_m10k_mix20be10/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                        "experiments/680_m10k_mix20be10/sim/m10k_mixbe_model.v",
+                    ),
+                    tb="experiments/680_m10k_mix20be10/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "690_ddr_bidir": ExperimentPolicy(
+            name="690_ddr_bidir",
+            sources=("experiments/690_ddr_bidir/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/690_ddr_bidir/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(*_COMMON_SOURCE_PATTERNS, "LED", "GPIO", "external_gpio"),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altddio_bidir": 1,
+            },
+            required_synth_cells={"altddio_bidir": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/690_ddr_bidir/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/690_ddr_bidir/sim/altddio_bidir_model.v",
+                    ),
+                    tb="experiments/690_ddr_bidir/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "700_m10k_aclr": ExperimentPolicy(
+            name="700_m10k_aclr",
+            sources=("experiments/700_m10k_aclr/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            m10k_aclr1_gpo_bit=5,
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/700_m10k_aclr/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/700_m10k_aclr/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "710_m10k_aclr_prim": ExperimentPolicy(
+            name="710_m10k_aclr_prim",
+            sources=("experiments/710_m10k_aclr_prim/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            m10k_require_aclr1=True,
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/710_m10k_aclr_prim/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                        "experiments/710_m10k_aclr_prim/sim/m10k_aclr_model.v",
+                    ),
+                    tb="experiments/710_m10k_aclr_prim/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "720_m10k_aclr_infer": ExperimentPolicy(
+            name="720_m10k_aclr_infer",
+            sources=("experiments/720_m10k_aclr_infer/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 1,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            m10k_require_aclr1=True,
+            require_read_clock_arc=True,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "CLK2", "A1EN", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/720_m10k_aclr_infer/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/720_m10k_aclr_infer/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "730_m10k_tdp_tclk": ExperimentPolicy(
+            name="730_m10k_tdp_tclk",
+            sources=("experiments/730_m10k_tdp_tclk/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K_TDP": 1,
+            },
+            nobram=False,
+            m10k_tdp_width=20,
+            m10k_tdp_constant_clk2=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": ("CLK1", "CLK2", "A1EN", "B1EN", "A1WE", "B1WE")
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/730_m10k_tdp_tclk/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/730_m10k_tdp_tclk/sim/m10k_tdp_tclk_model.v",
+                    ),
+                    tb="experiments/730_m10k_tdp_tclk/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "740_m10k_dual_pll": ExperimentPolicy(
+            name="740_m10k_dual_pll",
+            sources=("experiments/740_m10k_dual_pll/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            additional_clocks_mhz={"pixel_clock": 74.25},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 2,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 2,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 2,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            require_read_clock_arc=True,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/740_m10k_dual_pll/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/740_m10k_dual_pll/sim/tb.cpp",
                 ),
             ),
         ),

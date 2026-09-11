@@ -77,6 +77,20 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/190_pll_frac_441/rtl/top.v",
             "experiments/200_pll_frac_dual/rtl/top.v",
             "experiments/610_pll_frac_7425/rtl/top.v",
+            "experiments/620_ddr_clock/rtl/top.v",
+            "experiments/620_ddr_clock/pins.qsf",
+            "experiments/630_sdr_output/rtl/top.v",
+            "experiments/630_sdr_output/pins.qsf",
+            "experiments/640_sdr_input/rtl/top.v",
+            "experiments/640_sdr_input/pins.qsf",
+            "experiments/650_ddr_input/rtl/top.v",
+            "experiments/650_ddr_input/pins.qsf",
+            "experiments/660_ddr_data/rtl/top.v",
+            "experiments/660_ddr_data/pins.qsf",
+            "experiments/670_altiobuf/rtl/top.v",
+            "experiments/670_altiobuf/pins.qsf",
+            "experiments/690_ddr_bidir/rtl/top.v",
+            "experiments/690_ddr_bidir/pins.qsf",
             "experiments/210_pll_duty/rtl/top.v",
             "experiments/220_pll_phase/rtl/top.v",
             "experiments/230_pll_phase_180/rtl/top.v",
@@ -107,6 +121,12 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/460_dsp_reg/rtl/top.v",
             "experiments/470_mlab_init/rtl/top.v",
             "experiments/500_m10k_be20/rtl/top.v",
+            "experiments/680_m10k_mix20be10/rtl/top.v",
+            "experiments/700_m10k_aclr/rtl/top.v",
+            "experiments/710_m10k_aclr_prim/rtl/top.v",
+            "experiments/720_m10k_aclr_infer/rtl/top.v",
+            "experiments/730_m10k_tdp_tclk/rtl/top.v",
+            "experiments/740_m10k_dual_pll/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -143,8 +163,8 @@ class OssPipelinePurityTests(unittest.TestCase):
                 shim(bin_dir / name, name)
 
         pins = {
-            "yosys": "fca8ca0a5354e52ce0e158bc6e1eed481e590ed8",
-            "nextpnr": "d8a96b581e608736ea346c34a2a0ce8161d2e1ab",
+            "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
+            "nextpnr": "9cdc03cc8521317b729f986c65448733e4aa0422",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -258,6 +278,86 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
         self.assertNotIn("-nobram", commands)
         self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_and_router1_for_mixed_byte_enable(self) -> None:
+        result = self._run("--print-commands", "--experiment", "680_m10k_mix20be10")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/680_m10k_mix20be10/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_mixbe_model.v", commands)
+        self.assertIn("--router router1", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_m10k_aclr(self) -> None:
+        result = self._run("--print-commands", "--experiment", "700_m10k_aclr")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/700_m10k_aclr/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("--router", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_m10k_aclr_prim(self) -> None:
+        result = self._run("--print-commands", "--experiment", "710_m10k_aclr_prim")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/710_m10k_aclr_prim/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_aclr_model.v", commands)
+        self.assertNotIn("--router", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_m10k_aclr_infer(self) -> None:
+        result = self._run("--print-commands", "--experiment", "720_m10k_aclr_infer")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/720_m10k_aclr_infer/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("--router", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_m10k_tdp_tclk(self) -> None:
+        result = self._run("--print-commands", "--experiment", "730_m10k_tdp_tclk")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/730_m10k_tdp_tclk/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_tdp_tclk_model.v", commands)
+        self.assertNotIn("--router", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_uses_default_router_for_dual_pll_m10k(self) -> None:
+        result = self._run("--print-commands", "--experiment", "740_m10k_dual_pll")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/740_m10k_dual_pll/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("--router", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
@@ -380,6 +480,95 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_ddr_clock(self) -> None:
+        result = self._run("--print-commands", "--experiment", "620_ddr_clock")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/620_ddr_clock/rtl/top.v", commands)
+        self.assertIn("experiments/620_ddr_clock/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("ddr_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_sdr_output(self) -> None:
+        result = self._run("--print-commands", "--experiment", "630_sdr_output")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/630_sdr_output/rtl/top.v", commands)
+        self.assertIn("experiments/630_sdr_output/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_sdr_input(self) -> None:
+        result = self._run("--print-commands", "--experiment", "640_sdr_input")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/640_sdr_input/rtl/top.v", commands)
+        self.assertIn("experiments/640_sdr_input/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_ddr_input(self) -> None:
+        result = self._run("--print-commands", "--experiment", "650_ddr_input")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/650_ddr_input/rtl/top.v", commands)
+        self.assertIn("experiments/650_ddr_input/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altddio_in_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_ddr_data(self) -> None:
+        result = self._run("--print-commands", "--experiment", "660_ddr_data")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/660_ddr_data/rtl/top.v", commands)
+        self.assertIn("experiments/660_ddr_data/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altddio_out_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_ddr_bidir(self) -> None:
+        result = self._run("--print-commands", "--experiment", "690_ddr_bidir")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/690_ddr_bidir/rtl/top.v", commands)
+        self.assertIn("experiments/690_ddr_bidir/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altddio_bidir_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_altiobuf(self) -> None:
+        result = self._run("--print-commands", "--experiment", "670_altiobuf")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/670_altiobuf/rtl/top.v", commands)
+        self.assertIn("experiments/670_altiobuf/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("altiobuf_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")

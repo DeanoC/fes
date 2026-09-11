@@ -42,6 +42,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `ram_style="m10k_mixed"`: independent 10/20/40-bit write and read ports on
   one block, including 40↔10. Place-and-route uses router1 for those
   experiments.
+- Cyclone V mixed-width M10K byte enables on a 512×20 write port with a
+  1024×10 read port. Locked Yosys does not infer that combined shape; the
+  experiment instantiates one `MISTRAL_M10K` with `CFG_BYTE_ENABLE=1`.
+  Place-and-route uses router1.
 - Cyclone V equal-width M10K true dual-port RAM through
   `ram_style="m10k_tdp"`: 1024×10 and 512×20 with two enabled read/write
   ports, independent clocks, and own-port NEW_DATA. Place-and-route uses
@@ -243,6 +247,66 @@ development possible with both the open-source Mistral toolchain and Quartus.
   through HPS GP. Simulation uses a 25 MHz digital stand-in; the analog ratio
   is kit-only. Run `make sim EXP=610_pll_frac_7425` and
   `make oss EXP=610_pll_frac_7425`; no Quartus comparison lane is implemented.
+- `620_ddr_clock`, dedicated 50 MHz DDR clock forwarding onto PIN_W15 with a
+  fabric GPI beat. Simulation copies the reference onto the output; the analog
+  pin waveform is not measured. Run `make sim EXP=620_ddr_clock` and
+  `make oss EXP=620_ddr_clock`; no Quartus comparison lane is implemented.
+- `630_sdr_output`, dedicated SDR output register on PIN_W15 with
+  `FAST_OUTPUT_REGISTER ON` and a fabric GPI beat. Simulation uses the
+  Verilog flop; analog GPIO-register delay is not modelled. Run
+  `make sim EXP=630_sdr_output` and `make oss EXP=630_sdr_output`; no
+  Quartus comparison lane is implemented.
+- `640_sdr_input`, dedicated SDR input register on PIN_Y15 with
+  `FAST_INPUT_REGISTER ON` and a fabric GPI beat. Simulation uses the
+  Verilog flop; analog GPIO-register delay is not modelled. Run
+  `make sim EXP=640_sdr_input` and `make oss EXP=640_sdr_input`; no
+  Quartus comparison lane is implemented.
+- `650_ddr_input`, dedicated DDR input register on PIN_Y15 with a fabric
+  GPI beat. Simulation uses a digital `altddio_in` stand-in; analog
+  GPIO-register delay is not modelled. Run `make sim EXP=650_ddr_input`
+  and `make oss EXP=650_ddr_input`; no Quartus comparison lane is
+  implemented.
+- `660_ddr_data`, dedicated fabric-data DDR output register on PIN_W15 with
+  a fabric GPI beat. Simulation uses a digital `altddio_out` stand-in;
+  analog GPIO-register delay is not modelled. Run `make sim EXP=660_ddr_data`
+  and `make oss EXP=660_ddr_data`; no Quartus comparison lane is
+  implemented.
+- `670_altiobuf`, width-one `altiobuf_in` on PIN_Y15, `altiobuf_out` on
+  PIN_W15, and `altiobuf_bidir` on PIN_V16 with a fabric GPI beat.
+  Simulation uses digital buffer stand-ins; analog pad delay is not
+  modelled. Run `make sim EXP=670_altiobuf` and `make oss EXP=670_altiobuf`;
+  no Quartus comparison lane is implemented.
+- `680_m10k_mix20be10`, mixed-width M10K SDP with 512-by-20 byte-masked writes
+  and 1024-by-10 reads on HPS GP. Locked Yosys does not infer that combined
+  shape, so the experiment instantiates one `MISTRAL_M10K`. Run
+  `make sim EXP=680_m10k_mix20be10` and `make oss EXP=680_m10k_mix20be10`;
+  no Quartus comparison lane is implemented.
+- `690_ddr_bidir`, dedicated DDR bidirectional I/O register on PIN_W15 with
+  a fabric GPI beat. Simulation uses a digital `altddio_bidir` stand-in;
+  analog GPIO-register delay is not modelled. Run `make sim EXP=690_ddr_bidir`
+  and `make oss EXP=690_ddr_bidir`; no Quartus comparison lane is
+  implemented.
+- `700_m10k_aclr`, independent-clock 512-by-20 M10K with fabric `ACLR1` on
+  GPO[5]. Locked Yosys omits that port, so OSS attaches it after synthesis.
+  Run `make sim EXP=700_m10k_aclr` and `make oss EXP=700_m10k_aclr`; no
+  Quartus comparison lane is implemented.
+- `710_m10k_aclr_prim`, explicit `MISTRAL_M10K` with `.ACLR1(gp_out[5])`.
+  Yosys emits that port; OSS does not patch it. Run
+  `make sim EXP=710_m10k_aclr_prim` and `make oss EXP=710_m10k_aclr_prim`;
+  no Quartus comparison lane is implemented.
+- `720_m10k_aclr_infer`, inferred `ramstyle=M10K` 512-by-20 SDP with an
+  asynchronous zero clear of the registered read output on GPO[5]. Yosys
+  maps that reset onto `ACLR1`. Run `make sim EXP=720_m10k_aclr_infer` and
+  `make oss EXP=720_m10k_aclr_infer`; no Quartus comparison lane is
+  implemented.
+- `730_m10k_tdp_tclk`, true-dual-port 512-by-20 M10K with `CLK2` and `B1EN`
+  tied low. nextpnr folds that constant clock off `CLKIN[1]`. Run
+  `make sim EXP=730_m10k_tdp_tclk` and `make oss EXP=730_m10k_tdp_tclk`; no
+  Quartus comparison lane is implemented.
+- `740_m10k_dual_pll`, two PLLs plus independent-clock 512-by-20 M10K. Default
+  router2 may retry with router1 when timing margin is under 10%. Run
+  `make sim EXP=740_m10k_dual_pll` and `make oss EXP=740_m10k_dual_pll`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

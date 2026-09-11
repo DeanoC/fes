@@ -145,7 +145,21 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8` adds
+The current Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
+`758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
+asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
+`ACLR1`, with `ACLR0` tied low. Nonzero reset values remain fabric.
+Pair it with nextpnr `88cda8ae`.
+
+That pin sits on `758968907c116f685f586e0ce8186bae0f8b448c`,
+merged PR #11 (`74d285754bfbe78005cc4a65c7f849d3b8cf403f` onto
+`ae5db2a9cd2c0bd1ebc73fada70d6a76f1b908d1`). That pin exposes active-high
+`ACLR0`/`ACLR1` on `MISTRAL_M10K` and `MISTRAL_M10K_TDP` so an explicit
+primitive can drive the Mistral clear inputs. Pair that ACLR-port baseline
+with nextpnr `88cda8ae`.
+
+That pin sits on `fca8ca0a5354e52ce0e158bc6e1eed481e590ed8`, which adds
 the HPS peripheral I2C primitive on `10891a9e0256a0eac70c329aa64c633902fc6bc6`.
 That baseline includes merged PR #7: Intel ALM infers mixed-width Cyclone V M10K
 true dual-port RAM through `ram_style="m10k_tdp_mixed"` as `MISTRAL_M10K_TDP`
@@ -153,19 +167,109 @@ with `CFG_MIXED_WIDTH=1` (physical 20/10 and 10/20, padded 16/8 and 8/16),
 including merged PR #6 byte-masked TDP, merged PR #5 unmasked TDP, merged PR #4
 mixed-width SDP, merged PR #3 20-bit byte enables, merged PR #2 independent
 CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
-YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair it with nextpnr
-`d8a96b58`.
+YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
+with nextpnr `88cda8ae`.
 
-The current nextpnr pin `d8a96b581e608736ea346c34a2a0ce8161d2e1ab` is
-merged PR #51: it folds a constant unused M10K clock off the `CLKIN[1]`
-TCLK sink and maps only live clocks. That pin sits on
-`5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0`, which adds
-the four existing HPS peripheral I2C sites, HDMI routing checks, and a GPIO
-input-buffer fix that preserves external input on bidirectional pads. It also
-routes explicit constant-zero and constant-one `MISTRAL_FF.DATAIN` values
-through real fabric sources: Cyclone V flip-flops have no hard constant data
-selector, so folding a zero away could otherwise select unrelated co-packed
-logic after reset. It builds on
+The current nextpnr pin `9cdc03cc8521317b729f986c65448733e4aa0422` is
+merged PR #52 (`55f17b34dfa1ca6f87f1b70ed9442ee2e4ead7c7` onto
+`d8a96b581e608736ea346c34a2a0ce8161d2e1ab`). Default router2 retries
+ordinary nets with router1 when a design has two `altera_pll` cells, one
+`MISTRAL_M10K`, and less than 10% timing margin. Pair it with Yosys
+`da6373c0`.
+
+That pin sits on `d8a96b581e608736ea346c34a2a0ce8161d2e1ab`,
+merged PR #51 (`9684edd8238f4538d77be2cae5391183c87e6131` stacked onto
+`88cda8aeedf1d6cd48406844a5e8dced415c6ae5`). That pin folds a constant unused
+M10K clock off the `CLKIN[1]` TCLK sink, maps only live clocks, and
+preserves ACLR0/ACLR1 pin styles. Pair that TCLK-fold baseline with Yosys
+`da6373c0`.
+
+That pin sits on `88cda8aeedf1d6cd48406844a5e8dced415c6ae5`,
+merged PR #49 (`71426e88e0c76de41f3cf06dd40b032dd8d1d467` onto
+`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`). That pin adds Cyclone V M10K
+asynchronous clear: logical `ACLR0`/`ACLR1` map to physical `ACLR[0:1]`.
+Omitted ports materialise as inactive `PIN_0`. Fabric or inverted
+controls enable the matching output-clear register. Address-clear
+enables stay disabled. No Mistral database tables change. It sits on
+`d990fb2d92931e3ec1fc5d35e5ca1342558fa248`,
+merged PR #46 (`fe411b3953d364a31493f7e6d457b0f7094695b1` stacked onto
+`9020c5f43f085461bc2710da74e59c8a7bc32564`). That pin adds Cyclone V DDR
+bidirectional I/O registers: a width-one `altddio_bidir` with connected
+`datain_h`/`datain_l`, `dataout_h`/`dataout_l`, `combout`, shared clock
+and OE packs into `MISTRAL_DDRBIDIR` on the existing GPIO/DQS16 site.
+Missing data, inverted clocks, extra controls and used `oe_out` fail
+closed. No Mistral database tables change. It sits on
+`9020c5f43f085461bc2710da74e59c8a7bc32564`,
+merged PR #48 (`d19c6aeec9b18216e611f1e3895441714a3884e0` onto
+`10a8e8907f18e312b431e8303c4216f4501e6b3a`). That pin adds mixed-width Cyclone V
+M10K byte enables: a 512×20 write port with two connected `A1BE` bits packs
+onto existing `BYTEENABLEA` lanes together with a 1024×10 or 256×40 read
+port. Missing or extra mask bits, non-20-bit writes, and mixed-width true
+dual-port byte enables fail closed. Equal-width 512×20 byte enables keep
+the ordinary SDP path. No Mistral database tables change. It sits on
+`10a8e8907f18e312b431e8303c4216f4501e6b3a`,
+merged PR #47 (`e64b6c33521c92c9460c07b43c1d396944895756` onto
+`3e314db00a620caf3cbe09ecac93a4910df5f01a`). That pin adds
+direct Cyclone V `altiobuf_in`, `altiobuf_out` and `altiobuf_bidir`
+packing: each width-one primitive folds into the already constrained
+`MISTRAL_IB`, `MISTRAL_OB` or `MISTRAL_IO` BEL. Bus hold and differential
+mode stay disabled; the output profile requires `use_oe=FALSE`.
+Bidirectional `dataio` must be the direct pad net of one `MISTRAL_IO`,
+and `MISTRAL_IO.O` keeps the primitive's `dataout` users. Wider channels,
+unsupported parameters and malformed pad topology fail closed. No Mistral
+database tables change. It sits on `3e314db00a620caf3cbe09ecac93a4910df5f01a`,
+merged PR #45 (`3eb10febf42cef0df8cdc62d21dd633211daad9d` onto
+`9144784db9b4b85c1257be4d1943b9ac11ceb3e8`). That pin adds
+fabric-data Cyclone V DDR output registers: a width-one `altddio_out`
+with two connected nonconstant `datain_h`/`datain_l` nets packs into
+`MISTRAL_DDROUT`. High/low data use GPIO `DATAOUT.1`/`DATAOUT.0`
+(`D_H`/`D_L`) and the clock uses GPIO `CLKOUT.0`. Complementary constant
+data still takes the existing clock-forwarding path. Mixed or missing
+data, widths above one, dynamic controls, inverted output and used
+`oe_out` fail closed. There is no characterized GPIO output-register
+setup/hold or clock-to-pad model, so those arcs stay outside timing
+analysis. It sits on `9144784db9b4b85c1257be4d1943b9ac11ceb3e8`,
+merged PR #44 (`7a0447cb2c24d4d09ed4d96d1f692420b714441c` onto
+`a1f8dbb5434fd88bc014ce059dd6b7ca74512693`). That pin adds
+dedicated Cyclone V DDR input registers: a width-one `altddio_in` with
+inactive controls packs into `MISTRAL_DDRIN`. High/low captures use GPIO
+`DATAIN.3`/`DATAIN.2` and the clock uses GPIO `CLKIN.0`. Unsupported
+widths, parameters, dynamic controls, inverted clocks, indirect data and
+aliased outputs fail closed. There is no characterized GPIO input-register
+setup/hold or clock-to-Q model, so those arcs stay outside timing analysis.
+It sits on `a1f8dbb5434fd88bc014ce059dd6b7ca74512693`,
+merged PR #43 (`298e7588ebaecf76245bf60d174048b0d23a0756` onto
+`2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`). That pin adds
+dedicated Cyclone V SDR input registers: `FAST_INPUT_REGISTER ON` absorbs
+a directly connected `MISTRAL_FF` driven by a unidirectional `MISTRAL_IB`
+into `MISTRAL_SDRIN`. The captured result is GPIO `DATAIN.3` and the clock
+is GPIO `CLKIN.0`. The supported flop has constant `ENA=1`, inactive
+`ACLR=1`, `SCLR=0`, `SLOAD=0`, exactly one consumer of the input-buffer
+output and a non-inverted clock; unsupported controls, inverted clocks,
+data fanout and parameters fail closed. `FAST_INPUT_REGISTER OFF` keeps
+the fabric flop. There is no characterized GPIO input-register setup/hold
+or clock-to-Q model, so those arcs stay outside timing analysis. It sits
+on `2c9f9c5cf06615affdefc8c346bbd7d26a47f6b6`, merged PR #42
+(`8c0c8e7db1a9b0ba101ae9fb26a38a450209e091` onto
+`eefa26d3ec3151630ccd556824fd8ebfa9df4976`). That pin adds
+dedicated Cyclone V SDR output registers: `FAST_OUTPUT_REGISTER ON` absorbs
+a directly connected `MISTRAL_FF` into the constrained `MISTRAL_OB` as
+`MISTRAL_SDROUT`. The supported flop has constant `ENA=1`, inactive `ACLR=1`,
+`SCLR=0`, `SLOAD=0`, one Q consumer and a non-inverted clock; unsupported
+controls, inverted clocks, fanout and parameters fail closed.
+`FAST_OUTPUT_REGISTER OFF` keeps the fabric flop. There is no characterized
+GPIO-register setup/hold or clock-to-pad model, so the packed data pin is an
+unclocked timing endpoint. The DDR/Pong baseline `eefa26d3` merges
+dedicated DDR clock forwarding from merged PR #40 with the four existing HPS
+peripheral I2C sites, HDMI routing checks, and a GPIO input-buffer fix that
+preserves external input on bidirectional pads. Width-one `altddio_out` with
+complementary constant `datain_h`/`datain_l` packs into `MISTRAL_DDROUT` on
+the existing GPIO BEL; fabric DDR data is rejected. It also routes explicit
+constant-zero and constant-one `MISTRAL_FF.DATAIN` values through real fabric
+sources: Cyclone V flip-flops have no hard constant data selector, so folding
+a zero away could otherwise select unrelated co-packed logic after reset. The
+merge parents are `9180a91a8c9412cc96238527c20f8e6d30ce0052` (PR #40) and
+`5e31bf41f47c0b2403f77c6fb679ca306e9b2cd0`. It builds on
 `ef294430c57b1d64c52f15129adcc6236ecbce01`. That baseline includes merged PR #39: a single 50→74.25 MHz fractional-N
 output (`fractional_vco_multiplier="true"`, direct mode, 0 phase, 50% duty,
 M=8 N=1 C6=6, K=`0xe8f5c239`, calculated 74,249,999.83243954 Hz). Integer
@@ -1003,17 +1107,302 @@ buffers, and one HPS GP. Exact-artifact kit diagnostics on 2026-09-08 returned
 zero while reset and 6082–6083 after relock for ten cycles with GPI signature
 `0xD742`.
 
+`620_ddr_clock` forwards the 50 MHz reference through a width-one
+`altddio_out` onto PIN_W15. GPI signature `0xDD01` identifies the fabric
+beat protocol. Simulation copies the reference onto `DDR_OUT`; it does not
+model analog DDR registers or pin delay. The kit probe observes fabric
+counters, not the forwarded pin waveform. Simulation and OSS are supported;
+Quartus comparison is not implemented. See
+`experiments/620_ddr_clock/expected.md`.
+
+The OSS `620_ddr_clock` artifact has SHA-256
+`3daaca5aa964c73cf383a0d5334284998b399bef8c58c2248e7b1f6b62e92df5`
+and size 1,953,412 bytes. nextpnr packed `altddio_out` into `MISTRAL_DDROUT`
+on `MISTRAL_IO.89.8.1` (PIN_W15, normal phase). Its reported Fmax is
+322.372 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `eefa26d3`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on 2026-09-09 returned GPI signature `0xDD01` with changing
+paired fabric beats for ten samples. Load JSON timed out; GPI and probe
+still passed. `stop` completed development reboot recovery and left the
+lease free. This does not measure the forwarded pin waveform.
+
+`630_sdr_output` registers `beat[7]` through a dedicated flop onto PIN_W15
+with `FAST_OUTPUT_REGISTER ON`. GPI signature `0x5D01` identifies the fabric
+beat protocol. Simulation uses the Verilog flop; it does not model analog
+GPIO-register delay. nextpnr absorbs that flop into `MISTRAL_SDROUT` on the
+existing GPIO BEL. The packed pin is an unclocked timing endpoint. The kit
+probe observes fabric counters, not the pin waveform. Simulation and OSS are
+supported; Quartus comparison is not implemented. See
+`experiments/630_sdr_output/expected.md`.
+
+The OSS `630_sdr_output` artifact has SHA-256
+`cf5d712159ccc237b8c19f35530d5241bc2cdcb20d8433596bf3dc198ad78ce4`
+and size 1,953,438 bytes. nextpnr packed the dedicated output flop into
+`MISTRAL_SDROUT` on `MISTRAL_IO.89.8.1` (PIN_W15). Its reported Fmax is
+329.489 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `2c9f9c5`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on
+2026-09-09 returned GPI signature `0x5D01` with changing paired fabric
+beats for ten samples. Load JSON timed out; GPI and probe still passed.
+`stop` completed development reboot recovery and left the lease free.
+This does not measure the registered pin waveform and is not
+external-interface timing closure.
+
+`640_sdr_input` captures PIN_Y15 through a dedicated flop with
+`FAST_INPUT_REGISTER ON`. GPI signature `0x5E01` identifies the fabric
+beat protocol. Simulation uses the Verilog flop; it does not model analog
+GPIO-register delay. nextpnr absorbs that flop into `MISTRAL_SDRIN` on the
+existing GPIO BEL. The packed register is outside characterized timing.
+The kit probe observes fabric counters, not the pin waveform. Simulation
+and OSS are supported; Quartus comparison is not implemented. See
+`experiments/640_sdr_input/expected.md`.
+
+The OSS `640_sdr_input` artifact has SHA-256
+`e450523a6cc81cbc33525d4baf8ea9b8a8efdfa73e9b6c3ce8385194240a759a`
+and size 1,953,411 bytes. nextpnr packed the dedicated capture flop into
+`MISTRAL_SDRIN` on `MISTRAL_IO.64.0.0` (PIN_Y15). Its reported Fmax is
+269.687 MHz against the 50 MHz constraint. Utilization is one HPS GP, two
+IO cells, and no PLL, memory or DSP. The current nextpnr pin `a1f8dbb5`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit
+diagnostics on
+2026-09-09 returned GPI signature `0x5E01` with changing paired fabric
+beats for ten samples. Load JSON timed out; GPI and probe still passed.
+`stop` completed development reboot recovery and left the lease free.
+This does not measure the registered pin waveform and is not
+input-interface timing closure.
+
+`650_ddr_input` captures PIN_Y15 through a width-one `altddio_in`. GPI
+signature `0xDD02` identifies the fabric beat protocol. Simulation uses a
+digital stand-in; it does not model analog GPIO-register delay. nextpnr
+packs that cell into `MISTRAL_DDRIN` on the existing GPIO BEL. The packed
+register is outside characterized timing. The kit probe observes fabric
+counters, not the pin waveform. Simulation and OSS are supported; Quartus
+comparison is not implemented. See `experiments/650_ddr_input/expected.md`.
+
+The OSS `650_ddr_input` artifact has SHA-256
+`e7f2aa1cccf4ee970b6a4e3811faff04aa0b7eb111f76859a3e93646d91d4afb`
+and size 1,953,384 bytes. nextpnr packed `altddio_in` into `MISTRAL_DDRIN`
+on `MISTRAL_IO.64.0.0` (PIN_Y15). Its reported Fmax is 323.625 MHz against
+the 50 MHz constraint. Utilization is one HPS GP, two IO cells, and no
+PLL, memory or DSP. The current nextpnr pin `9144784d` with Yosys
+`fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-09 returned
+GPI signature `0xDD02` with changing paired fabric beats for ten samples.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. This does not measure
+the registered pin waveform and is not input-interface timing closure.
+
+`660_ddr_data` drives PIN_W15 through a width-one `altddio_out` with two
+changing fabric data nets. GPI signature `0xDD03` identifies the fabric
+beat protocol. Simulation uses a digital stand-in; it does not model analog
+GPIO-register delay. nextpnr packs that cell into `MISTRAL_DDROUT` on the
+existing GPIO BEL, keeping both data nets. Complementary constant data
+remains the separate clock-forwarding experiment. The packed register is
+outside characterized timing. The kit probe observes fabric counters, not
+the pin waveform. Simulation and OSS are supported; Quartus comparison is
+not implemented. See `experiments/660_ddr_data/expected.md`.
+
+The OSS `660_ddr_data` artifact has SHA-256
+`0caf4bdff0d9019afd30ffc9e014c45d185526d28571ec5a65fc763b101d4843`
+and size 1,953,267 bytes. nextpnr packed `altddio_out` into `MISTRAL_DDROUT`
+on `MISTRAL_IO.89.8.1` (PIN_W15) with both `D_H` and `D_L` connected.
+Its reported Fmax is 363.108 MHz against the 50 MHz constraint.
+Utilization is one HPS GP, two IO cells, and no PLL, memory or DSP. The
+current nextpnr pin `3e314db0` with Yosys `fca8ca0a` reproduces those
+same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10 returned GPI
+signature `0xDD03` with changing paired fabric beats for ten samples.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. This does not
+measure the registered pin waveform and is not output-interface timing
+closure.
+
+`670_altiobuf` captures PIN_Y15 through `altiobuf_in`, drives PIN_W15
+through `altiobuf_out`, and drives PIN_V16 through `altiobuf_bidir`.
+GPI signature `0xAB01` identifies the fabric beat protocol. Simulation
+uses digital stand-ins; it does not model analog pad delay. nextpnr folds
+those cells into the existing `MISTRAL_IB`, `MISTRAL_OB` and `MISTRAL_IO`
+BELs. The kit probe observes fabric counters, not pad waveforms.
+Simulation and OSS are supported; Quartus comparison is not implemented.
+See `experiments/670_altiobuf/expected.md`.
+
+The OSS `670_altiobuf` artifact has SHA-256
+`2420085fae159e394846dd370be2746576871e8a2eda629e0b77f66224d1d072`
+and size 1,953,503 bytes. nextpnr packed `altiobuf_in` into
+`MISTRAL_IO.64.0.0` (PIN_Y15), `altiobuf_out` into `MISTRAL_IO.89.8.1`
+(PIN_W15), and `altiobuf_bidir` into `MISTRAL_IO.89.9.0` (PIN_V16) with
+`I`/`OE`/`O` connected. Its reported Fmax is 339.905 MHz against the
+50 MHz constraint. Utilization is one HPS GP, four IO cells, and no PLL,
+memory or DSP. The current nextpnr pin `10a8e890` with Yosys `fca8ca0a`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10
+returned GPI signature `0xAB01` with changing paired fabric beats for
+ten samples. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free. This
+does not measure pad waveforms and is not I/O-interface timing closure.
+
+`680_m10k_mix20be10` exposes a mixed-width M10K table on HPS GP: 512-by-20
+byte-masked writes and 1024-by-10 reads. GPI signature `0xD425`. Locked
+Yosys does not infer that combined mapping, so the experiment instantiates
+one `MISTRAL_M10K` with `CFG_MIXED_WIDTH=1` and `CFG_BYTE_ENABLE=1`.
+nextpnr maps `A1BE[0:1]` onto `BYTEENABLEA`. Place-and-route uses router1.
+Simulation and OSS are supported; Quartus comparison is not implemented.
+See `experiments/680_m10k_mix20be10/expected.md`.
+
+The OSS `680_m10k_mix20be10` artifact has SHA-256
+`bcfd525a14ecffdcb05b56d7244f4400aa2211b33eb4082c240a2b5e4df55282`
+and size 1,958,112 bytes. nextpnr packed one `MISTRAL_M10K` at
+`MISTRAL_M10K.5.33.0` with independent `A1BE` nets `wbe[0]` and `wbe[1]`.
+Its reported Fmax is 537.634 MHz against the 50 MHz constraint.
+Utilization is one M10K, one PLL, two clock enables, one HPS GP, and no
+DSP or MLAB. The current nextpnr pin `9020c5f4` with Yosys `fca8ca0a`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10
+returned GPI signature `0xD425` with initialized 10-bit lanes, isolated
+`BYTEENABLEA[0]`/`BYTEENABLEA[1]` updates, a suppressed zero mask, and a
+combined 20-bit write with the read clock stopped. Load JSON timed out;
+GPI and probe still passed. `stop` completed development reboot recovery
+and left the lease free.
+
+`690_ddr_bidir` drives PIN_W15 through a width-one `altddio_bidir` with two
+changing fabric data nets, connected registered inputs and `combout`, and a
+constant-high output enable. GPI signature `0xDD04` identifies the fabric
+beat protocol. Simulation uses a digital stand-in; it does not model analog
+GPIO-register delay. nextpnr packs that cell into `MISTRAL_DDRBIDIR` on the
+existing GPIO BEL. The packed register is outside characterized timing.
+The kit probe observes fabric counters, not the pin waveform. Simulation
+and OSS are supported; Quartus comparison is not implemented.
+See `experiments/690_ddr_bidir/expected.md`.
+
+The OSS `690_ddr_bidir` artifact has SHA-256
+`e0f3aff0594067031d9296910f382d74413e1a3e40c31582342f7b8049410a16`
+and size 1,953,559 bytes. nextpnr packed `altddio_bidir` into
+`MISTRAL_DDRBIDIR` on `MISTRAL_IO.89.8.1` (PIN_W15) with `D_H`/`D_L`,
+`Q_H`/`Q_L`, `O`, `OE`, and shared `CLK`/`CLKIN` connected. Its reported
+Fmax is 334.560 MHz against the 50 MHz constraint. Utilization is one
+HPS GP and no PLL, memory or DSP. The current nextpnr pin `d990fb2d`
+with Yosys `fca8ca0a` reproduces those same RBF bytes. Exact-artifact kit diagnostics
+on 2026-09-10 returned GPI signature `0xDD04` with changing paired fabric
+beats for ten samples. Load JSON timed out; GPI and probe still passed.
+`stop` completed development reboot recovery and left the lease free.
+This does not measure the registered pin waveform and is not
+bidirectional-interface timing closure.
+
+`700_m10k_aclr` exposes a 512-by-20 dual-clock M10K table on HPS GP with
+fabric `ACLR1` on GPO[5]. GPI signature `0xD426`. Locked Yosys has no
+`ACLR` ports on `MISTRAL_M10K`, so OSS attaches GPO[5] after synthesis.
+nextpnr maps that net onto `ACLR[1]` and enables the bottom output-clear
+register. Simulation checks INIT and write/read; the kit probe checks that
+asserting GPO[5] clears sampled `q` while leaving memory contents intact.
+See `experiments/700_m10k_aclr/expected.md`.
+
+The OSS `700_m10k_aclr` artifact has SHA-256
+`90bea3cb8720ed917818bef87cee79efa38491a47092351b831547b3fb330f77`
+and size 1,959,323 bytes. nextpnr packed one `MISTRAL_M10K` at
+`MISTRAL_M10K.5.34.0` with fabric `ACLR1` and omitted `ACLR0`. Its
+reported Fmax is 470.367 MHz against the 50 MHz constraint. Utilization
+is one M10K, one PLL, one HPS GP, and no DSP or MLAB. The current
+nextpnr pin `88cda8ae` with Yosys `fca8ca0a` reproduces those same RBF bytes.
+Exact-artifact kit diagnostics on 2026-09-10 returned GPI signature
+`0xD426`, INIT words, output-register clear on GPO[5], restored INIT
+after release, a post-clear write, and restored written data after a
+second clear. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free.
+
+`710_m10k_aclr_prim` instantiates one `MISTRAL_M10K` with `.ACLR1(gp_out[5])`
+and `.ACLR0(1'b0)`. GPI signature `0xD427`. Yosys keeps `ACLR1` as a JSON
+input; OSS does not patch that port. Simulation uses a digital stand-in that
+clears the registered read output. nextpnr maps `ACLR1` onto `ACLR[1]`.
+See `experiments/710_m10k_aclr_prim/expected.md`.
+
+The OSS `710_m10k_aclr_prim` artifact has SHA-256
+`896dd8c0672891622b3f5f7d53d727f26f7841f34050a7ff8d50b467e9761ea3`
+and size 1,959,059 bytes. Yosys `75896890` emitted `ACLR1` onto `gp_out[5]`
+and `ACLR0` as constant 0. nextpnr packed one `MISTRAL_M10K` with
+`CFG_BYTE_ENABLE=1`. Its reported Fmax is 471.921 MHz against the 50 MHz
+constraint. Utilization is one M10K, one PLL, one HPS GP, and no DSP or
+MLAB. The current Yosys pin `75896890` with nextpnr `88cda8ae` reproduces
+those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-10 returned GPI
+signature `0xD427`, INIT words, output-register clear on GPO[5], restored
+INIT after release, a post-clear write, and restored written data after a
+second clear. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free.
+
+`720_m10k_aclr_infer` infers a 512-by-20 dual-clock M10K table with an
+asynchronous zero clear of the registered read output on GPO[5]. GPI
+signature `0xD428`. Yosys maps that reset onto `ACLR1`; OSS does not patch
+the port. Simulation checks INIT, write/read and the RTL async clear.
+See `experiments/720_m10k_aclr_infer/expected.md`.
+
+The OSS `720_m10k_aclr_infer` artifact has SHA-256
+`7d1118689ea7f471ec38a25d96718990e21fdf60ad5aff871f7c506552747961`
+and size 1,959,184 bytes. Yosys `da6373c0` inferred `ACLR1` onto `gp_out[5]`
+and `ACLR0` as constant 0 with `CFG_BYTE_ENABLE=1`. nextpnr packed one
+`MISTRAL_M10K` at `MISTRAL_M10K.5.33.0`. Its reported Fmax is 473.485 MHz
+against the 50 MHz constraint. Utilization is one M10K, one PLL, one HPS
+GP, and no DSP or MLAB. The current Yosys pin `da6373c0` with nextpnr
+`88cda8ae` reproduces those same RBF bytes. Exact-artifact kit diagnostics on
+2026-09-10 returned GPI signature `0xD428`, INIT words, output-register
+clear on GPO[5], restored INIT after release, a post-clear write, and
+restored written data after a second clear. Load JSON timed out; GPI and
+probe still passed. `stop` completed development reboot recovery and left
+the lease free.
+
+`730_m10k_tdp_tclk` instantiates `MISTRAL_M10K_TDP` with `CLK2` and `B1EN`
+tied low. GPI signature `0xD429`. nextpnr folds that constant clock off
+`CLKIN[1]`. Simulation checks A-port INIT and write/read. See
+`experiments/730_m10k_tdp_tclk/expected.md`.
+
+The OSS `730_m10k_tdp_tclk` artifact has SHA-256
+`2e197f83df95392073bd8cb68f14d4e97058e2be3df3800818940160f1326e27`
+and size 1,959,552 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with live
+`CLK1` and disconnected `CLK2`. Its reported Fmax is 342.583 MHz against
+the 50 MHz constraint. Utilization is one M10K, one HPS GP, and no PLL,
+DSP or MLAB. The current nextpnr pin `d8a96b58` with Yosys `da6373c0`
+reproduces those same RBF bytes. Exact-artifact kit diagnostics on 2026-09-11
+returned GPI signature `0xD429`, initialized A-port words, an A-port
+write with the B clock tied off, and an undisturbed neighbour address.
+Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free.
+
+`740_m10k_dual_pll` exposes a 512-by-20 dual-clock M10K table plus a second
+74.25 MHz PLL. GPI signature `0xD42A`. Default router2 may retry with
+router1 when two PLLs and one M10K have less than 10% margin. Simulation
+and OSS are supported. See `experiments/740_m10k_dual_pll/expected.md`.
+
+The OSS `740_m10k_dual_pll` artifact has SHA-256
+`5489e8e697b1203113b95e76412e7e99b5076bfead0fc1628d58cd52afe55c35`
+and size 1,959,462 bytes. Utilization is two `altera_pll` cells, one M10K,
+one HPS GP, and no DSP. Router2 produced those bytes. Reported Fmax is
+437.254 MHz against 50 MHz and 355.240 MHz against 74.25 MHz. The current
+nextpnr pin `9cdc03cc` with Yosys `da6373c0` reproduces those same RBF bytes.
+Exact-artifact kit diagnostics on 2026-09-11 returned GPI signature
+`0xD42A`, initialized words, a write on the independent read clock, and an
+undisturbed neighbour address. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the lease
+free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
 M18 `A*B+C`, registered M18 with omitted enable/ACLR, initialized MLAB
 contents, independent-clock 20-bit and 40-bit M10K simple dual-port RAM,
 20-bit M10K byte-enable lanes with independent clocks, mixed-width 40↔10
-M10K simple dual-port RAM, independent-clock 10-bit and 20-bit M10K true
+M10K simple dual-port RAM, mixed-width 20-to-10 M10K byte-enable lanes,
+independent-clock 10-bit and 20-bit M10K true
 dual-port RAM, independent-clock byte-masked 20-bit and 16-bit TDP M10K RAM,
-independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, and
-the 50→74.25 MHz fractional-N PLL profile. It does not establish native game
-acceptance.
+independent-clock mixed-width 20/10, 10/20, 16/8 and 8/16 TDP M10K RAM, the
+50→74.25 MHz fractional-N PLL profile, dedicated 50 MHz DDR clock
+forwarding (fabric GPI only), dedicated SDR output registers (fabric GPI
+only; GPIO-register timing uncharacterized), and dedicated SDR input
+registers (fabric GPI only; GPIO-register timing uncharacterized), and
+dedicated DDR input registers (fabric GPI only; GPIO-register timing
+uncharacterized), and dedicated DDR bidirectional I/O registers (fabric GPI
+only; GPIO-register timing uncharacterized), and M10K asynchronous output
+clear (fabric GPI only), and an explicit `MISTRAL_M10K` primitive with
+Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
+asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
+TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
+router2 (fabric GPI only). It does not establish native
+game acceptance.
 
 ## Standalone Pong game
 
