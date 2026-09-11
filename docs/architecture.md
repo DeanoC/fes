@@ -170,7 +170,14 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `d22eaef1a858e2d81bcbe971b580f69265e59bde` is
+The current nextpnr pin `4d055daef276840c58fafc723bf189882b9e5d21` is
+merged PR #54 (`8bbd94146826b32decb9df516243d3471bfc12a7` onto
+`d22eaef1a858e2d81bcbe971b580f69265e59bde`). It adds a generic 520 MHz
+PLL feedback profile so 52 MHz and the other exact 520 MHz divisors are
+C counters on a Quartus-checked analog tuple. Pair it with Yosys
+`da6373c0`.
+
+That pin sits on `d22eaef1a858e2d81bcbe971b580f69265e59bde`,
 merged PR #53 (`c43136fe6688ff36e2e104327f37faa09450766e` onto
 `9cdc03cc8521317b729f986c65448733e4aa0422`). It adds native 18x19 DSP
 views: `MISTRAL_MUL18X19` dual products and `MISTRAL_MUL18X19_COMBINED`
@@ -1408,6 +1415,24 @@ still passed. `stop` completed development reboot recovery and left the
 lease free. The current nextpnr pin `d22eaef1` with Yosys `da6373c0`
 reproduces those same RBF bytes.
 
+`760_pll_52` measures PIN_V11 50 MHz → 52 MHz through one `altera_pll`.
+GPI signature `0xD752`. The 520 MHz feedback profile supplies that rate
+as C6=10. Simulation uses a digital toggling stand-in. Memory and DSP
+remain forbidden. Simulation and OSS are supported; Quartus comparison
+is not implemented. See `experiments/760_pll_52/expected.md`.
+
+The OSS `760_pll_52` artifact has SHA-256
+`2de17cd1773f78607b4a1182ce7ee5e5d135b0b88f6a55380a5528877a15487c`
+and size 1,955,813 bytes. nextpnr packed `50 MHz -> 52 MHz, direct, M=52
+N=5 C6=10` at `altera_pll.0.14.0`. Reported Fmax is 219.539 MHz against
+50 MHz and 329.164 MHz against 52 MHz. Utilization is one `altera_pll`
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
+signature `0xD752` and count 4260 on three successive measurements with
+lock asserted and no sampled lock loss. Load JSON timed out; GPI and
+probe still passed. `stop` completed development reboot recovery and
+left the lease free. The current nextpnr pin `4d055dae` with Yosys
+`da6373c0` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1430,7 +1455,8 @@ Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
 asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
 TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
 router2 (fabric GPI only), and native 18x19 dual products (fabric GPI
-only). It does not establish native
+only), and a 50→52 MHz integer PLL on the 520 MHz feedback profile
+(fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game

@@ -128,6 +128,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/730_m10k_tdp_tclk/rtl/top.v",
             "experiments/740_m10k_dual_pll/rtl/top.v",
             "experiments/750_dsp18x19/rtl/top.v",
+            "experiments/760_pll_52/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -749,6 +750,18 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = result.stdout
         self.assertIn("experiments/090_pll_clock/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_pll_52(self) -> None:
+        result = self._run("--print-commands", "--experiment", "760_pll_52")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/760_pll_52/rtl/top.v", commands)
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)
