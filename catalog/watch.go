@@ -79,6 +79,7 @@ func (w FolderWatcher) Run(ctx context.Context) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
+			resetWatchTicker(ticker, interval)
 		}
 	}
 }
@@ -93,6 +94,18 @@ func (w FolderWatcher) reportReconcile(ctx context.Context, report ScanReport, e
 	if w.OnError != nil {
 		w.OnError()
 	}
+}
+
+func resetWatchTicker(ticker *time.Ticker, interval time.Duration) {
+	if ticker == nil {
+		return
+	}
+	ticker.Stop()
+	select {
+	case <-ticker.C:
+	default:
+	}
+	ticker.Reset(interval)
 }
 
 func folderWatchReportOffline(report ScanReport) bool {

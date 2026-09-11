@@ -6,6 +6,11 @@ header restriction. Both listeners share the same library services, session
 coordinator, and target/input lease owner.
 
 Pass `--launcher-config /absolute/private/launcher-host.json` to `fogcast-api`.
+On a machine with no local sofa UI, also pass `--headless` so FPGA launches do
+not start the optional V4L2/FFmpeg session preview. Catalog, attract, session,
+and controller-stream routes stay on this listener; `fogcast-kit` reconnects
+with the existing `launcher.json` API URL.
+
 The file is a regular file readable only by its owner, containing:
 
 ```json

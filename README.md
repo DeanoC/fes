@@ -34,6 +34,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Native SDL3 10-foot launcher (`cmd/fogcast-tenfoot`) with cover-grid, shelf,
   and list layouts that calls the same public host API, including a
   DIAGNOSTIC development-RBF path OSK (local file path, no browser picker).
+  A kit-only host is `fogcast-api --headless --launcher-config`: catalog and
+  session stay up without local capture or an SDL window, and `fogcast-kit`
+  reconnects to the launcher listener.
   USB keyboard is first-class browse/nav (arrows/Enter/Esc/Tab; no gamepad
   required); USB mouse/pointer hover moves focus and primary click activates
   (select/launch/confirm) without a controller; on-screen hints and focus
