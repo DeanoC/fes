@@ -23,8 +23,10 @@ A machine may play several roles.
 | FPGA target | `mister-agent` + `mister-runtime` on the DE10-Nano |
 | Builder | Quartus, misteross OSS tools, Buildroot — never on the play path |
 
-Today one `selected_target` and one coordinator process bind these together.
-That 1:1 coupling is the later session work, not this inventory.
+`selected_target` is the host session's FPGA target, not a process identity.
+Idle switches are allowed; an active FPGA session still refuses. One
+coordinator process still runs one session. Binding any surface to a second
+concurrent target is later session work.
 
 ## Artifacts
 
