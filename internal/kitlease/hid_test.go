@@ -18,6 +18,9 @@ func TestForeignHIDFailClosed(t *testing.T) {
 	if !ForeignHID(Status{State: "blocked"}) {
 		t.Fatal("blocked lease must fail closed")
 	}
+	if !ForeignHID(Status{State: "recovery-required"}) {
+		t.Fatal("recovery-required connection must fail closed")
+	}
 	if !ForeignHID(Status{State: "held", Owner: HostlessOwner, Purpose: HostlessPurpose}) {
 		t.Fatal("hostless grant must fail closed for HID")
 	}

@@ -200,10 +200,7 @@ func (h *Hub) release(id string) []remoteinput.Event {
 }
 
 func releaseEvent(c remoteinput.Code) remoteinput.Event {
-	if c >= 256 {
-		return remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionRelease, Code: c}
-	}
-	return remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionRelease, Code: c}
+	return remoteinput.EventForCode(c, remoteinput.ActionRelease)
 }
 
 func (h *Hub) add(p padSource) {

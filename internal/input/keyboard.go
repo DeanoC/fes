@@ -68,13 +68,20 @@ type muxSink struct {
 }
 
 func (m muxSink) Apply(f protocol.InputFrame) error {
-	if m.keys != nil && (f.Device == uint8(remoteinput.DeviceKeyboard) || f.Kind == uint8(remoteinput.KindKey)) {
-		return m.keys.Apply(f)
+	if keyboardFrame(f) {
+		if m.keys != nil && f.Code >= uint16(zx81keys.KeyShift) {
+			return m.keys.Apply(f)
+		}
+		return nil
 	}
 	if m.pads != nil {
 		return m.pads.Apply(f)
 	}
 	return nil
+}
+
+func keyboardFrame(f protocol.InputFrame) bool {
+	return f.Device == uint8(remoteinput.DeviceKeyboard) || f.Kind == uint8(remoteinput.KindKey)
 }
 
 func (m muxSink) ReleaseAll() error {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -177,6 +178,29 @@ func TestPlayHIDStreamKeyFailClosedOnForeignLease(t *testing.T) {
 	}
 	if playHIDStreamKey(Model{Session: native, ForeignLease: true}) != "" {
 		t.Fatal("foreign lease must fail closed")
+	}
+}
+
+func TestEncodePlayHIDEventNativeGamepadNotZX81(t *testing.T) {
+	native := Session{State: "active", Execution: "fpga_native"}
+	zx := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('J')}
+	if _, ok := encodePlayHIDEvent(native, zx); ok {
+		t.Fatal("native must not forward ZX81 letter J")
+	}
+	w := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('W')}
+	got, ok := encodePlayHIDEvent(native, w)
+	if !ok || got.Device != remoteinput.DeviceGamepad || got.Code != remoteinput.ButtonDPadUp {
+		t.Fatalf("native W = %+v ok=%v", got, ok)
+	}
+	keys := Session{State: "active", Execution: "fpga_development",
+		CorePackage: &CorePackageSession{Generation: 4, ActiveInterfaces: []struct {
+			ID    string `json:"id"`
+			Major uint16 `json:"major"`
+			Minor uint16 `json:"minor"`
+		}{{ID: "fes.keyboard", Major: 1, Minor: 0}}}}
+	keep, ok := encodePlayHIDEvent(keys, zx)
+	if !ok || keep.Code != zx81keys.Letter('J') {
+		t.Fatalf("fes.keyboard J = %+v ok=%v", keep, ok)
 	}
 }
 

@@ -157,3 +157,24 @@ func action(pressed bool) Action {
 	}
 	return ActionRelease
 }
+
+// EventForCode reconstructs Device/Kind from a held code. Keyboard is 0–99,
+// gamepad buttons 100–199, axes 200–255, and ZX81 matrix keys 256+.
+func EventForCode(code Code, action Action) Event {
+	event := Event{Code: code, Action: action}
+	switch {
+	case code < 100:
+		event.Device = DeviceKeyboard
+		event.Kind = KindKey
+	case code < 200:
+		event.Device = DeviceGamepad
+		event.Kind = KindButton
+	case code < 256:
+		event.Device = DeviceGamepad
+		event.Kind = KindAxis
+	default:
+		event.Device = DeviceKeyboard
+		event.Kind = KindKey
+	}
+	return event
+}

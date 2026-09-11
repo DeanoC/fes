@@ -780,19 +780,7 @@ func readBoundedLine(reader *bufio.Reader, max int) ([]byte, error) {
 }
 
 func eventForCode(code remoteinput.Code, action remoteinput.Action) remoteinput.Event {
-	event := remoteinput.Event{Code: code, Action: action}
-	switch {
-	case code < 100:
-		event.Device = remoteinput.DeviceKeyboard
-		event.Kind = remoteinput.KindKey
-	case code < 200:
-		event.Device = remoteinput.DeviceGamepad
-		event.Kind = remoteinput.KindButton
-	default:
-		event.Device = remoteinput.DeviceGamepad
-		event.Kind = remoteinput.KindAxis
-	}
-	return event
+	return remoteinput.EventForCode(code, action)
 }
 
 func percentile(values []float64, fraction float64) float64 {

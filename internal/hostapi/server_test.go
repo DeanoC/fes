@@ -1365,6 +1365,17 @@ func TestSessionPlayHIDReachesAttachedInputAndFailClosedOnForeignLease(t *testin
 	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "KIT_LEASE_DENIED") || len(input.events) != 1 {
 		t.Fatalf("foreign HID = %d %s events=%d", rec.Code, rec.Body.String(), len(input.events))
 	}
+
+	recovery := &busyTargetService{fakeService: service, conn: fogcast.TargetConnection{State: "recovery-required"}}
+	handler = hostapi.New(recovery, hostapi.WithRemoteInput(input))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/session/input/event", bytes.NewReader(body))
+	req.Host = "127.0.0.1"
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "KIT_LEASE_DENIED") || len(input.events) != 1 {
+		t.Fatalf("recovery-required HID = %d %s events=%d", rec.Code, rec.Body.String(), len(input.events))
+	}
 }
 
 func TestFPGANativeSessionStopDetachesRemoteInput(t *testing.T) {

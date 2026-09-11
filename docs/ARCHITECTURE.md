@@ -407,8 +407,12 @@ patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
 an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
-A `fes.keyboard` core still maps those keys onto the ZX81 matrix
-(`coreKeyFromSDL`). Foreign kit leases fail closed and drop HID. On the kit,
+Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
+A `fes.keyboard` core maps those keys onto the ZX81 matrix. Native SNES/MD
+encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
+route them to `set_keyboard` and reconnect replay does not treat matrix codes
+as axes. Foreign kit leases and `recovery-required` connections fail closed
+and drop HID. On the kit,
 USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
 packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.

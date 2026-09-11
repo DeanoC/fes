@@ -9,6 +9,8 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -283,7 +285,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			m.Connected = true
-			m.ForeignLease = o.health.Connection.State == "busy"
+			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
+				State: o.health.Connection.State,
+				Owner: o.health.Connection.Owner,
+			})
 			if m.ForeignLease && stream != nil {
 				closeInput()
 			}
@@ -378,10 +383,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 							persistPack(c, m.Pack)
 						}
 						if stream != nil && !m.ForeignLease && streamKey == playHIDStreamKey(m) {
-							select {
-							case <-stream.Ready:
-								stream.Send(e)
-							default:
+							if encoded, ok := encodePlayHIDEvent(m.Session, e); ok {
+								select {
+								case <-stream.Ready:
+									stream.Send(encoded)
+								default:
+								}
 							}
 						}
 						if action != "" {
@@ -406,6 +413,10 @@ func playHIDStreamKey(m Model) string {
 		return ""
 	}
 	return inputStreamKey(m.Session)
+}
+
+func encodePlayHIDEvent(session Session, e remoteinput.Event) (remoteinput.Event, bool) {
+	return playhid.StreamEvent(e, session.CorePackage.HasKeyboard())
 }
 
 func inputStreamKey(session Session) string {

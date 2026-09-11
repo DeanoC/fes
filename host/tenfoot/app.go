@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -1844,8 +1845,33 @@ func (a *App) ConsumePlayHID() bool {
 	return true
 }
 
+// HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
+// Backspace stop the session without NoteInput; other keys encode for the
+// attached core. Letter s is a ZX81/core key, not chrome stop.
+func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
+	if !a.ConsumePlayHID() {
+		return false
+	}
+	if playhid.ChromeStop(name) {
+		cmd := CommandFromKey(strings.ToLower(strings.TrimSpace(name)))
+		if down {
+			a.Press(cmd, now)
+		} else {
+			a.Release(cmd)
+		}
+		return true
+	}
+	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
+		a.SendPlayHID(event)
+	}
+	return true
+}
+
 func (a *App) playHIDFailClosedLocked() bool {
-	if a.healthHave && strings.EqualFold(strings.TrimSpace(a.health.Connection.State), "busy") {
+	if a.healthHave && kitlease.ForeignHID(kitlease.Status{
+		State: a.health.Connection.State,
+		Owner: a.health.Connection.Owner,
+	}) {
 		return true
 	}
 	if !a.kitLeaseHave || a.kitLease.Unavailable {

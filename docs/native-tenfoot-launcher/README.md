@@ -251,7 +251,7 @@ header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
 `kit not ready` from `GET /api/v1/health` (and `GET /api/v1/status` 503
 `TARGET_UNAVAILABLE`) so a down kit is obvious inside the TV safe-area.
 USB keyboard browse/nav: arrows/WASD (S is stop, not down),
-Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active),
+Enter to launch (or confirm search), Esc/Backspace to back (or stop while a session is active, including while play HID is attached; letter `s` stays a ZX81/core key on that path),
 Tab to open search (Shift+Tab opens filters; Tab confirms an open search),
 Q to quit, `[` / `]` for platform, `x` for sort (or add/remove on a custom
 shelf while the view picker is open; attach/detach while now-playing), `/` or `f` for search (or manage a
@@ -441,10 +441,13 @@ make tenfoot-smoke
   without host path text. Attract does not arm during an in-flight
   attach/detach.
 - `POST /api/v1/session/input/event` while a play session is attached. USB
-  keyboard HID uses this path; a foreign kit lease is fail-closed.
+  keyboard HID uses this path; a foreign or recovery-required kit lease is
+  fail-closed. `fes.keyboard` posts ZX81 matrix codes; native SNES/MD post
+  gamepad buttons so reconnect replay cannot treat those keys as axes.
 - `POST /api/v1/session/stop` with an empty body. Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). SNES `save_failed` and other Stop errors that keep
+  Esc/Backspace, or `s`). Esc/Backspace still stop while play HID is attached;
+  letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep
   the session or lease retain launch lockout until a successful Stop.
 - `GET /api/v1/library/attract?limit=24` after idle. `idle_seconds` sets the
   client timer. On Darwin, video handles stream with `Accept: video/*` to a

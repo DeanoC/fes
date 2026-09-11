@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -93,15 +93,7 @@ func mapKeyboard(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	if typ != 1 || (value != 0 && value != 1) {
 		return remoteinput.Event{}, false
 	}
-	key, ok := zx81keys.FromLinuxKey(code)
-	if !ok {
-		return remoteinput.Event{}, false
-	}
-	action := remoteinput.ActionRelease
-	if value == 1 {
-		action = remoteinput.ActionPress
-	}
-	return remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: action, Code: key}, true
+	return playhid.PhysicalEvent(code, value == 1)
 }
 
 func (m *Mapper) mapWith(remap *inputmap.Remapper, typ, code uint16, value int32) (remoteinput.Event, bool) {
