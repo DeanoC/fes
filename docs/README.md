@@ -32,6 +32,12 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
+  host expander and tests landed; assembly stays the fixed 1 GiB image.
+- [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
+  exact USB spare p3 format and read-back; live `.4` untouched.
+- [Appliance first-boot expand spike](validation/2026-09-10-appliance-first-boot-expand-spike.md):
+  extra-p3 recommendation and host dry-run.
 - [Persistence merge reconciliation](validation/2026-09-10-core-persistence-merge.md):
   combined-source checks after integrating newer component main branches.
 - [Core persistence](validation/2026-09-09-core-persistence.md): settings, progress,
