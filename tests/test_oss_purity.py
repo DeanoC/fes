@@ -133,6 +133,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/780_quartus_sdc/rtl/top.v",
             "experiments/790_m10k_addrstall/rtl/top.v",
             "experiments/800_m10k_out_reg/rtl/top.v",
+            "experiments/810_m10k_async_defaults/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -170,7 +171,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
-            "nextpnr": "fd862a2c59db7f0406e32831f2e57b3cfe034251",
+            "nextpnr": "0523e0c68e4a6ee8cfc7f324f3ed641f67fe52af",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -821,6 +822,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotIn("-nobram", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("m10k_out_reg_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_async_defaults(self) -> None:
+        result = self._run("--print-commands", "--experiment", "810_m10k_async_defaults")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/810_m10k_async_defaults/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_async_defaults_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
