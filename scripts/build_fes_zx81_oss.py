@@ -37,6 +37,9 @@ RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF = "cores/fes-zx81/constraints-oss.qsf"
 SDC = "cores/fes-zx81/clocks-oss.sdc"
+PLACER_SEED = 2
+PLACER_TIMING_WEIGHT = 300
+PLACER_CRITICALITY_EXPONENT = 5
 RTL_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
@@ -156,7 +159,9 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": 7,
+            "seed": PLACER_SEED,
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "top": TOP,
         },
     }
@@ -190,9 +195,9 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        "--seed", "2",
-        "--placer-heap-timingweight", "300",
-        "--placer-heap-critexp", "5",
+        "--seed", str(PLACER_SEED),
+        "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
+        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", "router1",
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
