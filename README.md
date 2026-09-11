@@ -315,6 +315,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `760_pll_52`, 50→52 MHz integer PLL on the 520 MHz feedback profile.
   Simulation uses a digital toggling stand-in. Run `make sim EXP=760_pll_52`
   and `make oss EXP=760_pll_52`; no Quartus comparison lane is implemented.
+- `770_m10k_async_read`, 512-by-20 M10K with a combinational read port.
+  Locked Yosys still emits a clocked read, so OSS sets `CFG_ASYNC_READ`
+  and drops `B1EN`/`CLK2`. Run `make sim EXP=770_m10k_async_read` and
+  `make oss EXP=770_m10k_async_read`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
