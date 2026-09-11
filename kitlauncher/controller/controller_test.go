@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -26,6 +27,17 @@ func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
 	}
 	if _, ok = m.Map(1, 290, 2); ok {
 		t.Fatal("autorepeat must not confirm")
+	}
+}
+
+func TestKeyboardMapperPostsZX81MatrixCodes(t *testing.T) {
+	m := NewKeyboardMapper()
+	e, ok := m.Map(1, 30, 1)
+	if !ok || e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || e.Code != zx81keys.Letter('A') {
+		t.Fatalf("KEY_A %+v ok=%v", e, ok)
+	}
+	if _, ok = m.Map(1, 304, 1); ok {
+		t.Fatal("BTN_SOUTH is not a keyboard key")
 	}
 }
 

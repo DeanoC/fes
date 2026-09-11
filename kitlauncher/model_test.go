@@ -67,6 +67,21 @@ func TestSessionChromeDoesNotStealEastOrStart(t *testing.T) {
 	}
 }
 
+func TestPlaySessionKeyboardDoesNotStealBrowse(t *testing.T) {
+	m := Model{
+		Games:     []tenfoot.Game{{ID: "sonic", Launchable: true}, {ID: "pong", Launchable: true}},
+		Connected: true, TargetReady: true,
+	}
+	m.Session.State = "active"
+	e := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: 260}
+	if action := m.Input(e, time.Now()); action != "" {
+		t.Fatalf("keyboard stole %q", action)
+	}
+	if m.Focus != 0 {
+		t.Fatalf("keyboard stole browse focus %d", m.Focus)
+	}
+}
+
 func TestCatalogGridNavigationClamps(t *testing.T) {
 	m := Model{Games: makeGames(25), Connected: true, TargetReady: true}
 	now := time.Now()

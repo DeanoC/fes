@@ -209,7 +209,7 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if packet.Event != nil {
-			if !launcherGamepadEvent(*packet.Event) {
+			if !launcherPlayHIDEvent(*packet.Event) {
 				return
 			}
 			if source.SendEvent(r.Context(), *packet.Event, time.Now()) != nil {
@@ -217,6 +217,20 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
+}
+
+func launcherPlayHIDEvent(e remoteinput.Event) bool {
+	if launcherKeyboardEvent(e) {
+		return true
+	}
+	return launcherGamepadEvent(e)
+}
+
+func launcherKeyboardEvent(e remoteinput.Event) bool {
+	if e.Device != remoteinput.DeviceKeyboard || e.Kind != remoteinput.KindKey || e.Value != 0 {
+		return false
+	}
+	return e.Action == remoteinput.ActionPress || e.Action == remoteinput.ActionRelease
 }
 
 func launcherGamepadEvent(e remoteinput.Event) bool {

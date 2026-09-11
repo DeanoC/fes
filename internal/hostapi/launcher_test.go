@@ -232,8 +232,48 @@ func TestLauncherRejectsConfiguredTargetMismatchBeforeDispatch(t *testing.T) {
 	}
 }
 
+func TestLauncherStreamAdmitsPlaySessionKeyboard(t *testing.T) {
+	input := &launcherInput{}
+	server := httptest.NewServer(launcherHandler(t, input))
+	defer server.Close()
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	response, err := server.Client().Do(launcherRequest("POST", server.URL+"/api/v1/launcher/input?session_id=123", reader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		t.Fatalf("stream: %d", response.StatusCode)
+	}
+	var ready struct {
+		Ready bool `json:"ready"`
+	}
+	if err = json.NewDecoder(response.Body).Decode(&ready); err != nil || !ready.Ready {
+		t.Fatalf("ready=%v err=%v", ready, err)
+	}
+	input.mu.Lock()
+	source := input.source
+	input.mu.Unlock()
+	if source == nil {
+		t.Fatal("not claimed")
+	}
+	_, err = io.WriteString(writer, `{"event":{"Device":0,"Kind":0,"Action":1,"Code":260}}`+"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case e := <-source.events:
+		if e.Device != remoteinput.DeviceKeyboard || e.Code != 260 {
+			t.Fatalf("event %#v", e)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("keyboard event not delivered")
+	}
+}
+
 func TestLauncherStreamRejectsMalformedAndCompetingSource(t *testing.T) {
-	for _, body := range []string{"{invalid}\n", `{"event":{"Device":0,"Kind":0,"Action":1,"Code":2}}` + "\n", strings.Repeat("x", 4097) + "\n"} {
+	for _, body := range []string{"{invalid}\n", `{"event":{"Device":9,"Kind":0,"Action":1,"Code":2}}` + "\n", strings.Repeat("x", 4097) + "\n"} {
 		t.Run(body[:8], func(t *testing.T) {
 			input := &launcherInput{}
 			server := httptest.NewServer(launcherHandler(t, input))

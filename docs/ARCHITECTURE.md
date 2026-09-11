@@ -324,6 +324,7 @@ Native SDL3 UI
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
   -> POST /api/v1/session/input/attach and /detach (empty body; FPGA-native now-playing)
+  -> POST /api/v1/session/input/event (play-session HID; fail-closed on a foreign kit lease)
   -> host session service
   -> existing FPGA launch path
 ```
@@ -391,9 +392,13 @@ or gamepad (`host/tenfoot/affinity.go`). SDL keyboard, mouse, and gamepad
 add/remove events claim affinity on plug without restarting the process, and
 unplug restores a remaining device. Letter shortcuts already
 patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
-an active `fes.keyboard` session is attached (`ForwardsCoreKeyboard`), those
-keys are forwarded onto the ZX81 matrix (`coreKeyFromSDL`) instead of the sofa
-focus graph; pointer browse also stays off that play session. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
+an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
+`POST /api/v1/session/input/event` instead of the sofa focus graph and do not
+steal browse or ZX81/session affinity; pointer browse stays off that session.
+A `fes.keyboard` core still maps those keys onto the ZX81 matrix
+(`coreKeyFromSDL`). Foreign kit leases fail closed and drop HID. On the kit,
+USB keyboards join the play-session input stream with gamepads; `fes.keyboard`
+packages are eligible without `fes.gamepad`. `TENFOOT_GFX` / `Options.GFX` / `-gfx` may select
 `software`, `fpga`, or `fpga-stub` for tests; the production sofa path stays SDL3.
 linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 
@@ -920,7 +925,8 @@ when the string exceeds the chrome or cell width. A paired, authenticated host l
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
-pad. Kit input discovers every eligible USB gamepad (`event*` only), merges
+pad. Kit input discovers every eligible USB gamepad (`event*` only) plus
+physical USB keyboards for play-session HID, merges
 polls in stable device-id order through `host/tenfoot/inputmap`, and remaps
 logical codes with a JSON profile (default identity). Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the

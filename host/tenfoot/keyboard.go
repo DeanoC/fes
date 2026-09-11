@@ -1,8 +1,8 @@
 package tenfoot
 
 // Keyboard browse/nav mapping for USB HID on the SDL tenfoot path.
-// This is independent of ZX81 play-session forwarding (coreKeyFromSDL in
-// sdl.go, used only while ForwardsCoreKeyboard / fes.keyboard is active).
+// This is independent of play-session HID forwarding (coreKeyFromSDL in
+// sdl.go, used while ForwardsPlayHID / an attached session is active).
 
 // CommandFromKey maps USB keyboard keys onto the sofa focus graph.
 // Names are SDL-style identifiers (see commandFromSDLKey).

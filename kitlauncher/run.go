@@ -283,6 +283,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			m.Connected = true
+			m.ForeignLease = o.health.Connection.State == "busy"
+			if m.ForeignLease && stream != nil {
+				closeInput()
+			}
 			if streamKey != "" && streamKey != inputStreamKey(o.session) {
 				closeInput()
 			}
@@ -357,8 +361,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					closeInput()
 					nextPad = now.Add(time.Second)
 				} else {
-					key := inputStreamKey(m.Session)
-					if stream == nil && m.Connected && !m.Busy && key != "" && now.After(nextPad) {
+					key := playHIDStreamKey(m)
+					if stream == nil && m.Connected && !m.Busy && !m.ForeignLease && key != "" && now.After(nextPad) {
 						streamKey = key
 						stream = c.OpenInput(ctx, m.Session.Input.SessionID)
 						nextPad = now.Add(time.Second)
@@ -373,7 +377,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						if m.Pack != prevPack {
 							persistPack(c, m.Pack)
 						}
-						if stream != nil && streamKey == inputStreamKey(m.Session) {
+						if stream != nil && !m.ForeignLease && streamKey == playHIDStreamKey(m) {
 							select {
 							case <-stream.Ready:
 								stream.Send(e)
@@ -397,6 +401,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 }
 
+func playHIDStreamKey(m Model) string {
+	if m.ForeignLease {
+		return ""
+	}
+	return inputStreamKey(m.Session)
+}
+
 func inputStreamKey(session Session) string {
 	if session.State != "active" || (!session.Input.Ready && session.Input.State != "reconnecting") || session.Input.SessionID == "" {
 		return ""
@@ -405,7 +416,10 @@ func inputStreamKey(session Session) string {
 	case "fpga_native":
 		return session.Execution + ":" + session.Input.SessionID
 	case "fpga_development":
-		if session.CorePackage == nil || !session.CorePackage.Gamepad || session.CorePackage.Generation == 0 {
+		if session.CorePackage == nil || session.CorePackage.Generation == 0 {
+			return ""
+		}
+		if !session.CorePackage.Gamepad && !session.CorePackage.HasKeyboard() {
 			return ""
 		}
 		return session.Execution + ":" + session.Input.SessionID + ":" + strconv.FormatUint(session.CorePackage.Generation, 10)

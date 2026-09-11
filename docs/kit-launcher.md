@@ -40,7 +40,9 @@ explicit; target discovery is separate.
 ## Physical controls
 
 Every eligible physical evdev gamepad is opened; polls merge in stable device
-path order into one `remoteinput.Event` stream. The virtual FogCast device
+path order into one `remoteinput.Event` stream. Physical USB keyboards are
+opened on the same hub so play-session HID can reach the host input stream
+without stealing browse focus. The virtual FogCast device
 (`BUS_VIRTUAL` / name `FogCast Virtual Gamepad`), other virtual-bus nodes, devices
 without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
 excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are

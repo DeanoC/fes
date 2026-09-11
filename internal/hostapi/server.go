@@ -701,6 +701,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "game source is unavailable"
 	case protocol.CodeTransferFailed:
 		return "content transfer failed"
+	case protocol.CodeKitLeaseDenied:
+		return "kit lease is foreign; HID is fail-closed"
 	case protocol.CodeMiSTerUnavailable:
 		return "MiSTer is unavailable"
 	case protocol.CodeCoreTimeout:
@@ -827,6 +829,9 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		status := http.StatusInternalServerError
 		if apiErr.Code == protocol.CodeBusy {
 			status = http.StatusConflict
+		}
+		if apiErr.Code == protocol.CodeKitLeaseDenied {
+			status = http.StatusForbidden
 		}
 		if apiErr.Code == protocol.CodeROMNotFound {
 			status = http.StatusNotFound

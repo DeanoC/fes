@@ -11,6 +11,7 @@ import (
 
 	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -1152,7 +1153,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.syncPreviewLocked()
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
-	if a.ForwardsCoreKeyboard() {
+	if a.ForwardsPlayHID() {
 		a.repeat.Clear()
 	}
 	if a.browseHoldEnabled() {
@@ -1805,7 +1806,20 @@ func (a *App) ForwardsCoreKeyboard() bool {
 }
 
 func (a *App) forwardsCoreKeyboardLocked() bool {
-	if !a.session.CoreKeyboard || a.session.State != "active" {
+	if !a.session.CoreKeyboard {
+		return false
+	}
+	return a.forwardsPlayHIDLocked()
+}
+
+func (a *App) ForwardsPlayHID() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.forwardsPlayHIDLocked()
+}
+
+func (a *App) forwardsPlayHIDLocked() bool {
+	if a.session.State != "active" {
 		return false
 	}
 	if a.session.Input == nil {
@@ -1815,9 +1829,58 @@ func (a *App) forwardsCoreKeyboardLocked() bool {
 		a.session.Input.State == "reconnecting"
 }
 
+// ConsumePlayHID keeps USB keys on the play-session path: no sofa browse and
+// no affinity steal. False means browse/nav may handle the key.
+func (a *App) ConsumePlayHID() bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.forwardsPlayHIDLocked() {
+		return false
+	}
+	a.repeat.Clear()
+	return true
+}
+
+func (a *App) playHIDFailClosedLocked() bool {
+	if a.healthHave && strings.EqualFold(strings.TrimSpace(a.health.Connection.State), "busy") {
+		return true
+	}
+	if !a.kitLeaseHave || a.kitLease.Unavailable {
+		return false
+	}
+	switch strings.TrimSpace(a.kitLease.ErrorCode) {
+	case "KIT_LEASE_DENIED", "KIT_LEASE_BUSY":
+		return true
+	}
+	return kitlease.ForeignHID(kitlease.Status{
+		State:   a.kitLease.State,
+		Owner:   a.kitLease.Owner,
+		Purpose: a.kitLease.Purpose,
+	})
+}
+
 func (a *App) SendCoreKey(event remoteinput.Event) {
+	a.SendPlayHID(event)
+}
+
+// SendPlayHID posts one play-session HID event. Foreign kit leases fail closed.
+func (a *App) SendPlayHID(event remoteinput.Event) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	ready := a.forwardsPlayHIDLocked()
+	foreign := a.playHIDFailClosedLocked()
 	client := a.client
+	a.mu.Unlock()
+	if !ready || foreign || client == nil {
+		return false
+	}
 	go func() { _ = client.SendCoreKey(context.Background(), event) }()
+	return true
 }
 
 func (a *App) pollSession(ctx context.Context) {

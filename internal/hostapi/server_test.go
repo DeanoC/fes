@@ -18,7 +18,9 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 type fakeService struct {
@@ -228,8 +230,10 @@ type fakeRemoteInput struct {
 	status    host.RemoteInputStatus
 	attach    []string
 	detach    []string
+	events    []remoteinput.Event
 	attachErr error
 	detachErr error
+	sendErr   error
 	order     *[]string
 }
 
@@ -256,6 +260,13 @@ func (r *fakeRemoteInput) Detach(_ context.Context, reason string) error {
 	return nil
 }
 func (r *fakeRemoteInput) Status() host.RemoteInputStatus { return r.status }
+func (r *fakeRemoteInput) SendEvent(_ context.Context, e remoteinput.Event, _ time.Time) error {
+	if r.sendErr != nil {
+		return r.sendErr
+	}
+	r.events = append(r.events, e)
+	return nil
+}
 
 type fakeMediaSession struct {
 	start          []string
@@ -1295,6 +1306,64 @@ func TestSessionOwnsRemoteInputAttachDetachAndStatusLifecycle(t *testing.T) {
 	handler.ServeHTTP(attachResponse, attach)
 	if attachResponse.Code != http.StatusOK || len(input.attach) != 2 || input.attach[1] != core {
 		t.Fatalf("explicit attach after detach = %d %s calls=%#v", attachResponse.Code, attachResponse.Body.String(), input.attach)
+	}
+}
+
+type busyTargetService struct {
+	*fakeService
+	conn fogcast.TargetConnection
+}
+
+func (s *busyTargetService) TargetConnection() fogcast.TargetConnection { return s.conn }
+
+func TestSessionPlayHIDReachesAttachedInputAndFailClosedOnForeignLease(t *testing.T) {
+	gameID := "zx81-j"
+	core := "fes.zx81"
+	service := &fakeService{
+		status: protocol.Status{State: protocol.StateActive, GameID: &gameID, ObservedCore: &core,
+			Development: true, CorePackage: &protocol.CorePackageStatus{
+				PackageID: strings.Repeat("a", 64), Generation: 3,
+				ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, BuildID: strings.Repeat("b", 32),
+				ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.keyboard", Major: 1, Minor: 0}},
+			}},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+
+	event := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('J')}
+	body, err := json.Marshal(map[string]any{"event": event})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/session/input/event", bytes.NewReader(body))
+	req.Host = "127.0.0.1"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || len(input.events) != 1 || input.events[0].Code != zx81keys.Letter('J') {
+		t.Fatalf("play HID = %d %s events=%#v", rec.Code, rec.Body.String(), input.events)
+	}
+
+	input.status = host.RemoteInputStatus{State: host.RemoteInputDetached}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/session/input/event", bytes.NewReader(body))
+	req.Host = "127.0.0.1"
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK || len(input.events) != 1 {
+		t.Fatalf("detached HID = %d %s events=%d", rec.Code, rec.Body.String(), len(input.events))
+	}
+
+	foreign := &busyTargetService{fakeService: service, conn: fogcast.TargetConnection{State: "busy", Owner: "caster"}}
+	input.status = host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}
+	handler = hostapi.New(foreign, hostapi.WithRemoteInput(input))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/session/input/event", bytes.NewReader(body))
+	req.Host = "127.0.0.1"
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "KIT_LEASE_DENIED") || len(input.events) != 1 {
+		t.Fatalf("foreign HID = %d %s events=%d", rec.Code, rec.Body.String(), len(input.events))
 	}
 }
 

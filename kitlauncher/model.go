@@ -16,55 +16,55 @@ const axisDeadzone int32 = 8000
 // Model is the kit/UI boundary. A renderer consumes it without owning network,
 // framebuffer enablement, controller capture, or the target session lease.
 type Model struct {
-	Catalog                                           []tenfoot.Game
-	Games                                             []tenfoot.Game
-	Shelves                                           []string
-	Shelf                                             string
-	Focus                                             int
-	Session                                           Session
-	Connected, TargetReady, Busy, ControllerConnected bool
-	Message                                           string
-	AttractActive                                     bool
-	DetailOpen                                        bool
-	WheelOpen                                         bool
-	fromWheel                                         bool
-	chord                                             controller.Chord
-	presentationID                                    string
-	presentation                                      tenfoot.Presentation
-	shotIndex                                         int
-	previewAt                                         time.Time
-	axisX, axisY                                      int
-	lastInput                                         time.Time
-	attractIdle                                       time.Duration
-	attractCycle                                      time.Duration
-	attractIdleReady                                  bool
-	attractItems                                      []tenfoot.AttractItem
-	attractIndex                                      int
-	attractShownAt                                    time.Time
-	attractCycleAt                                    time.Time
-	attractPresentationID                             string
-	attractPresentation                               tenfoot.Presentation
-	attractShotIndex                                  int
-	attractPreviewAt                                  time.Time
-	launchID                                          string
-	Strip                                             []tenfoot.Game
-	StripLabel                                        string
-	StripFocus                                        int
-	StripActive                                       bool
-	Recents                                           []tenfoot.Game
-	detailFromStrip                                   bool
-	Series                                            []tenfoot.Game
-	SeriesLabel                                       string
-	SeriesFocus                                       int
-	SeriesActive                                      bool
-	Browse                                            fbgrid.BrowseKind
-	Pack                                              string
-	SearchOpen                                        bool
-	SearchQuery                                       string
-	searchField                                       tenfoot.TextField
-	searchRestoreID                                   string
-	searchPool                                        []tenfoot.Game
-	Cache                                             CacheStatus
+	Catalog                                                         []tenfoot.Game
+	Games                                                           []tenfoot.Game
+	Shelves                                                         []string
+	Shelf                                                           string
+	Focus                                                           int
+	Session                                                         Session
+	Connected, TargetReady, Busy, ControllerConnected, ForeignLease bool
+	Message                                                         string
+	AttractActive                                                   bool
+	DetailOpen                                                      bool
+	WheelOpen                                                       bool
+	fromWheel                                                       bool
+	chord                                                           controller.Chord
+	presentationID                                                  string
+	presentation                                                    tenfoot.Presentation
+	shotIndex                                                       int
+	previewAt                                                       time.Time
+	axisX, axisY                                                    int
+	lastInput                                                       time.Time
+	attractIdle                                                     time.Duration
+	attractCycle                                                    time.Duration
+	attractIdleReady                                                bool
+	attractItems                                                    []tenfoot.AttractItem
+	attractIndex                                                    int
+	attractShownAt                                                  time.Time
+	attractCycleAt                                                  time.Time
+	attractPresentationID                                           string
+	attractPresentation                                             tenfoot.Presentation
+	attractShotIndex                                                int
+	attractPreviewAt                                                time.Time
+	launchID                                                        string
+	Strip                                                           []tenfoot.Game
+	StripLabel                                                      string
+	StripFocus                                                      int
+	StripActive                                                     bool
+	Recents                                                         []tenfoot.Game
+	detailFromStrip                                                 bool
+	Series                                                          []tenfoot.Game
+	SeriesLabel                                                     string
+	SeriesFocus                                                     int
+	SeriesActive                                                    bool
+	Browse                                                          fbgrid.BrowseKind
+	Pack                                                            string
+	SearchOpen                                                      bool
+	SearchQuery                                                     string
+	searchField                                                     tenfoot.TextField
+	searchRestoreID                                                 string
+	searchPool                                                      []tenfoot.Game
+	Cache                                                           CacheStatus
 }
 
 // CacheStatus is visible ROM/cover used-free plus last catalog sync.
