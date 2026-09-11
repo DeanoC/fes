@@ -886,6 +886,7 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 	launcherPath := flags.String("launcher-config", "", "private JSON configuration for the optional paired-kit listener")
 	metadataConfigPath := flags.String("metadata-config", "", "FogCast configuration path supplying the metadata section")
 	previewCaptureDevice := flags.String("preview-capture-device", "", "local capture device shown in the FPGA Play surface")
+	headless := flags.Bool("headless", false, "API-only: do not start local capture or session preview")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -928,6 +929,9 @@ func runWithComposer(ctx context.Context, args []string, stdout, stderr io.Write
 		config.RemoteInput.Enabled = true
 	}
 	applyPreviewCaptureDevice(&config, *previewCaptureDevice)
+	if *headless {
+		config.Media = fogcast.MediaConfig{}
+	}
 	config.MetadataRoot = paths.MetadataRoot
 	fogcastService, err := open(ctx, paths)
 	if err != nil || fogcastService == nil {

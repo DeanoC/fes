@@ -75,3 +75,35 @@ root = "`+dir+`"
 		t.Fatalf("composed=%v code=%d output=%s", composed, code, output.String())
 	}
 }
+
+func TestRunHeadlessDisablesMediaCapture(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(`base_url = "http://127.0.0.1:8182"
+token = "token"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+[[libraries]]
+id = "test"
+system = "snes"
+root = "`+dir+`"
+[media]
+enabled = true
+decoder = "mjpeg"
+capture_device = "/dev/video0"
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	var enabled *bool
+	code := runWithComposer(context.Background(), []string{"--config", configPath, "--headless"}, &output, &output,
+		func(context.Context, fogcast.Paths) (service, error) { return &hostOnlyCompositionService{}, nil },
+		func(_ service, config fogcast.Config, _ bridgeStarterFactory) (http.Handler, func() error, error) {
+			value := config.Media.Enabled
+			enabled = &value
+			return nil, nil, errors.New("stop before listener")
+		})
+	if enabled == nil || *enabled || code != 1 {
+		t.Fatalf("media enabled=%v code=%d output=%s", enabled, code, output.String())
+	}
+}

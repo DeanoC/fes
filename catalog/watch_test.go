@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -203,5 +204,48 @@ func TestFolderWatcherRunReportsOfflineRootsAndKeepsRetrying(t *testing.T) {
 	<-done
 	if atomic.LoadInt32(&calls) < 2 || atomic.LoadInt32(&failures) < 2 {
 		t.Fatalf("calls=%d failures=%d, want offline roots to count as reconcile failures", atomic.LoadInt32(&calls), atomic.LoadInt32(&failures))
+	}
+}
+
+func TestFolderWatcherRunWaitsFullIntervalAfterSlowReconcile(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	var mu sync.Mutex
+	var starts []time.Time
+	watcher := FolderWatcher{
+		Scan: func(context.Context, []Root) (ScanReport, error) {
+			mu.Lock()
+			starts = append(starts, time.Now())
+			mu.Unlock()
+			time.Sleep(80 * time.Millisecond)
+			return ScanReport{}, nil
+		},
+		Roots:    func() []Root { return []Root{{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}} },
+		Interval: 50 * time.Millisecond,
+	}
+	done := make(chan error, 1)
+	go func() { done <- watcher.Run(ctx) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		n := len(starts)
+		mu.Unlock()
+		if n >= 3 {
+			break
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			<-done
+			t.Fatalf("reconciles = %d, want 3", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	mu.Lock()
+	gap := starts[2].Sub(starts[1])
+	mu.Unlock()
+	if gap < 100*time.Millisecond {
+		t.Fatalf("loop reconcile gap %s, want interval after a slow scan", gap)
 	}
 }

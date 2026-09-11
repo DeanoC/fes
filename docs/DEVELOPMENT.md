@@ -195,9 +195,12 @@ The designated disposable kit is:
 - Target API: `http://192.168.10.239:8182`
 
 The Powerboat kit host (`192.168.10.203:8789`, `fogcast-api-sofa` plus
-`launcher-host.json`) uses the same private `config.toml`. Enable LaunchBox
-metadata there with `[metadata] provider = "launchbox"` and an absolute archive
-path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
+`launcher-host.json`) uses the same private `config.toml`. Run that binary
+with `--headless` so the kit listener stays up without DISPLAY, DRM, or
+V4L2/FFmpeg preview. `fogcast-kit` reconnects to
+`http://192.168.10.203:8789` with the existing `launcher.json` API URL.
+Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
+an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
 Do not commit credentials or print them in logs.
 
 The target boots `/media/fat/linux/linux.img`. Its boot scripts start the

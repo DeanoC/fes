@@ -328,12 +328,16 @@ func (s Scanner) scanRoot(ctx context.Context, root Root, heldRoot *scannerRoot,
 		openFile = func(root *os.Root, name string) (scannerSourceFile, error) { return root.Open(name) }
 	}
 
+	previous, err := s.Store.sourceIndexForRoot(ctx, root.ID)
+	if err != nil {
+		return RootReport{}, err
+	}
 	traversal := newScannerTraversalFS(heldRoot.directory)
 	skipped, err := s.collectSkippedCompanions(ctx, walk, traversal, heldRoot, extensions)
 	if err != nil {
 		return RootReport{}, err
 	}
-	candidates, err := s.collectRootCandidates(ctx, walk, lstat, openFile, traversal, heldRoot, root, extensions, maximumZIPEntries, skipped)
+	candidates, err := s.collectRootCandidates(ctx, walk, lstat, openFile, traversal, heldRoot, root, extensions, maximumZIPEntries, skipped, previous)
 	if err != nil {
 		if !heldRoot.matchesConfiguredPath(root.Path) {
 			return s.Store.MarkRootOffline(ctx, root, reasonRootOffline)
@@ -376,6 +380,7 @@ func (s Scanner) collectRootCandidates(
 	extensions map[string]struct{},
 	maximumZIPEntries int,
 	skipped skippedCompanions,
+	previous map[string]sourceIndex,
 ) ([]Candidate, error) {
 	var candidates []Candidate
 	err := walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
@@ -433,6 +438,10 @@ func (s Scanner) collectRootCandidates(
 		if skipped.contains(relativePath, info) {
 			return nil
 		}
+		if reuseUnchangedSource(previous, kind, relativePath, info, &candidate) {
+			candidates = append(candidates, candidate)
+			return nil
+		}
 		candidate.State = SourceStateAvailable
 
 		source, openedInfo, err := openVerifiedCandidate(heldRoot.directory, relativePath, info, openFile)
@@ -478,8 +487,41 @@ func (s skippedCompanions) contains(relativePath string, info os.FileInfo) bool 
 	return false
 }
 
+func reuseUnchangedSource(previous map[string]sourceIndex, kind SourceKind, relativePath string, info fs.FileInfo, candidate *Candidate) bool {
+	if previous == nil || candidate == nil || info == nil {
+		return false
+	}
+	prev, ok := previous[relativePath]
+	if !ok || prev.Kind != kind {
+		return false
+	}
+	if prev.Fingerprint.SourceSize != info.Size() || prev.Fingerprint.ModifiedNS != info.ModTime().UnixNano() {
+		return false
+	}
+	candidate.Fingerprint = prev.Fingerprint
+	if prev.State == SourceStateMissing {
+		candidate.State = SourceStateAvailable
+		candidate.Reason = ""
+		return true
+	}
+	candidate.State = prev.State
+	candidate.Reason = prev.Reason
+	return true
+}
+
+func companionSkipWalk(extensions map[string]struct{}) bool {
+	if _, ok := extensions[".cue"]; ok {
+		return false
+	}
+	_, ok := extensions[".gdi"]
+	return !ok
+}
+
 func (s Scanner) collectSkippedCompanions(ctx context.Context, walk func(fs.FS, string, fs.WalkDirFunc) error, traversal *scannerTraversalFS, heldRoot *scannerRoot, extensions map[string]struct{}) (skippedCompanions, error) {
 	skipped := skippedCompanions{paths: make(map[string]struct{})}
+	if companionSkipWalk(extensions) {
+		return skipped, nil
+	}
 	err := walk(traversal, ".", func(fsPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr

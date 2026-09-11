@@ -140,6 +140,58 @@ func TestScannerTraversesIncrementallyWithoutFollowingSymlinks(t *testing.T) {
 	}
 }
 
+func TestScannerSkipsOpenWhenSourceFingerprintUnchanged(t *testing.T) {
+	ctx := context.Background()
+	rootPath := t.TempDir()
+	mustWriteScannerFile(t, filepath.Join(rootPath, "Keep.sfc"), []byte("keep"))
+	store := openScannerStore(t)
+	root := Root{ID: "snes-main", System: protocol.SystemSNES, Path: rootPath}
+	var mu sync.Mutex
+	opens := 0
+	scanner := Scanner{Store: store, Platforms: DefaultPlatforms()}
+	scanner.openFile = func(root *os.Root, name string) (scannerSourceFile, error) {
+		mu.Lock()
+		opens++
+		mu.Unlock()
+		return root.Open(name)
+	}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("Scan(first): %v", err)
+	}
+	mu.Lock()
+	first := opens
+	opens = 0
+	mu.Unlock()
+	if first < 1 {
+		t.Fatal("first scan did not open the ROM")
+	}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("Scan(second): %v", err)
+	}
+	mu.Lock()
+	second := opens
+	mu.Unlock()
+	if second != 0 {
+		t.Fatalf("unchanged rescan opened %d files", second)
+	}
+
+	keep := filepath.Join(rootPath, "Keep.sfc")
+	mustWriteScannerFile(t, keep, []byte("keep-changed"))
+	changedTime := time.Unix(1_800_000_000, 1)
+	if err := os.Chtimes(keep, changedTime, changedTime); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scanner.Scan(ctx, []Root{root}); err != nil {
+		t.Fatalf("Scan(changed): %v", err)
+	}
+	mu.Lock()
+	third := opens
+	mu.Unlock()
+	if third < 1 {
+		t.Fatal("changed file was not reopened")
+	}
+}
+
 func TestScannerDoesNotPOSIXOpenUNCRoot(t *testing.T) {
 	ctx := context.Background()
 	store := openScannerStore(t)
@@ -235,7 +287,7 @@ func TestScannerSerializesOverlappingCollectionsPerRoot(t *testing.T) {
 			return err
 		}
 		walks++
-		if walks == 2 {
+		if walks == 1 {
 			close(olderCollected)
 			<-releaseOlder
 		}

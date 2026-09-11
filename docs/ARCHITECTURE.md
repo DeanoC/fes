@@ -292,6 +292,18 @@ produce H.264 frames for the existing MJPEG preview endpoint. macOS keeps its
 native AVFoundation capture adapter; other platforms report capture as
 unavailable.
 
+A kit-only host runs `fogcast-api` with `--launcher-config` and does not open
+the SDL sofa window. Pass `--headless` so that process does not compose local
+capture or the MJPEG preview pipeline; kit catalog, attract, session, and
+input stay on the launcher listener. Folder-watch still polls configured
+library roots every five seconds, but it only re-opens a source when size or
+mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
+search index. A long scan waits a full interval before the next poll, so the
+watcher cannot run back-to-back.
+
+The kit reconnects with the existing `launcher.json` API URL on that launcher
+listener. See [the host connection contract](launcher-host.md).
+
 ## Native 10-foot launcher
 
 `cmd/fogcast-tenfoot` is an SDL3 host-side 10-foot launcher (cover grid, shelf,

@@ -8,7 +8,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 const schemaV1 = `
 CREATE TABLE libraries (
@@ -100,6 +100,17 @@ CREATE TABLE core_entries (
 PRAGMA user_version = 5;
 `
 
+const schemaV6 = `
+DROP TRIGGER IF EXISTS games_au;
+CREATE TRIGGER games_au AFTER UPDATE ON games
+WHEN new.search_text IS NOT old.search_text
+BEGIN
+  INSERT INTO games_fts(games_fts, rowid, search_text) VALUES('delete', old.rowid, old.search_text);
+  INSERT INTO games_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+END;
+PRAGMA user_version = 6;
+`
+
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
@@ -152,6 +163,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 			return fmt.Errorf("apply catalog schema version 5: %w", err)
 		}
 		version = 5
+	}
+	if version == 5 {
+		if _, err := connection.ExecContext(ctx, schemaV6); err != nil {
+			return fmt.Errorf("apply catalog schema version 6: %w", err)
+		}
+		version = 6
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)
