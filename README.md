@@ -320,6 +320,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   and drops `B1EN`/`CLK2`. Run `make sim EXP=770_m10k_async_read` and
   `make oss EXP=770_m10k_async_read`; no Quartus comparison lane is
   implemented.
+- `780_quartus_sdc`, 50→25 MHz PLL routed with Quartus SDC/QSF forms
+  (`get_clocks`, `derive_pll_clocks`, multiline `set_clock_groups`,
+  `-entity`). Simulation uses the 090 digital toggling stand-in. Run
+  `make sim EXP=780_quartus_sdc` and `make oss EXP=780_quartus_sdc`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

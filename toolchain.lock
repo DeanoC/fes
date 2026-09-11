@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "da6373c0d7565f36036051efc7895fb0d9ac13c3"
 order = 10
-rationale = "Adds inferred Cyclone V M10K asynchronous read-output clear (merged PR #12 da6373c0: ramstyle=M10K SDP with a zero-valued async read reset maps to ACLR1, ACLR0 tied low) on 75896890. Feature commit 11df3d33. Preserves explicit ACLR primitive ports, HPS I2C, CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr c528c238 for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; published DeanoC/yosys main merge."
+rationale = "Adds inferred Cyclone V M10K asynchronous read-output clear (merged PR #12 da6373c0: ramstyle=M10K SDP with a zero-valued async read reset maps to ACLR1, ACLR0 tied low) on 75896890. Feature commit 11df3d33. Preserves explicit ACLR primitive ports, HPS I2C, CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 1e1745dc for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa"
+commit = "1e1745dcb40f9722d5b74389c1b411c56a27c8a8"
 order = 30
-rationale = "Adds asynchronous Cyclone V M10K read ports (merged PR #55 c528c238: CFG_ASYNC_READ and absent B1EN select combinational B1ADDR/B1DATA; packer ties omitted enable to $PACKER_VCC_NET on ENABLE[0], fans CLK1 to both CLKIN sinks, BOT_CORECLK_SEL=1 BOT_INCLK_SEL=0; inactive ACLR, 1.5 ns host estimate). On 4d055dae. Feature commit adc28824. Preserves generic 520 MHz PLL feedback, native 18x19 DSP, router2 QoR retry, unused-clock TCLK folding, M10K ACLR, DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys da6373c0; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Accepts the Quartus SDC/QSF subset used by ZX81 (merged PR #56 1e1745dc: get_clocks, derive_pll_clocks, derive_clock_uncertainty, multiline set_clock_groups, and -entity on set_instance_assignment). PLL clocks still come from packed altera_pll cells. On c528c238. Feature commit f854e966. Preserves asynchronous M10K reads, generic 520 MHz PLL feedback, native 18x19 DSP, router2 QoR retry, unused-clock TCLK folding, M10K ACLR, DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys da6373c0; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
