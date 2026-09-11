@@ -170,11 +170,19 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `d8a96b581e608736ea346c34a2a0ce8161d2e1ab` is
+The current nextpnr pin `9cdc03cc8521317b729f986c65448733e4aa0422` is
+merged PR #52 (`55f17b34dfa1ca6f87f1b70ed9442ee2e4ead7c7` onto
+`d8a96b581e608736ea346c34a2a0ce8161d2e1ab`). Default router2 retries
+ordinary nets with router1 when a design has two `altera_pll` cells, one
+`MISTRAL_M10K`, and less than 10% timing margin. Pair it with Yosys
+`da6373c0`.
+
+That pin sits on `d8a96b581e608736ea346c34a2a0ce8161d2e1ab`,
 merged PR #51 (`9684edd8238f4538d77be2cae5391183c87e6131` stacked onto
-`88cda8aeedf1d6cd48406844a5e8dced415c6ae5`). It folds a constant unused
+`88cda8aeedf1d6cd48406844a5e8dced415c6ae5`). That pin folds a constant unused
 M10K clock off the `CLKIN[1]` TCLK sink, maps only live clocks, and
-preserves ACLR0/ACLR1 pin styles. Pair it with Yosys `da6373c0`.
+preserves ACLR0/ACLR1 pin styles. Pair that TCLK-fold baseline with Yosys
+`da6373c0`.
 
 That pin sits on `88cda8aeedf1d6cd48406844a5e8dced415c6ae5`,
 merged PR #49 (`71426e88e0c76de41f3cf06dd40b032dd8d1d467` onto
@@ -1355,6 +1363,23 @@ write with the B clock tied off, and an undisturbed neighbour address.
 Load JSON timed out; GPI and probe still passed. `stop` completed
 development reboot recovery and left the lease free.
 
+`740_m10k_dual_pll` exposes a 512-by-20 dual-clock M10K table plus a second
+74.25 MHz PLL. GPI signature `0xD42A`. Default router2 may retry with
+router1 when two PLLs and one M10K have less than 10% margin. Simulation
+and OSS are supported. See `experiments/740_m10k_dual_pll/expected.md`.
+
+The OSS `740_m10k_dual_pll` artifact has SHA-256
+`5489e8e697b1203113b95e76412e7e99b5076bfead0fc1628d58cd52afe55c35`
+and size 1,959,462 bytes. Utilization is two `altera_pll` cells, one M10K,
+one HPS GP, and no DSP. Router2 produced those bytes. Reported Fmax is
+437.254 MHz against 50 MHz and 355.240 MHz against 74.25 MHz. The current
+nextpnr pin `9cdc03cc` with Yosys `da6373c0` reproduces those same RBF bytes.
+Exact-artifact kit diagnostics on 2026-09-11 returned GPI signature
+`0xD42A`, initialized words, a write on the independent read clock, and an
+undisturbed neighbour address. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the lease
+free.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1375,7 +1400,8 @@ only; GPIO-register timing uncharacterized), and M10K asynchronous output
 clear (fabric GPI only), and an explicit `MISTRAL_M10K` primitive with
 Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
 asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
-TCLK fold (fabric GPI only). It does not establish native
+TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
+router2 (fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game

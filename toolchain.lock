@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "da6373c0d7565f36036051efc7895fb0d9ac13c3"
 order = 10
-rationale = "Adds inferred Cyclone V M10K asynchronous read-output clear (merged PR #12 da6373c0: ramstyle=M10K SDP with a zero-valued async read reset maps to ACLR1, ACLR0 tied low) on 75896890. Feature commit 11df3d33. Preserves explicit ACLR primitive ports, HPS I2C, CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr d8a96b58 for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; published DeanoC/yosys main merge."
+rationale = "Adds inferred Cyclone V M10K asynchronous read-output clear (merged PR #12 da6373c0: ramstyle=M10K SDP with a zero-valued async read reset maps to ACLR1, ACLR0 tied low) on 75896890. Feature commit 11df3d33. Preserves explicit ACLR primitive ports, HPS I2C, CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr 9cdc03cc for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "d8a96b581e608736ea346c34a2a0ce8161d2e1ab"
+commit = "9cdc03cc8521317b729f986c65448733e4aa0422"
 order = 30
-rationale = "Adds unused M10K clock TCLK folding (merged PR #51 d8a96b58: stacked #50 9684edd8 onto 88cda8ae; constant CLK2 with B1EN low is folded off CLKIN[1]; live clocks remain routable; ACLR0/ACLR1 pin styles from #49 are preserved). Feature stack 28ac2c81. Preserves M10K ACLR, DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys da6373c0; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Adds timing-aware router2 retry for multi-PLL M10K designs (merged PR #52 9cdc03cc: default router2; retry ordinary nets with router1 when two altera_pll cells and one M10K have less than 10% margin). On d8a96b58. Feature commit 55f17b34. Preserves unused-clock TCLK folding, M10K ACLR, DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys da6373c0; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
