@@ -74,6 +74,8 @@ FORBIDDEN_RESOURCES = frozenset(
         "MISTRAL_MLAB",
         "MISTRAL_MUL9X9",
         "MISTRAL_MUL18X18",
+        "MISTRAL_MUL18X19",
+        "MISTRAL_MUL18X19_COMBINED",
         "MISTRAL_MUL27X27",
     }
 )
