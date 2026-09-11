@@ -22,7 +22,11 @@ enum {
 	FC_EV_PAD_REMOVED,
 	FC_EV_TEXT,
 	FC_EV_MOUSE_MOVE,
-	FC_EV_MOUSE_BUTTON
+	FC_EV_MOUSE_BUTTON,
+	FC_EV_KEY_ADDED,
+	FC_EV_KEY_REMOVED,
+	FC_EV_MOUSE_ADDED,
+	FC_EV_MOUSE_REMOVED
 };
 
 typedef struct FogcastEvent {
@@ -47,6 +51,7 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 		out->text = NULL;
 		out->x = 0;
 		out->y = 0;
+		out->which = 0;
 		switch (e.type) {
 		case SDL_EVENT_QUIT:
 			out->kind = FC_EV_QUIT;
@@ -59,12 +64,14 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 			out->kind = FC_EV_KEY;
 			out->code = (int)e.key.key;
 			out->down = e.key.down ? 1 : 0;
+			out->which = (int)e.key.which;
 			return 1;
 		case SDL_EVENT_MOUSE_MOTION:
 			if (renderer != NULL) {
 				SDL_ConvertEventToRenderCoordinates(renderer, &e);
 			}
 			out->kind = FC_EV_MOUSE_MOVE;
+			out->which = (int)e.motion.which;
 			out->x = (int)e.motion.x;
 			out->y = (int)e.motion.y;
 			return 1;
@@ -76,6 +83,7 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 			out->kind = FC_EV_MOUSE_BUTTON;
 			out->code = (int)e.button.button;
 			out->down = e.button.down ? 1 : 0;
+			out->which = (int)e.button.which;
 			out->x = (int)e.button.x;
 			out->y = (int)e.button.y;
 			return 1;
@@ -129,6 +137,22 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 		case SDL_EVENT_GAMEPAD_REMOVED:
 			out->kind = FC_EV_PAD_REMOVED;
 			out->which = (int)e.gdevice.which;
+			return 1;
+		case SDL_EVENT_KEYBOARD_ADDED:
+			out->kind = FC_EV_KEY_ADDED;
+			out->which = (int)e.kdevice.which;
+			return 1;
+		case SDL_EVENT_KEYBOARD_REMOVED:
+			out->kind = FC_EV_KEY_REMOVED;
+			out->which = (int)e.kdevice.which;
+			return 1;
+		case SDL_EVENT_MOUSE_ADDED:
+			out->kind = FC_EV_MOUSE_ADDED;
+			out->which = (int)e.mdevice.which;
+			return 1;
+		case SDL_EVENT_MOUSE_REMOVED:
+			out->kind = FC_EV_MOUSE_REMOVED;
+			out->which = (int)e.mdevice.which;
 			return 1;
 		default:
 			continue;
@@ -189,6 +213,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 	"unsafe"
@@ -201,15 +226,19 @@ import (
 )
 
 const (
-	evQuit        = C.FC_EV_QUIT
-	evKey         = C.FC_EV_KEY
-	evButton      = C.FC_EV_BUTTON
-	evAxis        = C.FC_EV_AXIS
-	evPadAdded    = C.FC_EV_PAD_ADDED
-	evPadRemoved  = C.FC_EV_PAD_REMOVED
-	evText        = C.FC_EV_TEXT
-	evMouseMove   = C.FC_EV_MOUSE_MOVE
-	evMouseButton = C.FC_EV_MOUSE_BUTTON
+	evQuit         = C.FC_EV_QUIT
+	evKey          = C.FC_EV_KEY
+	evButton       = C.FC_EV_BUTTON
+	evAxis         = C.FC_EV_AXIS
+	evPadAdded     = C.FC_EV_PAD_ADDED
+	evPadRemoved   = C.FC_EV_PAD_REMOVED
+	evText         = C.FC_EV_TEXT
+	evMouseMove    = C.FC_EV_MOUSE_MOVE
+	evMouseButton  = C.FC_EV_MOUSE_BUTTON
+	evKeyAdded     = C.FC_EV_KEY_ADDED
+	evKeyRemoved   = C.FC_EV_KEY_REMOVED
+	evMouseAdded   = C.FC_EV_MOUSE_ADDED
+	evMouseRemoved = C.FC_EV_MOUSE_REMOVED
 )
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -287,6 +316,9 @@ func runWindow(ctx context.Context, opts Options) error {
 		}
 	}()
 	openExistingGamepads(pads, app)
+	seedSDLKeyboards(app)
+	seedSDLMice(app)
+	app.FinishInputSeed()
 
 	textures := map[string]gpuTexture{}
 	defer destroyTextures(dev, textures)
@@ -606,6 +638,7 @@ func smokeKeyboardNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, eviden
 		return fmt.Errorf("smoke: Esc did not close search")
 	}
 	evidence["keyboard_nav"] = true
+	evidence["affinity_after_keyboard"] = app.Affinity().Kind.String()
 	return nil
 }
 
@@ -627,6 +660,7 @@ func smokeMouseNav(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, evidence 
 		return fmt.Errorf("smoke: mouse hover did not move focus (got %d want 1; %s)", focus, padDump(app, pads))
 	}
 	evidence["mouse_nav"] = true
+	evidence["affinity_after_mouse"] = app.Affinity().Kind.String()
 	return nil
 }
 
@@ -739,10 +773,12 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 	}
 	stickCmd := CmdNone
 	remap := app.remapper()
-	for _, pad := range pads {
+	active := make([]int, 0, len(pads))
+	for id, pad := range pads {
 		if pad == nil {
 			continue
 		}
+		used := false
 		for _, button := range []C.int{
 			C.SDL_GAMEPAD_BUTTON_DPAD_UP,
 			C.SDL_GAMEPAD_BUTTON_DPAD_DOWN,
@@ -760,6 +796,7 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		} {
 			if bool(C.SDL_GetGamepadButton(pad, C.SDL_GamepadButton(button))) {
 				pressed[remapSDLCommand(remap, commandFromSDLButton(button))] = true
+				used = true
 			}
 		}
 		x := int(C.SDL_GetGamepadAxis(pad, C.SDL_GAMEPAD_AXIS_LEFTX))
@@ -767,12 +804,35 @@ func pollGamepads(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, held map[C
 		if cmd := CommandFromStickHeld(x, y, prevStick); cmd != CmdNone {
 			pressed[cmd] = true
 			stickCmd = cmd
+			used = true
+		}
+		if used {
+			active = append(active, int(id))
 		}
 	}
 	if stick != nil {
 		stick.cmd = stickCmd
 	}
+	if len(active) > 0 {
+		app.NoteInput(InputGamepad, pickActiveGamepad(app, active))
+	}
 	return applyPressed(app, pressed, held, now)
+}
+
+func pickActiveGamepad(app *App, ids []int) int {
+	if len(ids) == 1 {
+		return ids[0]
+	}
+	cur := app.Affinity()
+	if cur.Kind == InputGamepad {
+		for _, id := range ids {
+			if id == cur.ID {
+				return id
+			}
+		}
+	}
+	sort.Ints(ids)
+	return ids[0]
 }
 
 func takeEventText(ev *C.FogcastEvent) string {
@@ -785,6 +845,11 @@ func takeEventText(ev *C.FogcastEvent) string {
 	return text
 }
 
+func dispatchSyntheticSDL(app *App, kind, which int) bool {
+	ev := C.FogcastEvent{kind: C.int(kind), which: C.int(which)}
+	return handleSDLEvent(app, map[C.SDL_JoystickID]*C.SDL_Gamepad{}, &ev, time.Now(), nil)
+}
+
 func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.FogcastEvent, now time.Time, stick *stickTracker) bool {
 	switch ev.kind {
 	case evQuit:
@@ -795,6 +860,9 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 			app.TypeText(text, now)
 		}
 	case evKey:
+		if ev.down != 0 {
+			app.NoteInput(InputKeyboard, int(ev.which))
+		}
 		if app.ForwardsCoreKeyboard() {
 			// Play-session ZX81 matrix: do not steal keys for sofa browse/nav.
 			// Drop sofa hold-repeat so a direction held at launch cannot walk
@@ -834,13 +902,13 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		// and dummy video still drive the focus graph.
 		return false
 	case evMouseMove:
-		app.PointerMove(int(ev.x), int(ev.y), now)
+		app.PointerMoveFrom(int(ev.which), int(ev.x), int(ev.y), now)
 	case evMouseButton:
 		if ev.code != C.SDL_BUTTON_LEFT {
 			return false
 		}
 		if ev.down != 0 {
-			app.PointerClick(int(ev.x), int(ev.y), now)
+			app.PointerClickFrom(int(ev.which), int(ev.x), int(ev.y), now)
 		}
 	case evPadAdded:
 		id := C.SDL_JoystickID(ev.which)
@@ -850,6 +918,7 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		pad := C.SDL_OpenGamepad(id)
 		if pad != nil {
 			pads[id] = pad
+			app.AttachInput(InputGamepad, int(id))
 			app.SetGamepads(len(pads))
 		}
 	case evPadRemoved:
@@ -857,8 +926,17 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		if pad := pads[id]; pad != nil {
 			C.SDL_CloseGamepad(pad)
 			delete(pads, id)
+			app.DetachInput(InputGamepad, int(id))
 			app.SetGamepads(len(pads))
 		}
+	case evKeyAdded:
+		app.AttachInput(InputKeyboard, int(ev.which))
+	case evKeyRemoved:
+		app.DetachInput(InputKeyboard, int(ev.which))
+	case evMouseAdded:
+		app.AttachInput(InputMouse, int(ev.which))
+	case evMouseRemoved:
+		app.DetachInput(InputMouse, int(ev.which))
 	}
 	return false
 }
@@ -878,9 +956,36 @@ func openExistingGamepads(pads map[C.SDL_JoystickID]*C.SDL_Gamepad, app *App) {
 		pad := C.SDL_OpenGamepad(id)
 		if pad != nil {
 			pads[id] = pad
+			app.SeedInput(InputGamepad, int(id))
 		}
 	}
 	app.SetGamepads(len(pads))
+}
+
+func seedSDLKeyboards(app *App) {
+	var count C.int
+	ids := C.SDL_GetKeyboards(&count)
+	if ids == nil {
+		return
+	}
+	defer C.SDL_free(unsafe.Pointer(ids))
+	slice := unsafe.Slice(ids, int(count))
+	for _, id := range slice {
+		app.SeedInput(InputKeyboard, int(id))
+	}
+}
+
+func seedSDLMice(app *App) {
+	var count C.int
+	ids := C.SDL_GetMice(&count)
+	if ids == nil {
+		return
+	}
+	defer C.SDL_free(unsafe.Pointer(ids))
+	slice := unsafe.Slice(ids, int(count))
+	for _, id := range slice {
+		app.SeedInput(InputMouse, int(id))
+	}
 }
 
 func remapSDLCommand(remap *inputmap.Remapper, cmd Command) Command {

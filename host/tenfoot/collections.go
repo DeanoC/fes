@@ -441,7 +441,7 @@ func (a *App) collectionMenuSnapshotLocked() CollectionMenuSnapshot {
 		return CollectionMenuSnapshot{
 			Open:    true,
 			Title:   "Delete " + name + "?",
-			Hint:    "A delete  B cancel",
+			Hint:    collectionHintFor(a.affinity.current.Kind, true),
 			Confirm: true,
 		}
 	}
@@ -453,7 +453,7 @@ func (a *App) collectionMenuSnapshotLocked() CollectionMenuSnapshot {
 		return CollectionMenuSnapshot{
 			Open:  true,
 			Title: name,
-			Hint:  "A select  B back",
+			Hint:  collectionHintFor(a.affinity.current.Kind, false),
 			Rows:  []string{"Rename", "Delete"},
 			Index: a.collectionManageIndex,
 		}

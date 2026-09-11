@@ -1476,38 +1476,39 @@ func (a *App) settingsHintLocked() string {
 	if a.settingsOSKOpenLocked() {
 		return ""
 	}
+	kind := a.affinity.current.Kind
 	targetKind, targetIndex, field := a.settingsTargetRowLocked()
 	if targetIndex >= 0 {
 		switch field {
 		case settingsTargetFieldName:
-			return "A name  X remove  B close"
+			return settingsRemoveHint(kind, "name", "")
 		case settingsTargetFieldAddress:
-			return "A address  X remove  B close"
+			return settingsRemoveHint(kind, "address", "")
 		case settingsTargetFieldEnabled:
-			return "A/Left/Right enabled  X remove  B close"
+			return settingsRemoveHint(kind, "enabled", "Left/Right")
 		case settingsTargetFieldAgent:
-			return "A set agent  Left/Right clear  X remove  B close"
+			return settingsRemoveHint(kind, "set agent", "Left/Right clear")
 		}
 	}
 	switch targetKind {
 	case settingsRowAddTarget:
-		return "A add target  B close"
+		return settingsActionHint(kind, "add target", "")
 	case settingsRowSaveTargets:
-		return "A save targets  B close"
+		return settingsActionHint(kind, "save targets", "")
 	}
-	kind, libIndex := a.settingsLibraryRowLocked()
+	rowKind, libIndex := a.settingsLibraryRowLocked()
 	if libIndex >= 0 {
-		return "A path  X remove  Left/Right system  B close"
+		return settingsRemoveHint(kind, "path", "Left/Right system")
 	}
-	switch kind {
+	switch rowKind {
 	case settingsRowAddLibrary:
-		return "A add library  B close"
+		return settingsActionHint(kind, "add library", "")
 	case settingsRowSaveLibraries:
-		return "A save libraries  B close"
+		return settingsActionHint(kind, "save libraries", "")
 	case settingsRowDevelopmentRBF:
-		return "A type path  B close · not a game session · HDMI/input may be down"
+		return settingsActionHint(kind, "type path", "") + " · not a game session · HDMI/input may be down"
 	default:
-		return "A confirm  B close  Left/Right change"
+		return settingsDefaultHint(kind)
 	}
 }
 

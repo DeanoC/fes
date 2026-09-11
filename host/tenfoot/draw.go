@@ -266,37 +266,11 @@ func drawHeader(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 	w := snap.Grid.contentWidth()
 	fillRect(dev, float32(x), float32(y), float32(w), float32(snap.Grid.HeaderHeight), 18, 20, 28, 255)
 	drawDebug(dev, x+24, y+18, "FOGCAST", 3)
-	pad := "KB DEBUG"
-	if snap.Gamepads > 0 {
-		pad = fmt.Sprintf("PAD %d", snap.Gamepads)
-	}
+	pad := snap.AffinityBadge()
 	drawDebug(dev, x+w-160, y+22, pad, 2)
 	chrome := snap.ChromeLine()
 	drawLabel(dev, labels, used, "chrome", x+24, y+52, w-48, 18, chrome)
-	hint := "LB/RB platform  X sort  hold X filter  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
-	if snap.GPUParked || snap.Session.State == "active" || snap.Session.RetryStop {
-		if snap.Session.RetryStop {
-			hint = "B retry Stop  START quit  SELECT layout"
-		} else {
-			hint = "B stop  START quit  SELECT layout"
-		}
-		if h := strings.TrimSpace(snap.Session.InputHint); h != "" {
-			hint += "  " + h
-		} else if !snap.Session.Diagnostic && snap.Session.InputState != "" {
-			hint += "  X attach/detach"
-		}
-	} else if snap.OSK.Open {
-		hint = snap.OSK.Hint
-	} else if snap.Filters.Open {
-		hint = snap.Filters.Hint
-	} else if snap.CollectionMenu.Open {
-		hint = snap.CollectionMenu.Hint
-	} else if snap.ViewPicker {
-		hint = "A open  X add/remove  Y manage  B back"
-	} else if snap.Detail.Open {
-		hint = snap.Detail.Hint
-	}
-	drawDebug(dev, x+24, y+72, hint, 1)
+	drawDebug(dev, x+24, y+72, snap.HeaderHint(), 1)
 }
 
 func drawSessionPreview(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW int) int {
@@ -549,7 +523,7 @@ func drawViewPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		drawLabel(dev, labels, used, fmt.Sprintf("view-%d", idx), x+20, rowY, panelW-40, 16, label)
 	}
-	drawLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 14, "A open  X add/remove  Y manage")
+	drawLabel(dev, labels, used, "view-hint", x+16, y+panelH-22, panelW-32, 14, viewPickerFooterHint(snap.Affinity))
 }
 
 func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
@@ -575,7 +549,7 @@ func drawCollectionMenu(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 	}
 	hint := strings.TrimSpace(menu.Hint)
 	if hint == "" {
-		hint = "A select  B back"
+		hint = collectionHintFor(snap.Affinity, menu.Confirm)
 	}
 	drawLabel(dev, labels, used, "cmenu-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
@@ -626,7 +600,7 @@ func drawSettings(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, u
 		status = strings.TrimSpace(snap.Settings.Hint)
 	}
 	if status == "" {
-		status = "A confirm  B close  Left/Right change"
+		status = settingsDefaultHint(snap.Affinity)
 	}
 	if snap.Settings.Loading {
 		status = "loading host settings"
@@ -681,7 +655,7 @@ func drawFilters(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, us
 		status = strings.TrimSpace(snap.Filters.Hint)
 	}
 	if status == "" {
-		status = "A select  B back"
+		status = filterHintFor(snap.Affinity, false)
 	}
 	drawLabel(dev, labels, used, "flt-status", x+16, y+panelH-24, panelW-32, 14, status)
 }
@@ -721,7 +695,7 @@ func drawOSK(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used m
 	}
 	hint := strings.TrimSpace(snap.OSK.Hint)
 	if hint == "" {
-		hint = oskHint(snap.OSK.Page)
+		hint = oskHintFor(snap.Affinity, snap.OSK.Page)
 	}
 	drawLabel(dev, labels, used, "osk-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
