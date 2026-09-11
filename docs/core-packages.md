@@ -2,6 +2,9 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
+A later described ZX81 computer is planned on `feat/zx81`; see
+[FES ZX81](fes-zx81.md). It is not installed by this profile.
+
 The default `native-integration-dev` profile installs the standalone FES Pong
 format-2 package alongside the four existing format-1 catalog cores. This is an
 package that can be installed on the host and given an explicit ROM-less
@@ -93,8 +96,15 @@ out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-install /abs
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-list
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-check PACKAGE_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'Standalone FES Pong' PACKAGE_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'ZX81' PACKAGE_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-select GAME_ID CURRENT_PACKAGE_ID NEXT_PACKAGE_ID
 ```
+
+`fes.zx81` is not an image-selected catalog core. Host `core-install` /
+`core-entry` plus `POST /api/v1/session/launch` with the returned `game_id`
+is the library path. It is a volatile `fes.simple-computer` package
+(`fes.keyboard`, no gamepad). `core-load` remains development-only and does
+not create the entry.
 
 Import works offline and never activates hardware. Creating an entry or changing
 its selected version requires current target compatibility. Selection is an

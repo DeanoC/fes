@@ -96,7 +96,7 @@ session-lifecycle evidence in the [dated FES acceptance record](validation/2026-
 historical profiles remain Mega Drive-only.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, twelve generated consumer files, five shared fixture copies,
+lock, package YAML, fourteen generated consumer files, eleven shared fixture copies,
 and copied Mega Drive/SNES/NES source pins. It regenerates to temporary files
 and never edits consumers. The format-2 additions are the actual runtime C++
 ABI/programming consumers and misteross Verilog ABI consumer. FogCast uses the
@@ -160,6 +160,9 @@ The following assembly milestones remain separate future work:
 2. Define the remaining assembly artifact inputs and move the image recipe once.
 3. Produce a bootable native FES media layout without Main as a production input.
 4. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
+   The planned FES ZX81 computer is that ABI extension: custom
+   `fes.simple-computer`, Quartus bring-up, then nextpnr/mistral. See
+   [FES ZX81](fes-zx81.md). It is not in the selected image.
 
 Current checks and limitations are recorded in
 [integration validation](integration-validation.md). Original image and hardware

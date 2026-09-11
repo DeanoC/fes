@@ -17,6 +17,8 @@ GENERATED = (
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
     ('emit-verilog', 'packages/abi/fes_simple_game.yaml', 'misteross', 'cores/fes-pong/generated/fes_gp.vh'),
+    ('emit-cpp', 'packages/abi/fes_simple_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_simple_computer.hpp'),
+    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-zx81/generated/fes_simple_computer.vh'),
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
 )
 COPIED_TREES = (
@@ -28,6 +30,8 @@ COPIED_TREES = (
 COPIED_FILES = (
     ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
+    ('testdata/fes-simple-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-simple-computer-v1/exchanges.json'),
+    ('testdata/fes-simple-computer-v1/exchanges.json', 'misteross', 'cores/fes-zx81/generated/exchanges.json'),
     ('testdata/core-persistence-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/persistence-exchanges.json'),
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )

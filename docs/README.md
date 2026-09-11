@@ -19,6 +19,7 @@ host software and target root filesystem.
 | Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
 | Use described-core settings and progress | [Core persistence](core-persistence.md) |
+| Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
@@ -80,6 +81,12 @@ are linked from the [core package guide](core-packages.md).
 is implemented: stable target-local data across compatible package versions,
 starting with standalone Pong. See the [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
 and [acceptance record](validation/2026-09-09-core-persistence.md).
+
+[FES ZX81](superpowers/specs/2026-09-10-fes-zx81-design.md) is the next
+described-core computer: a custom GP ABI derived from the MiSTer Quartus ZX81
+implementation, Quartus bring-up, then nextpnr/mistral. It is not in the
+selected image. See the [implementation plan](superpowers/plans/2026-09-10-fes-zx81.md)
+and the [ZX81 working page](fes-zx81.md).
 
 ## Earlier designs and plans
 
