@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -19,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/metadata"
+	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -76,7 +78,15 @@ type collectionResult struct {
 
 type healthResult struct {
 	Ready  bool         `json:"ready"`
+	Host   hostIdentity `json:"host"`
 	Target targetHealth `json:"target"`
+}
+
+type hostIdentity struct {
+	Version  string `json:"version"`
+	Revision string `json:"revision,omitempty"`
+	OS       string `json:"os"`
+	Arch     string `json:"arch"`
 }
 
 type statusResult struct {
@@ -92,6 +102,7 @@ type targetHealth struct {
 	Connection *fogcast.TargetConnection `json:"connection,omitempty"`
 	Reachable  bool                      `json:"reachable"`
 	Ready      bool                      `json:"ready"`
+	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
 }
 
 type errorResult struct {
@@ -323,7 +334,17 @@ func New(service Service, options ...ServerOption) http.Handler {
 
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		target, err := service.Health(r.Context())
-		result := healthResult{Ready: true, Target: targetHealth{Reachable: err == nil, Ready: err == nil && target.Ready, Connection: targetConnection(service)}}
+		result := healthResult{
+			Ready: true,
+			Host:  hostIdentity{Version: version.Version, Revision: version.Revision, OS: runtime.GOOS, Arch: runtime.GOARCH},
+			Target: targetHealth{
+				Reachable: err == nil, Ready: err == nil && target.Ready,
+				Connection: targetConnection(service),
+			},
+		}
+		if err == nil {
+			result.Target.Artifacts = target.Artifacts
+		}
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {

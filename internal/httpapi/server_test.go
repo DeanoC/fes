@@ -569,6 +569,25 @@ func TestV1GoldenResponsesRemainUnchangedWithContentOption(t *testing.T) {
 	}
 }
 
+func TestHealthIncludesArtifactsWithoutAuthentication(t *testing.T) {
+	commit := strings.Repeat("1", 40)
+	handler := httpapi.New(&fakeController{
+		health: protocol.Health{APIVersion: "v1", AgentVersion: "0.1.0", Ready: true, Artifacts: &protocol.Artifacts{RuntimeCommit: commit}},
+	}, "test-token", "0.1.0", discardLogger())
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/health", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var health protocol.Health
+	if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
+		t.Fatal(err)
+	}
+	if health.Artifacts == nil || health.Artifacts.RuntimeCommit != commit || health.TargetID != "" {
+		t.Fatalf("health = %#v", health)
+	}
+}
+
 func TestHealthRevealsTargetIdentityOnlyToAuthenticatedCaller(t *testing.T) {
 	handler := httpapi.New(&fakeController{health: protocol.Health{Ready: true}}, "test-token", "0.1.0", discardLogger(), httpapi.WithTargetID("01234567-89ab-cdef-0123-456789abcdef"))
 	for _, tc := range []struct {

@@ -2248,6 +2248,38 @@ func TestHealthSeparatesHostReadinessFromTargetReadiness(t *testing.T) {
 	}
 }
 
+func TestHealthIncludesHostIdentityAndTargetArtifacts(t *testing.T) {
+	commit := strings.Repeat("1", 40)
+	service := &fakeService{health: protocol.Health{Ready: true, Artifacts: &protocol.Artifacts{RuntimeCommit: commit}}}
+	response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/health")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	var result struct {
+		Ready bool `json:"ready"`
+		Host  struct {
+			Version string `json:"version"`
+			OS      string `json:"os"`
+			Arch    string `json:"arch"`
+		} `json:"host"`
+		Target struct {
+			Ready     bool `json:"ready"`
+			Artifacts *struct {
+				RuntimeCommit string `json:"runtime_commit"`
+			} `json:"artifacts"`
+		} `json:"target"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Host.Version == "" || result.Host.OS == "" || result.Host.Arch == "" {
+		t.Fatalf("host identity = %#v", result.Host)
+	}
+	if !result.Target.Ready || result.Target.Artifacts == nil || result.Target.Artifacts.RuntimeCommit != commit {
+		t.Fatalf("target = %#v", result.Target)
+	}
+}
+
 func TestStatusRedactsTargetControlledErrorMessage(t *testing.T) {
 	message := "/private/path Bearer secret-token"
 	service := &fakeService{status: protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeInternal, Message: message}}}

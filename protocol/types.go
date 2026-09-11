@@ -88,13 +88,30 @@ type CoreInspection struct {
 }
 
 type Health struct {
-	TargetID      string `json:"target_id,omitempty"`
-	APIVersion    string `json:"api_version"`
-	AgentVersion  string `json:"agent_version"`
-	Ready         bool   `json:"ready"`
-	MiSTerProcess bool   `json:"mister_process"`
-	CommandPipe   bool   `json:"command_pipe"`
-	BootID        string `json:"boot_id,omitempty"`
+	TargetID      string     `json:"target_id,omitempty"`
+	APIVersion    string     `json:"api_version"`
+	AgentVersion  string     `json:"agent_version"`
+	Ready         bool       `json:"ready"`
+	MiSTerProcess bool       `json:"mister_process"`
+	CommandPipe   bool       `json:"command_pipe"`
+	BootID        string     `json:"boot_id,omitempty"`
+	Artifacts     *Artifacts `json:"artifacts,omitempty"`
+}
+
+// Artifacts is the closed identity of what a process was built or installed
+// from. Missing optional fields mean the agent has no sealed record, not that
+// the bytes were hashed on this request.
+type Artifacts struct {
+	RecordSHA256  string            `json:"record_sha256,omitempty"`
+	RuntimeCommit string            `json:"runtime_commit,omitempty"`
+	AgentSHA256   string            `json:"agent_sha256,omitempty"`
+	AgentRevision string            `json:"agent_revision,omitempty"`
+	KitSHA256     string            `json:"kit_sha256,omitempty"`
+	ImageSHA256   string            `json:"image_sha256,omitempty"`
+	IdleSHA256    string            `json:"idle_sha256,omitempty"`
+	ABI           string            `json:"abi,omitempty"`
+	PackageID     string            `json:"package_id,omitempty"`
+	Cores         map[string]string `json:"cores,omitempty"`
 }
 
 type RuntimeContract struct {

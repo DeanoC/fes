@@ -58,6 +58,18 @@ invents host event schema or joins through the launcher listener.
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
+Target `GET /v1/health` may include an `artifacts` object: the SHA-256 of the
+installed `/usr/share/mister-runtime/build-inputs` record, the runtime commit,
+agent and kit digests from that record, idle and catalog core digests, the
+optional format-2 package id, and on an appliance boot the bootstrap ticket
+`image_sha256`. The agent does not hash live binaries on each poll. Missing
+fields mean there is no sealed record (for example a Main-backend image), not
+that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
+(`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` when the
+target is reachable. Connection state remains separate from game state; a later
+compatibility check will fail closed on mismatch without rewriting
+configuration.
+
 ## Agent runtime backends
 
 The target agent defaults to the existing Main runtime. Passing

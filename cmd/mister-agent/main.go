@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
+	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/cast"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -240,7 +241,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	coordinator := agent.New(runtime, registry, 10*time.Second, 5*time.Second,
-		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics))
+		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics),
+		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)))
 	content := agent.NewContentController(coordinator, cache)
 	if launches, mapErr := targetcache.OpenLaunchMap(filepath.Join(targetCacheRoot, targetcache.LaunchMapName)); mapErr == nil {
 		content.SetLaunchMap(launches)

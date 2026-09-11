@@ -20,6 +20,10 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Thousands of catalogued games across the systems in
   `internal/systems/table.go`.
 - Real FPGA game launches on the designated MiSTer Pi.
+- Target `GET /v1/health` reports sealed `artifacts` from the installed
+  `build-inputs` record (and appliance boot ticket when present). Host
+  `GET /api/v1/health` includes `host` OS/arch/version identity and forwards
+  those target artifacts. Mismatch is not yet a refused launch.
 - Target-side content caching, input, stop, and active-core observation.
 - Stable target identity and local DNS-SD reconnection after reboot/address
   changes. In browser target settings, choose **Prepare identity**

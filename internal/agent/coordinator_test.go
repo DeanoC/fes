@@ -1114,6 +1114,24 @@ func TestInitializeDoesNotUseIncompatiblePendingSystem(t *testing.T) {
 	}
 }
 
+func TestHealthReportsAttachedArtifacts(t *testing.T) {
+	t.Parallel()
+	runtime := &fakeRuntime{health: protocol.Health{Ready: true}}
+	artifacts := &protocol.Artifacts{
+		RuntimeCommit: "1111111111111111111111111111111111111111",
+		Cores:         map[string]string{"megadrive": strings.Repeat("a", 64)},
+	}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second, agent.WithArtifacts(artifacts))
+	health := coordinator.Health("0.1.0")
+	if health.Artifacts == nil || health.Artifacts.RuntimeCommit != artifacts.RuntimeCommit || health.Artifacts.Cores["megadrive"] != artifacts.Cores["megadrive"] {
+		t.Fatalf("health artifacts = %#v", health.Artifacts)
+	}
+	artifacts.Cores["megadrive"] = strings.Repeat("b", 64)
+	if health.Artifacts.Cores["megadrive"] == artifacts.Cores["megadrive"] {
+		t.Fatal("health artifacts aliased caller map")
+	}
+}
+
 func TestHealthRemainsNotReadyAfterUnavailableReconciliation(t *testing.T) {
 	t.Parallel()
 	runtime := &fakeRuntime{

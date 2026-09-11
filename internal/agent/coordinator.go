@@ -78,6 +78,13 @@ func WithEventSink(sink flightdiag.Sink) CoordinatorOption {
 	return func(coordinator *Coordinator) { coordinator.events = sink }
 }
 
+// WithArtifacts attaches the sealed target identity reported on Health.
+func WithArtifacts(artifacts *protocol.Artifacts) CoordinatorOption {
+	return func(coordinator *Coordinator) {
+		coordinator.artifacts = cloneArtifacts(artifacts)
+	}
+}
+
 type Coordinator struct {
 	runtime          Runtime
 	registry         core.Registry
@@ -90,6 +97,7 @@ type Coordinator struct {
 	status           protocol.Status
 	updateBlocked    bool
 	events           flightdiag.Sink
+	artifacts        *protocol.Artifacts
 }
 
 func (c *Coordinator) record(kind, severity string, detail map[string]any) {
@@ -151,7 +159,11 @@ func (c *Coordinator) Health(version string) protocol.Health {
 	health := c.runtime.Health(version)
 	c.mu.RLock()
 	blocked := c.updateBlocked
+	artifacts := cloneArtifacts(c.artifacts)
 	c.mu.RUnlock()
+	if artifacts != nil {
+		health.Artifacts = artifacts
+	}
 	if blocked {
 		health.Ready = false
 	}
@@ -161,6 +173,20 @@ func (c *Coordinator) Health(version string) protocol.Health {
 		health.Ready = false
 	}
 	return health
+}
+
+func cloneArtifacts(artifacts *protocol.Artifacts) *protocol.Artifacts {
+	if artifacts == nil {
+		return nil
+	}
+	copy := *artifacts
+	if artifacts.Cores != nil {
+		copy.Cores = make(map[string]string, len(artifacts.Cores))
+		for system, digest := range artifacts.Cores {
+			copy.Cores[system] = digest
+		}
+	}
+	return &copy
 }
 
 func (c *Coordinator) Initialize(ctx context.Context) {
