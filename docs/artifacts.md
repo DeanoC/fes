@@ -58,8 +58,12 @@ The host `GET /api/v1/health` object includes a `host` identity (`version`,
 `revision`, `os`, `arch`) and forwards `target.artifacts` when the target is
 reachable.
 
-A later connect path will compare that tuple and report `version_mismatch`
-without rewriting configuration.
+When both sides advertise a comparable runtime commit or FogCast revision and
+they disagree, host connection state is `version_mismatch` (the target stays
+reachable). Launches, development loads, and package activation are refused.
+Configuration is not rewritten. Missing artifacts (Main-backend images, or
+binaries built without git ldflags) stay compatible until they advertise
+identity.
 
 ## What may differ
 
