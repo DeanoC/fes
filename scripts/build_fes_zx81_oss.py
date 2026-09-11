@@ -37,7 +37,7 @@ RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF = "cores/fes-zx81/constraints-oss.qsf"
 SDC = "cores/fes-zx81/clocks-oss.sdc"
-PLACER_SEED = 5
+PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13)
 PLACER_TIMING_WEIGHT = 300
 PLACER_CRITICALITY_EXPONENT = 5
 RTL_SOURCES = (
@@ -159,7 +159,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": PLACER_SEED,
+            "seed_candidates": list(PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "top": TOP,
@@ -173,6 +173,7 @@ def build_commands(
     output: Path,
     build_id: str,
     tools: Mapping[str, Path],
+    seed: int = PLACER_SEEDS[0],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     if output != root / OUTPUT_RELATIVE:
         raise BuildError(f"FES ZX81 OSS output must be {root / OUTPUT_RELATIVE}")
@@ -195,7 +196,7 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        "--seed", str(PLACER_SEED),
+        "--seed", str(seed),
         "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
         "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", "router1",
@@ -207,6 +208,15 @@ def build_commands(
         "--detailed-timing-report",
     )
     return yosys, nextpnr
+
+
+def _clear_route_outputs(output: Path) -> None:
+    for name in ("core.rbf", "routed.json", "timing.json", "nextpnr.log"):
+        path = output / name
+        if path.exists() or path.is_symlink():
+            if path.is_symlink() or not path.is_file():
+                raise BuildError(f"build output must be a regular file: {path}")
+            path.unlink()
 
 
 def _prepare_output(root: Path) -> Path:
@@ -387,8 +397,28 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
         _run_tool(commands[0], root, output / "yosys.log")
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        _run_tool(commands[1], root, output / "nextpnr.log")
-        evidence = validate_build_evidence(output, root)
+        evidence = None
+        selected_seed = None
+        failures: list[str] = []
+        for seed in PLACER_SEEDS:
+            _clear_route_outputs(output)
+            commands = build_commands(
+                root, output, build_id,
+                {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+                seed=seed,
+            )
+            try:
+                _run_tool(commands[1], root, output / "nextpnr.log")
+                evidence = validate_build_evidence(output, root)
+            except BuildError as exc:
+                failures.append(f"seed {seed}: {exc}")
+                continue
+            selected_seed = seed
+            break
+        if evidence is None or selected_seed is None:
+            detail = failures[-1] if failures else "no placer seeds configured"
+            raise BuildError(f"no native async M10K placement met final signoff ({detail})")
+        evidence["route"]["placer_seed"] = selected_seed
         evidence.update(
             {
                 "build_id": build_id,

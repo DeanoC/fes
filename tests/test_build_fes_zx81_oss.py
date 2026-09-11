@@ -5,6 +5,9 @@ import unittest
 from pathlib import Path
 from scripts.build_fes_zx81_oss import (
     OUTPUT_RELATIVE,
+    PLACER_SEEDS,
+    PLACER_TIMING_WEIGHT,
+    PLACER_CRITICALITY_EXPONENT,
     RTL_SOURCES,
     BuildError,
     _manifest,
@@ -51,11 +54,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertIn("5", nextpnr)
+        self.assertIn(str(PLACER_SEEDS[0]), nextpnr)
         self.assertIn("--placer-heap-timingweight", nextpnr)
-        self.assertIn("300", nextpnr)
+        self.assertIn(str(PLACER_TIMING_WEIGHT), nextpnr)
         self.assertIn("--placer-heap-critexp", nextpnr)
-        self.assertIn("5", nextpnr)
+        self.assertIn(str(PLACER_CRITICALITY_EXPONENT), nextpnr)
         self.assertIn("router1", nextpnr)
         self.assertIn("--timing-allow-fail", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)

@@ -1785,11 +1785,12 @@ The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 nextpnr `5f6ba158` forms the 50→52 MHz integer on the 520 MHz feedback
-profile (`M=52 N=5 C6=10`). Place-and-route uses seed 5, heap timing weight
-300, criticality exponent 5 and `router1`; `--timing-allow-fail` permits an
-early estimate to miss while the final signoff report is checked by the
-recipe. This keeps native async-M10K address paths within the 52 MHz system
-constraint. The recipe requires two
+profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13 with heap timing weight 300,
+criticality exponent 5 and `router1`. `--timing-allow-fail` permits an early
+estimate to miss while the recipe checks final signoff and records the first
+passing seed. This keeps native async-M10K address paths within the 52 MHz
+system constraint. The recipe requires two
 `altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
 mailbox, the I2C bridge,
 and at least one M10K. It seals the format-2 exporter only when both
