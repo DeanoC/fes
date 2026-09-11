@@ -41,6 +41,14 @@ func TestKeyboardMapperPostsZX81MatrixCodes(t *testing.T) {
 	}
 }
 
+func TestKeyboardMapperPostsArrowsAsFogCastKeys(t *testing.T) {
+	m := NewKeyboardMapper()
+	e, ok := m.Map(1, 103, 1) // KEY_UP
+	if !ok || e.Device != remoteinput.DeviceKeyboard || e.Code != remoteinput.KeyUp {
+		t.Fatalf("KEY_UP %+v ok=%v", e, ok)
+	}
+}
+
 func TestInitialHeldButtonRequiresRelease(t *testing.T) {
 	m := NewMapper(0, 0, nil)
 	m.Suppress(304)

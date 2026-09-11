@@ -78,6 +78,26 @@ func TestNormalizeAxisClamps(t *testing.T) {
 	}
 }
 
+func TestEventForCodeKeepsZX81AsKeyboardNotAxis(t *testing.T) {
+	t.Parallel()
+	key := EventForCode(KeyA, ActionPress)
+	if key.Device != DeviceKeyboard || key.Kind != KindKey {
+		t.Fatalf("KeyA = %+v", key)
+	}
+	button := EventForCode(ButtonA, ActionPress)
+	if button.Device != DeviceGamepad || button.Kind != KindButton {
+		t.Fatalf("ButtonA = %+v", button)
+	}
+	axis := EventForCode(AxisLeftX, ActionAbsolute)
+	if axis.Device != DeviceGamepad || axis.Kind != KindAxis {
+		t.Fatalf("AxisLeftX = %+v", axis)
+	}
+	zx81 := EventForCode(256, ActionPress)
+	if zx81.Device != DeviceKeyboard || zx81.Kind != KindKey {
+		t.Fatalf("ZX81 matrix code replayed as %+v", zx81)
+	}
+}
+
 func TestStateRejectsUnsupportedEvent(t *testing.T) {
 	s := State{}
 	if err := s.Apply(Event{Device: 9, Kind: KindKey, Action: ActionPress, Code: KeyA}); err == nil {

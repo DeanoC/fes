@@ -35,3 +35,61 @@ func TestKeyboardSinkPostsJMatrix(t *testing.T) {
 		t.Fatalf("released matrix=%#x", got)
 	}
 }
+
+type recordingSink struct {
+	frames []protocol.InputFrame
+}
+
+func (s *recordingSink) Apply(f protocol.InputFrame) error {
+	s.frames = append(s.frames, f)
+	return nil
+}
+func (s *recordingSink) ReleaseAll() error { return nil }
+func (s *recordingSink) Close() error      { return nil }
+
+func TestMuxSinkRoutesZX81ToKeyboardAndGamepadToPads(t *testing.T) {
+	t.Parallel()
+	var matrix uint64
+	keys := NewKeyboardSink()
+	keys.SetPoster(func(m uint64) error {
+		matrix = m
+		return nil
+	})
+	pads := &recordingSink{}
+	mux := muxSink{keys: keys, pads: pads}
+
+	zx := protocol.InputFrame{
+		Device: uint8(remoteinput.DeviceKeyboard),
+		Kind:   uint8(remoteinput.KindKey),
+		Action: uint8(remoteinput.ActionPress),
+		Code:   uint16(zx81keys.Letter('J')),
+	}
+	if err := mux.Apply(zx); err != nil {
+		t.Fatal(err)
+	}
+	if matrix&(1<<(6*5+3)) != 0 {
+		t.Fatalf("ZX81 J missed set_keyboard: %#x", matrix)
+	}
+
+	low := zx
+	low.Code = uint16(remoteinput.KeyA)
+	if err := mux.Apply(low); err != nil {
+		t.Fatal(err)
+	}
+	if len(pads.frames) != 0 {
+		t.Fatalf("non-ZX81 keyboard leaked to pads: %#v", pads.frames)
+	}
+
+	pad := protocol.InputFrame{
+		Device: uint8(remoteinput.DeviceGamepad),
+		Kind:   uint8(remoteinput.KindButton),
+		Action: uint8(remoteinput.ActionPress),
+		Code:   uint16(remoteinput.ButtonA),
+	}
+	if err := mux.Apply(pad); err != nil {
+		t.Fatal(err)
+	}
+	if len(pads.frames) != 1 || pads.frames[0].Code != uint16(remoteinput.ButtonA) {
+		t.Fatalf("native pad = %#v", pads.frames)
+	}
+}

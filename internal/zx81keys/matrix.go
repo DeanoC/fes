@@ -24,46 +24,46 @@ type cell struct {
 
 // Sinclair ULA rows, bit 0 = leftmost key on that row.
 var cells = map[remoteinput.Code]cell{
-	KeyShift:     {0, 0},
-	Letter('Z'):  {0, 1},
-	Letter('X'):  {0, 2},
-	Letter('C'):  {0, 3},
-	Letter('V'):  {0, 4},
-	Letter('A'):  {1, 0},
-	Letter('S'):  {1, 1},
-	Letter('D'):  {1, 2},
-	Letter('F'):  {1, 3},
-	Letter('G'):  {1, 4},
-	Letter('Q'):  {2, 0},
-	Letter('W'):  {2, 1},
-	Letter('E'):  {2, 2},
-	Letter('R'):  {2, 3},
-	Letter('T'):  {2, 4},
-	Digit(1):     {3, 0},
-	Digit(2):     {3, 1},
-	Digit(3):     {3, 2},
-	Digit(4):     {3, 3},
-	Digit(5):     {3, 4},
-	Digit(0):     {4, 0},
-	Digit(9):     {4, 1},
-	Digit(8):     {4, 2},
-	Digit(7):     {4, 3},
-	Digit(6):     {4, 4},
-	Letter('P'):  {5, 0},
-	Letter('O'):  {5, 1},
-	Letter('I'):  {5, 2},
-	Letter('U'):  {5, 3},
-	Letter('Y'):  {5, 4},
-	KeyEnter:     {6, 0},
-	Letter('L'):  {6, 1},
-	Letter('K'):  {6, 2},
-	Letter('J'):  {6, 3},
-	Letter('H'):  {6, 4},
-	KeySpace:     {7, 0},
-	KeyPeriod:    {7, 1},
-	Letter('M'):  {7, 2},
-	Letter('N'):  {7, 3},
-	Letter('B'):  {7, 4},
+	KeyShift:    {0, 0},
+	Letter('Z'): {0, 1},
+	Letter('X'): {0, 2},
+	Letter('C'): {0, 3},
+	Letter('V'): {0, 4},
+	Letter('A'): {1, 0},
+	Letter('S'): {1, 1},
+	Letter('D'): {1, 2},
+	Letter('F'): {1, 3},
+	Letter('G'): {1, 4},
+	Letter('Q'): {2, 0},
+	Letter('W'): {2, 1},
+	Letter('E'): {2, 2},
+	Letter('R'): {2, 3},
+	Letter('T'): {2, 4},
+	Digit(1):    {3, 0},
+	Digit(2):    {3, 1},
+	Digit(3):    {3, 2},
+	Digit(4):    {3, 3},
+	Digit(5):    {3, 4},
+	Digit(0):    {4, 0},
+	Digit(9):    {4, 1},
+	Digit(8):    {4, 2},
+	Digit(7):    {4, 3},
+	Digit(6):    {4, 4},
+	Letter('P'): {5, 0},
+	Letter('O'): {5, 1},
+	Letter('I'): {5, 2},
+	Letter('U'): {5, 3},
+	Letter('Y'): {5, 4},
+	KeyEnter:    {6, 0},
+	Letter('L'): {6, 1},
+	Letter('K'): {6, 2},
+	Letter('J'): {6, 3},
+	Letter('H'): {6, 4},
+	KeySpace:    {7, 0},
+	KeyPeriod:   {7, 1},
+	Letter('M'): {7, 2},
+	Letter('N'): {7, 3},
+	Letter('B'): {7, 4},
 }
 
 // Letter returns the FogCast code for A–Z.
@@ -83,6 +83,27 @@ func Digit(n byte) remoteinput.Code {
 		return 0
 	}
 	return Key0 + remoteinput.Code(n)
+}
+
+// Name is the inverse of Letter/Digit and the named matrix keys.
+func Name(code remoteinput.Code) (string, bool) {
+	switch code {
+	case KeyShift:
+		return "shift", true
+	case KeyEnter:
+		return "return", true
+	case KeySpace:
+		return "space", true
+	case KeyPeriod:
+		return "period", true
+	}
+	if code >= KeyA && code <= KeyZ {
+		return string(rune('a' + (code - KeyA))), true
+	}
+	if code >= Key0 && code <= Key9 {
+		return string(rune('0' + (code - Key0))), true
+	}
+	return "", false
 }
 
 // Matrix packs pressed keys into the 40-bit active-low ULA matrix.
