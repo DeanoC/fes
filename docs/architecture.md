@@ -170,7 +170,14 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `1e1745dcb40f9722d5b74389c1b411c56a27c8a8` is
+The current nextpnr pin `74aab451fc767996e1c6195531a86d36c14b82c9` is
+merged PR #57 (`83450455be223249683699be0f200aade4622d1f` onto
+`1e1745dcb40f9722d5b74389c1b411c56a27c8a8`). It maps connected
+`ADDRSTALLA`/`ADDRSTALLB` ports to the existing M10K GOUT BEL pins.
+Pair it with Yosys `da6373c0`. Locked Yosys has no stall ports, so OSS
+attaches GPO[29] to `ADDRSTALLA` after synthesis.
+
+That pin sits on `1e1745dcb40f9722d5b74389c1b411c56a27c8a8`,
 merged PR #56 (`f854e966d690a6d54409425ee20ed55cdee046ca` onto
 `c528c2389b2d4381ed2e3d24332bc6c9d8e2daaa`). It accepts the Quartus
 SDC/QSF subset used by ZX81: `get_clocks`, `derive_pll_clocks`,
@@ -1490,6 +1497,25 @@ out; GPI and probe still passed. `stop` completed development reboot
 recovery and left the lease free. The current nextpnr pin `1e1745dc` with
 Yosys `da6373c0` reproduces those same RBF bytes.
 
+`790_m10k_addrstall` instantiates one `MISTRAL_M10K_TDP` and stalls the
+A-port address from GPO[29]. GPI signature `0xD42C`. Locked Yosys has no
+stall ports, so OSS attaches `ADDRSTALLA` after synthesis. Packed
+`ADDRSTALLA` holds the A-port address while GPO[29] is 0 and samples a
+new address while GPO[29] is 1. See
+`experiments/790_m10k_addrstall/expected.md`.
+
+The OSS `790_m10k_addrstall` artifact has SHA-256
+`3c581d081fbe42e11e5d0dd8bc0b1a2fb33fa7a6be953193d960ec11b0fe131d`
+and size 1,959,683 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with a
+routed `ADDRSTALLA` GOUT. Reported Fmax is 342.700 MHz against 50 MHz.
+Utilization is one M10K and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-11 returned GPI signature `0xD42C`, INIT `0xA6`
+at address 0, a held A-port address while GPO[29] was 0, and the new
+address after GPO[29] was 1. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the
+lease free. The current nextpnr pin `74aab451` with Yosys `da6373c0`
+reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1515,7 +1541,8 @@ router2 (fabric GPI only), and native 18x19 dual products (fabric GPI
 only), and a 50→52 MHz integer PLL on the 520 MHz feedback profile
 (fabric GPI only), and a combinational M10K read port with packer
 `ENABLE[0]` (fabric GPI only), and a 50→25 MHz PLL routed with Quartus
-SDC/QSF forms (fabric GPI only). It does not establish native
+SDC/QSF forms (fabric GPI only), and a TDP M10K A-port address stall
+(fabric GPI only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game

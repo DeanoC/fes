@@ -242,6 +242,7 @@ class ExperimentPolicy:
     m10k_require_aclr1: bool = False
     m10k_tdp_constant_clk2: bool = False
     m10k_async_read: bool = False
+    m10k_addrstalla_gpo_bit: int | None = None
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -289,6 +290,11 @@ class ExperimentPolicy:
                 raise PolicyError(f"{self.name}: m10k_aclr1_gpo_bit must be an integer or None")
             if not 0 <= self.m10k_aclr1_gpo_bit <= 31:
                 raise PolicyError(f"{self.name}: m10k_aclr1_gpo_bit must be in 0..31")
+        if self.m10k_addrstalla_gpo_bit is not None:
+            if not isinstance(self.m10k_addrstalla_gpo_bit, int) or isinstance(self.m10k_addrstalla_gpo_bit, bool):
+                raise PolicyError(f"{self.name}: m10k_addrstalla_gpo_bit must be an integer or None")
+            if not 0 <= self.m10k_addrstalla_gpo_bit <= 31:
+                raise PolicyError(f"{self.name}: m10k_addrstalla_gpo_bit must be in 0..31")
         mixed_ports = (self.m10k_mixed_write_dbits, self.m10k_mixed_read_dbits)
         if mixed_ports == (0, 0):
             pass
@@ -671,6 +677,8 @@ class ExperimentPolicy:
             self._require_m10k_tdp_mixed(design)
         if self.m10k_async_read:
             self._require_m10k_async_read(design)
+        if self.m10k_addrstalla_gpo_bit is not None:
+            self._require_m10k_addrstalla(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -858,6 +866,17 @@ class ExperimentPolicy:
             raise PolicyError("async-read M10K CLK1 must be a live fabric clock")
         if "B1ADDR" not in connections or "B1DATA" not in connections:
             raise PolicyError("async-read M10K must connect B1ADDR and B1DATA")
+
+    def _require_m10k_addrstalla(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}")
+        connections = cells[0].get("connections")
+        if not isinstance(connections, Mapping):
+            raise PolicyError("TDP M10K cell is missing connections")
+        stall = connections.get("ADDRSTALLA")
+        if not isinstance(stall, list) or len(stall) != 1 or stall[0] in (0, 1, "0", "1"):
+            raise PolicyError("TDP M10K ADDRSTALLA must be a connected fabric net")
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1167,6 +1186,7 @@ class ExperimentPolicy:
             and not self.synth_json_tied_low
             and self.m10k_aclr1_gpo_bit is None
             and not self.m10k_async_read
+            and self.m10k_addrstalla_gpo_bit is None
         ):
             return
         try:
@@ -1189,6 +1209,8 @@ class ExperimentPolicy:
             if self._attach_m10k_aclr1(cells):
                 changed = True
             if self._apply_m10k_async_read(cells):
+                changed = True
+            if self._attach_m10k_addrstalla(cells):
                 changed = True
             for cell in cells.values():
                 if not isinstance(cell, dict):
@@ -1270,6 +1292,47 @@ class ExperimentPolicy:
             if connections.get("ACLR1") != [net] or directions.get("ACLR1") != "input":
                 connections["ACLR1"] = [net]
                 directions["ACLR1"] = "input"
+                changed = True
+        return changed
+
+    def _attach_m10k_addrstalla(self, cells: dict[str, Any]) -> bool:
+        """Connect TDP ADDRSTALLA to the selected HPS GPO bit after Yosys omits it."""
+
+        bit = self.m10k_addrstalla_gpo_bit
+        if bit is None:
+            return False
+        gp_out = None
+        memories: list[dict[str, Any]] = []
+        for cell in cells.values():
+            if not isinstance(cell, dict):
+                continue
+            if cell.get("type") == "cyclonev_hps_interface_mpu_general_purpose":
+                connections = cell.get("connections")
+                if isinstance(connections, dict):
+                    bits = connections.get("gp_out")
+                    if isinstance(bits, list) and len(bits) > bit:
+                        gp_out = bits
+            if cell.get("type") == "MISTRAL_M10K_TDP":
+                memories.append(cell)
+        if not memories:
+            return False
+        if gp_out is None:
+            raise PolicyError("synth json has no HPS gp_out for M10K ADDRSTALLA")
+        net = gp_out[bit]
+        if net in (0, 1, "0", "1"):
+            raise PolicyError("M10K ADDRSTALLA GPO bit must be a fabric net")
+        changed = False
+        for cell in memories:
+            connections = cell.get("connections")
+            if not isinstance(connections, dict):
+                raise PolicyError("TDP M10K cell is missing connections")
+            directions = cell.get("port_directions")
+            if not isinstance(directions, dict):
+                directions = {}
+                cell["port_directions"] = directions
+            if connections.get("ADDRSTALLA") != [net] or directions.get("ADDRSTALLA") != "input":
+                connections["ADDRSTALLA"] = [net]
+                directions["ADDRSTALLA"] = "input"
                 changed = True
         return changed
 
@@ -1469,6 +1532,8 @@ class ExperimentPolicy:
             **({"m10k_require_aclr1": True} if self.m10k_require_aclr1 else {}),
             **({"m10k_tdp_constant_clk2": True} if self.m10k_tdp_constant_clk2 else {}),
             **({"m10k_async_read": True} if self.m10k_async_read else {}),
+            **({"m10k_addrstalla_gpo_bit": self.m10k_addrstalla_gpo_bit}
+               if self.m10k_addrstalla_gpo_bit is not None else {}),
         }
 
 
@@ -5040,6 +5105,63 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                     sources=("experiments/780_quartus_sdc/rtl/top.v",),
                     tb="experiments/090_pll_clock/sim/meter_sim.cpp",
                     parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "790_m10k_addrstall": ExperimentPolicy(
+            name="790_m10k_addrstall",
+            sources=("experiments/790_m10k_addrstall/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K_TDP": 1},
+            nobram=False,
+            m10k_addrstalla_gpo_bit=29,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "B1EN",
+                    "A1WE",
+                    "B1WE",
+                    "ADDRSTALLA",
+                )
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/790_m10k_addrstall/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/790_m10k_addrstall/sim/m10k_addrstall_model.v",
+                    ),
+                    tb="experiments/790_m10k_addrstall/sim/tb.cpp",
                 ),
             ),
         ),

@@ -131,6 +131,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/760_pll_52/rtl/top.v",
             "experiments/770_m10k_async_read/rtl/top.v",
             "experiments/780_quartus_sdc/rtl/top.v",
+            "experiments/790_m10k_addrstall/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -168,7 +169,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
-            "nextpnr": "1e1745dcb40f9722d5b74389c1b411c56a27c8a8",
+            "nextpnr": "74aab451fc767996e1c6195531a86d36c14b82c9",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -795,6 +796,17 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_addrstall(self) -> None:
+        result = self._run("--print-commands", "--experiment", "790_m10k_addrstall")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/790_m10k_addrstall/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
