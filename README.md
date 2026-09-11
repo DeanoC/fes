@@ -30,10 +30,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Stable target identity and local DNS-SD reconnection after reboot/address
   changes. `GET /api/v1/session` reports the host session `id` and the bound
   FPGA `target`. `POST /api/v1/session/launch` may set `target` to bind that
-  session without rewriting `selected_target`. `selected_target` is the default
+  session without rewriting `selected_target`. A second configured target may
+  play at the same time; `GET /api/v1/sessions` lists live plays. `GET
+  /api/v1/session` is the foreground session. `selected_target` is the default
   session binding, not a process identity: it can change while idle even when
-  remote input or media is enabled. An active FPGA session still refuses a
-  second live target. In browser target
+  remote input or media is enabled. In browser target
   settings, choose **Prepare identity**
   before assembling new media; the existing settings API accepts
   `PATCH /api/v1/library/settings` with `{"prepare_target":"dev"}`. An already

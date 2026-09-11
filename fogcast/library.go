@@ -837,11 +837,19 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 		s.targetClients[s.selectedTarget] = selectedClient
 	}
 	s.executionMu.Lock()
-	active := s.activeTarget
+	playNames := make([]string, 0, len(s.plays)+1)
+	if s.activeTarget != "" {
+		playNames = append(playNames, s.activeTarget)
+	}
+	for name := range s.plays {
+		playNames = append(playNames, name)
+	}
 	s.executionMu.Unlock()
-	if active != "" && active != s.selectedTarget {
-		if client := previousClients[active]; client != nil {
-			s.targetClients[active] = client
+	for _, name := range playNames {
+		if name != "" && name != s.selectedTarget {
+			if client := previousClients[name]; client != nil {
+				s.targetClients[name] = client
+			}
 		}
 	}
 	if selectedIdentityChanged {

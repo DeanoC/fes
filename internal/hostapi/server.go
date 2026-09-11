@@ -206,6 +206,33 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/sessions" {
+			http.NotFound(w, r)
+			return
+		}
+		lister, ok := service.(interface{ PlaySessions() []fogcast.PlaySession })
+		if !ok {
+			writeJSON(w, http.StatusOK, map[string]any{"sessions": []any{}})
+			return
+		}
+		plays := lister.PlaySessions()
+		sessions := make([]map[string]any, 0, len(plays))
+		for _, play := range plays {
+			item := map[string]any{"target": play.Target, "execution": play.Execution, "state": protocol.StateActive}
+			if play.TargetID != "" {
+				item["target_id"] = play.TargetID
+			}
+			if play.GameID != "" {
+				item["game_id"] = play.GameID
+			}
+			if play.System != "" {
+				item["system"] = play.System
+			}
+			sessions = append(sessions, item)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions})
+	})
 	if config.mediaPreview != nil {
 		mux.Handle("GET /api/v1/session/preview", config.mediaPreview)
 	}

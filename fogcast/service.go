@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -243,6 +244,7 @@ type Service struct {
 	activeTarget             string
 	activeGameID             string
 	activeSystem             protocol.System
+	plays                    map[string]targetPlay
 	selectedTargetReconciled bool
 	// selectedTargetRepairAllowed permits one same-target connection repair after status is unreachable.
 	selectedTargetRepairAllowed bool
@@ -434,6 +436,7 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		roots: roots, rootsByID: rootsByID,
 		targets: append([]TargetConfig(nil), config.Targets...), selectedTarget: config.SelectedTarget,
 		targetClients:  make(map[string]serviceClient),
+		plays:          make(map[string]targetPlay),
 		requestTimeout: config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
@@ -483,18 +486,86 @@ func (s *Service) selectedClientLocked() (serviceClient, bool) {
 	return client, client != nil
 }
 
+type targetPlay struct {
+	execution string
+	gameID    string
+	system    protocol.System
+}
+
+type PlaySession struct {
+	Target    string
+	TargetID  string
+	Execution string
+	GameID    string
+	System    protocol.System
+}
+
 func (s *Service) retainSessionTargetLocked() {
 	if s.activeTarget == "" {
 		s.activeTarget = s.selectedTarget
 	}
+	if s.activeExecution != ExecutionFPGANative && s.activeExecution != ExecutionFPGADevelopment {
+		return
+	}
+	if s.plays == nil {
+		s.plays = make(map[string]targetPlay)
+	}
+	s.plays[s.activeTarget] = targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem}
+}
+
+func (s *Service) clearForegroundPlayLocked() {
+	if s.activeTarget != "" {
+		delete(s.plays, s.activeTarget)
+	}
+	s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
+	s.packageRejection = nil
+	s.activePackageID, s.activePackageGeneration = "", 0
+	for name, play := range s.plays {
+		s.activeTarget = name
+		s.activeExecution = play.execution
+		s.activeGameID = play.gameID
+		s.activeSystem = play.system
+		break
+	}
+}
+
+func (s *Service) PlaySessions() []PlaySession {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	out := make([]PlaySession, 0, len(s.plays))
+	for name, play := range s.plays {
+		out = append(out, PlaySession{
+			Target:    name,
+			TargetID:  targetByName(s.targets, name).TargetID,
+			Execution: play.execution,
+			GameID:    play.gameID,
+			System:    play.system,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Target < out[j].Target })
+	return out
 }
 
 func (s *Service) clearUnstartedSessionTarget() {
 	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
 	if s.activeExecution == "" {
 		s.activeTarget = ""
+		return
 	}
-	s.executionMu.Unlock()
+	if _, ok := s.plays[s.activeTarget]; ok {
+		return
+	}
+	s.activeTarget = ""
+	for name, play := range s.plays {
+		s.activeTarget = name
+		s.activeExecution = play.execution
+		s.activeGameID = play.gameID
+		s.activeSystem = play.system
+		break
+	}
 }
 
 func (s *Service) bindLaunchTarget(target string) error {
@@ -509,12 +580,6 @@ func (s *Service) bindLaunchTarget(target string) error {
 	if explicit && (strings.TrimSpace(cfg.Name) == "" || !cfg.Enabled) {
 		return canonicalError(protocol.CodeBadRequest, nil)
 	}
-	s.executionMu.Lock()
-	if s.activeExecution != "" && s.activeExecution != ExecutionHostOnly && s.activeTarget != "" && s.activeTarget != name {
-		s.executionMu.Unlock()
-		return canonicalError(protocol.CodeBusy, nil)
-	}
-	s.executionMu.Unlock()
 	if _, ok := s.targetClients[name]; !ok {
 		if !explicit {
 			s.executionMu.Lock()
@@ -708,8 +773,8 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 				s.executionMu.Lock()
 				if s.activeExecution != ExecutionHostOnly {
 					s.activeExecution = ExecutionFPGANative
-					s.retainSessionTargetLocked()
 					s.activeGameID, s.activeSystem = game.ID, game.System
+					s.retainSessionTargetLocked()
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
 				}
@@ -1612,9 +1677,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetReconciled = true
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-			s.packageRejection = nil
-			s.activePackageID, s.activePackageGeneration = "", 0
+			s.clearForegroundPlayLocked()
 		}
 		s.executionMu.Unlock()
 	} else {
@@ -1723,9 +1786,7 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	}
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-		s.packageRejection = nil
-		s.activePackageID, s.activePackageGeneration = "", 0
+		s.clearForegroundPlayLocked()
 	}
 	s.selectedTargetReconciled = status.State == protocol.StateIdle
 	s.selectedTargetRepairAllowed = false
@@ -2308,8 +2369,8 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGANative
-	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = game.ID, game.System
+	s.retainSessionTargetLocked()
 	s.packageRejection = nil
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()

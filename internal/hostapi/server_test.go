@@ -67,6 +67,7 @@ type fakeService struct {
 	sessionTarget          string
 	sessionTargetID        string
 	launchTarget           string
+	playSessions           []fogcast.PlaySession
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -81,6 +82,9 @@ func (s *fakeService) SessionExecution(context.Context, string) (string, error) 
 }
 func (s *fakeService) SessionTarget() (string, string) {
 	return s.sessionTarget, s.sessionTargetID
+}
+func (s *fakeService) PlaySessions() []fogcast.PlaySession {
+	return s.playSessions
 }
 func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr
