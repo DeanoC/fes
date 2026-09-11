@@ -32,7 +32,9 @@ The browser sends a game ID. The host resolves it through the catalog and
 system table, uploads a cache miss, and calls the target agent. The agent
 writes the MGL atomically and sends `load_core <mgl>` to `/dev/MiSTer_cmd`.
 FogCast waits for the expected value in `/tmp/CORENAME`. Stop uses the same
-command path with `menu.rbf` and waits for `MENU`.
+command path with `menu.rbf` and waits for `MENU`. Native FPGA Stop uses the
+mutation (`upload_timeout_seconds`) deadline, not the short status request
+timeout; programming idle can exceed a 5s health poll.
 
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`

@@ -1713,7 +1713,7 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
 	timeout := s.requestTimeout
-	if activeExecution == ExecutionFPGADevelopment || pendingRejection {
+	if activeExecution == ExecutionFPGANative || activeExecution == ExecutionFPGADevelopment || pendingRejection {
 		timeout = s.uploadTimeout
 	}
 	ctx, cancel := serviceTimeout(parent, timeout)

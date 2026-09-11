@@ -103,8 +103,8 @@ func TestNativeStopCompletingAfterTwoSecondTargetDeadlineReconcilesWithoutReplay
 	if control.stopCount() != 1 {
 		t.Errorf("runtime Stop calls = %d, want exactly one", control.stopCount())
 	}
-	if elapsed < requestTimeout || elapsed >= 2*requestTimeout {
-		t.Errorf("external Stop elapsed = %s, want bounded Status reconciliation after the 2s target deadline", elapsed)
+	if elapsed < 2*requestTimeout || elapsed >= 3*requestTimeout {
+		t.Errorf("external Stop elapsed = %s, want bounded Status reconciliation after the mutation deadline", elapsed)
 	}
 	relaunched, relaunchErr := service.Launch(context.Background(), game.ID, nil)
 	if relaunchErr != nil || !validServiceLaunch(relaunched, protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: identity}) {
@@ -113,6 +113,36 @@ func TestNativeStopCompletingAfterTwoSecondTargetDeadlineReconcilesWithoutReplay
 	launches, stops := control.counts()
 	if launches != 2 || stops != 1 {
 		t.Errorf("runtime mutations = launch:%d stop:%d, want 2/1", launches, stops)
+	}
+}
+
+func TestNativeFPGAStopUsesUploadTimeout(t *testing.T) {
+	client := &fakeServiceClient{
+		stopFn: func(ctx context.Context) (protocol.Status, error) {
+			select {
+			case <-time.After(40 * time.Millisecond):
+				return protocol.Status{State: protocol.StateIdle}, nil
+			case <-ctx.Done():
+				return protocol.Status{}, ctx.Err()
+			}
+		},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.requestTimeout = 10 * time.Millisecond
+	service.uploadTimeout = 200 * time.Millisecond
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.executionMu.Unlock()
+	started := time.Now()
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("native Stop = %+v, %v", status, err)
+	}
+	if elapsed := time.Since(started); elapsed < 40*time.Millisecond || elapsed > 150*time.Millisecond {
+		t.Fatalf("native Stop elapsed = %s, want upload deadline not request timeout", elapsed)
+	}
+	if client.stopCalls != 1 {
+		t.Fatalf("stop calls = %d", client.stopCalls)
 	}
 }
 
@@ -153,6 +183,7 @@ func TestNativeStopDoesNotReconcileConclusiveFailureOrCallerCancellation(t *test
 			}
 			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
 			service.requestTimeout = 20 * time.Millisecond
+			service.uploadTimeout = 20 * time.Millisecond
 			service.executionMu.Lock()
 			service.activeExecution = ExecutionFPGANative
 			service.executionMu.Unlock()
