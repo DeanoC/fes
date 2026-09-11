@@ -4723,6 +4723,60 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "740_m10k_dual_pll": ExperimentPolicy(
+            name="740_m10k_dual_pll",
+            sources=("experiments/740_m10k_dual_pll/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            additional_clocks_mhz={"pixel_clock": 74.25},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 2,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"PLL", "M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 2,
+                "cyclonev_clkena": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_M10K": 1,
+                "altera_pll": 2,
+                "cyclonev_clkena": 1,
+            },
+            nobram=False,
+            m10k_dual_clock_width=20,
+            require_read_clock_arc=True,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/740_m10k_dual_pll/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/360_pll_clkena/sim/pll_model.v",
+                        "experiments/360_pll_clkena/sim/clkena_model.v",
+                    ),
+                    tb="experiments/740_m10k_dual_pll/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 
