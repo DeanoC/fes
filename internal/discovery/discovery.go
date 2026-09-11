@@ -26,7 +26,10 @@ const (
 	protocolVersion = "1"
 )
 
-var lookupType = dnssd.LookupType
+// lookupType is the DNS-SD browse used by Resolve. brutella/dnssd packet
+// readers only stop on context.Canceled; a parent deadline would leave them
+// spinning on closed UDP sockets after LookupType returns.
+var lookupType = lookupTypeUntilParentDone
 var readRandom = rand.Read
 
 var (
@@ -121,6 +124,29 @@ func NewID() (string, error) {
 	encoded[23] = '-'
 	hex.Encode(encoded[24:36], bytes[10:16])
 	return string(encoded), nil
+}
+
+func lookupTypeUntilParentDone(parent context.Context, service string, add dnssd.AddFunc, rmv dnssd.RmvFunc) error {
+	return runUntilParentDone(parent, func(ctx context.Context) error {
+		return dnssd.LookupType(ctx, service, add, rmv)
+	})
+}
+
+func runUntilParentDone(parent context.Context, fn func(context.Context) error) error {
+	if err := parent.Err(); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+	stop := context.AfterFunc(parent, cancel)
+	defer func() {
+		stop()
+		cancel()
+	}()
+	err := fn(ctx)
+	if parentErr := parent.Err(); parentErr != nil {
+		return parentErr
+	}
+	return err
 }
 
 func Resolve(ctx context.Context, id string) ([]string, error) {

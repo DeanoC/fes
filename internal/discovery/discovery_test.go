@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -62,6 +63,121 @@ func TestResolveCancellationWithoutMatches(t *testing.T) {
 	cancel()
 	if _, err := Resolve(ctx, "01234567-89ab-cdef-0123-456789abcdef"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Resolve error = %v, want context.Canceled", err)
+	}
+}
+
+func TestRunUntilParentDoneCancelsInnerOnDeadline(t *testing.T) {
+	parent, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	innerErr := make(chan error, 1)
+	stopped := make(chan struct{})
+	err := runUntilParentDone(parent, func(ctx context.Context) error {
+		go func() {
+			for ctx.Err() != context.Canceled {
+				runtime.Gosched()
+			}
+			close(stopped)
+		}()
+		<-ctx.Done()
+		innerErr <- ctx.Err()
+		return ctx.Err()
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want deadline exceeded", err)
+	}
+	select {
+	case got := <-innerErr:
+		if !errors.Is(got, context.Canceled) {
+			t.Fatalf("inner error = %v, want canceled", got)
+		}
+	default:
+		t.Fatal("inner did not return")
+	}
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("brutella-style reader kept spinning after deadline")
+	}
+}
+
+func TestRunUntilParentDonePreservesParentCancel(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started := make(chan struct{})
+	innerErr := make(chan error, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- runUntilParentDone(parent, func(ctx context.Context) error {
+			close(started)
+			<-ctx.Done()
+			innerErr <- ctx.Err()
+			return ctx.Err()
+		})
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("lookup did not start")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runUntilParentDone did not return")
+	}
+	select {
+	case got := <-innerErr:
+		if !errors.Is(got, context.Canceled) {
+			t.Fatalf("inner error = %v, want canceled", got)
+		}
+	default:
+		t.Fatal("inner did not return")
+	}
+}
+
+func TestRunUntilParentDoneReturnsParentErrorWhenAlreadyDone(t *testing.T) {
+	parent, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	<-parent.Done()
+	called := false
+	err := runUntilParentDone(parent, func(context.Context) error {
+		called = true
+		return nil
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want deadline exceeded", err)
+	}
+	if called {
+		t.Fatal("lookup ran after parent was already done")
+	}
+}
+
+func TestLookupTypeUntilParentDoneStopsOnDeadline(t *testing.T) {
+	runtime.GC()
+	before := runtime.NumGoroutine()
+	var lastErr error
+	ok := 0
+	for i := 0; i < 8; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+		err := lookupTypeUntilParentDone(ctx, serviceFQDN, func(dnssd.BrowseEntry) {}, func(dnssd.BrowseEntry) {})
+		cancel()
+		if err == nil || errors.Is(err, context.DeadlineExceeded) {
+			ok++
+			continue
+		}
+		lastErr = err
+	}
+	if ok == 0 {
+		t.Skipf("DNS-SD browse unavailable: %v", lastErr)
+	}
+	time.Sleep(200 * time.Millisecond)
+	runtime.GC()
+	after := runtime.NumGoroutine()
+	if after-before > 8 {
+		t.Fatalf("goroutines grew from %d to %d after timed-out browses", before, after)
 	}
 }
 

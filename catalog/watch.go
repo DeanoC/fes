@@ -10,7 +10,9 @@ import (
 
 // DefaultFolderWatchInterval is the host poll interval for SMB-backed
 // folder-watch. Inotify is not required and is often silent on guest SMB.
-const DefaultFolderWatchInterval = 5 * time.Second
+// A full walk of a large CIFS library is too expensive to repeat every few
+// seconds while the host is idle.
+const DefaultFolderWatchInterval = 30 * time.Second
 
 // FolderWatcher reconciles every table-mapped library root into the catalog
 // store when ROMs appear or disappear. Roots come from the caller so the watch

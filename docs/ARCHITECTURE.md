@@ -324,7 +324,7 @@ A kit-only host runs `fogcast-api` with `--launcher-config` and does not open
 the SDL sofa window. Pass `--headless` so that process does not compose local
 capture or the MJPEG preview pipeline; kit catalog, attract, session, and
 input stay on the launcher listener. Folder-watch still polls configured
-library roots every five seconds, but it only re-opens a source when size or
+library roots every thirty seconds, but it only re-opens a source when size or
 mtime changed. Unchanged rows bump `seen_generation` and do not rebuild the
 search index. A long scan waits a full interval before the next poll, so the
 watcher cannot run back-to-back.
@@ -783,6 +783,7 @@ The service's existing lifecycle admission serializes validation with launch,
 Stop and development operations. A one-second host monitor provides retry
 opportunities; failed lookups back off for 1, 2, 4, 8 and then 15 seconds.
 Individual health probes and multicast browse windows are bounded and cancellable.
+Browse is stopped with cancel when its deadline expires, so the DNS-SD packet readers exit.
 Settings changes cancel an in-progress lookup, and shutdown cancels and joins the
 monitor before releasing leases. Explicit development reboot recovery uses the
 same read-only validation while retaining its existing lifecycle admission.

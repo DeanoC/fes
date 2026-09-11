@@ -125,6 +125,12 @@ func TestFolderWatcherIgnoresUnsupportedRoots(t *testing.T) {
 	}
 }
 
+func TestDefaultFolderWatchIntervalLeavesAGapBetweenSMBPolls(t *testing.T) {
+	if DefaultFolderWatchInterval < 30*time.Second {
+		t.Fatalf("DefaultFolderWatchInterval = %s, want at least 30s", DefaultFolderWatchInterval)
+	}
+}
+
 func TestFolderWatcherRunStopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := 0
