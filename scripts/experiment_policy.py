@@ -1184,6 +1184,11 @@ class ExperimentPolicy:
                         connections[port] = ["0"]
                         directions[port] = "input"
                         changed = True
+                for port in connections:
+                    if port in extra or port in tied or port in directions:
+                        continue
+                    directions[port] = "output"
+                    changed = True
         missing = [
             name
             for name in {**dict(self.synth_json_input_ports), **dict(self.synth_json_tied_low)}
@@ -4774,6 +4779,55 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/360_pll_clkena/sim/clkena_model.v",
                     ),
                     tb="experiments/740_m10k_dual_pll/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "750_dsp18x19": ExperimentPolicy(
+            name="750_dsp18x19",
+            sources=("experiments/750_dsp18x19/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL18X19": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "dsp18x19": 2,
+            },
+            required_synth_cells={"MISTRAL_MUL18X19": 1},
+            nodsp=False,
+            synth_json_input_ports={"MISTRAL_MUL18X19": ("A", "B", "C", "D")},
+            yosys_post_synth=(
+                "chtype -set MISTRAL_MUL18X19 t:dsp18x19; "
+                "setparam -set A_SIGNED 0 t:MISTRAL_MUL18X19; "
+                "setparam -set B_SIGNED 0 t:MISTRAL_MUL18X19; "
+                "setparam -set C_SIGNED 0 t:MISTRAL_MUL18X19; "
+                "setparam -set D_SIGNED 0 t:MISTRAL_MUL18X19; "
+            ),
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/750_dsp18x19/rtl/top.v",
+                        "experiments/750_dsp18x19/sim/dsp18x19.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/750_dsp18x19/sim/tb.cpp",
                 ),
             ),
         ),

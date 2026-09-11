@@ -170,9 +170,16 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `9cdc03cc8521317b729f986c65448733e4aa0422` is
+The current nextpnr pin `d22eaef1a858e2d81bcbe971b580f69265e59bde` is
+merged PR #53 (`c43136fe6688ff36e2e104327f37faa09450766e` onto
+`9cdc03cc8521317b729f986c65448733e4aa0422`). It adds native 18x19 DSP
+views: `MISTRAL_MUL18X19` dual products and `MISTRAL_MUL18X19_COMBINED`
+38-bit add/sub. Pair it with Yosys `da6373c0`. Locked Yosys has no 18x19
+cell, so OSS maps a keep blackbox after synthesis.
+
+That pin sits on `9cdc03cc8521317b729f986c65448733e4aa0422`,
 merged PR #52 (`55f17b34dfa1ca6f87f1b70ed9442ee2e4ead7c7` onto
-`d8a96b581e608736ea346c34a2a0ce8161d2e1ab`). Default router2 retries
+`d8a96b581e608736ea346c34a2a0ce8161d2e1ab`). That pin's default router2 retries
 ordinary nets with router1 when a design has two `altera_pll` cells, one
 `MISTRAL_M10K`, and less than 10% timing margin. Pair it with Yosys
 `da6373c0`.
@@ -1380,6 +1387,27 @@ undisturbed neighbour address. Load JSON timed out; GPI and probe still
 passed. `stop` completed development reboot recovery and left the lease
 free.
 
+`750_dsp18x19` exposes two unsigned 18x19 products from one
+`MISTRAL_MUL18X19` cell. GPO `[7:0]` is A, `[15:8]` is B, `[23:16]` is C,
+and bit 24 selects the second product. D is the constant `19'd3`. GPI
+signature `0xD619`; `[15:0]` are the selected product (`A*B` or `C*3`).
+OSS `chtype`s a blackbox `dsp18x19` to `MISTRAL_MUL18X19` because locked
+Yosys has no 18x19 cell. Memory and PLL remain forbidden. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
+`experiments/750_dsp18x19/expected.md`.
+
+The OSS `750_dsp18x19` artifact has SHA-256
+`2af0beae2dba60bc85d6a288f6130f7cdbac017b477ad7df89dd1aecf663bdfa`
+and size 1,955,194 bytes. nextpnr packed one `MISTRAL_MUL18X19` at
+`MISTRAL_MUL18X19.32.8.5`. Its reported Fmax is 322.269 MHz against the
+50 MHz constraint. Utilization is one `MISTRAL_MUL18X19` (112 available)
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
+signature `0xD619` and the expected products (`10*12` → `120`, `7*3` →
+`21`, `16*16` → `256`, `5*3` → `15`). Load JSON timed out; GPI and probe
+still passed. `stop` completed development reboot recovery and left the
+lease free. The current nextpnr pin `d22eaef1` with Yosys `da6373c0`
+reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1401,7 +1429,8 @@ clear (fabric GPI only), and an explicit `MISTRAL_M10K` primitive with
 Yosys-emitted `ACLR1` (fabric GPI only), and an inferred `ramstyle=M10K`
 asynchronous read-output clear (fabric GPI only), and a TDP M10K unused-clock
 TCLK fold (fabric GPI only), and a dual-PLL M10K design on default
-router2 (fabric GPI only). It does not establish native
+router2 (fabric GPI only), and native 18x19 dual products (fabric GPI
+only). It does not establish native
 game acceptance.
 
 ## Standalone Pong game
