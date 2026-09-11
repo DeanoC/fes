@@ -73,6 +73,24 @@ func TestGenerateABIFesGpConstants(t *testing.T) {
 	if text != again {
 		t.Fatal("ABI Go generation is not deterministic")
 	}
+	computer, err := pack.LoadABI("../../packages/abi/fes_simple_computer.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	computerText, err := GenerateABI(computer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"FesSimpleComputerABIID", `"fes.simple-computer"`, "FesSimpleComputerABITag", "uint16 = 2",
+		"FesSimpleComputerSignature", "FesSimpleComputerCapabilityKeyboard",
+		`FesSimpleComputerInterfaceKeyboardID`, `"fes.keyboard"`,
+		`FesSimpleComputerInterfaceMediaBlobID`, `"fes.media.blob"`,
+	} {
+		if !strings.Contains(computerText, fragment) {
+			t.Fatalf("missing computer ABI Go constant %q\n%s", fragment, computerText)
+		}
+	}
 	for _, fragment := range []string{
 		"FesGpABIID", `"fes.simple-game"`, "FesGpABIMajor", "uint16 = 1",
 		"FesGpSignature", "uint32 = 0xf5000000", "FesGpCapabilityGamepad", "uint32 = 0x1",
@@ -98,6 +116,7 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	for _, fragment := range []string{
 		"type ProgrammingProfilePair struct", `Profile: "mister-v1", ABI: "mister", Major: 1`,
 		`Profile: "fes-gp-v1", ABI: "fes.simple-game", Major: 1`,
+		`Profile: "fes-gp-v1", ABI: "fes.simple-computer", Major: 1`,
 		`Profile: "development-contained-v1", DiagnosticOnly: true`,
 		`De10NanoProgrammingPlatform = "de10_nano"`, "De10NanoProgrammingDevice", `"5CSEBA6U23I7"`,
 	} {

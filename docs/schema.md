@@ -315,6 +315,15 @@ button masks, and interface capability assignments. The C++ and Go emitters
 preserve its `FesGp` names; the Verilog emitter converts them to guarded
 `FES_GP_*` macros.
 
+`packages/abi/fes_simple_computer.yaml` is a second FES GP ABI on the same
+mailbox layout: tag 2, required interfaces `fes.keyboard` 1.0 (bit 0),
+`fes.video.fixed-720p60` 1.0 (bit 1), and `fes.media.blob` 1.0 (bit 2).
+Opcodes 2–6 are execution hold/release, keyboard-row writes, and a 1..16384
+byte media blob (begin/data/commit). Error 4 is invalid state. Constant names
+use the `FesSimpleComputer` prefix so generated consumers can include both
+ABIs in one translation unit. `testdata/fes-simple-computer-v1/exchanges.json`
+is the contiguous golden mailbox sequence for that ABI.
+
 ## programming_profiles
 
 A programming-profile registry names the platform/device and approved
@@ -332,6 +341,8 @@ profiles:
     abis:
       - id: fes.simple-game
         major: 1
+      - id: fes.simple-computer
+        major: 1
   - id: development-contained-v1
     diagnostic_only: true
     abis: []
@@ -339,9 +350,10 @@ profiles:
 
 Profile IDs are unique. A normal profile contains one or more unique ABI-major
 pairs; a diagnostic-only profile contains no pair. The DE10-Nano registry
-contains only `mister-v1`/`mister` major 1 and `fes-gp-v1`/`fes.simple-game`
-major 1. `development-contained-v1` is explicitly diagnostic-only and has no
-ABI fallback.
+contains `mister-v1`/`mister` major 1 and `fes-gp-v1` paired with both
+`fes.simple-game` major 1 and `fes.simple-computer` major 1.
+`development-contained-v1` is explicitly diagnostic-only and has no ABI
+fallback. `fes.simple-computer` is not approved with `mister-v1`.
 
 `emit-cpp` represents every row as `GeneratedProgrammingProfilePair` with
 `profile`, `abi`, `major`, and `diagnostic_only`; a diagnostic row uses

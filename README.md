@@ -35,9 +35,10 @@ an Overlord port.
   `diff-oracle` on platform or system YAML. `emit-go` writes FogCast
   launch fields (expected core, cartridge index) from a system package.
 - Declarative FES GP mailbox constants and the DE10-Nano programming
-  profile/ABI-major registry. Emitters produce reviewed C++14, Go, and guarded
-  Verilog constant text; they do not produce modules, netlists, MMIO maps, or
-  lifecycle recipes.
+  profile/ABI-major registry. `fes.simple-game` 1.0 and `fes.simple-computer`
+  1.0 are both approved on `fes-gp-v1`. Emitters produce reviewed C++14, Go,
+  and guarded Verilog constant text; they do not produce modules, netlists,
+  MMIO maps, or lifecycle recipes.
 - Oracles extracted from libmister-runtime FPGA-manager/SPI headers and
   from the production Mega Drive profile. `make test` requires both to
   match.
@@ -109,7 +110,9 @@ validates `packages/platform/de10_nano.yaml`,
 matching Mega Drive/platform files in `testdata/oracles/`. Pong has no
 historical hardware oracle. It also validates the real
 `packages/source/snes_mister.yaml` source pin; this does not fetch or build it.
-It also validates the ABI definitions and DE10-Nano programming profile registry.
+It also validates the ABI definitions (`fes.simple-game`,
+`fes.simple-computer`, and `mister`) and the DE10-Nano programming profile
+registry.
 
 Requires Python 3.11 or later, Go 1.22 or later, and a C++14 compiler (`CXX`,
 default `c++`) for generated-header syntax tests.

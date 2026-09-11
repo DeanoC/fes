@@ -51,6 +51,53 @@ func TestLoadABIFesSimpleGameContract(t *testing.T) {
 	}
 }
 
+func TestLoadABIFesSimpleComputerContract(t *testing.T) {
+	root := repoRoot(t)
+	abi, err := LoadABI(filepath.Join(root, "packages", "abi", "fes_simple_computer.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if abi.ID != "fes.simple-computer" || abi.Major != 1 || abi.Minor != 0 || abi.Tag != 2 {
+		t.Fatalf("ABI = %#v", abi)
+	}
+	for name, want := range map[string]uint32{
+		"FesSimpleComputerSignature":          0xf5000000,
+		"FesSimpleComputerRequestMask":        0x80000000,
+		"FesSimpleComputerAckMask":            0x00800000,
+		"FesSimpleComputerErrorMask":          0x00400000,
+		"FesSimpleComputerIdentityMagic0":     0x4546,
+		"FesSimpleComputerIdentityMagic1":     0x3153,
+		"FesSimpleComputerAbiTag":             2,
+		"FesSimpleComputerOpcodeIdentity":     1,
+		"FesSimpleComputerOpcodeExecution":    2,
+		"FesSimpleComputerOpcodeKeyboard":     3,
+		"FesSimpleComputerOpcodeMediaBegin":   4,
+		"FesSimpleComputerOpcodeMediaData":    5,
+		"FesSimpleComputerOpcodeMediaCommit":  6,
+		"FesSimpleComputerKeyboardRowCount":   8,
+		"FesSimpleComputerKeyboardNeutralRow": 0x1f,
+		"FesSimpleComputerMediaMaxBytes":      16384,
+		"FesSimpleComputerErrorInvalidState":  4,
+	} {
+		got, ok := abi.Constant(name)
+		if !ok || got != want {
+			t.Errorf("constant %s = 0x%x, %t; want 0x%x", name, got, ok, want)
+		}
+	}
+	if len(abi.Interfaces) != 3 {
+		t.Fatalf("interfaces = %#v", abi.Interfaces)
+	}
+	if abi.Interfaces[0].ID != "fes.keyboard" || abi.Interfaces[0].CapabilityBit != 0 {
+		t.Fatalf("keyboard interface = %#v", abi.Interfaces[0])
+	}
+	if abi.Interfaces[1].ID != "fes.video.fixed-720p60" || abi.Interfaces[1].CapabilityBit != 1 {
+		t.Fatalf("video interface = %#v", abi.Interfaces[1])
+	}
+	if abi.Interfaces[2].ID != "fes.media.blob" || abi.Interfaces[2].CapabilityBit != 2 {
+		t.Fatalf("media interface = %#v", abi.Interfaces[2])
+	}
+}
+
 func TestLoadABIMisterHasNoFabricTag(t *testing.T) {
 	abi, err := LoadABI(filepath.Join(repoRoot(t), "packages", "abi", "mister.yaml"))
 	if err != nil {
@@ -227,8 +274,14 @@ func TestLoadProgrammingProfilesKeepsDiagnosticProfileUnpaired(t *testing.T) {
 				t.Fatalf("mister profile = %#v", profile)
 			}
 		case "fes-gp-v1":
-			if len(profile.ABIs) != 1 || profile.ABIs[0].ID != "fes.simple-game" || profile.ABIs[0].Major != 1 || profile.DiagnosticOnly {
+			if profile.DiagnosticOnly || len(profile.ABIs) != 2 {
 				t.Fatalf("FES GP profile = %#v", profile)
+			}
+			if profile.ABIs[0].ID != "fes.simple-game" || profile.ABIs[0].Major != 1 {
+				t.Fatalf("FES GP Pong pairing = %#v", profile.ABIs[0])
+			}
+			if profile.ABIs[1].ID != "fes.simple-computer" || profile.ABIs[1].Major != 1 {
+				t.Fatalf("FES GP computer pairing = %#v", profile.ABIs[1])
 			}
 		case "development-contained-v1":
 			if !profile.DiagnosticOnly || len(profile.ABIs) != 0 {
