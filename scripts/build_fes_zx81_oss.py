@@ -91,6 +91,8 @@ FORBIDDEN_RESOURCES = frozenset(
         "MISTRAL_MLAB",
         "MISTRAL_MUL9X9",
         "MISTRAL_MUL18X18",
+        "MISTRAL_MUL18X19",
+        "MISTRAL_MUL18X19_COMBINED",
         "MISTRAL_MUL27X27",
     }
 )
@@ -268,6 +270,8 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    if "50 MHz -> 52 MHz" not in route_text:
+        raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
     system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
