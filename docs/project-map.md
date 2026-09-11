@@ -101,6 +101,9 @@ recorded cache volume before removing it.
   changed artifacts; it does not itself prove hardware behavior.
 - **Cold two-pass build:** two independent image builds used to check matching
   results. An incremental build retains compiled work and has different evidence.
+- **Artifact:** a named, OS/arch-specific output (host binary, agent, runtime,
+  rootfs, core, ABI snapshot) identified by digest or commit, not by “whatever
+  is in this checkout”. See [artifact identities](artifacts.md).
 
 For boundary decisions and shared-definition changes, use
 [component boundaries](component-boundaries.md). For practical assignments, use

@@ -163,5 +163,7 @@ Report component work with this short handoff:
 
 Passing host tests or reusing historical hardware evidence does not establish
 hardware acceptance of `native-integration-dev`. Record acceptance only for
-the artifacts actually exercised. The separate migration of whole-system
+the artifacts actually exercised. Name the selected component commits and
+receipt hashes; an uncommitted worktree is not those artifacts. See
+[artifact identities](artifacts.md). The separate migration of whole-system
 image assembly into FES remains outside this workflow change.
