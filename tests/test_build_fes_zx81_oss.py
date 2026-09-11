@@ -71,9 +71,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn('ram_style = "m10k_tdp"', dpram)
         self.assertIn("assign q_a = ram[address_a]", dpram)
         sys_pll = (ROOT / "cores/fes-zx81/rtl/sys_pll.v").read_text(encoding="utf-8")
-        self.assertIn("`ifdef FES_ZX81_OSS", sys_pll)
-        self.assertIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
         self.assertIn('.output_clock_frequency0("52.0 MHz")', sys_pll)
+        self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):

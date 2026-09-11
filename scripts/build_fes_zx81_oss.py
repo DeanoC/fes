@@ -152,7 +152,7 @@ def create_build_record(
         "parameters": {
             "device": TARGET,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 50_000_000,
+            "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
             "seed": 3,
             "top": TOP,
@@ -269,7 +269,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 50.0, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
@@ -296,7 +296,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 50.0,
+                "requested_mhz": 52.0,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },
