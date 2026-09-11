@@ -255,6 +255,10 @@ class BuildFesPongTests(unittest.TestCase):
                         "cyclonev_hps_interface_peripheral_i2c": {"used": 1, "available": 4},
                         "MISTRAL_M10K": {"used": 0, "available": 553},
                         "MISTRAL_MUL9X9": {"used": 0, "available": 112},
+                        "MISTRAL_MUL18X18": {"used": 0, "available": 112},
+                        "MISTRAL_MUL18X19": {"used": 0, "available": 112},
+                        "MISTRAL_MUL18X19_COMBINED": {"used": 0, "available": 112},
+                        "MISTRAL_MUL27X27": {"used": 0, "available": 112},
                     },
                 }
             ),
@@ -434,6 +438,8 @@ class BuildFesPongTests(unittest.TestCase):
                 "MISTRAL_M10K",
                 "MISTRAL_MUL9X9",
                 "MISTRAL_MUL18X18",
+                "MISTRAL_MUL18X19",
+                "MISTRAL_MUL18X19_COMBINED",
                 "MISTRAL_MUL27X27",
             ):
                 with self.subTest(resource=resource):
@@ -449,6 +455,38 @@ class BuildFesPongTests(unittest.TestCase):
                     )
                     with self.assertRaisesRegex(BuildError, resource):
                         validate_build_evidence(output)
+
+    def test_unused_mul18x19_timing_rows_are_known(self) -> None:
+        self.assertLessEqual(
+            {"MISTRAL_MUL18X19", "MISTRAL_MUL18X19_COMBINED"},
+            set(build_fes_pong.FORBIDDEN_RESOURCES),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self._write_passing_outputs(output)
+            summary = validate_build_evidence(output)
+            self.assertEqual(summary["status"], "pass")
+            self.assertEqual(summary["resources"]["MISTRAL_MUL18X19"]["used"], 0)
+            self.assertEqual(summary["resources"]["MISTRAL_MUL18X19_COMBINED"]["used"], 0)
+
+            for resource in ("MISTRAL_MUL18X19", "MISTRAL_MUL18X19_COMBINED"):
+                with self.subTest(resource=resource):
+                    self._write_passing_outputs(output)
+                    timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+                    timing["utilization"][resource]["used"] = 1
+                    (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+                    with self.assertRaisesRegex(BuildError, resource):
+                        validate_build_evidence(output)
+
+            self._write_passing_outputs(output)
+            timing = json.loads((output / "timing.json").read_text(encoding="utf-8"))
+            timing["utilization"]["MISTRAL_NOT_A_REAL_RESOURCE"] = {
+                "used": 0,
+                "available": 1,
+            }
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "unknown resources"):
+                validate_build_evidence(output)
 
     def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:
         self.assertEqual(
@@ -505,8 +543,8 @@ class BuildFesPongTests(unittest.TestCase):
                     {"id": "fes.persistence.words", "major": 1, "minor": 0, "required": True},
                     {"id": "fes.pong.progress", "major": 1, "minor": 0, "required": True},
                 ])
-                self.assertEqual(payload, output / "core.rbf")
-                self.assertEqual(destination, package_store)
+                self.assertEqual(payload.resolve(), (output / "core.rbf").resolve())
+                self.assertEqual(destination.resolve(), package_store.resolve())
                 return package_store / ("f" * 64)
 
             with (
