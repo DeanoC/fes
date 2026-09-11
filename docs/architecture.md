@@ -1502,18 +1502,12 @@ combinational stand-in. The 1.5 ns host arc is an estimate. Simulation and
 OSS are supported; Quartus comparison is not implemented. See
 `experiments/770_m10k_async_read/expected.md`.
 
-The OSS `770_m10k_async_read` artifact has SHA-256
-`69a1f9bf2ca2b399af12249f36f3e534815249270ffeacd6d3d26a46d643d4b2`
-and size 1,959,851 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
-`CFG_ASYNC_READ=1`, packer `ENABLE[0]` tied high, both `CLKIN.0` and
-`CLKIN.1`, `BOT_CORECLK_SEL=1`, and default-zero `BOT_INCLK_SEL`.
-Reported Fmax is 352.609 MHz against 50 MHz. Utilization is one M10K
-and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
-signature `0xD42B`, INIT `0xA6` at address 0, a write without a user
-read enable, and an undisturbed neighbour. Load JSON timed out; GPI and
-probe still passed. `stop` completed development reboot recovery and
-left the lease free. The current nextpnr pin `c528c238` with Yosys
-`da6373c0` reproduces those same RBF bytes.
+The current OSS `770_m10k_async_read` artifact has SHA-256
+`f28438b7785f88b71a6f9c4e019d2cee3913ca124b8d1d6d314d8244dfc6de4d`
+and size 1,959,763 bytes. It reports 458.505 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 `780_quartus_sdc` measures PIN_V11 50 MHz → 25 MHz through one
 `altera_pll`, using Quartus SDC/QSF forms. GPI signature `0xD780`.
@@ -1577,20 +1571,12 @@ signature `0xD42E`. Locked Yosys still emits a clocked read enable, so
 OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`. See
 `experiments/810_m10k_async_defaults/expected.md`.
 
-The OSS `810_m10k_async_defaults` artifact has SHA-256
-`0787736d8c80e19f1488958c761fd05d1cc18bb34ad9d47c04ace3516cf9f7d3`
-and size 1,959,816 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with
-`CFG_ASYNC_READ=1`, no `ENABLE[0]` route, both `CLKIN.0` and `CLKIN.1`,
-second-half `BOT_1_CORECLK_SEL=1`/`BOT_1_INCLK_SEL=1`, and omitted
-`BOT_CORECLK_SEL`/`BOT_INCLK_SEL` plus omitted constant-high
-`BYTEENABLEA`. Reported Fmax is 408.664 MHz against 50 MHz. Utilization
-is one M10K and one HPS GP. Exact-artifact kit diagnostics on
-2026-09-11 returned GPI signature `0xD42E`, INIT `0xA6` at address 0,
-a write without a user read enable, and an undisturbed neighbour. Load
-JSON timed out; GPI and probe still passed. `stop` completed
-development reboot recovery and left the lease free. The current
-nextpnr pin `0523e0c6` with Yosys `da6373c0` reproduces those same
-RBF bytes.
+The current OSS `810_m10k_async_defaults` artifact has SHA-256
+`aa8c542e0ae22e60c1c975fe526a13fc0ea638b166107d7945993d227f9b5ef9`
+and size 1,959,790 bytes. It reports 422.476 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 `820_m10k_async_enable` instantiates one `MISTRAL_M10K` with a
 combinational read port and a packer-generated constant-high
@@ -1598,19 +1584,12 @@ combinational read port and a packer-generated constant-high
 read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
 See `experiments/820_m10k_async_enable/expected.md`.
 
-The OSS `820_m10k_async_enable` artifact has SHA-256
-`f25eefe8b7fa3c8ee419908d732d131613f34a9791072bf8f3a33fd34500d4a7`
-and size 1,959,651 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with
-`CFG_ASYNC_READ=1`, routed `ENABLE[0]`, both `CLKIN.0` and `CLKIN.1`,
-and `BOT_CORECLK_SEL=1`/`BOT_INCLK_SEL=1` plus the second-half
-`BOT_1_*` selectors. Reported Fmax is 424.268 MHz against 50 MHz.
-Utilization is one M10K and one HPS GP. Exact-artifact kit diagnostics
-on 2026-09-11 returned GPI signature `0xD42F`, INIT `0xA6` at address 0,
-a write without a user read enable, and an undisturbed neighbour. Load
-JSON timed out; GPI and probe still passed. `stop` completed
-development reboot recovery and left the lease free. The current
-nextpnr pin `517eb7c6` with Yosys `da6373c0` reproduces those same
-RBF bytes.
+The current OSS `820_m10k_async_enable` artifact has SHA-256
+`51716efaf9d0367efbb99ba8fb69bc41e3d31bfe8d807fdbfd562d45fefc3291`
+and size 1,959,856 bytes. It reports 464.037 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
@@ -1799,7 +1778,8 @@ clocks meet their constraints. The command never programs hardware.
 A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
 `.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
-and does not inherit the Quartus bring-up result (TV80, registered M10K).
+and does not inherit the Quartus bring-up result (the diagnostic used TV80
+and the former registered-M10K workaround).
 FogCast library install/launch of that package
 is a host concern; this recipe only seals the `.fcore`.
 

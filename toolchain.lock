@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "540998e36adcb0ddecdbdf39eed6df8e7551732d"
 order = 10
-rationale = "Adds native Cyclone V M10K flow-through inference for simple-dual 1024x10, 512x20 and 256x40 memories plus two-write/two-read true-dual memories, with CFG_ASYNC_READ simulation coverage and regressions (DeanoC/yosys PR #13). Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 21624a4d."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference for simple-dual 1024x10, 512x20 and 256x40 memories plus two-write/two-read true-dual memories, with CFG_ASYNC_READ simulation coverage and regressions (DeanoC/yosys PR #13). Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 21624a4d."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
