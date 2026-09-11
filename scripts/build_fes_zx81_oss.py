@@ -37,7 +37,10 @@ RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF = "cores/fes-zx81/constraints-oss.qsf"
 SDC = "cores/fes-zx81/clocks-oss.sdc"
-PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13)
+# Keep a fixed order so a source revision cannot silently choose a different
+# placement. Seed 34 was selected by a host sweep for the native async-M10K
+# netlist at this revision; later revisions still try every earlier seed first.
+PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34)
 PLACER_TIMING_WEIGHT = 300
 PLACER_CRITICALITY_EXPONENT = 5
 RTL_SOURCES = (
