@@ -354,6 +354,18 @@ def _run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
         raise BuildError(f"cannot run authenticated tool: {command[0]}") from exc
     _write_atomic(log, result.stdout)
     if result.returncode != 0:
+        # nextpnr-mistral can emit an intermediate timing ERROR, retry, then
+        # finish a passing route and still exit 1. Accept a finished route
+        # with a payload; validate_build_evidence still requires final PASS.
+        routed = cwd / OUTPUT_RELATIVE / "core.rbf"
+        if (
+            Path(command[0]).name == "nextpnr-mistral"
+            and b"Info: Program finished normally." in result.stdout
+            and routed.is_file()
+            and not routed.is_symlink()
+            and routed.stat().st_size > 0
+        ):
+            return
         raise BuildError(f"tool failed with exit {result.returncode}: {command[0]}; see {log}")
 
 

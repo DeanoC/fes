@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 import tomllib
@@ -594,6 +595,36 @@ class BuildFesPongTests(unittest.TestCase):
             self.assertFalse((output / "core.rbf").exists())
             self.assertFalse((output / "manifest.toml").exists())
             self.assertFalse((output / "build-summary.json").exists())
+
+    def test_nextpnr_retry_exit_one_is_accepted_when_route_finished(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake = root / "nextpnr-mistral"
+            fake.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' 'ERROR: Max frequency for clock x: 73.43 MHz (FAIL at 74.25 MHz)'\n"
+                "printf '%s\\n' 'Info: Max frequency for clock x: 78.27 MHz (PASS at 74.25 MHz)'\n"
+                "printf '%s\\n' 'Info: Program finished normally.'\n"
+                "exit 1\n",
+                encoding="utf-8",
+            )
+            fake.chmod(0o755)
+            payload = root / "build/fes-pong/core.rbf"
+            payload.parent.mkdir(parents=True)
+            payload.write_bytes(b"rbf")
+            log = root / "build/fes-pong/nextpnr.log"
+            build_fes_pong._run_tool((str(fake),), root, log)
+            self.assertIn("Program finished normally", log.read_text(encoding="utf-8"))
+
+    def test_nextpnr_nonzero_exit_without_finished_route_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake = root / "nextpnr-mistral"
+            fake.write_text("#!/bin/sh\nprintf '%s\\n' 'ERROR: crashed'\nexit 1\n", encoding="utf-8")
+            fake.chmod(0o755)
+            log = root / "nextpnr.log"
+            with self.assertRaisesRegex(BuildError, "tool failed with exit 1"):
+                build_fes_pong._run_tool((str(fake),), root, log)
 
 
 if __name__ == "__main__":
