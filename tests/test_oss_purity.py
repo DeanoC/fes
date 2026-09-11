@@ -166,7 +166,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
-            "nextpnr": "9cdc03cc8521317b729f986c65448733e4aa0422",
+            "nextpnr": "4d055daef276840c58fafc723bf189882b9e5d21",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
