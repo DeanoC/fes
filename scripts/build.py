@@ -50,11 +50,26 @@ def publish_file(source, destination):
     finally:
         temporary.unlink(missing_ok=True)
 
-def write_receipt(output, kind, fingerprint, names):
+HOST_PLATFORMS = frozenset({('linux', 'amd64'), ('darwin', 'arm64'), ('darwin', 'amd64')})
+
+
+def host_platform(os_name=None, arch=None):
+    if os_name is None and arch is None:
+        os_name, arch = 'linux', 'amd64'
+    if (os_name, arch) not in HOST_PLATFORMS:
+        raise ValueError('host receipt platform must be linux/amd64 or darwin/arm64 or darwin/amd64')
+    return os_name, arch
+
+
+def write_receipt(output, kind, fingerprint, names, os_name=None, arch=None):
     data = {"inputs": fingerprint, "files": {name: digest(output / name) for name in names}}
     if kind in ('host', 'image'):
         data['fes_revision'] = git(ROOT, 'rev-parse', 'HEAD')
         receipt_revision(data)
+    if kind == 'host':
+        os_name, arch = host_platform(os_name, arch)
+        data['os'] = os_name
+        data['arch'] = arch
     temporary = output / (kind + ".json.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
     temporary.replace(output / (kind + ".json"))
@@ -99,9 +114,10 @@ def verification_record(output, image_sha256, baseline_match):
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
 
 
-def load_verified_host(output, fingerprint):
-    """Require the exact current host receipt and both regular binary files."""
+def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
+    """Require the exact current host receipt for one OS/arch product."""
     output = Path(output)
+    os_name, arch = host_platform(os_name, arch)
     try:
         for name in ('host.json', 'fogcast', 'fogcast-api'):
             if not stat.S_ISREG((output / name).lstat().st_mode):
@@ -116,10 +132,12 @@ def load_verified_host(output, fingerprint):
         receipt = json.loads((output / 'host.json').read_text(), object_pairs_hook=unique)
         hashes = {name: digest(output / name) for name in ('fogcast', 'fogcast-api')}
         revision = receipt_revision(receipt)
-        if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision}:
+        if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision,
+                       'os': os_name, 'arch': arch}:
             raise ValueError('host receipt differs from selected inputs or binaries')
         return {'fes_revision': revision, 'host_receipt_sha256': digest(output / 'host.json'),
-                'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api']}
+                'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api'],
+                'os': os_name, 'arch': arch}
     except (OSError, ValueError, TypeError):
         raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
 
@@ -512,14 +530,12 @@ def main():
                     "FOGCAST_GOARCH=" + profile["host_arch"],
                     "FOGCAST_OUTPUT=" + str(output / "fogcast"),
                     "REVISION=" + revisions["FogCast"]], env=env)
-                # The pinned child's API target hard-codes Darwin. Use its Go recipe
-                # with Linux settings here until that target becomes parameterized.
-                api_env = dict(env, CGO_ENABLED="0", GOOS=profile["host_os"], GOARCH=profile["host_arch"])
-                ldflags = ("-s -w -X github.com/DeanoC/FogCast/internal/version.Version=" + profile["version"]
-                           + " -X github.com/DeanoC/FogCast/internal/version.Revision=" + revisions["FogCast"])
-                run(["go", "build", "-buildvcs=false", "-trimpath", "-ldflags", ldflags,
-                     "-o", output / "fogcast-api", "./cmd/fogcast-api"], cwd=fogcast, env=api_env)
-                write_receipt(output, "host", fp, ["fogcast", "fogcast-api"])
+                run(child_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
+                    "FOGCAST_GOARCH=" + profile["host_arch"],
+                    "FOGCAST_API_OUTPUT=" + str(output / "fogcast-api"),
+                    "REVISION=" + revisions["FogCast"]], env=env)
+                write_receipt(output, "host", fp, ["fogcast", "fogcast-api"],
+                              os_name=profile["host_os"], arch=profile["host_arch"])
         if args.action in ("build", "image", "rebuild"):
             if args.action != "rebuild" and reusable(output, "image", image_fp):
                 print("Image: reusing verified output", flush=True)

@@ -59,7 +59,7 @@ component remote; a local-only commit will break recursive clones elsewhere.
 | `make test` | Parent regression tests |
 | `make check` | Component pins, locks and generated-definition consistency |
 | `make doctor` | Selected profile and build prerequisites |
-| `make host` | Compile selected host outputs |
+| `make host` | Compile selected linux/amd64 host outputs and `host.json` |
 | `make dev` | Incremental diagnostic native image using a persistent base |
 | `make build` | Build selected host and cold two-pass native image outputs |
 | `make verify` | Verify published outputs against receipts and child checks |

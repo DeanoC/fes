@@ -94,7 +94,7 @@ out/native-integration-dev/
   fes-pong.package-selection.toml described-package selection
   core-packages/<package-id>/  exact manifest.toml and core.rbf
   inputs.json                 selected sources, profile, Go and parent recipe
-  host.json / image.json      input fingerprints and output hashes
+  host.json / image.json      input fingerprints, OS/arch (host), and output hashes
   reproducibility.txt         independent image hashes
   manifest.tsv                installed files
   library-report.tsv          target library closure
