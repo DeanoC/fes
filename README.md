@@ -11,8 +11,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
   openFPGALoader toolchain.
 - Open-source synthesis, place-and-route, and RBF generation.
 - Single-output PLL support for checked whole-MHz frequencies from a 50 MHz
-  reference, including 20, 40, and 100 MHz, with fabric reset/relock. The closed
-  PLL experiments below retain their 25 MHz output.
+  reference, including 20, 40, 52, and 100 MHz, with fabric reset/relock. The
+  closed PLL experiments below retain their 25 MHz output. 52 MHz uses the
+  520 MHz feedback profile.
 - Dual-output PLL support for compatible whole-MHz pairs that share one checked
   300/320/400 MHz feedback configuration, including 25/40 MHz.
 - Three- and four-output integer PLL support for compatible exact decimal
@@ -311,6 +312,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
   Locked Yosys has no 18x19 cell, so OSS maps a keep blackbox after
   synthesis. Run `make sim EXP=750_dsp18x19` and `make oss EXP=750_dsp18x19`;
   no Quartus comparison lane is implemented.
+- `760_pll_52`, 50→52 MHz integer PLL on the 520 MHz feedback profile.
+  Simulation uses a digital toggling stand-in. Run `make sim EXP=760_pll_52`
+  and `make oss EXP=760_pll_52`; no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
