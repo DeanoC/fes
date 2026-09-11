@@ -1104,7 +1104,10 @@ Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
 display, and the ULA has emitted visible pixels. It then types `LOAD ""` on
 the 40-key matrix (J, SHIFT+P, SHIFT+P, ENTER) and checks that the `$0347`
-tape-loader patch consumes a 16-byte `.p`. A 720p raster module
+tape-loader patch consumes a 16-byte `.p`. `LOAD ""` always hits that
+patch: a committed mailbox blob is copied into RAM; with no blob the
+patch sets carry immediately so BASIC reports `0/0` instead of hanging
+in the original cassette waiter with the display off. A 720p raster module
 `zx81_video_720p.v` integer-scales the 6.5 MHz capture into 1650×750 timing.
 This is simulation, not a Quartus RBF or kit result.
 

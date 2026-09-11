@@ -125,7 +125,7 @@ sim-fes-zx81:
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX \
+		-Wno-CASEX -Wno-PROCASSINIT \
 		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
 		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \

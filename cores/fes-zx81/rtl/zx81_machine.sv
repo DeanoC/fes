@@ -146,8 +146,6 @@ module zx81_machine (
     always @(posedge clk_sys) tape_in_byte <= tape_data;
 
     always @(posedge clk_sys) begin
-        reg old_nM1;
-        old_nM1 <= nM1;
         tapewrite_we <= 0;
         if (reset) begin
             tapeloader <= 0;
@@ -160,18 +158,20 @@ module zx81_machine (
             tape_loader_patch[5] <= 8'h07;
             tape_loader_patch[6] <= 8'h02;
         end else begin
-            if (~nM1 & old_nM1 & tape_ready) begin
-                if (addr == 16'h0347) begin
-                    tape_loader_patch[1] <= 8'h00;
-                    tape_loader_patch[5] <= 8'h07;
-                    tape_addr <= 14'h0;
-                    tapeloader <= 1;
-                end
-                if (addr >= 16'h03c3 || addr < 16'h0347)
-                    tapeloader <= 0;
+            // Always intercept LOAD at $0347. A committed mailbox blob is
+            // copied into RAM; with no blob, SCF immediately so BASIC
+            // returns 0/0 instead of the original cassette waiter (black
+            // screen until BREAK).
+            if (~nM1 && addr == 16'h0347 && !tapeloader) begin
+                tape_loader_patch[1] <= (tape_ready && tape_size != 0) ? 8'h00 : 8'h37;
+                tape_loader_patch[5] <= 8'h07;
+                tape_addr <= 14'h0;
+                tapeloader <= 1;
             end
+            if (tapeloader && ~nM1 && (addr >= 16'h03c3 || addr < 16'h0347))
+                tapeloader <= 0;
             if (tapeloader & ce_cpu_p) begin
-                if ({1'b0, tape_addr} < tape_size) begin
+                if (tape_ready && {1'b0, tape_addr} < tape_size) begin
                     tape_addr <= tape_addr + 1'h1;
                     tape_in_byte_r <= tape_in_byte;
                     tapewrite_we <= 1;
