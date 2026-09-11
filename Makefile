@@ -9,9 +9,10 @@ MEGADRIVE_RBF_SOURCE ?= source-built
 MEGADRIVE_RBF_BUNDLE ?=
 LDFLAGS = -s -w -X github.com/DeanoC/FogCast/internal/version.Version=$(VERSION)
 FOGCAST_LDFLAGS = $(LDFLAGS) -X github.com/DeanoC/FogCast/internal/version.Revision=$(REVISION)
-FOGCAST_GOOS ?= darwin
-FOGCAST_GOARCH ?= arm64
+FOGCAST_GOOS ?= $(shell go env GOOS)
+FOGCAST_GOARCH ?= $(shell go env GOARCH)
 FOGCAST_OUTPUT ?= bin/fogcast
+FOGCAST_API_OUTPUT ?= bin/fogcast-api
 FOGCAST_HOST_OUTPUT ?= bin/FogCastHost.app
 
 # The Darwin capture helper weak-links AVFoundation/CoreAudio. Keep the
@@ -71,8 +72,8 @@ build-fogcast:
 	CGO_ENABLED=0 GOOS=$(FOGCAST_GOOS) GOARCH=$(FOGCAST_GOARCH) go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o "$(FOGCAST_OUTPUT)" ./cmd/fogcast
 
 build-fogcast-api:
-	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fogcast-api ./cmd/fogcast-api
+	mkdir -p "$(dir $(FOGCAST_API_OUTPUT))"
+	CGO_ENABLED=0 GOOS=$(FOGCAST_GOOS) GOARCH=$(FOGCAST_GOARCH) go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o "$(FOGCAST_API_OUTPUT)" ./cmd/fogcast-api
 
 build-fogcast-host:
 	FOGCAST_SIGNING_IDENTITY="$(FOGCAST_SIGNING_IDENTITY)" VERSION="$(VERSION)" REVISION="$(REVISION)" scripts/build-fogcast-host.sh "$(FOGCAST_HOST_OUTPUT)"

@@ -41,3 +41,29 @@ if [ "$actual" != "$expected" ]; then
   echo "fogcast-build: override metadata mismatch: got '$actual', want '$expected'" >&2
   exit 1
 fi
+
+api=$fixture/fogcast-api
+make -C "$repo" build-fogcast-api \
+  VERSION=9.8.7 \
+  FOGCAST_GOOS="$host_os" \
+  FOGCAST_GOARCH="$host_arch" \
+  FOGCAST_API_OUTPUT="$api"
+if ! go version -m "$api" | grep -q "GOOS=$host_os"; then
+  echo "fogcast-build: api GOOS is not $host_os" >&2
+  go version -m "$api" >&2
+  exit 1
+fi
+if ! go version -m "$api" | grep -q "GOARCH=$host_arch"; then
+  echo "fogcast-build: api GOARCH is not $host_arch" >&2
+  go version -m "$api" >&2
+  exit 1
+fi
+
+make -C "$repo" -n build-fogcast-api \
+  FOGCAST_GOOS=linux FOGCAST_GOARCH=amd64 FOGCAST_API_OUTPUT="$fixture/linux-api" \
+  > "$fixture/api-linux.n"
+grep -q 'GOOS=linux GOARCH=amd64' "$fixture/api-linux.n"
+if grep -q 'GOOS=darwin GOARCH=arm64' "$fixture/api-linux.n"; then
+  echo 'fogcast-build: linux fogcast-api recipe still hard-codes Darwin' >&2
+  exit 1
+fi

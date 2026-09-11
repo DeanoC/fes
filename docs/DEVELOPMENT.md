@@ -16,6 +16,11 @@ development host if the system `/tmp` is full.
 
 ## Binaries and target image
 
+`make build-fogcast` and `make build-fogcast-api` use `FOGCAST_GOOS` /
+`FOGCAST_GOARCH`, defaulting to this machine's `go env GOOS` / `GOARCH`.
+FES `make host` passes `linux` / `amd64`. The signed sofa app remains
+`make build-fogcast-host` on Darwin.
+
 ```sh
 make build
 make build-agent
