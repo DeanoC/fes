@@ -376,6 +376,16 @@ public:
 			"contained development loading is unavailable", "compatibility"},
 			false, ""};
 	}
+	virtual Error SetComputerKeyboard(std::uint64_t)
+	{
+		return {ErrorCode::unsupported_interface,
+			"computer keyboard is unavailable", "input"};
+	}
+	virtual Error LoadComputerMedia(const std::string&)
+	{
+		return {ErrorCode::unsupported_interface,
+			"computer media is unavailable", "request"};
+	}
 };
 
 class Runtime {
@@ -397,6 +407,8 @@ public:
 		const std::string& expected_package_id, CorePackageInspection*);
 	Error LoadDevelopmentRBF(const std::string&);
 	Error LoadContainedDevelopmentRBF(const std::string&);
+	Error SetComputerKeyboard(std::uint64_t matrix);
+	Error LoadComputerMedia(const std::string& path);
 	Error Stop();
 
 private:

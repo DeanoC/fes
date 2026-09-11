@@ -533,6 +533,26 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.expected_revision = *revision;
 				parsed.paddle_speed = static_cast<std::uint16_t>(speed->integer_value);
 			}
+		} else if (operation->string_value == "set_keyboard") {
+			const char* const fields[] = {"protocol", "operation", "matrix"};
+			if (!HasOnly(root, fields, 3, &error)) return error;
+			const json::Value* matrix = Find(root, "matrix");
+			if (matrix == nullptr || matrix->type != json::Type::integer ||
+				matrix->integer_value < 0 ||
+				static_cast<std::uint64_t>(matrix->integer_value) > 0xffffffffffull)
+				return Invalid("keyboard matrix must be a 40-bit integer");
+			parsed.operation = Operation::set_keyboard;
+			parsed.keyboard_matrix =
+				static_cast<std::uint64_t>(matrix->integer_value);
+		} else if (operation->string_value == "load_media") {
+			const char* const fields[] = {"protocol", "operation", "path"};
+			if (!HasOnly(root, fields, 3, &error)) return error;
+			const std::string* path = nullptr;
+			if (!StringMember(root, "path", &path, &error)) return error;
+			if (!Path(*path))
+				return Invalid("path must be an absolute path of at most 4095 bytes");
+			parsed.operation = Operation::load_media;
+			parsed.media_path = *path;
 		} else if (operation->string_value == "load_development_rbf") {
 			const char* const fields[] = {
 				"protocol", "operation", "rbf", "programming_profile"};

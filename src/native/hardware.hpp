@@ -86,6 +86,8 @@ public:
 		std::uint64_t generation) override;
 	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile,
 		std::uint64_t generation = 0);
+	Error SetComputerKeyboard(std::uint64_t matrix) override;
+	Error LoadComputerMedia(const std::string& path) override;
 
 private:
 	Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);

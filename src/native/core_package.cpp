@@ -5,6 +5,7 @@
 
 #include "native/generated/de10_nano_programming.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include "native/sha256.hpp"
 
 #include <toml.hpp>
@@ -707,6 +708,50 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required MiSTer interface is unsupported");
+		return {};
+	}
+	if (descriptor.abi.id == FesSimpleComputerABIID &&
+		descriptor.abi.major == FesSimpleComputerABIMajor) {
+		if (descriptor.abi.minor > FesSimpleComputerABIMinor)
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"ABI minor is newer than the tested driver");
+		if (!descriptor.core.system.empty())
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"FES GP packages must omit core.system");
+		bool keyboard = false, video = false, media = false;
+		for (const CoreInterface& interface : descriptor.interfaces) {
+			if (interface.id == FesSimpleComputerInterfaceKeyboardID) {
+				const bool supported =
+					interface.major == FesSimpleComputerInterfaceKeyboardMajor &&
+					interface.minor <= FesSimpleComputerInterfaceKeyboardMinor;
+				if (!supported && interface.required)
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"required keyboard interface is unsupported");
+				keyboard = supported && interface.required;
+			} else if (interface.id == FesSimpleComputerInterfaceVideoFixed720p60ID) {
+				const bool supported =
+					interface.major == FesSimpleComputerInterfaceVideoFixed720p60Major &&
+					interface.minor <= FesSimpleComputerInterfaceVideoFixed720p60Minor;
+				if (!supported && interface.required)
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"required fixed-video interface is unsupported");
+				video = supported && interface.required;
+			} else if (interface.id == FesSimpleComputerInterfaceMediaBlobID) {
+				const bool supported =
+					interface.major == FesSimpleComputerInterfaceMediaBlobMajor &&
+					interface.minor <= FesSimpleComputerInterfaceMediaBlobMinor;
+				if (!supported && interface.required)
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"required media interface is unsupported");
+				media = supported && interface.required;
+			} else if (interface.required) {
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required interface is unsupported");
+			}
+		}
+		if (!keyboard || !video || !media)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"required FES computer interfaces are missing");
 		return {};
 	}
 	if (descriptor.abi.id != FesGpABIID || descriptor.abi.major != FesGpABIMajor)

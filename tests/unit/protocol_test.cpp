@@ -448,6 +448,19 @@ void TestPersistenceRequestsAndResponseFixtures()
 							   ",\"expected_revision\":\"absent\",\"paddle_speed\":";
 	assert(Parse(update + "2}", &request).ok() && request.paddle_speed == 2 &&
 		   request.expected_revision == "absent");
+	assert(Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627775})",
+		&request)
+			   .ok());
+	assert(request.operation == Operation::set_keyboard &&
+		request.keyboard_matrix == 0xffffffffffull);
+	assert(Parse(R"({"protocol":2,"operation":"load_media","path":"/tmp/a.p"})",
+		&request)
+			   .ok());
+	assert(request.operation == Operation::load_media && request.media_path == "/tmp/a.p");
+	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627776})",
+		&request)
+				.ok());
+	assert(!Parse(R"({"protocol":2,"operation":"load_media","path":"a.p"})", &request).ok());
 	for (const auto* invalid : {"-1", "3", "true", "\"1\"", "1.0", "null"})
 		assert(!Parse(update + invalid + "}", &request).ok());
 	assert(!Parse(

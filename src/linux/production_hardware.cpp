@@ -228,6 +228,14 @@ public:
 	{
 		return hardware_.LoadContainedDevelopmentRBF(path, generation);
 	}
+	Error SetComputerKeyboard(std::uint64_t matrix) override
+	{
+		return hardware_.SetComputerKeyboard(matrix);
+	}
+	Error LoadComputerMedia(const std::string& path) override
+	{
+		return hardware_.LoadComputerMedia(path);
+	}
 
 private:
 	native::PosixArtifactOpener opener_;

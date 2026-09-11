@@ -406,7 +406,8 @@ public:
 			status_.core_data = data;
 			status_.active_package.package_id = info.package_id;
 			status_.active_package.descriptor = info.descriptor;
-			if (info.descriptor.abi.id == "fes.simple-game") {
+			if (info.descriptor.abi.id == "fes.simple-game" ||
+				info.descriptor.abi.id == "fes.simple-computer") {
 				status_.active_package.observed.abi = info.descriptor.abi;
 				status_.active_package.observed.build_id = info.descriptor.build.id;
 			}
@@ -505,6 +506,46 @@ public:
 			return {};
 		}
 		return FinishLaunchFailure("load_development_rbf", "", "", result);
+	}
+
+	Error SetComputerKeyboard(std::uint64_t matrix)
+	{
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::running_development)
+				return Busy("FES computer is not running");
+			busy_ = true;
+		}
+		const Error error = hardware_.SetComputerKeyboard(matrix);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("set_keyboard", status_.system, status_.core,
+			error.ok() ? "running" : "input", error);
+		return error;
+	}
+
+	Error LoadComputerMedia(const std::string& path)
+	{
+		if (!ValidAbsolutePath(path))
+			return Invalid("invalid computer media path");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || status_.state != State::running_development)
+				return Busy("FES computer is not running");
+			busy_ = true;
+		}
+		const Error error = hardware_.LoadComputerMedia(path);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("load_media", status_.system, status_.core,
+			error.ok() ? "running" : "request", error);
+		return error;
 	}
 
 	Error Stop()
@@ -787,6 +828,14 @@ Error Runtime::InspectCore(const std::string& directory,
 Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
+}
+Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
+{
+	return impl_->SetComputerKeyboard(matrix);
+}
+Error Runtime::LoadComputerMedia(const std::string& path)
+{
+	return impl_->LoadComputerMedia(path);
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {

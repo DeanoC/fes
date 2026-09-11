@@ -26,9 +26,10 @@ constexpr const char* kDe10NanoProgrammingDevice = "5CSEBA6U23I7";
 static constexpr GeneratedProgrammingProfilePair kDe10NanoProgrammingProfilePairs[] = {
   {"mister-v1", "mister", 1, false},
   {"fes-gp-v1", "fes.simple-game", 1, false},
+  {"fes-gp-v1", "fes.simple-computer", 1, false},
   {"development-contained-v1", nullptr, 0, true},
 };
-constexpr std::size_t kDe10NanoProgrammingProfilePairCount = 3;
+constexpr std::size_t kDe10NanoProgrammingProfilePairCount = 4;
 
 } // namespace generated
 } // namespace native

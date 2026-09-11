@@ -2384,7 +2384,10 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	const mister::Capabilities capabilities = available.hardware.capabilities();
 	assert(capabilities.programming_profiles == std::vector<std::string>({
 		"development-contained-v1", "fes-gp-v1", "mister-v1"}));
-	assert(capabilities.abis.size() == 2);
+	assert(capabilities.abis.size() == 3);
+	assert(capabilities.abis[0].id == "fes.simple-computer");
+	assert(capabilities.abis[1].id == "fes.simple-game");
+	assert(capabilities.abis[2].id == "mister");
 
 	Fixture unavailable;
 	assert(unavailable.hardware.InspectCorePackage(package.path, id,

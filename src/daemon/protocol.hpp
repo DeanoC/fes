@@ -18,6 +18,8 @@ enum class Operation {
 	load_library_core,
 	inspect_core_data,
 	update_core_settings,
+	set_keyboard,
+	load_media,
 	load_development_rbf,
 	stop,
 };
@@ -33,6 +35,8 @@ struct Request {
 	std::string data_root;
 	std::string expected_revision;
 	std::uint16_t paddle_speed = 1;
+	std::uint64_t keyboard_matrix = 0;
+	std::string media_path;
 };
 
 Error ParseRequest(const std::string& line, Request* request);
