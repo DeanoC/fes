@@ -1,6 +1,7 @@
 package input
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -33,6 +34,16 @@ func TestKeyboardSinkPostsJMatrix(t *testing.T) {
 	}
 	if got != zx81keys.Neutral {
 		t.Fatalf("released matrix=%#x", got)
+	}
+}
+
+func TestKeyboardSinkReleaseAllSucceedsWhenPosterFails(t *testing.T) {
+	sink := NewKeyboardSink()
+	sink.SetPoster(func(uint64) error {
+		return errors.New("FES computer is not active")
+	})
+	if err := sink.ReleaseAll(); err != nil {
+		t.Fatalf("ReleaseAll: %v", err)
 	}
 }
 

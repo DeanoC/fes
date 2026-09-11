@@ -99,6 +99,9 @@ is reserved for an actual native cleanup failure. A `fes.simple-computer`
 package with `fes.keyboard` attaches remote input without `fes.gamepad`.
 Host keyboard events map through the agent onto the runtime 40-bit ZX81
 matrix (`set_keyboard`); Select+Start remains the software Stop chord.
+A host library entry for `fes.zx81` uses `load_library_core` like other
+ROM-less FPGA cores; development `core-load` stays a separate volatile
+activation and does not create that entry.
 The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
 input, Stop, and immediate relaunch paths are hardware-tested on the designated

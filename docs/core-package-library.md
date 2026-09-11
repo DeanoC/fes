@@ -18,12 +18,23 @@ fogcast --api http://127.0.0.1:8787 --json core-install /absolute/path/core.fcor
 fogcast --api http://127.0.0.1:8787 --json core-list
 fogcast --api http://127.0.0.1:8787 --json core-check PACKAGE_ID
 fogcast --api http://127.0.0.1:8787 --json core-entry 'Standalone FES Pong' PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json core-entry 'ZX81' PACKAGE_ID
 ```
 
 `core-entry` returns the stable `game_id`. The entry appears under **FPGA cores**
 in the normal library, where the existing launcher can launch it. The standard
-session launch API takes that game ID; controller input and held Select+Start
-use the existing package session lifecycle.
+session launch API takes that game ID. Held Select+Start uses the existing
+package session lifecycle.
+
+Standalone FES ZX81 is a ROM-less `fes.simple-computer` 1.0 package
+(`fes.zx81` 1.0.0). Required interfaces are `fes.keyboard`,
+`fes.media.blob` and `fes.video.fixed-720p60`. It has no `fes.gamepad` and
+no persistence layout, so library launches are volatile and there is no
+paddle-speed settings API. Remote input attaches on `fes.keyboard`; the
+target agent posts the 40-bit matrix through runtime `set_keyboard`. A
+library launch starts BASIC (empty `LOAD ""` reports `0/0`). A `.p` blob is
+still delivered with runtime `load_media`, not the host session API.
+`core-load` remains the development loader and does not create this entry.
 
 To select another installed version or return to a retained version:
 

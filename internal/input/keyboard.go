@@ -1,9 +1,8 @@
 package input
 
 import (
-	"sync"
-
 	"errors"
+	"sync"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -57,7 +56,10 @@ func (s *KeyboardSink) ReleaseAll() error {
 	if poster == nil {
 		return nil
 	}
-	return poster(zx81keys.Neutral)
+	// Neutralize is best-effort: no simple-computer core means the runtime
+	// rejects set_keyboard, and kit-lease cleanup still has to succeed.
+	_ = poster(zx81keys.Neutral)
+	return nil
 }
 
 func (s *KeyboardSink) Close() error { return s.ReleaseAll() }

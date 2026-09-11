@@ -145,7 +145,13 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 			SetKeyboardPoster(func(uint64) error)
 		}); ok {
 			keys.SetKeyboardPoster(func(matrix uint64) error {
-				return nativeRuntime.SetKeyboard(context.Background(), matrix)
+				err := nativeRuntime.SetKeyboard(context.Background(), matrix)
+				var apiErr *protocol.APIError
+				if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeUnsupportedOperation {
+					// Neutralize is a no-op when no simple-computer core is loaded.
+					return nil
+				}
+				return err
 			})
 		}
 		return nil
@@ -292,6 +298,9 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		status, stopErr := coordinator.Stop(cleanup)
 		if stopErr != nil || status.State != protocol.StateIdle {
 			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
+		}
+		if cleanupErr != nil {
+			slog.Error("kit lease cleanup failed", "err", cleanupErr, "state", status.State)
 		}
 		return cleanupErr
 	}, kitlease.WithEventSink(diagnostics))
