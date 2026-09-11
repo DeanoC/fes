@@ -19,7 +19,7 @@ host software and target root filesystem.
 | Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
 | Use described-core settings and progress | [Core persistence](core-persistence.md) |
-| Start the planned FES ZX81 computer | [FES ZX81](fes-zx81.md) |
+| Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless

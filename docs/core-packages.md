@@ -96,8 +96,15 @@ out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-install /abs
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-list
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-check PACKAGE_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'Standalone FES Pong' PACKAGE_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'ZX81' PACKAGE_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-select GAME_ID CURRENT_PACKAGE_ID NEXT_PACKAGE_ID
 ```
+
+`fes.zx81` is not an image-selected catalog core. Host `core-install` /
+`core-entry` plus `POST /api/v1/session/launch` with the returned `game_id`
+is the library path. It is a volatile `fes.simple-computer` package
+(`fes.keyboard`, no gamepad). `core-load` remains development-only and does
+not create the entry.
 
 Import works offline and never activates hardware. Creating an entry or changing
 its selected version requires current target compatibility. Selection is an

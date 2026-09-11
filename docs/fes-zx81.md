@@ -1,40 +1,49 @@
-# FES ZX81 (planned)
+# FES ZX81
 
-This is planned work on parent branch `feat/zx81`. The selected image does
-not include a ZX81 package.
+The first slice is a ROM-less `fes.simple-computer` 1.0 package (`fes.zx81`
+1.0.0) with 16 KB RAM, original ROM, a 40-key matrix, one `.p` mailbox blob
+and fixed 720p60 HDMI. There is no ZX80, colour, YM2149, turbo, joystick or
+SDRAM in this slice.
 
-FES Pong proved a custom GP ABI, a format-2 package and the
-Yosys/nextpnr-mistral board shell. The next described core is a small
-computer: **FES ZX81**, derived from the MiSTer Quartus ZX81 implementation.
-The bring-up order is custom ABI, Quartus, then nextpnr/mistral.
+FES does not install this package in the native image catalog. The host
+library path is `core-install` / `core-entry` / `POST /api/v1/session/launch`
+with the returned `game_id`, as for other ROM-less FPGA cores. See
+[described FPGA core packages](core-packages.md) and the selected FogCast
+[core package library](../sources/FogCast/docs/core-package-library.md).
 
-Read the [design](superpowers/specs/2026-09-10-fes-zx81-design.md) and
-[implementation plan](superpowers/plans/2026-09-10-fes-zx81.md) before
-editing. Current described-core commands remain in
-[core packages](core-packages.md).
+## Contracts
 
-## Worktrees
+| Item | Value |
+| --- | --- |
+| Core ID | `fes.zx81` |
+| ABI | `fes.simple-computer` 1.0 |
+| Profile | `fes-gp-v1` |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (all required) |
+| Persistence | none (library launches are volatile) |
+| Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
+| Stop | existing package Select+Start |
+| Tape | runtime `load_media` of a `.p`; empty `LOAD ""` reports `0/0` |
 
-| Path | Branch / pin | Role |
-| --- | --- | --- |
-| `out/dev/zx81/fes` | `feat/zx81` @ FES `de2b917d` | Parent docs and later pin integration |
-| `out/dev/zx81/mister-packages` | `feat/zx81` @ `82b78c4` | ABI, registry, generated consumers |
-| `out/dev/zx81/misteross` | `feat/zx81` @ `4a8b863` | RTL, sim, Quartus then Mistral recipes |
-| `out/dev/zx81/libmister-runtime` | `feat/zx81` @ `2bfff81` | Computer driver, keyboard, media |
-| `out/dev/zx81/FogCast` | `feat/zx81` @ `cd70be1` | Package load and host keyboard |
-| `out/dev/zx81/ZX81_MiSTer` | detached `9b24af6` | Read-only upstream Release 20260603 |
+`core-load` is the development loader and does not create a library entry.
+The target agent must post `set_keyboard`; an agent without that path only
+reaches uinput.
 
-Keep root `sources/` at the indexed gitlinks. Component workers edit the
-paths above. The integrator alone will select reviewed commits later.
+## Producers
 
-## First slice
+Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) is the kit-proven
+bring-up lane. `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for
+the same package identity. OSS uses TV80, a checked 50 MHz system PLL and
+registered M10K; it does not inherit Quartus acceptance.
 
-ZX81, 16 KB RAM, original ROM, 40-key matrix, one `.p` tape image, fixed
-720p60 HDMI. No ZX80, colour, YM2149, turbo, joysticks or SDRAM.
+## Menu / sofa UI
+
+Library install and `session/launch` of `fes.zx81` are host APIs. Showing
+that `game_id` in the sofa catalog grid is FogCast UI work, not this core
+slice.
 
 ## Validation
 
-Use component tests and Verilator in the worktrees. Quartus 17.0.2 is the
-first programmable artifact. Do not start the Mistral computer recipe until
-the Quartus kit checks in the plan have passed. Hardware claims need dated
-exact-artifact evidence on the designated kit.
+Component tests and Verilator live in the misteross worktree. Hardware
+diagnostics on the designated kit used a sealed OSS package and a derived
+keyboard-agent rootfs. Those are not exact-artifact acceptance of an
+assembled FES image.
