@@ -66,9 +66,10 @@ optional format-2 package id, and on an appliance boot the bootstrap ticket
 fields mean there is no sealed record (for example a Main-backend image), not
 that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
 (`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` when the
-target is reachable. Connection state remains separate from game state; a later
-compatibility check will fail closed on mismatch without rewriting
-configuration.
+target is reachable. Connection state remains separate from game state. When both sides advertise
+a comparable runtime commit or FogCast revision and they disagree, connection
+state is `version_mismatch` and launches, development loads, and package
+activation are refused. Configuration is not rewritten to hide the mismatch.
 
 ## Agent runtime backends
 

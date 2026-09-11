@@ -607,6 +607,9 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 			}
 		}
 	}
+	if err := s.incompatibleTargetError(); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
 
 	s.executionMu.Lock()
 	developmentActive := s.activeExecution == ExecutionFPGADevelopment
@@ -1141,6 +1144,9 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
+	if err := s.incompatibleTargetError(); err != nil {
+		return protocol.Status{}, err
+	}
 
 	if err := s.stopHostOnlyIfActive(ctx); err != nil {
 		return protocol.Status{}, err
@@ -1218,6 +1224,9 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
 			return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
 		}
+	}
+	if err := s.incompatibleTargetError(); err != nil {
+		return protocol.Status{}, corePackageRequestFailure(err)
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -2443,6 +2452,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "core package selection or data revision changed; refresh before retrying"
 	case protocol.CodeSaveFailed:
 		message = "core data could not be durably written; inspect status before retrying"
+	case protocol.CodeVersionMismatch:
+		message = "target artifacts do not match this host"
 	case protocol.CodeInternal:
 		message = "FogCast operation failed internally"
 	default:

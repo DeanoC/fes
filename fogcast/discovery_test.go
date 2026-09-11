@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -304,6 +305,46 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 	}
 	if client.EndpointURL().String() != next.URL || mutations.Load() != 0 {
 		t.Fatal("wrong endpoint or unexpected mutation")
+	}
+}
+
+func TestVersionMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	var launches int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{
+				APIVersion: "v1", Ready: true, TargetID: id, BootID: "boot",
+				Artifacts: &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40)},
+			})
+		case "/v1/kit/lease":
+			json.NewEncoder(w).Encode(host.KitOwnership{State: "free"})
+		case "/v1/status":
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+		case "/v1/launch":
+			launches++
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive})
+		default:
+			t.Fatalf("unexpected %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{{ID: "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", System: protocol.SystemMegaDrive}}}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", srv.Client()))
+	if _, err := s.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.TargetConnection(); got.State != "version_mismatch" || got.Message == "" {
+		t.Fatalf("%+v", got)
+	}
+	if _, err := s.Launch(context.Background(), "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", nil); err == nil {
+		t.Fatal("launch succeeded")
+	} else if apiErr, ok := err.(*protocol.APIError); !ok || apiErr.Code != protocol.CodeVersionMismatch {
+		t.Fatalf("err=%v", err)
+	}
+	if launches != 0 {
+		t.Fatalf("target launch calls %d", launches)
 	}
 }
 

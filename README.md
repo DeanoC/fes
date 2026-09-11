@@ -23,7 +23,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Target `GET /v1/health` reports sealed `artifacts` from the installed
   `build-inputs` record (and appliance boot ticket when present). Host
   `GET /api/v1/health` includes `host` OS/arch/version identity and forwards
-  those target artifacts. Mismatch is not yet a refused launch.
+  those target artifacts. A disagreeing runtime commit or FogCast revision
+  sets connection state `version_mismatch` and refuses launch without
+  rewriting configuration.
 - Target-side content caching, input, stop, and active-core observation.
 - Stable target identity and local DNS-SD reconnection after reboot/address
   changes. In browser target settings, choose **Prepare identity**

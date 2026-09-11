@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -182,6 +184,16 @@ func (s *Service) discoveryEnabled() bool {
 	return real && targetByName(s.targets, s.selectedTarget).TargetID != ""
 }
 
+func (s *Service) incompatibleTargetError() error {
+	if s.TargetConnection().State != "version_mismatch" {
+		return nil
+	}
+	return &protocol.APIError{
+		Code:    protocol.CodeVersionMismatch,
+		Message: "target artifacts do not match this host",
+	}
+}
+
 // SetTargetReset registers local input teardown at composition time. The callback
 // must not call back into Service or send network cleanup requests.
 func (s *Service) SetTargetReset(reset func()) {
@@ -289,6 +301,11 @@ func (s *Service) invalidateTargetSession(client *host.Client) {
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership host.KitOwnership, address, id string) TargetConnection {
 	connection := TargetConnection{State: "ready", Address: address, TargetID: id, BootID: health.BootID}
+	if field, _, _ := buildinputs.Check(version.Revision, buildinputs.ExpectedRuntimeCommit(), health.Artifacts); field != "" {
+		connection.State = "version_mismatch"
+		connection.Message = "Target " + field + " does not match this host."
+		return connection
+	}
 	switch {
 	case ownership.State == "blocked" || ownership.State == "revoking" || status.Recovery != "" || status.LastError != nil:
 		connection.State = "recovery-required"

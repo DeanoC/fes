@@ -724,6 +724,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "content transfer failed"
 	case protocol.CodeKitLeaseDenied:
 		return "kit lease is foreign; HID is fail-closed"
+	case protocol.CodeVersionMismatch:
+		return "target artifacts do not match this host"
 	case protocol.CodeMiSTerUnavailable:
 		return "MiSTer is unavailable"
 	case protocol.CodeCoreTimeout:
