@@ -45,7 +45,13 @@ func (s *Service) cancelTargetLookup() {
 func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health, error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
-	selected := targetByName(s.targets, s.selectedTarget)
+	name := s.selectedTarget
+	s.executionMu.Lock()
+	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
+		name = s.activeTarget
+	}
+	s.executionMu.Unlock()
+	selected := targetByName(s.targets, name)
 	client, ok := s.selectedClientLocked()
 	concrete, realClient := client.(*host.Client)
 	if !ok {
@@ -185,6 +191,15 @@ func (s *Service) discoveryEnabled() bool {
 }
 
 func (s *Service) incompatibleTargetError() error {
+	s.targetMu.RLock()
+	selected := s.selectedTarget
+	s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	active := s.activeTarget
+	s.executionMu.Unlock()
+	if active != "" && active != selected {
+		return nil
+	}
 	if s.TargetConnection().State != "version_mismatch" {
 		return nil
 	}

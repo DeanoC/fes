@@ -2959,6 +2959,134 @@ func TestNamedTargetSelectionRoutesPlayStatusAndStop(t *testing.T) {
 	}
 }
 
+func TestLaunchOnConfiguredTargetDoesNotRewriteSelected(t *testing.T) {
+	ctx := context.Background()
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}
+	game := catalog.Game{
+		ID: "snes-launch-on", Title: "Launch On", System: protocol.SystemSNES, LibraryID: root.ID,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	dev := &fakeServiceClient{
+		statusResult: protocol.Status{State: protocol.StateIdle},
+		nativeLaunch: func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
+			return protocol.Status{}, errors.New("dev should not launch")
+		},
+	}
+	spare := &fakeServiceClient{
+		nativeLaunch: func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+			expected := "SNES"
+			return protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &expected, ObservedCore: &expected}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateActive, GameID: &game.ID, System: &game.System},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	service := newService(
+		Config{
+			Libraries: []catalog.Root{root},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second, UploadTimeout: time.Second,
+			FPGAROMPaths: map[string]string{game.ID: "/media/fat/games/SNES/LaunchOn.smc"},
+		},
+		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	if _, err := service.LaunchOn(ctx, game.ID, "missing", nil); err == nil {
+		t.Fatal("missing target launched")
+	}
+	if _, err := service.LaunchOn(ctx, game.ID, "spare", nil); err != nil {
+		t.Fatal(err)
+	}
+	if spare.nativeLaunchCalls != 1 || dev.nativeLaunchCalls != 0 {
+		t.Fatalf("launch calls dev=%d spare=%d", dev.nativeLaunchCalls, spare.nativeLaunchCalls)
+	}
+	if got := service.LibrarySettings().SelectedTarget; got != "dev" {
+		t.Fatalf("selected target rewritten to %q", got)
+	}
+	name, _ := service.SessionTarget()
+	if name != "spare" {
+		t.Fatalf("session target = %q", name)
+	}
+	if _, err := service.Status(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if spare.statusCalls == 0 || dev.statusCalls != 0 {
+		t.Fatalf("status calls dev=%d spare=%d", dev.statusCalls, spare.statusCalls)
+	}
+	if _, err := service.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if spare.stopCalls != 1 || dev.stopCalls != 0 {
+		t.Fatalf("stop calls dev=%d spare=%d", dev.stopCalls, spare.stopCalls)
+	}
+	name, _ = service.SessionTarget()
+	if name != "dev" {
+		t.Fatalf("idle session target = %q", name)
+	}
+}
+
+func TestLaunchOnDifferentTargetWhileActiveIsBusy(t *testing.T) {
+	ctx := context.Background()
+	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: t.TempDir()}
+	game := catalog.Game{
+		ID: "snes-busy-target", Title: "Busy Target", System: protocol.SystemSNES, LibraryID: root.ID,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	dev := &fakeServiceClient{
+		nativeLaunch: func(_ context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
+			expected := "SNES"
+			return protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &expected, ObservedCore: &expected}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateIdle},
+		stopResult:   protocol.Status{State: protocol.StateIdle},
+	}
+	spare := &fakeServiceClient{
+		nativeLaunch: func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
+			return protocol.Status{}, errors.New("spare should not launch")
+		},
+	}
+	service := newService(
+		Config{
+			Libraries: []catalog.Root{root},
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
+				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+			FPGAROMPaths:   map[string]string{game.ID: "/media/fat/games/SNES/BusyTarget.smc"},
+		},
+		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spare, nil
+			}
+			return dev, nil
+		}),
+	)
+	if _, err := service.Launch(ctx, game.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := service.LaunchOn(ctx, game.ID, "spare", nil)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+		t.Fatalf("cross-target launch error = %v", err)
+	}
+	if spare.nativeLaunchCalls != 0 {
+		t.Fatalf("spare launch calls = %d", spare.nativeLaunchCalls)
+	}
+}
+
 func TestStartupReconciliationBlocksNamedTargetSwitchBeforeStatus(t *testing.T) {
 	ctx := context.Background()
 	gameID := "snes-startup-active"

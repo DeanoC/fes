@@ -24,6 +24,10 @@ type sessionService interface {
 	Status(context.Context) (protocol.Status, error)
 }
 
+type sessionLaunchOnService interface {
+	LaunchOn(context.Context, string, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
+}
+
 type sessionCoreService interface {
 	LoadCore(context.Context, int64, io.Reader) (protocol.Status, error)
 }
@@ -393,7 +397,7 @@ func (s *sessionCoordinator) watchMedia(handle MediaHandle, generation uint64, e
 	}()
 }
 
-func (s *sessionCoordinator) launch(ctx context.Context, id string, stamp clientStamp) (sessionResult, error) {
+func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stamp clientStamp) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -412,7 +416,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string, stamp client
 		}
 	}
 	if execution == fogcast.ExecutionFPGADevelopment {
-		response, err := s.service.Launch(ctx, id, nil)
+		response, err := s.launchGame(ctx, id, target, nil)
 		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch", stamp)
 		if err == nil && result.State == protocol.StateActive {
 			if recorder, ok := s.service.(interface {
@@ -463,7 +467,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id string, stamp client
 	}
 
 	var progress sessionProgress
-	resp, err := s.service.Launch(ctx, id, func(value fogcast.Progress) {
+	resp, err := s.launchGame(ctx, id, target, func(value fogcast.Progress) {
 		progress = sessionProgress{Stage: value.Stage, Message: value.Message}
 	})
 	if err != nil {
@@ -1151,6 +1155,13 @@ func (s *sessionCoordinator) end() {
 	s.mu.Lock()
 	s.busy = false
 	s.mu.Unlock()
+}
+
+func (s *sessionCoordinator) launchGame(ctx context.Context, id, target string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	if launcher, ok := s.service.(sessionLaunchOnService); ok {
+		return launcher.LaunchOn(ctx, id, target, progress)
+	}
+	return s.service.Launch(ctx, id, progress)
 }
 
 func (s *sessionCoordinator) publicSession(st protocol.Status, progress *sessionProgress) sessionResult {

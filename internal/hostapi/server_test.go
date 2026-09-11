@@ -66,6 +66,7 @@ type fakeService struct {
 	order                  *[]string
 	sessionTarget          string
 	sessionTargetID        string
+	launchTarget           string
 }
 
 func (s *fakeService) Games(context.Context) ([]catalog.Game, error) {
@@ -114,6 +115,13 @@ func (s *fakeService) Launch(ctx context.Context, _ string, progress fogcast.Pro
 		progress(fogcast.Progress{Stage: "launch", Message: "launching"})
 	}
 	return s.launch, s.launchErr
+}
+func (s *fakeService) LaunchOn(ctx context.Context, gameID, target string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	s.launchTarget = target
+	if target != "" {
+		s.sessionTarget = target
+	}
+	return s.Launch(ctx, gameID, progress)
 }
 func (s *fakeService) LoadDevelopmentRBF(ctx context.Context, size int64, body io.Reader) (protocol.Status, error) {
 	s.developmentCalls++

@@ -222,6 +222,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux.HandleFunc("POST /api/v1/session/launch", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
 			GameID       string `json:"game_id"`
+			Target       string `json:"target"`
 			ClientTsUTC  string `json:"client_ts_utc"`
 			ClientMonoMS *int64 `json:"client_mono_ms"`
 			FlightID     string `json:"flight_id"`
@@ -234,7 +235,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 			return
 		}
 		stamp := parseClientStamp(r, request.ClientTsUTC, request.ClientMonoMS, request.FlightID)
-		result, err := session.launch(r.Context(), request.GameID, stamp)
+		result, err := session.launch(r.Context(), request.GameID, request.Target, stamp)
 		if err != nil {
 			writeSessionError(w, err)
 			return

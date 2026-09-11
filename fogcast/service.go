@@ -473,8 +473,71 @@ func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
 }
 
 func (s *Service) selectedClientLocked() (serviceClient, bool) {
-	client := s.targetClients[s.selectedTarget]
+	name := s.selectedTarget
+	s.executionMu.Lock()
+	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
+		name = s.activeTarget
+	}
+	s.executionMu.Unlock()
+	client := s.targetClients[name]
 	return client, client != nil
+}
+
+func (s *Service) retainSessionTargetLocked() {
+	if s.activeTarget == "" {
+		s.activeTarget = s.selectedTarget
+	}
+}
+
+func (s *Service) clearUnstartedSessionTarget() {
+	s.executionMu.Lock()
+	if s.activeExecution == "" {
+		s.activeTarget = ""
+	}
+	s.executionMu.Unlock()
+}
+
+func (s *Service) bindLaunchTarget(target string) error {
+	s.targetMu.Lock()
+	defer s.targetMu.Unlock()
+	explicit := strings.TrimSpace(target) != ""
+	name := strings.TrimSpace(target)
+	if name == "" {
+		name = s.selectedTarget
+	}
+	cfg := targetByName(s.targets, name)
+	if explicit && (strings.TrimSpace(cfg.Name) == "" || !cfg.Enabled) {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	s.executionMu.Lock()
+	if s.activeExecution != "" && s.activeExecution != ExecutionHostOnly && s.activeTarget != "" && s.activeTarget != name {
+		s.executionMu.Unlock()
+		return canonicalError(protocol.CodeBusy, nil)
+	}
+	s.executionMu.Unlock()
+	if _, ok := s.targetClients[name]; !ok {
+		if !explicit {
+			s.executionMu.Lock()
+			s.activeTarget = name
+			s.executionMu.Unlock()
+			return nil
+		}
+		if s.targetClientFactory == nil {
+			return canonicalError(protocol.CodeInternal, nil)
+		}
+		client, err := s.targetClientFactory(cfg)
+		if err != nil || client == nil {
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
+		s.targetClients[name] = client
+	}
+	s.executionMu.Lock()
+	s.activeTarget = name
+	s.executionMu.Unlock()
+	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
+		s.targetOrigin(cfg)
+	}
+	return nil
 }
 
 func (s *Service) libraryRootsSnapshot() []catalog.Root {
@@ -577,6 +640,14 @@ func (s *Service) SetUploadReadDelay(delay time.Duration) {
 }
 
 func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	return s.LaunchOn(ctx, gameID, "", progress)
+}
+
+func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	if err := s.bindLaunchTarget(target); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	defer s.clearUnstartedSessionTarget()
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
 			return s.launchCoreEntry(ctx, gameID)
@@ -637,7 +708,7 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 				s.executionMu.Lock()
 				if s.activeExecution != ExecutionHostOnly {
 					s.activeExecution = ExecutionFPGANative
-					s.activeTarget = s.selectedTarget
+					s.retainSessionTargetLocked()
 					s.activeGameID, s.activeSystem = game.ID, game.System
 					s.packageRejection = nil
 					s.activePackageID, s.activePackageGeneration = "", 0
@@ -1178,7 +1249,7 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGADevelopment
-	s.activeTarget = s.selectedTarget
+	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = "", ""
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
@@ -1284,7 +1355,8 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 		hostCleanupErr := s.stopHostOnlyIfActive(ctx)
 		s.executionMu.Lock()
 		if hostCleanupErr == nil {
-			s.activeExecution, s.activeTarget = ExecutionFPGADevelopment, s.selectedTarget
+			s.activeExecution = ExecutionFPGADevelopment
+			s.retainSessionTargetLocked()
 			s.activeGameID, s.activeSystem = "", ""
 			s.activePackageID, s.activePackageGeneration = "", 0
 		}
@@ -1309,7 +1381,7 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGADevelopment
-	s.activeTarget = s.selectedTarget
+	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = "", ""
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
@@ -1499,12 +1571,12 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == "" {
 			s.activeExecution = ExecutionFPGADevelopment
-			s.activeTarget = s.selectedTarget
+			s.retainSessionTargetLocked()
 			s.activeGameID, s.activeSystem = "", ""
 			s.activePackageID, s.activePackageGeneration = "", 0
 		}
 
-		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation && s.activeTarget == s.selectedTarget && s.activeGameID != "" {
+		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation && s.activeGameID != "" {
 			status.GameID = stringPtr(s.activeGameID)
 			status.System = systemPtr(s.activeSystem)
 		} else {
@@ -1526,7 +1598,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.selectedTargetRepairAllowed = false
 		if s.activeExecution == "" {
 			s.activeExecution = ExecutionFPGANative
-			s.activeTarget = s.selectedTarget
+			s.retainSessionTargetLocked()
 			if status.GameID != nil {
 				s.activeGameID = *status.GameID
 			}
@@ -1658,6 +1730,9 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	s.selectedTargetReconciled = status.State == protocol.StateIdle
 	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
+	if s.targetOrigin != nil {
+		s.targetOrigin(targetByName(s.targets, s.selectedTarget))
+	}
 	return status, nil
 }
 
@@ -2233,7 +2308,7 @@ func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, ro
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGANative
-	s.activeTarget = s.selectedTarget
+	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = game.ID, game.System
 	s.packageRejection = nil
 	s.activePackageID, s.activePackageGeneration = "", 0

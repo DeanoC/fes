@@ -831,9 +831,18 @@ func (s *Service) persistAndPublishLibrarySettingsLocked(normalized LibraryConfi
 	}
 	s.targets = append([]TargetConfig(nil), normalized.Targets...)
 	s.selectedTarget = normalized.SelectedTarget
+	previousClients := s.targetClients
 	s.targetClients = make(map[string]serviceClient)
 	if selectedClient != nil {
 		s.targetClients[s.selectedTarget] = selectedClient
+	}
+	s.executionMu.Lock()
+	active := s.activeTarget
+	s.executionMu.Unlock()
+	if active != "" && active != s.selectedTarget {
+		if client := previousClients[active]; client != nil {
+			s.targetClients[active] = client
+		}
 	}
 	if selectedIdentityChanged {
 		s.connectionMu.Lock()
