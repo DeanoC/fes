@@ -15,6 +15,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 - [Appliance releases](docs/appliance-releases.md): versioned images, prepared cards, network updates and automatic fallback.
 - [Described FPGA core packages](docs/core-packages.md): build, inspect, load and stop the standalone FES Pong package.
 - [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
+- [Artifact identities](docs/artifacts.md): named host/target/FPGA/OS outputs and what may differ.
 - [Agent workflow](docs/agent-workflow.md): assignments, worktrees, integration and handoffs.
 - [Documentation index](docs/README.md): current guides, validation records and historical plans.
 
