@@ -65,9 +65,9 @@ designated kit. Do not assume the same authorization for another device.
   for bounded hardware diagnostics. Keep the original verified image
   untouched and label derived-image results diagnostic only; they are not
   reproducibility, release, or formal acceptance evidence.
-- Reserve the full two-pass `target-images`/`target-image-native` rebuild for
-  a stabilized change immediately before a major PR, merge, release, or
-  formal hardware acceptance. A full image rebuild remains mandatory when
-  Buildroot, init scripts, package contents, image configuration, or locked
-  inputs change.
+- Reserve the FES two-pass `make build` / `make verify` for a stabilized
+  change immediately before a major PR, merge, release, or formal hardware
+  acceptance. A full image rebuild remains mandatory when Buildroot, init
+  scripts, package contents, image configuration, or locked inputs change.
+  Native image assembly lives in the FES `image/` recipe.
 - Do not commit, push, or open a pull request unless the user authorizes it.

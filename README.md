@@ -405,13 +405,13 @@ record. Both files must be regular, sealed (no write bits), and byte-matched to
 the declared source revision, recipe, toolchain, size, and SHA-256. The bundle
 path is supplied by the operator and is never embedded in the image.
 
-Build with the source-built default:
+Build with the source-built default from a FES checkout:
 
-- `make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
+- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
 
 Build using the locked upstream release explicitly:
 
-- `make target-image-native MEGADRIVE_RBF_SOURCE=upstream`
+- `make build MEGADRIVE_RBF_SOURCE=upstream`
 
 There is no automatic fallback between the two RBF selections. Both modes
 install exactly one Mega Drive RBF at the same role path and keep runtime
@@ -429,9 +429,9 @@ the existing hardware baseline does not silently qualify a different RBF.
 | `Main_MiSTer` | The MiSTer/Main implementation used by the target image |
 | `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
-The current FogCast tree has one active target-image toolchain and one direct
-launch path. Superseded experiments are removed from the working tree; Git
-history is the archive.
+Native image assembly lives in the FES `image/` recipe. FogCast keeps the
+agent, kit, extra-core selector and native-runtime lock as inputs. Git
+history is the archive for superseded experiments.
 
 The conventional `dev`/`prod` image remains the broad FPGA game and
 development-RBF path described above. The separate `native-dev` image supports
@@ -474,6 +474,7 @@ Native image assembly defaults to Mega Drive; the explicit
 Pong/SNES/NES source bundles through the same builder and verifier. See the
 [image development guide](docs/DEVELOPMENT.md#optional-pong-snes-and-nes-image-cores).
 
-Native image preflight selects the Darwin host verifier on macOS and the Linux
-verifier in the build container. `target-image-native-fetch` builds both when
-running on macOS; `TARGET_IMAGE_LOCK_BIN` remains an explicit verifier override.
+Native image assembly lives in the FES `image/` recipe. FogCast supplies the
+agent, kit launcher, extra-core selector (`cmd/target-image-lock`) and
+`build/native-runtime.inputs.lock.toml`. `TARGET_IMAGE_LOCK_BIN` remains an
+explicit verifier override.

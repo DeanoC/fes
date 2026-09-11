@@ -25,7 +25,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-resolve target-image-fetch target-image-test target-images target-image-dev target-image-verify target-image-qemu-smoke target-image-native-fetch target-image-native target-image-native-verify target-image-native-qemu-smoke target-image-deploy target-smoke target-native-smoke target-kernel-test target-kernel target-kernel-verify
+.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -33,19 +33,8 @@ fmt:
 test: build-agent test-ui
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
-	sh scripts/tests/native-runtime-inputs_test.sh
-	sh scripts/tests/native-extra-cores_test.sh
 	sh scripts/tests/native-megadrive-support-truth_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
-	sh scripts/tests/target-image-sources_test.sh
-	sh scripts/tests/kit-init_test.sh
-	sh scripts/tests/target-image-rootfs_test.sh
-	sh scripts/tests/rootfs-package-cleanup_test.sh
-	sh scripts/tests/verify-target-image-cleanup_test.sh
-	sh scripts/tests/target-image_test.sh
-	sh scripts/tests/target-image-dev_test.sh
-	sh scripts/tests/target-image-dev-container_test.sh
-	sh scripts/tests/target-kernel_test.sh
 	sh scripts/tests/deploy-target-image_test.sh
 	sh scripts/tests/target-smoke_test.sh
 	sh scripts/tests/native-runtime-smoke_test.sh
@@ -163,68 +152,8 @@ build-target-image-lock-container:
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/target-image-lock-linux-amd64 ./cmd/target-image-lock
 
-target-image-resolve: build-target-image-lock
-	@command -v "$(CONTAINER_RUNTIME)" >/dev/null 2>&1 || { echo 'target-image-resolve: install a Docker-compatible container runtime first' >&2; exit 2; }
-	$(CONTAINER_RUNTIME) pull --platform linux/amd64 docker.io/library/debian:12.11-slim
-	bin/target-image-lock resolve --container-runtime "$(CONTAINER_RUNTIME)" --output build/target-image.sources.lock.toml
-
-target-image-fetch: build-target-image-lock-container build-agent
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/target-image-container.sh fetch /work/scripts/fetch-target-image-sources.sh
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fetch prod
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fetch dev
-
-target-image-test:
-	sh scripts/tests/kit-init_test.sh
-	sh scripts/tests/target-image_test.sh
-
-target-images: build-agent target-image-fetch
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh prod
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh dev
-
-# Fast development path: only the dev root, one persistent Buildroot output,
-# and no reproducibility comparison. Use target-images for release evidence.
-target-image-dev: build-agent target-image-fetch
-	TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_OUTPUT_VOLUME=fogcast-target-image-output TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-image.sh --fast-dev
-
-target-image-verify:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv
-
-target-image-qemu-smoke:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh prod build/output/target-image/prod/linux.img
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
-
-# Native input verification also runs on the host before container entry.
-ifeq ($(shell uname -s),Darwin)
-target-image-native-fetch: build-target-image-lock
-endif
-target-image-native-fetch: build-target-image-lock-container build-agent
-	LIBMISTER_RUNTIME_DIR= \
-	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
-	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
-	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  scripts/target-image-container.sh fetch \
-	  /work/scripts/fetch-native-runtime-inputs.sh
-	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
-	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
-	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
-	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  scripts/build-target-image.sh --fetch native-dev
-
-target-image-native: build-agent target-image-native-fetch
-	LIBMISTER_RUNTIME_DIR="$(LIBMISTER_RUNTIME_DIR)" \
-	  MEGADRIVE_RBF_SOURCE="$(MEGADRIVE_RBF_SOURCE)" \
-	  MEGADRIVE_RBF_BUNDLE="$(MEGADRIVE_RBF_BUNDLE)" \
-	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  scripts/build-target-image.sh native-dev
-
-target-image-native-verify:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml
-
-target-image-native-qemu-smoke:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  scripts/qemu-smoke-target-image.sh native-dev \
-	  build/output/target-image/native-dev/linux.img
+# Native Buildroot/rootfs assembly lives in the FES image/ recipe.
+# These targets remain FogCast inputs: agent, kit, and the lock selector.
 
 target-image-deploy:
 	scripts/deploy-target-image.sh $(TARGET_IMAGE)
@@ -233,13 +162,4 @@ target-smoke:
 	scripts/target-smoke.sh "$(GAME_ID)" "$(EXPECTED_CORE)"
 
 target-native-smoke:
-	scripts/native-runtime-smoke.sh build/output/target-image/native-dev/megadrive.selection.toml
-
-target-kernel-test:
-	sh scripts/tests/target-kernel_test.sh
-
-target-kernel: target-images
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/build-target-kernel.sh
-
-target-kernel-verify: target-kernel
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" scripts/verify-target-kernel.sh build/output/target-image/kernel
+	scripts/native-runtime-smoke.sh $(NATIVE_RUNTIME_SELECTION)

@@ -539,14 +539,13 @@ They do not establish physical watchdog reset or exact-image kit acceptance.
 
 ## Target image
 
-The active image toolchain is under `buildroot/`, `containers/target-image/`,
-`internal/targetimage/`, and `scripts/*target-image*`. It produces:
+Native Buildroot and rootfs assembly live in the FES `image/` recipe.
+FogCast supplies the agent, kit, extra-core selector (`cmd/target-image-lock`,
+`internal/targetimage`) and `build/native-runtime.inputs.lock.toml`.
+FES produces:
 
-- `build/output/target-image/dev/linux.img`: the fast development image.
-- `build/output/target-image/prod/linux.img`: the reproducible production image.
-- `build/output/target-image/native-dev/linux.img`: the reproducible native
+- `image/build/output/target-image/native-dev/linux.img`: the reproducible native
   runtime candidate image.
-- `build/output/target-image/kernel/`: the reproducible kernel artifact.
 
 The working `dev` and `prod` targets boot `/media/fat/linux/linux.img`, start
 the MiSTer/Main process, and then start the FAT-side FogCast agent from
@@ -599,14 +598,14 @@ the game-only baseline remains in
 
 Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
 
-The native image build resolves a sealed `megadrive.rbf` plus its normalized
+The FES native image recipe resolves a sealed `megadrive.rbf` plus its normalized
 selection record before Buildroot. The selected record carries the origin,
 MiSTer ABI, `megadrive` system, repository revision, artifact identity, exact
 size/SHA-256, role install path, and source-built recipe/toolchain fields when
 applicable. The runtime receives the same role path for either origin.
 
-- `make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
-- `make target-image-native MEGADRIVE_RBF_SOURCE=upstream`
+- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
+- `make build MEGADRIVE_RBF_SOURCE=upstream`
 
 There is no automatic fallback between the two RBF selections. A malformed or
 missing source-built bundle stops the build; it cannot reuse the upstream

@@ -50,9 +50,9 @@ for file in "$root/README.md" "$root/docs/ARCHITECTURE.md" "$root/docs/DEVELOPME
 	require_contains "$file" \
 		'Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.'
 	require_contains "$file" \
-		'make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle'
+		'make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle'
 	require_contains "$file" \
-		'make target-image-native MEGADRIVE_RBF_SOURCE=upstream'
+		'make build MEGADRIVE_RBF_SOURCE=upstream'
 	require_contains "$file" \
 		'There is no automatic fallback between the two RBF selections.'
 	require_contains "$file" \

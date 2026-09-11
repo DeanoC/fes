@@ -10,9 +10,10 @@ go vet ./...
 git diff --check
 ```
 
-`make test` runs these checks plus the target-image fixture tests and the
-operator-script tests. Use `TMPDIR=/home/deano/.cache/fogcast-tmp` on the
-development host if the system `/tmp` is full.
+`make test` runs these checks plus operator-script tests. Native image
+fixture tests live in the FES `image/` recipe. Use
+`TMPDIR=/home/deano/.cache/fogcast-tmp` on the development host if the
+system `/tmp` is full.
 
 ## Binaries and target image
 
@@ -24,45 +25,37 @@ FES `make host` passes `linux` / `amd64`. The signed sofa app remains
 ```sh
 make build
 make build-agent
-make target-image-fetch
-make target-image-dev
 ```
 
-The development image is
-`build/output/target-image/dev/linux.img`. The release image and kernel use:
-
-```sh
-make target-images
-make target-image-verify
-make target-kernel-verify
-```
+Native Buildroot and rootfs assembly live in the FES `image/` recipe. From a
+FES checkout, `make dev` / `make build` / `make verify` invoke
+`make -C image FOGCAST_DIR=<this checkout>` after building the agent, kit
+and lock selector.
 
 The development image includes SSH and curl. The production image does not;
 capture and decoding tools run on the host.
 
-Build and inspect the separate native-runtime image with a clean runtime
+Build and inspect the native-runtime image from FES with a clean runtime
 checkout at the commit pinned by `build/native-runtime.inputs.lock.toml`:
 
 ```sh
-export LIBMISTER_RUNTIME_DIR=/absolute/path/to/libmister-runtime
-make target-image-native
-make target-image-native-verify
-make target-image-native-qemu-smoke
+make build
+make verify
 ```
 
-This produces `build/output/target-image/native-dev/linux.img`. The build runs
-twice and requires identical image digests. Verification inspects the locked
-idle RBF, selected Mega Drive RBF and normalized build-input record, ARM runtime and static ARM agent, and the
-runtime's target-library closure. QEMU proves only the read-only root,
-volatile mounts, and init packaging. The designated-kit idle and one-player
-Mega Drive launch/input/Stop/relaunch paths are hardware-tested. The existing
-MiSTer-compatible native development-RBF load/Stop lifecycle and its subsequent
-game regression are also hardware-tested; exact evidence is in
+FES publishes `out/<profile>/linux.img`. The cold build runs twice and
+requires identical image digests. Verification inspects the locked idle RBF,
+selected Mega Drive RBF and normalized build-input record, ARM runtime and
+static ARM agent, and the runtime's target-library closure. QEMU proves only
+the read-only root, volatile mounts, and init packaging. The designated-kit
+idle and one-player Mega Drive launch/input/Stop/relaunch paths are
+hardware-tested. The existing MiSTer-compatible native development-RBF
+load/Stop lifecycle and its subsequent game regression are also
+hardware-tested; exact evidence is in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
 `native-dev` defaults to the Mega Drive core set. It can also package the
-explicit four-system set described below. This does not establish a generalized
-RBF ABI or generic development video/input guarantee. Continue to use the legacy `dev`
-image for the broader established game and development-RBF paths below.
+explicit four-system set described below. This does not establish a
+generalized RBF ABI or generic development video/input guarantee.
 
 ### Optional Pong, SNES and NES image cores
 
@@ -70,14 +63,11 @@ For the FES four-system profile, keep the same selected runtime checkout and
 Mega Drive selection, and supply three sealed misteross bundles:
 
 ```sh
-export NATIVE_RUNTIME_SYSTEMS='megadrive pong snes nes'
-export PONG_RBF_BUNDLE=/absolute/path/to/pong-bundle
-export SNES_RBF_BUNDLE=/absolute/path/to/snes-bundle
-export NES_RBF_BUNDLE=/absolute/path/to/nes-bundle
-make target-image-native
-make target-image-native-verify
-make target-image-native-qemu-smoke
+make build
+make verify
 ```
+
+The FES `native-integration-dev` profile already selects the four-system set.
 
 The only admitted sets are `megadrive` (the unchanged default) and
 `megadrive pong snes nes`. Pong/SNES/NES use source-built bundles only. Each contains
@@ -139,11 +129,11 @@ Source-built Mega Drive selection is the native image default; use the explicit 
 For the default source-built path, provide a sealed bundle containing exactly
 `megadrive.rbf` and `megadrive-rbf.toml`:
 
-- `make target-image-native MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
+- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
 
 To exercise the locked upstream fallback explicitly:
 
-- `make target-image-native MEGADRIVE_RBF_SOURCE=upstream`
+- `make build MEGADRIVE_RBF_SOURCE=upstream`
 
 There is no automatic fallback between the two RBF selections. A source-built
 failure stops before Buildroot/image mutation, and the upstream mode resolves
@@ -169,9 +159,9 @@ new image, rename the running image to an unused backup name, install the staged
 image, sync and reboot; delete the backup only after verifying the new boot.
 Keep power stable during the two renames.
 
-Use the full two-pass `target-images` or `target-image-native` build after a
-change has stabilized and immediately before a major PR, merge, release, or
-formal hardware acceptance. The full build is also required for any change to
+Use the FES two-pass `make build` / `make verify` after a change has
+stabilized and immediately before a major PR, merge, release, or formal
+hardware acceptance. The full image rebuild is also required for any change to
 Buildroot, init scripts, package contents, image configuration, or locked
 inputs, because a runtime-only replacement cannot validate those changes.
 
