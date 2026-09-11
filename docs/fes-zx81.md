@@ -32,7 +32,7 @@ reaches uinput.
 
 Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) is the kit-proven
 bring-up lane. `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for
-the same package identity. OSS uses TV80, a checked 50 MHz system PLL and
+the same package identity. OSS uses TV80, a 52 MHz system PLL and
 registered M10K; it does not inherit Quartus acceptance.
 
 ## Menu / sofa UI
