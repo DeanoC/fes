@@ -75,7 +75,11 @@ for direct-root images.
 The appliance layout `de10-nano-appliance-1g-v1` expands FAT partition 1 to 1 GiB
 and places the unchanged A2 boot partition immediately after it. FAT starts at
 sector 2048; A2 starts at sector 2099200. The disk file is 1,075,838,976 bytes.
-The bootloader, kernel and boot environment retain their locked bytes. The
+The assembler still emits that fixed image. Leftover capacity on a larger card
+is a live mutation: `scripts/appliance_expand_dry_run.py` can add aligned p3
+ext4 labelled `FESDATA3` without moving A2 or rewriting FAT. FogCast bind-mounts
+cache, saves, core-data, launcher-cache and evidence from that partition. The
+bootloader, kernel and boot environment retain their locked bytes. The
 kernel mounts `/linux/linux.img`, now the small stable bootstrap. Factory system
 bytes live at `/fogcast/releases/images/<sha256>.img`; the corresponding manifest
 is present on FAT and baked into the bootstrap. `/menu.rbf`, kernel, agent and
