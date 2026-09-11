@@ -1598,12 +1598,10 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-nextpnr `d8a96b58` folds unused M10K clocks off TCLK. Place-and-route
-uses `router1` and `--tmg-ripup` so `clk_sys` meets 50 MHz (router2
-seed 1 was about 44–49 MHz). The recipe requires two `altera_pll` cells
-(checked 50 MHz integer system clock and 74.25 MHz pixel). nextpnr cannot
-form the Quartus 52 MHz integer from its 300/320 MHz VCO tuples, so OSS
-keeps the /16 and /8 enables at 3.125/6.25 MHz. Also required: the HPS GP
+nextpnr `4d055dae` forms the 50→52 MHz integer on the 520 MHz feedback
+profile (`M=52 N=5 C6=10`). Place-and-route uses seed 7, `router1` and
+`--tmg-ripup` so `clk_sys` meets 52 MHz. The recipe requires two
+`altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
 mailbox, the I2C bridge,
 and at least one M10K. It seals the format-2 exporter only when both
 clocks meet their constraints. The command never programs hardware.
@@ -1611,8 +1609,8 @@ clocks meet their constraints. The command never programs hardware.
 A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
 `.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
-and does not inherit the Quartus bring-up result (TV80, 50 MHz system
-clock, registered M10K). FogCast library install/launch of that package
+and does not inherit the Quartus bring-up result (TV80, registered M10K).
+FogCast library install/launch of that package
 is a host concern; this recipe only seals the `.fcore`.
 
 ### ZX81 OSS toolchain gaps
@@ -1626,7 +1624,6 @@ matching workaround rather than keep both.
 | Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` becomes LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | `FES_ZX81_OSS` uses registered `ram_style="m10k_tdp"` write-first ports. Simulation keeps combo-read. Quartus keeps `altsyncram`. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
 | QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
-| 52 MHz integer PLL | `ERROR: PLL 'system_clock.pll': unsupported PLL output frequency/duty; require exact decimal MHz from 1 to 100 and an exact integer C divider from a checked 300/320 MHz tuple.` 52 MHz does not divide the 300 or 320 MHz analog tuples. `select_fractional` only accepts 11.2896, 12.288 or 74.25 MHz. | OSS `sys_pll` emits the checked 50 MHz integer (`M=12 N=2 C6=6`). Enable dividers stay /16 and /8, so CPU/pixel enables are 3.125/6.25 MHz. Quartus keeps 52 MHz. |
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 

@@ -91,6 +91,8 @@ FORBIDDEN_RESOURCES = frozenset(
         "MISTRAL_MLAB",
         "MISTRAL_MUL9X9",
         "MISTRAL_MUL18X18",
+        "MISTRAL_MUL18X19",
+        "MISTRAL_MUL18X19_COMBINED",
         "MISTRAL_MUL27X27",
     }
 )
@@ -152,9 +154,9 @@ def create_build_record(
         "parameters": {
             "device": TARGET,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 50_000_000,
+            "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": 3,
+            "seed": 7,
             "top": TOP,
         },
     }
@@ -188,7 +190,7 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        "--seed", "3",
+        "--seed", "7",
         "--router", "router1",
         "--tmg-ripup",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
@@ -268,8 +270,10 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    if "50 MHz -> 52 MHz" not in route_text:
+        raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 50.0, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
@@ -296,7 +300,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 50.0,
+                "requested_mhz": 52.0,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },
