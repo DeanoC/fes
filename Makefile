@@ -43,6 +43,7 @@ help:
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
+		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 bring-up package for FES ColecoVision" \
@@ -148,7 +149,7 @@ sim-fes-zx81:
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
 	@build/sim/fes-zx81-video/Vzx81_video_720p
 
-.PHONY: coleco-diagnostic
+.PHONY: coleco-diagnostic coleco-sprite-diagnostic
 .PHONY: sim-fes-coleco-quartus
 sim-fes-coleco-quartus:
 	$(PYTHON) scripts/sim_fes_coleco_quartus.py
@@ -171,7 +172,14 @@ coleco-diagnostic:
 		--output build/diagnostics/fes-coleco/controller-16k.rom
 
 .PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss
-coleco-vdp-diagnostic:
+coleco-sprite-diagnostic:
+	$(PYTHON) cores/fes-coleco/diagnostic/sprite_io.py \
+		--output build/diagnostics/fes-coleco/sprites.rom \
+		--preview build/diagnostics/fes-coleco/sprites.ppm
+	$(PYTHON) cores/fes-coleco/diagnostic/sprite_io.py --pad-to 16384 \
+		--output build/diagnostics/fes-coleco/sprites-16k.rom
+
+coleco-vdp-diagnostic: coleco-sprite-diagnostic
 	$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --output build/diagnostics/fes-coleco/vdp-io.rom \
 		--preview build/diagnostics/fes-coleco/vdp-io.ppm
 	$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --pad-to 16384 --output build/diagnostics/fes-coleco/vdp-io-16k.rom
@@ -206,7 +214,7 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 	@build/sim/fes-coleco-gp/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp
 	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
-		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp" \
 		cores/fes-coleco/rtl/coleco_vdp.sv \
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
@@ -260,6 +268,8 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
 	@build/sim/fes-coleco-board/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
+	@build/sim/fes-coleco-board/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
+		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 	@mkdir -p build/sim/fes-coleco-gp-oss
@@ -273,7 +283,7 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 	@build/sim/fes-coleco-gp-oss/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp-oss
 	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
-		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp-oss" \
@@ -324,6 +334,8 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
 	@build/sim/fes-coleco-board-oss/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
+	@build/sim/fes-coleco-board-oss/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
+		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"

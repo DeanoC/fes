@@ -17,15 +17,19 @@ retail-game compatibility.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, register-based Graphics I name/pattern/color tables, tile pixels, and
-  buffered VRAM reads, VBlank status and enabled VBlank NMI delivery.
+  buffered VRAM reads, bounded Graphics II sprites, VBlank status and enabled
+  VBlank NMI delivery.
 - Two standard controllers with joystick/keypad mode selection, twelve encoded
   keypad keys and two fire buttons, adapted from the existing keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Audio, BIOS services, expansion hardware, bank switching, full VDP modes,
-cycle-perfect clocking, sprite evaluation, and native FogCast/runtime
-selection remain outside this first slice. The raw media limit and reset shim
-are deliberate compatibility boundaries.
+cycle-perfect clocking, and native FogCast/runtime selection remain outside
+this first slice. Graphics II is intentionally bounded to the implemented
+sprite path: normal 8x8/16x16 sprites, magnification, early-clock positioning,
+clipping, transparency/priority, four visible sprites per line, collision and
+fifth-sprite status. The raw media limit and reset shim are deliberate
+compatibility boundaries.
 
 ## Memory and host interfaces
 
@@ -65,17 +69,20 @@ sections 2.1.3–2.1.6, and the pinned MiSTer
 prefetches the addressed byte and advances the 14-bit pointer. Data reads return
 the buffer, request the next byte and advance once, wrapping at 3FFF. A write
 address (01) does not prefetch; data writes update both VRAM and the buffer.
-Status reads clear pending VBlank/collision and abandon a half-written control
-command. Status bit 7 is VBlank, bit 5 is collision; unimplemented sprite
-overflow/index fields remain zero. A simultaneous new VBlank event takes
-priority over acknowledgement; an already-held read is not acknowledged again.
+Status reads clear pending VBlank/collision/overflow/index and abandon a half-written
+control command. Status bit 7 is VBlank, bit 6 is sprite overflow (a fifth
+visible sprite), bit 5 is collision, and bits 4..0 report the first suppressed
+sprite index. The bounded implementation only captures a fifth-sprite event
+while the VBlank flag is clear, matching the TMS9918 status rule. A simultaneous
+new VBlank event takes priority over
+acknowledgement; an already-held read is not acknowledged again.
 
 Read data is collected two system edges after a fetch request so the same
 logic accommodates both actual FPGA lanes' registered RAM address. This is
 not a cycle-accurate model of the original DRAM access windows. CPU instructions
 provide ample spacing; callers of the standalone VDP simulation must allow the
-fetch to complete. Registered RAM wrappers, raster copies and compiler
-constraints are unchanged.
+fetch to complete. Registered RAM wrappers, raster copies, sprite line
+buffers and compiler constraints are part of the bounded implementation.
 
 The active-low VDP interrupt is pending VBlank gated by register 1 bit 5. It
 connects to the Z80 **NMI**, not maskable INT. Enabling while VBlank is pending
@@ -105,6 +112,55 @@ reset-only reruns and actual logical pixels. They are included in the full
 simulation suite. No CPU registers, NMI, RAM or VRAM are forced by these tests.
 Fresh exact-artifact FPGA builds and leased hardware captures remain distinct
 from these host simulations.
+
+## Open Graphics II sprite diagnostic
+
+From the misteross root:
+
+```sh
+make coleco-sprite-diagnostic
+# Or generate the compact cartridge and reference image directly:
+python3 cores/fes-coleco/diagnostic/sprite_io.py \
+  --output build/diagnostics/fes-coleco/sprites.rom \
+  --preview build/diagnostics/fes-coleco/sprites.ppm
+```
+
+`diagnostic/sprite_io.py` is a BIOS-free, MIT-licensed Z80 emitter. It uses
+only the Python standard library, has no assembler or downloaded/commercial
+ROM dependency, and emits a raw cartridge entered at `0x8000`. The compact
+image is **1223 bytes**, with SHA-256
+`b3aa3558e702272cdbd019d5f4553cc5e885e754ac7c29648137f2b6ce6a831c`.
+`--pad-to 16384` produces `sprites-16k.rom`, whose expected SHA-256 is
+`5bb58354ff5c49100aae1769270fe03d32524816464dcc99ee619cd09e5a054d`.
+Unused bytes are `ff`.
+
+The CPU first disables the display, clears all VRAM through port BE, writes a
+Graphics I border/background and a one-bit sprite pattern, then places five
+8x8 sprites on one scanline. Two overlap for collision; the fifth is suppressed
+by the four-sprites-per-line limit. It polls status through BF until collision
+and overflow/index 4 are present (`0x64` when VBlank is clear), storing `A5` at
+RAM `6000`; timeout/failure stores `E1`. It then replaces the SAT with three
+16x16 sprites, enables display/16 KiB/16x16/magnified mode (`R1=0xc3`) and
+halts. The final sprites exercise early-clock placement, right-edge clipping
+and a second color.
+
+The expected `sprites.ppm` is 1280x720: a green Graphics I border, black
+interior, orange at logical `(188..189,81..82)` and `(255,101..102)`, and green
+at `(10..11,131..132)`. The coordinates include the established one-HDMI-pixel
+registered-framebuffer read latency and the fixed 2x logical scaling. The
+board oracle independently checks the complete HDMI frame and expects 27,680
+nonblack active pixels. The registered-memory sprite evaluator may sample the
+reset-time empty SAT before a CPU diagnostic finishes setup; the direct VDP
+test therefore lets one frame drain before asserting the first configured
+line. This is a startup sequencing accommodation, not a sprite-coordinate
+rule.
+
+`make sim-fes-coleco` and `make sim-fes-coleco-oss` generate the compact/full/
+compact sprite cartridges and run the CPU diagnostic through the default and
+`FES_COLECO_OSS` top-level shells. The test observes the status sample,
+cartridge/VRAM writes and exact 1650x750 timing/frame output. It is host-only
+behavioral evidence; a newly sealed FPGA artifact and the separately leased
+hardware capture are still required for hardware acceptance.
 
 ## Standard controller mapping
 
@@ -413,9 +469,11 @@ Yosys/nextpnr/Mistral owner:
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |
-| VDP multi-read VRAM | A single inferred VRAM with one CPU port and three combinational raster reads fails Mistral memory mapping and also leaves Quartus with an oversized direct-memory implementation. Both compiler paths use three coherent `coleco_dpram` copies, broadcast CPU writes, and pipeline name → pattern/color reads by two clocks. |
+| VDP multi-read VRAM | A single inferred VRAM with one CPU port and three combinational raster reads fails Mistral memory mapping and also leaves Quartus with an oversized direct-memory implementation. Both compiler paths use four coherent `coleco_dpram` copies, broadcast CPU writes, and pipeline name → pattern/color reads by two clocks; the fourth copy is the serial SAT/pattern walker for sprites. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` uses independent-clock altsyncram with a registered B address and UNREGISTERED B output, matching the OSS wrapper's single read edge. |
-| Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered three-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |
+| Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered four-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |
+| Registered sprite evaluator | The SAT and pattern bytes are walked serially through one registered M10K/altsyncram port. Two 256-entry, 2-bit line buffers and two separate 256-bit occupancy arrays alternate between build and display. A completed line's bank and status are published only when the registered raster pipeline reaches the matching logical y coordinate; this prevents a bank transition from contaminating the preceding framebuffer row. The walker fits the production ~4K system-clock line budget. |
+| Sprite evaluator startup/interlock | The evaluator begins priming line zero immediately after reset, while the CPU may still be writing the SAT and VDP registers. The diagnostic allows one frame for the configured table to replace that reset-time sample before checking line-zero sprites; a production cartridge should likewise complete setup during its normal startup warm-up. A `!sprite_pending_valid` guard also prevents a new build from clearing the bank whose publication is still pending. |
 | Bulk initialization | Clearing 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer in an `initial` loop expands into thousands of `$meminit` cells and can exhaust the synthesis memory budget. The bring-up leaves those RAMs uninitialized and initializes only scalar state. |
 | Reset image format | OSS/Yosys consumes the tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies and pins both files. |
 | PLLs | The two `altera_pll` wrappers are retained. OSS models them through the existing Mistral cells; the CPU frequency approximation is a clock-enable divider, not a fabric-generated clock. |

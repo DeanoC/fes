@@ -401,7 +401,8 @@ See the core guide for prerequisites and reproducible before/after probes.
 Yosys/nextpnr-Mistral counterpart for `5CSEBA6U23I7`; both require a clean
 committed tree before sealing and neither programs a kit. The OSS path uses
 Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
-three coherent VDP VRAM copies for the raster read ports, `MISTRAL_IO` at HPS
+four coherent VDP VRAM copies for the raster read ports (the fourth feeds the
+serial Graphics II sprite walker), `MISTRAL_IO` at HPS
 I²C BEL 52.60.0, and the accepted OSS 50 MHz `create_clock` constraint subset.
 The clean integration OSS build of implementation revision
 `b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` routes at 59.62 MHz system /

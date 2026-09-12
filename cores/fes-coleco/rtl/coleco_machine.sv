@@ -68,6 +68,8 @@ module coleco_machine (
     wire [1:0] vdp_raster_pixel;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
+    wire       vdp_status_overflow;
+    wire [4:0] vdp_status_fifth_index;
     wire       vdp_irq_n;
     reg        vdp_write_seen;
     wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
@@ -88,7 +90,8 @@ module coleco_machine (
     assign logical_y = vdp_raster_y[7:0];
     assign logical_pixel = vdp_raster_pixel;
     assign logical_blank = vdp_raster_blank;
-    assign vdp_status = {vdp_status_collision, 6'b0, vdp_raster_blank};
+    assign vdp_status = {vdp_raster_blank, vdp_status_overflow,
+                         vdp_status_collision, vdp_status_fifth_index};
 
     // Coleco's common latch selects keypad (80..9F) or joystick (C0..DF).
     // Repeated clocks during one held OUT are harmless: this is a set/reset
@@ -203,6 +206,8 @@ module coleco_machine (
         .raster_pixel(vdp_raster_pixel),
         .raster_blank(vdp_raster_blank),
         .status_collision(vdp_status_collision),
+        .status_overflow(vdp_status_overflow),
+        .status_fifth_index(vdp_status_fifth_index),
         .irq_n(vdp_irq_n)
     );
 

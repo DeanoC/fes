@@ -56,7 +56,11 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn('-CFLAGS "-DFES_COLECO_OSS=1"', result.stdout)
         self.assertIn("fes-coleco-machine-oss", result.stdout)
         self.assertIn("fes-coleco-board-oss", result.stdout)
-        self.assertIn("sim-fes-coleco-oss", (ROOT / "Makefile").read_text(encoding="utf-8"))
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("sim-fes-coleco-oss", makefile)
+        self.assertIn("coleco-sprite-diagnostic", makefile)
+        self.assertIn("--sprites", result.stdout)
+        self.assertIn("sprites-16k.rom", result.stdout)
 
     def test_oss_commands_use_verilog_tv80_and_coleco_memory_shapes(self) -> None:
         yosys, nextpnr = build_commands(
@@ -106,6 +110,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("vram_name_block", vdp)
         self.assertIn("vram_pattern_block", vdp)
         self.assertIn("vram_color_block", vdp)
+        self.assertIn("vram_sprite_block", vdp)
 
     def test_oss_rejects_wrong_output_directory(self) -> None:
         with self.assertRaises(BuildError):

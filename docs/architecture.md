@@ -1751,8 +1751,8 @@ existing `fes.simple-computer` 1.0 mailbox. It does not copy the MiSTer
 framework or claim complete retail-game compatibility.
 
 The first slice owns a TV80 Z80-compatible CPU, the Coleco reset/cartridge/RAM
-map, a bounded TMS9918-style Graphics I VDP path, two active-low controller
-views, and the established FES fixed-video shell. The reset shim occupies
+map, bounded TMS9918-style Graphics I and Graphics II VDP paths, two active-low
+controller views, and the established FES fixed-video shell. The reset shim occupies
 `0x0000–0x1fff` and begins with `JP 0x8000` (`c3 00 80`); it avoids embedding a
 proprietary BIOS. A raw 1–16 KiB mailbox blob is mirrored over `0x8000–ffff`.
 CPU RAM is 1 KiB at `0x6000–0x63ff`, mirrored through `0x7fff`. VDP data/control
@@ -1765,13 +1765,20 @@ active-low selected fire in bit 6, and directions or an encoded keypad nibble.
 The [controller guide](../cores/fes-coleco/README.md#standard-controller-mapping)
 records exact key mapping, MiSTer reference revision and multi-key priority.
 No ABI, RAM wrapper or compiler constraint changes accompany this functional
-controller change. Audio, BIOS services, expansion hardware, bank switching, full VDP
-modes, sprite evaluation, cycle-perfect timing, and native FogCast/runtime
-selection remain outside this first slice.
+controller change. Audio, BIOS services, expansion hardware, bank switching,
+full VDP modes, cycle-perfect timing, and native FogCast/runtime selection
+remain outside this first slice. Graphics II is bounded to normal 8x8/16x16
+sprites, magnification, early-clock positioning, clipping,
+transparency/priority, four visible sprites per line, collision and
+fifth-sprite status.
 
 `coleco_vdp.sv` keeps a 16 KiB VRAM aperture, register-based name/pattern/color
-tables, Graphics I tile pixels, buffered CPU VRAM reads and a VBlank status bit in the logical
-256×192 domain. `coleco_video_720p.v` captures a centered 512×384 2× image in
+tables, Graphics I tile pixels, bounded Graphics II sprites, buffered CPU VRAM
+reads, collision/overflow/index status and a VBlank status bit in the logical
+256×192 domain. In the registered-memory lanes, four coherent VRAM copies feed
+the CPU, Graphics I and serial SAT/pattern reads; two 256-entry, 2-bit line
+buffers plus separate 256-bit occupancy arrays alternate between sprite
+evaluation and raster output. `coleco_video_720p.v` captures a centered 512×384 2× image in
 the system domain and reads it in the 74.25 MHz pixel domain for the existing
 1650×750 HDMI timing. The mailbox and top-level clock/I²C boundaries are
 otherwise the same as FES ZX81; the 52 MHz CPU/VDP enable is an approximation
@@ -1781,8 +1788,9 @@ The VDP snapshots each held IN transaction once, retaining its original return
 byte through RD/IORQ release. Read-address setup starts read-ahead, data reads
 return the buffer and advance, and data writes update VRAM and the shared
 buffer. A two-system-edge fetch schedule accommodates both FPGA lanes'
-registered memory address without changing RAM wrappers or raster copies.
-Status reads clear pending flags and the control-byte latch. VBlank gated by
+registered memory address without changing the public ports. Status reads
+clear pending VBlank/collision/overflow/index flags and the control-byte latch.
+VBlank gated by
 register 1 bit 5 drives active-low Z80 NMI; enable-with-pending, acknowledgement,
 disable and later-frame reassertion are implemented. The open shim forwards
 0066 to cartridge 8066; enabling programs supply a handler and initialized
@@ -1792,7 +1800,7 @@ the bounded behavior and open CPU-driven pass/fail diagnostic. The original
 graphics and controller ROMs leave VDP interrupts disabled and are unchanged.
 
 `make sim-fes-coleco` covers the mailbox, machine map/CPU/controller path,
-VDP tile/status path, 720p timing, and board shell in both the default and
+VDP tile/sprite/status path, 720p timing, and board shell in both the default and
 `FES_COLECO_OSS` conditional lanes; `make sim-fes-coleco-oss` runs the latter
 directly. The Quartus recipe is `make build-fes-coleco-quartus`; the OSS recipe
 is `make build-fes-coleco`. Both recipes require a clean source checkout before
@@ -1812,6 +1820,16 @@ all VRAM writes, and checks the complete output frame in both simulation lanes.
 The [core guide](../cores/fes-coleco/README.md#open-graphics-i-diagnostic) specifies
 the image, generation commands, palette limitations and existing one-pixel
 framebuffer read latency. RAM power-up contents are randomized in the board test.
+
+The separate open `diagnostic/sprite_io.py` emits a BIOS-free Graphics II
+cartridge through `make coleco-sprite-diagnostic`. It first creates five
+8x8 sprites on one line, polls real VDP status for collision plus the
+four-sprites-per-line overflow/index result, and records `A5` on success. It
+then displays three 16x16 magnified sprites exercising early-clock placement,
+right-edge clipping and a second color; the board test checks the exact
+1280x720 reference image in both compiler-conditioned lanes. This diagnostic
+is deliberately separate from the Graphics I ROM and does not expand the
+mailbox or hardware ABI.
 
 The same generator's optional `--interactive` cartridge selects joystick mode,
 polls FC/FF and maps Fire 1 bit 6 into two rows of five active-low input panels.
@@ -1903,7 +1921,9 @@ Yosys/nextpnr/Mistral owner:
 | TV80 frontend | The OSS source set selects Verilog `T80pa`/TV80 with `TV80_REFRESH=1`; it does not depend on the ZX81 VHDL T80. |
 | Machine RAM inference | Direct cartridge/CPU/reset arrays fail Mistral memory mapping with `-nolutram`. `coleco_dpram` selects registered `ram_style="m10k_tdp"` under `FES_COLECO_OSS`; Quartus has registered addresses and UNREGISTERED outputs. Only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes have a one-clock mailbox-RAM result. The machine primes the address, consumes the previous result at a delayed write address, holds the last request for a final flush edge, and clears/re-arms on `media_ready` falling or reset rising. Vendor probes cover the Quartus path. |
-| VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use three coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads. |
+| VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use four coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads; the fourth copy feeds the serial SAT/pattern walker. |
+| Registered sprite line publication | A sprite bank swap made at the scan-ahead counter can put the next line into the preceding framebuffer row because the registered raster lookup presents its coordinate one edge later. The evaluator targets `display_y+1`, then defers bank/status publication until the pending line's logical y matches that raster coordinate. A `!sprite_pending_valid` interlock prevents a new build from clearing the bank whose publication is still pending. |
+| Sprite evaluator startup | The serial evaluator can sample the reset-time or stale/uninitialized SAT while the CPU is still configuring VDP registers and sprite tables. The diagnostic allows one warm-up frame before asserting line-zero sprites; this is a startup sequencing accommodation for the registered-memory lanes. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
 | Initial RAM clears | `initial` loops over 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer expand into thousands of `$meminit` cells and previously drove Yosys toward a memory-budget/cgroup failure. Those RAMs are not bulk-cleared; only scalar state is initialized. |
 | Reset image format | The raw byte-per-line `coleco_reset_rom.hex` is used by OSS `$readmemh`; Quartus `altsyncram` is given the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies both into the generated project and pins both as build inputs. |

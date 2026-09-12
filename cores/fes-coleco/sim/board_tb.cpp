@@ -39,6 +39,7 @@ struct Board {
     bool interactive = false;
     bool controllers = false;
     bool vdp_io = false;
+    bool sprites = false;
     bool joystick = false;
     bool exchanging = false;
     uint64_t matrix = 0xffffffffffULL;
@@ -235,6 +236,22 @@ struct Board {
             for (unsigned addr = 0x800; addr < 0x810; ++addr)
                 require(written[addr], "CPU did not initialize pass patterns");
             require(written[0x2000] && written[0x2001], "CPU did not initialize pass colors");
+        } else if (sprites) {
+            const unsigned status = root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[2];
+            require(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[0] == 0xa5,
+                    "sprite diagnostic halted without CPU pass result");
+            require((status & 0x60) == 0x60 && (status & 0x1f) == 4,
+                    "sprite diagnostic did not observe collision/fifth index 4");
+            for (unsigned addr = 0x3c00; addr < 0x3c00 + 768; ++addr)
+                require(written[addr], "sprite diagnostic did not initialize name table");
+            require(written[0x0800] && written[0x0801],
+                    "sprite diagnostic did not initialize sprite patterns");
+            for (unsigned addr = 0x1000; addr < 0x1010; ++addr)
+                require(written[addr], "sprite diagnostic did not initialize background patterns");
+            require(written[0x2000] && written[0x2001],
+                    "sprite diagnostic did not initialize background colors");
+            for (unsigned addr = 0x1b00; addr < 0x1b18; ++addr)
+                require(written[addr], "sprite diagnostic did not initialize SAT entries");
         } else {
             for (bool value : written)
                 require(value, "diagnostic did not initialize all 16 KiB VRAM through CPU I/O");
@@ -321,6 +338,23 @@ uint32_t expected_rgb(unsigned x, unsigned y, bool vdp_io = false) {
     return (col + row) % 2 == 0 ? 0x00ff40 : 0xff4000;
 }
 
+uint32_t sprite_rgb(unsigned x, unsigned y) {
+    if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
+    const unsigned logical_x = x == 384 ? 0 : (x - 385) / 2;
+    const unsigned logical_y = (y - 168) / 2;
+    if ((logical_x == 188 || logical_x == 189) &&
+        (logical_y == 81 || logical_y == 82))
+        return 0xff4000;
+    if (logical_x == 255 && (logical_y == 101 || logical_y == 102))
+        return 0xff4000;
+    if ((logical_x == 10 || logical_x == 11) &&
+        (logical_y == 131 || logical_y == 132))
+        return 0x00ff40;
+    const unsigned col = logical_x / 8, row = logical_y / 8;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    return 0;
+}
+
 uint32_t interactive_rgb(unsigned x, unsigned y, uint8_t p0, uint8_t p1) {
     if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
     const unsigned col = (x == 384 ? 0 : (x - 385) / 2) / 8;
@@ -364,7 +398,8 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
             require(bool(board.dut.HDMI_TX_HS) == (x >= 1390 && x < 1430), "HDMI HS");
             require(bool(board.dut.HDMI_TX_VS) == (y >= 725 && y < 730), "HDMI VS");
             const uint32_t expected = board.controllers ? controllers_rgb(x, y, banks) :
-                board.interactive ? interactive_rgb(x, y, p0, p1) : expected_rgb(x, y, board.vdp_io);
+                board.interactive ? interactive_rgb(x, y, p0, p1) :
+                board.sprites ? sprite_rgb(x, y) : expected_rgb(x, y, board.vdp_io);
             require(board.dut.HDMI_TX_D == expected,
                     "diagnostic RGB mismatch at " + std::to_string(x) + "," +
                     std::to_string(y) + ": got " + std::to_string(board.dut.HDMI_TX_D) +
@@ -376,7 +411,9 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
         }
     }
     require(active == 1280 * 720, "active pixel count");
-    require(lit == (board.vdp_io ? 27648u : board.controllers ? 60416u : board.interactive ? 68608u : 122688u), "nonblack pixel count");
+    require(lit == (board.vdp_io ? 27648u : board.sprites ? 27680u :
+                   board.controllers ? 60416u : board.interactive ? 68608u : 122688u),
+            "nonblack pixel count");
 }
 
 }  // namespace
@@ -385,11 +422,13 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     const bool controllers = argc > 1 && std::string(argv[1]) == "--controllers";
     const bool vdp_io = argc > 1 && std::string(argv[1]) == "--vdp-io";
+    const bool sprites = argc > 1 && std::string(argv[1]) == "--sprites";
     const bool interactive = controllers || (argc > 1 && std::string(argv[1]) == "--interactive");
-    require(argc >= (interactive || vdp_io ? 3 : 2),
-            "usage: Vtop [--interactive|--controllers|--vdp-io] cartridge.rom [more cartridges...]");
+    require(argc >= (interactive || vdp_io || sprites ? 3 : 2),
+            "usage: Vtop [--interactive|--controllers|--vdp-io|--sprites] cartridge.rom [more cartridges...]");
     std::vector<std::vector<uint8_t>> cartridges;
-    for (int i = interactive || vdp_io ? 2 : 1; i < argc; ++i) {
+    const int first_cartridge = interactive || vdp_io || sprites ? 2 : 1;
+    for (int i = first_cartridge; i < argc; ++i) {
         std::ifstream input(argv[i], std::ios::binary);
         require(input.good(), "cannot open generated cartridge");
         cartridges.emplace_back(std::istreambuf_iterator<char>(input),
@@ -404,6 +443,7 @@ int main(int argc, char **argv) {
     board.interactive = interactive;
     board.controllers = controllers;
     board.vdp_io = vdp_io;
+    board.sprites = sprites;
 
     for (unsigned hps_low = 0; hps_low != 4; ++hps_low) {
         for (unsigned external_low = 0; external_low != 4; ++external_low) {
@@ -530,6 +570,11 @@ int main(int argc, char **argv) {
     if (vdp_io) {
         std::cout << "FES Coleco VDP I/O board CPU/NMI/720p pass picture passed: "
                   << cartridges.size() << " GP loads, 27648 green active pixels per frame\n";
+        return EXIT_SUCCESS;
+    }
+    if (sprites) {
+        std::cout << "FES Coleco sprite board passed: " << cartridges.size()
+                  << " CPU status samples and exact 720p frames\n";
         return EXIT_SUCCESS;
     }
     if (controllers) {
