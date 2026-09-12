@@ -358,6 +358,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   BEL. Run `make sim EXP=850_hps_location` and
   `make oss EXP=850_hps_location`; no Quartus comparison lane is
   implemented.
+- `860_m10k_selectors`, two dual-clock 512-by-20 M10Ks with live CLK2 and
+  unique sites. Run `make sim EXP=860_m10k_selectors` and
+  `make oss EXP=860_m10k_selectors`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
