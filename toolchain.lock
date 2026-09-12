@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "ec34fcf38986217af9b5558936044b7197d968a7"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 47c4251a; published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr a3e9b19a; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "47c4251acc89eb9bf6742e32204af744a23446e0"
+commit = "a3e9b19a00c6e49b9dc286610521bea24ffd6f18"
 order = 30
-rationale = "Makes M10K TDP read-during-write contracts explicit (merged PR #63 47c4251a: CFG_RDW_MODE_A/B NEW_DATA_NO_NBE_READ, MIXED DONT_CARE; rejects OLD_DATA and SDP use; same TRUE_DUAL_PORT flow-through bits). On 91420055. Feature commit f9be23d3. Preserves bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Honors Quartus HPS_LOCATION instance assignments for the HPS I2C cell (merged PR #64 a3e9b19a: HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 to cyclonev_hps_interface_peripheral_i2c.52.60.0; rejects malformed and non-I2C targets). On 47c4251a. Feature commit ecdaa4ac. Preserves TDP RDW contracts, bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

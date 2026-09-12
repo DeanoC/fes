@@ -145,7 +145,16 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `47c4251acc89eb9bf6742e32204af744a23446e0` is
+The current nextpnr pin `a3e9b19a00c6e49b9dc286610521bea24ffd6f18` is
+merged PR #64 (`ecdaa4acb75407bf30fc0db4afcffd273443ebb3` onto
+`47c4251acc89eb9bf6742e32204af744a23446e0`). It translates QSF
+`HPS_LOCATION` assignments for `cyclonev_hps_interface_peripheral_i2c`
+into BEL constraints, including
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to
+`cyclonev_hps_interface_peripheral_i2c.52.60.0`. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `47c4251acc89eb9bf6742e32204af744a23446e0`,
 merged PR #63 (`f9be23d3d95ce207a197e28455fd1f66b6df8460` onto
 `914200556be0d83ebc0f74efde400ff00d98cc70`). It makes TDP
 read-during-write contracts explicit: `CFG_RDW_MODE_A`/`CFG_RDW_MODE_B`
@@ -1653,6 +1662,23 @@ passed. `stop` completed development reboot recovery and left the lease
 free. The current nextpnr pin `47c4251a` with Yosys `ec34fcf3` reproduces
 those same RBF bytes.
 
+`850_hps_location` instantiates one `cyclonev_hps_interface_peripheral_i2c`
+without an RTL BEL attribute. QSF `HPS_LOCATION
+HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` must pack
+`cyclonev_hps_interface_peripheral_i2c.52.60.0`. GPI signature `0xD850`.
+See `experiments/850_hps_location/expected.md`.
+
+The OSS `850_hps_location` artifact has SHA-256
+`ec6e0f803c6c122eb69bb36b4be56c910ef7d6fec8f0391f9db8507f808f5890`
+and size 1,952,976 bytes. nextpnr packed
+`cyclonev_hps_interface_peripheral_i2c.52.60.0` from the QSF assignment.
+Reported Fmax is 621.891 MHz against 50 MHz. Utilization is one HPS I2C
+cell and one HPS GP. Exact-artifact kit diagnostics on 2026-09-12
+returned GPI `0xD85000A6` on three successive reads. Load JSON timed
+out; GPI and probe still passed. `stop` completed development reboot
+recovery and left the lease free. The current nextpnr pin `a3e9b19a`
+with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1684,7 +1710,8 @@ and a combinational M10K read packed to initialized async defaults
 (fabric GPI only), and a combinational M10K read with packer
 constant-high `ENABLE[0]` (fabric GPI only), and a 50→27 MHz
 fractional-N PLL from the bounded calculator (fabric GPI only), and a
-TDP M10K same-port NEW_DATA write-through (fabric GPI only). It does
+TDP M10K same-port NEW_DATA write-through (fabric GPI only), and an HPS
+I2C cell placed from QSF `HPS_LOCATION` (fabric GPI only). It does
 not establish native
 game acceptance.
 
@@ -1858,7 +1885,7 @@ matching workaround rather than keep both.
 | --- | --- | --- |
 | Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | Native Yosys async M10K inference maps 10/20/40-bit SDP and two-write/two-read TDP shapes; the OSS recipe uses `ramstyle="M10K"` and nextpnr routes flow-through reads. Quartus keeps `altsyncram`. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
-| QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
+| QSF `HPS_LOCATION` | Internal HPS I2C previously ignored the Quartus instance assignment. | nextpnr now converts `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to `cyclonev_hps_interface_peripheral_i2c.52.60.0`. ZX81 OSS still also sets the RTL `BEL`. |
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
@@ -1920,10 +1947,11 @@ Linux's existing HPS I2C controller to SCL U10 and SDA AA4. Each explicit
 `MISTRAL_IO` has constant-zero data, the matching HPS low-enable on OE, and
 pad feedback returned to the HPS. This preserves low-or-release behavior
 through OSS synthesis; neither line may actively drive high. The source `BEL`
-attribute places the internal hard block because QSF `HPS_LOCATION` does not
-place internal cells in this lane. Simulation covers all combinations of HPS
-and external-device low enables, with digital pull-ups and observable drive
-intent; it does not model analog bus timing or replace hardware validation.
+attribute still places the internal hard block. nextpnr also honors QSF
+`HPS_LOCATION` for this I2C cell (experiment `850_hps_location`).
+Simulation covers all combinations of HPS and external-device low enables,
+with digital pull-ups and observable drive intent; it does not model analog
+bus timing or replace hardware validation.
 
 Top has the synthesis parameter `BUILD_ID[127:0]`. The standalone build recipe
 overrides that parameter with the 32 hexadecimal digits of the build-record ID; identity

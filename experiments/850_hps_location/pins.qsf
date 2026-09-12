@@ -1,0 +1,5 @@
+# Clock pin plus the Quartus HPS I2C location. nextpnr must place hdmi_i2c
+# at cyclonev_hps_interface_peripheral_i2c.52.60.0 from this assignment.
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -entity top -to FPGA_CLK1_50
+set_instance_assignment -name HPS_LOCATION HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -entity top -to hdmi_i2c
