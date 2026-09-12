@@ -203,6 +203,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "820_m10k_async_enable",
             "830_pll_frac_27",
             "840_m10k_rdw",
+            "850_hps_location",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

@@ -225,6 +225,7 @@ class ExperimentPolicy:
     sim_jobs: tuple[SimJob, ...] = ()
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
+    required_nextpnr_bels: Mapping[str, str] = MappingProxyType({})
     synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_mlab_init: bool = False
@@ -379,6 +380,19 @@ class ExperimentPolicy:
                 )
             packed[cell] = count
         object.__setattr__(self, "required_packed_sites", MappingProxyType(packed))
+
+        bels: dict[str, str] = {}
+        for cell, bel in dict(self.required_nextpnr_bels).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: required nextpnr BEL cell names must be non-empty strings")
+            if not isinstance(bel, str) or not bel:
+                raise PolicyError(f"{self.name}: required nextpnr BEL for {cell} must be a non-empty string")
+            if cell not in synth_cells:
+                raise PolicyError(
+                    f"{self.name}: required nextpnr BEL {cell} must also be a required synth cell"
+                )
+            bels[cell] = bel
+        object.__setattr__(self, "required_nextpnr_bels", MappingProxyType(bels))
 
         input_ports: dict[str, tuple[str, ...]] = {}
         for cell, ports in dict(self.synth_json_input_ports).items():
@@ -1542,7 +1556,7 @@ class ExperimentPolicy:
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
 
-        if not self.required_packed_sites:
+        if not self.required_packed_sites and not self.required_nextpnr_bels:
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -1553,6 +1567,35 @@ class ExperimentPolicy:
         modules = design.get("modules")
         if not isinstance(modules, Mapping):
             raise PolicyError("routed json has no modules")
+        if self.required_nextpnr_bels:
+            found: dict[str, list[str]] = {name: [] for name in self.required_nextpnr_bels}
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping):
+                        continue
+                    cell_type = cell.get("type")
+                    if not isinstance(cell_type, str) or cell_type not in found:
+                        continue
+                    attributes = cell.get("attributes")
+                    if not isinstance(attributes, Mapping):
+                        raise PolicyError(f"routed {cell_type} cell has no attributes")
+                    bel = attributes.get("NEXTPNR_BEL")
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError(f"routed {cell_type} cell is missing NEXTPNR_BEL")
+                    found[cell_type].append(bel)
+            for name, expected in self.required_nextpnr_bels.items():
+                bels = found[name]
+                if bels != [expected]:
+                    raise PolicyError(
+                        f"routed {name} BEL must be {expected!r}, got {bels!r}"
+                    )
+        if not self.required_packed_sites:
+            return
         cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
         for module in modules.values():
             if not isinstance(module, Mapping):
@@ -1646,6 +1689,8 @@ class ExperimentPolicy:
             "required_synth_cells": dict(self.required_synth_cells),
             **({"required_packed_sites": dict(self.required_packed_sites)}
                if self.required_packed_sites else {}),
+            **({"required_nextpnr_bels": dict(self.required_nextpnr_bels)}
+               if self.required_nextpnr_bels else {}),
             **(
                 {
                     "synth_json_input_ports": {
@@ -5576,6 +5621,58 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/840_m10k_rdw/sim/m10k_rdw_model.v",
                     ),
                     tb="experiments/840_m10k_rdw/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "850_hps_location": ExperimentPolicy(
+            name="850_hps_location",
+            sources=("experiments/850_hps_location/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/850_hps_location/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_peripheral_i2c": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"HDMI"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_peripheral_i2c": 1,
+            },
+            required_synth_cells={"cyclonev_hps_interface_peripheral_i2c": 1},
+            required_nextpnr_bels={
+                "cyclonev_hps_interface_peripheral_i2c": (
+                    "cyclonev_hps_interface_peripheral_i2c.52.60.0"
+                ),
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/850_hps_location/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/850_hps_location/sim/hps_i2c_model.v",
+                    ),
+                    tb="experiments/850_hps_location/sim/tb.cpp",
                 ),
             ),
         ),
