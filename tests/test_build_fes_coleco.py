@@ -157,6 +157,9 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("clock_b", video)
         self.assertIn("cores/fes-coleco/rtl/coleco_video_dpram.v", quartus_recipe)
         self.assertIn("cores/fes-coleco/rtl/coleco_video_dpram.v", oss_recipe)
+        dpram = (ROOT / "cores/fes-coleco/rtl/coleco_video_dpram.v").read_text(encoding="utf-8")
+        self.assertIn('read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ"', dpram)
+        self.assertNotIn('read_during_write_mode_port_a = "OLD_DATA"', dpram)
 
     def test_manifest_carries_coleco_identity(self) -> None:
         record = (

@@ -66,15 +66,17 @@ module coleco_video_dpram #(
         altsyncram_component.outdata_aclr_a = "NONE",
         altsyncram_component.outdata_aclr_b = "NONE",
         // Port A is also used as a registered read during sprite rendering.
-        // OLD_DATA makes the read/write edge deterministic for collision
-        // checks when a sprite writes an occupied pixel.
+        // The renderer consumes q_a on the following read/write phase, so it
+        // never observes the same-edge read-during-write result. Quartus
+        // 17.0.2 rejects OLD_DATA for this BIDIR_DUAL_PORT shape; the legal
+        // new-data mode is therefore sufficient and keeps the port mappable.
         altsyncram_component.outdata_reg_a = "CLOCK0",
         // address_reg_b already supplies the one read-clock latency used by
         // the OSS RAM and video shell. CLOCK1 here would add a second stage.
         altsyncram_component.outdata_reg_b = "UNREGISTERED",
         altsyncram_component.power_up_uninitialized = "FALSE",
         altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",
-        altsyncram_component.read_during_write_mode_port_a = "OLD_DATA",
+        altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
         altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ";
 `else
     // This is the same independent-clock inference shape as Misteross
