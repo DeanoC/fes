@@ -347,19 +347,19 @@ class ManifestTests(unittest.TestCase):
                 },
             "authenticated_tools": {
                 "yosys": {
-                    "commit": "540998e36adcb0ddecdbdf39eed6df8e7551732d",
+                    "commit": "ec34fcf38986217af9b5558936044b7197d968a7",
                     "path": "build/toolchain/install/bin/yosys",
                     "sha256": hashlib.sha256(yosys.read_bytes()).hexdigest(),
                 },
                 "nextpnr-mistral": {
-                    "commit": "5f6ba158c7f45e689b60e5590f5323573cb59f2f",
+                    "commit": "5909feb560da457c55374eec226d1040c4dc8dba",
                     "path": "build/toolchain/install/bin/nextpnr-mistral",
                     "sha256": hashlib.sha256(nextpnr.read_bytes()).hexdigest(),
                 },
             },
             "tool_pins": {
-                "yosys": "540998e36adcb0ddecdbdf39eed6df8e7551732d",
-                "nextpnr": "5f6ba158c7f45e689b60e5590f5323573cb59f2f",
+                "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
+                "nextpnr": "5909feb560da457c55374eec226d1040c4dc8dba",
             },
             "reproducibility": {
                 "rbf_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),

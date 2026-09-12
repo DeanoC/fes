@@ -146,15 +146,22 @@ lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
 The current native asynchronous-M10K toolchain uses Yosys pin
-`540998e36adcb0ddecdbdf39eed6df8e7551732d` (DeanoC/yosys PR #13) and
-nextpnr pin `5f6ba158c7f45e689b60e5590f5323573cb59f2f` (DeanoC/nextpnr
-PR #61), with Mistral unchanged at
-`b28e30a36b5139aaed5a5d361a30b542e6b7c758`. Yosys infers simple-dual
-flow-through M10Ks at the native 10/20/40-bit geometries and true-dual
-flow-through M10Ks for two-write/two-read memories. nextpnr routes the
-constant-high read enable, accepts read-only cells whose write clock folds
-to a constant, and models address-to-data timing for both TDP outputs.
-The host regressions and the ZX81 native netlist use this pair.
+`ec34fcf38986217af9b5558936044b7197d968a7` (merged DeanoC/yosys PR #13,
+feature `540998e36adcb0ddecdbdf39eed6df8e7551732d`) and nextpnr pin
+`5909feb560da457c55374eec226d1040c4dc8dba` (merged DeanoC/nextpnr
+PR #61, feature `5f6ba158c7f45e689b60e5590f5323573cb59f2f`), with
+Mistral unchanged at `b28e30a36b5139aaed5a5d361a30b542e6b7c758`. Yosys
+infers simple-dual flow-through M10Ks at the native 10/20/40-bit
+geometries and true-dual flow-through M10Ks for two-write/two-read
+memories. nextpnr routes the constant-high read enable, accepts
+read-only cells whose write clock folds to a constant, and models
+address-to-data timing for both TDP outputs. The host regressions and
+the ZX81 native netlist use this pair. Exact-artifact kit diagnostics
+on 2026-09-12 loaded native-Yosys `820_m10k_async_enable` (GPI
+`0xD42F00A6`, INIT/write/neighbour) and `770_m10k_async_read` (GPI
+`0xD42B00A6`, INIT/write/neighbour) at `MISTRAL_M10K.26.1.0` with
+routed `ENABLE[0]`. Load JSON timed out; GPI and probe still passed.
+`stop` recovered and left the lease free.
 
 The earlier Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
 merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
@@ -1763,7 +1770,7 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-nextpnr `5f6ba158` forms the 50→52 MHz integer on the 520 MHz feedback
+nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 300,
 criticality exponent 5 and `router1`. `--timing-allow-fail` permits an early

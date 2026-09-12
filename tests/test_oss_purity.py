@@ -171,8 +171,8 @@ class OssPipelinePurityTests(unittest.TestCase):
                 shim(bin_dir / name, name)
 
         pins = {
-            "yosys": "540998e36adcb0ddecdbdf39eed6df8e7551732d",
-            "nextpnr": "5f6ba158c7f45e689b60e5590f5323573cb59f2f",
+            "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
+            "nextpnr": "5909feb560da457c55374eec226d1040c4dc8dba",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
