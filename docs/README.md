@@ -34,6 +34,9 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Coleco cartridge diagnostic](validation/2026-09-12-coleco-media.md):
+  open Z80 cartridge, reset/VDP fixes, paired Quartus/nextpnr build evidence
+  and the exact status of leased media/graphics validation.
 - [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
   host expander and tests landed; assembly stays the fixed 1 GiB image.
 - [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
