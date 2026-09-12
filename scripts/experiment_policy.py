@@ -246,6 +246,7 @@ class ExperimentPolicy:
     m10k_addrstalla_gpo_bit: int | None = None
     m10k_out_reg_b: bool = False
     m10k_rdw_new_data: bool = False
+    m10k_selector_pair: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -285,6 +286,7 @@ class ExperimentPolicy:
             ("m10k_async_read", self.m10k_async_read),
             ("m10k_out_reg_b", self.m10k_out_reg_b),
             ("m10k_rdw_new_data", self.m10k_rdw_new_data),
+            ("m10k_selector_pair", self.m10k_selector_pair),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -701,6 +703,8 @@ class ExperimentPolicy:
             self._require_m10k_out_reg_b(design)
         if self.m10k_rdw_new_data:
             self._require_m10k_rdw(design)
+        if self.m10k_selector_pair:
+            self._require_m10k_selector_pair(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -935,28 +939,33 @@ class ExperimentPolicy:
 
     def _require_m10k_out_reg_b(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design)
-        if len(cells) != 1:
-            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
-        cell = cells[0]
-        parameters = cell.get("parameters")
-        connections = cell.get("connections")
-        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
-            raise PolicyError("M10K cell is missing parameters or connections")
-        if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+        expected = 2 if self.m10k_selector_pair else 1
+        if len(cells) != expected:
             raise PolicyError(
-                f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                f"synth json must contain exactly {expected} MISTRAL_M10K, got {len(cells)}"
             )
-        out_a = json_bit_parameter(parameters.get("CFG_OUT_REG_A"))
-        if out_a not in (None, 0):
-            raise PolicyError(f"narrow SDP CFG_OUT_REG_A must be omitted or 0, got {parameters.get('CFG_OUT_REG_A')!r}")
-        async_read = json_bit_parameter(parameters.get("CFG_ASYNC_READ"))
-        if async_read not in (None, 0):
-            raise PolicyError("registered-output M10K cannot set CFG_ASYNC_READ")
-        clk2 = connections.get("CLK2")
-        if not isinstance(clk2, list) or not clk2 or clk2[0] in ("0", "1"):
-            raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
-        if "B1DATA" not in connections or "B1ADDR" not in connections:
-            raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
+        for cell in cells:
+            parameters = cell.get("parameters")
+            connections = cell.get("connections")
+            if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+                raise PolicyError("M10K cell is missing parameters or connections")
+            if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                )
+            out_a = json_bit_parameter(parameters.get("CFG_OUT_REG_A"))
+            if out_a not in (None, 0):
+                raise PolicyError(
+                    f"narrow SDP CFG_OUT_REG_A must be omitted or 0, got {parameters.get('CFG_OUT_REG_A')!r}"
+                )
+            async_read = json_bit_parameter(parameters.get("CFG_ASYNC_READ"))
+            if async_read not in (None, 0):
+                raise PolicyError("registered-output M10K cannot set CFG_ASYNC_READ")
+            clk2 = connections.get("CLK2")
+            if not isinstance(clk2, list) or not clk2 or clk2[0] in ("0", "1"):
+                raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
+            if "B1DATA" not in connections or "B1ADDR" not in connections:
+                raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
 
     def _require_m10k_rdw(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
@@ -982,6 +991,41 @@ class ExperimentPolicy:
             raise PolicyError(
                 f"CFG_RDW_MODE_MIXED must be DONT_CARE, got {parameters.get('CFG_RDW_MODE_MIXED')!r}"
             )
+
+    def _require_m10k_selector_pair(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 2:
+            raise PolicyError(f"synth json must contain exactly two MISTRAL_M10K, got {len(cells)}")
+        inits: list[int] = []
+        for cell in cells:
+            parameters = cell.get("parameters")
+            connections = cell.get("connections")
+            if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+                raise PolicyError("M10K cell is missing parameters or connections")
+            if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
+                )
+            if json_bit_parameter(parameters.get("CFG_DBITS")) != 20:
+                raise PolicyError(f"M10K CFG_DBITS must be 20, got {parameters.get('CFG_DBITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_ABITS")) != 9:
+                raise PolicyError(f"M10K CFG_ABITS must be 9, got {parameters.get('CFG_ABITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                )
+            clk1 = connections.get("CLK1")
+            clk2 = connections.get("CLK2")
+            if not isinstance(clk1, list) or not clk1:
+                raise PolicyError("M10K CLK1 must be connected")
+            if not isinstance(clk2, list) or not clk2:
+                raise PolicyError("M10K CLK2 must be connected")
+            init = json_bit_parameter(parameters.get("INIT"))
+            if init is None:
+                raise PolicyError("M10K INIT is missing")
+            inits.append(init & 0xFFFFF)
+        if set(inits) != {0xA6, 0xB7}:
+            raise PolicyError(f"M10K selector pair INIT words must be 0xa6 and 0xb7, got {inits!r}")
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1556,7 +1600,11 @@ class ExperimentPolicy:
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
 
-        if not self.required_packed_sites and not self.required_nextpnr_bels:
+        if (
+            not self.required_packed_sites
+            and not self.required_nextpnr_bels
+            and not self.m10k_selector_pair
+        ):
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -1594,6 +1642,30 @@ class ExperimentPolicy:
                     raise PolicyError(
                         f"routed {name} BEL must be {expected!r}, got {bels!r}"
                     )
+        if self.m10k_selector_pair:
+            bels: list[str] = []
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping) or cell.get("type") != "MISTRAL_M10K":
+                        continue
+                    connections = cell.get("connections")
+                    clk2 = connections.get("CLK2") if isinstance(connections, Mapping) else None
+                    if not isinstance(clk2, list) or not clk2:
+                        raise PolicyError("routed M10K CLK2 must stay connected")
+                    attributes = cell.get("attributes")
+                    if not isinstance(attributes, Mapping):
+                        raise PolicyError("routed M10K cell has no attributes")
+                    bel = attributes.get("NEXTPNR_BEL")
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError("routed M10K cell is missing NEXTPNR_BEL")
+                    bels.append(bel)
+            if len(bels) != 2 or len(set(bels)) != 2:
+                raise PolicyError(f"routed M10K cells must occupy two unique sites, got {bels!r}")
         if not self.required_packed_sites:
             return
         cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
@@ -1742,6 +1814,7 @@ class ExperimentPolicy:
                if self.m10k_addrstalla_gpo_bit is not None else {}),
             **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
             **({"m10k_rdw_new_data": True} if self.m10k_rdw_new_data else {}),
+            **({"m10k_selector_pair": True} if self.m10k_selector_pair else {}),
         }
 
 
@@ -5673,6 +5746,64 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/850_hps_location/sim/hps_i2c_model.v",
                     ),
                     tb="experiments/850_hps_location/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "860_m10k_selectors": ExperimentPolicy(
+            name="860_m10k_selectors",
+            sources=("experiments/860_m10k_selectors/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 2,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 2,
+            },
+            required_synth_cells={"MISTRAL_M10K": 2},
+            required_packed_sites={"MISTRAL_M10K": 2},
+            nobram=False,
+            m10k_selector_pair=True,
+            m10k_out_reg_b=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "A1BE",
+                    "B1EN",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/860_m10k_selectors/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/860_m10k_selectors/sim/m10k_selector_model.v",
+                    ),
+                    tb="experiments/860_m10k_selectors/sim/tb.cpp",
                 ),
             ),
         ),
