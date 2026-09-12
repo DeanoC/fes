@@ -83,7 +83,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "3")
+        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "5")
         self.assertIn("router1", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
@@ -97,7 +97,7 @@ class BuildFesColecoTests(unittest.TestCase):
             "a" * 40,
             {"yosys": "test"},
         )
-        self.assertIn(b'"seed":3', record)
+        self.assertIn(b'"seed":5', record)
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")

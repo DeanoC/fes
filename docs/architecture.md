@@ -1942,7 +1942,7 @@ Yosys/nextpnr/Mistral owner:
 | PLL modeling | The two existing `altera_pll` wrappers remain in the design. OSS keeps the Mistral PLL cells and uses a clock-enable divider for the approximate CPU cadence instead of generating a third fabric clock. |
 | HDMI I²C | Quartus and OSS pad models stay separate. OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | QSF/SDC parsing | The OSS copies omit Quartus-only HPS location/clock-group syntax. `clocks-oss.sdc` contains only the accepted 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
-| Routing | The passing reproduction is device `5CSEBA6U23I7`, seed 3, `router1`, with no `--tmg-ripup`, requesting 74.25 MHz. On the packed netlist, timing-driven rip-up was slower and moved a passing system-clock route below target. Any toolchain change should preserve a complete route and both frequency rows before removing a workaround. |
+| Routing | The passing reproduction is device `5CSEBA6U23I7`, seed 5, `router1`, with no `--tmg-ripup`, requesting 74.25 MHz. On the packed netlist, timing-driven rip-up was slower and moved a passing system-clock route below target. Any toolchain change should preserve a complete route and both frequency rows before removing a workaround. |
 
 The Quartus lane retains `altsyncram` M10K instances, the MIF reset image,
 Quartus tri-state I²C,

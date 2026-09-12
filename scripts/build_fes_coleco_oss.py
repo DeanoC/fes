@@ -158,7 +158,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": 3,
+            "seed": 5,
             "top": TOP,
         },
     }
@@ -192,11 +192,11 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Seed 3 is the reproducible packed-sprite placement that clears the
+        # Seed 5 is the reproducible packed-sprite placement that clears the
         # 52 MHz system-clock check. Timing-driven rip-up is intentionally not
         # enabled: on this netlist it is slower and can move a passing route
         # back below the CPU timing target.
-        "--seed", "3",
+        "--seed", "5",
         "--router", "router1",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",
