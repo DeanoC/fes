@@ -145,19 +145,21 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `ec34fcf38986217af9b5558936044b7197d968a7` adds native
-Cyclone V M10K flow-through inference for the equal-width and replicated
-registered shapes used by the Coleco sprite banks (merged PR #13
-`540998e36adcb0ddecdbdf39eed6df8e7551732d`). It preserves the earlier
-asynchronous-clear, dual-clock, byte-enable and mixed-width TDP support.
-Pair it with nextpnr `2d3c216a` and Mistral `b28e30a`.
-
-The previous Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+The selected Coleco Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
 merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
 `758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
 asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
 `ACLR1`, with `ACLR0` tied low. Nonzero reset values remain fabric.
-Pair it with nextpnr `88cda8ae`.
+For this Coleco recipe it preserves the registered packed sprite-bank shape;
+pair it with nextpnr `2d3c216a` and Mistral `b28e30a`.
+
+The later Yosys pin `ec34fcf38986217af9b5558936044b7197d968a7` adds native
+Cyclone V M10K flow-through inference (merged PR #13
+`540998e36adcb0ddecdbdf39eed6df8e7551732d`). Its async mapper currently
+reclassifies the registered Coleco sprite `ramstyle=M10K` banks as
+`CFG_ASYNC_READ` with an unused constant `CLK2`; nextpnr correctly rejects
+that contract because the unused clock must have its read enable tied low.
+This is a toolchain-pairing workaround, not a missing BEL or pack feature.
 
 That pin sits on `758968907c116f685f586e0ce8186bae0f8b448c`,
 merged PR #11 (`74d285754bfbe78005cc4a65c7f849d3b8cf403f` onto

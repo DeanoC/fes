@@ -10,7 +10,7 @@ from scripts import lockfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
-    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
+    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
     "nextpnr": "2d3c216afb7051d2e2070cbf678a50f274b3f786",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",

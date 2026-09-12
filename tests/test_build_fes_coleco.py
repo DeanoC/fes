@@ -18,6 +18,7 @@ from scripts.build_fes_coleco_oss import (
     build_commands,
     create_build_record,
 )
+from scripts.lockfile import load_lock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +102,11 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertIn(b'"seed":5', record)
         self.assertIn(b'"router":"gpu"', record)
+
+    def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
+        pins = load_lock(ROOT / "toolchain.lock")
+        self.assertEqual(pins["yosys"].commit, "da6373c0d7565f36036051efc7895fb0d9ac13c3")
+        self.assertEqual(pins["nextpnr"].commit, "2d3c216afb7051d2e2070cbf678a50f274b3f786")
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")
