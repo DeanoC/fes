@@ -18,8 +18,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
-#include <fstream>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -593,21 +591,9 @@ Error NativeHardware::LoadComputerMedia(const std::string& path)
 	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
 		return {ErrorCode::unsupported_interface,
 			"FES computer is not active", "request"};
-	if (path.size() < 3)
-		return {ErrorCode::invalid_request, "computer media path is invalid",
-			"request"};
-	const std::string suffix = path.substr(path.size() - 2);
-	if (suffix != ".p" && suffix != ".P")
-		return {ErrorCode::invalid_request, "computer media must be a .p file",
-			"request"};
-	std::ifstream in(path.c_str(), std::ios::binary);
-	if (!in)
-		return {ErrorCode::invalid_request, "computer media could not be opened",
-			"request"};
-	std::vector<std::uint8_t> bytes(
-		(std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	if (!in && !in.eof())
-		return {ErrorCode::io_failed, "computer media could not be read", "request"};
+	std::vector<std::uint8_t> bytes;
+	const Error admitted = ReadComputerMedia(path, &bytes);
+	if (!admitted.ok()) return WithPhase(admitted, "request");
 	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMedia(
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }

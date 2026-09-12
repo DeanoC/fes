@@ -438,11 +438,32 @@ void TestComputerKeyboardMatrixAndMediaBlob()
 		toggle = !toggle;
 	}
 	assert(driver.SetKeyboardMatrix(j_key, 10000).ok());
-	for (int i = 0; i < 4; ++i) {
+	const std::size_t media_start = mmio.writes.size();
+	for (int i = 0; i < 6; ++i) {
 		PushCompleted(&mmio, toggle, 0);
 		toggle = !toggle;
 	}
 	assert(driver.LoadMedia(std::vector<std::uint8_t>{1, 2, 3}, 10000).ok());
+	// Hold reset, begin, little-endian pair, odd tail, commit, release.
+	const std::uint32_t expected[] = {
+		0x02000000, 0x04000003, 0x05000201, 0x05010003, 0x06000000, 0x02000001};
+	assert(mmio.writes.size() == media_start + 12);
+	for (std::size_t i = 0; i < 6; ++i)
+		assert((mmio.writes[media_start + i * 2].value & 0x7fffffff) == expected[i]);
+	const std::size_t before_invalid = mmio.writes.size();
+	assert(driver.LoadMedia({}, 10000).code == mister::ErrorCode::invalid_request);
+	assert(driver.LoadMedia(std::vector<std::uint8_t>(16385), 10000).code ==
+		mister::ErrorCode::invalid_request);
+	assert(mmio.writes.size() == before_invalid);
+	// A rejected commit must leave execution held, never boot partial media.
+	for (int i = 0; i < 4; ++i) {
+		PushCompleted(&mmio, toggle, i == 3 ? 1 : 0);
+		toggle = !toggle;
+	}
+	assert(driver.LoadMedia(std::vector<std::uint8_t>{4, 5}, 10000).code ==
+		mister::ErrorCode::io_failed);
+	assert(mmio.writes.size() == before_invalid + 8);
+	assert((mmio.writes.back().value & 0x7fffffff) == 0x06000000);
 	assert(driver.SetKeyboardMatrix(1ull << 40, 10000).code ==
 		mister::ErrorCode::invalid_request);
 }
