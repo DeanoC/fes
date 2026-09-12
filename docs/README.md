@@ -34,6 +34,8 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
+  VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
 - [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard
   joystick/keypad mode selection, two fire buttons and encoded keypad diagnostics.
 - [Coleco input diagnostic](validation/2026-09-12-coleco-input.md): two-player
