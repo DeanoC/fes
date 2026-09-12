@@ -101,13 +101,20 @@ def m10k_tdp_byte_physical_init(address: int, width: int) -> int:
 
 
 def m10k_tdp_abits(width: int) -> int:
-    """Return CFG_ABITS for an equal-width 10- or 20-bit true dual-port M10K."""
+    """Return CFG_ABITS for an equal-width true dual-port M10K."""
 
-    if width == 10:
-        return 10
-    if width == 20:
-        return 9
-    raise PolicyError(f"unsupported TDP M10K width {width}")
+    mapping = {1: 13, 2: 12, 5: 11, 10: 10, 20: 9}
+    if width not in mapping:
+        raise PolicyError(f"unsupported TDP M10K width {width}")
+    return mapping[width]
+
+
+def m10k_narrow_init_word(address: int, width: int) -> int:
+    """Return the closed narrow TDP power-up word at *address*."""
+
+    if width not in (1, 2, 5):
+        raise PolicyError(f"unsupported narrow TDP width {width}")
+    return ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & ((1 << width) - 1)
 
 
 def m10k_tdp_mixed_physical_dbits(logical: int) -> int:
@@ -247,6 +254,7 @@ class ExperimentPolicy:
     m10k_out_reg_b: bool = False
     m10k_rdw_new_data: bool = False
     m10k_selector_pair: bool = False
+    m10k_tdp_narrow_width: int = 0
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -313,6 +321,8 @@ class ExperimentPolicy:
             )
         if self.m10k_tdp_width not in (0, 10, 20):
             raise PolicyError(f"{self.name}: m10k_tdp_width must be 0, 10, or 20")
+        if self.m10k_tdp_narrow_width not in (0, 1, 2, 5):
+            raise PolicyError(f"{self.name}: m10k_tdp_narrow_width must be 0, 1, 2, or 5")
         if self.m10k_tdp_byte_width not in (0, 16, 20):
             raise PolicyError(f"{self.name}: m10k_tdp_byte_width must be 0, 16, or 20")
         mixed_tdp = (self.m10k_tdp_mixed_a, self.m10k_tdp_mixed_b)
@@ -338,8 +348,18 @@ class ExperimentPolicy:
             or self.m10k_dual_clock_width
             or self.m10k_tdp_byte_width
             or self.m10k_tdp_mixed_a
+            or self.m10k_tdp_narrow_width
         ):
-            raise PolicyError(f"{self.name}: TDP M10K cannot combine byte-enable, equal-width dual-clock, TDP byte-enable, or mixed-TDP policy")
+            raise PolicyError(f"{self.name}: TDP M10K cannot combine byte-enable, equal-width dual-clock, TDP byte-enable, mixed-TDP, or narrow-TDP policy")
+        if self.m10k_tdp_narrow_width and (
+            self.m10k_byte_enable
+            or self.m10k_dual_clock_width
+            or self.m10k_tdp_byte_width
+            or self.m10k_tdp_mixed_a
+            or self.m10k_selector_pair
+            or self.m10k_rdw_new_data
+        ):
+            raise PolicyError(f"{self.name}: narrow TDP M10K cannot combine other M10K geometry policies")
         if self.m10k_tdp_byte_width and (
             self.m10k_byte_enable or self.m10k_dual_clock_width or self.m10k_tdp_mixed_a
         ):
@@ -705,6 +725,8 @@ class ExperimentPolicy:
             self._require_m10k_rdw(design)
         if self.m10k_selector_pair:
             self._require_m10k_selector_pair(design)
+        if self.m10k_tdp_narrow_width:
+            self._require_m10k_tdp_narrow(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -1026,6 +1048,58 @@ class ExperimentPolicy:
             inits.append(init & 0xFFFFF)
         if set(inits) != {0xA6, 0xB7}:
             raise PolicyError(f"M10K selector pair INIT words must be 0xa6 and 0xb7, got {inits!r}")
+
+    def _require_m10k_tdp_narrow(self, design: Mapping[str, Any]) -> None:
+        width = self.m10k_tdp_narrow_width
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(cells) != 1:
+            raise PolicyError(
+                f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}"
+            )
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("TDP M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != width:
+            raise PolicyError(f"narrow TDP CFG_DBITS must be {width}, got {parameters.get('CFG_DBITS')!r}")
+        expected_abits = m10k_tdp_abits(width)
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != expected_abits:
+            raise PolicyError(
+                f"narrow TDP CFG_ABITS must be {expected_abits}, got {parameters.get('CFG_ABITS')!r}"
+            )
+        mixed = json_bit_parameter(parameters.get("CFG_MIXED_WIDTH"))
+        if mixed not in (None, 0):
+            raise PolicyError("narrow TDP cannot set CFG_MIXED_WIDTH")
+        clk1 = connections.get("CLK1")
+        clk2 = connections.get("CLK2")
+        if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+            raise PolicyError("narrow TDP CLK1 must be a live fabric clock")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("narrow TDP CLK2 must be connected")
+        for port in ("A1EN", "A1WE"):
+            nets = connections.get(port)
+            if not isinstance(nets, list) or not nets:
+                raise PolicyError(f"narrow TDP {port} must be connected")
+        write_a = connections.get("A1DATA")
+        if not isinstance(write_a, list) or len(write_a) != width:
+            raise PolicyError(f"narrow TDP A1DATA must be {width} bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("narrow TDP INIT is missing")
+        mask = (1 << width) - 1
+        addresses = [0, 1, 2, 7, 15, 31, 63, 127, 255]
+        if expected_abits >= 12:
+            addresses.extend((1023, 4095))
+        if expected_abits >= 13:
+            addresses.append(8191)
+        for address in addresses:
+            actual = (init >> (address * width)) & mask
+            expected = m10k_narrow_init_word(address, width)
+            if actual != expected:
+                raise PolicyError(
+                    f"narrow TDP INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1815,6 +1889,8 @@ class ExperimentPolicy:
             **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
             **({"m10k_rdw_new_data": True} if self.m10k_rdw_new_data else {}),
             **({"m10k_selector_pair": True} if self.m10k_selector_pair else {}),
+            **({"m10k_tdp_narrow_width": self.m10k_tdp_narrow_width}
+               if self.m10k_tdp_narrow_width else {}),
         }
 
 
@@ -5804,6 +5880,63 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/860_m10k_selectors/sim/m10k_selector_model.v",
                     ),
                     tb="experiments/860_m10k_selectors/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "870_m10k_narrow": ExperimentPolicy(
+            name="870_m10k_narrow",
+            sources=("experiments/870_m10k_narrow/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K_TDP": 1},
+            nobram=False,
+            m10k_tdp_narrow_width=1,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "B1EN",
+                    "A1WE",
+                    "B1WE",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K_TDP": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/870_m10k_narrow/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/870_m10k_narrow/sim/m10k_narrow_model.v",
+                    ),
+                    tb="experiments/870_m10k_narrow/sim/tb.cpp",
                 ),
             ),
         ),

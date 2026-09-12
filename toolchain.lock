@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "ec34fcf38986217af9b5558936044b7197d968a7"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 8bd48754; published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 2d3c216a; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "8bd4875400b49c97a668013106b481c3b6d7e17b"
+commit = "2d3c216afb7051d2e2070cbf678a50f274b3f786"
 order = 30
-rationale = "Adds a design-scale M10K clock-selector audit (merged PR #65 8bd48754: live CLK1/CLK2 to CLKIN.0/.1, independent BOT_* selectors, unique sites, no packed constant clocks). On a3e9b19a. Feature commit 7ec1fa57. Preserves HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Accepts equal-width 8192x1, 4096x2 and 2048x5 true-dual-port M10Ks (merged PR #67 2d3c216a: bank-replicated narrow data, 13th address bit on 8192x1, scalar A1DATA/A1Q). On 9c751533 (merged PR #66 GPU router). Feature commit edabecce. Mixed TDP stays 10/20-bit. Default-router 870 RBF matches the kit-tested feature tree. Preserves selector audit, HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

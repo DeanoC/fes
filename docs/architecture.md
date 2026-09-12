@@ -145,7 +145,21 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `8bd4875400b49c97a668013106b481c3b6d7e17b` is
+The current nextpnr pin `2d3c216afb7051d2e2070cbf678a50f274b3f786` is
+merged PR #67 (`edabecce3a8759b641351aadbe1526d56c53f05a` onto
+`9c75153384c57d913ec6c8720f941f13ca4ca904`). It packs equal-width
+8192x1, 4096x2 and 2048x5 true-dual-port M10Ks, including scalar
+one-bit data ports and the thirteenth address bit. Mixed-width TDP
+stays at the characterized 10/20-bit modes. Default-router 870 RBF
+bytes match the kit-tested feature tree. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `9c75153384c57d913ec6c8720f941f13ca4ca904`,
+merged PR #66 (`bf37618f5ef232525989c3b967f9ce83673c914f` onto
+`8bd4875400b49c97a668013106b481c3b6d7e17b`). It adds an optional GPU
+connection router; the 870 ladder uses the default router.
+
+That pin sits on `8bd4875400b49c97a668013106b481c3b6d7e17b`,
 merged PR #65 (`7ec1fa57bdf00dc14a3d4606170727a45b34e070` onto
 `a3e9b19a00c6e49b9dc286610521bea24ffd6f18`). It audits every packed
 M10K clock selector at design scale: live `CLK1`/`CLK2` to `CLKIN.0`/
@@ -1704,6 +1718,23 @@ passed. `stop` completed development reboot recovery and left the lease
 free. The current nextpnr pin `8bd48754` with Yosys `ec34fcf3` reproduces
 those same RBF bytes.
 
+`870_m10k_narrow` instantiates one 8192-by-1 `MISTRAL_M10K_TDP`. GPI
+signature `0xD870`. See `experiments/870_m10k_narrow/expected.md`.
+
+The OSS `870_m10k_narrow` artifact has SHA-256
+`1c0cffd2b67283a2cab36edf4a343c69b4e6b24b93f0102927e293441bbf5431`
+and size 1,957,568 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
+`CFG_ABITS=13`, `CFG_DBITS=1`, `CFG_TDP=1`, scalar `A1DATA`/`A1Q`,
+decompiled `TRUE_DUAL_PORT=1`, `A_DATA_WIDTH=1`, live `CLKIN.0`/`CLKIN.1`,
+and `ENABLE.0`/`ENABLE.1`/`WREN.0`/`WREN.1`. Reported Fmax is 446.628 MHz
+against 50 MHz. Utilization is one M10K and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 wrote 0 at address 0 and 1 at address 7 and
+confirmed the neighbour. Logical INIT order does not match the physical
+8192x1 map. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free. The current
+nextpnr pin `2d3c216a` with Yosys `ec34fcf3` reproduces those same RBF
+bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1738,7 +1769,7 @@ fractional-N PLL from the bounded calculator (fabric GPI only), and a
 TDP M10K same-port NEW_DATA write-through (fabric GPI only), and an HPS
 I2C cell placed from QSF `HPS_LOCATION` (fabric GPI only), and two
 dual-clock M10Ks with unique sites and packed `ENABLE.1` (fabric GPI
-only). It does
+only), and an 8192x1 true-dual-port M10K (fabric GPI only). It does
 not establish native
 game acceptance.
 
