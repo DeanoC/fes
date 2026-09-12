@@ -1775,32 +1775,40 @@ VDP tile/status path, 720p timing, and board shell in both the default and
 `FES_COLECO_OSS` conditional lanes; `make sim-fes-coleco-oss` runs the latter
 directly. The Quartus recipe is `make build-fes-coleco-quartus`; the OSS recipe
 is `make build-fes-coleco`. Both recipes require a clean source checkout before
-sealing an artifact and never program hardware. The exact current-source OSS
-RBF was loaded through the FogCast target-agent lease on the designated
-disposable kit; its development probe timed out, then the core was stopped and
-the lease was released cleanly. No HDMI capture or functional/acceptance result
-was claimed.
+sealing an artifact and never program hardware. An earlier raw OSS RBF was
+loaded through the FogCast target-agent lease on the designated disposable kit;
+its development probe timed out, then the core was stopped and the lease was
+released cleanly. The exact format-2 package path was exercised separately
+after the clean integration build, as recorded below.
 
 ### FES ColecoVision OSS evidence and handoff
 
-The raw OSS recipe uses Yosys `synth_intel_alm -nolutram -nodsp`, nextpnr
-Mistral for `5CSEBA6U23I7`, seed 7, `router1`, and `--tmg-ripup`. The measured
-worktree run synthesizes 85 `MISTRAL_M10K_TDP` cells and 48 `MISTRAL_M10K`
-cells, places/routes with no unrouted nets, and reports 59.82 MHz on `clk_sys`
-against 52 MHz and 89.48 MHz on `pixel_clk` against 74.25 MHz. The exact RBF
-is 2,481,055 bytes with SHA-256
-`c6a060fa117be2bf9769c3b9be65b9f5d034c4dece2cf1327a8033db6a83eca9`. These are
-host-side compiler results; the kit load was diagnostic only, not physical or
-exact-artifact acceptance.
+The clean integration build of implementation revision
+`b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` uses Yosys
+`synth_intel_alm -nolutram -nodsp`, nextpnr Mistral for `5CSEBA6U23I7`, seed 7,
+`router1`, and `--tmg-ripup`. It synthesizes 85 `MISTRAL_M10K_TDP` cells and 48
+`MISTRAL_M10K` cells, places/routes with no unrouted nets, and reports 59.62 MHz
+on `clk_sys` against 52 MHz and 90.88 MHz on `pixel_clk` against 74.25 MHz.
+The sealed RBF is 2,484,053 bytes with SHA-256
+`370e478fcb1706845bc39eb71a3ee3caeb9dedfed1855126f49579efbe0389e8`, package
+`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`.
 
-A manual Quartus Prime Lite 17.0.2 compile of the same dirty source completed
-analysis, fitting, assembly, and the required TimeQuest checks. It used 2,170
-logic cells and 100 RAM segments. The diagnostic RBF is 2,296,512 bytes with
-SHA-256
-`5efb4f431b99c103f08dbf42289624c75a658f22bdcc306d5c1ca469808d3fed`. Because
-the source checkout was intentionally uncommitted, neither compiler run is a
-sealed provenance package; the integrator must rerun the normal clean-tree
-recipe after selecting the worker revision.
+A clean Quartus Prime Lite 17.0.2 compile of the same implementation revision
+completed analysis, fitting, assembly, and the required TimeQuest checks. It
+used 2,168 logic cells and 100 RAM segments. The sealed RBF is 2,294,532 bytes
+with SHA-256
+`b0b315e758e8cb7ae0171ad4be501acfad3ea7c600fe473bfea479cb9a7dc973`, package
+`6e863542effce1b60ff45f8665edfead60297f5bb31c15782c3de8bbb667114e`.
+
+The earlier raw diagnostic artifacts (`c6a060fa...a83eca9` OSS and
+`5efb4f43...80d3fed` Quartus) came from the intentionally dirty pre-provenance
+worktree. The exact clean OSS format-2 package was then loaded through the
+native FogCast path on the designated kit. The target reported package
+`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`, ABI
+`fes.simple-computer@1.0`, build `af69f2796385b64a92b328bd40df05b9`, and the
+three required interfaces; host stop returned the kit to idle. The HDMI sample
+was black, so this is exact-artifact load/stop diagnostic evidence, not Coleco
+functional or video acceptance.
 
 The following workarounds are concrete handoff items for the
 Yosys/nextpnr/Mistral owner:
@@ -1826,7 +1834,10 @@ compiler portability boundary, not a change to the public FES mailbox
 contract. The raw OSS run was performed before this worker checkout had a
 clean commit; the normal recipe must be rerun by the integrator after selecting
 the resulting source revision so the build record, manifest, and package
-export carry authenticated provenance.
+export carry authenticated provenance. The clean package and Quartus results
+above are the integrator's selected-revision evidence; documentation-only
+follow-up commits require the normal recipes to be rerun if they become the
+selected producer revision.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad

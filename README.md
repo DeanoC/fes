@@ -387,13 +387,16 @@ committed tree before sealing and neither programs a kit. The OSS path uses
 Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
 three coherent VDP VRAM copies for the raster read ports, `MISTRAL_IO` at HPS
 I²C BEL 52.60.0, and the accepted OSS 50 MHz `create_clock` constraint subset.
-The current raw OSS run routes at 59.82 MHz system / 89.48 MHz pixel with no
-unrouted nets; see `cores/fes-coleco/README.md` and the architecture note for
-the measured workaround handoff. It uses 85 `MISTRAL_M10K_TDP` and 48
-`MISTRAL_M10K` cells. Its exact RBF was loaded through the designated
-target-agent kit lease; the development probe timed out, then the core was
-stopped and the lease was released cleanly. This is diagnostic hardware
-evidence, not Coleco functional acceptance.
+The clean integration OSS build of implementation revision
+`b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` routes at 59.62 MHz system /
+90.88 MHz pixel with no unrouted nets; see `cores/fes-coleco/README.md` and the
+architecture note for the measured workaround handoff. It uses 85
+`MISTRAL_M10K_TDP` and 48 `MISTRAL_M10K` cells and seals package
+`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`. The exact
+clean package loaded through the native FogCast path and stopped back to idle
+under the designated target-agent lease. The HDMI sample was black; this is
+exact-artifact load/stop diagnostic evidence, not Coleco functional or video
+acceptance.
 
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the

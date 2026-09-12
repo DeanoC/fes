@@ -57,20 +57,27 @@ recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
 tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
 timing/resource checks pass. Neither command programs hardware.
 
-The raw OSS lane has been exercised against the current source: Yosys
-synthesized 85 `MISTRAL_M10K_TDP` and 48 `MISTRAL_M10K` cells, nextpnr
-completed with no unrouted nets, and timing reached 59.82 MHz on `clk_sys` and
-89.48 MHz on `pixel_clk`; the generated RBF was 2,481,055 bytes with SHA-256
-`c6a060fa117be2bf9769c3b9be65b9f5d034c4dece2cf1327a8033db6a83eca9`. A sealed
-package still requires a clean selected commit because the recipe intentionally
-rejects dirty source trees.
+The clean integration build of implementation revision
+`b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` synthesized 85
+`MISTRAL_M10K_TDP` and 48 `MISTRAL_M10K` cells, completed with no unrouted nets,
+and reached 59.62 MHz on `clk_sys` and 90.88 MHz on `pixel_clk`. Its sealed RBF
+was 2,484,053 bytes with SHA-256
+`370e478fcb1706845bc39eb71a3ee3caeb9dedfed1855126f49579efbe0389e8` in
+package `3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`.
 
-A manual Quartus Prime Lite 17.0.2 compile of the same dirty source also
+A clean Quartus Prime Lite 17.0.2 compile of that same implementation revision
 completed analysis, fitting, assembly, and the required TimeQuest checks. It
-used 2,170 logic cells and 100 RAM segments; the diagnostic RBF was 2,296,512
-bytes with SHA-256
-`5efb4f431b99c103f08dbf42289624c75a658f22bdcc306d5c1ca469808d3fed`. This is
-host-side diagnostic evidence, not a sealed artifact or hardware acceptance.
+used 2,168 logic cells and 100 RAM segments; its sealed RBF was 2,294,532 bytes
+with SHA-256
+`b0b315e758e8cb7ae0171ad4be501acfad3ea7c600fe473bfea479cb9a7dc973` in
+package `6e863542effce1b60ff45f8665edfead60297f5bb31c15782c3de8bbb667114e`.
+
+The earlier raw OSS RBF (`c6a060fa...a83eca9`) was loaded only as a development
+probe and timed out because it has no MiSTer identity. The exact clean OSS
+format-2 package above then loaded through the native FogCast path; the target
+reported the package, ABI, build ID, and required interfaces, and the host-owned
+stop returned it to idle. The HDMI sample was black, so this is exact-artifact
+load/stop diagnostic evidence, not Coleco functional or video acceptance.
 
 ## OSS/Yosys/nextpnr workarounds
 
