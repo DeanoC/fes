@@ -84,7 +84,9 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "5")
-        self.assertIn("router1", nextpnr)
+        self.assertIn("--router", nextpnr)
+        self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
+        self.assertNotIn("router1", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
         self.assertIn("cores/fes-coleco/constraints-oss.qsf", joined)
@@ -98,6 +100,7 @@ class BuildFesColecoTests(unittest.TestCase):
             {"yosys": "test"},
         )
         self.assertIn(b'"seed":5', record)
+        self.assertIn(b'"router":"gpu"', record)
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")

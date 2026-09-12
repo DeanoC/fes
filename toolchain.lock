@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "da6373c0d7565f36036051efc7895fb0d9ac13c3"
+commit = "ec34fcf38986217af9b5558936044b7197d968a7"
 order = 10
-rationale = "Adds inferred Cyclone V M10K asynchronous read-output clear (merged PR #12 da6373c0: ramstyle=M10K SDP with a zero-valued async read reset maps to ACLR1, ACLR0 tied low) on 75896890. Feature commit 11df3d33. Preserves explicit ACLR primitive ports, HPS I2C, CMake build surface, mixed-width TDP M10K and earlier ALM support. Pair with nextpnr fd862a2c for HDMI I2C, dedicated DDR clock forwarding, dedicated SDR output/input registers, dedicated DDR input registers, fabric-data DDR output registers, direct altiobuf packing, mixed-width M10K byte enables, DDR bidirectional I/O registers, and M10K asynchronous clear; published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 2d3c216a; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "fd862a2c59db7f0406e32831f2e57b3cfe034251"
+commit = "2d3c216afb7051d2e2070cbf678a50f274b3f786"
 order = 30
-rationale = "Maps Cyclone V M10K CFG_OUT_REG_A/B (merged PR #58 fd862a2c: parameters select A_OUTPUT_SEL/B_OUTPUT_SEL; 20-bit SDP uses CFG_OUT_REG_B). On 74aab451. Feature commit 39e30788. Preserves ADDRSTALLA/B, Quartus SDC/QSF compatibility, asynchronous M10K reads, generic 520 MHz PLL feedback, native 18x19 DSP, router2 QoR retry, unused-clock TCLK folding, M10K ACLR, DDR bidirectional I/O, mixed-width M10K byte enables, direct altiobuf packing, fabric-data DDR output, dedicated DDR/SDR GPIO registers, HPS I2C, bidirectional GPIO input-buffer, and constant FF data routing. Uses unchanged Mistral b28e30a and Yosys da6373c0; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Accepts equal-width 8192x1, 4096x2 and 2048x5 true-dual-port M10Ks (merged PR #67 2d3c216a: bank-replicated narrow data, 13th address bit on 8192x1, scalar A1DATA/A1Q). On 9c751533 (merged PR #66 GPU router). Feature commit edabecce. Mixed TDP stays 10/20-bit. Preserves selector audit, HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

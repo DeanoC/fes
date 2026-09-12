@@ -32,6 +32,7 @@ from scripts.export_core_package import build_identity, encode_build_record, exp
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
+ROUTER = "gpu"
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
 RECIPE = "scripts/build_fes_coleco_oss.py"
 ABI_DEFINITION = "cores/fes-coleco/generated/fes_simple_computer.vh"
@@ -159,6 +160,7 @@ def create_build_record(
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
             "seed": 5,
+            "router": ROUTER,
             "top": TOP,
         },
     }
@@ -193,11 +195,13 @@ def build_commands(
         "--sdc", SDC,
         "--freq", "74.25",
         # Seed 5 is the reproducible packed-sprite placement that clears the
-        # 52 MHz system-clock check. Timing-driven rip-up is intentionally not
-        # enabled: on this netlist it is slower and can move a passing route
-        # back below the CPU timing target.
+        # 52 MHz system-clock check on the GPU router's host backend. Seeds 3
+        # and 4 also close on the exact fixture, but seed 5 is the selected
+        # cross-host recipe. Timing-driven rip-up is intentionally not enabled:
+        # on this netlist it is slower and can move a passing route back below
+        # the CPU timing target.
         "--seed", "5",
-        "--router", "router1",
+        "--router", ROUTER,
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",
         "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",

@@ -145,7 +145,14 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+The current Yosys pin `ec34fcf38986217af9b5558936044b7197d968a7` adds native
+Cyclone V M10K flow-through inference for the equal-width and replicated
+registered shapes used by the Coleco sprite banks (merged PR #13
+`540998e36adcb0ddecdbdf39eed6df8e7551732d`). It preserves the earlier
+asynchronous-clear, dual-clock, byte-enable and mixed-width TDP support.
+Pair it with nextpnr `2d3c216a` and Mistral `b28e30a`.
+
+The previous Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
 merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
 `758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
 asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
@@ -170,7 +177,16 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `fd862a2c59db7f0406e32831f2e57b3cfe034251` is
+The current nextpnr pin `2d3c216afb7051d2e2070cbf678a50f274b3f786` carries
+the `--router gpu` connection router (merged PR #66) and the equal-width
+M10K packing used by the current Coleco fixture (merged PR #67
+`edabecce3a8759b641351aadbe1526d56c53f05a`). Its host backend is available
+without HIP/CUDA; the GPU report also passed Coleco seeds 3, 4 and 5 on the
+RX 7900 XTX and Radeon AI PRO R9700. The Coleco OSS recipe selects
+`--router gpu`, seed 5, and no timing-driven rip-up. These are host-only route
+results until the exact sealed RBF is accepted on the designated kit.
+
+The previous nextpnr pin `fd862a2c59db7f0406e32831f2e57b3cfe034251` is
 merged PR #58 (`39e307889ff77bbea6115bba5c36db953e565649` onto
 `74aab451fc767996e1c6195531a86d36c14b82c9`). It maps `CFG_OUT_REG_A`
 and `CFG_OUT_REG_B` onto M10K `A_OUTPUT_SEL`/`B_OUTPUT_SEL`. Pair it
@@ -1897,7 +1913,7 @@ these focused probes. The runner invokes neither synthesis nor hardware tools.
 
 ### FES ColecoVision OSS evidence and handoff
 
-The clean integration build of implementation revision
+The earlier clean integration build of implementation revision
 `b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` uses Yosys
 `synth_intel_alm -nolutram -nodsp`, nextpnr Mistral for `5CSEBA6U23I7`, seed 7,
 `router1`, and `--tmg-ripup`. It synthesizes 85 `MISTRAL_M10K_TDP` cells and 48
@@ -1942,7 +1958,7 @@ Yosys/nextpnr/Mistral owner:
 | PLL modeling | The two existing `altera_pll` wrappers remain in the design. OSS keeps the Mistral PLL cells and uses a clock-enable divider for the approximate CPU cadence instead of generating a third fabric clock. |
 | HDMI I²C | Quartus and OSS pad models stay separate. OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | QSF/SDC parsing | The OSS copies omit Quartus-only HPS location/clock-group syntax. `clocks-oss.sdc` contains only the accepted 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
-| Routing | The passing reproduction is device `5CSEBA6U23I7`, seed 5, `router1`, with no `--tmg-ripup`, requesting 74.25 MHz. On the packed netlist, timing-driven rip-up was slower and moved a passing system-clock route below target. Any toolchain change should preserve a complete route and both frequency rows before removing a workaround. |
+| Routing | The selected reproduction is device `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, with no `--tmg-ripup`, requesting 74.25 MHz. The GPU report passed seeds 3, 4 and 5 on both tested AMD hosts; exact-artifact kit validation remains separate. Timing-driven rip-up was slower and moved a passing system-clock route below target. No missing nextpnr BEL or pack feature was identified; the backend regression candidate is a small packed 4-bit registered dual-port M10K fixture with two clocks, explicit read-during-write mode and replicated banks. |
 
 The Quartus lane retains `altsyncram` M10K instances, the MIF reset image,
 Quartus tri-state I²C,
