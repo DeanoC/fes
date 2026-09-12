@@ -10,8 +10,11 @@ module coleco_video_dpram #(
     input  wire [ADDRWIDTH-1:0]  address_a,
     input  wire [DATAWIDTH-1:0]  data_a,
     input  wire                  wren_a,
+    output wire [DATAWIDTH-1:0]  q_a,
     input  wire                  clock_b,
     input  wire [ADDRWIDTH-1:0]  address_b,
+    input  wire [DATAWIDTH-1:0]  data_b,
+    input  wire                  wren_b,
     output wire [DATAWIDTH-1:0]  q_b
 );
 `ifdef QUARTUS
@@ -21,10 +24,10 @@ module coleco_video_dpram #(
         .clock0(clock_a),
         .clock1(clock_b),
         .data_a(data_a),
-        .data_b({DATAWIDTH{1'b0}}),
+        .data_b(data_b),
         .wren_a(wren_a),
-        .wren_b(1'b0),
-        .q_a(),
+        .wren_b(wren_b),
+        .q_a(q_a),
         .q_b(q_b),
         .aclr0(1'b0),
         .aclr1(1'b0),
@@ -37,7 +40,7 @@ module coleco_video_dpram #(
         .clocken2(1'b1),
         .clocken3(1'b1),
         .eccstatus(),
-        .rden_a(1'b0),
+        .rden_a(1'b1),
         .rden_b(1'b1)
     );
     defparam
@@ -62,29 +65,38 @@ module coleco_video_dpram #(
         altsyncram_component.operation_mode = "BIDIR_DUAL_PORT",
         altsyncram_component.outdata_aclr_a = "NONE",
         altsyncram_component.outdata_aclr_b = "NONE",
-        altsyncram_component.outdata_reg_a = "UNREGISTERED",
+        // Port A is also used as a registered read during sprite rendering.
+        // OLD_DATA makes the read/write edge deterministic for collision
+        // checks when a sprite writes an occupied pixel.
+        altsyncram_component.outdata_reg_a = "CLOCK0",
         // address_reg_b already supplies the one read-clock latency used by
         // the OSS RAM and video shell. CLOCK1 here would add a second stage.
         altsyncram_component.outdata_reg_b = "UNREGISTERED",
         altsyncram_component.power_up_uninitialized = "FALSE",
         altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",
-        altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",
+        altsyncram_component.read_during_write_mode_port_a = "OLD_DATA",
         altsyncram_component.read_during_write_mode_port_b = "NEW_DATA_NO_NBE_READ";
 `else
     // This is the same independent-clock inference shape as Misteross
     // experiment 490_m10k_sdp40. The read result is intentionally registered
-    // on clock_b so Yosys/nextpnr can map the table to MISTRAL_M10K.
+    // on both ports so Yosys/nextpnr can map the table to MISTRAL_M10K.
     (* ramstyle = "M10K" *) reg [DATAWIDTH-1:0] ram [0:NUMWORDS-1];
+    reg [DATAWIDTH-1:0] q_a_r;
     reg [DATAWIDTH-1:0] q_b_r;
 
     always @(posedge clock_a) begin
         if (wren_a)
             ram[address_a] <= data_a;
+        q_a_r <= ram[address_a];
     end
 
-    always @(posedge clock_b)
+    always @(posedge clock_b) begin
+        if (wren_b)
+            ram[address_b] <= data_b;
         q_b_r <= ram[address_b];
+    end
 
+    assign q_a = q_a_r;
     assign q_b = q_b_r;
 `endif
 endmodule

@@ -64,10 +64,13 @@ module coleco_vdp (
     // and the selected pattern row serially while the current line renders
     // from one of two small line buffers.
     reg [13:0] sprite_vram_address;
-    reg [1:0]  sprite_line_pixel_a [0:255];
-    reg [1:0]  sprite_line_pixel_b [0:255];
-    reg        sprite_line_occupied_a [0:255];
-    reg        sprite_line_occupied_b [0:255];
+    // Each line bank is a packed 4-bit M10K entry: pixel[1:0], occupied[2],
+    // and visible[3]. Port A supplies a registered renderer read/write and
+    // port B supplies the registered raster read.
+    wire [3:0] sprite_line_render_a_read;
+    wire [3:0] sprite_line_render_b_read;
+    wire [3:0] sprite_line_display_a_read;
+    wire [3:0] sprite_line_display_b_read;
     reg        sprite_display_bank;
     reg        sprite_build_bank;
     reg [7:0]  sprite_display_y;
@@ -98,7 +101,7 @@ module coleco_vdp (
     reg [1:0]  sprite_pattern_byte;
     reg [7:0]  sprite_pattern_left;
     reg [7:0]  sprite_pattern_right;
-    integer    sprite_clear_index;
+    reg [7:0]  sprite_clear_address;
     reg [4:0]  sprite_render_col;
     reg        sprite_render_rep;
     function integer sprite_pixel_x;
@@ -184,19 +187,26 @@ module coleco_vdp (
     wire [31:0] oss_color_address_w = {18'b0, color_base} +
                                       {24'b0, vram_name_read};
 
-    localparam [3:0] SPRITE_IDLE        = 4'd0;
-    localparam [3:0] SPRITE_ATTR_REQ    = 4'd1;
-    localparam [3:0] SPRITE_ATTR_WAIT   = 4'd2;
-    localparam [3:0] SPRITE_PATTERN_REQ = 4'd3;
-    localparam [3:0] SPRITE_PATTERN_WAIT= 4'd4;
-    localparam [3:0] SPRITE_RENDER      = 4'd5;
-    localparam [3:0] SPRITE_FINISH      = 4'd6;
+    localparam [3:0] SPRITE_IDLE         = 4'd0;
+    localparam [3:0] SPRITE_CLEAR        = 4'd1;
+    localparam [3:0] SPRITE_ATTR_REQ     = 4'd2;
+    localparam [3:0] SPRITE_ATTR_WAIT    = 4'd3;
+    localparam [3:0] SPRITE_PATTERN_REQ  = 4'd4;
+    localparam [3:0] SPRITE_PATTERN_WAIT = 4'd5;
+    localparam [3:0] SPRITE_RENDER_READ  = 4'd6;
+    localparam [3:0] SPRITE_RENDER_WRITE = 4'd7;
+    localparam [3:0] SPRITE_FINISH       = 4'd8;
 
     wire [13:0] sprite_sat_base = {vdp_reg[5][6:0], 7'b0};
     wire [13:0] sprite_pattern_base = {vdp_reg[6][2:0], 11'b0};
-    wire [1:0] sprite_display_pixel = sprite_display_bank ?
-                                       sprite_line_pixel_b[oss_pattern_coord_x] :
-                                       sprite_line_pixel_a[oss_pattern_coord_x];
+    wire sprite_display_line_valid = oss_pattern_valid &&
+                                     (sprite_display_y == oss_pattern_coord_y[7:0]);
+    wire [3:0] sprite_display_line_data = sprite_display_bank ?
+                                          sprite_line_display_b_read :
+                                          sprite_line_display_a_read;
+    wire [1:0] sprite_display_pixel = (sprite_display_line_valid &&
+                                       sprite_display_line_data[3]) ?
+                                       sprite_display_line_data[1:0] : 2'd0;
     wire [8:0] sprite_height_w = (vdp_reg[1][1] ? 9'd16 : 9'd8) <<
                                   (vdp_reg[1][0] ? 1 : 0);
     // TMS9918 treats E1..FF as signed negative Y positions; E0 and below
@@ -226,12 +236,63 @@ module coleco_vdp (
         (sprite_render_col < 5'd8) ?
         sprite_pattern_left[7 - sprite_render_col] :
         sprite_pattern_right[15 - sprite_render_col];
-    wire       sprite_render_occupied_w = sprite_build_bank ?
-        sprite_line_occupied_b[sprite_render_address_w] :
-        sprite_line_occupied_a[sprite_render_address_w];
-    wire [1:0] sprite_render_existing_pixel_w = sprite_build_bank ?
-        sprite_line_pixel_b[sprite_render_address_w] :
-        sprite_line_pixel_a[sprite_render_address_w];
+    wire [3:0] sprite_render_line_data = sprite_build_bank ?
+                                         sprite_line_render_b_read :
+                                         sprite_line_render_a_read;
+    wire       sprite_render_occupied_w = sprite_render_line_data[2];
+    wire       sprite_render_existing_pixel_w = sprite_render_line_data[3];
+    wire [1:0] sprite_render_pixel_value_w =
+        (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
+    wire [3:0] sprite_render_write_data_w =
+        (!sprite_render_existing_pixel_w && (sprite_attr_color[3:0] != 4'h0)) ?
+        {1'b1, 1'b1, sprite_render_pixel_value_w} :
+        {sprite_render_line_data[3], 1'b1, sprite_render_line_data[1:0]};
+    wire [7:0] sprite_line_address_a_w =
+        (sprite_eval_state == SPRITE_CLEAR) ? sprite_clear_address :
+        sprite_render_address_w;
+    wire sprite_line_clear_w = sprite_eval_state == SPRITE_CLEAR;
+    wire sprite_line_render_write_w =
+        (sprite_eval_state == SPRITE_RENDER_WRITE) &&
+        sprite_render_in_range_w && sprite_render_pattern_bit_w &&
+        (!sprite_render_existing_pixel_w || !sprite_render_occupied_w);
+    wire sprite_line_write_w = sprite_line_clear_w || sprite_line_render_write_w;
+
+    // Port A is read during SPRITE_RENDER_READ and written during the
+    // following SPRITE_RENDER_WRITE phase. Port B remains the raster read, so
+    // the old metadata and the visible pixel stay in one coherent entry.
+    coleco_video_dpram #(
+        .DATAWIDTH(4),
+        .ADDRWIDTH(8),
+        .NUMWORDS(256)
+    ) sprite_pixel_ram_a (
+        .clock_a(clk),
+        .address_a(sprite_line_address_a_w),
+        .data_a(sprite_line_clear_w ? 4'h0 : sprite_render_write_data_w),
+        .wren_a(sprite_line_write_w && !sprite_build_bank),
+        .q_a(sprite_line_render_a_read),
+        .clock_b(clk),
+        .address_b(oss_name_coord_x),
+        .data_b(4'h0),
+        .wren_b(1'b0),
+        .q_b(sprite_line_display_a_read)
+    );
+
+    coleco_video_dpram #(
+        .DATAWIDTH(4),
+        .ADDRWIDTH(8),
+        .NUMWORDS(256)
+    ) sprite_pixel_ram_b (
+        .clock_a(clk),
+        .address_a(sprite_line_address_a_w),
+        .data_a(sprite_line_clear_w ? 4'h0 : sprite_render_write_data_w),
+        .wren_a(sprite_line_write_w && sprite_build_bank),
+        .q_a(sprite_line_render_b_read),
+        .clock_b(clk),
+        .address_b(oss_name_coord_x),
+        .data_b(4'h0),
+        .wren_b(1'b0),
+        .q_b(sprite_line_display_b_read)
+    );
 
     // One registered read port is shared by the SAT and pattern-row walker.
     // Each request state is followed by a wait state because both OSS M10K
@@ -349,12 +410,7 @@ module coleco_vdp (
             sprite_pattern_right <= 8'h00;
             sprite_render_col <= 5'h00;
             sprite_render_rep <= 1'b0;
-            for (sprite_clear_index = 0; sprite_clear_index < 256; sprite_clear_index = sprite_clear_index + 1) begin
-                sprite_line_pixel_a[sprite_clear_index] <= 2'h00;
-                sprite_line_pixel_b[sprite_clear_index] <= 2'h00;
-                sprite_line_occupied_a[sprite_clear_index] <= 1'b0;
-                sprite_line_occupied_b[sprite_clear_index] <= 1'b0;
-            end
+            sprite_clear_address <= 8'h00;
         end else begin
             case (sprite_eval_state)
                 SPRITE_IDLE: begin
@@ -380,16 +436,16 @@ module coleco_vdp (
                         sprite_build_fifth_index <= 5'h00;
                         sprite_render_col <= 5'h00;
                         sprite_render_rep <= 1'b0;
-                        for (sprite_clear_index = 0; sprite_clear_index < 256; sprite_clear_index = sprite_clear_index + 1) begin
-                            if (sprite_build_bank) begin
-                                sprite_line_pixel_b[sprite_clear_index] <= 2'h00;
-                                sprite_line_occupied_b[sprite_clear_index] <= 1'b0;
-                            end else begin
-                                sprite_line_pixel_a[sprite_clear_index] <= 2'h00;
-                                sprite_line_occupied_a[sprite_clear_index] <= 1'b0;
-                            end
-                        end
+                        sprite_clear_address <= 8'h00;
+                        sprite_eval_state <= SPRITE_CLEAR;
+                    end
+                end
+
+                SPRITE_CLEAR: begin
+                    if (sprite_clear_address == 8'hff) begin
                         sprite_eval_state <= SPRITE_ATTR_REQ;
+                    end else begin
+                        sprite_clear_address <= sprite_clear_address + 1'b1;
                     end
                 end
 
@@ -472,38 +528,29 @@ module coleco_vdp (
                         end else begin
                             sprite_render_col <= 5'h00;
                             sprite_render_rep <= 1'b0;
-                            sprite_eval_state <= SPRITE_RENDER;
+                            sprite_eval_state <= SPRITE_RENDER_READ;
                         end
                     end else begin
                         sprite_pattern_right <= vram_sprite_read;
                         sprite_render_col <= 5'h00;
                         sprite_render_rep <= 1'b0;
-                        sprite_eval_state <= SPRITE_RENDER;
+                        sprite_eval_state <= SPRITE_RENDER_READ;
                     end
                 end
 
-                SPRITE_RENDER: begin
-                    // Render one source pixel per system clock.  The previous
-                    // procedural 16x2 loop created a wide dynamic-index write
-                    // mux for every line-buffer bit and made nextpnr routing
-                    // intractable on the 5CSE device.
+                SPRITE_RENDER_READ: begin
+                    // Port A returns the old line entry on the following edge.
+                    // Hold the source pixel coordinates for the paired write
+                    // phase so collision and priority decisions use the same
+                    // entry that was read.
+                    sprite_eval_state <= SPRITE_RENDER_WRITE;
+                end
+
+                SPRITE_RENDER_WRITE: begin
                     if (sprite_render_in_range_w &&
                         sprite_render_pattern_bit_w) begin
                         if (sprite_render_occupied_w)
                             sprite_build_collision <= 1'b1;
-                        if (sprite_attr_color[3:0] != 4'h0 &&
-                            !sprite_render_existing_pixel_w) begin
-                            if (sprite_build_bank)
-                                sprite_line_pixel_b[sprite_render_address_w] <=
-                                    (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
-                            else
-                                sprite_line_pixel_a[sprite_render_address_w] <=
-                                    (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
-                        end
-                        if (sprite_build_bank)
-                            sprite_line_occupied_b[sprite_render_address_w] <= 1'b1;
-                        else
-                            sprite_line_occupied_a[sprite_render_address_w] <= 1'b1;
                     end
 
                     if (sprite_render_rep == sprite_render_last_rep_w) begin
@@ -650,23 +697,28 @@ module coleco_vdp (
                 control_latch <= 1'b0;
             end
 
+`ifdef FES_COLECO_REGISTERED_VDP
+            // Request publication from registered raster coordinates rather
+            // than gating this compare with raster_ce.  raster_ce is launched
+            // on the system-clock falling edge; keeping it out of this
+            // request path avoids turning the sprite publication register into
+            // a new half-cycle timing path.  The request remains held until
+            // the registered lookup pipeline reaches the same line below.
+            if (!sprite_pending_valid &&
+                sprite_ready_y != 8'hff &&
+                sprite_ready_y == oss_scan_y[7:0] &&
+                sprite_display_y != oss_scan_y[7:0]) begin
+                sprite_pending_valid <= 1'b1;
+                sprite_pending_bank <= sprite_ready_bank;
+                sprite_pending_y <= sprite_ready_y;
+                sprite_pending_collision <= sprite_ready_collision;
+                sprite_pending_overflow <= sprite_ready_overflow;
+                sprite_pending_fifth_index <= sprite_ready_fifth_index;
+            end
+`endif
+
             if (raster_ce) begin
 `ifdef FES_COLECO_REGISTERED_VDP
-                if (!sprite_pending_valid &&
-                    sprite_ready_y != 8'hff &&
-                    sprite_ready_y == oss_scan_y[7:0] &&
-                    sprite_display_y != oss_scan_y[7:0]) begin
-                    // The raster lookup pipeline presents the current
-                    // pattern coordinate one cycle after this scan counter.
-                    // Hold the swap until that coordinate reaches the ready
-                    // line, so a line cannot be written with the next bank.
-                    sprite_pending_valid <= 1'b1;
-                    sprite_pending_bank <= sprite_ready_bank;
-                    sprite_pending_y <= sprite_ready_y;
-                    sprite_pending_collision <= sprite_ready_collision;
-                    sprite_pending_overflow <= sprite_ready_overflow;
-                    sprite_pending_fifth_index <= sprite_ready_fifth_index;
-                end
                 oss_launch_x <= oss_scan_x;
                 oss_launch_y <= oss_scan_y;
                 oss_launch_valid <= 1'b1;

@@ -195,7 +195,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/$@" \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
@@ -229,7 +229,7 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine" \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
@@ -288,6 +288,7 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp-oss" \
 		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
 	@build/sim/fes-coleco-vdp-oss/Vcoleco_vdp
 	@mkdir -p build/sim/fes-coleco-machine-oss
@@ -301,7 +302,7 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine-oss" \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \

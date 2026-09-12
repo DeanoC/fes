@@ -45,6 +45,7 @@ module coleco_video_720p (
     wire [9:0] image_y = (vertical - IMAGE_TOP) >> 1;
     wire [15:0] read_address = image_active ?
                                 {image_y[7:0], image_x[7:0]} : 16'd0;
+    wire [1:0] framebuffer_q_a;
     wire [1:0] framebuffer_q;
 
     coleco_video_dpram #(
@@ -56,8 +57,11 @@ module coleco_video_720p (
         .address_a(logical_address),
         .data_a(logical_pixel),
         .wren_a(logical_write),
+        .q_a(framebuffer_q_a),
         .clock_b(pixel_clk),
         .address_b(read_address),
+        .data_b(2'd0),
+        .wren_b(1'b0),
         .q_b(framebuffer_q)
     );
 

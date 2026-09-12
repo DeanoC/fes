@@ -114,7 +114,9 @@ class MailboxSourcePolicyTests(unittest.TestCase):
         ]
         self.assertNotIn("$(EXP)", require_exp)
         self.assertIn('"$$EXP"', require_exp)
-        sim = makefile[makefile.index("sim:") : makefile.index("oss:")]
+        # Target names such as sim-fes-coleco-oss: contain the substring
+        # "oss:"; anchor the slice to the top-level target labels.
+        sim = makefile[makefile.index("\nsim:") + 1 : makefile.index("\noss:") + 1]
         self.assertIn("scripts/run_sim.sh --experiment", sim)
         self.assertNotIn("$(EXP)", sim)
 
