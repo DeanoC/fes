@@ -1756,9 +1756,16 @@ views, and the established FES fixed-video shell. The reset shim occupies
 `0x0000–0x1fff` and begins with `JP 0x8000` (`c3 00 80`); it avoids embedding a
 proprietary BIOS. A raw 1–16 KiB mailbox blob is mirrored over `0x8000–ffff`.
 CPU RAM is 1 KiB at `0x6000–0x63ff`, mirrored through `0x7fff`. VDP data/control
-ports are `0xbe`/`0xbf`; controller reads are `0xfc`/`0xff`. The current
-controller adapter exposes keyboard rows 0 and 1 as active-low five-bit
-groups. Audio, BIOS services, expansion hardware, bank switching, full VDP
+ports are `0xbe`/`0xbf`; controller reads decode `0xe0–0xff`, selecting the
+player by A1 (including `0xfc`/`0xff`). A shared latch resets to keypad mode;
+writes to `0x80–0x9f` select keypad, `0xc0–0xdf` joystick. The unchanged
+40-bit keyboard matrix supplies directions, two fire buttons and twelve keypad
+keys for each player. Standard-controller reads use bit 7=0, bits 5/4=1,
+active-low selected fire in bit 6, and directions or an encoded keypad nibble.
+The [controller guide](../cores/fes-coleco/README.md#standard-controller-mapping)
+records exact key mapping, MiSTer reference revision and multi-key priority.
+No ABI, RAM wrapper or compiler constraint changes accompany this functional
+controller change. Audio, BIOS services, expansion hardware, bank switching, full VDP
 modes, sprite evaluation, cycle-perfect timing, and native FogCast/runtime
 selection remain outside this first slice.
 
@@ -1792,14 +1799,24 @@ The [core guide](../cores/fes-coleco/README.md#open-graphics-i-diagnostic) speci
 the image, generation commands, palette limitations and existing one-pixel
 framebuffer read latency. RAM power-up contents are randomized in the board test.
 
-The same generator's optional `--interactive` cartridge uses that unchanged
-hardware to poll FC/FF and display two rows of five active-low input panels.
+The same generator's optional `--interactive` cartridge selects joystick mode,
+polls FC/FF and maps Fire 1 bit 6 into two rows of five active-low input panels.
 It initializes its two cached input bytes in CPU RAM and repaints only a changed
 player row. `make coleco-diagnostic` supplies compact/full-aperture input images
 and a neutral preview; preview-only `--row0`/`--row1` select expected key states.
 The [input diagnostic guide](../cores/fes-coleco/README.md#two-player-input-diagnostic)
 defines panel geometry and the reused Shift/Z/X/C/V and A/S/D/F/G keyboard
-mapping. No RTL, ABI, native gamepad or full Coleco keypad support is added.
+mapping. Regenerate this cartridge for the current controller RTL; the old
+five-bit-adapter ROM and FPGA packages do not establish compatibility.
+
+The `--controllers` cartridge switches modes and displays four raw-byte banks:
+player 1 joystick/keypad, then player 2 joystick/keypad. Each bank has eight
+panels, low bit first. Preview-only `--matrix` accepts the unchanged 40-bit
+active-low matrix. Board tests observe real CPU VRAM writes for every matrix
+bit and compare complete representative HDMI frames. Machine tests use real
+CPU IN/OUT instructions to cover all mode/read aliases, unrelated writes and
+reset-only reruns. These are standard controllers only: no spinner, Super
+Action extras or physical gamepad transport is added.
 
 `coleco_machine` holds CPU and VDP reset while execution reset is requested,
 committed media is absent, or the cartridge copy has not finished. GP commit

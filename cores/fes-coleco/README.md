@@ -18,8 +18,8 @@ retail-game compatibility.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, register-based Graphics I name/pattern/color tables, tile pixels, and
   VBlank status.
-- Controller reads at `0xfc` and `0xff`, adapted from keyboard rows 0 and 1
-  as active-low five-bit groups.
+- Two standard controllers with joystick/keypad mode selection, twelve encoded
+  keypad keys and two fire buttons, adapted from the existing keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Audio, BIOS services, expansion hardware, bank switching, full VDP modes,
@@ -36,8 +36,8 @@ are deliberate compatibility boundaries.
 | `0x8000–0xffff` | mirrored 16 KiB cartridge aperture |
 | I/O `0xbe` | VDP data |
 | I/O `0xbf` | VDP control/status |
-| I/O `0xfc` | controller 1 |
-| I/O `0xff` | controller 2 |
+| I/O writes `0x80–0x9f` / `0xc0–0xdf` | select keypad / joystick mode for both players |
+| I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
 The mailbox, keyboard rows, media handshake, build identity, and fixed-video
 interfaces are byte-for-byte the existing `fes.simple-computer` boundary.
@@ -54,6 +54,41 @@ strobe. TV80 holds IORQ/WR low across multiple CPU enables; passing every enable
 through used to duplicate control bytes and VRAM writes. Read sampling retains
 its existing window; this diagnostic does not establish buffered VRAM-read or
 complete TMS9918 compatibility.
+
+## Standard controller mapping
+
+Reset selects keypad mode. Mode writes ignore their data byte; repeated clocks
+within one held OUT select the same mode, not toggle it. Only the low I/O
+address byte is decoded. Reads return bit 7=0 (stationary standard controllers,
+no spinner), bits 5/4=1, bit 6=active-low Fire 1 in joystick mode or Fire 2 in
+keypad mode. Bits 3..0 contain active-low Left/Down/Right/Up in joystick mode,
+or an encoded keypad value. Neutral is `7f` in either mode.
+
+| Keyboard matrix bits | Function | Host keys in index order |
+| --- | --- | --- |
+| 0..4 | Player 1 Up/Right/Down/Left/Fire 1 | Shift, Z, X, C, V |
+| 5..9 | Player 2 Up/Right/Down/Left/Fire 1 | A, S, D, F, G |
+| 10 / 11 | Player 1 / Player 2 Fire 2 | Q / W |
+| 12..23 | Player 1 keypad 0..9, *, # | E, R, T, 1, 2, 3, 4, 5, 0, 9, 8, 7 |
+| 24..35 | Player 2 keypad 0..9, *, # | 6, P, O, I, U, Y, Enter, L, K, J, H, Space |
+| 36..39 | Unused | Period, M, N, B |
+
+Keypad keys `0 1 2 3 4 5 6 7 8 9 * #` return CPU low nibbles
+`a d 7 c 2 3 e 5 1 b 9 6`; no key returns `f`. Multiple pressed keys use
+the lowest index in that order. This follows the standard-controller path in
+[MiSTer revision 5e8713c](https://github.com/MiSTer-devel/ColecoVision_MiSTer/tree/5e8713cbc91b7d7abe4806cb87834b16d7348011)
+(`rtl/cv_addr_dec.vhd`, `rtl/cv_ctrl.vhd`, and the keypad pin mapping in
+`ColecoVision.sv`); it does not model electrical multi-key combinations,
+spinner quadrature or Super Action extras.
+
+The matrix remains the unchanged 40-bit active-low `fes.simple-computer`
+keyboard transport. These unusual host keys are diagnostic mappings, not a
+new physical-gamepad API. The CPU regression executes actual IN/OUT instructions
+over both mode-select ranges and every read alias, with neutral, every one-hot
+matrix bit, mixed/all-pressed states, unrelated writes and reset-only reruns.
+This is functional controller RTL, not a compiler workaround, and needs newly
+built FPGA packages. The original static 989-byte diagnostic stays unchanged;
+regenerate the interactive cartridge for the new controller bit layout.
 
 ## Open Graphics I diagnostic
 
@@ -145,8 +180,7 @@ python3 cores/fes-coleco/diagnostic/generate.py --interactive \
 Two rows of five solid panels show controller 1 (top) and controller 2
 (bottom). Columns mean **Up, Right, Down, Left, Fire**, in bit order 0..4.
 Released panels are orange, pressed panels green; the surround is black with
-a green border. These are diagnostic names for the existing five-bit adapter,
-not a claim of full Coleco joystick/keypad emulation.
+a green border. This view shows joystick directions and Fire 1 only.
 
 | Player | Keyboard matrix row | Keys for Up / Right / Down / Left / Fire |
 | --- | --- | --- |
@@ -160,7 +194,8 @@ Rows 2..7 do not affect these panels. `--row0` and `--row1` accept active-low
 send input. Use the normal leased FogCast keyboard event path for live input.
 
 The BIOS-free CPU initializes all VRAM and both previous-input bytes in CPU
-RAM, then continuously polls ports FC and FF. Only changed player rows repaint
+RAM, selects joystick mode through C0, then continuously polls ports FC and FF.
+It maps hardware Fire 1 bit 6 to panel bit 4. Only changed player rows repaint
 their five panels, avoiding writes while the input is stable. Each panel is
 four by four tiles: columns 2..5, 8..11, 14..17, 20..23, 26..29; rows 5..8
 and 15..18. Input is active-low; no HALT, interrupt handler or RAM power-up
@@ -170,9 +205,34 @@ visible briefly before the display settles.
 GP HOLD clears keyboard rows during upload. Board tests exercise that neutral
 state and explicit restoration after a held-key reload; FogCast's existing
 runtime adapter restores its package/generation-bound held matrix after media
-commit. Detaching host input must release the keys. This diagnostic changes
-cartridge bytes and tests only, not RTL, compiler constraints or RAM wrappers;
-the earlier exact `69c5823` FPGA packages can execute it without rebuilding.
+commit. Detaching host input must release the keys. This updated cartridge
+requires the standard-controller RTL above; historical five-bit-adapter FPGA
+packages are not compatible with its Fire 1 mapping.
+
+### Joystick/keypad byte diagnostic
+
+`make coleco-diagnostic` also generates `controller.rom`,
+`controller-16k.rom` and `controller.ppm`. Four rows show raw controller bytes
+in this order: player 1 joystick, player 1 keypad, player 2 joystick, player 2
+keypad. Each row has eight panels, bits 0..7 from left to right; green means
+zero and orange means one. Panels occupy two-by-two tiles at columns
+`4+3*bit .. 5+3*bit`, rows `3+5*bank .. 4+5*bank`. Black surroundings and a
+green border retain the static diagnostic's geometry and framebuffer latency.
+
+```sh
+python3 cores/fes-coleco/diagnostic/generate.py --controllers \
+  --output build/diagnostics/fes-coleco/controller.rom \
+  --preview build/diagnostics/fes-coleco/controller-mixed.ppm \
+  --matrix 0xffffffffff
+```
+
+`--matrix` selects a 40-bit active-low expected state for the preview only;
+it does not change ROM bytes or send input. The CPU switches modes and polls
+both players, repainting only changed banks. Its four cached bytes initialize
+to FF, outside the valid controller range, so every bank is painted initially.
+Board simulation observes actual CPU VRAM writes for all 40 matrix bits and
+checks complete HDMI frames for representative mixed states and reloads in
+both lanes; it does not inject controller values into the CPU or prefill VRAM.
 
 ### Build and simulation
 

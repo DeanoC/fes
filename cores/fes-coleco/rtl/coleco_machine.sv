@@ -89,14 +89,60 @@ module coleco_machine (
     assign logical_blank = vdp_raster_blank;
     assign vdp_status = {vdp_status_collision, 6'b0, vdp_raster_blank};
 
-    assign controller1_value = {3'b111, keyboard[4:0]};
-    assign controller2_value = {3'b111, keyboard[9:5]};
+    // Coleco's common latch selects keypad (80..9F) or joystick (C0..DF).
+    // Repeated clocks during one held OUT are harmless: this is a set/reset
+    // latch, not a toggle, and the output byte is ignored.
+    reg controller_joystick;
+    always @(posedge clk_sys) begin
+        if (machine_reset)
+            controller_joystick <= 1'b0;
+        else if (ce_cpu_n && !nIORQ && !nWR) begin
+            case (cpu_addr[7:5])
+                3'b100: controller_joystick <= 1'b0;
+                3'b110: controller_joystick <= 1'b1;
+                default: ;
+            endcase
+        end
+    end
+
+    // CPU data-bit encoding, including cv_ctrl's pin permutation. Reference:
+    // MiSTer ColecoVision 5e8713cbc91b7d7abe4806cb87834b16d7348011.
+    // Lowest key index wins (0..9, *, #), matching the reference's priority.
+    function [3:0] keypad_code;
+        input [11:0] keys;
+        begin
+            if      (!keys[0])  keypad_code = 4'ha;
+            else if (!keys[1])  keypad_code = 4'hd;
+            else if (!keys[2])  keypad_code = 4'h7;
+            else if (!keys[3])  keypad_code = 4'hc;
+            else if (!keys[4])  keypad_code = 4'h2;
+            else if (!keys[5])  keypad_code = 4'h3;
+            else if (!keys[6])  keypad_code = 4'he;
+            else if (!keys[7])  keypad_code = 4'h5;
+            else if (!keys[8])  keypad_code = 4'h1;
+            else if (!keys[9])  keypad_code = 4'hb;
+            else if (!keys[10]) keypad_code = 4'h9;
+            else if (!keys[11]) keypad_code = 4'h6;
+            else               keypad_code = 4'hf;
+        end
+    endfunction
+
+    // D7=0, D5/D4=1 for stationary standard controllers; no quadrature input.
+    // Existing first two rows retain directions/fire1; spare matrix bits carry
+    // fire2 and the two keypads. The FES keyboard wire contract is unchanged.
+    assign controller1_value = {1'b0, controller_joystick ? keyboard[4] : keyboard[10],
+                                2'b11, controller_joystick ? keyboard[3:0] :
+                                keypad_code(keyboard[23:12])};
+    assign controller2_value = {1'b0, controller_joystick ? keyboard[9] : keyboard[11],
+                                2'b11, controller_joystick ? keyboard[8:5] :
+                                keypad_code(keyboard[35:24])};
 
     initial begin
         media_addr = 14'h0000;
         media_loaded = 1'b0;
         reset_d = 1'b0;
         vdp_write_seen = 1'b0;
+        controller_joystick = 1'b0;
 `ifdef FES_COLECO_REGISTERED_MEDIA
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
@@ -250,10 +296,8 @@ module coleco_machine (
         io_read_data = 8'hff;
         if (cpu_addr[7:0] == 8'hbe || cpu_addr[7:0] == 8'hbf)
             io_read_data = vdp_cpu_dout;
-        else if (cpu_addr[7:0] == 8'hfc)
-            io_read_data = controller1_value;
-        else if (cpu_addr[7:0] == 8'hff)
-            io_read_data = controller2_value;
+        else if (cpu_addr[7:5] == 3'b111)
+            io_read_data = cpu_addr[1] ? controller2_value : controller1_value;
     end
 
     always @* begin

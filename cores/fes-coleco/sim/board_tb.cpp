@@ -4,6 +4,7 @@
 #include "verilated.h"
 
 #include <cstdint>
+#include <array>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -36,6 +37,13 @@ struct Board {
     Vtop dut;
     Vtop___024root &root;
     bool interactive = false;
+    bool controllers = false;
+    bool joystick = false;
+    bool exchanging = false;
+    uint64_t matrix = 0xffffffffffULL;
+    unsigned bank_polls[4] = {};
+    std::array<uint8_t, 16384> observed_vram{};
+    unsigned bank_writes[4] = {};
     bool consumed_write = false;
     bool consumed_read = false;
     unsigned quiet_cycles = 0;
@@ -53,25 +61,49 @@ struct Board {
 
     void sys_tick() {
         if (interactive && root.top__DOT__machine__DOT__cpu__DOT__RESET_n) {
+            if (!root.top__DOT__machine__DOT__nIORQ && !root.top__DOT__machine__DOT__nWR) {
+                const unsigned group = root.top__DOT__machine__DOT__cpu_addr & 0xe0;
+                if (group == 0x80) joystick = false;
+                if (group == 0xc0) joystick = true;
+            }
             require(root.top__DOT__machine__DOT__nHALT,
                     "interactive diagnostic halted instead of polling controllers");
             ++quiet_cycles;
             if (root.top__DOT__machine__DOT__nIORQ || root.top__DOT__machine__DOT__nWR)
                 consumed_write = false;
-            if (root.top__DOT__machine__DOT__vdp__DOT__bus_write) {
+            // bus_write is the qualified CPU OUT strobe, even for controller
+            // mode ports. Only BE/BF are VDP writes and break the quiet window.
+            if (root.top__DOT__machine__DOT__vdp__DOT__bus_write &&
+                (root.top__DOT__machine__DOT__vdp__DOT__data_port ||
+                 root.top__DOT__machine__DOT__vdp__DOT__control_port)) {
                 require(!consumed_write, "VDP consumed the same CPU OUT transaction twice");
                 consumed_write = true;
                 quiet_cycles = 0;
                 polls[0] = polls[1] = 0;
+                for (auto &count : bank_polls) count = 0;
                 ++writes;
-                if (root.top__DOT__machine__DOT__vdp__DOT__data_port)
-                    initialized[root.top__DOT__machine__DOT__vdp__DOT__vram_addr] = true;
+                if (root.top__DOT__machine__DOT__vdp__DOT__data_port) {
+                    unsigned addr = root.top__DOT__machine__DOT__vdp__DOT__vram_addr;
+                    initialized[addr] = true;
+                    observed_vram[addr] = root.top__DOT__machine__DOT__cpu_dout;
+                    for (unsigned bank = 0; bank < 4; ++bank)
+                        if (addr / 32 >= 3 + 5 * bank && addr / 32 <= 4 + 5 * bank)
+                            ++bank_writes[bank];
+                }
             }
             if (root.top__DOT__machine__DOT__nIORQ || root.top__DOT__machine__DOT__nRD)
                 consumed_read = false;
             else if (!consumed_read && root.top__DOT__machine__DOT__ce_cpu_n) {
                 const unsigned port = root.top__DOT__machine__DOT__cpu_addr & 255;
-                if (port == 0xfc || port == 0xff) ++polls[port == 0xff];
+                if (port >= 0xe0) {
+                    unsigned player = (port >> 1) & 1;
+                    ++polls[player];
+                    unsigned bank = player * 2 + !joystick;
+                    ++bank_polls[bank];
+                    if (controllers && !exchanging)
+                        require(root.top__DOT__machine__DOT__cpu_din == expected_banks()[bank],
+                                "CPU controller mode/read mismatch bank " + std::to_string(bank));
+                }
                 consumed_read = true;
             }
         }
@@ -97,6 +129,7 @@ struct Board {
 
     void exchange(bool &toggle, uint8_t opcode, uint8_t index, uint16_t argument,
                   uint32_t expected, const std::string &name) {
+        exchanging = true;
         set_gpo(command(toggle, opcode, index, argument));
         sys_tick();
         toggle = !toggle;
@@ -104,6 +137,7 @@ struct Board {
         for (unsigned i = 0; i != 8; ++i) {
             if (((gpi() >> 23) & 1u) == unsigned(toggle)) {
                 require(gpi() == expected, name + ": unexpected mailbox response");
+                exchanging = false;
                 return;
             }
             sys_tick();
@@ -114,8 +148,10 @@ struct Board {
     void hold(bool &toggle) {
         exchange(toggle, 2, 0, 0, response(!toggle, false, 0), "hold reset");
         if (interactive) {
-            require(root.top__DOT__machine__DOT__controller1_value == 0xff &&
-                        root.top__DOT__machine__DOT__controller2_value == 0xff,
+            matrix = 0xffffffffffULL;
+            joystick = false;
+            require(root.top__DOT__machine__DOT__controller1_value == 0x7f &&
+                        root.top__DOT__machine__DOT__controller2_value == 0x7f,
                     "HOLD did not reset both controller rows to neutral");
             initialized.assign(16384, false);
             consumed_read = consumed_write = false;
@@ -141,9 +177,7 @@ struct Board {
     }
 
     void reset_only(bool &toggle, const std::vector<uint8_t> &cartridge) {
-        require(root.top__DOT__machine__DOT__controller1_value == 0xea &&
-                    root.top__DOT__machine__DOT__controller2_value == 0xf5,
-                "reset-only test must start with mixed keys held");
+        require(matrix != 0xffffffffffULL, "reset-only test must start with keys held");
         require(root.top__DOT__media_ready, "reset-only test needs committed media");
         hold(toggle);
         require(root.top__DOT__media_ready, "HOLD discarded committed media");
@@ -198,23 +232,62 @@ struct Board {
     }
 
     void row(bool &toggle, unsigned index, uint8_t value) {
+        matrix = (matrix & ~(uint64_t(31) << (5 * index))) | (uint64_t(value) << (5 * index));
         exchange(toggle, 3, index, value, response(!toggle, false, 0), "keyboard row");
     }
 
-    void settle(const std::string &name, bool startup = false) {
+    std::array<uint8_t, 4> expected_banks() const {
+        const uint8_t keys[] = {0xa, 0xd, 7, 0xc, 2, 3, 0xe, 5, 1, 0xb, 9, 6};
+        std::array<uint8_t, 4> result{};
+        for (unsigned p = 0; p < 2; ++p) {
+            unsigned nibble = 15;
+            for (unsigned k = 0; k < 12; ++k)
+                if (!(matrix & (1ULL << (12 + 12 * p + k)))) { nibble = keys[k]; break; }
+            result[2*p] = 0x30 | ((matrix >> (5*p)) & 15) | (((matrix >> (4+5*p)) & 1) << 6);
+            result[2*p+1] = 0x30 | nibble | (((matrix >> (10+p)) & 1) << 6);
+        }
+        return result;
+    }
+
+    void check_names(const std::string &name) {
+        const auto banks = expected_banks();
+        for (unsigned row = 0; row < 24; ++row)
+            for (unsigned col = 0; col < 32; ++col) {
+                unsigned expected = row == 0 || row == 23 || col == 0 || col == 31 ? 0 : 3;
+                for (unsigned bank = 0; bank < 4; ++bank)
+                    for (unsigned bit = 0; bit < 8; ++bit)
+                        if (row >= 3+5*bank && row <= 4+5*bank && col >= 4+3*bit && col <= 5+3*bit)
+                            expected = banks[bank] & (1 << bit) ? 2 : 1;
+                require(observed_vram[row*32+col] == expected, name + ": CPU VRAM panel mismatch");
+            }
+    }
+
+    void settle(const std::string &name, bool startup = false, bool raster = true) {
         quiet_cycles = 0;
         polls[0] = polls[1] = 0;
+        for (auto &count : bank_polls) count = 0;
         unsigned cycles = 0;
         // Require repeated reads of BOTH controllers after the last VDP write,
         // plus a quiet window. This also rejects unconditional panel repainting.
         for (; cycles < 20000000; ++cycles) {
             sys_tick();
-            if (quiet_cycles >= 100000 && polls[0] >= 8 && polls[1] >= 8) break;
+            bool all_banks = true;
+            if (controllers) for (auto count : bank_polls) all_banks &= count >= 8;
+            if (quiet_cycles >= 100000 && polls[0] >= 8 && polls[1] >= 8 && all_banks) break;
         }
-        require(cycles < 20000000, name + ": controller polling/VDP completion timeout");
+        require(cycles < 20000000, name + ": controller polling/VDP completion timeout; quiet=" +
+                std::to_string(quiet_cycles) + " writes=" + std::to_string(writes) +
+                " bank polls=" + std::to_string(bank_polls[0]) + "," + std::to_string(bank_polls[1]) +
+                "," + std::to_string(bank_polls[2]) + "," + std::to_string(bank_polls[3]) +
+                " cache=" + std::to_string(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[0]) +
+                "," + std::to_string(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[1]) +
+                "," + std::to_string(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[2]) +
+                "," + std::to_string(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[3]));
         if (startup)
             for (bool value : initialized)
                 require(value, name + ": CPU did not initialize all 16 KiB VRAM");
+        if (controllers) check_names(name);
+        if (!raster) return;
         const unsigned before = writes;
         for (unsigned i = 0; i < 2 * 256 * 262 * 16; ++i) sys_tick();
         require(writes == before, name + ": unchanged input repainted VDP");
@@ -248,7 +321,20 @@ uint32_t interactive_rgb(unsigned x, unsigned y, uint8_t p0, uint8_t p1) {
     return 0;
 }
 
+uint32_t controllers_rgb(unsigned x, unsigned y, const std::array<uint8_t, 4> &banks) {
+    if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
+    const unsigned col = (x == 384 ? 0 : (x - 385) / 2) / 8;
+    const unsigned row = (y - 168) / 16;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    for (unsigned bank = 0; bank < 4; ++bank)
+        for (unsigned bit = 0; bit < 8; ++bit)
+            if (row >= 3+5*bank && row <= 4+5*bank && col >= 4+3*bit && col <= 5+3*bit)
+                return banks[bank] & (1 << bit) ? 0xff4000 : 0x00ff40;
+    return 0;
+}
+
 void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
+    const auto banks = board.expected_banks();
     // Synchronize by observing counters; never write the raster or framebuffer.
     unsigned sync = 0;
     while (board.root.top__DOT__video__DOT__horizontal != 0 ||
@@ -263,7 +349,8 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
             require(bool(board.dut.HDMI_TX_DE) == (x < 1280 && y < 720), "HDMI DE");
             require(bool(board.dut.HDMI_TX_HS) == (x >= 1390 && x < 1430), "HDMI HS");
             require(bool(board.dut.HDMI_TX_VS) == (y >= 725 && y < 730), "HDMI VS");
-            const uint32_t expected = board.interactive ? interactive_rgb(x, y, p0, p1) : expected_rgb(x, y);
+            const uint32_t expected = board.controllers ? controllers_rgb(x, y, banks) :
+                board.interactive ? interactive_rgb(x, y, p0, p1) : expected_rgb(x, y);
             require(board.dut.HDMI_TX_D == expected,
                     "diagnostic RGB mismatch at " + std::to_string(x) + "," +
                     std::to_string(y) + ": got " + std::to_string(board.dut.HDMI_TX_D) +
@@ -275,14 +362,15 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
         }
     }
     require(active == 1280 * 720, "active pixel count");
-    require(lit == (board.interactive ? 68608u : 122688u), "nonblack pixel count");
+    require(lit == (board.controllers ? 60416u : board.interactive ? 68608u : 122688u), "nonblack pixel count");
 }
 
 }  // namespace
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
-    const bool interactive = argc > 1 && std::string(argv[1]) == "--interactive";
+    const bool controllers = argc > 1 && std::string(argv[1]) == "--controllers";
+    const bool interactive = controllers || (argc > 1 && std::string(argv[1]) == "--interactive");
     require(argc >= (interactive ? 3 : 2),
             "usage: Vtop [--interactive] cartridge.rom [more generated cartridges...]");
     std::vector<std::vector<uint8_t>> cartridges;
@@ -299,6 +387,7 @@ int main(int argc, char **argv) {
     Verilated::randSeed(0xc01ec0);
     Board board;
     board.interactive = interactive;
+    board.controllers = controllers;
 
     for (unsigned hps_low = 0; hps_low != 4; ++hps_low) {
         for (unsigned external_low = 0; external_low != 4; ++external_low) {
@@ -332,8 +421,53 @@ int main(int argc, char **argv) {
                 "CPU/VDP escaped reset without committed media");
         board.sys_tick();
     }
+    unsigned load = 0;
     for (const auto &cartridge : cartridges) {
         board.upload(toggle, cartridge);
+        if (controllers) {
+            const uint64_t neutral = 0xffffffffffULL;
+            const auto check = [&](const std::string &name, bool startup, bool frame) {
+                board.settle(name, startup, frame);
+                if (frame) check_frame(board);
+                std::cout << "controllers " << cartridge.size() << " bytes: " << name << std::endl;
+            };
+            const auto change = [&](uint64_t matrix, const std::string &name, bool frame = false) {
+                const auto previous = board.expected_banks();
+                const std::array<unsigned, 4> before = {board.bank_writes[0], board.bank_writes[1],
+                                                       board.bank_writes[2], board.bank_writes[3]};
+                for (unsigned row = 0; row < 8; ++row)
+                    board.row(toggle, row, (matrix >> (5*row)) & 31);
+                check(name, false, frame);
+                const auto after = board.expected_banks();
+                for (unsigned bank = 0; bank < 4; ++bank)
+                    if (previous[bank] == after[bank])
+                        require(board.bank_writes[bank] == before[bank], name + ": unchanged bank repainted");
+            };
+            check("neutral after HOLD", true, true);
+            if (load++ == 0) {
+                for (unsigned bit = 0; bit < 40; ++bit) {
+                    change(neutral ^ (1ULL << bit), "matrix bit " + std::to_string(bit));
+                    change(neutral, "release bit " + std::to_string(bit));
+                }
+                for (unsigned p = 0; p < 2; ++p)
+                    for (unsigned key = 0; key < 11; ++key) {
+                        change(neutral ^ (3ULL << (12 + 12*p + key)), "key priority");
+                        change(neutral, "priority release");
+                    }
+                change(0, "all keys and both fires", true);
+                change(neutral, "all released", true);
+            }
+            const uint64_t mixed = neutral ^ (1ULL << 0) ^ (1ULL << 4) ^ (1ULL << 11) ^
+                                   (1ULL << 13) ^ (1ULL << 21) ^ (1ULL << 35);
+            change(mixed, "mixed players/fire/key priority", true);
+            board.reset_only(toggle, cartridge);
+            check("reset-only neutral", true, false);
+            change(mixed, "reset-only held restore");
+            board.upload(toggle, cartridge);
+            check("held reload neutral", true, false);
+            change(mixed, "held reload restore", true);
+            continue;
+        }
         if (interactive) {
             const auto check = [&](const std::string &name, uint8_t p0, uint8_t p1, bool startup = false) {
                 std::cout << "interactive " << cartridge.size() << " bytes: " << name << std::endl;
@@ -377,6 +511,11 @@ int main(int argc, char **argv) {
         check_frame(board);
     }
     require(board.dut.HDMI_TX_CLK == 0, "pixel clock boundary did not settle");
+    if (controllers) {
+        std::cout << "FES Coleco controllers board passed: " << cartridges.size()
+                  << " cartridges; all 40 matrix bits, keypad priority, changed-bank writes, reset/reload, exact frames\n";
+        return EXIT_SUCCESS;
+    }
     if (interactive) {
         std::cout << "FES Coleco interactive board passed: " << cartridges.size()
                   << " cartridges, each with held reload, reset-only and 27 exact full frames\n";
