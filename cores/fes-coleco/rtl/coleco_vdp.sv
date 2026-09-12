@@ -21,7 +21,8 @@ module coleco_vdp (
     output reg  [8:0] raster_y,
     output reg  [1:0] raster_pixel,
     output reg        raster_blank,
-    output reg        status_collision
+    output reg        status_collision,
+    output wire       irq_n
 );
     localparam [13:0] VRAM_LAST = 14'h3fff;
 
@@ -61,7 +62,14 @@ module coleco_vdp (
     reg       control_latch;
     reg [13:0] vram_addr;
     reg [7:0] vram_read_q;
+    reg [13:0] prefetch_addr;
+    reg [1:0] prefetch_pending;
+    reg read_seen;
+    reg [7:0] read_result;
     reg       status_vblank;
+    // Coleco connects the VDP's active-low interrupt to Z80 NMI, not INT.
+    // Enabling IE with a frame already pending must assert immediately.
+    assign irq_n = !(status_vblank && vdp_reg[1][5]);
 
     integer init_index;
     initial begin
@@ -69,6 +77,10 @@ module coleco_vdp (
         control_latch = 1'b0;
         vram_addr = 14'h0000;
         vram_read_q = 8'hff;
+        prefetch_addr = 14'h0000;
+        prefetch_pending = 2'b00;
+        read_seen = 1'b0;
+        read_result = 8'hff;
         status_vblank = 1'b0;
         status_collision = 1'b0;
         raster_x = 8'h00;
@@ -91,9 +103,11 @@ module coleco_vdp (
     end
 
     wire bus_write = cpu_ce && !cpu_iorq_n && !cpu_wr_n;
-    wire bus_read = cpu_ce && !cpu_iorq_n && !cpu_rd_n;
+    wire read_active = !cpu_iorq_n && !cpu_rd_n;
+    wire bus_read = cpu_ce && read_active && !read_seen;
     wire control_port = cpu_a == 8'hbf;
     wire data_port = cpu_a == 8'hbe;
+    wire [13:0] cpu_vram_addr = (bus_write && data_port) ? vram_addr : prefetch_addr;
     wire [13:0] name_base = {vdp_reg[2][3:0], 10'b0};
     wire [13:0] color_base = {vdp_reg[3], 6'b0};
     wire [13:0] pattern_base = {vdp_reg[4][2:0], 11'b0};
@@ -116,7 +130,7 @@ module coleco_vdp (
         .NUMWORDS(16384)
     ) vram_name_block (
         .clock(clk),
-        .address_a(vram_addr),
+        .address_a(cpu_vram_addr),
         .data_a(cpu_din),
         .wren_a(bus_write && data_port),
         .q_a(vram_cpu_read),
@@ -131,7 +145,7 @@ module coleco_vdp (
         .NUMWORDS(16384)
     ) vram_pattern_block (
         .clock(clk),
-        .address_a(vram_addr),
+        .address_a(cpu_vram_addr),
         .data_a(cpu_din),
         .wren_a(bus_write && data_port),
         .q_a(vram_cpu_read_pattern),
@@ -146,7 +160,7 @@ module coleco_vdp (
         .NUMWORDS(16384)
     ) vram_color_block (
         .clock(clk),
-        .address_a(vram_addr),
+        .address_a(cpu_vram_addr),
         .data_a(cpu_din),
         .wren_a(bus_write && data_port),
         .q_a(vram_cpu_read_color),
@@ -163,6 +177,10 @@ module coleco_vdp (
             control_latch <= 1'b0;
             vram_addr <= 14'h0000;
             vram_read_q <= 8'hff;
+            prefetch_addr <= 14'h0000;
+            prefetch_pending <= 2'b00;
+            read_seen <= 1'b0;
+            read_result <= 8'hff;
             status_vblank <= 1'b0;
             status_collision <= 1'b0;
 `ifdef FES_COLECO_REGISTERED_VDP
@@ -184,6 +202,27 @@ module coleco_vdp (
             for (init_index = 0; init_index < 8; init_index = init_index + 1)
                 vdp_reg[init_index] <= 8'h00;
         end else begin
+            // One side effect per held CPU IN, with a stable pre-side-effect
+            // return byte until RD/IORQ deasserts (TV80 samples it later).
+            if (!read_active)
+                read_seen <= 1'b0;
+            else if (bus_read) begin
+                read_seen <= 1'b1;
+                read_result <= data_port ? vram_read_q :
+                               control_port ? {status_vblank, 1'b0, status_collision, 5'b0} : 8'hff;
+            end
+
+            // Both actual FPGA RAM lanes have registered addresses. Launch
+            // the address, allow the RAM edge, then collect its returned byte.
+            // This is read-ahead state, independent of the next CPU IN timing.
+            prefetch_pending <= {1'b0, prefetch_pending[1]};
+            if (prefetch_pending[0]) begin
+`ifdef FES_COLECO_REGISTERED_VDP
+                vram_read_q <= vram_cpu_read;
+`else
+                vram_read_q <= vram[prefetch_addr];
+`endif
+            end
             if (bus_write && control_port) begin
                 if (!control_latch) begin
                     control_first <= cpu_din;
@@ -192,8 +231,15 @@ module coleco_vdp (
                     control_latch <= 1'b0;
                     if (cpu_din[7])
                         vdp_reg[cpu_din[2:0]] <= control_first;
-                    else
+                    else begin
+                        prefetch_pending <= 2'b00;
                         vram_addr <= {cpu_din[5:0], control_first};
+                        if (!cpu_din[6]) begin
+                            prefetch_addr <= {cpu_din[5:0], control_first};
+                            prefetch_pending <= 2'b10;
+                            vram_addr <= {cpu_din[5:0], control_first} + 14'd1;
+                        end
+                    end
                 end
             end
 
@@ -204,12 +250,13 @@ module coleco_vdp (
                 vram_addr <= (vram_addr == VRAM_LAST) ? 14'h0000 :
                              vram_addr + 1'b1;
                 control_latch <= 1'b0;
+                vram_read_q <= cpu_din;
+                prefetch_pending <= 2'b00;
             end
 
             if (bus_read && data_port) begin
-`ifndef FES_COLECO_REGISTERED_VDP
-                vram_read_q <= vram[vram_addr];
-`endif
+                prefetch_addr <= vram_addr;
+                prefetch_pending <= 2'b10;
                 vram_addr <= (vram_addr == VRAM_LAST) ? 14'h0000 :
                              vram_addr + 1'b1;
                 control_latch <= 1'b0;
@@ -336,15 +383,13 @@ module coleco_vdp (
 
     always @* begin
         cpu_dout = 8'hff;
-        if (bus_read) begin
-            if (data_port)
-`ifdef FES_COLECO_REGISTERED_VDP
-                cpu_dout = vram_cpu_read;
-`else
+        if (read_active) begin
+            if (read_seen)
+                cpu_dout = read_result;
+            else if (data_port)
                 cpu_dout = vram_read_q;
-`endif
             else if (control_port)
-                cpu_dout = {status_vblank, status_collision, 6'b0};
+                cpu_dout = {status_vblank, 1'b0, status_collision, 5'b0};
         end
     end
 endmodule

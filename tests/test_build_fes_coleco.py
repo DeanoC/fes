@@ -130,7 +130,6 @@ class BuildFesColecoTests(unittest.TestCase):
         mif = (ROOT / "cores/fes-coleco/rtl/coleco_reset_rom.mif").read_text(encoding="utf-8")
         self.assertIn("DEPTH = 8192;", mif)
         self.assertIn("0000: C3 00 80 00 00;", mif)
-        self.assertIn("[0005..1FFF] : 00;", mif)
 
     def test_video_framebuffer_uses_dual_clock_ram_boundary(self) -> None:
         video = (ROOT / "cores/fes-coleco/rtl/coleco_video_720p.v").read_text(encoding="utf-8")

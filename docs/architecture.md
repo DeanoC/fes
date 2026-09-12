@@ -1770,12 +1770,26 @@ modes, sprite evaluation, cycle-perfect timing, and native FogCast/runtime
 selection remain outside this first slice.
 
 `coleco_vdp.sv` keeps a 16 KiB VRAM aperture, register-based name/pattern/color
-tables, Graphics I tile pixels, and a VBlank status bit in the logical
+tables, Graphics I tile pixels, buffered CPU VRAM reads and a VBlank status bit in the logical
 256×192 domain. `coleco_video_720p.v` captures a centered 512×384 2× image in
 the system domain and reads it in the 74.25 MHz pixel domain for the existing
 1650×750 HDMI timing. The mailbox and top-level clock/I²C boundaries are
 otherwise the same as FES ZX81; the 52 MHz CPU/VDP enable is an approximation
 of the Coleco clock and is not presented as cycle-accurate emulation.
+
+The VDP snapshots each held IN transaction once, retaining its original return
+byte through RD/IORQ release. Read-address setup starts read-ahead, data reads
+return the buffer and advance, and data writes update VRAM and the shared
+buffer. A two-system-edge fetch schedule accommodates both FPGA lanes'
+registered memory address without changing RAM wrappers or raster copies.
+Status reads clear pending flags and the control-byte latch. VBlank gated by
+register 1 bit 5 drives active-low Z80 NMI; enable-with-pending, acknowledgement,
+disable and later-frame reassertion are implemented. The open shim forwards
+0066 to cartridge 8066; enabling programs supply a handler and initialized
+stack. This is not a proprietary BIOS or full retail-cartridge ABI.
+The [VDP guide](../cores/fes-coleco/README.md#vdp-reads-and-interrupts) specifies
+the bounded behavior and open CPU-driven pass/fail diagnostic. The original
+graphics and controller ROMs leave VDP interrupts disabled and are unchanged.
 
 `make sim-fes-coleco` covers the mailbox, machine map/CPU/controller path,
 VDP tile/status path, 720p timing, and board shell in both the default and

@@ -376,7 +376,7 @@ hardware-support evidence. The command never programs a kit.
 `make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
 default and OSS-conditional lanes: a reduced ColecoVision machine with an open
 `JP 0x8000` reset shim, a raw 1–16 KiB cartridge aperture, mirrored CPU RAM,
-Graphics I VDP tile/status path, two joystick/keypad controllers with two fire
+Graphics I VDP tile/status path with buffered reads and VBlank NMI, two joystick/keypad controllers with two fire
 buttons and twelve encoded keypad keys each, and the fixed
 1650×750 HDMI shell. The board tests upload the exact open diagnostic bytes
 through GP, release execution immediately, and check CPU-driven pixels across
@@ -386,6 +386,11 @@ MIT-licensed raw cartridge and 720p reference image; see
 The optional joystick and raw-controller-byte diagnostics reuse the unchanged
 40-bit keyboard ABI; see [controller mapping](cores/fes-coleco/README.md#standard-controller-mapping).
 These are host simulations, not hardware acceptance.
+
+`make coleco-vdp-diagnostic` generates a BIOS-free CPU read/status/NMI test.
+`make sim-fes-coleco-vdp-io` and its `-oss` counterpart check its real CPU
+results and pass picture, including reset/reload. Enabling cartridges provide
+their NMI handler at 8066; see [VDP interfaces](cores/fes-coleco/README.md#vdp-reads-and-interrupts).
 
 `make sim-fes-coleco-quartus` separately checks the actual Quartus RAM/media
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.

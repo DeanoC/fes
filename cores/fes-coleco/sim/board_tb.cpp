@@ -38,6 +38,7 @@ struct Board {
     Vtop___024root &root;
     bool interactive = false;
     bool controllers = false;
+    bool vdp_io = false;
     bool joystick = false;
     bool exchanging = false;
     uint64_t matrix = 0xffffffffffULL;
@@ -224,8 +225,20 @@ struct Board {
             sys_tick();
         }
         require(cycles < 20000000, "diagnostic CPU did not reach HALT");
-        for (bool value : written)
-            require(value, "diagnostic did not initialize all 16 KiB VRAM through CPU I/O");
+        if (vdp_io) {
+            require(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[0] == 0xa5 &&
+                    root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[1] == 2 &&
+                    root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[4] == 0,
+                    "VDP I/O diagnostic halted without CPU pass/NMI results");
+            for (unsigned addr = 0; addr < 768; ++addr)
+                require(written[addr], "CPU did not initialize pass name table");
+            for (unsigned addr = 0x800; addr < 0x810; ++addr)
+                require(written[addr], "CPU did not initialize pass patterns");
+            require(written[0x2000] && written[0x2001], "CPU did not initialize pass colors");
+        } else {
+            for (bool value : written)
+                require(value, "diagnostic did not initialize all 16 KiB VRAM through CPU I/O");
+        }
         // Let two complete logical rasters replace every framebuffer location.
         // Pixel and system clocks are independent simulation boundaries.
         for (unsigned i = 0; i < 2 * 256 * 262 * 16; ++i) sys_tick();
@@ -294,7 +307,7 @@ struct Board {
     }
 };
 
-uint32_t expected_rgb(unsigned x, unsigned y) {
+uint32_t expected_rgb(unsigned x, unsigned y, bool vdp_io = false) {
     if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
     // The current shell has a registered framebuffer read: one HDMI pixel
     // of data latency, clipped by the undelayed image-active window.
@@ -302,6 +315,7 @@ uint32_t expected_rgb(unsigned x, unsigned y) {
     const unsigned logical_y = (y - 168) / 2;
     const unsigned col = logical_x / 8, row = logical_y / 8;
     if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    if (vdp_io) return 0;
     if (logical_x % 8 == 0 || logical_x % 8 == 7 ||
         logical_y % 8 == 0 || logical_y % 8 == 7) return 0;
     return (col + row) % 2 == 0 ? 0x00ff40 : 0xff4000;
@@ -350,7 +364,7 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
             require(bool(board.dut.HDMI_TX_HS) == (x >= 1390 && x < 1430), "HDMI HS");
             require(bool(board.dut.HDMI_TX_VS) == (y >= 725 && y < 730), "HDMI VS");
             const uint32_t expected = board.controllers ? controllers_rgb(x, y, banks) :
-                board.interactive ? interactive_rgb(x, y, p0, p1) : expected_rgb(x, y);
+                board.interactive ? interactive_rgb(x, y, p0, p1) : expected_rgb(x, y, board.vdp_io);
             require(board.dut.HDMI_TX_D == expected,
                     "diagnostic RGB mismatch at " + std::to_string(x) + "," +
                     std::to_string(y) + ": got " + std::to_string(board.dut.HDMI_TX_D) +
@@ -362,7 +376,7 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
         }
     }
     require(active == 1280 * 720, "active pixel count");
-    require(lit == (board.controllers ? 60416u : board.interactive ? 68608u : 122688u), "nonblack pixel count");
+    require(lit == (board.vdp_io ? 27648u : board.controllers ? 60416u : board.interactive ? 68608u : 122688u), "nonblack pixel count");
 }
 
 }  // namespace
@@ -370,11 +384,12 @@ void check_frame(Board &board, uint8_t p0 = 31, uint8_t p1 = 31) {
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     const bool controllers = argc > 1 && std::string(argv[1]) == "--controllers";
+    const bool vdp_io = argc > 1 && std::string(argv[1]) == "--vdp-io";
     const bool interactive = controllers || (argc > 1 && std::string(argv[1]) == "--interactive");
-    require(argc >= (interactive ? 3 : 2),
-            "usage: Vtop [--interactive] cartridge.rom [more generated cartridges...]");
+    require(argc >= (interactive || vdp_io ? 3 : 2),
+            "usage: Vtop [--interactive|--controllers|--vdp-io] cartridge.rom [more cartridges...]");
     std::vector<std::vector<uint8_t>> cartridges;
-    for (int i = interactive ? 2 : 1; i < argc; ++i) {
+    for (int i = interactive || vdp_io ? 2 : 1; i < argc; ++i) {
         std::ifstream input(argv[i], std::ios::binary);
         require(input.good(), "cannot open generated cartridge");
         cartridges.emplace_back(std::istreambuf_iterator<char>(input),
@@ -388,6 +403,7 @@ int main(int argc, char **argv) {
     Board board;
     board.interactive = interactive;
     board.controllers = controllers;
+    board.vdp_io = vdp_io;
 
     for (unsigned hps_low = 0; hps_low != 4; ++hps_low) {
         for (unsigned external_low = 0; external_low != 4; ++external_low) {
@@ -511,6 +527,11 @@ int main(int argc, char **argv) {
         check_frame(board);
     }
     require(board.dut.HDMI_TX_CLK == 0, "pixel clock boundary did not settle");
+    if (vdp_io) {
+        std::cout << "FES Coleco VDP I/O board CPU/NMI/720p pass picture passed: "
+                  << cartridges.size() << " GP loads, 27648 green active pixels per frame\n";
+        return EXIT_SUCCESS;
+    }
     if (controllers) {
         std::cout << "FES Coleco controllers board passed: " << cartridges.size()
                   << " cartridges; all 40 matrix bits, keypad priority, changed-bank writes, reset/reload, exact frames\n";

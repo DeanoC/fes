@@ -170,7 +170,32 @@ coleco-diagnostic:
 	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --controllers --pad-to 16384 \
 		--output build/diagnostics/fes-coleco/controller-16k.rom
 
-sim-fes-coleco: sim-fes-coleco-oss
+.PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss
+coleco-vdp-diagnostic:
+	$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --output build/diagnostics/fes-coleco/vdp-io.rom \
+		--preview build/diagnostics/fes-coleco/vdp-io.ppm
+	$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --pad-to 16384 --output build/diagnostics/fes-coleco/vdp-io-16k.rom
+
+sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
+	@mkdir -p build/sim/$@
+	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+		-DTV80_REFRESH=1 $(if $(filter %-oss,$@),-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1") \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT \
+		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/vdp_machine_tb.cpp"
+	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
+		build/diagnostics/fes-coleco/vdp-io-16k.rom
+
+sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY \
@@ -233,8 +258,10 @@ sim-fes-coleco: sim-fes-coleco-oss
 		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 	@build/sim/fes-coleco-board/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
 		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
+	@build/sim/fes-coleco-board/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
+		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
 
-sim-fes-coleco-oss: coleco-diagnostic
+sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY -DFES_COLECO_OSS=1 \
@@ -295,6 +322,8 @@ sim-fes-coleco-oss: coleco-diagnostic
 		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 	@build/sim/fes-coleco-board-oss/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
 		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
+	@build/sim/fes-coleco-board-oss/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
+		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
 
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"

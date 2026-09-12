@@ -17,7 +17,7 @@ retail-game compatibility.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, register-based Graphics I name/pattern/color tables, tile pixels, and
-  VBlank status.
+  buffered VRAM reads, VBlank status and enabled VBlank NMI delivery.
 - Two standard controllers with joystick/keypad mode selection, twelve encoded
   keypad keys and two fire buttons, adapted from the existing keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
@@ -31,7 +31,7 @@ are deliberate compatibility boundaries.
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x1fff` | open reset ROM; jumps to `0x8000` |
+| `0x0000–0x1fff` | open reset ROM; reset jumps to `0x8000`, NMI at `0x0066` jumps to `0x8066` |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
 | `0x8000–0xffff` | mirrored 16 KiB cartridge aperture |
 | I/O `0xbe` | VDP data |
@@ -51,9 +51,60 @@ required. A release without committed media also keeps CPU and VDP in reset.
 
 The machine adapter qualifies each held CPU `OUT` cycle into one VDP write
 strobe. TV80 holds IORQ/WR low across multiple CPU enables; passing every enable
-through used to duplicate control bytes and VRAM writes. Read sampling retains
-its existing window; this diagnostic does not establish buffered VRAM-read or
+through used to duplicate control bytes and VRAM writes. The VDP independently
+consumes a held CPU read once and retains the returned byte until RD/IORQ
+deasserts, including after a destructive status read. This does not establish
 complete TMS9918 compatibility.
+
+## VDP reads and interrupts
+
+The data/control interface follows the read-ahead and interrupt behavior in
+the [TI TMS9918A data manual](https://computers.baffa.tec.br/pages/datasheet/TMS9918A_TMS9928A_TMS9929A_Video_Display_Processors_Data_Manual_Nov82.pdf),
+sections 2.1.3–2.1.6, and the pinned MiSTer
+`vdp18_cpuio.vhd` reference. A read-address command (second byte bits 7/6=00)
+prefetches the addressed byte and advances the 14-bit pointer. Data reads return
+the buffer, request the next byte and advance once, wrapping at 3FFF. A write
+address (01) does not prefetch; data writes update both VRAM and the buffer.
+Status reads clear pending VBlank/collision and abandon a half-written control
+command. Status bit 7 is VBlank, bit 5 is collision; unimplemented sprite
+overflow/index fields remain zero. A simultaneous new VBlank event takes
+priority over acknowledgement; an already-held read is not acknowledged again.
+
+Read data is collected two system edges after a fetch request so the same
+logic accommodates both actual FPGA lanes' registered RAM address. This is
+not a cycle-accurate model of the original DRAM access windows. CPU instructions
+provide ample spacing; callers of the standalone VDP simulation must allow the
+fetch to complete. Registered RAM wrappers, raster copies and compiler
+constraints are unchanged.
+
+The active-low VDP interrupt is pending VBlank gated by register 1 bit 5. It
+connects to the Z80 **NMI**, not maskable INT. Enabling while VBlank is pending
+asserts immediately; disabling releases the line without clearing the pending
+flag. A status read acknowledges it; a later frame can interrupt again.
+
+The BIOS-free shim forwards `0066` to cartridge address **8066**. Programs that
+enable VDP interrupts must install their handler there, initialize a RAM stack,
+acknowledge VDP status, preserve the registers they use and return with RETN.
+This is an explicitly defined open-cartridge convention, not Coleco BIOS
+services or a stock cartridge header. Existing graphics/controller diagnostics
+leave the VDP interrupt-enable bit clear and their ROM bytes stay unchanged.
+
+`make coleco-vdp-diagnostic` builds the original MIT-licensed `vdp_io.py`
+cartridge at `build/diagnostics/fes-coleco/vdp-io.rom` and its 16 KiB padded
+variant. The real CPU checks prefetch/sequential/wrap reads, status clearing,
+interrupt-disabled behavior, enable-with-pending NMI, two acknowledged frame
+interrupts and subsequent disabling. Only then does it paint a green one-tile
+border with a black interior and HALT. Failure paints an orange interior;
+timeout never counts as success. RAM 6000 is 00 while running, A5 on pass,
+E1..E7 on failure; 6001 is the NMI count, 6002/6003 the handler's status reads,
+6004 its error flag and 6010..6014 the VRAM-read samples.
+
+`make sim-fes-coleco-vdp-io` and `make sim-fes-coleco-vdp-io-oss` run the CPU
+diagnostic through real media delivery, checking cartridge bytes, results,
+reset-only reruns and actual logical pixels. They are included in the full
+simulation suite. No CPU registers, NMI, RAM or VRAM are forced by these tests.
+Fresh exact-artifact FPGA builds and leased hardware captures remain distinct
+from these host simulations.
 
 ## Standard controller mapping
 

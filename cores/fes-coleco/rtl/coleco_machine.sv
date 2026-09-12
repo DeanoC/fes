@@ -68,6 +68,7 @@ module coleco_machine (
     wire [1:0] vdp_raster_pixel;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
+    wire       vdp_irq_n;
     reg        vdp_write_seen;
     wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
 
@@ -171,7 +172,7 @@ module coleco_machine (
         .CEN_n(ce_cpu_n),
         .WAIT_n(1'b1),
         .INT_n(1'b1),
-        .NMI_n(1'b1),
+        .NMI_n(vdp_irq_n),
         .BUSRQ_n(1'b1),
         .M1_n(nM1),
         .MREQ_n(nMREQ),
@@ -201,7 +202,8 @@ module coleco_machine (
         .raster_y(vdp_raster_y),
         .raster_pixel(vdp_raster_pixel),
         .raster_blank(vdp_raster_blank),
-        .status_collision(vdp_status_collision)
+        .status_collision(vdp_status_collision),
+        .irq_n(vdp_irq_n)
     );
 
     wire cpu_mem_read = !nMREQ && !nRD;
