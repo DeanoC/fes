@@ -345,6 +345,11 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `make sim EXP=820_m10k_async_enable` and
   `make oss EXP=820_m10k_async_enable`; no Quartus comparison lane is
   implemented.
+- `830_pll_frac_27`, 50→27 MHz fractional-N PLL from the bounded
+  calculator (400–500 MHz reported VCO). Simulation uses a digital
+  toggling stand-in. Run `make sim EXP=830_pll_frac_27` and
+  `make oss EXP=830_pll_frac_27`; no Quartus comparison lane is
+  implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

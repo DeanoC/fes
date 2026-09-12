@@ -145,6 +145,15 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
+The current nextpnr pin `914200556be0d83ebc0f74efde400ff00d98cc70` is
+merged PR #62 (`23421df80037a522b9315729c9328e0e89a935d4` onto
+`5909feb560da457c55374eec226d1040c4dc8dba`). It calculates bounded
+fractional-N PLL profiles from a 50 MHz reference when the reported VCO
+is 400–500 MHz, including generic 27 MHz, 99 MHz, and 27/13.5 MHz dual
+outputs, while retaining the hardware-checked 11.2896, 12.288, 74.25,
+and 12.288/24.576 MHz compatibility words. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
 The current native asynchronous-M10K toolchain uses Yosys pin
 `ec34fcf38986217af9b5558936044b7197d968a7` (merged DeanoC/yosys PR #13,
 feature `540998e36adcb0ddecdbdf39eed6df8e7551732d`) and nextpnr pin
@@ -1598,6 +1607,24 @@ constraint and uses one M10K plus one HPS GP. This is host-only evidence
 for the native Yosys/nextpnr pair; no kit result is claimed for this
 artifact.
 
+`830_pll_frac_27` measures PIN_V11 50 MHz → 27 MHz through one
+`altera_pll` with `fractional_vco_multiplier("true")`. GPI signature
+`0xD827`. The rate is a generic calculator profile, not a Quartus
+compatibility word. See `experiments/830_pll_frac_27/expected.md`.
+
+The OSS `830_pll_frac_27` artifact has SHA-256
+`8d6d433e64ab4c77faae85c2ed7c9393564e34057617d30bb435414c198aa7e6`
+and size 1,955,806 bytes. nextpnr packed FPLL (0,14) with N bypass, M=8,
+C6=15 (high 8/low 7, odd-duty), fractional word `0x1999999a`, DSM
+enabled, BWCTRL 7, and auxiliary bandgap powerdown. Reported Fmax is
+219.394 MHz against 50 MHz and 329.164 MHz against 27 MHz. Utilization
+is one PLL, two clock enables, and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 returned GPI signature `0xD827` and count 2212
+on three successive measurements with lock asserted and no sampled lock
+loss. Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. The current nextpnr
+pin `91420055` with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1627,7 +1654,9 @@ SDC/QSF forms (fabric GPI only), and a TDP M10K A-port address stall
 (fabric GPI only), and a registered M10K B-port read (fabric GPI only),
 and a combinational M10K read packed to initialized async defaults
 (fabric GPI only), and a combinational M10K read with packer
-constant-high `ENABLE[0]` (fabric GPI only). It does not establish native
+constant-high `ENABLE[0]` (fabric GPI only), and a 50→27 MHz
+fractional-N PLL from the bounded calculator (fabric GPI only). It does
+not establish native
 game acceptance.
 
 ## Standalone Pong game
