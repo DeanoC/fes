@@ -34,6 +34,8 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Coleco input diagnostic](validation/2026-09-12-coleco-input.md): two-player
+  keyboard-driven cartridge and input validation.
 - [Coleco cartridge diagnostic](validation/2026-09-12-coleco-media.md):
   open Z80 cartridge, reset/VDP fixes, paired Quartus/nextpnr build evidence
   and the exact status of leased media/graphics validation.
