@@ -145,7 +145,25 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+The current native asynchronous-M10K toolchain uses Yosys pin
+`ec34fcf38986217af9b5558936044b7197d968a7` (merged DeanoC/yosys PR #13,
+feature `540998e36adcb0ddecdbdf39eed6df8e7551732d`) and nextpnr pin
+`5909feb560da457c55374eec226d1040c4dc8dba` (merged DeanoC/nextpnr
+PR #61, feature `5f6ba158c7f45e689b60e5590f5323573cb59f2f`), with
+Mistral unchanged at `b28e30a36b5139aaed5a5d361a30b542e6b7c758`. Yosys
+infers simple-dual flow-through M10Ks at the native 10/20/40-bit
+geometries and true-dual flow-through M10Ks for two-write/two-read
+memories. nextpnr routes the constant-high read enable, accepts
+read-only cells whose write clock folds to a constant, and models
+address-to-data timing for both TDP outputs. The host regressions and
+the ZX81 native netlist use this pair. Exact-artifact kit diagnostics
+on 2026-09-12 loaded native-Yosys `820_m10k_async_enable` (GPI
+`0xD42F00A6`, INIT/write/neighbour) and `770_m10k_async_read` (GPI
+`0xD42B00A6`, INIT/write/neighbour) at `MISTRAL_M10K.26.1.0` with
+routed `ENABLE[0]`. Load JSON timed out; GPI and probe still passed.
+`stop` recovered and left the lease free.
+
+The earlier Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
 merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
 `758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
 asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
@@ -1483,25 +1501,20 @@ left the lease free. The current nextpnr pin `4d055dae` with Yosys
 `da6373c0` reproduces those same RBF bytes.
 
 `770_m10k_async_read` instantiates one `MISTRAL_M10K` with a combinational
-read port. GPI signature `0xD42B`. Locked Yosys still emits a clocked
-read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
-There is no second PLL. Simulation uses a digital combinational stand-in.
-The 1.5 ns host arc is an estimate. Simulation and OSS are supported;
-Quartus comparison is not implemented. See
+read port. GPI signature `0xD42B`. Native Yosys emits `CFG_ASYNC_READ`
+with a constant-high `B1EN`; nextpnr routes the physical read enable and
+keeps `B1ADDR`/`B1DATA` combinational. Read-only cells may fold their unused
+write clock to a constant. There is no second PLL. Simulation uses a digital
+combinational stand-in. The 1.5 ns host arc is an estimate. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
 `experiments/770_m10k_async_read/expected.md`.
 
-The OSS `770_m10k_async_read` artifact has SHA-256
-`69a1f9bf2ca2b399af12249f36f3e534815249270ffeacd6d3d26a46d643d4b2`
-and size 1,959,851 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
-`CFG_ASYNC_READ=1`, packer `ENABLE[0]` tied high, both `CLKIN.0` and
-`CLKIN.1`, `BOT_CORECLK_SEL=1`, and default-zero `BOT_INCLK_SEL`.
-Reported Fmax is 352.609 MHz against 50 MHz. Utilization is one M10K
-and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
-signature `0xD42B`, INIT `0xA6` at address 0, a write without a user
-read enable, and an undisturbed neighbour. Load JSON timed out; GPI and
-probe still passed. `stop` completed development reboot recovery and
-left the lease free. The current nextpnr pin `c528c238` with Yosys
-`da6373c0` reproduces those same RBF bytes.
+The current OSS `770_m10k_async_read` artifact has SHA-256
+`f28438b7785f88b71a6f9c4e019d2cee3913ca124b8d1d6d314d8244dfc6de4d`
+and size 1,959,763 bytes. It reports 458.505 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 `780_quartus_sdc` measures PIN_V11 50 MHz → 25 MHz through one
 `altera_pll`, using Quartus SDC/QSF forms. GPI signature `0xD780`.
@@ -1565,20 +1578,12 @@ signature `0xD42E`. Locked Yosys still emits a clocked read enable, so
 OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`. See
 `experiments/810_m10k_async_defaults/expected.md`.
 
-The OSS `810_m10k_async_defaults` artifact has SHA-256
-`0787736d8c80e19f1488958c761fd05d1cc18bb34ad9d47c04ace3516cf9f7d3`
-and size 1,959,816 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with
-`CFG_ASYNC_READ=1`, no `ENABLE[0]` route, both `CLKIN.0` and `CLKIN.1`,
-second-half `BOT_1_CORECLK_SEL=1`/`BOT_1_INCLK_SEL=1`, and omitted
-`BOT_CORECLK_SEL`/`BOT_INCLK_SEL` plus omitted constant-high
-`BYTEENABLEA`. Reported Fmax is 408.664 MHz against 50 MHz. Utilization
-is one M10K and one HPS GP. Exact-artifact kit diagnostics on
-2026-09-11 returned GPI signature `0xD42E`, INIT `0xA6` at address 0,
-a write without a user read enable, and an undisturbed neighbour. Load
-JSON timed out; GPI and probe still passed. `stop` completed
-development reboot recovery and left the lease free. The current
-nextpnr pin `0523e0c6` with Yosys `da6373c0` reproduces those same
-RBF bytes.
+The current OSS `810_m10k_async_defaults` artifact has SHA-256
+`aa8c542e0ae22e60c1c975fe526a13fc0ea638b166107d7945993d227f9b5ef9`
+and size 1,959,790 bytes. It reports 422.476 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 `820_m10k_async_enable` instantiates one `MISTRAL_M10K` with a
 combinational read port and a packer-generated constant-high
@@ -1586,19 +1591,12 @@ combinational read port and a packer-generated constant-high
 read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
 See `experiments/820_m10k_async_enable/expected.md`.
 
-The OSS `820_m10k_async_enable` artifact has SHA-256
-`f25eefe8b7fa3c8ee419908d732d131613f34a9791072bf8f3a33fd34500d4a7`
-and size 1,959,651 bytes. nextpnr packed `MISTRAL_M10K.26.2.0` with
-`CFG_ASYNC_READ=1`, routed `ENABLE[0]`, both `CLKIN.0` and `CLKIN.1`,
-and `BOT_CORECLK_SEL=1`/`BOT_INCLK_SEL=1` plus the second-half
-`BOT_1_*` selectors. Reported Fmax is 424.268 MHz against 50 MHz.
-Utilization is one M10K and one HPS GP. Exact-artifact kit diagnostics
-on 2026-09-11 returned GPI signature `0xD42F`, INIT `0xA6` at address 0,
-a write without a user read enable, and an undisturbed neighbour. Load
-JSON timed out; GPI and probe still passed. `stop` completed
-development reboot recovery and left the lease free. The current
-nextpnr pin `517eb7c6` with Yosys `da6373c0` reproduces those same
-RBF bytes.
+The current OSS `820_m10k_async_enable` artifact has SHA-256
+`51716efaf9d0367efbb99ba8fb69bc41e3d31bfe8d807fdbfd562d45fefc3291`
+and size 1,959,856 bytes. It reports 464.037 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
@@ -1763,17 +1761,22 @@ bring-up lane.
 `fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use registered
-`ram_style="m10k_tdp"` tables; simulation keeps combo-read. The 720p
-capture buffer is a dual-clock M10K SDP. The Z80 is Verilog T80pa/TV80.
+M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use native
+asynchronous-read M10K tables; the two-write media path uses native
+asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
+Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-nextpnr `4d055dae` forms the 50→52 MHz integer on the 520 MHz feedback
-profile (`M=52 N=5 C6=10`). Place-and-route uses seed 7, `router1` and
-`--tmg-ripup` so `clk_sys` meets 52 MHz. The recipe requires two
+nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
+profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 300,
+criticality exponent 5 and `router1`. `--timing-allow-fail` permits an early
+estimate to miss while the recipe checks final signoff and records the first
+passing seed. This keeps native async-M10K address paths within the 52 MHz
+system constraint. The recipe requires two
 `altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
 mailbox, the I2C bridge,
 and at least one M10K. It seals the format-2 exporter only when both
@@ -1782,7 +1785,8 @@ clocks meet their constraints. The command never programs hardware.
 A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
 `.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
-and does not inherit the Quartus bring-up result (TV80, registered M10K).
+and does not inherit the Quartus bring-up result (the diagnostic used TV80
+and the former registered-M10K workaround).
 FogCast library install/launch of that package
 is a host concern; this recipe only seals the `.fcore`.
 
@@ -1794,7 +1798,7 @@ matching workaround rather than keep both.
 
 | Gap | Observed failure | Current ZX81 workaround |
 | --- | --- | --- |
-| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` becomes LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | `FES_ZX81_OSS` uses registered `ram_style="m10k_tdp"` write-first ports. Simulation keeps combo-read. Quartus keeps `altsyncram`. |
+| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | Native Yosys async M10K inference maps 10/20/40-bit SDP and two-write/two-read TDP shapes; the OSS recipe uses `ramstyle="M10K"` and nextpnr routes flow-through reads. Quartus keeps `altsyncram`. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
 | QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
 

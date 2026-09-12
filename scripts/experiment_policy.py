@@ -846,10 +846,19 @@ class ExperimentPolicy:
             raise PolicyError("M10K ACLR1 must be a connected fabric net")
 
     def _require_m10k_async_read(self, design: Mapping[str, Any]) -> None:
-        cells = self._m10k_cells(design)
-        if len(cells) != 1:
-            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
-        cell = cells[0]
+        sdp_cells = self._m10k_cells(design)
+        tdp_cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(sdp_cells) == 1 and not tdp_cells:
+            cell = sdp_cells[0]
+            tdp = False
+        elif len(tdp_cells) == 1 and not sdp_cells:
+            cell = tdp_cells[0]
+            tdp = True
+        else:
+            raise PolicyError(
+                "synth json must contain exactly one asynchronous M10K "
+                f"(got {len(sdp_cells)} MISTRAL_M10K and {len(tdp_cells)} MISTRAL_M10K_TDP)"
+            )
         parameters = cell.get("parameters")
         connections = cell.get("connections")
         if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
@@ -858,15 +867,39 @@ class ExperimentPolicy:
             raise PolicyError(
                 f"M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
             )
+        if tdp:
+            if json_bit_parameter(parameters.get("CFG_MIXED_WIDTH")) not in (None, 0):
+                raise PolicyError("async-read TDP M10K cannot use mixed-width mode")
+            if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
+                raise PolicyError("async-read TDP M10K cannot use byte-enable mode")
+            for port in (
+                "CLK1", "CLK2", "A1ADDR", "B1ADDR", "A1DATA", "B1DATA",
+                "A1EN", "B1EN", "A1WE", "B1WE", "A1Q", "B1Q",
+            ):
+                value = connections.get(port)
+                if not isinstance(value, list) or not value:
+                    raise PolicyError(f"async-read TDP M10K must connect {port}")
+                if port in ("CLK1", "CLK2") and value[0] in (0, 1, "0", "1"):
+                    raise PolicyError(f"async-read TDP M10K {port} must be a live fabric clock")
+            return
+
         dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
         if dual not in (None, 0):
-            raise PolicyError(f"async-read M10K CFG_DUAL_CLOCK must be omitted or 0, got {parameters.get('CFG_DUAL_CLOCK')!r}")
+            raise PolicyError(
+                "async-read M10K CFG_DUAL_CLOCK must be omitted or 0, "
+                f"got {parameters.get('CFG_DUAL_CLOCK')!r}"
+            )
+        # Native Yosys emits a constant-high B1EN so the packer routes the
+        # physical read-enable pin.  Older JSON may omit it and nextpnr will
+        # materialise the same constant; a live/dynamic B1EN is invalid.
         if "B1EN" in connections:
-            raise PolicyError("async-read M10K must not connect B1EN")
+            b1en = connections.get("B1EN")
+            if not isinstance(b1en, list) or b1en not in ([1], ["1"]):
+                raise PolicyError("async-read M10K B1EN must be tied high")
         if "CLK2" in connections:
             raise PolicyError("async-read M10K must not connect CLK2")
         clk1 = connections.get("CLK1")
-        if not isinstance(clk1, list) or not clk1 or clk1[0] in ("0", "1"):
+        if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
             raise PolicyError("async-read M10K CLK1 must be a live fabric clock")
         if "B1ADDR" not in connections or "B1DATA" not in connections:
             raise PolicyError("async-read M10K must connect B1ADDR and B1DATA")
@@ -1262,6 +1295,12 @@ class ExperimentPolicy:
                     cell["port_directions"] = directions
                 for port in extra:
                     if port not in connections:
+                        # Native async simple-dual cells do not have a byte
+                        # mask unless the source explicitly requested one.
+                        # Keep the legacy experiment's A1BE direction fix
+                        # while allowing the native narrow shape to omit it.
+                        if self.m10k_async_read and cell_type == "MISTRAL_M10K" and port == "A1BE":
+                            continue
                         raise PolicyError(f"synth cell {cell_type} is missing input port {port}")
                     if directions.get(port) != "input":
                         directions[port] = "input"
@@ -1394,16 +1433,23 @@ class ExperimentPolicy:
         return changed
 
     def _apply_m10k_async_read(self, cells: dict[str, Any]) -> bool:
-        """Rewrite Yosys M10K JSON into the combinational-read contract."""
+        """Normalize legacy M10K JSON into the combinational-read contract.
+
+        New Yosys emits ``CFG_ASYNC_READ`` and a routed constant-high B1EN
+        itself.  Keep that connection intact; only older SDP JSON needs the
+        mode bit and removal of its incompatible second clock.  TDP cells keep
+        both clocks because each physical port may still write.
+        """
 
         if not self.m10k_async_read:
             return False
         changed = False
         found = 0
         for cell in cells.values():
-            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_M10K":
+            if not isinstance(cell, dict) or cell.get("type") not in ("MISTRAL_M10K", "MISTRAL_M10K_TDP"):
                 continue
             found += 1
+            tdp = cell.get("type") == "MISTRAL_M10K_TDP"
             parameters = cell.get("parameters")
             if not isinstance(parameters, dict):
                 parameters = {}
@@ -1412,10 +1458,11 @@ class ExperimentPolicy:
             if parameters.get("CFG_ASYNC_READ") != async_value:
                 parameters["CFG_ASYNC_READ"] = async_value
                 changed = True
-            dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
-            if dual not in (None, 0):
-                parameters["CFG_DUAL_CLOCK"] = f"{0:032b}"
-                changed = True
+            if not tdp:
+                dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
+                if dual not in (None, 0):
+                    parameters["CFG_DUAL_CLOCK"] = f"{0:032b}"
+                    changed = True
             connections = cell.get("connections")
             if not isinstance(connections, dict):
                 raise PolicyError("M10K cell is missing connections")
@@ -1423,11 +1470,12 @@ class ExperimentPolicy:
             if not isinstance(directions, dict):
                 directions = {}
                 cell["port_directions"] = directions
-            for port in ("B1EN", "CLK2"):
-                if port in connections or port in directions:
-                    connections.pop(port, None)
-                    directions.pop(port, None)
-                    changed = True
+            # An SDP's second clock is incompatible with flow-through reads;
+            # preserve the native constant-high B1EN instead of dropping it.
+            if not tdp and ("CLK2" in connections or "CLK2" in directions):
+                connections.pop("CLK2", None)
+                directions.pop("CLK2", None)
+                changed = True
             for port in ("ACLR0", "ACLR1"):
                 if connections.get(port) != ["0"] or directions.get(port) != "input":
                     connections[port] = ["0"]
