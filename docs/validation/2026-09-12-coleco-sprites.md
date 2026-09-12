@@ -139,46 +139,54 @@ already included in the native image.
 
 ## Hardware classification and next step
 
-The exact package inspections pass for both final artifacts, but physical
-sprite acceptance is blocked by the deployed target image rather than by an
-observed compiler or lease failure. `core-inspect` reports the expected
-package/build identity for both the OSS and Quartus packages. Exact `.fcore`
-`core-load` requests for both lanes return `MISTER_UNAVAILABLE` from the
-designated FogCast target-agent path, so neither package reached media delivery
-or HDMI capture. An older Coleco package and an existing FES Pong format-2
-package return the same error on this target.
+The first package attempts were made before the target image and host service
+were aligned and returned `MISTER_UNAVAILABLE`/`INTERNAL`; those attempts are
+superseded diagnostics. The designated target was then refreshed with the
+selected development root image, retaining the previous direct-root image as
+`/media/fat/linux/linux.img.fes-coleco-pre-refresh-20260912` (previous SHA-256
+`60031e32ca3a12f9706e1a17f674c4990b89eab9cbea1758573db8fc4a1f2d9e`). The
+installed root image SHA-256 is
+`78b19823fb4b48d0c594fb20aa072c46138ca0d94ef773a693f3820fdf118ccd` and the
+target reports runtime commit
+`2629c6e1a896663b3e06688462624c3fac67ba67`, agent SHA-256
+`beef2e02c07efc1799218a63f25ae3c667d6324bd24102a0c272e29365a50e98`, and
+boot ID `7bd06e10-a6b5-4d02-84e9-eaacaee0b22c`. The matching FogCast host
+service was rebuilt from `c761cff0d9e7878d90eb3dee24ba96010acb46de` and
+reports the target ready.
 
-A bounded raw-RBF diagnostic through the designated `scripts/kit.py` lease
-held the lease but returned the documented `development probe timed out`
-result for the custom OSS RBF; Stop and release returned the kit to idle/free.
-The same lease/program/Stop path with the known-good native Pong RBF entered
-`active`, reported `held`, then returned idle on Stop and free on release.
-That is lifecycle/programming diagnostic evidence, not Coleco acceptance.
+The exact final packages then passed through the designated FogCast host and
+target-agent path. For each lane, `core-load` reported the expected package
+and build identity; compact media, 16 KiB padded media and compact reload all
+passed `check_capture.py`; and Stop returned idle before lease release:
 
-The target health endpoint is ready, but it currently reports runtime commit
-`a729acc593ec772fa5ecd5f802e2dee9758bd4dc` and image SHA-256
-`d1733d3fdcc97c4669f07576c3f449ba72f05e6ed77fbcf3b0a029830d98d760`; this
-integration selects libmister-runtime `2629c6e1a896663b3e06688462624c3fac67ba67`.
-No direct JTAG, Main FIFO or runtime-socket programming was used, and no
-exact-artifact HDMI capture is claimed. Hardware classification is therefore:
-known-good Pong physical lifecycle path passes; exact Coleco sprite hardware
-acceptance is pending target image/runtime alignment and is not accepted.
+| Lane | Package/build | Capture PNG SHA-256 | Media/capture result |
+| --- | --- | --- | --- |
+| OSS | `07f5649722492389571bb25c0431b5c57002d5cbe04b3412e399512a9cc089b2` / `90f677a2b493928030cdac54dcd87537` | `e29a28816a5895384fce4909d03fca57244567236d09ad54427635171a708ffd` | compact, 16 KiB, compact reload: pass |
+| Quartus | `8973307e966ff0f36d64c32409252745e0eac3af6853d779942b8379b857b9e0` / `d0d19ab5401d36a2718a61d9cf4d403a` | `dfdf27d565797d891a3f313faf5a5cbef692f52ac77e00d5e9da1819e82d7664` | compact, 16 KiB, compact reload: pass |
 
-The next integration step is:
+The shared open sprite input hashes were compact ROM
+`b3aa3558e702272cdbd019d5f4553cc5e885e754ac7c29648137f2b6ce6a831c` and
+16 KiB ROM `5bb58354ff5c49100aae1769270fe03d32524816464dcc99ee619cd09e5a054d`.
+The private per-lane evidence directories are
+`out/dev/fes-coleco/evidence/sprite-oss-runtime2629` and
+`out/dev/fes-coleco/evidence/sprite-quartus-runtime2629`.
 
-1. Through the authorized appliance/target-image path, provision and verify
-   the designated kit with a target image containing the selected parent
-   runtime `2629c6e1a896663b3e06688462624c3fac67ba67` and its FES-GP support.
-   Preserve the existing kit lease rules and verify the actual boot/image
-   identity after reboot.
-2. Through the designated FogCast `scripts/kit.py`/target-agent path, load each
-   exact package above, run the open sprite cartridge, capture the settled HDMI
-   frame, exercise Stop and confirm idle, then release the lease. Record the
-   package/build IDs, target identity, lease evidence, capture hashes and any
-   compiler-lane discrepancy here. A successful load or Stop alone is
-   lifecycle diagnostic evidence; sprite/video acceptance requires the exact
-   expected CPU-generated frame from both artifacts. Do not use direct JTAG,
-   Main FIFO or runtime-socket programming.
+One unrelated host-side helper limitation was exposed: the current
+`native-runtime-smoke.sh` expected-input projection omits the valid
+`fes_pong_*` records already present in this four-system development image,
+so that helper stopped at its preflight comparison. It did not affect the
+direct exact-package sprite HIL path above.
+
+Hardware classification is now exact-artifact acceptance for the ColecoVision
+Graphics II sprite diagnostic on both OSS and Quartus lanes. The target is
+left ready/idle and the kit lease is free. No direct JTAG, Main FIFO or
+runtime-socket programming was used.
+
+The next integration step is to retain this exact package/build/capture
+evidence, decide whether the Coleco package should be added to a future native
+profile, and have the downstream Yosys/nextpnr/Mistral work preserve the
+workarounds listed above. Any later compiler, runtime or image revision needs
+its own exact-package hardware acceptance.
 
 The parent pin and this record do not select Coleco for the production image;
 they hand the reviewed development package to the existing integration path.
