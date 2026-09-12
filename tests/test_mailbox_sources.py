@@ -201,6 +201,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "800_m10k_out_reg",
             "810_m10k_async_defaults",
             "820_m10k_async_enable",
+            "830_pll_frac_27",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
