@@ -373,6 +373,28 @@ clock pass timing. The 52 MHz integer uses the 520 MHz PLL feedback
 profile (M=52 N=5 C6=10). Recipe presence alone is no RBF, timing or
 hardware-support evidence. The command never programs a kit.
 
+`make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
+default and OSS-conditional lanes: a reduced ColecoVision machine with an open
+`JP 0x8000` reset shim, a raw 1–16 KiB cartridge aperture, mirrored CPU RAM,
+Graphics I VDP tile/status path, active-low controller rows, and the fixed
+1650×750 HDMI shell. It is simulation and host-side compiler evidence, not
+hardware acceptance.
+
+`make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 recipe for
+`fes.coleco` 1.0.0. `make build-fes-coleco` is its authenticated OSS
+Yosys/nextpnr-Mistral counterpart for `5CSEBA6U23I7`; both require a clean
+committed tree before sealing and neither programs a kit. The OSS path uses
+Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
+three coherent VDP VRAM copies for the raster read ports, `MISTRAL_IO` at HPS
+I²C BEL 52.60.0, and the accepted OSS 50 MHz `create_clock` constraint subset.
+The current raw OSS run routes at 59.82 MHz system / 89.48 MHz pixel with no
+unrouted nets; see `cores/fes-coleco/README.md` and the architecture note for
+the measured workaround handoff. It uses 85 `MISTRAL_M10K_TDP` and 48
+`MISTRAL_M10K` cells. Its exact RBF was loaded through the designated
+target-agent kit lease; the development probe timed out, then the core was
+stopped and the lease was released cleanly. This is diagnostic hardware
+evidence, not Coleco functional acceptance.
+
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
@@ -437,6 +459,10 @@ build/fes-zx81-oss/core.rbf                             # OSS nextpnr/Mistral FE
 build/fes-zx81-oss/build-inputs.json                    # pre-synthesis canonical inputs
 build/fes-zx81-oss/build-summary.json                   # timing/resource/tool evidence
 build/fes-zx81-oss/manifest.toml                        # generated format-2 manifest
+build/fes-coleco-quartus/core.rbf                       # Quartus bring-up FES ColecoVision RBF
+build/fes-coleco-oss/core.rbf                            # OSS nextpnr/Mistral FES ColecoVision RBF
+build/fes-coleco-oss/build-summary.json                  # timing/resource/tool evidence
+build/fes-coleco-oss/manifest.toml                       # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest
 build/packages/<package-id>/core.rbf                    # unchanged payload
 build/packages/<package-id>.fcore                       # restricted ustar package

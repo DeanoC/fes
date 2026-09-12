@@ -1742,6 +1742,92 @@ What already works in this design, so a toolchain fix should not regress it: two
 
 Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
 
+## FES ColecoVision first slice
+
+`cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
+uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
+as the system reference, but is a reduced Verilog-first adapter around the
+existing `fes.simple-computer` 1.0 mailbox. It does not copy the MiSTer
+framework or claim complete retail-game compatibility.
+
+The first slice owns a TV80 Z80-compatible CPU, the Coleco reset/cartridge/RAM
+map, a bounded TMS9918-style Graphics I VDP path, two active-low controller
+views, and the established FES fixed-video shell. The reset shim occupies
+`0x0000–0x1fff` and begins with `JP 0x8000` (`c3 00 80`); it avoids embedding a
+proprietary BIOS. A raw 1–16 KiB mailbox blob is mirrored over `0x8000–ffff`.
+CPU RAM is 1 KiB at `0x6000–0x63ff`, mirrored through `0x7fff`. VDP data/control
+ports are `0xbe`/`0xbf`; controller reads are `0xfc`/`0xff`. The current
+controller adapter exposes keyboard rows 0 and 1 as active-low five-bit
+groups. Audio, BIOS services, expansion hardware, bank switching, full VDP
+modes, sprite evaluation, cycle-perfect timing, and native FogCast/runtime
+selection remain outside this first slice.
+
+`coleco_vdp.sv` keeps a 16 KiB VRAM aperture, register-based name/pattern/color
+tables, Graphics I tile pixels, and a VBlank status bit in the logical
+256×192 domain. `coleco_video_720p.v` captures a centered 512×384 2× image in
+the system domain and reads it in the 74.25 MHz pixel domain for the existing
+1650×750 HDMI timing. The mailbox and top-level clock/I²C boundaries are
+otherwise the same as FES ZX81; the 52 MHz CPU/VDP enable is an approximation
+of the Coleco clock and is not presented as cycle-accurate emulation.
+
+`make sim-fes-coleco` covers the mailbox, machine map/CPU/controller path,
+VDP tile/status path, 720p timing, and board shell in both the default and
+`FES_COLECO_OSS` conditional lanes; `make sim-fes-coleco-oss` runs the latter
+directly. The Quartus recipe is `make build-fes-coleco-quartus`; the OSS recipe
+is `make build-fes-coleco`. Both recipes require a clean source checkout before
+sealing an artifact and never program hardware. The exact current-source OSS
+RBF was loaded through the FogCast target-agent lease on the designated
+disposable kit; its development probe timed out, then the core was stopped and
+the lease was released cleanly. No HDMI capture or functional/acceptance result
+was claimed.
+
+### FES ColecoVision OSS evidence and handoff
+
+The raw OSS recipe uses Yosys `synth_intel_alm -nolutram -nodsp`, nextpnr
+Mistral for `5CSEBA6U23I7`, seed 7, `router1`, and `--tmg-ripup`. The measured
+worktree run synthesizes 85 `MISTRAL_M10K_TDP` cells and 48 `MISTRAL_M10K`
+cells, places/routes with no unrouted nets, and reports 59.82 MHz on `clk_sys`
+against 52 MHz and 89.48 MHz on `pixel_clk` against 74.25 MHz. The exact RBF
+is 2,481,055 bytes with SHA-256
+`c6a060fa117be2bf9769c3b9be65b9f5d034c4dece2cf1327a8033db6a83eca9`. These are
+host-side compiler results; the kit load was diagnostic only, not physical or
+exact-artifact acceptance.
+
+A manual Quartus Prime Lite 17.0.2 compile of the same dirty source completed
+analysis, fitting, assembly, and the required TimeQuest checks. It used 2,170
+logic cells and 100 RAM segments. The diagnostic RBF is 2,296,512 bytes with
+SHA-256
+`5efb4f431b99c103f08dbf42289624c75a658f22bdcc306d5c1ca469808d3fed`. Because
+the source checkout was intentionally uncommitted, neither compiler run is a
+sealed provenance package; the integrator must rerun the normal clean-tree
+recipe after selecting the worker revision.
+
+The following workarounds are concrete handoff items for the
+Yosys/nextpnr/Mistral owner:
+
+| Boundary | Observed result and current accommodation |
+| --- | --- |
+| TV80 frontend | The OSS source set selects Verilog `T80pa`/TV80 with `TV80_REFRESH=1`; it does not depend on the ZX81 VHDL T80. |
+| Machine RAM inference | Direct cartridge/CPU/reset arrays fail Mistral memory mapping with `-nolutram`. `coleco_dpram` selects registered `ram_style="m10k_tdp"` under `FES_COLECO_OSS`; its simulator/Quartus branches keep asynchronous or unregistered reads. |
+| Registered media bridge | OSS `media_q` is a registered mailbox-RAM result. The machine therefore primes the address, consumes the previous result at a delayed write address, holds the last request for a final flush edge, and clears/re-arms on `media_ready` falling or reset rising. The GP and machine tests exercise this path. |
+| VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use three coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads. |
+| Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
+| Initial RAM clears | `initial` loops over 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer expand into thousands of `$meminit` cells and previously drove Yosys toward a memory-budget/cgroup failure. Those RAMs are not bulk-cleared; only scalar state is initialized. |
+| Reset image format | The raw byte-per-line `coleco_reset_rom.hex` is used by OSS `$readmemh`; Quartus `altsyncram` is given the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies both into the generated project and pins both as build inputs. |
+| PLL modeling | The two existing `altera_pll` wrappers remain in the design. OSS keeps the Mistral PLL cells and uses a clock-enable divider for the approximate CPU cadence instead of generating a third fabric clock. |
+| HDMI I²C | Quartus and OSS pad models stay separate. OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
+| QSF/SDC parsing | The OSS copies omit Quartus-only HPS location/clock-group syntax. `clocks-oss.sdc` contains only the accepted 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
+| Routing | The passing reproduction is the fixed device/seed/router combination above. Any toolchain change should preserve a complete route and both frequency rows before removing a workaround. |
+
+The Quartus lane retains `altsyncram` M10K instances, the MIF reset image,
+Quartus tri-state I²C,
+the `HPS_LOCATION` assignment, and its full SDC. The OSS split is therefore a
+compiler portability boundary, not a change to the public FES mailbox
+contract. The raw OSS run was performed before this worker checkout had a
+clean commit; the normal recipe must be rerun by the integrator after selecting
+the resulting source revision so the build record, manifest, and package
+export carry authenticated provenance.
+
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
 and fixed video. Base ABI and transport remain 1.0. Data-info opcode 7 reports

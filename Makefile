@@ -39,8 +39,12 @@ help:
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
+		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
+		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
+		"  build-fes-coleco-quartus  Quartus 17.0.2 bring-up package for FES ColecoVision" \
+		"  build-fes-coleco  Seal FES ColecoVision with the pinned Yosys/nextpnr-mistral tools" \
 		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
@@ -69,7 +73,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 build-fes-zx81-quartus build-fes-zx81 build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -142,11 +146,131 @@ sim-fes-zx81:
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
 	@build/sim/fes-zx81-video/Vzx81_video_720p
 
+sim-fes-coleco: sim-fes-coleco-oss
+	@mkdir -p build/sim/fes-coleco-gp
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-Wno-PINCONNECTEMPTY \
+		-Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-gp" \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
+	@build/sim/fes-coleco-gp/Vfes_computer_gp
+	@mkdir -p build/sim/fes-coleco-vdp
+	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp" \
+		cores/fes-coleco/rtl/coleco_vdp.sv \
+		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
+	@build/sim/fes-coleco-vdp/Vcoleco_vdp
+	@mkdir -p build/sim/fes-coleco-machine
+	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+		-DTV80_REFRESH=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT \
+		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine" \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
+	@build/sim/fes-coleco-machine/Vcoleco_machine
+	@mkdir -p build/sim/fes-coleco-video
+	$(VERILATOR) --cc --exe --build --top-module coleco_video_720p -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-video" \
+		cores/fes-coleco/rtl/coleco_video_dpram.v cores/fes-coleco/rtl/coleco_video_720p.v \
+		"$(CURDIR)/cores/fes-coleco/sim/video_tb.cpp"
+	@build/sim/fes-coleco-video/Vcoleco_video_720p
+	@mkdir -p build/sim/fes-coleco-board
+	$(VERILATOR) --cc --exe --build --top-module top -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
+		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-board" \
+		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-coleco/rtl/coleco_video_720p.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
+	@build/sim/fes-coleco-board/Vtop
+
+sim-fes-coleco-oss:
+	@mkdir -p build/sim/fes-coleco-gp-oss
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-Wno-PINCONNECTEMPTY -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_COLECO_OSS=1" \
+		-Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-gp-oss" \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
+	@build/sim/fes-coleco-gp-oss/Vfes_computer_gp
+	@mkdir -p build/sim/fes-coleco-vdp-oss
+	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
+		-CFLAGS "-DFES_COLECO_OSS=1" \
+		-Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp-oss" \
+		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
+	@build/sim/fes-coleco-vdp-oss/Vcoleco_vdp
+	@mkdir -p build/sim/fes-coleco-machine-oss
+	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT \
+		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine-oss" \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
+	@build/sim/fes-coleco-machine-oss/Vcoleco_machine
+	@mkdir -p build/sim/fes-coleco-board-oss
+	$(VERILATOR) --cc --exe --build --top-module top -Wall \
+		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
+		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-board-oss" \
+		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_video_720p.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
+	@build/sim/fes-coleco-board-oss/Vtop
+
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
 
 build-fes-zx81:
 	$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"
+
+build-fes-coleco-quartus:
+	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
+
+build-fes-coleco:
+	$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"
 
 build-fes-pong:
 	$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"
