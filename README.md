@@ -384,6 +384,10 @@ MIT-licensed raw cartridge and 720p reference image; see
 [the core guide](cores/fes-coleco/README.md#open-graphics-i-diagnostic).
 These are host simulations, not hardware acceptance.
 
+`make sim-fes-coleco-quartus` separately checks the actual Quartus RAM/media
+branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
+See the core guide for prerequisites and reproducible before/after probes.
+
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 recipe for
 `fes.coleco` 1.0.0. `make build-fes-coleco` is its authenticated OSS
 Yosys/nextpnr-Mistral counterpart for `5CSEBA6U23I7`; both require a clean

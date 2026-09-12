@@ -6,6 +6,12 @@
 // the cartridge aperture is a single 16 KiB blob, and the VDP exposes the
 // bounded Graphics I slice implemented in coleco_vdp.sv.
 
+`ifdef FES_COLECO_OSS
+`define FES_COLECO_REGISTERED_MEDIA
+`elsif QUARTUS
+`define FES_COLECO_REGISTERED_MEDIA
+`endif
+
 module coleco_machine (
     input  wire        clk_sys,
     input  wire        reset,
@@ -34,7 +40,7 @@ module coleco_machine (
     // copy. An immediate host RELEASE must not let the CPU fetch partly
     // copied code or let the VDP run until the final write (OSS flush included).
     wire      machine_reset = reset || !media_ready || !media_loaded;
-`ifdef FES_COLECO_OSS
+`ifdef FES_COLECO_REGISTERED_MEDIA
     reg       media_data_valid;
     reg       media_request_done;
     reg [13:0] media_write_addr;
@@ -91,7 +97,7 @@ module coleco_machine (
         media_loaded = 1'b0;
         reset_d = 1'b0;
         vdp_write_seen = 1'b0;
-`ifdef FES_COLECO_OSS
+`ifdef FES_COLECO_REGISTERED_MEDIA
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
         media_write_addr = 14'h0000;
@@ -162,10 +168,11 @@ module coleco_machine (
     // Keep the three machine memories in the same explicit wrapper shape as
     // the ZX81 bringup. The OSS mapper cannot reliably infer the larger
     // direct arrays with -nolutram; the wrapper selects a true dual-port M10K
-    // implementation under FES_COLECO_OSS and retains async reads for the
-    // simulator/Quartus path.
-`ifdef FES_COLECO_OSS
-    // The OSS dual-port RAM has a registered read result. media_addr requests
+    // implementation under FES_COLECO_OSS. Quartus altsyncram also registers
+    // its read addresses, even with UNREGISTERED outputs; only the default
+    // simulation branch is asynchronous.
+`ifdef FES_COLECO_REGISTERED_MEDIA
+    // Both compiler RAMs have a one-clock read result. media_addr requests
     // the next byte from the GP mailbox, while media_write_addr identifies the
     // byte currently present on media_data. The final request is held for one
     // extra clock so the last registered result is written as well.
@@ -272,13 +279,13 @@ module coleco_machine (
         if (!media_ready || (reset && !reset_d)) begin
             media_addr <= 14'h0000;
             media_loaded <= 1'b0;
-`ifdef FES_COLECO_OSS
+`ifdef FES_COLECO_REGISTERED_MEDIA
             media_data_valid <= 1'b0;
             media_request_done <= 1'b0;
             media_write_addr <= 14'h0000;
 `endif
         end else if (!media_loaded && media_size != 15'd0) begin
-`ifdef FES_COLECO_OSS
+`ifdef FES_COLECO_REGISTERED_MEDIA
             if (!media_data_valid) begin
                 // Prime the registered GP mailbox read. No cartridge write is
                 // enabled until media_data contains byte zero.
@@ -323,3 +330,7 @@ module coleco_machine (
             peek_data = cartridge_peek;
     end
 endmodule
+
+`ifdef FES_COLECO_REGISTERED_MEDIA
+`undef FES_COLECO_REGISTERED_MEDIA
+`endif

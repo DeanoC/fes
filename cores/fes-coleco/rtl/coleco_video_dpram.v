@@ -63,7 +63,9 @@ module coleco_video_dpram #(
         altsyncram_component.outdata_aclr_a = "NONE",
         altsyncram_component.outdata_aclr_b = "NONE",
         altsyncram_component.outdata_reg_a = "UNREGISTERED",
-        altsyncram_component.outdata_reg_b = "CLOCK1",
+        // address_reg_b already supplies the one read-clock latency used by
+        // the OSS RAM and video shell. CLOCK1 here would add a second stage.
+        altsyncram_component.outdata_reg_b = "UNREGISTERED",
         altsyncram_component.power_up_uninitialized = "FALSE",
         altsyncram_component.read_during_write_mode_mixed_ports = "DONT_CARE",
         altsyncram_component.read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ",

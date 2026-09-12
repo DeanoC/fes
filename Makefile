@@ -41,6 +41,7 @@ help:
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
+		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
@@ -148,6 +149,10 @@ sim-fes-zx81:
 	@build/sim/fes-zx81-video/Vzx81_video_720p
 
 .PHONY: coleco-diagnostic
+.PHONY: sim-fes-coleco-quartus
+sim-fes-coleco-quartus:
+	$(PYTHON) scripts/sim_fes_coleco_quartus.py
+
 coleco-diagnostic:
 	$(PYTHON) cores/fes-coleco/diagnostic/generate.py \
 		--output build/diagnostics/fes-coleco/graphics-i.rom \

@@ -1811,6 +1811,21 @@ also rejected CPU/VDP leaving reset before `media_loaded`. The core guide's
 functional-fix section records these separately from the compiler workarounds
 below; direct VDP strobe tests did not exercise either machine-level boundary.
 
+The later Quartus-specific regression uses Intel's unmodified Quartus 17.0.2
+`altera_mf.v` with Icarus (`make sim-fes-coleco-quartus`). The operator reported
+correct OSS video but deterministic wrong Quartus colors/offset at `5f239c9`.
+Vendor probes reproduced two mismatches: altsyncram's registered address made
+the nominally UNREGISTERED mailbox read one clock late for the old Quartus
+copier (`40 41...` became `40 40...`), and the framebuffer's registered address
+plus registered output added two edges instead of one. Quartus now shares the
+existing registered-media copy/flush path and keeps only the framebuffer's
+address register. OSS behavior is unchanged. The core guide records actual
+before/after outputs, model digest, Icarus compatibility notes and replay command.
+The vendor media regression checks 1/3/989/16384/989 bytes with immediate release;
+default/OSS still supply the full CPU/HDMI-frame regression. Corrected Quartus
+video remains an operator-owned exact-artifact hardware check, not a claim of
+these focused probes. The runner invokes neither synthesis nor hardware tools.
+
 ### FES ColecoVision OSS evidence and handoff
 
 The clean integration build of implementation revision
@@ -1846,8 +1861,8 @@ Yosys/nextpnr/Mistral owner:
 | Boundary | Observed result and current accommodation |
 | --- | --- |
 | TV80 frontend | The OSS source set selects Verilog `T80pa`/TV80 with `TV80_REFRESH=1`; it does not depend on the ZX81 VHDL T80. |
-| Machine RAM inference | Direct cartridge/CPU/reset arrays fail Mistral memory mapping with `-nolutram`. `coleco_dpram` selects registered `ram_style="m10k_tdp"` under `FES_COLECO_OSS`; its simulator/Quartus branches keep asynchronous or unregistered reads. |
-| Registered media bridge | OSS `media_q` is a registered mailbox-RAM result. The machine therefore primes the address, consumes the previous result at a delayed write address, holds the last request for a final flush edge, and clears/re-arms on `media_ready` falling or reset rising. The GP and machine tests exercise this path. |
+| Machine RAM inference | Direct cartridge/CPU/reset arrays fail Mistral memory mapping with `-nolutram`. `coleco_dpram` selects registered `ram_style="m10k_tdp"` under `FES_COLECO_OSS`; Quartus has registered addresses and UNREGISTERED outputs. Only default simulation reads asynchronously. |
+| Registered media bridge | Both compiler lanes have a one-clock mailbox-RAM result. The machine primes the address, consumes the previous result at a delayed write address, holds the last request for a final flush edge, and clears/re-arms on `media_ready` falling or reset rising. Vendor probes cover the Quartus path. |
 | VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use three coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
 | Initial RAM clears | `initial` loops over 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer expand into thousands of `$meminit` cells and previously drove Yosys toward a memory-budget/cgroup failure. Those RAMs are not bulk-cleared; only scalar state is initialized. |

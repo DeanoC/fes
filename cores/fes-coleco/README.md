@@ -45,7 +45,7 @@ The host holds execution reset while uploading and commits media before
 releasing it. GP commit acknowledges publication of the mailbox blob; the
 machine then copies it into cartridge RAM. CPU and VDP reset remain asserted
 until `media_ready && media_loaded`, even if the host releases immediately
-after the commit ACK. The OSS final registered write completes before
+after the commit ACK. Both compiler lanes' final registered write completes before
 `media_loaded` permits execution. No host delay or new mailbox operation is
 required. A release without committed media also keeps CPU and VDP in reset.
 
@@ -184,8 +184,66 @@ The new test removes the old `size + 32` delay before RELEASE and observes
 reset until the actual copy completes, then validates every copied byte and
 CPU-generated pixel over 989 → 16384 → 989-byte loads in both lanes.
 These two fixes change functional RTL. They are **not** Yosys/nextpnr/Quartus
-workarounds and require fresh final FPGA builds. No new compiler issue was
-investigated in this host-simulation-only step.
+workarounds and require fresh final FPGA builds.
+
+### Quartus registered-read correction and vendor regression
+
+At revision `5f239c9`, the operator's OSS capture showed the expected pattern
+over 989 → 16384 → 989-byte loads. Quartus compact/full-size captures instead
+showed the same orange border, green interior tiles and shifted patterns.
+These operator observations prompted the following host-side reproduction;
+the correction still requires a newly built Quartus artifact and hardware check.
+
+Intel's **unmodified Quartus 17.0.2** `eda/sim_lib/altera_mf.v` establishes that
+`coleco_dpram` reads take one clock: `outdata_reg="UNREGISTERED"` does not remove
+the registered address. The Quartus media copier previously treated the GP
+read as asynchronous, producing `40 40 41...` from uploaded `40 41 42...`.
+The diagnostic's extra initial DI remains executable, but its absolute table
+pointers then read one byte early. That explains the wrong colors and displaced
+patterns. Quartus now selects the same existing registered-media prime/delayed
+write/final-flush path as OSS. The OSS behavior is unchanged.
+
+The framebuffer had both `address_reg_b="CLOCK1"` and
+`outdata_reg_b="CLOCK1"`, introducing two read edges where the shell and OSS
+expect one. Quartus now leaves the address registered and selects
+`outdata_reg_b="UNREGISTERED"`. The vendor probe confirms the one-edge latency;
+no custom behavioral RAM model is used to infer it.
+
+```sh
+# Icarus Verilog 12 (iverilog + vvp); no Quartus synthesis/build is invoked.
+QUARTUS_ROOTDIR=/absolute/path/to/17.0/quartus make sim-fes-coleco-quartus
+# Reproduce both failures from the old RTL, then require current RTL to pass:
+QUARTUS_ROOTDIR=/absolute/path/to/17.0/quartus \
+  python3 scripts/sim_fes_coleco_quartus.py --baseline 5f239c9
+```
+
+Set `IVERILOG`/`VVP` for non-PATH executables and `IVERILOG_BASE` for a relocated
+Icarus library directory. No tools are downloaded by this target. Icarus is
+used for these probes because Verilator 5.051 rejects the vendor model's
+`i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. The existing
+default/OSS full-board simulations remain Verilator-only and need no Quartus.
+Vendor warnings about tri0/tri1 input ports coerced to inout are retained in
+compile logs. Intel's model is neither patched nor copied into the repository.
+Its MIF converter writes a `.ver` sibling, so the runner copies the tracked
+reset MIF into its ignored simulation work directory before running.
+
+Actual probe output, before → after:
+
+```text
+RAM address 1: A=32 B=32 framebuffer=31 expected=32 -> framebuffer=32
+media: cartridge[1]=40 expected=41 size=3 -> exact copy passed
+after media sizes: 1, 3, 989, 16384, 989; immediate RELEASE; all bytes passed
+```
+
+`build/sim/fes-coleco-quartus/{before,after}/quartus_{ram,media}_tb.log`
+contains the actual stdout/stderr plus vendor-model SHA-256. The tested model
+digest is `e7bc6f0200f8236986c4b255a4ce7937596946bdb646a93551057edc1e08ca69`.
+The RAM probe observes both registered read ports and framebuffer output; the
+media probe uses real GP commands and the real machine/Intel RAM branch,
+checks every byte including odd tails and the 16 KiB boundary, and asserts
+CPU/VDP reset until copy completion. A full vendor CPU/HDMI-frame simulation
+is not claimed: the complementary full-frame regression is default/OSS, and
+the operator owns exact-artifact Quartus hardware validation.
 
 ### OSS/Yosys/nextpnr workarounds
 
@@ -195,10 +253,10 @@ Yosys/nextpnr/Mistral owner:
 | Boundary | Workaround in this bring-up |
 | --- | --- |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
-| Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports, while simulation and Quartus retain asynchronous/unregistered reads. |
-| Registered media bridge | OSS mailbox RAM returns `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |
+| Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
+| Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |
 | VDP multi-read VRAM | A single inferred VRAM with one CPU port and three combinational raster reads fails Mistral memory mapping and also leaves Quartus with an oversized direct-memory implementation. Both compiler paths use three coherent `coleco_dpram` copies, broadcast CPU writes, and pipeline name → pattern/color reads by two clocks. |
-| Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock, registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
+| Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` uses independent-clock altsyncram with a registered B address and UNREGISTERED B output, matching the OSS wrapper's single read edge. |
 | Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered three-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |
 | Bulk initialization | Clearing 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer in an `initial` loop expands into thousands of `$meminit` cells and can exhaust the synthesis memory budget. The bring-up leaves those RAMs uninitialized and initializes only scalar state. |
 | Reset image format | OSS/Yosys consumes the tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies and pins both files. |
