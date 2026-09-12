@@ -99,8 +99,8 @@ module coleco_vdp (
     reg [7:0]  sprite_pattern_left;
     reg [7:0]  sprite_pattern_right;
     integer    sprite_clear_index;
-    integer    sprite_render_col;
-    integer    sprite_render_rep;
+    reg [4:0]  sprite_render_col;
+    reg        sprite_render_rep;
     function integer sprite_pixel_x;
         input [7:0] attr_x;
         input       early_clock;
@@ -210,6 +210,28 @@ module coleco_vdp (
                                  (sprite_line_delta_w < sprite_height_w);
     wire [4:0] sprite_source_row_w =
         sprite_line_delta_w >>> (vdp_reg[1][0] ? 1 : 0);
+    wire [4:0] sprite_render_last_col_w = vdp_reg[1][1] ? 5'd15 : 5'd7;
+    wire       sprite_render_last_rep_w = vdp_reg[1][0];
+    wire signed [10:0] sprite_render_pixel_x_w =
+        $signed(sprite_pixel_x(sprite_attr_x, sprite_attr_color[7],
+                               sprite_render_col, sprite_render_rep,
+                               vdp_reg[1][0]));
+    wire [7:0] sprite_render_address_w = sprite_render_pixel_x_w[7:0];
+    wire       sprite_render_in_range_w =
+        (sprite_render_col <= sprite_render_last_col_w) &&
+        (sprite_render_rep <= sprite_render_last_rep_w) &&
+        (sprite_render_pixel_x_w >= 0) &&
+        (sprite_render_pixel_x_w < 256);
+    wire       sprite_render_pattern_bit_w =
+        (sprite_render_col < 5'd8) ?
+        sprite_pattern_left[7 - sprite_render_col] :
+        sprite_pattern_right[15 - sprite_render_col];
+    wire       sprite_render_occupied_w = sprite_build_bank ?
+        sprite_line_occupied_b[sprite_render_address_w] :
+        sprite_line_occupied_a[sprite_render_address_w];
+    wire [1:0] sprite_render_existing_pixel_w = sprite_build_bank ?
+        sprite_line_pixel_b[sprite_render_address_w] :
+        sprite_line_pixel_a[sprite_render_address_w];
 
     // One registered read port is shared by the SAT and pattern-row walker.
     // Each request state is followed by a wait state because both OSS M10K
@@ -325,6 +347,8 @@ module coleco_vdp (
             sprite_pattern_byte <= 2'h00;
             sprite_pattern_left <= 8'h00;
             sprite_pattern_right <= 8'h00;
+            sprite_render_col <= 5'h00;
+            sprite_render_rep <= 1'b0;
             for (sprite_clear_index = 0; sprite_clear_index < 256; sprite_clear_index = sprite_clear_index + 1) begin
                 sprite_line_pixel_a[sprite_clear_index] <= 2'h00;
                 sprite_line_pixel_b[sprite_clear_index] <= 2'h00;
@@ -354,6 +378,8 @@ module coleco_vdp (
                         sprite_build_collision <= 1'b0;
                         sprite_build_overflow <= 1'b0;
                         sprite_build_fifth_index <= 5'h00;
+                        sprite_render_col <= 5'h00;
+                        sprite_render_rep <= 1'b0;
                         for (sprite_clear_index = 0; sprite_clear_index < 256; sprite_clear_index = sprite_clear_index + 1) begin
                             if (sprite_build_bank) begin
                                 sprite_line_pixel_b[sprite_clear_index] <= 2'h00;
@@ -444,85 +470,57 @@ module coleco_vdp (
                             sprite_pattern_byte <= 2'h1;
                             sprite_eval_state <= SPRITE_PATTERN_REQ;
                         end else begin
+                            sprite_render_col <= 5'h00;
+                            sprite_render_rep <= 1'b0;
                             sprite_eval_state <= SPRITE_RENDER;
                         end
                     end else begin
                         sprite_pattern_right <= vram_sprite_read;
+                        sprite_render_col <= 5'h00;
+                        sprite_render_rep <= 1'b0;
                         sprite_eval_state <= SPRITE_RENDER;
                     end
                 end
 
                 SPRITE_RENDER: begin
-                    for (sprite_render_col = 0;
-                         sprite_render_col < 16;
-                         sprite_render_col = sprite_render_col + 1) begin
-                        if (sprite_render_col < (vdp_reg[1][1] ? 16 : 8) &&
-                            ((sprite_render_col < 8) ?
-                            sprite_pattern_left[7 - sprite_render_col] :
-                            sprite_pattern_right[15 - sprite_render_col])) begin
-                            for (sprite_render_rep = 0;
-                                 sprite_render_rep < 2;
-                                 sprite_render_rep = sprite_render_rep + 1) begin
-                                if (sprite_render_rep < (vdp_reg[1][0] ? 2 : 1) &&
-                                    sprite_pixel_x(sprite_attr_x, sprite_attr_color[7],
-                                                   sprite_render_col, sprite_render_rep,
-                                                   vdp_reg[1][0]) >= 0 &&
-                                    sprite_pixel_x(sprite_attr_x, sprite_attr_color[7],
-                                                   sprite_render_col, sprite_render_rep,
-                                                   vdp_reg[1][0]) < 256) begin
-                                    if (sprite_build_bank ?
-                                        sprite_line_occupied_b[sprite_pixel_x(
-                                            sprite_attr_x, sprite_attr_color[7],
-                                            sprite_render_col, sprite_render_rep,
-                                            vdp_reg[1][0])] :
-                                        sprite_line_occupied_a[sprite_pixel_x(
-                                            sprite_attr_x, sprite_attr_color[7],
-                                            sprite_render_col, sprite_render_rep,
-                                            vdp_reg[1][0])])
-                                        sprite_build_collision <= 1'b1;
-                                    if (sprite_attr_color[3:0] != 4'h0 &&
-                                        (sprite_build_bank ?
-                                         !sprite_line_pixel_b[sprite_pixel_x(
-                                             sprite_attr_x, sprite_attr_color[7],
-                                             sprite_render_col, sprite_render_rep,
-                                             vdp_reg[1][0])] :
-                                         !sprite_line_pixel_a[sprite_pixel_x(
-                                             sprite_attr_x, sprite_attr_color[7],
-                                             sprite_render_col, sprite_render_rep,
-                                             vdp_reg[1][0])])) begin
-                                        if (sprite_build_bank)
-                                            sprite_line_pixel_b[sprite_pixel_x(
-                                                sprite_attr_x, sprite_attr_color[7],
-                                                sprite_render_col, sprite_render_rep,
-                                                vdp_reg[1][0])] <=
-                                                (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
-                                        else
-                                            sprite_line_pixel_a[sprite_pixel_x(
-                                                sprite_attr_x, sprite_attr_color[7],
-                                                sprite_render_col, sprite_render_rep,
-                                                vdp_reg[1][0])] <=
-                                                (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
-                                    end
-                                    if (sprite_build_bank)
-                                        sprite_line_occupied_b[sprite_pixel_x(
-                                            sprite_attr_x, sprite_attr_color[7],
-                                            sprite_render_col, sprite_render_rep,
-                                            vdp_reg[1][0])] <= 1'b1;
-                                    else
-                                        sprite_line_occupied_a[sprite_pixel_x(
-                                            sprite_attr_x, sprite_attr_color[7],
-                                            sprite_render_col, sprite_render_rep,
-                                            vdp_reg[1][0])] <= 1'b1;
-                                end
-                            end
+                    // Render one source pixel per system clock.  The previous
+                    // procedural 16x2 loop created a wide dynamic-index write
+                    // mux for every line-buffer bit and made nextpnr routing
+                    // intractable on the 5CSE device.
+                    if (sprite_render_in_range_w &&
+                        sprite_render_pattern_bit_w) begin
+                        if (sprite_render_occupied_w)
+                            sprite_build_collision <= 1'b1;
+                        if (sprite_attr_color[3:0] != 4'h0 &&
+                            !sprite_render_existing_pixel_w) begin
+                            if (sprite_build_bank)
+                                sprite_line_pixel_b[sprite_render_address_w] <=
+                                    (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
+                            else
+                                sprite_line_pixel_a[sprite_render_address_w] <=
+                                    (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
                         end
+                        if (sprite_build_bank)
+                            sprite_line_occupied_b[sprite_render_address_w] <= 1'b1;
+                        else
+                            sprite_line_occupied_a[sprite_render_address_w] <= 1'b1;
                     end
-                    if (sprite_eval_index == 5'd31) begin
-                        sprite_eval_state <= SPRITE_FINISH;
+
+                    if (sprite_render_rep == sprite_render_last_rep_w) begin
+                        sprite_render_rep <= 1'b0;
+                        if (sprite_render_col == sprite_render_last_col_w) begin
+                            if (sprite_eval_index == 5'd31) begin
+                                sprite_eval_state <= SPRITE_FINISH;
+                            end else begin
+                                sprite_eval_index <= sprite_eval_index + 1'b1;
+                                sprite_attr_byte <= 3'h00;
+                                sprite_eval_state <= SPRITE_ATTR_REQ;
+                            end
+                        end else begin
+                            sprite_render_col <= sprite_render_col + 1'b1;
+                        end
                     end else begin
-                        sprite_eval_index <= sprite_eval_index + 1'b1;
-                        sprite_attr_byte <= 3'h00;
-                        sprite_eval_state <= SPRITE_ATTR_REQ;
+                        sprite_render_rep <= sprite_render_rep + 1'b1;
                     end
                 end
 

@@ -1784,6 +1784,14 @@ the system domain and reads it in the 74.25 MHz pixel domain for the existing
 otherwise the same as FES ZX81; the 52 MHz CPU/VDP enable is an approximation
 of the Coleco clock and is not presented as cycle-accurate emulation.
 
+The registered sprite renderer advances one source column/repeat per system
+clock rather than expanding a full 16×2 procedural write loop. The wider loop
+produced roughly 42K mapped combinational cells and made the fixed OSS route
+unusable; the serial counters reduce the measured fabric to roughly 5.9K ALUT
+cells while leaving the sprite priority, collision and clipping behavior
+unchanged. This is a synthesis/route-scaling workaround, not a change to the
+logical sprite contract.
+
 The VDP snapshots each held IN transaction once, retaining its original return
 byte through RD/IORQ release. Read-address setup starts read-ahead, data reads
 return the buffer and advance, and data writes update VRAM and the shared
@@ -1924,6 +1932,7 @@ Yosys/nextpnr/Mistral owner:
 | VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use four coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads; the fourth copy feeds the serial SAT/pattern walker. |
 | Registered sprite line publication | A sprite bank swap made at the scan-ahead counter can put the next line into the preceding framebuffer row because the registered raster lookup presents its coordinate one edge later. The evaluator targets `display_y+1`, then defers bank/status publication until the pending line's logical y matches that raster coordinate. A `!sprite_pending_valid` interlock prevents a new build from clearing the bank whose publication is still pending. |
 | Sprite evaluator startup | The serial evaluator can sample the reset-time or stale/uninitialized SAT while the CPU is still configuring VDP registers and sprite tables. The diagnostic allows one warm-up frame before asserting line-zero sprites; this is a startup sequencing accommodation for the registered-memory lanes. |
+| Sprite render scaling | The original procedural 16×2 line-buffer write loop expanded to about 42K mapped combinational cells; a clean `router1`/`--tmg-ripup` attempt ran for more than 55 minutes without a route report, and `router2` plateaued with about 35K overused resources. Registered column/repeat counters now issue one pixel write per system clock, reducing synthesis to about 5.9K ALUT cells while fitting the existing ~4K system-clock line budget. This source-level serialization is required until the route can be reproduced without it. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
 | Initial RAM clears | `initial` loops over 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer expand into thousands of `$meminit` cells and previously drove Yosys toward a memory-budget/cgroup failure. Those RAMs are not bulk-cleared; only scalar state is initialized. |
 | Reset image format | The raw byte-per-line `coleco_reset_rom.hex` is used by OSS `$readmemh`; Quartus `altsyncram` is given the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies both into the generated project and pins both as build inputs. |
