@@ -159,6 +159,11 @@ coleco-diagnostic:
 		--preview build/diagnostics/fes-coleco/graphics-i.ppm
 	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --pad-to 16384 \
 		--output build/diagnostics/fes-coleco/graphics-i-16k.rom
+	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --interactive \
+		--output build/diagnostics/fes-coleco/input.rom \
+		--preview build/diagnostics/fes-coleco/input.ppm
+	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --interactive --pad-to 16384 \
+		--output build/diagnostics/fes-coleco/input-16k.rom
 
 sim-fes-coleco: sim-fes-coleco-oss
 	@mkdir -p build/sim/fes-coleco-gp
@@ -219,6 +224,8 @@ sim-fes-coleco: sim-fes-coleco-oss
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
+	@build/sim/fes-coleco-board/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
+		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 
 sim-fes-coleco-oss: coleco-diagnostic
 	@mkdir -p build/sim/fes-coleco-gp-oss
@@ -277,6 +284,8 @@ sim-fes-coleco-oss: coleco-diagnostic
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
+	@build/sim/fes-coleco-board-oss/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
+		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"

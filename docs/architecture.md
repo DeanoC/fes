@@ -1792,6 +1792,15 @@ The [core guide](../cores/fes-coleco/README.md#open-graphics-i-diagnostic) speci
 the image, generation commands, palette limitations and existing one-pixel
 framebuffer read latency. RAM power-up contents are randomized in the board test.
 
+The same generator's optional `--interactive` cartridge uses that unchanged
+hardware to poll FC/FF and display two rows of five active-low input panels.
+It initializes its two cached input bytes in CPU RAM and repaints only a changed
+player row. `make coleco-diagnostic` supplies compact/full-aperture input images
+and a neutral preview; preview-only `--row0`/`--row1` select expected key states.
+The [input diagnostic guide](../cores/fes-coleco/README.md#two-player-input-diagnostic)
+defines panel geometry and the reused Shift/Z/X/C/V and A/S/D/F/G keyboard
+mapping. No RTL, ABI, native gamepad or full Coleco keypad support is added.
+
 `coleco_machine` holds CPU and VDP reset while execution reset is requested,
 committed media is absent, or the cartridge copy has not finished. GP commit
 only publishes `media_ready`; the internal `media_loaded` flag releases the

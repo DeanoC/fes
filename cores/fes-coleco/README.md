@@ -129,6 +129,53 @@ No full FPGA build or hardware operation is part of this diagnostic change.
 
 ## Commands
 
+### Two-player input diagnostic
+
+`make coleco-diagnostic` also generates `input.rom`, `input-16k.rom` and the
+neutral `input.ppm` under `build/diagnostics/fes-coleco/`. The original
+`graphics-i.rom` remains byte-for-byte unchanged. To generate a pressed-state
+reference, use:
+
+```sh
+python3 cores/fes-coleco/diagnostic/generate.py --interactive \
+  --output build/diagnostics/fes-coleco/input.rom \
+  --preview build/diagnostics/fes-coleco/input-mixed.ppm --row0 26 --row1 13
+```
+
+Two rows of five solid panels show controller 1 (top) and controller 2
+(bottom). Columns mean **Up, Right, Down, Left, Fire**, in bit order 0..4.
+Released panels are orange, pressed panels green; the surround is black with
+a green border. These are diagnostic names for the existing five-bit adapter,
+not a claim of full Coleco joystick/keypad emulation.
+
+| Player | Keyboard matrix row | Keys for Up / Right / Down / Left / Fire |
+| --- | --- | --- |
+| 1 | 0 | Shift / Z / X / C / V |
+| 2 | 1 | A / S / D / F / G |
+
+The unusual keys deliberately reuse the existing ZX81 keyboard transport;
+there is no new host mapping, physical gamepad support, or wire contract.
+Rows 2..7 do not affect these panels. `--row0` and `--row1` accept active-low
+0..31 values **for the preview only**; they do not change cartridge bytes or
+send input. Use the normal leased FogCast keyboard event path for live input.
+
+The BIOS-free CPU initializes all VRAM and both previous-input bytes in CPU
+RAM, then continuously polls ports FC and FF. Only changed player rows repaint
+their five panels, avoiding writes while the input is stable. Each panel is
+four by four tiles: columns 2..5, 8..11, 14..17, 20..23, 26..29; rows 5..8
+and 15..18. Input is active-low; no HALT, interrupt handler or RAM power-up
+contents are required. As with the static diagnostic, initialization can be
+visible briefly before the display settles.
+
+GP HOLD clears keyboard rows during upload. Board tests exercise that neutral
+state and explicit restoration after a held-key reload; FogCast's existing
+runtime adapter restores its package/generation-bound held matrix after media
+commit. Detaching host input must release the keys. This diagnostic changes
+cartridge bytes and tests only, not RTL, compiler constraints or RAM wrappers;
+the earlier exact `69c5823` FPGA packages can execute it without rebuilding.
+
+### Build and simulation
+
 ```sh
 make sim-fes-coleco VERILATOR=/absolute/path/to/verilator
 make build-fes-coleco-quartus
