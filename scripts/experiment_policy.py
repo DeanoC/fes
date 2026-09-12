@@ -244,6 +244,7 @@ class ExperimentPolicy:
     m10k_async_read: bool = False
     m10k_addrstalla_gpo_bit: int | None = None
     m10k_out_reg_b: bool = False
+    m10k_rdw_new_data: bool = False
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -282,6 +283,7 @@ class ExperimentPolicy:
             ("m10k_tdp_constant_clk2", self.m10k_tdp_constant_clk2),
             ("m10k_async_read", self.m10k_async_read),
             ("m10k_out_reg_b", self.m10k_out_reg_b),
+            ("m10k_rdw_new_data", self.m10k_rdw_new_data),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -683,6 +685,8 @@ class ExperimentPolicy:
             self._require_m10k_addrstalla(design)
         if self.m10k_out_reg_b:
             self._require_m10k_out_reg_b(design)
+        if self.m10k_rdw_new_data:
+            self._require_m10k_rdw(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -939,6 +943,31 @@ class ExperimentPolicy:
             raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
         if "B1DATA" not in connections or "B1ADDR" not in connections:
             raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
+
+    def _require_m10k_rdw(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(cells) != 1:
+            raise PolicyError(
+                f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}"
+            )
+        if self._m10k_cells(design, "MISTRAL_M10K"):
+            raise PolicyError("read-during-write contracts require TDP, not SDP")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise PolicyError("TDP M10K cell is missing parameters")
+        if parameters.get("CFG_RDW_MODE_A") != "NEW_DATA_NO_NBE_READ":
+            raise PolicyError(
+                f"CFG_RDW_MODE_A must be NEW_DATA_NO_NBE_READ, got {parameters.get('CFG_RDW_MODE_A')!r}"
+            )
+        if parameters.get("CFG_RDW_MODE_B") != "NEW_DATA_NO_NBE_READ":
+            raise PolicyError(
+                f"CFG_RDW_MODE_B must be NEW_DATA_NO_NBE_READ, got {parameters.get('CFG_RDW_MODE_B')!r}"
+            )
+        if parameters.get("CFG_RDW_MODE_MIXED") != "DONT_CARE":
+            raise PolicyError(
+                f"CFG_RDW_MODE_MIXED must be DONT_CARE, got {parameters.get('CFG_RDW_MODE_MIXED')!r}"
+            )
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1250,6 +1279,7 @@ class ExperimentPolicy:
             and not self.m10k_async_read
             and self.m10k_addrstalla_gpo_bit is None
             and not self.m10k_out_reg_b
+            and not self.m10k_rdw_new_data
         ):
             return
         try:
@@ -1276,6 +1306,8 @@ class ExperimentPolicy:
             if self._attach_m10k_addrstalla(cells):
                 changed = True
             if self._apply_m10k_out_reg_b(cells):
+                changed = True
+            if self._apply_m10k_rdw(cells):
                 changed = True
             for cell in cells.values():
                 if not isinstance(cell, dict):
@@ -1430,6 +1462,30 @@ class ExperimentPolicy:
             if parameters.get("CFG_OUT_REG_A") not in (None, unregistered):
                 parameters["CFG_OUT_REG_A"] = unregistered
                 changed = True
+        return changed
+
+    def _apply_m10k_rdw(self, cells: dict[str, Any]) -> bool:
+        """Request Cyclone V TDP write-through contracts after Yosys omits them."""
+
+        if not self.m10k_rdw_new_data:
+            return False
+        changed = False
+        for cell in cells.values():
+            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_M10K_TDP":
+                continue
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = {}
+                cell["parameters"] = parameters
+            wanted = {
+                "CFG_RDW_MODE_A": "NEW_DATA_NO_NBE_READ",
+                "CFG_RDW_MODE_B": "NEW_DATA_NO_NBE_READ",
+                "CFG_RDW_MODE_MIXED": "DONT_CARE",
+            }
+            for key, value in wanted.items():
+                if parameters.get(key) != value:
+                    parameters[key] = value
+                    changed = True
         return changed
 
     def _apply_m10k_async_read(self, cells: dict[str, Any]) -> bool:
@@ -1640,6 +1696,7 @@ class ExperimentPolicy:
             **({"m10k_addrstalla_gpo_bit": self.m10k_addrstalla_gpo_bit}
                if self.m10k_addrstalla_gpo_bit is not None else {}),
             **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
+            **({"m10k_rdw_new_data": True} if self.m10k_rdw_new_data else {}),
         }
 
 
@@ -5462,6 +5519,63 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                     sources=("experiments/830_pll_frac_27/rtl/top.v",),
                     tb="experiments/090_pll_clock/sim/meter_sim.cpp",
                     parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "840_m10k_rdw": ExperimentPolicy(
+            name="840_m10k_rdw",
+            sources=("experiments/840_m10k_rdw/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K_TDP": 1},
+            nobram=False,
+            m10k_rdw_new_data=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "B1EN",
+                    "A1WE",
+                    "B1WE",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K_TDP": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/840_m10k_rdw/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/840_m10k_rdw/sim/m10k_rdw_model.v",
+                    ),
+                    tb="experiments/840_m10k_rdw/sim/tb.cpp",
                 ),
             ),
         ),

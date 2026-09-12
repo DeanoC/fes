@@ -145,7 +145,16 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `914200556be0d83ebc0f74efde400ff00d98cc70` is
+The current nextpnr pin `47c4251acc89eb9bf6742e32204af744a23446e0` is
+merged PR #63 (`f9be23d3d95ce207a197e28455fd1f66b6df8460` onto
+`914200556be0d83ebc0f74efde400ff00d98cc70`). It makes TDP
+read-during-write contracts explicit: `CFG_RDW_MODE_A`/`CFG_RDW_MODE_B`
+accept `NEW_DATA_NO_NBE_READ` or `DONT_CARE`, `CFG_RDW_MODE_MIXED`
+accepts only `DONT_CARE`, and unsupported modes are rejected. Physical
+settings remain `TRUE_DUAL_PORT` with A/B flow-through. Pair it with
+Yosys `ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `914200556be0d83ebc0f74efde400ff00d98cc70`,
 merged PR #62 (`23421df80037a522b9315729c9328e0e89a935d4` onto
 `5909feb560da457c55374eec226d1040c4dc8dba`). It calculates bounded
 fractional-N PLL profiles from a 50 MHz reference when the reported VCO
@@ -1625,6 +1634,25 @@ loss. Load JSON timed out; GPI and probe still passed. `stop` completed
 development reboot recovery and left the lease free. The current nextpnr
 pin `91420055` with Yosys `ec34fcf3` reproduces those same RBF bytes.
 
+`840_m10k_rdw` instantiates one `MISTRAL_M10K_TDP` with an explicit
+same-port `NEW_DATA_NO_NBE_READ` contract. GPI signature `0xD840`.
+Locked Yosys omits the RDW parameters, so OSS sets them after synthesis.
+See `experiments/840_m10k_rdw/expected.md`.
+
+The OSS `840_m10k_rdw` artifact has SHA-256
+`1188a95b284a175cc4cdc0ded85ec2404928f93415630e559b8716dda56a00e2`
+and size 1,959,341 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
+`CFG_RDW_MODE_A`/`CFG_RDW_MODE_B=NEW_DATA_NO_NBE_READ`,
+`CFG_RDW_MODE_MIXED=DONT_CARE`, and decompiled `TRUE_DUAL_PORT=1`,
+`A_DATA_FLOW_THRU=1`, `B_DATA_FLOW_THRU=1`. Reported Fmax is 377.643 MHz
+against 50 MHz. Utilization is one M10K and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 returned GPI signature `0xD840`, INIT `0xA6`
+at address 0, same-port NEW_DATA write-through of `0x155` at address 7,
+and an undisturbed neighbour. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the lease
+free. The current nextpnr pin `47c4251a` with Yosys `ec34fcf3` reproduces
+those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1655,7 +1683,8 @@ SDC/QSF forms (fabric GPI only), and a TDP M10K A-port address stall
 and a combinational M10K read packed to initialized async defaults
 (fabric GPI only), and a combinational M10K read with packer
 constant-high `ENABLE[0]` (fabric GPI only), and a 50→27 MHz
-fractional-N PLL from the bounded calculator (fabric GPI only). It does
+fractional-N PLL from the bounded calculator (fabric GPI only), and a
+TDP M10K same-port NEW_DATA write-through (fabric GPI only). It does
 not establish native
 game acceptance.
 

@@ -136,6 +136,7 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/810_m10k_async_defaults/rtl/top.v",
             "experiments/820_m10k_async_enable/rtl/top.v",
             "experiments/830_pll_frac_27/rtl/top.v",
+            "experiments/840_m10k_rdw/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -173,7 +174,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
         pins = {
             "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
-            "nextpnr": "914200556be0d83ebc0f74efde400ff00d98cc70",
+            "nextpnr": "47c4251acc89eb9bf6742e32204af744a23446e0",
         }
         for lock_name, commit in pins.items():
             evidence = external_build / lock_name if symlink_build_tools else build / lock_name
@@ -784,6 +785,19 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_tdp_rdw(self) -> None:
+        result = self._run("--print-commands", "--experiment", "840_m10k_rdw")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/840_m10k_rdw/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_rdw_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
