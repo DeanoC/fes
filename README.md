@@ -350,6 +350,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   toggling stand-in. Run `make sim EXP=830_pll_frac_27` and
   `make oss EXP=830_pll_frac_27`; no Quartus comparison lane is
   implemented.
+- `840_m10k_rdw`, TDP M10K same-port write-through. OSS sets
+  `CFG_RDW_MODE_A`/`CFG_RDW_MODE_B` to `NEW_DATA_NO_NBE_READ`. Run
+  `make sim EXP=840_m10k_rdw` and `make oss EXP=840_m10k_rdw`; no
+  Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
