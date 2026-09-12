@@ -41,8 +41,91 @@ are deliberate compatibility boundaries.
 
 The mailbox, keyboard rows, media handshake, build identity, and fixed-video
 interfaces are byte-for-byte the existing `fes.simple-computer` boundary.
-The machine consumes media during reset; the host must commit media before
-releasing execution reset.
+The host holds execution reset while uploading and commits media before
+releasing it. GP commit acknowledges publication of the mailbox blob; the
+machine then copies it into cartridge RAM. CPU and VDP reset remain asserted
+until `media_ready && media_loaded`, even if the host releases immediately
+after the commit ACK. The OSS final registered write completes before
+`media_loaded` permits execution. No host delay or new mailbox operation is
+required. A release without committed media also keeps CPU and VDP in reset.
+
+The machine adapter qualifies each held CPU `OUT` cycle into one VDP write
+strobe. TV80 holds IORQ/WR low across multiple CPU enables; passing every enable
+through used to duplicate control bytes and VRAM writes. Read sampling retains
+its existing window; this diagnostic does not establish buffered VRAM-read or
+complete TMS9918 compatibility.
+
+## Open Graphics I diagnostic
+
+From the misteross root:
+
+```sh
+make coleco-diagnostic
+# Or generate only the exact compact cartridge and a reference image:
+python3 cores/fes-coleco/diagnostic/generate.py \
+  --output build/diagnostics/fes-coleco/graphics-i.rom \
+  --preview build/diagnostics/fes-coleco/graphics-i.ppm
+```
+
+`diagnostic/generate.py` is the annotated Z80 instruction source/emitter.
+Python's standard library is sufficient; no assembler, downloaded ROM,
+commercial cartridge or proprietary BIOS is used. Its original code, generated
+cartridge and reference image are covered by `diagnostic/LICENSE` (MIT).
+The raw cartridge is **989 bytes**, entered at **0x8000** by the open reset
+shim's `JP 0x8000`. Its SHA-256 is recorded by the generation command. There is
+no header or container. The entry/code/data stay entirely within the portable
+1..16384-byte media aperture. `--pad-to 16384` produces an equivalent full-size
+image, with unused trailing FF bytes; `make coleco-diagnostic` generates this
+as `graphics-i-16k.rom` too. Upload the `.rom` bytes through the FogCast media
+path for a loaded `fes.coleco` package; the PPM is a host comparison artifact.
+
+The CPU disables interrupts, initializes SP without reading or using stack RAM,
+clears all 16 KiB VRAM through port BE, sets all eight VDP registers through BF,
+then fills the name table at 0000, three patterns at 0800 and colors at 2000.
+It also writes a sprite-list terminator at 1B00, enables Graphics I display, and
+halts with a static picture. All VRAM consulted for the final image is written
+by the program; CPU RAM power-up values are irrelevant. The VDP currently
+ignores display-enable masking, so transient startup contents can be visible
+while initialization runs. Compare the settled image, allowing about a second
+after execution release for this diagnostic.
+
+Expected active HDMI image (`graphics-i.ppm`, 1280×720):
+
+- Black surroundings; centered 512×384 picture at x=384..895, y=168..551.
+- Solid green border, one 8×8 logical tile thick (nominally 16 HDMI pixels).
+- Inside, 30 columns × 22 rows of alternating green/orange 12×12 HDMI squares
+  with black gaps. The upper-left interior square is green.
+- Green is RGB `00ff40`, orange `ff4000`, black `000000`: 75,168 green,
+  47,520 orange, 798,912 black active pixels; 122,688 nonblack in total.
+
+The current registered framebuffer read shifts the contents one HDMI pixel
+right inside the fixed image window. The preview and board oracle include
+that existing latency/clipping (left border 17 pixels, right border 15 pixels).
+The VDP uses one color byte per tile name and a reduced two-color foreground
+mapping, not the complete TMS9918 Graphics I palette. This cartridge diagnoses
+this slice, not a stock BIOS cartridge format or retail compatibility. It does
+not test audio, controller input, sprites, interrupts or BIOS services.
+
+`make sim-fes-coleco` generates both cartridges and runs the default and
+`FES_COLECO_OSS` lanes with the production `TV80_REFRESH=1` setting.
+Each board simulation uploads 989 → 16384 → 989 bytes
+through HOLD/BEGIN/DATA/COMMIT/RELEASE, including the odd tail and full aperture,
+with **no wait before RELEASE**. It asserts CPU/VDP reset through the copy,
+compares every loaded byte including the OSS final flush, observes one VDP
+write per CPU OUT, and requires the CPU to write every VRAM address before
+HALT. Randomized initial RAM exercises independence from power-up contents.
+After raster settling, every RGB/DE/HS/VS sample of a complete 1650×750 HDMI
+frame is checked against an independent C++ oracle for each load. Only the
+simulated GP, clocks and I²C boundaries are driven; the test does not preload
+the cartridge, VDP or framebuffer or force CPU execution state.
+
+These are host-only behavioral simulations with controllable digital clocks,
+not PLL/timing checks, FogCast/runtime integration, or hardware acceptance.
+This step changes `coleco_machine.sv` (reset gating and VDP write strobes), so
+the earlier FPGA packages below cannot establish this diagnostic's result.
+The selected revision also changes BUILD_ID: the integrator must rebuild and
+seal the final artifact, then perform the separately owned upload/capture test.
+No full FPGA build or hardware operation is part of this diagnostic change.
 
 ## Commands
 
@@ -79,7 +162,32 @@ reported the package, ABI, build ID, and required interfaces, and the host-owned
 stop returned it to idle. The HDMI sample was black, so this is exact-artifact
 load/stop diagnostic evidence, not Coleco functional or video acceptance.
 
-## OSS/Yosys/nextpnr workarounds
+## Bring-up fixes and compiler workarounds
+
+### Functional TV80/media fixes
+
+Before the write-strobe guard, the real CPU's `OUT (BF),A` sequence for
+register 1 (`C0` data, then `81` selector) left register 1 as `81`, not `C0`.
+The default simulation also showed register 2=`82` instead of `00` and
+register 4=`84` instead of `01`. Both lanes returned black at HDMI (384,168),
+where the cartridge requires green. The board regression explicitly rejected
+a second `bus_write` strobe while the same CPU IORQ/WR transaction remained
+asserted: `VDP consumed the same CPU OUT transaction twice`. The fix adds
+`vdp_write_seen` in the machine adapter, re-armed when IORQ or WR deasserts,
+and suppresses further write strobes within that transaction. Direct VDP tests
+had driven one strobe per write and did not expose the TV80 integration bug.
+
+The immediate-release regression separately failed with
+`CPU/VDP escaped reset before cartridge copy completed` before internal reset
+gating was added. A commit ACK publishes media; it does not finish the copy.
+The new test removes the old `size + 32` delay before RELEASE and observes
+reset until the actual copy completes, then validates every copied byte and
+CPU-generated pixel over 989 → 16384 → 989-byte loads in both lanes.
+These two fixes change functional RTL. They are **not** Yosys/nextpnr/Quartus
+workarounds and require fresh final FPGA builds. No new compiler issue was
+investigated in this host-simulation-only step.
+
+### OSS/Yosys/nextpnr workarounds
 
 These are the concrete portability accommodations to hand to the
 Yosys/nextpnr/Mistral owner:

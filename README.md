@@ -377,8 +377,12 @@ hardware-support evidence. The command never programs a kit.
 default and OSS-conditional lanes: a reduced ColecoVision machine with an open
 `JP 0x8000` reset shim, a raw 1–16 KiB cartridge aperture, mirrored CPU RAM,
 Graphics I VDP tile/status path, active-low controller rows, and the fixed
-1650×750 HDMI shell. It is simulation and host-side compiler evidence, not
-hardware acceptance.
+1650×750 HDMI shell. The board tests upload the exact open diagnostic bytes
+through GP, release execution immediately, and check CPU-driven pixels across
+compact/full-size/repeated loads. `make coleco-diagnostic` generates the
+MIT-licensed raw cartridge and 720p reference image; see
+[the core guide](cores/fes-coleco/README.md#open-graphics-i-diagnostic).
+These are host simulations, not hardware acceptance.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 recipe for
 `fes.coleco` 1.0.0. `make build-fes-coleco` is its authenticated OSS

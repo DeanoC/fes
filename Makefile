@@ -41,6 +41,7 @@ help:
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
+		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 bring-up package for FES ColecoVision" \
@@ -146,6 +147,14 @@ sim-fes-zx81:
 		"$(CURDIR)/cores/fes-zx81/sim/video_tb.cpp"
 	@build/sim/fes-zx81-video/Vzx81_video_720p
 
+.PHONY: coleco-diagnostic
+coleco-diagnostic:
+	$(PYTHON) cores/fes-coleco/diagnostic/generate.py \
+		--output build/diagnostics/fes-coleco/graphics-i.rom \
+		--preview build/diagnostics/fes-coleco/graphics-i.ppm
+	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --pad-to 16384 \
+		--output build/diagnostics/fes-coleco/graphics-i-16k.rom
+
 sim-fes-coleco: sim-fes-coleco-oss
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -187,6 +196,7 @@ sim-fes-coleco: sim-fes-coleco-oss
 	@build/sim/fes-coleco-video/Vcoleco_video_720p
 	@mkdir -p build/sim/fes-coleco-board
 	$(VERILATOR) --cc --exe --build --top-module top -Wall \
+		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -202,9 +212,10 @@ sim-fes-coleco: sim-fes-coleco-oss
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
-	@build/sim/fes-coleco-board/Vtop
+	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
+		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
 
-sim-fes-coleco-oss:
+sim-fes-coleco-oss: coleco-diagnostic
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY -DFES_COLECO_OSS=1 \
@@ -242,7 +253,8 @@ sim-fes-coleco-oss:
 	@build/sim/fes-coleco-machine-oss/Vcoleco_machine
 	@mkdir -p build/sim/fes-coleco-board-oss
 	$(VERILATOR) --cc --exe --build --top-module top -Wall \
-		-DFES_COLECO_OSS=1 -Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
@@ -258,7 +270,8 @@ sim-fes-coleco-oss:
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
-	@build/sim/fes-coleco-board-oss/Vtop
+	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
+		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
 
 build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"

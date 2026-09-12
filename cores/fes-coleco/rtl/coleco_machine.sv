@@ -30,6 +30,10 @@ module coleco_machine (
 
     reg       media_loaded;
     reg       reset_d;
+    // MEDIA_COMMIT acknowledges the mailbox, not the subsequent cartridge
+    // copy. An immediate host RELEASE must not let the CPU fetch partly
+    // copied code or let the VDP run until the final write (OSS flush included).
+    wire      machine_reset = reset || !media_ready || !media_loaded;
 `ifdef FES_COLECO_OSS
     reg       media_data_valid;
     reg       media_request_done;
@@ -58,7 +62,18 @@ module coleco_machine (
     wire [1:0] vdp_raster_pixel;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
-    wire       vdp_bus_ce = ce_cpu_n;
+    reg        vdp_write_seen;
+    wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
+
+    // TV80 holds an OUT bus cycle across more than one negative CPU enable.
+    // The VDP consumes a byte per strobe, so acknowledge a held write once.
+    // Reads retain the existing sampling window for the CPU data input.
+    always @(posedge clk_sys) begin
+        if (machine_reset || nIORQ || nWR)
+            vdp_write_seen <= 1'b0;
+        else if (vdp_bus_ce)
+            vdp_write_seen <= 1'b1;
+    end
 
     assign cpu_addr_debug = cpu_addr;
     assign cpu_halt_n = nHALT;
@@ -75,6 +90,7 @@ module coleco_machine (
         media_addr = 14'h0000;
         media_loaded = 1'b0;
         reset_d = 1'b0;
+        vdp_write_seen = 1'b0;
 `ifdef FES_COLECO_OSS
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
@@ -97,7 +113,7 @@ module coleco_machine (
     end
 
     T80pa cpu (
-        .RESET_n(~reset),
+        .RESET_n(~machine_reset),
         .CLK(clk_sys),
         .CEN_p(ce_cpu_p),
         .CEN_n(ce_cpu_n),
@@ -120,7 +136,7 @@ module coleco_machine (
 
     coleco_vdp vdp (
         .clk(clk_sys),
-        .reset(reset),
+        .reset(machine_reset),
         .cpu_ce(vdp_bus_ce),
         .cpu_iorq_n(nIORQ),
         .cpu_rd_n(nRD),
@@ -247,9 +263,9 @@ module coleco_machine (
         end
     end
 
-    // Load the committed mailbox blob into the cartridge aperture while the
-    // execution reset is asserted. A dropped media_ready starts a fresh
-    // transaction, and reset's rising edge also permits a new load when the
+    // Load the committed mailbox blob while machine_reset holds the CPU/VDP,
+    // even if host execution reset is already released. Dropped media_ready
+    // starts a fresh transaction; reset's rising edge also permits a load when the
     // producer keeps the committed blob asserted.
     always @(posedge clk_sys) begin
         reset_d <= reset;

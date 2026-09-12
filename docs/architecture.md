@@ -1781,6 +1781,36 @@ its development probe timed out, then the core was stopped and the lease was
 released cleanly. The exact format-2 package path was exercised separately
 after the clean integration build, as recorded below.
 
+The open MIT-licensed `diagnostic/generate.py` emits a raw 989-byte Z80 cartridge
+and an optional 720p PPM reference via `make coleco-diagnostic`. The program
+clears all VRAM through real CPU I/O, writes Graphics I tables, and halts on a
+green border with alternating green/orange inset squares. The board test loads
+the exact generated compact/full-16-KiB/compact bytes through GP with immediate
+execution release, compares cartridge RAM including the final byte, observes
+all VRAM writes, and checks the complete output frame in both simulation lanes.
+The [core guide](../cores/fes-coleco/README.md#open-graphics-i-diagnostic) specifies
+the image, generation commands, palette limitations and existing one-pixel
+framebuffer read latency. RAM power-up contents are randomized in the board test.
+
+`coleco_machine` holds CPU and VDP reset while execution reset is requested,
+committed media is absent, or the cartridge copy has not finished. GP commit
+only publishes `media_ready`; the internal `media_loaded` flag releases the
+machine after the final RAM write, including the OSS registered flush. This
+permits immediate GP RELEASE without a host sleep or a wire-contract change.
+The adapter also consumes each held TV80 OUT transaction once: IORQ/WR span
+multiple CPU enables, which otherwise duplicate VDP control/data bytes. These
+are RTL behavior fixes discovered by CPU-driven board simulation, not compiler
+workarounds. They require a newly built/sealed FPGA artifact; historical
+packages and load/stop evidence below do not cover them. This diagnostic step
+performs no full FPGA builds or hardware operations.
+
+The functional OUT regression reproduced register 1=`81` after a CPU BF write
+of value `C0` with selector `81`, and the board monitor rejected two VDP write
+strobes during one held IORQ/WR transaction. The immediate-release regression
+also rejected CPU/VDP leaving reset before `media_loaded`. The core guide's
+functional-fix section records these separately from the compiler workarounds
+below; direct VDP strobe tests did not exercise either machine-level boundary.
+
 ### FES ColecoVision OSS evidence and handoff
 
 The clean integration build of implementation revision
