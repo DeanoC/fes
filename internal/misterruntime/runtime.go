@@ -24,6 +24,10 @@ const unsupportedOperationMessage = "requested operation is unsupported"
 const unsupportedSystemMessage = "system is unsupported by target runtime"
 
 type Runtime struct {
+	computerMu         sync.Mutex
+	keyboardMatrix     uint64
+	keyboardPackageID  string
+	keyboardGeneration uint64
 	saveRoot           string
 	control            Control
 	bootIDFile         string
@@ -79,7 +83,7 @@ func (r *Runtime) ConfigureCoreReplacementBarrier(barrier CoreReplacementBarrier
 }
 
 func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout time.Duration, options ...RuntimeOption) *Runtime {
-	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout, eventsPath: DefaultEventsPath}
+	runtime := &Runtime{control: control, bootIDFile: bootIDFile, pollInterval: pollInterval, healthTimeout: healthTimeout, eventsPath: DefaultEventsPath, keyboardMatrix: 0xffffffffff}
 	for _, option := range options {
 		if option != nil {
 			option(runtime)
@@ -115,6 +119,12 @@ type protocol2KeyboardControl interface {
 }
 
 func (r *Runtime) SetKeyboard(ctx context.Context, matrix uint64) error {
+	r.computerMu.Lock()
+	defer r.computerMu.Unlock()
+	return r.setKeyboardLocked(ctx, matrix)
+}
+
+func (r *Runtime) setKeyboardLocked(ctx context.Context, matrix uint64) error {
 	control, ok := r.control.(protocol2KeyboardControl)
 	if !ok {
 		return unsupportedOperationError()
@@ -128,6 +138,12 @@ func (r *Runtime) SetKeyboard(ctx context.Context, matrix uint64) error {
 	}
 	if !response.OK {
 		return mapProtocol2Error(response.Error)
+	}
+	r.keyboardMatrix = matrix
+	r.keyboardPackageID, r.keyboardGeneration = "", 0
+	if response.ActivePackage != nil && response.Generation != nil {
+		r.keyboardPackageID = response.ActivePackage.PackageID
+		r.keyboardGeneration = *response.Generation
 	}
 	return nil
 }

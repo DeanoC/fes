@@ -26,7 +26,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>|core-install <path>|core-list|core-check <package-id>|core-entry <title> <package-id>|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-list|core-check <package-id>|core-entry <title> <package-id>|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -161,10 +161,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 	if commandArgs[0] == "core-inspect" {
 		return writeResult(*jsonOutput, stdout, stderr, inspectCore(commandArgs[1]))
 	}
-	if commandArgs[0] == "core-load" {
+	if commandArgs[0] == "core-load" || commandArgs[0] == "core-media" {
 		origin, err := coreAPIOrigin(*apiOrigin)
 		if err != nil {
 			return writeFailure(*jsonOutput, stdout, stderr, err)
+		}
+		if commandArgs[0] == "core-media" {
+			return writeResult(*jsonOutput, stdout, stderr, loadMediaThroughHostAPI(ctx, origin, commandArgs[1]))
 		}
 		return writeResult(*jsonOutput, stdout, stderr, loadCoreThroughHostAPI(ctx, origin, commandArgs[1]))
 	}
@@ -245,7 +248,7 @@ func validCommand(args []string) bool {
 		return len(args) == 4
 	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync":
 		return len(args) == 1
-	case "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load":
+	case "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media":
 		return len(args) == 2
 	default:
 		return false

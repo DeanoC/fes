@@ -299,6 +299,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, result)
 	})
+	registerDevelopmentMediaRoute(mux, session)
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
 		stamp, err := decodeOptionalStopStamp(w, r)
 		if err != nil {
