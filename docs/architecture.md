@@ -156,8 +156,9 @@ bytes match the kit-tested feature tree. Pair it with Yosys
 
 That pin sits on `9c75153384c57d913ec6c8720f941f13ca4ca904`,
 merged PR #66 (`bf37618f5ef232525989c3b967f9ce83673c914f` onto
-`8bd4875400b49c97a668013106b481c3b6d7e17b`). It adds an optional GPU
-connection router; the 870 ladder uses the default router.
+`8bd4875400b49c97a668013106b481c3b6d7e17b`). It adds the GPU connection
+router `--router gpu` that the FES ZX81 OSS recipe now uses; the 870 ladder
+uses the default router.
 
 That pin sits on `8bd4875400b49c97a668013106b481c3b6d7e17b`,
 merged PR #65 (`7ec1fa57bdf00dc14a3d4606170727a45b34e070` onto
@@ -1916,7 +1917,10 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 300,
-criticality exponent 5 and `router1`. `--timing-allow-fail` permits an early
+criticality exponent 5 and `--router gpu`, nextpnr's connection-based
+router with a pure-delay timing-repair phase (merged PR #66; the
+repository toolchain builds it without a GPU and its host backend
+produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
 passing seed. This keeps native async-M10K address paths within the 52 MHz
 system constraint. The recipe requires two
@@ -1929,7 +1933,16 @@ A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
 `.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
 and does not inherit the Quartus bring-up result (the diagnostic used TV80
-and the former registered-M10K workaround).
+and the former registered-M10K workaround). A GPU-routed package of that
+same registered-M10K recipe base (nextpnr 9c751533, misteross 9ad19189)
+also booted to the ZX81 editor on the kit on 2026-09-12 and answered
+`PRINT` + NEWLINE with `0/0` through the host keyboard route. The current
+native async-M10K recipe has **not** booted on the kit: its sealed packages
+`74ef917a` (`--router gpu`, seed 2) and `247e2af4` (unchanged `router1`
+control, seed 6, same toolchain) both load, pass signoff and show only a
+black 720p frame for 40 s, while the older package re-loaded afterwards
+shows the editor within 5 s. Evidence: FES `out/gpu-router-kit-diagnostic/`.
+The regression is in the recipe or toolchain, not the router choice.
 FogCast library install/launch of that package
 is a host concern; this recipe only seals the `.fcore`.
 
