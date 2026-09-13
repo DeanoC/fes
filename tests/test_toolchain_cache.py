@@ -5,6 +5,7 @@ import stat
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import toolchain_cache
 
@@ -89,16 +90,17 @@ class ToolchainCacheContractTests(unittest.TestCase):
             )
             (evidence / ".identity-pin.txt").write_text("fake\n", encoding="utf-8")
 
-            manifest = toolchain_cache.publish_ready(
-                request,
-                tools={
-                    "yosys": {
-                        "binary": "bin/yosys",
-                        "commit": "pin",
-                        "identity": "fake",
-                    }
-                },
-            )
+            with toolchain_cache.acquire_build_lock(request):
+                manifest = toolchain_cache.publish_ready(
+                    request,
+                    tools={
+                        "yosys": {
+                            "binary": "bin/yosys",
+                            "commit": "pin",
+                            "identity": "fake",
+                        }
+                    },
+                )
             self.assertEqual(manifest.install, slot / "install")
             self.assertTrue(toolchain_cache.ready_path(request).is_file())
             self.assertIn("install/share/yosys/datdir.txt", manifest.files)
@@ -124,10 +126,11 @@ class ToolchainCacheContractTests(unittest.TestCase):
             binary = slot / "install" / "bin" / "yosys"
             binary.write_text("fake\n", encoding="utf-8")
             (slot / "evidence" / "record").write_text("evidence\n", encoding="utf-8")
-            toolchain_cache.publish_ready(
-                request,
-                tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
-            )
+            with toolchain_cache.acquire_build_lock(request):
+                toolchain_cache.publish_ready(
+                    request,
+                    tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
+                )
             binary.chmod(0o644)
             binary.write_text("tampered\n", encoding="utf-8")
             with self.assertRaises(toolchain_cache.CacheError):
@@ -143,10 +146,11 @@ class ToolchainCacheContractTests(unittest.TestCase):
             (link_slot / "evidence").mkdir()
             (link_slot / "install" / "bin" / "escape").symlink_to("../../outside")
             with self.assertRaises(toolchain_cache.CacheError):
-                toolchain_cache.publish_ready(
-                    request_link,
-                    tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
-                )
+                with toolchain_cache.acquire_build_lock(request_link):
+                    toolchain_cache.publish_ready(
+                        request_link,
+                        tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
+                    )
 
     def test_partial_slot_has_no_ready_and_missing_manifest_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -160,6 +164,31 @@ class ToolchainCacheContractTests(unittest.TestCase):
             self.assertFalse(toolchain_cache.ready_path(request).exists())
             with self.assertRaises(toolchain_cache.CacheError):
                 toolchain_cache.resolve_ready(request)
+
+    def test_host_command_probe_resolves_internal_symlink_before_hashing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            target = base / "cc.real"
+            target.write_text("#!/bin/sh\nprintf 'cc test\\n'\n", encoding="utf-8")
+            target.chmod(0o755)
+            (base / "cc").symlink_to(target.name)
+            with mock.patch.dict(os.environ, {"PATH": str(base)}, clear=False):
+                identity = toolchain_cache._command_identity("cc")
+            self.assertEqual(identity["path"], str(target))
+            self.assertEqual(identity["sha256"], hashlib.sha256(target.read_bytes()).hexdigest())
+
+    def test_shared_environment_rejects_nondefault_compiler_override_but_allows_lane(self):
+        with self.assertRaises(toolchain_cache.CacheError):
+            toolchain_cache.validate_shared_environment({"CC": "clang"})
+        toolchain_cache.validate_shared_environment(
+            {
+                "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
+                "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+                "CMAKE_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+            },
+            gpu_router="HIP",
+            hip_architectures="gfx1100;gfx1201",
+        )
 
     def test_manifest_path_is_not_relocatable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -176,10 +205,11 @@ class ToolchainCacheContractTests(unittest.TestCase):
             (slot / "evidence").mkdir()
             (slot / "install" / "bin" / "yosys").write_text("fake\n", encoding="utf-8")
             (slot / "evidence" / "record").write_text("evidence\n", encoding="utf-8")
-            toolchain_cache.publish_ready(
-                request,
-                tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
-            )
+            with toolchain_cache.acquire_build_lock(request):
+                toolchain_cache.publish_ready(
+                    request,
+                    tools={"yosys": {"binary": "bin/yosys", "commit": "pin", "identity": "fake"}},
+                )
             copied = base / "copied"
             copied.mkdir()
             # Reuse the manifest bytes at another path, without copying the slot.

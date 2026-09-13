@@ -20,6 +20,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
@@ -27,6 +28,64 @@ from typing import Any, Iterator, Mapping
 SCHEMA_VERSION = 1
 DEFAULT_GPU_ROUTER = "OFF"
 DEFAULT_HIP_ARCHITECTURES = "gfx1100;gfx1201"
+_HELD_LOCKS: set[tuple[str, str]] = set()
+_RUNTIME_ENVIRONMENT = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "TMPDIR",
+        "SHELL",
+        "TERM",
+        "LANG",
+        "LC_ALL",
+        "TZ",
+    }
+)
+_DISALLOWED_OVERRIDE_NAMES = frozenset(
+    {
+        "CC",
+        "CXX",
+        "CPPFLAGS",
+        "CFLAGS",
+        "CXXFLAGS",
+        "LDFLAGS",
+        "LD_LIBRARY_PATH",
+        "PKG_CONFIG_PATH",
+        "ROCM_PATH",
+        "HIPCC",
+        "CUDA_HOME",
+        "CUDACXX",
+        "CUDA_PATH",
+        "PYTHON",
+        "PYTHON_CONFIG",
+    }
+)
+_ALLOWED_CMAKE_NAMES = frozenset(
+    {
+        "CMAKE_PREFIX_PATH",
+        "CMAKE_GENERATOR",
+        "CMAKE_TOOLCHAIN_FILE",
+        "CMAKE_BUILD_TYPE",
+        "CMAKE_C_COMPILER",
+        "CMAKE_CXX_COMPILER",
+        "CMAKE_HIP_COMPILER",
+        "CMAKE_CUDA_COMPILER",
+        "CMAKE_HIP_ARCHITECTURES",
+        "CMAKE_CUDA_ARCHITECTURES",
+        "CMAKE_SYSROOT",
+        "CMAKE_MODULE_PATH",
+        "CMAKE_FIND_ROOT_PATH",
+        "CMAKE_EXE_LINKER_FLAGS",
+        "CMAKE_SHARED_LINKER_FLAGS",
+        "CMAKE_INSTALL_LIBDIR",
+        "CMAKE_C_FLAGS",
+        "CMAKE_CXX_FLAGS",
+        "CMAKE_HIP_FLAGS",
+        "CMAKE_CUDA_FLAGS",
+    }
+)
 
 
 class CacheError(RuntimeError):
@@ -239,12 +298,32 @@ def lock_path(request: ToolchainRequest) -> Path:
     return _absolute(Path(request.cache_root), "cache root") / "locks" / f"{cache_key(request)}.lock"
 
 
+def ensure_lock_file(request: ToolchainRequest) -> Path:
+    """Create/check the per-key lock inode without following symlinks."""
+
+    root = ensure_cache_root(request.cache_root)
+    path = root / "locks" / f"{cache_key(request)}.lock"
+    try:
+        descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+                raise CacheError(f"cache lock has unsafe type/ownership: {path}")
+            os.fchmod(descriptor, 0o600)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        raise CacheError(f"cannot create/check cache lock {path}: {exc}") from exc
+    return path
+
+
 @contextlib.contextmanager
 def acquire_build_lock(request: ToolchainRequest) -> Iterator[None]:
     """Hold the exclusive per-key lock for the whole build/publication."""
 
     root = ensure_cache_root(request.cache_root)
-    path = root / "locks" / f"{cache_key(request)}.lock"
+    key = cache_key(request)
+    path = root / "locks" / f"{key}.lock"
     try:
         descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     except AttributeError as exc:  # pragma: no cover - old non-POSIX Python
@@ -257,8 +336,10 @@ def acquire_build_lock(request: ToolchainRequest) -> Iterator[None]:
             fcntl.flock(descriptor, fcntl.LOCK_EX)
         except OSError as exc:
             raise CacheError(f"shared cache requires a working flock lock: {exc}") from exc
+        _HELD_LOCKS.add((str(root), key))
         yield
     finally:
+        _HELD_LOCKS.discard((str(root), key))
         try:
             fcntl.flock(descriptor, fcntl.LOCK_UN)
         finally:
@@ -478,10 +559,14 @@ def publish_ready(
     request: ToolchainRequest,
     *,
     tools: Mapping[str, Mapping[str, Any]],
+    _lock_held: bool = False,
 ) -> ToolchainManifest:
     """Verify a completed slot, freeze consumer trees, and atomically publish it."""
 
-    ensure_cache_root(request.cache_root)
+    root = ensure_cache_root(request.cache_root)
+    key = cache_key(request)
+    if not _lock_held and (str(root), key) not in _HELD_LOCKS:
+        raise CacheError("ready publication must run under the per-key build lock")
     slot = slot_path(request)
     source, build, install, evidence = _check_slot_paths(request, slot)
     ready = slot / "ready.json"
@@ -534,7 +619,7 @@ def publish_ready(
     lock_bytes = request.lock_path.read_bytes()
     manifest = ToolchainManifest(
         schema=SCHEMA_VERSION,
-        key=cache_key(request),
+        key=key,
         slot=slot,
         source=source,
         build=build,
@@ -545,7 +630,7 @@ def publish_ready(
         host=dict(request.host_identity),
         compiler=dict(request.compiler_identity),
         configuration=_normalise_configuration(request),
-        lane={"kind": "shared", "key": cache_key(request), "install": str(install)},
+        lane={"kind": "shared", "key": key, "install": str(install)},
         tools=tool_records,
         files=files,
     )
@@ -695,10 +780,14 @@ def _command_identity(command: str, args: tuple[str, ...] = ("--version",)) -> d
     if executable is None:
         raise CacheError(f"required host command is missing: {command}")
     path = Path(executable)
-    _regular_file(path, "host command")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise CacheError(f"cannot resolve host command {command}: {path}: {exc}") from exc
+    _regular_file(resolved, "host command")
     try:
         result = subprocess.run(
-            [str(path), *args],
+            [str(resolved), *args],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -710,8 +799,8 @@ def _command_identity(command: str, args: tuple[str, ...] = ("--version",)) -> d
     except (OSError, subprocess.SubprocessError) as exc:
         raise CacheError(f"cannot probe host command {command}: {exc}") from exc
     return {
-        "path": str(path.resolve()),
-        "sha256": _sha256_file(path),
+        "path": str(resolved),
+        "sha256": _sha256_file(resolved),
         "version": result.stdout,
         "returncode": result.returncode,
     }
@@ -748,6 +837,7 @@ def compiler_inventory(gpu_router: str) -> dict[str, Any]:
             "make",
             "perl",
             "python3",
+            "python3-config",
             "pkg-config",
             "autoconf",
             "flex",
@@ -760,7 +850,187 @@ def compiler_inventory(gpu_router: str) -> dict[str, Any]:
         commands["hipcc"] = _command_identity("hipcc")
     elif router == "CUDA":
         commands["nvcc"] = _command_identity("nvcc", ("--version",))
-    return {"commands": commands}
+    return {"commands": commands, "dependencies": _dependency_inventory(commands)}
+
+
+def validate_shared_environment(
+    values: Mapping[str, str] | None = None,
+    *,
+    gpu_router: str | None = None,
+    hip_architectures: str | None = None,
+    allow_resolved_paths: bool = False,
+) -> None:
+    """Reject build-affecting overrides outside the v1 shared contract."""
+
+    values = dict(os.environ if values is None else values)
+    router = str(gpu_router or values.get("FES_TOOLCHAIN_GPU_ROUTER", DEFAULT_GPU_ROUTER)).upper()
+    architectures = str(
+        hip_architectures
+        or values.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
+    )
+    for name, value in values.items():
+        if not value or name in _RUNTIME_ENVIRONMENT:
+            continue
+        if name.startswith("LC_"):
+            continue
+        if name in {"FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_LOCKFILE", "FES_TOOLCHAIN_ROOT", "FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES", "FES_TOOLCHAIN_CACHE_RESOLVED"}:
+            continue
+        if name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
+            if allow_resolved_paths and name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
+                continue
+            raise CacheError(f"shared cache rejects local toolchain override: {name}")
+        if name in {"CMAKE_HIP_ARCHITECTURES"} and router == "HIP" and value == architectures:
+            continue
+        if name in {"ROCM_PATH", "HIPCC"} and router == "HIP":
+            continue
+        if name in {"CUDA_HOME", "CUDACXX", "CUDA_PATH"} and router == "CUDA":
+            continue
+        if name in _DISALLOWED_OVERRIDE_NAMES:
+            if allow_resolved_paths and name in {"LD_LIBRARY_PATH", "PKG_CONFIG_PATH"}:
+                continue
+            raise CacheError(f"shared cache v1 rejects compiler/configuration override: {name}")
+        if name.startswith("CMAKE_"):
+            if name in _ALLOWED_CMAKE_NAMES and allow_resolved_paths and name in {
+                "CMAKE_PREFIX_PATH",
+                "CMAKE_INSTALL_LIBDIR",
+            }:
+                continue
+            raise CacheError(f"shared cache v1 rejects unsupported CMake override: {name}")
+        if name in {"MAKEFLAGS", "MFLAGS", "NINJAFLAGS", "NINJA_STATUS", "LD_PRELOAD", "SOURCE_DATE_EPOCH"} or name.startswith(("GIT_", "CCACHE_", "DISTCC_")):
+            raise CacheError(f"shared cache rejects unsupported build environment: {name}")
+        # Unknown variables are scrubbed from child builds.  Refuse them only
+        # when they are an explicit toolchain control; ordinary process
+        # variables remain harmless plumbing.
+
+
+def _request_environment(values: Mapping[str, str]) -> dict[str, str]:
+    return {
+        name: values[name]
+        for name in sorted(values)
+        if name in {"FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES"}
+        or name == "CMAKE_HIP_ARCHITECTURES"
+        or name in {"ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH"}
+    }
+
+
+def _probe_command(path: str, arguments: list[str], *, label: str) -> str:
+    try:
+        result = subprocess.run(
+            [path, *arguments],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CacheError(f"cannot run {label} probe: {exc}") from exc
+    if result.returncode != 0:
+        raise CacheError(f"{label} probe failed ({result.returncode}): {result.stdout.strip()}")
+    return result.stdout
+
+
+def _dependency_inventory(commands: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Capture the host dependencies used by bootstrap's real probes.
+
+    Boost and Eigen deliberately use header/CMake probes.  They are not
+    required to have pkg-config metadata on powerboat.
+    """
+
+    pkg_config = str(commands["pkg-config"]["path"])
+    packages: dict[str, dict[str, str]] = {}
+    for package in ("libffi", "readline", "tcl", "zlib", "liblzma", "libusb-1.0", "libftdi1"):
+        packages[package] = {
+            "modversion": _probe_command(pkg_config, ["--modversion", package], label=f"pkg-config {package}"),
+            "cflags": _probe_command(pkg_config, ["--cflags", package], label=f"pkg-config {package} cflags"),
+            "libs": _probe_command(pkg_config, ["--libs", package], label=f"pkg-config {package} libs"),
+        }
+
+    cc = str(commands["cc"]["path"])
+    cxx = str(commands["c++"]["path"])
+    python_config = str(commands["python3-config"]["path"])
+    python_includes = _probe_command(python_config, ["--includes"], label="python3-config")
+    headers: dict[str, dict[str, Any]] = {}
+    for compiler, language, header, package, extra in (
+        (cc, "c", "Python.h", None, python_includes.split()),
+        (cc, "c", "ffi.h", "libffi", []),
+        (cc, "c", "readline/readline.h", "readline", []),
+        (cc, "c", "tcl.h", "tcl", []),
+        (cc, "c", "zlib.h", "zlib", []),
+        (cc, "c", "lzma.h", "liblzma", []),
+        (cc, "c", "libusb-1.0/libusb.h", "libusb-1.0", []),
+        (cc, "c", "libftdi1/ftdi.h", "libftdi1", []),
+        (cxx, "c++", "boost/version.hpp", None, []),
+    ):
+        if package is not None:
+            extra = packages[package]["cflags"].split()
+        source = f"#include <{header}>\nint main(void) {{ return 0; }}\n"
+        try:
+            result = subprocess.run(
+                [compiler, *extra, "-x", language, "-fsyntax-only", "-"],
+                input=source,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CacheError(f"cannot run header probe for {header}: {exc}") from exc
+        if result.returncode != 0:
+            raise CacheError(f"required header probe failed for {header}: {result.stdout.strip()}")
+        headers[header] = {"compiler": compiler, "output": result.stdout}
+
+    cmake = str(commands["cmake"]["path"])
+    cmake_probes: dict[str, str] = {}
+    projects = {
+        "boost-components": (
+            "find_package(Boost REQUIRED COMPONENTS program_options iostreams thread)\n"
+            "add_executable(probe main.cpp)\n"
+            "target_link_libraries(probe PRIVATE Boost::program_options Boost::iostreams Boost::thread)\n",
+            "#include <boost/program_options.hpp>\n#include <boost/iostreams/device/array.hpp>\n#include <boost/thread.hpp>\nint main() { return 0; }\n",
+        ),
+        "eigen3": (
+            "find_package(Eigen3 REQUIRED NO_MODULE)\n"
+            "add_executable(probe main.cpp)\n"
+            "target_link_libraries(probe PRIVATE Eigen3::Eigen)\n",
+            "#include <Eigen/Core>\nint main() { Eigen::Vector3f value; return value.size(); }\n",
+        ),
+    }
+    for name, (find_text, source_text) in projects.items():
+        with tempfile.TemporaryDirectory(prefix="misteross-cache-probe-") as directory:
+            probe_root = Path(directory)
+            (probe_root / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 3.16)\nproject(probe LANGUAGES CXX)\n" + find_text,
+                encoding="utf-8",
+            )
+            (probe_root / "main.cpp").write_text(source_text, encoding="utf-8")
+            try:
+                result = subprocess.run(
+                    [cmake, "-S", str(probe_root), "-B", str(probe_root / "build"), "-G", "Ninja"],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise CacheError(f"cannot run {name} CMake probe: {exc}") from exc
+            if result.returncode != 0:
+                raise CacheError(f"required {name} CMake probe failed: {result.stdout.strip()}")
+            cmake_probes[name] = result.stdout
+    return {
+        "pkg-config": packages,
+        "headers": headers,
+        "cmake": cmake_probes,
+        "python-config": python_includes,
+    }
 
 
 def request_from_environment(
@@ -768,13 +1038,8 @@ def request_from_environment(
     lock_path: Path | None = None,
     *,
     cache_root: Path | None = None,
-    probe: bool = True,
 ) -> ToolchainRequest:
-    """Build a request from the opt-in environment.
-
-    ``probe=False`` exists for deterministic unit fixtures.  Production
-    bootstrap and consumers use the default probe path.
-    """
+    """Build a request from the opt-in environment after host probing."""
 
     root = Path(root).resolve()
     selected_lock = lock_path or Path(os.environ.get("FES_TOOLCHAIN_LOCKFILE", root / "toolchain.lock"))
@@ -786,14 +1051,16 @@ def request_from_environment(
         raise CacheError("FES_TOOLCHAIN_CACHE_ROOT is not set; shared lane is not selected")
     router = os.environ.get("FES_TOOLCHAIN_GPU_ROUTER", DEFAULT_GPU_ROUTER).upper()
     architectures = os.environ.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
-    environment = {
-        name: value
-        for name, value in sorted(os.environ.items())
-        if name in {"FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES"}
-        or name.startswith("CMAKE_")
-    }
-    host = host_identity() if probe else {}
-    compiler = compiler_inventory(router) if probe else {}
+    allow_resolved_paths = os.environ.get("FES_TOOLCHAIN_CACHE_RESOLVED") == "1"
+    validate_shared_environment(
+        os.environ,
+        gpu_router=router,
+        hip_architectures=architectures,
+        allow_resolved_paths=allow_resolved_paths,
+    )
+    environment = _request_environment(os.environ)
+    host = host_identity()
+    compiler = compiler_inventory(router)
     return ToolchainRequest(
         root=root,
         lock_path=selected_lock,
@@ -815,10 +1082,10 @@ def _load_request_arguments(argv: list[str]) -> ToolchainRequest:
     parser.add_argument("--cache", dest="cache_root", type=Path)
     parser.add_argument("--gpu-router", default=None)
     parser.add_argument("--hip-architectures", default=None)
-    parser.add_argument("--no-probe", action="store_true")
-    parser.add_argument("command", choices=("plan", "verify", "stage-evidence", "publish"))
+    parser.add_argument("command", choices=("init", "plan", "verify", "stage-evidence", "publish"))
     parser.add_argument("--field", choices=("key", "slot", "source", "build", "install", "evidence", "lock"))
     parser.add_argument("--build-root", type=Path)
+    parser.add_argument("--format", choices=("json", "lines"), default="json")
     args = parser.parse_args(argv)
     environment = os.environ.copy()
     if args.gpu_router is not None:
@@ -830,7 +1097,6 @@ def _load_request_arguments(argv: list[str]) -> ToolchainRequest:
             args.root,
             args.lock_path,
             cache_root=args.cache_root,
-            probe=not args.no_probe,
         )
     return request, args
 
@@ -850,7 +1116,10 @@ def _temporary_environment(values: Mapping[str, str]) -> Iterator[None]:
 def _main(argv: list[str]) -> int:
     try:
         request, args = _load_request_arguments(argv)
-        if args.command == "plan":
+        if args.command == "init":
+            ensure_cache_root(request.cache_root)
+            ensure_lock_file(request)
+        elif args.command == "plan":
             values = {
                 "key": cache_key(request),
                 "slot": slot_path(request),
@@ -862,6 +1131,9 @@ def _main(argv: list[str]) -> int:
             }
             if args.field:
                 print(values[args.field])
+            elif args.format == "lines":
+                for name, value in values.items():
+                    print(f"{name}\t{value}")
             else:
                 print(json.dumps({name: str(value) for name, value in values.items()}, sort_keys=True))
         elif args.command == "verify":
@@ -900,7 +1172,10 @@ def _main(argv: list[str]) -> int:
                     "commit": pin.commit,
                     "identity": identity_path.read_text(encoding="utf-8").strip(),
                 }
-            manifest = publish_ready(request, tools=tools)
+            # bootstrap owns the kernel flock for this process tree.  Taking
+            # another blocking flock here would deadlock; the private flag is
+            # only used by this child after the shell has acquired that lock.
+            manifest = publish_ready(request, tools=tools, _lock_held=True)
             print(json.dumps({"key": manifest.key, "install": str(manifest.install)}, sort_keys=True))
         return 0
     except CacheError as exc:
