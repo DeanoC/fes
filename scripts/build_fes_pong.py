@@ -184,6 +184,117 @@ def _read_evidence(path: Path, expected: str) -> str:
     return value
 
 
+def _probe_authenticated_tool(
+    root: Path,
+    path: Path,
+    lock_name: str,
+    executable: str,
+    arguments: tuple[str, ...],
+) -> None:
+    """Run the same short identity probe for local and shared tools."""
+
+    try:
+        result = subprocess.run(
+            [str(path), *arguments],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BuildError(f"cannot execute authenticated tool identity check: {executable}") from exc
+    output = "\n".join((result.stdout, result.stderr)).strip()
+    if result.returncode != 0 or not output:
+        raise BuildError(f"authenticated tool identity check failed: {executable}")
+    if lock_name == "mistral" and TARGET not in output:
+        raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+
+
+def _authenticate_shared_tools(
+    root: Path,
+    *,
+    lock_path: Path,
+    expected_commits: Mapping[str, str],
+    expected_configuration: Mapping[str, str],
+    gpu_router: str | None,
+    hip_architectures: str | None,
+) -> dict[str, AuthenticatedTool]:
+    """Resolve immutable shared tools through the verified cache manifest."""
+
+    try:
+        from scripts import toolchain_cache
+
+        request = toolchain_cache.request_from_environment(
+            root,
+            lock_path,
+            gpu_router=gpu_router,
+            hip_architectures=hip_architectures,
+        )
+        manifest = toolchain_cache.resolve_ready(request)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(f"shared toolchain verification failed: {exc}") from exc
+
+    definitions = (
+        ("yosys", "yosys", "yosys", ("--version",)),
+        ("mistral", "mistral", "mistral-cv", ("models",)),
+        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
+    )
+    authenticated: dict[str, AuthenticatedTool] = {}
+    for record_name, lock_name, executable, arguments in definitions:
+        record = manifest.tools.get(lock_name)
+        if not isinstance(record, Mapping):
+            raise BuildError(f"shared toolchain manifest has no authenticated {lock_name} record")
+        commit = record.get("commit")
+        digest = record.get("sha256")
+        binary_name = record.get("binary")
+        manifest_path = record.get("path")
+        if commit != expected_commits[lock_name]:
+            raise BuildError(
+                f"shared authenticated {lock_name} commit {expected_commits[lock_name]}, got {commit}"
+            )
+        expected_binary = f"bin/{executable}"
+        if binary_name != expected_binary or manifest_path != f"install/{expected_binary}":
+            raise BuildError(f"shared authenticated tool path is invalid: {executable}")
+        path = manifest.slot / Path(manifest_path)
+        if path.is_symlink() or not path.is_file() or not os.access(path, os.X_OK):
+            raise BuildError(f"shared authenticated tool is not a regular executable: {path}")
+        if not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None:
+            raise BuildError(f"shared authenticated tool digest is invalid: {executable}")
+        configuration = expected_configuration.get(lock_name)
+        if configuration is not None:
+            try:
+                manifest_configuration = (
+                    f"gpu-router={manifest.configuration['gpu-router']}; "
+                    f"hip-architectures={manifest.configuration['hip-architectures']}"
+                )
+            except (KeyError, TypeError) as exc:
+                raise BuildError(
+                    f"shared toolchain manifest configuration is invalid: {executable}"
+                ) from exc
+            if manifest_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration does not match the requested build lane: {executable}"
+                )
+            configuration_path = manifest.evidence / lock_name / f".config-{commit}.txt"
+            actual_configuration = _read_evidence(configuration_path, "configuration")
+            if actual_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration evidence does not match the requested build lane: {executable}"
+                )
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
+        identity = f"commit={commit}; sha256={digest}"
+        if configuration is not None:
+            identity += f"; {configuration}"
+        authenticated[record_name] = AuthenticatedTool(path=path, identity=identity)
+    try:
+        toolchain_cache.verify_ready(request)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(f"shared toolchain verification failed after identity probes: {exc}") from exc
+    return authenticated
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -191,6 +302,8 @@ def _authenticate_tools(
     toolchain_root: Path | None = None,
     expected_commits: Mapping[str, str] | None = None,
     expected_configuration: Mapping[str, str] | None = None,
+    gpu_router: str | None = None,
+    hip_architectures: str | None = None,
 ) -> dict[str, AuthenticatedTool]:
     root = Path(root).resolve()
     lock_path = root / "toolchain.lock" if lock_path is None else Path(lock_path)
@@ -201,17 +314,26 @@ def _authenticate_tools(
         toolchain_root = root / toolchain_root
     expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
     expected_configuration = {} if expected_configuration is None else expected_configuration
+    definitions = (
+        ("yosys", "yosys", "yosys", ("--version",)),
+        ("mistral", "mistral", "mistral-cv", ("models",)),
+        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
+    )
+    if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT"):
+        return _authenticate_shared_tools(
+            root,
+            lock_path=lock_path,
+            expected_commits=expected_commits,
+            expected_configuration=expected_configuration,
+            gpu_router=gpu_router,
+            hip_architectures=hip_architectures,
+        )
     try:
         pins = load_lock(lock_path)
     except (OSError, LockfileError, ValueError) as exc:
         raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
     install = toolchain_root / "install/bin"
     build_root = toolchain_root / "build"
-    definitions = (
-        ("yosys", "yosys", "yosys", ("--version",)),
-        ("mistral", "mistral", "mistral-cv", ("models",)),
-        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
-    )
     authenticated: dict[str, AuthenticatedTool] = {}
     for record_name, lock_name, executable, arguments in definitions:
         pin = pins[lock_name]
@@ -239,23 +361,7 @@ def _authenticate_tools(
                 raise BuildError(
                     f"tool configuration does not match the requested build lane: {executable}"
                 )
-        try:
-            result = subprocess.run(
-                [str(path), *arguments],
-                cwd=root,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=30.0,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise BuildError(f"cannot execute authenticated tool identity check: {executable}") from exc
-        output = "\n".join((result.stdout, result.stderr)).strip()
-        if result.returncode != 0 or not output:
-            raise BuildError(f"authenticated tool identity check failed: {executable}")
-        if lock_name == "mistral" and TARGET not in output:
-            raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
         identity = f"commit={pin.commit}; sha256={actual_digest}"
         if configuration is not None:
             identity += f"; {configuration}"

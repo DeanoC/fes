@@ -197,6 +197,7 @@ class OssPipelinePurityTests(unittest.TestCase):
 
     def _run(self, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
+        env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
         env.update(
             {
                 "TOOLCHAIN_INSTALL": str(self.install),
@@ -1137,6 +1138,46 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("symlink", (result.stderr + result.stdout).lower())
         self.assertFalse(marker.exists(), "nested build symlink must stop before tool execution")
+
+    def test_shared_cache_root_is_rejected_before_tool_or_output_writes(self) -> None:
+        repository, marker = self._canonical_fixture()
+        cache = self.fixture / "shared-cache"
+        cache.mkdir()
+        oss_out = repository / "build" / "oss" / "010_blinky"
+        env = os.environ.copy()
+        env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        env.update(
+            {
+                "TOOLCHAIN_INSTALL": str(repository / "build/toolchain/install"),
+                "TOOLCHAIN_BUILD": str(repository / "build/toolchain/build"),
+                "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
+            }
+        )
+        result = subprocess.run(
+            [str(repository / "scripts/build_oss.sh"), "--experiment", "010_blinky"],
+            cwd=repository,
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+        combined = result.stderr + result.stdout
+        self.assertEqual(result.returncode, 2, combined)
+        self.assertIn("does not yet support shared toolchain cache", combined)
+        self.assertIn("FES_TOOLCHAIN_CACHE_ROOT", combined)
+        self.assertIn("FES Python", combined)
+        self.assertFalse(marker.exists(), "shared cache selector must stop before tool execution")
+        self.assertFalse(oss_out.exists(), "shared cache selector must stop before OSS output writes")
+
+    def test_empty_cache_root_keeps_local_print_commands(self) -> None:
+        result = self._run(
+            "--print-commands",
+            "--experiment",
+            "010_blinky",
+            extra_env={"FES_TOOLCHAIN_CACHE_ROOT": ""},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("synth_intel_alm", result.stdout)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
 
 if __name__ == "__main__":

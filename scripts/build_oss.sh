@@ -68,6 +68,10 @@ if [[ ! "$EXP" =~ ^[0-9][0-9][0-9]_[a-z0-9_]+$ ]]; then
     fail "invalid EXP: $EXP"
 fi
 
+if [[ -n "${FES_TOOLCHAIN_CACHE_ROOT:-}" ]]; then
+    fail "generic OSS does not yet support shared toolchain cache; unset FES_TOOLCHAIN_CACHE_ROOT for the local lane or use FES Python recipes"
+fi
+
 cd -- "$ROOT"
 
 out_rel="build/oss/$EXP"

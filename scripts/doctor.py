@@ -12,12 +12,17 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if __package__ in (None, ""):
+    sys.path.insert(0, str(ROOT))
+from scripts import toolchain_cache
+
 INSTALL_BIN = ROOT / "build" / "toolchain" / "install" / "bin"
 TOOLCHAIN_BUILD = ROOT / "build" / "toolchain" / "build"
 TARGET_DEVICE = "5CSEBA6U23I7"
@@ -114,8 +119,67 @@ def _load_pins() -> dict[str, Any]:
         return {}
 
 
-def _resolve_local_tool(command_name: str, pin: Any | None) -> tuple[Path | None, str | None]:
+def _shared_cache_selected() -> bool:
+    return bool(os.environ.get("FES_TOOLCHAIN_CACHE_ROOT", "").strip())
+
+
+def _shared_toolchain() -> tuple[Any | None, str | None]:
+    """Resolve one authenticated shared slot without modifying the cache."""
+
+    cache_text = os.environ.get("FES_TOOLCHAIN_CACHE_ROOT", "").strip()
+    if not cache_text:
+        return None, None
+    lock_text = os.environ.get("FES_TOOLCHAIN_LOCKFILE", "").strip()
+    lock_path = Path(lock_text) if lock_text else ROOT / "toolchain.lock"
+    router = os.environ.get("FES_TOOLCHAIN_GPU_ROUTER", "").strip() or None
+    architectures = os.environ.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", "").strip() or None
+    try:
+        request = toolchain_cache.request_from_environment(
+            ROOT,
+            lock_path=lock_path,
+            cache_root=Path(cache_text),
+            gpu_router=router,
+            hip_architectures=architectures,
+        )
+        manifest = toolchain_cache.verify_ready(request)
+    except Exception as exc:  # noqa: BLE001 - doctor reports all readiness failures
+        return None, f"shared toolchain cache verification failed: {exc}"
+    return manifest, None
+
+
+def _resolve_shared_tool(command_name: str, manifest: Any) -> tuple[Path | None, str | None]:
+    tool_name = command_name_to_tool(command_name)
+    record = getattr(manifest, "tools", {}).get(tool_name)
+    if not isinstance(record, Mapping):
+        return None, f"shared manifest has no authenticated tool record for {command_name}"
+    binary_name = record.get("binary")
+    if not isinstance(binary_name, str) or not binary_name.startswith("bin/"):
+        return None, f"shared manifest has an invalid binary path for {command_name}"
+    path = Path(manifest.install) / binary_name
+    try:
+        resolved = path.resolve(strict=True)
+        install = Path(manifest.install).resolve(strict=True)
+        resolved.relative_to(install)
+    except (OSError, ValueError) as exc:
+        return None, f"shared manifest tool path escapes its install for {command_name}: {exc}"
+    if not path.is_file():
+        return None, f"shared manifest tool is missing: {path}"
+    if not os.access(path, os.X_OK):
+        return None, f"shared manifest tool is not executable: {path}"
+    digest = record.get("sha256", "")
+    return path, f"shared cache key {manifest.key}; {path}; digest {digest}"
+
+
+def _resolve_local_tool(
+    command_name: str,
+    pin: Any | None,
+    *,
+    manifest: Any | None = None,
+) -> tuple[Path | None, str | None]:
     """Resolve and authenticate one pinned executable without consulting PATH."""
+
+    if manifest is not None:
+        return _resolve_shared_tool(command_name, manifest)
 
     path = INSTALL_BIN / command_name
     if pin is None:
@@ -153,8 +217,10 @@ def _local_tool_check(
     display_name: str,
     args: Sequence[str],
     pin: Any | None,
+    *,
+    manifest: Any | None = None,
 ) -> dict[str, Any]:
-    path, authentication = _resolve_local_tool(command_name, pin)
+    path, authentication = _resolve_local_tool(command_name, pin, manifest=manifest)
     if path is None:
         return make_check(display_name, "NOT READY", authentication or "repository-local tool is NOT READY", True)
     command = [str(path), *args]
@@ -224,8 +290,26 @@ def host_checks() -> list[dict[str, Any]]:
     return checks
 
 
-def oss_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
+def oss_checks(
+    pins: dict[str, Any],
+    *,
+    manifest: Any | None = None,
+    shared_error: str | None = None,
+) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
+    if shared_error is not None:
+        return [
+            make_check("Shared toolchain cache", "NOT READY", shared_error, True)
+        ]
+    if manifest is not None:
+        checks.append(
+            make_check(
+                "Shared toolchain cache",
+                "OK",
+                f"verified key {manifest.key}; install {manifest.install}; evidence {manifest.evidence}",
+                True,
+            )
+        )
     for command_name, display_name, args in OSS_TOOLS:
         checks.append(
             _local_tool_check(
@@ -233,6 +317,7 @@ def oss_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
                 display_name,
                 args,
                 pins.get(command_name_to_tool(command_name)),
+                manifest=manifest,
             )
         )
     return checks
@@ -330,9 +415,13 @@ def _local_probe(
     command_name: str,
     args: Sequence[str],
     pins: dict[str, Any],
+    *,
+    manifest: Any | None = None,
 ) -> tuple[list[str] | None, str | None, CommandOutcome | None]:
     path, authentication = _resolve_local_tool(
-        command_name, pins.get(command_name_to_tool(command_name))
+        command_name,
+        pins.get(command_name_to_tool(command_name)),
+        manifest=manifest,
     )
     if path is None:
         return None, authentication, None
@@ -347,8 +436,11 @@ def _local_hardware_probe(
     pins: dict[str, Any],
     *,
     required: bool,
+    manifest: Any | None = None,
 ) -> dict[str, Any]:
-    command, authentication, outcome = _local_probe(command_name, args, pins)
+    command, authentication, outcome = _local_probe(
+        command_name, args, pins, manifest=manifest
+    )
     if command is None:
         return make_check(name, "NOT READY", authentication or "repository-local tool is NOT READY", required)
     if outcome is None or outcome.completed is None:
@@ -480,9 +572,16 @@ def _parse_jtag_chain(output: str, returncode: int, command: Sequence[str]) -> d
 
 
 def hardware_checks(
-    pins: dict[str, Any], expected_board: str | None = None
+    pins: dict[str, Any],
+    expected_board: str | None = None,
+    *,
+    manifest: Any | None = None,
+    shared_error: str | None = None,
 ) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = [_board_attestation_check(expected_board)]
+    if shared_error is not None:
+        checks.append(make_check("Shared toolchain tools", "NOT READY", shared_error, True))
+        return checks
     lsusb = shutil.which("lsusb")
     if lsusb is None:
         checks.append(make_check("USB/JTAG visibility", "NOT READY", "lsusb not found", True))
@@ -511,11 +610,19 @@ def hardware_checks(
 
     checks.append(
         _local_hardware_probe(
-            "openFPGALoader", ("--list-cables",), "Cable listing", pins, required=False
+            "openFPGALoader",
+            ("--list-cables",),
+            "Cable listing",
+            pins,
+            required=False,
+            manifest=manifest,
         )
     )
     scan_command, scan_auth, scan_outcome = _local_probe(
-        "openFPGALoader", ("--board", LOADER_BOARD, "--scan-usb"), pins
+        "openFPGALoader",
+        ("--board", LOADER_BOARD, "--scan-usb"),
+        pins,
+        manifest=manifest,
     )
     if scan_command is None:
         checks.append(make_check("Cable detection", "NOT READY", scan_auth or "repository-local tool is NOT READY", True))
@@ -537,7 +644,10 @@ def hardware_checks(
         checks.append(cable_check)
 
     detect_command, detect_auth, detect_outcome = _local_probe(
-        "openFPGALoader", ("--board", LOADER_BOARD, "--detect"), pins
+        "openFPGALoader",
+        ("--board", LOADER_BOARD, "--detect"),
+        pins,
+        manifest=manifest,
     )
     if detect_command is None:
         checks.append(make_check("JTAG chain target", "NOT READY", detect_auth or "repository-local tool is NOT READY", True))
@@ -560,11 +670,18 @@ def hardware_checks(
     return checks
 
 
-def device_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
+def device_checks(
+    pins: dict[str, Any],
+    *,
+    manifest: Any | None = None,
+    shared_error: str | None = None,
+) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
+    if shared_error is not None:
+        return [make_check("Shared toolchain tools", "NOT READY", shared_error, True)]
 
     nextpnr_path, nextpnr_auth = _resolve_local_tool(
-        "nextpnr-mistral", pins.get("nextpnr")
+        "nextpnr-mistral", pins.get("nextpnr"), manifest=manifest
     )
     if nextpnr_path is None:
         checks.append(
@@ -596,7 +713,9 @@ def device_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
                 detail = f"exit {result.returncode}; {' '.join(command)} -> {_short_output(result.stdout, result.stderr)}"
             checks.append(make_check("nextpnr device support", "NOT READY", detail, True))
 
-    mistral_path, mistral_auth = _resolve_local_tool("mistral-cv", pins.get("mistral"))
+    mistral_path, mistral_auth = _resolve_local_tool(
+        "mistral-cv", pins.get("mistral"), manifest=manifest
+    )
     if mistral_path is None:
         checks.append(
             make_check("Mistral device database", "NOT READY", f"mistral-cv not found; {TARGET_DEVICE} not checked", True)
@@ -621,7 +740,9 @@ def device_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
                 )
             )
 
-    loader_path, loader_auth = _resolve_local_tool("openFPGALoader", pins.get("openfpgaloader"))
+    loader_path, loader_auth = _resolve_local_tool(
+        "openFPGALoader", pins.get("openfpgaloader"), manifest=manifest
+    )
     if loader_path is None:
         checks.append(make_check("openFPGALoader board database", "NOT READY", loader_auth or "openFPGALoader not found", True))
     else:
@@ -640,12 +761,25 @@ def device_checks(pins: dict[str, Any]) -> list[dict[str, Any]]:
 
 def build_report(expected_board: str | None = None) -> dict[str, list[dict[str, Any]]]:
     pins = _load_pins()
+    shared_manifest: Any | None = None
+    shared_error: str | None = None
+    if _shared_cache_selected():
+        shared_manifest, shared_error = _shared_toolchain()
     return {
         "host": host_checks(),
-        "required_oss": oss_checks(pins),
+        "required_oss": oss_checks(
+            pins, manifest=shared_manifest, shared_error=shared_error
+        ),
         "optional_oracle": quartus_checks(),
-        "hardware": hardware_checks(pins, expected_board),
-        "device": device_checks(pins),
+        "hardware": hardware_checks(
+            pins,
+            expected_board,
+            manifest=shared_manifest,
+            shared_error=shared_error,
+        ),
+        "device": device_checks(
+            pins, manifest=shared_manifest, shared_error=shared_error
+        ),
     }
 
 
@@ -699,6 +833,16 @@ def check_tool(tool_name: str) -> dict[str, Any]:
     """Authenticate and inspect one repository-local locked OSS tool."""
 
     pins = _load_pins()
+    shared_manifest: Any | None = None
+    shared_error: str | None = None
+    if _shared_cache_selected():
+        shared_manifest, shared_error = _shared_toolchain()
+        if shared_error is not None:
+            display_name = next(
+                (display for command, display, _args in OSS_TOOLS if command == tool_name),
+                tool_name,
+            )
+            return make_check(display_name, "NOT READY", shared_error, True)
     for command_name, display_name, args in OSS_TOOLS:
         if command_name == tool_name:
             return _local_tool_check(
@@ -706,6 +850,7 @@ def check_tool(tool_name: str) -> dict[str, Any]:
                 display_name,
                 args,
                 pins.get(command_name_to_tool(command_name)),
+                manifest=shared_manifest,
             )
     # ``parse_args`` restricts the public command-line values. Keep this
     # branch useful for callers of the small Python interface as well.

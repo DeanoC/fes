@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+import shutil
 import subprocess
 import tempfile
 import tomllib
@@ -10,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts import build_fes_pong
+from scripts import toolchain_cache
 from scripts.build_fes_pong import (
     AuthenticatedTool,
     BuildError,
@@ -19,6 +22,7 @@ from scripts.build_fes_pong import (
     validate_build_evidence,
 )
 from scripts.export_core_package import build_identity
+from scripts.lockfile import load_lock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +35,112 @@ PLL_PARAMETERS = {
     "phase_shift0": "0 ps",
     "reference_clock_frequency": "50.0 MHz",
 }
+
+
+def _write_fake_tool(
+    path: Path,
+    tool_name: str,
+    *,
+    include_target: bool = True,
+    mutation_target: Path | None = None,
+) -> None:
+    target_output = "5CSEBA6U23I7 fake database" if include_target else "other device database"
+    mutation = ""
+    if mutation_target is not None:
+        chmod_command = shutil.which("chmod") or "/bin/chmod"
+        quoted_chmod = chmod_command.replace("'", "'\"'\"'")
+        quoted_target = str(mutation_target).replace("'", "'\"'\"'")
+        mutation = (
+            "if [ \"${1:-}\" = '--version' ]; then\n"
+            f"  '{quoted_chmod}' u+w '{quoted_target}'\n"
+            f"  printf '%s\\n' '# tampered by identity probe' >> '{quoted_target}'\n"
+            f"  '{quoted_chmod}' u-w '{quoted_target}'\n"
+            "fi\n"
+        )
+    path.write_text(
+        "#!/bin/sh\n"
+        + mutation
+        + "case \"${1:-}\" in\n"
+        f"  models) printf '%s\\n' '{target_output}' ;;\n"
+        f"  *) printf '%s\\n' 'fake {tool_name} identity' ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def publish_shared_toolchain(
+    base: Path,
+    *,
+    lock_path: Path | None = None,
+    gpu_router: str = "OFF",
+    hip_architectures: str = toolchain_cache.DEFAULT_HIP_ARCHITECTURES,
+    mistral_target: bool = True,
+    mutate_after_probe: bool = False,
+) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
+    """Publish a complete five-tool lane through the real cache API."""
+
+    cache = base / "shared-cache"
+    selected_lock = ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
+    host = {"system": "Linux", "release": "test", "machine": "x86_64"}
+    compiler = {"commands": {"cc": {"path": "/test/cc"}}}
+    environment = {
+        "PATH": str(base / "decoy-bin"),
+        "FES_TOOLCHAIN_CACHE_ROOT": str(cache),
+        "FES_TOOLCHAIN_GPU_ROUTER": gpu_router,
+        "FES_TOOLCHAIN_HIP_ARCHITECTURES": hip_architectures,
+    }
+    with patch.dict(os.environ, environment, clear=True), patch.object(
+        toolchain_cache, "host_identity", return_value=host
+    ), patch.object(toolchain_cache, "compiler_inventory", return_value=compiler):
+        request = toolchain_cache.request_from_environment(
+            ROOT,
+            selected_lock,
+            gpu_router=gpu_router,
+            hip_architectures=hip_architectures,
+        )
+
+    cache.mkdir(mode=0o700)
+    cache.chmod(0o700)
+    slot = toolchain_cache.slot_path(request)
+    for directory in (slot / "src", slot / "build", slot / "install" / "bin", slot / "evidence"):
+        directory.mkdir(parents=True, exist_ok=True)
+    pins = load_lock(selected_lock)
+    tools = {}
+    for lock_name, binary_name in toolchain_cache.TOOL_BINARY_NAMES.items():
+        binary = slot / "install" / "bin" / binary_name
+        _write_fake_tool(
+            binary,
+            lock_name,
+            include_target=mistral_target,
+            mutation_target=slot / "install" / "bin/mistral-cv"
+            if mutate_after_probe and lock_name == "yosys"
+            else None,
+        )
+        tool_evidence = slot / "evidence" / lock_name
+        tool_evidence.mkdir(parents=True)
+        commit = pins[lock_name].commit
+        digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+        (tool_evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
+        (tool_evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+        (tool_evidence / f".identity-{commit}.txt").write_text(
+            f"fake {lock_name} identity\n", encoding="utf-8"
+        )
+        if lock_name == "nextpnr":
+            lane_architectures = hip_architectures if gpu_router.upper() == "HIP" else "unused"
+            (tool_evidence / f".config-{commit}.txt").write_text(
+                f"gpu-router={gpu_router.upper()}; hip-architectures={lane_architectures}\n",
+                encoding="utf-8",
+            )
+        tools[lock_name] = {
+            "binary": f"bin/{binary_name}",
+            "commit": commit,
+            "identity": f"fake {lock_name} identity",
+        }
+
+    with toolchain_cache.acquire_build_lock(request):
+        manifest = toolchain_cache.publish_ready(request, tools=tools)
+    return request, toolchain_cache.verify_ready(request)
 
 
 class BuildFesPongTests(unittest.TestCase):
@@ -168,6 +278,189 @@ class BuildFesPongTests(unittest.TestCase):
                 "top": "top",
             },
         )
+
+    def test_shared_lane_uses_verified_direct_tools_without_local_or_path_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            decoy = base / "decoy-bin"
+            decoy.mkdir()
+            marker = base / "path-used"
+            for name in ("yosys", "mistral-cv", "nextpnr-mistral"):
+                _write_fake_tool(decoy / name, f"decoy {name}")
+                (decoy / name).write_text(
+                    "#!/bin/sh\nprintf '%s\\n' invoked > %s\nexit 99\n" % (name, marker),
+                    encoding="utf-8",
+                )
+                (decoy / name).chmod(0o755)
+            request, manifest = publish_shared_toolchain(base)
+
+            with patch.dict(
+                os.environ,
+                {"PATH": str(decoy), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                authenticated = build_fes_pong._authenticate_tools(ROOT)
+
+            self.assertEqual(
+                {name: tool.path for name, tool in authenticated.items()},
+                {
+                    "yosys": manifest.install / "bin/yosys",
+                    "mistral": manifest.install / "bin/mistral-cv",
+                    "nextpnr-mistral": manifest.install / "bin/nextpnr-mistral",
+                },
+            )
+            self.assertFalse(marker.exists(), "shared authentication must never execute PATH decoys")
+            for lock_name, record in manifest.tools.items():
+                if lock_name in {"yosys", "mistral", "nextpnr"}:
+                    self.assertIn(f"commit={record['commit']}", authenticated[{
+                        "yosys": "yosys",
+                        "mistral": "mistral",
+                        "nextpnr": "nextpnr-mistral",
+                    }[lock_name]].identity)
+
+            identities = {name: tool.identity for name, tool in authenticated.items()}
+            shared_record = create_build_record(
+                ROOT,
+                "https://github.com/DeanoC/misteross.git",
+                "a" * 40,
+                identities,
+            )
+            fields = json.loads(shared_record)
+            self.assertEqual(fields["format"], 1)
+            self.assertEqual(fields["tools"], identities)
+            local_tools = {
+                name: AuthenticatedTool(Path("/legacy/install") / name, tool.identity)
+                for name, tool in authenticated.items()
+            }
+            local_record = create_build_record(
+                ROOT,
+                "https://github.com/DeanoC/misteross.git",
+                "a" * 40,
+                {name: tool.identity for name, tool in local_tools.items()},
+            )
+            self.assertEqual(shared_record, local_record)
+            self.assertEqual(build_identity(shared_record), build_identity(local_record))
+
+    def test_shared_lane_runs_the_mistral_target_database_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base, mistral_target=False)
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "Mistral database"):
+                    build_fes_pong._authenticate_tools(ROOT)
+
+    def test_shared_lane_rechecks_the_closure_after_identity_probes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base, mutate_after_probe=True)
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(
+                    BuildError,
+                    "shared toolchain verification failed after identity probes: .*closure differs",
+                ):
+                    build_fes_pong._authenticate_tools(ROOT)
+
+    def test_shared_lane_rejects_tampered_ready_provenance_without_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base)
+            ready = toolchain_cache.ready_path(request)
+            ready.chmod(0o644)
+            data = json.loads(ready.read_text(encoding="utf-8"))
+            data["tools"]["yosys"]["commit"] = "0" * 40
+            ready.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
+            ready.chmod(0o444)
+
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(toolchain_cache, "host_identity", return_value={"system": "Linux"}), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "shared toolchain"):
+                    build_fes_pong._authenticate_tools(ROOT)
+
+    def test_shared_lane_rejects_partial_slot_without_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base)
+            toolchain_cache.ready_path(request).unlink()
+
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(toolchain_cache, "host_identity", return_value={"system": "Linux"}), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "shared toolchain"):
+                    build_fes_pong._authenticate_tools(ROOT)
+
+    def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+            install = root / "build/toolchain/install/bin"
+            build_root = root / "build/toolchain/build"
+            install.mkdir(parents=True)
+            definitions = {
+                "yosys": ("yosys", "--version"),
+                "mistral": ("mistral-cv", "models"),
+                "nextpnr": ("nextpnr-mistral", "--version"),
+            }
+            pins = load_lock(root / "toolchain.lock")
+            for lock_name, (binary_name, _) in definitions.items():
+                binary = install / binary_name
+                _write_fake_tool(binary, lock_name)
+                evidence = build_root / lock_name
+                evidence.mkdir(parents=True)
+                commit = pins[lock_name].commit
+                (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
+                digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+                (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                authenticated = build_fes_pong._authenticate_tools(root)
+            self.assertEqual(authenticated["yosys"].path, install / "yosys")
+            self.assertEqual(authenticated["mistral"].path, install / "mistral-cv")
+            self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
 
     def _write_passing_outputs(self, output: Path, *, achieved: float = 90.0) -> None:
         output.mkdir(parents=True, exist_ok=True)

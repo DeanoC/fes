@@ -25,7 +25,7 @@ PACKAGE_OUTPUT ?= $(CURDIR)/build/packages
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
-export EXP BUILD CORE ARTIFACT PYTHON PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
+export EXP BUILD CORE ARTIFACT PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -76,6 +76,30 @@ define require_exp
 	fi
 endef
 
+define require_local_sim
+	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
+		printf '%s\n' 'misteross: shared toolchain cache is unsupported for Make simulation targets; use an FES Python recipe or unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane' >&2; \
+		exit 2; \
+	fi
+endef
+
+# GNU Make adds jobserver and verbosity controls to MAKEFLAGS/MFLAGS.  They
+# describe this parent invocation, not the immutable shared compiler lane;
+# clear them only for shared subprocesses while preserving the requested JOBS
+# setting used by bootstrap.
+SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
+
+# Reject an explicitly requested legacy simulation goal while Make is still
+# parsing the graph.  This runs before any prerequisite (including diagnostic
+# ROM generation) can write output; the recipe guard above also covers an
+# indirect invocation through a future aggregate target.
+ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT)),)
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss,$(MAKECMDGOALS))
+ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
+$(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
+endif
+endif
+
 .PHONY: toolchain toolchain-fes-coleco toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
@@ -85,6 +109,7 @@ build-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)"
 
 sim-pong:
+	$(require_local_sim)
 	@mkdir -p build/sim/pong
 	$(VERILATOR) --cc --exe --build --top-module pong_game -Wall -GCLOCK_HZ=8000 \
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
@@ -95,6 +120,7 @@ sim-pong:
 	@build/sim/pong-video/Vpong_video
 
 sim-fes-pong:
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-pong-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_gp -Wall \
 		-Icores/fes-pong/generated \
@@ -118,6 +144,7 @@ sim-fes-pong:
 	@build/sim/fes-pong-board/Vtop
 
 sim-fes-zx81:
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY \
@@ -152,6 +179,7 @@ sim-fes-zx81:
 .PHONY: coleco-diagnostic coleco-sprite-diagnostic
 .PHONY: sim-fes-coleco-quartus
 sim-fes-coleco-quartus:
+	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_coleco_quartus.py
 
 coleco-diagnostic:
@@ -185,6 +213,7 @@ coleco-vdp-diagnostic: coleco-sprite-diagnostic
 	$(PYTHON) cores/fes-coleco/diagnostic/vdp_io.py --pad-to 16384 --output build/diagnostics/fes-coleco/vdp-io-16k.rom
 
 sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
+	$(require_local_sim)
 	@mkdir -p build/sim/$@
 	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
 		-DTV80_REFRESH=1 $(if $(filter %-oss,$@),-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1") \
@@ -204,6 +233,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
 sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY \
@@ -272,6 +302,7 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
 		-Wno-PINCONNECTEMPTY -DFES_COLECO_OSS=1 \
@@ -342,37 +373,45 @@ build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
 
 build-fes-zx81:
-	$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"
 
 build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"
 
 build-fes-pong:
-	$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"
 
 toolchain:
-	@scripts/bootstrap.sh
+	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh
 
 toolchain-fes-coleco:
-	@FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" \
-	FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco" \
+	@$(SHARED_MAKE_ENV)FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-check:
-	@scripts/bootstrap.sh --check-prereqs
+	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh --check-prereqs
 
 doctor:
-	@bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py' _ "$(PYTHON)"
+	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
+		$(SHARED_MAKE_ENV)"$(PYTHON)" scripts/doctor.py; \
+	else \
+		bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py' _ "$(PYTHON)"; \
+	fi
 
 doctor-strict:
-	@bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py --strict oss' _ "$(PYTHON)"
+	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
+		$(SHARED_MAKE_ENV)"$(PYTHON)" scripts/doctor.py --strict oss; \
+	else \
+		bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py --strict oss' _ "$(PYTHON)"; \
+	fi
 
 sim:
 	$(require_exp)
+	$(require_local_sim)
 	@bash -c 'set -euo pipefail; source scripts/env.sh; exec scripts/run_sim.sh --experiment "$$EXP"'
 
 oss:

@@ -137,6 +137,8 @@ def _authenticate_coleco_tools(root: Path):
         toolchain_root=root / COLECO_TOOLCHAIN_ROOT,
         expected_commits=COLECO_TOOL_COMMITS,
         expected_configuration={"nextpnr": COLECO_TOOLCHAIN_CONFIGURATION},
+        gpu_router=COLECO_GPU_ROUTER,
+        hip_architectures=COLECO_GPU_ARCHITECTURES,
     )
 
 
