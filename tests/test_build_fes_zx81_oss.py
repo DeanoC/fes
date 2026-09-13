@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import os
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from scripts import build_fes_zx81_oss, toolchain_cache
 from scripts.build_fes_zx81_oss import (
     OUTPUT_RELATIVE,
     PLACER_SEEDS,
@@ -13,6 +18,7 @@ from scripts.build_fes_zx81_oss import (
     _manifest,
     build_commands,
 )
+from tests.test_build_fes_pong import publish_shared_toolchain
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +41,31 @@ class BuildFesZx81OssTests(unittest.TestCase):
         )
         phony = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(phony, r"\.PHONY:.*\bbuild-fes-zx81\b")
+
+    def test_oss_auth_uses_verified_shared_tools_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, manifest = publish_shared_toolchain(base)
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                authenticated = build_fes_zx81_oss._authenticate_tools(ROOT)
+
+            self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
+            self.assertEqual(
+                authenticated["nextpnr-mistral"].path,
+                manifest.install / "bin/nextpnr-mistral",
+            )
 
     def test_oss_commands_use_tv80_m10k_and_not_vhdl_t80(self) -> None:
         yosys, nextpnr = build_commands(
