@@ -121,6 +121,26 @@ selection from different source-built bundles is installed during finalization;
 a change to the locked RBF policy selects a new base. This intentionally
 conservative key can be narrowed later with evidence.
 
+Validated format-1 FPGA bundles are also copied into the ignored workspace
+cache `out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`. That cache is
+disposable local state, not provenance: Mega Drive, SNES and NES entries may
+be reused across `misteross` commits when the current recipe still validates
+them, Pong entries require the exact selected revision, and `make rebuild`
+bypasses reuse. Distinct validated artifacts are fail-closed: the error lists
+the conflicting candidate directories rather than preferring the selected
+checkout. Sealed cache files are read-only and their directories are mode
+0555, so a plain recursive removal cannot delete them. Recover the affected
+disposable system subtree by restoring owner write and search permission,
+then removing that exact tree. Replace `<system>` with `megadrive`, `pong`,
+`snes`, or `nes`:
+
+```sh
+chmod -R u+rwX -- out/cache/fpga-bundles/<system>
+rm -rf -- out/cache/fpga-bundles/<system>
+```
+
+Then retry.
+
 `make dev` builds selected clean revisions, not arbitrary uncommitted worker
 checkouts. Integrate reviewed component commits using the commands above before
 running the parent build. Workers can still use their component's artifact-only

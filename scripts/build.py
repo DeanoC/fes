@@ -24,6 +24,7 @@ from environment import build_environment
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
 DIAGNOSTIC_RECIPE_NAMES = frozenset({"scripts/build_diagnostics.py"})
+FPGA_BUNDLE_CACHE = ROOT / "out/cache/fpga-bundles"
 
 
 def is_diagnostic_recipe_file(path, root=ROOT):
@@ -520,28 +521,235 @@ def bundle_arguments(cores, bundles):
         core.upper() + "_RBF_BUNDLE=" + str(bundles[core]) for core in cores]
 
 
+def _bundle_write_bits(mode):
+    return bool(stat.S_IMODE(mode) & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+
+
+def _closed_bundle_digest(directory, system):
+    hasher = hashlib.sha256()
+    for name in (f"{system}.rbf", f"{system}-rbf.toml"):
+        encoded = name.encode("utf-8")
+        data = (Path(directory) / name).read_bytes()
+        hasher.update(len(encoded).to_bytes(8, "big"))
+        hasher.update(encoded)
+        hasher.update(len(data).to_bytes(8, "big"))
+        hasher.update(data)
+    return hasher.hexdigest()
+
+
+def _bundle_directories(root, system):
+    root = Path(root)
+    try:
+        metadata = root.lstat()
+    except FileNotFoundError:
+        return ()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        return ()
+    base = root / system
+    try:
+        metadata = base.lstat()
+    except FileNotFoundError:
+        return ()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        return ()
+    candidates = []
+    for child in sorted(base.iterdir(), key=lambda path: path.name):
+        try:
+            metadata = child.lstat()
+        except FileNotFoundError:
+            continue
+        if (child.name.startswith(".") or stat.S_ISLNK(metadata.st_mode)
+                or not stat.S_ISDIR(metadata.st_mode)):
+            continue
+        candidates.append(child)
+    return tuple(candidates)
+
+
+def _require_closed_bundle(directory, system, *, sealed=False):
+    directory = Path(directory)
+    try:
+        metadata = directory.lstat()
+    except FileNotFoundError as exc:
+        raise ValueError("bundle directory must exist") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ValueError("bundle directory must not be a symlink")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("bundle path must be a directory")
+    if sealed and _bundle_write_bits(metadata.st_mode):
+        raise ValueError("sealed bundle directory must not be writable")
+    expected = {f"{system}.rbf", f"{system}-rbf.toml"}
+    names = []
+    for child in sorted(directory.iterdir(), key=lambda path: path.name):
+        try:
+            metadata = child.lstat()
+        except FileNotFoundError as exc:
+            raise ValueError("sealed bundle files must exist") from exc
+        if child.name.startswith("."):
+            raise ValueError("sealed bundle has unexpected files")
+        names.append(child.name)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("bundle files must be non-symlink regular files")
+        if sealed and _bundle_write_bits(metadata.st_mode):
+            raise ValueError("sealed bundle files must not be writable")
+    if set(names) != expected:
+        raise ValueError("sealed bundle must contain the closed two-file set")
+
+
+def _require_sealed_bundle(directory, system):
+    _require_closed_bundle(directory, system, sealed=True)
+
+
+def _remove_tree(path):
+    path = Path(path)
+    if path.is_symlink():
+        path.unlink()
+        return
+    if not path.exists():
+        return
+    if not path.is_dir():
+        path.unlink()
+        return
+    for current, directories, _ in os.walk(path, topdown=False, followlinks=False):
+        for name in directories:
+            child = Path(current) / name
+            metadata = child.lstat()
+            if not stat.S_ISLNK(metadata.st_mode):
+                child.chmod(0o755)
+    path.chmod(0o755)
+    shutil.rmtree(path)
+
+
+def publish_bundle_cache(directory, system):
+    directory = Path(directory)
+    _require_closed_bundle(directory, system, sealed=False)
+    names = (f"{system}.rbf", f"{system}-rbf.toml")
+    dest_root = Path(FPGA_BUNDLE_CACHE)
+    if dest_root.is_symlink():
+        raise ValueError("FPGA bundle cache must not be a symlink")
+    if dest_root.exists() and not dest_root.is_dir():
+        raise ValueError("FPGA bundle cache must be a directory")
+    system_root = dest_root / system
+    destination = None
+    staged = None
+    try:
+        dest_root.mkdir(parents=True, exist_ok=True)
+        if system_root.is_symlink():
+            raise ValueError("FPGA bundle cache system directory must not be a symlink")
+        if system_root.exists() and not system_root.is_dir():
+            raise ValueError("FPGA bundle cache system directory must be a directory")
+        system_root.mkdir(exist_ok=True)
+        destination = system_root / _closed_bundle_digest(directory, system)
+        if destination.is_symlink():
+            raise ValueError(f"FPGA bundle cache destination must not be a symlink: {destination}")
+        if destination.exists():
+            try:
+                _require_sealed_bundle(destination, system)
+            except ValueError as exc:
+                raise ValueError(f"FPGA bundle cache destination is not sealed: {destination}: {exc}") from exc
+            for name in names:
+                if (destination / name).read_bytes() != (directory / name).read_bytes():
+                    raise ValueError(f"existing FPGA bundle cache entry differs: {destination}")
+            return destination
+        staged = Path(tempfile.mkdtemp(prefix=".new-", dir=system_root))
+        for name in names:
+            shutil.copy2(directory / name, staged / name)
+            (staged / name).chmod(0o444)
+        staged.chmod(0o555)
+        staged.replace(destination)
+        return destination
+    except OSError as exc:
+        target = destination if destination is not None else system_root
+        raise OSError(f"FPGA bundle cache publication failed: {target}: {exc}") from exc
+    finally:
+        if staged is not None and (staged.exists() or staged.is_symlink()):
+            try:
+                _remove_tree(staged)
+            except OSError:
+                pass
+
+
 def validate_bundle(directory, source, revision, system):
     recipe = "scripts/build_pong.py" if system == "pong" else "scripts/rebuild_core.py"
     return core_bundle.load(directory, digest(source / recipe), system=system,
                             expected_revision=revision if system == "pong" else None)
 
 
+def _validated_bundle_candidates(source, revision, system, diagnostics=None):
+    source = Path(source)
+    selected_root = source / "build/bundles" / system
+    selected = []
+    if selected_root.exists() or selected_root.is_symlink():
+        try:
+            metadata = selected_root.lstat()
+        except FileNotFoundError:
+            metadata = None
+        else:
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                raise ValueError(f"misteross {system} bundle directory must be a non-symlink directory")
+            bundles = list(selected_root.glob(f"*/{system}-rbf.toml"))
+            if bundles:
+                if len(bundles) != 1:
+                    raise ValueError(f"misteross has more than one cached {system} bundle")
+                bundle_dir = bundles[0].parent
+                selected.append((bundle_dir, validate_bundle(bundle_dir, source, revision, system)))
+    stable = []
+    try:
+        stable_dirs = _bundle_directories(FPGA_BUNDLE_CACHE, system)
+    except OSError as exc:
+        reason = f"stable cache skipped: {FPGA_BUNDLE_CACHE / system}: {exc}"
+        if diagnostics is not None:
+            diagnostics.cache("fpga:" + system, "miss", reason)
+        print(reason, flush=True)
+        stable_dirs = ()
+    for candidate in stable_dirs:
+        try:
+            _require_sealed_bundle(candidate, system)
+            manifest = validate_bundle(candidate, source, revision, system)
+        except ValueError:
+            continue
+        except OSError as exc:
+            reason = f"stable candidate skipped: {candidate}: {exc}"
+            if diagnostics is not None:
+                diagnostics.cache("fpga:" + system, "miss", reason)
+            print(reason, flush=True)
+            continue
+        stable.append((candidate, manifest))
+    pairs = selected + stable
+    if not pairs:
+        return ()
+    if len(pairs) == 1:
+        return (pairs[0][0],)
+    by_digest = {}
+    for path, manifest in pairs:
+        digest_value = manifest.get("sha256") if isinstance(manifest, dict) else None
+        if not isinstance(digest_value, str) or not digest_value:
+            raise ValueError(f"validated {system} bundle is missing sha256")
+        if digest_value not in by_digest:
+            by_digest[digest_value] = path
+    if len(by_digest) > 1:
+        listed = ", ".join(str(path) for path, _ in pairs)
+        raise ValueError(f"ambiguous validated {system} FPGA bundles: {listed}")
+    return tuple(by_digest.values())
+
+
 def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics=None):
     if system not in ("megadrive", "pong", "snes", "nes"):
         raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
-    directory = source / "build/bundles" / system
-    bundles = list(directory.glob(f"*/{system}-rbf.toml"))
-    if bundles and not force:
-        if len(bundles) != 1:
-            raise ValueError(f"misteross has more than one cached {system} bundle")
-        bundle_dir = bundles[0].parent
-        validate_bundle(bundle_dir, source, revisions["misteross"], system)
-        if diagnostics is not None:
-            diagnostics.cache("fpga:" + system, "hit",
-                              "validated revision-scoped FPGA bundle")
-        print(f"Reusing validated revision-scoped FPGA bundle: {bundle_dir}", flush=True)
-        return bundle_dir
+    if not force:
+        candidates = _validated_bundle_candidates(
+            source, revisions["misteross"], system, diagnostics)
+        if candidates:
+            bundle_dir = candidates[0]
+            try:
+                Path(bundle_dir).relative_to(FPGA_BUNDLE_CACHE)
+                reason = "validated stable-cache FPGA bundle"
+            except ValueError:
+                reason = "validated selected-checkout FPGA bundle"
+            if diagnostics is not None:
+                diagnostics.cache("fpga:" + system, "hit", reason)
+            print(f"Reusing {reason}: {bundle_dir}", flush=True)
+            return bundle_dir
     if diagnostics is not None:
         diagnostics.cache("fpga:" + system, "forced" if force else "miss",
                           "validated bundle missing" if not force else "forced rebuild")
@@ -557,11 +765,20 @@ def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics
                   ["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
     run_stage(diagnostics, "fpga:" + system + " subprocess",
               ["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
+    directory = source / "build/bundles" / system
     bundles = list(directory.glob(f"*/{system}-rbf.toml"))
     if len(bundles) != 1:
         raise ValueError(f"misteross did not produce exactly one {system} bundle")
     validate_bundle(bundles[0].parent, source, revisions["misteross"], system)
-    return bundles[0].parent
+    bundle_dir = bundles[0].parent
+    try:
+        publish_bundle_cache(bundle_dir, system)
+    except (ValueError, OSError) as exc:
+        reason = f"stable publish skipped: {exc}"
+        if diagnostics is not None:
+            diagnostics.cache("fpga:" + system, "miss", reason)
+        print(reason, flush=True)
+    return bundle_dir
 
 
 def build_bundles(revisions, env, cores, force=False, diagnostics=None):

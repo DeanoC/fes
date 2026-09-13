@@ -79,8 +79,14 @@ the selected NES image has exact video and session-lifecycle acceptance recorded
 in [the dated FES validation](docs/validation/2026-09-08-native-nes-wire-acceptance.md).
 Historical profiles retain their Mega Drive-only inputs.
 
-A fresh FPGA build requires Quartus Lite 17.0.2. A same-revision cached bundle
-can be reused after payload and pinned-recipe validation. Downloads are checked
+A fresh FPGA build requires Quartus Lite 17.0.2. Validated Mega Drive, SNES and
+NES bundles may be reused from the workspace-local cache after the current
+recipe and bundle manifest still accept them, including across unrelated
+`misteross` commits. Pong reuse still requires the exact selected `misteross`
+revision. Distinct validated artifacts fail closed; recover by running
+`chmod -R u+rwX -- out/cache/fpga-bundles/<system>` then
+`rm -rf -- out/cache/fpga-bundles/<system>` and retrying. `make rebuild` bypasses that
+cache and rebuilds. Downloads are checked
 against component locks; image compilation runs twice in independent build
 roots with networking disabled. Allow several GB for tools and outputs.
 
