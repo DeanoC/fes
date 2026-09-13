@@ -443,8 +443,20 @@ QUARTUS_ROOTDIR=/absolute/path/to/17.0/quartus \
   python3 scripts/sim_fes_coleco_quartus.py --baseline 5f239c9
 ```
 
-Set `IVERILOG`/`VVP` for non-PATH executables and `IVERILOG_BASE` for a relocated
-Icarus library directory. No tools are downloaded by this target. Icarus is
+Set `IVERILOG`/`VVP` for non-PATH executables. For a relocated Icarus install,
+derive `IVERILOG_BASE` from the installed `ivlpp` helper and verify the result:
+
+```sh
+iverilog_bin="$(command -v iverilog)"
+iverilog_prefix="$(cd "$(dirname "$iverilog_bin")/.." && pwd)"
+IVERILOG_BASE="$(find "$iverilog_prefix/lib" -type f -name ivlpp -print -quit)"
+IVERILOG_BASE="$(dirname "$IVERILOG_BASE")"
+test -x "$IVERILOG_BASE/ivlpp"
+```
+
+Then pass `IVERILOG`, `VVP`, `IVERILOG_BASE`, and `QUARTUS_ROOTDIR` as
+absolute paths for the selected Icarus 12 and Quartus 17.0.2 installations.
+No tools are downloaded by this target. Icarus is
 used for these probes because Verilator 5.051 rejects the vendor model's
 `i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. The existing
 default/OSS full-board simulations remain Verilator-only and need no Quartus.
@@ -478,7 +490,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Only the Coleco OSS recipe selects `cores/fes-coleco/toolchain.lock`, installs under `build/toolchain/fes-coleco`, and enables the HIP device backend. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Only the Coleco OSS recipe selects `cores/fes-coleco/toolchain.lock`, installs under `build/toolchain/fes-coleco`, and enables the HIP device backend. Bootstrap records the requested router and HIP architecture list beside the nextpnr commit/digest, and the recipe carries that attestation into the package manifest. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |
@@ -494,7 +506,7 @@ Yosys/nextpnr/Mistral owner:
 | HDMI I²C | Quartus uses tri-state assignments; OSS uses `MISTRAL_IO` open-drain pads and places the HPS I²C primitive at BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only the accepted `constraints-oss.qsf` and `clocks-oss.sdc` subset: pin assignments plus a 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
 | Route pressure | The selected settings are device `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 3, no `--tmg-ripup`, and a 74.25 MHz request. Seeds 3 and 4 passed the current live-HIP build; seed 5 is marginal in final router1 timing for this build ID. The sealed recipe requires a `backend hip:<device> ready` log entry, so a CPU-only nextpnr cannot be mislabeled as a GPU result. Timing-driven rip-up remains disabled because it was slower on the packed netlist and regressed a passing `clk_sys` route. No missing nextpnr BEL or pack feature was identified. |
-| Relocated Quartus/Icarus probe | The local Icarus wrapper needs `IVERILOG_BASE` set to its actual `.../usr/lib/x86_64-linux-gnu/ivl` directory; use `QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0/quartus`. The runner uses Icarus for the unmodified Intel `altera_mf.v` model because Verilator rejects the model's `i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. Quartus 17.0.2 also rejects `OLD_DATA` on the packed bidirectional sprite RAM's registered port A; `NEW_DATA_NO_NBE_READ` is legal because the renderer consumes q_a one phase later. |
+| Relocated Quartus/Icarus probe | Use `iverilog -V` to confirm Icarus 12, derive `IVERILOG_BASE` from the installed `ivlpp` path as shown above, and pass the absolute Quartus 17.0.2 `QUARTUS_ROOTDIR`. The runner uses Icarus for the unmodified Intel `altera_mf.v` model because Verilator rejects the model's `i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. Quartus 17.0.2 also rejects `OLD_DATA` on the packed bidirectional sprite RAM's registered port A; `NEW_DATA_NO_NBE_READ` is legal because the renderer consumes q_a one phase later. |
 | Conditional simulation | `make sim-fes-coleco-oss` compiles GP, VDP, machine, and top-level tests with `FES_COLECO_OSS`; `make sim-fes-coleco` includes that target before the default lane. |
 
 The initial failures and fixes are intentionally preserved in the source and

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,7 +17,11 @@ from scripts.build_fes_coleco_oss import (
     PINNED_INPUTS,
     RTL_SOURCES,
     BuildError,
+    COLECO_GPU_ARCHITECTURES,
+    COLECO_GPU_BACKEND,
+    COLECO_TOOLCHAIN_CONFIGURATION,
     _require_gpu_backend,
+    _prepare_output,
     _manifest,
     build_commands,
     create_build_record,
@@ -122,6 +127,8 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertIn(b'"seed":3', record)
         self.assertIn(b'"router":"gpu"', record)
+        self.assertIn(b'"gpu_architectures":"gfx1100;gfx1201"', record)
+        self.assertIn(b'"gpu_backend":"hip"', record)
 
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
         pins = load_lock(ROOT / COLECO_TOOLCHAIN_LOCK)
@@ -152,6 +159,12 @@ class BuildFesColecoTests(unittest.TestCase):
             ),
             "hip",
         )
+
+    def test_oss_rejects_a_live_cuda_gpu_router_backend(self) -> None:
+        with self.assertRaisesRegex(BuildError, "HIP"):
+            _require_gpu_backend(
+                "Info: backend cuda:NVIDIA RTX 4090 ready\n"
+            )
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")
@@ -186,6 +199,24 @@ class BuildFesColecoTests(unittest.TestCase):
                 "00112233445566778899aabbccddeeff",
                 {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")},
             )
+
+    def test_oss_rejects_symlinked_output_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            build_root = root / "build"
+            build_root.mkdir()
+            target = root / "outside"
+            target.mkdir()
+            (build_root / OSS_OUTPUT.name).symlink_to(target, target_is_directory=True)
+            with self.assertRaisesRegex(BuildError, "symlink"):
+                _prepare_output(root)
+
+    def test_oss_rejects_non_directory_build_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "build").write_text("not a directory\n", encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "directory"):
+                _prepare_output(root)
 
     def test_quartus_project_lists_only_verilog_sources_and_reset_image(self) -> None:
         qsf = project_qsf(ROOT, ROOT / QUARTUS_OUTPUT / "project", "00112233445566778899aabbccddeeff")
@@ -243,6 +274,39 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(b"FES ColecoVision", manifest)
         self.assertNotIn(b"recipe = ", manifest)
 
+    def test_manifest_carries_gpu_route_configuration(self) -> None:
+        record = (
+            b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
+            b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_coleco_oss.py",'
+            b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
+            b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
+            b'"tools":{},"parameters":{}}'
+        )
+        manifest = _manifest(
+            record,
+            {"build_id": "d" * 32, "rbf": {"size": 16, "sha256": "e" * 64}},
+            "https://github.com/DeanoC/misteross.git",
+            "a" * 40,
+            {
+                "mistral": "commit=" + "f" * 40 + "; sha256=" + "1" * 64,
+                "nextpnr-mistral": (
+                    "commit=" + "2" * 40 + "; sha256=" + "3" * 64
+                    + "; " + COLECO_TOOLCHAIN_CONFIGURATION
+                ),
+                "yosys": "commit=" + "4" * 40 + "; sha256=" + "5" * 64,
+            },
+        )
+        self.assertIn(b"gpu-router=HIP", manifest)
+        self.assertIn(COLECO_GPU_ARCHITECTURES.encode(), manifest)
+
+    def test_coleco_gpu_configuration_constants_are_consistent(self) -> None:
+        self.assertEqual(COLECO_GPU_BACKEND, "hip")
+        self.assertEqual(COLECO_GPU_ARCHITECTURES, "gfx1100;gfx1201")
+        self.assertEqual(
+            COLECO_TOOLCHAIN_CONFIGURATION,
+            "gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+        )
+
     def test_docs_record_scope_builds_and_workarounds(self) -> None:
         readme = (ROOT / "cores/fes-coleco/README.md").read_text(encoding="utf-8")
         architecture = (ROOT / "docs/architecture.md").read_text(encoding="utf-8")
@@ -256,6 +320,8 @@ class BuildFesColecoTests(unittest.TestCase):
             self.assertIn("M10K", text)
             self.assertIn("MISTRAL_IO", text)
             self.assertIn("52.60.0", text)
+        self.assertNotIn("/home/deano/", readme)
+        self.assertNotIn(".../usr/", readme)
 
 
 if __name__ == "__main__":

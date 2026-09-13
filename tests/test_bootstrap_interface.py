@@ -90,6 +90,10 @@ exit 0
         (build / f".identity-{commit}.txt").write_text(f"fake-{tool}-identity\n")
         digest = hashlib.sha256(binary.read_bytes()).hexdigest()
         (build / f".digest-{commit}.sha256").write_text(f"{digest}\n")
+        if tool == "nextpnr":
+            (build / f".config-{commit}.txt").write_text(
+                "gpu-router=OFF; hip-architectures=unused\n"
+            )
     return fake_bin, toolchain
 
 
@@ -276,6 +280,37 @@ class BootstrapInterfaceTests(unittest.TestCase):
             self.assertIn("==> building yosys", result.stdout)
             self.assertNotIn("==> yosys already built (identity verified)", result.stdout)
             self.assertRegex(digest.read_text(), r"^[0-9a-f]{64}\n$")
+
+    def test_nextpnr_cache_attestation_rebuilds_for_stale_gpu_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin, toolchain = _prepare_isolated_bootstrap(root)
+            commit = LOCK_COMMITS["nextpnr"]
+            config = toolchain / "build" / "nextpnr" / f".config-{commit}.txt"
+            config.write_text("gpu-router=CUDA; hip-architectures=unused\n")
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
+                    "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+                }
+            )
+            result = subprocess.run(
+                [str(root / "scripts" / "bootstrap.sh")],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                env={"PATH": f"{fake_bin}:{environment['PATH']}", **{
+                    key: value for key, value in environment.items()
+                    if key != "PATH"
+                }},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("==> building nextpnr", result.stdout)
+            self.assertEqual(
+                config.read_text(),
+                "gpu-router=HIP; hip-architectures=gfx1100;gfx1201\n",
+            )
 
     def test_environment_prepends_repository_local_install_bin(self):
         command = (

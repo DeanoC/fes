@@ -33,6 +33,12 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
+COLECO_GPU_BACKEND = "hip"
+COLECO_GPU_ROUTER = "HIP"
+COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
+COLECO_TOOLCHAIN_CONFIGURATION = (
+    f"gpu-router={COLECO_GPU_ROUTER}; hip-architectures={COLECO_GPU_ARCHITECTURES}"
+)
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
 COLECO_TOOLCHAIN_LOCK = "cores/fes-coleco/toolchain.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
@@ -112,15 +118,15 @@ HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
 
 def _require_gpu_backend(route_text: str) -> str:
-    """Require nextpnr to have routed on a live HIP/CUDA device backend."""
+    """Require nextpnr to have routed on the live Coleco HIP backend."""
 
     lowered = route_text.lower()
     if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
         raise BuildError("route log proves that --router gpu has no live GPU device backend and fell back to the CPU reference backend")
-    match = re.search(r"\bbackend\s+(hip|cuda):[^\n]*\bready\b", route_text, re.IGNORECASE)
+    match = re.search(r"\bbackend\s+hip:[^\n]*\bready\b", route_text, re.IGNORECASE)
     if match is None:
-        raise BuildError("route log does not prove a live GPU device backend")
-    return match.group(1).lower()
+        raise BuildError("route log does not prove a live HIP device backend")
+    return COLECO_GPU_BACKEND
 
 
 def _authenticate_coleco_tools(root: Path):
@@ -129,6 +135,7 @@ def _authenticate_coleco_tools(root: Path):
         lock_path=root / COLECO_TOOLCHAIN_LOCK,
         toolchain_root=root / COLECO_TOOLCHAIN_ROOT,
         expected_commits=COLECO_TOOL_COMMITS,
+        expected_configuration={"nextpnr": COLECO_TOOLCHAIN_CONFIGURATION},
     )
 
 
@@ -184,6 +191,8 @@ def create_build_record(
         "tools": dict(tool_identities),
         "parameters": {
             "device": TARGET,
+            "gpu_architectures": COLECO_GPU_ARCHITECTURES,
+            "gpu_backend": COLECO_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
@@ -243,7 +252,14 @@ def build_commands(
 
 
 def _prepare_output(root: Path) -> Path:
+    root = Path(root)
+    build_root = root / OUTPUT_RELATIVE.parent
+    if build_root.is_symlink() or (build_root.exists() and not build_root.is_dir()):
+        raise BuildError(f"build path must be a non-symlink directory: {build_root}")
+    build_root.mkdir(parents=True, exist_ok=True)
     output = root / OUTPUT_RELATIVE
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        raise BuildError(f"build output path must be a non-symlink directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
     for name in BUILD_OUTPUTS:
         path = output / name

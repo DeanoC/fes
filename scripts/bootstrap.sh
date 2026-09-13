@@ -322,6 +322,26 @@ digest_file() {
     printf '%s\n' "$BUILD_ROOT/$1/.digest-${COMMIT[$1]}.sha256"
 }
 
+configuration_file() {
+    case "$1" in
+        nextpnr) printf '%s\n' "$BUILD_ROOT/$1/.config-${COMMIT[$1]}.txt" ;;
+        *) return 1 ;;
+    esac
+}
+
+tool_configuration() {
+    case "$1" in
+        nextpnr)
+            if [[ "$GPU_ROUTER" == "HIP" ]]; then
+                printf 'gpu-router=%s; hip-architectures=%s\n' "$GPU_ROUTER" "$HIP_ARCHITECTURES"
+            else
+                printf 'gpu-router=%s; hip-architectures=unused\n' "$GPU_ROUTER"
+            fi
+            ;;
+        *) die "unknown tool for configuration attestation: $1" ;;
+    esac
+}
+
 binary_digest() {
     local tool="$1"
     local binary
@@ -344,16 +364,21 @@ run_identity() {
 record_identity() {
     local tool="$1"
     local output
+    local config_path
     output="$(run_identity "$tool" 2>&1)" || return 1
     [[ -n "$output" ]] || return 1
     printf '%s\n' "$output" >"$(identity_file "$tool")"
     binary_digest "$tool" >"$(digest_file "$tool")"
+    if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
+        tool_configuration "$tool" >"$config_path"
+    fi
 }
 
 artifact_verified() {
     local tool="$1"
     local expected actual
     local digest_path
+    local config_path
     local output
 
     output="$(run_identity "$tool" 2>&1)" || return 1
@@ -363,7 +388,11 @@ artifact_verified() {
     expected="$(tr -d '[:space:]' <"$digest_path")"
     [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || return 1
     actual="$(binary_digest "$tool")" || return 1
-    [[ "$expected" == "$actual" ]]
+    [[ "$expected" == "$actual" ]] || return 1
+    if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
+        [[ -f "$config_path" ]] || return 1
+        [[ "$(tr -d '\r' <"$config_path")" == "$(tool_configuration "$tool")" ]] || return 1
+    fi
 }
 
 build_yosys() {

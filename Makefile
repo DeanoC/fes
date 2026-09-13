@@ -76,7 +76,7 @@ define require_exp
 	fi
 endef
 
-.PHONY: toolchain toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-fes-coleco toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
