@@ -9,30 +9,34 @@ profile.
 
 ## Selected revisions and parent result
 
-The parent integration base is `ef05aff33d4716ca2dc1a87bc86c4387aeeb7c02`,
-with only `sources/misteross` advanced from `e10284bdd1e8e442a39842a599fbb2c126300ad3`
-to `92f96a43e611aab4336a054e53134af36bd43ad1`. The selected component commit
+The isolated integration branch reconciles FES main
+`f491a49c7f8530d2890372fbf7279d76e6797e03` with the existing Coleco selection.
+It selects published, reviewable current-main descendants FogCast
+`2089b9ebb241026280a1baf6476035ea575665a4` and libmister-runtime
+`f700e342023e21f5917857326a0c533d621905b8`, plus mister-packages
+`4e36ca9e4832588d6b8f1f9fae6cc68eafba8aec` and misteross
+`92f96a43e611aab4336a054e53134af36bd43ad1`. The selected misteross commit
 contains the Coleco-local toolchain lane, authenticated HIP routing, the
 synchronized current-main merge, toolchain configuration attestation, the
-passing seed selection and the synchronous Yosys memory mapping recipe. Other
-component pins and shared definitions are unchanged.
+passing seed selection and the synchronous Yosys memory mapping recipe. The
+FogCast lock and parent gitlink select the same runtime revision.
 
 Parent `make check`, `make test` and the final Quartus-backed `make dev` passed:
 
 ```text
 consistency: package YAML valid; 14 generated consumers, 11 fixture copies and 4 copied source pins match
-make test: Ran 209 tests in 50.524s; OK (skipped=36)
+make test: Ran 209 tests in 50.576s; OK (skipped=36)
 ```
 
 The image profile still contains Mega Drive, Pong, SNES and NES. The
 structurally verified diagnostic image was produced at
 `out/native-integration-dev/development/linux.img` with SHA-256
-`ce1a97c1229541a341d365c401946b3dd66fb086b020bb29748dfef77e25120e`.
+`e5b809b87e39651c366ee778bb3a2716b83d984ab5bfb08d2159f003c17b40e0`.
 The development receipt is
 `out/native-integration-dev/development/development.json` with SHA-256
-`27323b14ae2a6fc7bb3804dffb8efa2bf8b3d2e4d528a7ba3ced944e2d43a93c`.
-The receipt records FogCast `c761cff0d9e7878d90eb3dee24ba96010acb46de`,
-libmister-runtime `2629c6e1a896663b3e06688462624c3fac67ba67`,
+`ffa50bb1c6018145057e44f64839d5ac820db74b2fc83b58afd61d6fd372aa1d`.
+The receipt records FogCast `2089b9ebb241026280a1baf6476035ea575665a4`,
+libmister-runtime `f700e342023e21f5917857326a0c533d621905b8`,
 mister-packages `4e36ca9e4832588d6b8f1f9fae6cc68eafba8aec`, selected
 `misteross` `92f96a43e611aab4336a054e53134af36bd43ad1` and Quartus 17.0.2.
 The native dependency rebuild completed Mega Drive, Pong, SNES and NES; the
@@ -70,10 +74,13 @@ is `a0bd6e007ee9bc4a91f126bae1931889c87f290ac46cc7e09ed696a53b399ca0`.
 
 ## Exact-kit acceptance
 
-The designated FogCast host and target-agent path loaded each exact `.fcore`
-archive. For each lane, compact diagnostic media, 16 KiB padded media and a
-compact reload all passed `check_capture.py`; the expected package identity
-and build identity were returned by `core-load` and `core-media`.
+The retained exact-kit evidence below was produced by the designated FogCast
+host and target-agent path before the dependency commits were published. It
+loaded each exact `.fcore` archive; for each lane, compact diagnostic media,
+16 KiB padded media and a compact reload all passed `check_capture.py`, and the
+expected package/build identities were returned by `core-load` and
+`core-media`. This is historical exact-artifact hardware evidence, not a new
+hardware acceptance claim for the refreshed FogCast/runtime pair.
 
 | Lane | Capture PNG SHA-256 | Result |
 | --- | --- | --- |
