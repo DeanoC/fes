@@ -70,7 +70,47 @@ esac
 exit 0
 """
     _write_executable(fake_bin / "git", git_body)
-    for command in ("cmake", "ninja", "make", "autoconf"):
+    _write_executable(
+        fake_bin / "cmake",
+        """#!/bin/sh
+set -eu
+original_args="$*"
+build_dir=
+gpu_router=OFF
+hip_architectures=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -B) build_dir="$2"; shift 2; continue ;;
+        -DGPU_ROUTER=*) gpu_router="${1#-DGPU_ROUTER=}" ;;
+        -DCMAKE_HIP_ARCHITECTURES=*) hip_architectures="${1#-DCMAKE_HIP_ARCHITECTURES=}" ;;
+    esac
+    shift
+done
+if [ -n "${FAKE_CMAKE_LOG:-}" ]; then
+    printf '%s\\n' "$original_args" >> "$FAKE_CMAKE_LOG"
+fi
+gpu_router="${FAKE_CMAKE_GPU_ROUTER:-$gpu_router}"
+hip_architectures="${FAKE_CMAKE_HIP_ARCHITECTURES:-$hip_architectures}"
+if [ -n "$build_dir" ]; then
+    mkdir -p "$build_dir"
+    printf 'GPU_ROUTER:STRING=%s\\n' "$gpu_router" > "$build_dir/CMakeCache.txt"
+    if [ "$gpu_router" = HIP ]; then
+        printf 'CMAKE_HIP_ARCHITECTURES:UNINITIALIZED=%s\\n' "$hip_architectures" >> "$build_dir/CMakeCache.txt"
+        if [ "${FAKE_CMAKE_BAD_BACKEND:-0}" = 1 ]; then
+            printf 'DEFINES = -DCPU_REFERENCE_BACKEND=1\\n' > "$build_dir/build.ninja"
+        else
+            printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__HIP_PLATFORM_AMD__=1\\n' > "$build_dir/build.ninja"
+        fi
+    elif [ "$gpu_router" = CUDA ]; then
+        printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__CUDACC__=1\\n' > "$build_dir/build.ninja"
+    else
+        printf 'DEFINES = -DCPU_REFERENCE_BACKEND=1\\n' > "$build_dir/build.ninja"
+    fi
+fi
+exit 0
+""",
+    )
+    for command in ("ninja", "make", "autoconf"):
         _write_executable(fake_bin / command, "#!/bin/sh\nexit 0\n")
 
     toolchain = root / "build" / "toolchain"
@@ -310,6 +350,78 @@ class BootstrapInterfaceTests(unittest.TestCase):
             self.assertEqual(
                 config.read_text(),
                 "gpu-router=HIP; hip-architectures=gfx1100;gfx1201\n",
+            )
+
+    def test_nextpnr_configuration_attestation_rejects_mismatched_cmake_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin, _ = _prepare_isolated_bootstrap(root)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
+                    "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+                    "FAKE_CMAKE_GPU_ROUTER": "CUDA",
+                }
+            )
+            result = subprocess.run(
+                [str(root / "scripts" / "bootstrap.sh")],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                env={"PATH": f"{fake_bin}:{environment['PATH']}", **{
+                    key: value for key, value in environment.items()
+                    if key != "PATH"
+                }},
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CMake configuration or compiled backend", result.stderr)
+
+    def test_nextpnr_configuration_attestation_rejects_mismatched_compiled_backend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin, _ = _prepare_isolated_bootstrap(root)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
+                    "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+                    "FAKE_CMAKE_BAD_BACKEND": "1",
+                }
+            )
+            result = subprocess.run(
+                [str(root / "scripts" / "bootstrap.sh")],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                env={"PATH": f"{fake_bin}:{environment['PATH']}", **{
+                    key: value for key, value in environment.items()
+                    if key != "PATH"
+                }},
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CMake configuration or compiled backend", result.stderr)
+
+    def test_nextpnr_off_configuration_is_explicit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_bin, _ = _prepare_isolated_bootstrap(root)
+            cmake_log = root / "cmake.log"
+            environment = os.environ.copy()
+            environment["FAKE_CMAKE_LOG"] = str(cmake_log)
+            result = subprocess.run(
+                [str(root / "scripts" / "bootstrap.sh")],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                env={"PATH": f"{fake_bin}:{environment['PATH']}", **{
+                    key: value for key, value in environment.items()
+                    if key != "PATH"
+                }},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(
+                any("-DGPU_ROUTER=OFF" in line for line in cmake_log.read_text().splitlines())
             )
 
     def test_environment_prepends_repository_local_install_bin(self):

@@ -342,6 +342,55 @@ tool_configuration() {
     esac
 }
 
+cmake_cache_value() {
+    local build_dir="$1"
+    local key="$2"
+    local cache="$build_dir/CMakeCache.txt"
+    [[ -f "$cache" ]] || return 1
+    sed -n -E "s/^${key}:[^=]*=(.*)$/\1/p" "$cache" | head -n 1
+}
+
+actual_tool_configuration() {
+    case "$1" in
+        nextpnr)
+            local build_dir="$BUILD_ROOT/nextpnr"
+            local build_ninja="$build_dir/build.ninja"
+            local router
+            router="$(cmake_cache_value "$build_dir" GPU_ROUTER)" || return 1
+            [[ -f "$build_ninja" ]] || return 1
+            case "$router" in
+                HIP)
+                    local architectures
+                    architectures="$(cmake_cache_value "$build_dir" CMAKE_HIP_ARCHITECTURES)" || return 1
+                    [[ -n "$architectures" ]] || return 1
+                    grep -Fq 'NPNR_GPU_ROUTER_DEVICE=1' "$build_ninja" || return 1
+                    grep -Fq '__HIP_PLATFORM_AMD__=1' "$build_ninja" || return 1
+                    printf 'gpu-router=%s; hip-architectures=%s\n' "$router" "$architectures"
+                    ;;
+                CUDA)
+                    grep -Fq 'NPNR_GPU_ROUTER_DEVICE=1' "$build_ninja" || return 1
+                    printf 'gpu-router=%s; hip-architectures=unused\n' "$router"
+                    ;;
+                OFF)
+                    if grep -Eq 'NPNR_GPU_ROUTER_DEVICE=1|__HIP_PLATFORM_AMD__=1|__CUDACC__' "$build_ninja"; then
+                        return 1
+                    fi
+                    printf 'gpu-router=%s; hip-architectures=unused\n' "$router"
+                    ;;
+                *) return 1 ;;
+            esac
+            ;;
+        *) die "unknown tool for configuration attestation: $1" ;;
+    esac
+}
+
+configuration_matches_expected() {
+    local tool="$1"
+    local actual
+    actual="$(actual_tool_configuration "$tool")" || return 1
+    [[ "$actual" == "$(tool_configuration "$tool")" ]]
+}
+
 binary_digest() {
     local tool="$1"
     local binary
@@ -370,7 +419,7 @@ record_identity() {
     printf '%s\n' "$output" >"$(identity_file "$tool")"
     binary_digest "$tool" >"$(digest_file "$tool")"
     if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
-        tool_configuration "$tool" >"$config_path"
+        actual_tool_configuration "$tool" >"$config_path"
     fi
 }
 
@@ -391,7 +440,8 @@ artifact_verified() {
     [[ "$expected" == "$actual" ]] || return 1
     if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
         [[ -f "$config_path" ]] || return 1
-        [[ "$(tr -d '\r' <"$config_path")" == "$(tool_configuration "$tool")" ]] || return 1
+        configuration_matches_expected "$tool" || return 1
+        [[ "$(tr -d '\r' <"$config_path")" == "$(actual_tool_configuration "$tool")" ]] || return 1
     fi
 }
 
@@ -425,7 +475,7 @@ build_nextpnr() {
     local build_dir="$BUILD_ROOT/nextpnr"
     local -a gpu_options=()
     case "$GPU_ROUTER" in
-        OFF|'') ;;
+        OFF|'') gpu_options+=("-DGPU_ROUTER=OFF") ;;
         HIP)
             gpu_options+=("-DGPU_ROUTER=HIP" "-DCMAKE_HIP_ARCHITECTURES=$HIP_ARCHITECTURES")
             ;;
@@ -440,6 +490,8 @@ build_nextpnr() {
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT" \
         -DARCH=mistral -DMISTRAL_ROOT="$SRC_ROOT/mistral" -DBUILD_PYTHON=OFF \
         -DBUILD_GUI=OFF -DBUILD_TESTS=OFF -DUSE_IPO=OFF "${gpu_options[@]}"
+    configuration_matches_expected nextpnr ||
+        die "nextpnr CMake configuration or compiled backend does not match the requested toolchain lane"
     run_logged nextpnr ninja -C "$build_dir" nextpnr-mistral -j"$JOBS"
     run_logged nextpnr ninja -C "$build_dir" install
 }
