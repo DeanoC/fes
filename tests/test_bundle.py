@@ -365,19 +365,64 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                 self.assertNotIn('MAKEFLAGS', env)
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
 
+    def test_package_build_environment_strips_shared_lane_overrides(self):
+        module = self.module()
+        caller = {
+            'PATH': '/bin',
+            'HOME': '/home/operator',
+            'KEEP': '1',
+            'LD_LIBRARY_PATH': '/opt/rocm/lib',
+            'PKG_CONFIG_PATH': '/opt/rocm/lib/pkgconfig',
+            'PYTHON': 'python3',
+            'CC': 'clang',
+            'CXX': 'clang++',
+            'CPPFLAGS': '-I/opt',
+            'CFLAGS': '-O0',
+            'CXXFLAGS': '-O0',
+            'LDFLAGS': '-L/opt',
+            'MAKEFLAGS': 's',
+            'MFLAGS': '-j2',
+            'FES_TOOLCHAIN_GPU_ROUTER': 'OFF',
+        }
+        sentinel = os.environ.get('LD_LIBRARY_PATH')
+        mapped = module.package_build_environment(caller)
+        self.assertEqual(mapped['PATH'], '/bin')
+        self.assertEqual(mapped['HOME'], '/home/operator')
+        self.assertEqual(mapped['KEEP'], '1')
+        self.assertEqual(mapped['FES_TOOLCHAIN_GPU_ROUTER'], 'OFF')
+        self.assertEqual(mapped['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+        for name in ('LD_LIBRARY_PATH', 'PKG_CONFIG_PATH', 'PYTHON', 'CC', 'CXX',
+                     'CPPFLAGS', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'MAKEFLAGS', 'MFLAGS'):
+            self.assertNotIn(name, mapped)
+        self.assertEqual(caller['LD_LIBRARY_PATH'], '/opt/rocm/lib')
+        self.assertEqual(caller['MAKEFLAGS'], 's')
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+        self.assertEqual(os.environ.get('LD_LIBRARY_PATH'), sentinel)
+        with patch.dict('os.environ', {'LD_LIBRARY_PATH': '/opt/rocm/lib', 'CC': 'gcc'}, clear=False):
+            from_environ = module.package_build_environment()
+            self.assertNotIn('LD_LIBRARY_PATH', from_environ)
+            self.assertNotIn('CC', from_environ)
+            self.assertEqual(from_environ['FES_TOOLCHAIN_CACHE_ROOT'],
+                             str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertEqual(os.environ.get('LD_LIBRARY_PATH'), '/opt/rocm/lib')
+            self.assertEqual(os.environ.get('CC'), 'gcc')
+
     def test_build_fes_pong_opts_into_shared_toolchain_cache_without_mutating_environ(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             completed = subprocess.CompletedProcess(['python'], 0)
             sentinel = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT')
-            caller = {'KEEP': '1'}
+            caller = {'KEEP': '1', 'LD_LIBRARY_PATH': '/opt/rocm/lib', 'MAKEFLAGS': 's'}
             with patch.object(module.subprocess, 'run', return_value=completed) as run:
                 module._build_fes_pong(source, env=caller)
             env = run.call_args.kwargs['env']
             self.assertEqual(env['KEEP'], '1')
             self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('LD_LIBRARY_PATH', env)
+            self.assertNotIn('MAKEFLAGS', env)
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+            self.assertEqual(caller['LD_LIBRARY_PATH'], '/opt/rocm/lib')
             self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
             with patch.object(module.subprocess, 'run', return_value=completed) as run:
                 module._build_fes_pong(source)

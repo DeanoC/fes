@@ -17,10 +17,23 @@ MISTEROSS_REPOSITORY = "https://github.com/DeanoC/misteross.git"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 TOOLCHAIN_CACHE_ROOT = Path(__file__).resolve().parents[1] / "out/cache/misteross-toolchains"
+_SHARED_PRODUCER_OVERRIDE_NAMES = frozenset({
+    "CC", "CXX", "CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS",
+    "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "PYTHON", "PYTHON_CONFIG",
+    "MAKEFLAGS", "MFLAGS", "NINJAFLAGS", "NINJA_STATUS",
+    "LD_PRELOAD", "SOURCE_DATE_EPOCH",
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_SSH_COMMAND",
+    "TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD",
+    "ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH",
+})
+_SHARED_PRODUCER_OVERRIDE_PREFIXES = ("GIT_CONFIG_", "CCACHE_", "DISTCC_", "CMAKE_")
 
 
 def package_build_environment(env=None):
     mapped = os.environ.copy() if env is None else dict(env)
+    for name in tuple(mapped):
+        if name in _SHARED_PRODUCER_OVERRIDE_NAMES or name.startswith(_SHARED_PRODUCER_OVERRIDE_PREFIXES):
+            del mapped[name]
     mapped["FES_TOOLCHAIN_CACHE_ROOT"] = str(TOOLCHAIN_CACHE_ROOT)
     return mapped
 

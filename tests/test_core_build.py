@@ -70,6 +70,15 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_PONG_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
+    def test_generic_build_environment_keeps_local_compiler_overrides(self):
+        with patch.dict('os.environ', {'LD_LIBRARY_PATH': '/opt/rocm/lib', 'CC': 'clang',
+                                       'PYTHON': 'python3'}):
+            env = build_environment()
+        self.assertEqual(env['LD_LIBRARY_PATH'], '/opt/rocm/lib')
+        self.assertEqual(env['CC'], 'clang')
+        self.assertEqual(env['PYTHON'], 'python3')
+        self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
+
     def test_parent_package_resolution_forwards_scrubbed_environment(self):
         captured = {}
 
