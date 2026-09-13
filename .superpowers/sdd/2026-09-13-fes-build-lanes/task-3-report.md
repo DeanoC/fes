@@ -174,8 +174,8 @@ The full Python suite passed:
 
 ```text
 python3 -m unittest discover -s tests
-Ran 271 tests in 49.510s
-OK (skipped=36)
+Ran 271 tests in 3.832s
+OK (skipped=39)
 ```
 
 The syntax and whitespace checks passed:
@@ -198,6 +198,104 @@ git diff --check
 All exited successfully. No Quartus, synthesis, full image assembly or
 hardware programming was run; these results are host/fixture/build-graph
 evidence only.
+
+## Review-fix pass
+
+The review-fix pass covered the Critical finding and Minors 1, 2 and 4.
+
+- `native-post-build.sh` now removes `S40mister-main` and
+  `usr/sbin/mister-disable-menu-blanking` before both the package-only and
+  historical format-1 native paths continue.
+- `verify-target-image.sh` applies the native init/launcher contract in both
+  native modes: it rejects Main/menu artifacts, requires executable
+  `fogcast-kit` and `S60fogcast-kit`, compares the launcher bytes, runs
+  `validate-native-init-services`, and rejects legacy Main/MGL/FIFO wiring.
+  Package-only verification then performs its closed package, idle-RBF,
+  selection, RBF-count and build-input artifact checks. A fifth legacy
+  selection argument is rejected with usage status 2 in package-only mode.
+- `target-image-rootfs_test.sh` and `target-image_test.sh` add package-only
+  post-build and verifier fixtures. The package verifier fixture uses the
+  distinct `fes-pong.package-input-selection.toml` source name because the
+  existing extra-core fixture can create a sealed
+  `fes-pong.package-selection.toml` in the same test fixture.
+- Every new package-only fixture helper call explicitly clears inherited
+  format-1 variables, including `NATIVE_RUNTIME_SYSTEMS`, the Mega Drive
+  source/bundle variables, and the Pong/SNES/NES bundles. This keeps the
+  package-only rejection semantics under test; it does not weaken the
+  production guard.
+- `native_dev.py` passes an explicit `NATIVE_RUNTIME_MODE` to the native
+  container and direct verifier subprocesses. The native-source-dev example
+  now uses `make build` as required by the current development interface.
+
+The permission diagnostic from the failing full Make run was:
+
+```text
+uid=1000(deano) gid=1000(deano) groups=1000(deano),65534(nogroup)
+drwx------ 8 deano deano 520 Sep 14 00:42 /tmp/fogcast-target-image-image.ty5tSf
+dr-xr-xr-x 2 deano deano  80 Sep 14 00:42 /tmp/fogcast-target-image-image.ty5tSf/fes-pong-package
+```
+
+The fixture parent was mode `0700`; the package source parent was mode
+`0555`. The existing `fes-pong.package-selection.toml` was mode `0444` before
+the new package fixture setup. `native-extra-cores_test.sh` had invoked
+`target-image_test.sh` with `TARGET_IMAGE_EXTRA_CORE_CACHE` and its
+`copy-records` setup, which wrote that sealed filename into the fresh fixture.
+The package-only regression fixture therefore uses a different input filename;
+no verifier permission check was weakened.
+
+The TDD red cycle included the new native-dev environment-identity test, the
+package-only post-build fixture, the package-only verifier fixture, and the
+fifth-argument rejection fixture before their corresponding fixes. The
+post-fix full Make run also exercised the nested extra-core invocations and
+passed.
+
+Final review-fix verification:
+
+```text
+python3 -m unittest discover -s tests
+Ran 271 tests in 3.832s
+OK (skipped=39)
+
+python3 -m unittest discover -s tests -p 'test_native_dev.py' -v
+Ran 10 tests ... OK
+
+sh image/scripts/tests/native-package-only_test.sh
+exit 0
+
+FOGCAST_DIR="$PWD/sources/FogCast" NATIVE_RUNTIME_MODE=format1 \
+  sh image/scripts/tests/target-image-rootfs_test.sh
+exit 0
+
+FOGCAST_DIR="$PWD/sources/FogCast" NATIVE_RUNTIME_MODE=format1 \
+  sh image/scripts/tests/target-image_test.sh
+exit 0
+
+FOGCAST_DIR="$PWD/sources/FogCast" make -C image test
+exit 0
+
+FOGCAST_DIR="$PWD/sources/FogCast" make -s -C image -n \
+  NATIVE_RUNTIME_MODE=package-only \
+  target-image-native-fetch target-image-native-verify
+exit 0; emitted package-only fetch/build/verify commands only
+
+make check
+exit 0; consistency: 14 generated consumers, 11 fixture copies and 4 copied source pins match
+
+python3 -m py_compile scripts/build.py scripts/native_dev.py scripts/environment.py
+sh -n [the 10 changed/relevant shell scripts and fixtures]
+git diff --check
+all exit 0
+```
+
+Minor 3 is carried: the direct `image/Makefile` default remains
+`NATIVE_RUNTIME_MODE ?= package-only`, so an ambient Make environment can
+override it. Parent dispatch scrubs `NATIVE_RUNTIME_*` and passes the selected
+mode explicitly, and both package-only and format-1 dry-run graphs were
+verified. Minor 5 is also carried: unit-level dispatch coverage and the
+Makefile dry-run cover the boundary, but no additional main-level mocked
+dispatch test was added.
+
+Functional review-fix commit: `ba9fc8e3532888438753f4afc6cebeda317d22b4`.
 
 ## Remaining concerns and limits
 
