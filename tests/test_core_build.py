@@ -70,6 +70,40 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_PONG_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
+    def test_parent_package_resolution_forwards_scrubbed_environment(self):
+        captured = {}
+
+        def fake_resolve(source, packages_revision, selection_path, force=False, env=None):
+            captured['source'] = source
+            captured['packages'] = packages_revision
+            captured['selection'] = selection_path
+            captured['force'] = force
+            captured['env'] = env
+            return {'directory': Path('/pkg')}
+
+        with patch.dict('os.environ', {'MAKEFLAGS': 's', 'MFLAGS': '-j2',
+                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
+            env = build_environment()
+            env['KEEP'] = '1'
+            with patch.object(build, 'source_checkout', return_value=Path('/work/misteross')) as checkout, \
+                 patch.object(build.core_bundle, 'resolve_core_package', side_effect=fake_resolve):
+                result = build.resolve_selected_package(
+                    {'misteross': 'a' * 40, 'mister-packages': 'b' * 40},
+                    Path('/out/fes-pong.package-selection.toml'), env)
+        checkout.assert_called_once_with('misteross', 'a' * 40)
+        self.assertEqual(captured['source'], Path('/work/misteross'))
+        self.assertEqual(captured['packages'], 'b' * 40)
+        self.assertEqual(captured['selection'], Path('/out/fes-pong.package-selection.toml'))
+        self.assertFalse(captured['force'])
+        self.assertIs(captured['env'], env)
+        self.assertNotIn('MAKEFLAGS', captured['env'])
+        self.assertNotIn('MFLAGS', captured['env'])
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', captured['env'])
+        self.assertEqual(captured['env']['KEEP'], '1')
+        self.assertEqual(result['directory'], Path('/pkg'))
+        self.assertNotIn('MAKEFLAGS', env)
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+
     def test_package_arguments_and_image_fingerprint_bind_exact_selection_bytes(self):
         package = {
             'directory': Path('/packages/identity'),

@@ -87,7 +87,9 @@ revision. Distinct validated artifacts fail closed; recover by running
 `chmod -R u+rwX -- out/cache/fpga-bundles/<system>` then
 `rm -rf -- out/cache/fpga-bundles/<system>` and retrying. The FES Pong package
 producer uses the workspace-local compiler cache `out/cache/misteross-toolchains`;
-format-1 Mega Drive, SNES and NES bundles do not. `make rebuild` bypasses that
+format-1 Mega Drive, SNES and NES bundles do not. Recover that compiler cache
+with `chmod -R u+rwX -- out/cache/misteross-toolchains` then
+`rm -rf -- out/cache/misteross-toolchains`. `make rebuild` bypasses that
 cache and rebuilds. Downloads are checked
 against component locks; image compilation runs twice in independent build
 roots with networking disabled. Allow several GB for tools and outputs.

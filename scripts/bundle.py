@@ -149,9 +149,12 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
-        raise ValueError(f"cannot derive authenticated FES Pong build inputs in {source}; "
-                         f"inspect the producer error and, if tools are missing, run "
-                         f"make -C {source} toolchain then doctor-strict") from error
+        raise ValueError(
+            f"cannot derive authenticated FES Pong build inputs in {source}; "
+            f"inspect the producer error and, if the shared toolchain slot is missing, run "
+            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} toolchain then "
+            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} doctor-strict"
+        ) from error
     canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"),
                            sort_keys=True).encode("utf-8") + b"\n"
     if record != canonical:

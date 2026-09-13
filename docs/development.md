@@ -147,8 +147,17 @@ producer into the disposable shared compiler cache at
 format-1 Mega Drive, SNES and NES bundle lanes keep the local toolchain
 environment; misteross rejects shared mode for those legacy OSS, simulation
 and programming paths. That cache is workspace-local ignored state, not
-provenance. Remove `out/cache/misteross-toolchains` to drop retained compiler
-installs. The shared-cache implementation and real OFF/HIP evidence live in
+provenance. Published slots seal `install/` and `evidence/` as 0555
+directories with 0444 files and also keep writable `src/` and `build/`
+trees, so a plain recursive removal cannot delete them. Restore owner write
+and search permission, then remove that exact tree:
+
+```sh
+chmod -R u+rwX -- out/cache/misteross-toolchains
+rm -rf -- out/cache/misteross-toolchains
+```
+
+Then retry. The shared-cache implementation and real OFF/HIP evidence live in
 misteross PR #60; this parent slice does not claim a fresh cold build or
 hardware validation.
 

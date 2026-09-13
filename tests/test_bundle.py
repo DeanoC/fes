@@ -298,6 +298,72 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
         self.assertIn('d7b0a66345b1b2a6a9d4e0577afd1708a055eb17', staged)
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
+        docs = (root / 'docs/core-packages.md').read_text()
+        self.assertIn('FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+        self.assertIn('make -C "out/work/misteross-$revision" toolchain', docs)
+        self.assertIn('make -C "out/work/misteross-$revision" doctor-strict', docs)
+
+    def test_canonical_package_record_forwards_package_environment(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            payload = b'{"canonical":true}\n'
+            caller = {'KEEP': '1', 'PATH': '/bin'}
+            sentinel = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT')
+            with patch.object(module, 'authenticate_misteross_origin'), \
+                 patch.object(module.subprocess, 'check_output', return_value=payload) as check:
+                module.canonical_package_record(source, env=caller)
+            env = check.call_args.kwargs['env']
+            self.assertEqual(env['KEEP'], '1')
+            self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('MAKEFLAGS', env)
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+            self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
+
+    def test_package_resolution_forwards_env_to_record_and_build_subprocesses(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            store = source / 'build/packages'
+            identity = 'a' * 64
+            record = b'{"canonical":true}\n'
+            inspected = {
+                'package_id': identity,
+                'manifest': {'core': {'id': 'fes.pong'},
+                             'payload': {'sha256': hashlib.sha256(b'payload').hexdigest()},
+                             'build': {'revision': 'c' * 40}},
+                'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
+            }
+            received = []
+            caller = {'KEEP': '1', 'PATH': '/bin'}
+
+            def fake_check_output(args, **kwargs):
+                received.append(kwargs.get('env'))
+                return record
+
+            def fake_run(args, **kwargs):
+                received.append(kwargs.get('env'))
+                store.mkdir(parents=True)
+                (store / f'{identity}.build-inputs.json').write_bytes(record)
+                (store / f'{identity}.build-inputs.json').chmod(0o444)
+                (store / identity).mkdir()
+                (store / identity / 'manifest.toml').write_bytes(b'manifest')
+                (store / identity / 'core.rbf').write_bytes(b'payload')
+                return subprocess.CompletedProcess(args, 0)
+
+            with patch.object(module, 'authenticate_misteross_origin'), \
+                 patch.object(module.subprocess, 'check_output', side_effect=fake_check_output), \
+                 patch.object(module.subprocess, 'run', side_effect=fake_run), \
+                 patch.object(module, '_inspect_package_candidate', return_value=inspected):
+                module.resolve_core_package(
+                    source, 'd' * 40, source / 'selection.toml', env=caller)
+            self.assertEqual(len(received), 2)
+            for env in received:
+                self.assertEqual(env['KEEP'], '1')
+                self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+                self.assertNotIn('MAKEFLAGS', env)
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
 
     def test_build_fes_pong_opts_into_shared_toolchain_cache_without_mutating_environ(self):
         module = self.module()
