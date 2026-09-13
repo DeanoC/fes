@@ -59,7 +59,8 @@ class CoreBuildTest(unittest.TestCase):
                                       'NES_RBF_BUNDLE': '/also-wrong',
                                       'NATIVE_RUNTIME_SYSTEMS': 'pong',
                                       'FES_PONG_PACKAGE_DIR': '/untrusted-package',
-                                      'FES_PONG_PACKAGE_SELECTION': '/untrusted-selection'}):
+                                      'FES_PONG_PACKAGE_SELECTION': '/untrusted-selection',
+                                      'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
             env = build_environment()
         self.assertFalse('PONG_RBF_BUNDLE' in env)
         self.assertFalse('SNES_RBF_BUNDLE' in env)
@@ -67,6 +68,50 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('NATIVE_RUNTIME_SYSTEMS' in env)
         self.assertFalse('FES_PONG_PACKAGE_DIR' in env)
         self.assertFalse('FES_PONG_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
+
+    def test_generic_build_environment_keeps_local_compiler_overrides(self):
+        with patch.dict('os.environ', {'LD_LIBRARY_PATH': '/opt/rocm/lib', 'CC': 'clang',
+                                       'PYTHON': 'python3'}):
+            env = build_environment()
+        self.assertEqual(env['LD_LIBRARY_PATH'], '/opt/rocm/lib')
+        self.assertEqual(env['CC'], 'clang')
+        self.assertEqual(env['PYTHON'], 'python3')
+        self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
+
+    def test_parent_package_resolution_forwards_scrubbed_environment(self):
+        captured = {}
+
+        def fake_resolve(source, packages_revision, selection_path, force=False, env=None):
+            captured['source'] = source
+            captured['packages'] = packages_revision
+            captured['selection'] = selection_path
+            captured['force'] = force
+            captured['env'] = env
+            return {'directory': Path('/pkg')}
+
+        with patch.dict('os.environ', {'MAKEFLAGS': 's', 'MFLAGS': '-j2',
+                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
+            env = build_environment()
+            env['KEEP'] = '1'
+            with patch.object(build, 'source_checkout', return_value=Path('/work/misteross')) as checkout, \
+                 patch.object(build.core_bundle, 'resolve_core_package', side_effect=fake_resolve):
+                result = build.resolve_selected_package(
+                    {'misteross': 'a' * 40, 'mister-packages': 'b' * 40},
+                    Path('/out/fes-pong.package-selection.toml'), env)
+        checkout.assert_called_once_with('misteross', 'a' * 40)
+        self.assertEqual(captured['source'], Path('/work/misteross'))
+        self.assertEqual(captured['packages'], 'b' * 40)
+        self.assertEqual(captured['selection'], Path('/out/fes-pong.package-selection.toml'))
+        self.assertFalse(captured['force'])
+        self.assertIs(captured['env'], env)
+        self.assertNotIn('MAKEFLAGS', captured['env'])
+        self.assertNotIn('MFLAGS', captured['env'])
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', captured['env'])
+        self.assertEqual(captured['env']['KEEP'], '1')
+        self.assertEqual(result['directory'], Path('/pkg'))
+        self.assertNotIn('MAKEFLAGS', env)
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
 
     def test_package_arguments_and_image_fingerprint_bind_exact_selection_bytes(self):
         package = {
@@ -221,6 +266,35 @@ class CoreBuildTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'non-symlink'):
                 build.publish_package_outputs(package, selection, output)
             self.assertEqual(marker.read_bytes(), b'unchanged')
+
+    def test_generic_fpga_bundle_subprocess_does_not_opt_into_shared_toolchain_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            produced = source / 'build/bundles/megadrive/identity'
+            captured = []
+
+            def fake_run(args, **kwargs):
+                captured.append(kwargs.get('env'))
+                produced.mkdir(parents=True, exist_ok=True)
+                (produced / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+                (produced / 'megadrive-rbf.toml').write_bytes(b'manifest')
+
+            with patch.dict('os.environ', {'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}), \
+                 patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=fake_run):
+                env = build_environment()
+                env['QUARTUS_ROOTDIR'] = '/quartus'
+                build.build_bundle({'misteross': 'b' * 40}, env, system='megadrive')
+            self.assertTrue(captured)
+            for passed in captured:
+                self.assertIsNotNone(passed)
+                self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', passed)
 
     def test_cached_bundle_is_checked_with_selected_source_and_recipe(self):
         with tempfile.TemporaryDirectory() as tmp:

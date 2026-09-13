@@ -20,25 +20,30 @@ reused only when exactly one package has matching build-input bytes and its
 manifest, payload, build identity and provenance all validate. If no match
 exists, the recipe runs once and the result goes through the same checks.
 
-The authenticated Yosys, nextpnr-mistral and Mistral tools must therefore exist
-in the selected staged misteross checkout even when a package is cached. This
-is deliberate: an old record cannot prove which tools are selected now. A new
-checkout can prepare and check them with:
+The parent default path opts the FES Pong producer into the workspace-local
+shared compiler cache at `out/cache/misteross-toolchains`. Shared mode
+verifies the selected misteross checkout and lock pins, then authenticates
+Yosys, nextpnr-mistral and Mistral from the matching published cache slot
+rather than from `build/toolchain` in that checkout. An old package record
+still cannot prove which tools are selected now. A new checkout can prepare
+and check the shared slot with:
 
 ```sh
 make dev
 # If this reports missing authenticated FES Pong build inputs:
 revision=$(git rev-parse :sources/misteross)
-make -C "out/work/misteross-$revision" toolchain
-make -C "out/work/misteross-$revision" doctor-strict
+FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains" \
+  make -C "out/work/misteross-$revision" toolchain
+FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains" \
+  make -C "out/work/misteross-$revision" doctor-strict
 make dev
 ```
 
-`make toolchain` may compile the pinned tools and is intentionally separate
-from ordinary parent tests. `make host` remains independent of package and FPGA
-tool authentication. `make check` validates the shared ABI and programming
-definitions, their three real generated consumers, and all shared fixture
-copies without running synthesis.
+`make toolchain` may compile the pinned tools into that shared slot and is
+intentionally separate from ordinary parent tests. `make host` remains
+independent of package and FPGA tool authentication. `make check` validates
+the shared ABI and programming definitions, their three real generated
+consumers, and all shared fixture copies without running synthesis.
 
 The parent publishes and receipts these external image inputs:
 

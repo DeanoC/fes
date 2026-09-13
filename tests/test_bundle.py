@@ -1,6 +1,8 @@
 import importlib.util
 import hashlib
+import os
 from pathlib import Path
+import subprocess
 import tempfile
 import tomllib
 import unittest
@@ -287,6 +289,179 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                                   side_effect=AssertionError('symlink reached reader')):
                     with self.assertRaisesRegex(ValueError, 'symlink|contained|store'):
                         module.resolve_core_package(source, 'd' * 40, source / 'selection.toml')
+
+    def test_selected_misteross_pin_enables_shared_toolchain_cache(self):
+        root = Path(__file__).resolve().parents[1]
+        staged = subprocess.check_output(
+            ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
+            text=True)
+        self.assertIn('d7b0a66345b1b2a6a9d4e0577afd1708a055eb17', staged)
+        module = self.module()
+        self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
+        docs = (root / 'docs/core-packages.md').read_text()
+        self.assertIn('FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+        self.assertIn('make -C "out/work/misteross-$revision" toolchain', docs)
+        self.assertIn('make -C "out/work/misteross-$revision" doctor-strict', docs)
+
+    def test_canonical_package_record_forwards_package_environment(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            payload = b'{"canonical":true}\n'
+            caller = {'KEEP': '1', 'PATH': '/bin'}
+            sentinel = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT')
+            with patch.object(module, 'authenticate_misteross_origin'), \
+                 patch.object(module.subprocess, 'check_output', return_value=payload) as check:
+                module.canonical_package_record(source, env=caller)
+            env = check.call_args.kwargs['env']
+            self.assertEqual(env['KEEP'], '1')
+            self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('MAKEFLAGS', env)
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+            self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
+
+    def test_package_resolution_forwards_env_to_record_and_build_subprocesses(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            store = source / 'build/packages'
+            identity = 'a' * 64
+            record = b'{"canonical":true}\n'
+            inspected = {
+                'package_id': identity,
+                'manifest': {'core': {'id': 'fes.pong'},
+                             'payload': {'sha256': hashlib.sha256(b'payload').hexdigest()},
+                             'build': {'revision': 'c' * 40}},
+                'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
+            }
+            received = []
+            caller = {'KEEP': '1', 'PATH': '/bin'}
+
+            def fake_check_output(args, **kwargs):
+                received.append(kwargs.get('env'))
+                return record
+
+            def fake_run(args, **kwargs):
+                received.append(kwargs.get('env'))
+                store.mkdir(parents=True)
+                (store / f'{identity}.build-inputs.json').write_bytes(record)
+                (store / f'{identity}.build-inputs.json').chmod(0o444)
+                (store / identity).mkdir()
+                (store / identity / 'manifest.toml').write_bytes(b'manifest')
+                (store / identity / 'core.rbf').write_bytes(b'payload')
+                return subprocess.CompletedProcess(args, 0)
+
+            with patch.object(module, 'authenticate_misteross_origin'), \
+                 patch.object(module.subprocess, 'check_output', side_effect=fake_check_output), \
+                 patch.object(module.subprocess, 'run', side_effect=fake_run), \
+                 patch.object(module, '_inspect_package_candidate', return_value=inspected):
+                module.resolve_core_package(
+                    source, 'd' * 40, source / 'selection.toml', env=caller)
+            self.assertEqual(len(received), 2)
+            for env in received:
+                self.assertEqual(env['KEEP'], '1')
+                self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+                self.assertNotIn('MAKEFLAGS', env)
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+
+    def test_package_build_environment_strips_shared_lane_overrides(self):
+        module = self.module()
+        caller = {
+            'PATH': '/bin',
+            'HOME': '/home/operator',
+            'KEEP': '1',
+            'LD_LIBRARY_PATH': '/opt/rocm/lib',
+            'PKG_CONFIG_PATH': '/opt/rocm/lib/pkgconfig',
+            'PYTHON': 'python3',
+            'CC': 'clang',
+            'CXX': 'clang++',
+            'CPPFLAGS': '-I/opt',
+            'CFLAGS': '-O0',
+            'CXXFLAGS': '-O0',
+            'LDFLAGS': '-L/opt',
+            'MAKEFLAGS': 's',
+            'MFLAGS': '-j2',
+            'FES_TOOLCHAIN_GPU_ROUTER': 'OFF',
+        }
+        sentinel = os.environ.get('LD_LIBRARY_PATH')
+        mapped = module.package_build_environment(caller)
+        self.assertEqual(mapped['PATH'], '/bin')
+        self.assertEqual(mapped['HOME'], '/home/operator')
+        self.assertEqual(mapped['KEEP'], '1')
+        self.assertEqual(mapped['FES_TOOLCHAIN_GPU_ROUTER'], 'OFF')
+        self.assertEqual(mapped['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+        for name in ('LD_LIBRARY_PATH', 'PKG_CONFIG_PATH', 'PYTHON', 'CC', 'CXX',
+                     'CPPFLAGS', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'MAKEFLAGS', 'MFLAGS'):
+            self.assertNotIn(name, mapped)
+        self.assertEqual(caller['LD_LIBRARY_PATH'], '/opt/rocm/lib')
+        self.assertEqual(caller['MAKEFLAGS'], 's')
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+        self.assertEqual(os.environ.get('LD_LIBRARY_PATH'), sentinel)
+        with patch.dict('os.environ', {'LD_LIBRARY_PATH': '/opt/rocm/lib', 'CC': 'gcc'}, clear=False):
+            from_environ = module.package_build_environment()
+            self.assertNotIn('LD_LIBRARY_PATH', from_environ)
+            self.assertNotIn('CC', from_environ)
+            self.assertEqual(from_environ['FES_TOOLCHAIN_CACHE_ROOT'],
+                             str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertEqual(os.environ.get('LD_LIBRARY_PATH'), '/opt/rocm/lib')
+            self.assertEqual(os.environ.get('CC'), 'gcc')
+
+    def test_build_fes_pong_opts_into_shared_toolchain_cache_without_mutating_environ(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            completed = subprocess.CompletedProcess(['python'], 0)
+            sentinel = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT')
+            caller = {'KEEP': '1', 'LD_LIBRARY_PATH': '/opt/rocm/lib', 'MAKEFLAGS': 's'}
+            with patch.object(module.subprocess, 'run', return_value=completed) as run:
+                module._build_fes_pong(source, env=caller)
+            env = run.call_args.kwargs['env']
+            self.assertEqual(env['KEEP'], '1')
+            self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('LD_LIBRARY_PATH', env)
+            self.assertNotIn('MAKEFLAGS', env)
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
+            self.assertEqual(caller['LD_LIBRARY_PATH'], '/opt/rocm/lib')
+            self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
+            with patch.object(module.subprocess, 'run', return_value=completed) as run:
+                module._build_fes_pong(source)
+            self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_CACHE_ROOT'],
+                             str(module.TOOLCHAIN_CACHE_ROOT))
+
+    def test_package_resolution_opts_into_shared_toolchain_cache(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            store = source / 'build/packages'
+            identity = 'a' * 64
+            record = b'{"canonical":true}\n'
+            inspected = {
+                'package_id': identity,
+                'manifest': {'core': {'id': 'fes.pong'},
+                             'payload': {'sha256': hashlib.sha256(b'payload').hexdigest()},
+                             'build': {'revision': 'c' * 40}},
+                'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
+                'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
+            }
+
+            def fake_run(args, **kwargs):
+                env = kwargs.get('env') or {}
+                self.assertEqual(env.get('FES_TOOLCHAIN_CACHE_ROOT'),
+                                 str(module.TOOLCHAIN_CACHE_ROOT))
+                store.mkdir(parents=True)
+                (store / f'{identity}.build-inputs.json').write_bytes(record)
+                (store / f'{identity}.build-inputs.json').chmod(0o444)
+                (store / identity).mkdir()
+                (store / identity / 'manifest.toml').write_bytes(b'manifest')
+                (store / identity / 'core.rbf').write_bytes(b'payload')
+                return subprocess.CompletedProcess(args, 0)
+
+            with patch.object(module, 'canonical_package_record', return_value=record), \
+                 patch.object(module, '_inspect_package_candidate', return_value=inspected), \
+                 patch.object(module.subprocess, 'run', side_effect=fake_run) as run:
+                module.resolve_core_package(source, 'd' * 40, source / 'selection.toml')
+            run.assert_called()
 
     def test_package_resolution_rejects_symlinked_source_checkout(self):
         module = self.module()

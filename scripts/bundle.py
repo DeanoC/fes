@@ -16,6 +16,26 @@ TOOLCHAIN = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
 MISTEROSS_REPOSITORY = "https://github.com/DeanoC/misteross.git"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+TOOLCHAIN_CACHE_ROOT = Path(__file__).resolve().parents[1] / "out/cache/misteross-toolchains"
+_SHARED_PRODUCER_OVERRIDE_NAMES = frozenset({
+    "CC", "CXX", "CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS",
+    "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "PYTHON", "PYTHON_CONFIG",
+    "MAKEFLAGS", "MFLAGS", "NINJAFLAGS", "NINJA_STATUS",
+    "LD_PRELOAD", "SOURCE_DATE_EPOCH",
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_SSH_COMMAND",
+    "TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD",
+    "ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH",
+})
+_SHARED_PRODUCER_OVERRIDE_PREFIXES = ("GIT_CONFIG_", "CCACHE_", "DISTCC_", "CMAKE_")
+
+
+def package_build_environment(env=None):
+    mapped = os.environ.copy() if env is None else dict(env)
+    for name in tuple(mapped):
+        if name in _SHARED_PRODUCER_OVERRIDE_NAMES or name.startswith(_SHARED_PRODUCER_OVERRIDE_PREFIXES):
+            del mapped[name]
+    mapped["FES_TOOLCHAIN_CACHE_ROOT"] = str(TOOLCHAIN_CACHE_ROOT)
+    return mapped
 
 
 def digest(path):
@@ -122,7 +142,7 @@ def authenticate_misteross_origin(source):
         raise ValueError("selected misteross checkout has an ambiguous repository origin")
 
 
-def canonical_package_record(source):
+def canonical_package_record(source, env=None):
     """Derive the producer's canonical pre-synthesis record in isolation."""
     source = Path(source).resolve()
     authenticate_misteross_origin(source)
@@ -137,13 +157,17 @@ identities = {name: tool.identity for name, tool in tools.items()}
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities))
 '''
     try:
-        record = subprocess.check_output([sys.executable, "-c", program], cwd=source)
+        record = subprocess.check_output([sys.executable, "-c", program], cwd=source,
+                                         env=package_build_environment(env))
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
-        raise ValueError(f"cannot derive authenticated FES Pong build inputs in {source}; "
-                         f"inspect the producer error and, if tools are missing, run "
-                         f"make -C {source} toolchain then doctor-strict") from error
+        raise ValueError(
+            f"cannot derive authenticated FES Pong build inputs in {source}; "
+            f"inspect the producer error and, if the shared toolchain slot is missing, run "
+            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} toolchain then "
+            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} doctor-strict"
+        ) from error
     canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"),
                            sort_keys=True).encode("utf-8") + b"\n"
     if record != canonical:
@@ -222,11 +246,11 @@ print(json.dumps({"manifest": manifest, "package_id": package.package_id,
     return inspected
 
 
-def _build_fes_pong(source):
+def _build_fes_pong(source, env=None):
     try:
         subprocess.run([sys.executable, "scripts/build_fes_pong.py", "--root", str(source),
                         "--package-output", str(Path(source) / "build/packages")],
-                       cwd=source, check=True)
+                       cwd=source, check=True, env=package_build_environment(env))
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError("selected FES Pong recipe failed") from error
 
@@ -292,18 +316,19 @@ def _publish_selection(path, data):
         temporary.unlink(missing_ok=True)
 
 
-def resolve_core_package(source, mister_packages_revision, selection_path, force=False):
+def resolve_core_package(source, mister_packages_revision, selection_path, force=False, env=None):
     """Resolve the unique authenticated package result and emit its closed selection."""
     if HEX40.fullmatch(str(mister_packages_revision)) is None:
         raise ValueError("mister-packages revision must be a full lowercase commit")
     source = Path(source).absolute()
     _plain_directory(source, "source checkout")
-    record = canonical_package_record(source)
+    produce = {} if env is None else {"env": env}
+    record = canonical_package_record(source, **produce)
     if force:
-        _build_fes_pong(source)
+        _build_fes_pong(source, **produce)
     candidates = _matching_package_candidates(source, record)
     if not candidates and not force:
-        _build_fes_pong(source)
+        _build_fes_pong(source, **produce)
         candidates = _matching_package_candidates(source, record)
     if not candidates:
         raise ValueError("selected recipe did not produce a matching FES Pong package")

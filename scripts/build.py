@@ -799,6 +799,13 @@ def locked_diagnostics(root, output, action):
             yield lock, diagnostics
 
 
+def resolve_selected_package(revisions, selection_path, env, force=False):
+    recipe_source = source_checkout("misteross", revisions["misteross"])
+    return core_bundle.resolve_core_package(
+        recipe_source, revisions["mister-packages"], selection_path,
+        force=force, env=env)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
@@ -850,10 +857,8 @@ def main():
         package = None
         image_fp, image_info = fp, info
         if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
-            recipe_source = source_checkout("misteross", revisions["misteross"])
-            package = core_bundle.resolve_core_package(
-                recipe_source, revisions["mister-packages"],
-                output / "fes-pong.package-selection.toml")
+            package = resolve_selected_package(
+                revisions, output / "fes-pong.package-selection.toml", env)
             image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
