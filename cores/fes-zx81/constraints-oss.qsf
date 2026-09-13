@@ -1,7 +1,7 @@
 # DE10-Nano 50 MHz reference and ADV7513 RGB888 interface.
 # HDMI I2C uses the same HPS site as FES Pong (X52/Y60). The primitive's BEL
-# attribute fixes the controller site; QSF HPS_LOCATION does not place
-# internal OSS cells.
+# attribute still names the controller site. nextpnr also honors QSF
+# HPS_LOCATION for this I2C cell.
 set_location_assignment PIN_V11 -to FPGA_CLK1_50
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
 

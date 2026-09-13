@@ -145,21 +145,88 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The selected Coleco Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
+The current nextpnr pin `9cbbf7353dd2b818ab73031fcf30d9993578c783` is
+merged PR #68 (`6535e945377283260431cc14d3f9700536588833` onto
+`2d3c216afb7051d2e2070cbf678a50f274b3f786`). It borrows a live design
+clock for read-only asynchronous M10Ks whose write clock is folded,
+fans that clock to both `CLKIN` sinks, routes `ENABLE[0]`, and programs
+`TOP_CE0_SEL` for native 1024x10 cells without `CFG_BYTE_ENABLE`. Pair
+it with Yosys `ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `2d3c216afb7051d2e2070cbf678a50f274b3f786`,
+merged PR #67 (`edabecce3a8759b641351aadbe1526d56c53f05a` onto
+`9c75153384c57d913ec6c8720f941f13ca4ca904`). It packs equal-width
+8192x1, 4096x2 and 2048x5 true-dual-port M10Ks, including scalar
+one-bit data ports and the thirteenth address bit. Mixed-width TDP
+stays at the characterized 10/20-bit modes. Default-router 870 RBF
+bytes match the kit-tested feature tree. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `9c75153384c57d913ec6c8720f941f13ca4ca904`,
+merged PR #66 (`bf37618f5ef232525989c3b967f9ce83673c914f` onto
+`8bd4875400b49c97a668013106b481c3b6d7e17b`). It adds the GPU connection
+router `--router gpu` that the FES ZX81 OSS recipe now uses; the 870 ladder
+uses the default router.
+
+That pin sits on `8bd4875400b49c97a668013106b481c3b6d7e17b`,
+merged PR #65 (`7ec1fa57bdf00dc14a3d4606170727a45b34e070` onto
+`a3e9b19a00c6e49b9dc286610521bea24ffd6f18`). It audits every packed
+M10K clock selector at design scale: live `CLK1`/`CLK2` to `CLKIN.0`/
+`.1`, independent-clock `BOT_*` settings, unique sites, and rejection
+of packed constant clocks. Pair it with Yosys `ec34fcf3`. Mistral stays
+`b28e30a`.
+
+That pin sits on `a3e9b19a00c6e49b9dc286610521bea24ffd6f18`,
+merged PR #64 (`ecdaa4acb75407bf30fc0db4afcffd273443ebb3` onto
+`47c4251acc89eb9bf6742e32204af744a23446e0`). It translates QSF
+`HPS_LOCATION` assignments for `cyclonev_hps_interface_peripheral_i2c`
+into BEL constraints, including
+`HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to
+`cyclonev_hps_interface_peripheral_i2c.52.60.0`. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `47c4251acc89eb9bf6742e32204af744a23446e0`,
+merged PR #63 (`f9be23d3d95ce207a197e28455fd1f66b6df8460` onto
+`914200556be0d83ebc0f74efde400ff00d98cc70`). It makes TDP
+read-during-write contracts explicit: `CFG_RDW_MODE_A`/`CFG_RDW_MODE_B`
+accept `NEW_DATA_NO_NBE_READ` or `DONT_CARE`, `CFG_RDW_MODE_MIXED`
+accepts only `DONT_CARE`, and unsupported modes are rejected. Physical
+settings remain `TRUE_DUAL_PORT` with A/B flow-through. Pair it with
+Yosys `ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `914200556be0d83ebc0f74efde400ff00d98cc70`,
+merged PR #62 (`23421df80037a522b9315729c9328e0e89a935d4` onto
+`5909feb560da457c55374eec226d1040c4dc8dba`). It calculates bounded
+fractional-N PLL profiles from a 50 MHz reference when the reported VCO
+is 400–500 MHz, including generic 27 MHz, 99 MHz, and 27/13.5 MHz dual
+outputs, while retaining the hardware-checked 11.2896, 12.288, 74.25,
+and 12.288/24.576 MHz compatibility words. Pair it with Yosys
+`ec34fcf3`. Mistral stays `b28e30a`.
+
+The current native asynchronous-M10K toolchain uses Yosys pin
+`ec34fcf38986217af9b5558936044b7197d968a7` (merged DeanoC/yosys PR #13,
+feature `540998e36adcb0ddecdbdf39eed6df8e7551732d`) and nextpnr pin
+`5909feb560da457c55374eec226d1040c4dc8dba` (merged DeanoC/nextpnr
+PR #61, feature `5f6ba158c7f45e689b60e5590f5323573cb59f2f`), with
+Mistral unchanged at `b28e30a36b5139aaed5a5d361a30b542e6b7c758`. Yosys
+infers simple-dual flow-through M10Ks at the native 10/20/40-bit
+geometries and true-dual flow-through M10Ks for two-write/two-read
+memories. nextpnr routes the constant-high read enable, accepts
+read-only cells whose write clock folds to a constant, and models
+address-to-data timing for both TDP outputs. The host regressions and
+the ZX81 native netlist use this pair. Exact-artifact kit diagnostics
+on 2026-09-12 loaded native-Yosys `820_m10k_async_enable` (GPI
+`0xD42F00A6`, INIT/write/neighbour) and `770_m10k_async_read` (GPI
+`0xD42B00A6`, INIT/write/neighbour) at `MISTRAL_M10K.26.1.0` with
+routed `ENABLE[0]`. Load JSON timed out; GPI and probe still passed.
+`stop` recovered and left the lease free.
+
+The earlier Yosys pin `da6373c0d7565f36036051efc7895fb0d9ac13c3` is
 merged PR #12 (`11df3d330c0eb4c312bfc7659b05dd4211ffaaa2` onto
 `758968907c116f685f586e0ce8186bae0f8b448c`). It infers a zero-valued
 asynchronous read-output reset on `(* ramstyle = "M10K" *)` SDP onto
 `ACLR1`, with `ACLR0` tied low. Nonzero reset values remain fabric.
-For this Coleco recipe it preserves the registered packed sprite-bank shape;
-pair it with nextpnr `2d3c216a` and Mistral `b28e30a`.
-
-The later Yosys pin `ec34fcf38986217af9b5558936044b7197d968a7` adds native
-Cyclone V M10K flow-through inference (merged PR #13
-`540998e36adcb0ddecdbdf39eed6df8e7551732d`). Its async mapper currently
-reclassifies the registered Coleco sprite `ramstyle=M10K` banks as
-`CFG_ASYNC_READ` with an unused constant `CLK2`; nextpnr correctly rejects
-that contract because the unused clock must have its read enable tied low.
-This is a toolchain-pairing workaround, not a missing BEL or pack feature.
+Pair it with nextpnr `88cda8ae`.
 
 That pin sits on `758968907c116f685f586e0ce8186bae0f8b448c`,
 merged PR #11 (`74d285754bfbe78005cc4a65c7f849d3b8cf403f` onto
@@ -179,16 +246,24 @@ CLK1/CLK2 and merged PR #1 initialized MLAB. The CMake base is
 YosysHQ `13b43f8c85ec430a33ee55d058fb4c32b42b6910`. Pair that I2C baseline
 with nextpnr `88cda8ae`.
 
-The current nextpnr pin `2d3c216afb7051d2e2070cbf678a50f274b3f786` carries
-the `--router gpu` connection router (merged PR #66) and the equal-width
-M10K packing used by the current Coleco fixture (merged PR #67
-`edabecce3a8759b641351aadbe1526d56c53f05a`). Its host backend is available
-without HIP/CUDA; the GPU report also passed Coleco seeds 3, 4 and 5 on the
-RX 7900 XTX and Radeon AI PRO R9700. The Coleco OSS recipe selects
-`--router gpu`, seed 5, and no timing-driven rip-up. These are host-only route
-results until the exact sealed RBF is accepted on the designated kit.
+The current nextpnr pin `517eb7c6b838dee5b0072b1551f9c8e914331102` is
+merged PR #60 (`3d0c25aeb7d41706acb6193d4ce4fe9c3ed25d16` onto
+`0523e0c68e4a6ee8cfc7f324f3ed641f67fe52af`). It materializes an omitted
+async `B1EN` as a constant-high `ENABLE[0]` route and selects the bottom
+core/input clock path for that enable. Pair it with Yosys `da6373c0`.
+Locked Yosys still emits `clocks 1 1`, so OSS sets `CFG_ASYNC_READ` and
+drops `B1EN`/`CLK2` after synthesis.
 
-The previous nextpnr pin `fd862a2c59db7f0406e32831f2e57b3cfe034251` is
+That pin sits on `0523e0c68e4a6ee8cfc7f324f3ed641f67fe52af`,
+merged PR #59 (`2324c164789777bc629664a3bddc96a306d78a48` onto
+`fd862a2c59db7f0406e32831f2e57b3cfe034251`). It matches initialized
+async M10K defaults: omitted `B1EN` is preserved, `ENABLE[0]` is not
+materialized, `BOT_CORECLK_SEL`/`BOT_INCLK_SEL` stay at their async
+defaults, and constant-high `A1BE` omits `BYTEENABLEA` routes. Pair it
+with Yosys `da6373c0`. Locked Yosys still emits `clocks 1 1`, so OSS
+sets `CFG_ASYNC_READ` and drops `B1EN`/`CLK2` after synthesis.
+
+That pin sits on `fd862a2c59db7f0406e32831f2e57b3cfe034251`,
 merged PR #58 (`39e307889ff77bbea6115bba5c36db953e565649` onto
 `74aab451fc767996e1c6195531a86d36c14b82c9`). It maps `CFG_OUT_REG_A`
 and `CFG_OUT_REG_B` onto M10K `A_OUTPUT_SEL`/`B_OUTPUT_SEL`. Pair it
@@ -1484,25 +1559,20 @@ left the lease free. The current nextpnr pin `4d055dae` with Yosys
 `da6373c0` reproduces those same RBF bytes.
 
 `770_m10k_async_read` instantiates one `MISTRAL_M10K` with a combinational
-read port. GPI signature `0xD42B`. Locked Yosys still emits a clocked
-read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
-There is no second PLL. Simulation uses a digital combinational stand-in.
-The 1.5 ns host arc is an estimate. Simulation and OSS are supported;
-Quartus comparison is not implemented. See
+read port. GPI signature `0xD42B`. Native Yosys emits `CFG_ASYNC_READ`
+with a constant-high `B1EN`; nextpnr routes the physical read enable and
+keeps `B1ADDR`/`B1DATA` combinational. Read-only cells may fold their unused
+write clock to a constant. There is no second PLL. Simulation uses a digital
+combinational stand-in. The 1.5 ns host arc is an estimate. Simulation and
+OSS are supported; Quartus comparison is not implemented. See
 `experiments/770_m10k_async_read/expected.md`.
 
-The OSS `770_m10k_async_read` artifact has SHA-256
-`69a1f9bf2ca2b399af12249f36f3e534815249270ffeacd6d3d26a46d643d4b2`
-and size 1,959,851 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
-`CFG_ASYNC_READ=1`, packer `ENABLE[0]` tied high, both `CLKIN.0` and
-`CLKIN.1`, `BOT_CORECLK_SEL=1`, and default-zero `BOT_INCLK_SEL`.
-Reported Fmax is 352.609 MHz against 50 MHz. Utilization is one M10K
-and one HPS GP. Exact-artifact kit diagnostics on 2026-09-11 returned GPI
-signature `0xD42B`, INIT `0xA6` at address 0, a write without a user
-read enable, and an undisturbed neighbour. Load JSON timed out; GPI and
-probe still passed. `stop` completed development reboot recovery and
-left the lease free. The current nextpnr pin `c528c238` with Yosys
-`da6373c0` reproduces those same RBF bytes.
+The current OSS `770_m10k_async_read` artifact has SHA-256
+`f28438b7785f88b71a6f9c4e019d2cee3913ca124b8d1d6d314d8244dfc6de4d`
+and size 1,959,763 bytes. It reports 458.505 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
 
 `780_quartus_sdc` measures PIN_V11 50 MHz → 25 MHz through one
 `altera_pll`, using Quartus SDC/QSF forms. GPI signature `0xD780`.
@@ -1560,6 +1630,137 @@ development reboot recovery and left the lease free. The current
 nextpnr pin `fd862a2c` with Yosys `da6373c0` reproduces those same
 RBF bytes.
 
+`810_m10k_async_defaults` instantiates one `MISTRAL_M10K` with a
+combinational read port packed to the initialized async defaults. GPI
+signature `0xD42E`. Locked Yosys still emits a clocked read enable, so
+OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`. See
+`experiments/810_m10k_async_defaults/expected.md`.
+
+The current OSS `810_m10k_async_defaults` artifact has SHA-256
+`aa8c542e0ae22e60c1c975fe526a13fc0ea638b166107d7945993d227f9b5ef9`
+and size 1,959,790 bytes. It reports 422.476 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
+
+`820_m10k_async_enable` instantiates one `MISTRAL_M10K` with a
+combinational read port and a packer-generated constant-high
+`ENABLE[0]`. GPI signature `0xD42F`. Locked Yosys still emits a clocked
+read enable, so OSS sets `CFG_ASYNC_READ` and drops `B1EN` and `CLK2`.
+See `experiments/820_m10k_async_enable/expected.md`.
+
+The current OSS `820_m10k_async_enable` artifact has SHA-256
+`51716efaf9d0367efbb99ba8fb69bc41e3d31bfe8d807fdbfd562d45fefc3291`
+and size 1,959,856 bytes. It reports 464.037 MHz against the 50 MHz
+constraint and uses one M10K plus one HPS GP. This is host-only evidence
+for the native Yosys/nextpnr pair; no kit result is claimed for this
+artifact.
+
+`830_pll_frac_27` measures PIN_V11 50 MHz → 27 MHz through one
+`altera_pll` with `fractional_vco_multiplier("true")`. GPI signature
+`0xD827`. The rate is a generic calculator profile, not a Quartus
+compatibility word. See `experiments/830_pll_frac_27/expected.md`.
+
+The OSS `830_pll_frac_27` artifact has SHA-256
+`8d6d433e64ab4c77faae85c2ed7c9393564e34057617d30bb435414c198aa7e6`
+and size 1,955,806 bytes. nextpnr packed FPLL (0,14) with N bypass, M=8,
+C6=15 (high 8/low 7, odd-duty), fractional word `0x1999999a`, DSM
+enabled, BWCTRL 7, and auxiliary bandgap powerdown. Reported Fmax is
+219.394 MHz against 50 MHz and 329.164 MHz against 27 MHz. Utilization
+is one PLL, two clock enables, and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 returned GPI signature `0xD827` and count 2212
+on three successive measurements with lock asserted and no sampled lock
+loss. Load JSON timed out; GPI and probe still passed. `stop` completed
+development reboot recovery and left the lease free. The current nextpnr
+pin `91420055` with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
+`840_m10k_rdw` instantiates one `MISTRAL_M10K_TDP` with an explicit
+same-port `NEW_DATA_NO_NBE_READ` contract. GPI signature `0xD840`.
+Locked Yosys omits the RDW parameters, so OSS sets them after synthesis.
+See `experiments/840_m10k_rdw/expected.md`.
+
+The OSS `840_m10k_rdw` artifact has SHA-256
+`1188a95b284a175cc4cdc0ded85ec2404928f93415630e559b8716dda56a00e2`
+and size 1,959,341 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
+`CFG_RDW_MODE_A`/`CFG_RDW_MODE_B=NEW_DATA_NO_NBE_READ`,
+`CFG_RDW_MODE_MIXED=DONT_CARE`, and decompiled `TRUE_DUAL_PORT=1`,
+`A_DATA_FLOW_THRU=1`, `B_DATA_FLOW_THRU=1`. Reported Fmax is 377.643 MHz
+against 50 MHz. Utilization is one M10K and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 returned GPI signature `0xD840`, INIT `0xA6`
+at address 0, same-port NEW_DATA write-through of `0x155` at address 7,
+and an undisturbed neighbour. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the lease
+free. The current nextpnr pin `47c4251a` with Yosys `ec34fcf3` reproduces
+those same RBF bytes.
+
+`850_hps_location` instantiates one `cyclonev_hps_interface_peripheral_i2c`
+without an RTL BEL attribute. QSF `HPS_LOCATION
+HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` must pack
+`cyclonev_hps_interface_peripheral_i2c.52.60.0`. GPI signature `0xD850`.
+See `experiments/850_hps_location/expected.md`.
+
+The OSS `850_hps_location` artifact has SHA-256
+`ec6e0f803c6c122eb69bb36b4be56c910ef7d6fec8f0391f9db8507f808f5890`
+and size 1,952,976 bytes. nextpnr packed
+`cyclonev_hps_interface_peripheral_i2c.52.60.0` from the QSF assignment.
+Reported Fmax is 621.891 MHz against 50 MHz. Utilization is one HPS I2C
+cell and one HPS GP. Exact-artifact kit diagnostics on 2026-09-12
+returned GPI `0xD85000A6` on three successive reads. Load JSON timed
+out; GPI and probe still passed. `stop` completed development reboot
+recovery and left the lease free. The current nextpnr pin `a3e9b19a`
+with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
+`860_m10k_selectors` instantiates two dual-clock `MISTRAL_M10K` cells with
+live `CLK1`/`CLK2` and distinct INIT. GPI signature `0xD860`. See
+`experiments/860_m10k_selectors/expected.md`.
+
+The OSS `860_m10k_selectors` artifact has SHA-256
+`14b04913dc29ac9ce519ad4d349e9c48ac2effd8a997f72fcad3d70b1c290832`
+and size 1,963,043 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` and
+`MISTRAL_M10K.26.2.0` with live `CLKIN.0`/`CLKIN.1`, `ENABLE.0`/`ENABLE.1`,
+`WREN.0`, and independent-clock `BOT_CLK_SEL`/`BOT_1_*` selectors.
+Reported Fmax is 325.627 MHz against 50 MHz. Utilization is two M10Ks
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-12 returned
+GPI `0xD86000A6`, bank-0 INIT, distinct bank-1 INIT, and a bank-0 write
+that left bank 1 undisturbed. Load JSON timed out; GPI and probe still
+passed. `stop` completed development reboot recovery and left the lease
+free. The current nextpnr pin `8bd48754` with Yosys `ec34fcf3` reproduces
+those same RBF bytes.
+
+`870_m10k_narrow` instantiates one 8192-by-1 `MISTRAL_M10K_TDP`. GPI
+signature `0xD870`. See `experiments/870_m10k_narrow/expected.md`.
+
+The OSS `870_m10k_narrow` artifact has SHA-256
+`1c0cffd2b67283a2cab36edf4a343c69b4e6b24b93f0102927e293441bbf5431`
+and size 1,957,568 bytes. nextpnr packed `MISTRAL_M10K.26.1.0` with
+`CFG_ABITS=13`, `CFG_DBITS=1`, `CFG_TDP=1`, scalar `A1DATA`/`A1Q`,
+decompiled `TRUE_DUAL_PORT=1`, `A_DATA_WIDTH=1`, live `CLKIN.0`/`CLKIN.1`,
+and `ENABLE.0`/`ENABLE.1`/`WREN.0`/`WREN.1`. Reported Fmax is 446.628 MHz
+against 50 MHz. Utilization is one M10K and one HPS GP. Exact-artifact kit
+diagnostics on 2026-09-12 wrote 0 at address 0 and 1 at address 7 and
+confirmed the neighbour. Logical INIT order does not match the physical
+8192x1 map. Load JSON timed out; GPI and probe still passed. `stop`
+completed development reboot recovery and left the lease free. The current
+nextpnr pin `2d3c216a` with Yosys `ec34fcf3` reproduces those same RBF
+bytes.
+
+`880_m10k_async_rom` instantiates one 1024-by-10 read-only `MISTRAL_M10K`
+with a folded write clock. GPI signature `0xD880`. See
+`experiments/880_m10k_async_rom/expected.md`.
+
+The OSS `880_m10k_async_rom` artifact has SHA-256
+`eb7ae06559e8d716bd89ba2dd05015720611b834ac91b1b92c38522a1a7b4ab9`
+and size 1,955,929 bytes. nextpnr packed `MISTRAL_M10K.26.79.0` with
+`CFG_ABITS=10`, `CFG_DBITS=10`, `CFG_ASYNC_READ=1`, no `CFG_BYTE_ENABLE`,
+a borrowed live `CLK1`, decompiled `TOP_CE0_SEL=1`, `BOT_CLK_SEL=1`,
+`A_DATA_WIDTH=10`, and routes on `CLKIN.0`/`CLKIN.1`/`ENABLE.0`.
+Reported Fmax is 918.274 MHz against 50 MHz. Utilization is one M10K
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-13 returned
+GPI `0xD88000A6` and INIT words at low, mid, and last addresses. Load
+JSON timed out; GPI and probe still passed. `stop` completed development
+reboot recovery and left the lease free. The current nextpnr pin
+`9cbbf735` with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1586,9 +1787,82 @@ only), and a 50→52 MHz integer PLL on the 520 MHz feedback profile
 (fabric GPI only), and a combinational M10K read port with packer
 `ENABLE[0]` (fabric GPI only), and a 50→25 MHz PLL routed with Quartus
 SDC/QSF forms (fabric GPI only), and a TDP M10K A-port address stall
-(fabric GPI only), and a registered M10K B-port read (fabric GPI only).
-It does not establish native
+(fabric GPI only), and a registered M10K B-port read (fabric GPI only),
+and a combinational M10K read packed to initialized async defaults
+(fabric GPI only), and a combinational M10K read with packer
+constant-high `ENABLE[0]` (fabric GPI only), and a 50→27 MHz
+fractional-N PLL from the bounded calculator (fabric GPI only), and a
+TDP M10K same-port NEW_DATA write-through (fabric GPI only), and an HPS
+I2C cell placed from QSF `HPS_LOCATION` (fabric GPI only), and two
+dual-clock M10Ks with unique sites and packed `ENABLE.1` (fabric GPI
+only), and an 8192x1 true-dual-port M10K (fabric GPI only), and a
+1024x10 read-only async M10K ROM (fabric GPI only). It does
+not establish native
 game acceptance.
+
+## FES ColecoVision first slice
+
+`cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
+uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
+as a system reference, but is a reduced Verilog-first adapter around the
+existing `fes.simple-computer` 1.0 mailbox. The first slice contains a TV80
+Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
+Graphics I and Graphics II video, two active-low controller views and the FES
+fixed-video shell. A raw 1–16 KiB cartridge image is mirrored through the
+16 KiB `0x8000–0xffff` aperture. Audio, BIOS services, expansion hardware, bank
+switching, full VDP modes, cycle-perfect timing and retail-cartridge
+compatibility remain outside this slice.
+
+Graphics II covers normal 8x8/16x16 sprites, magnification, early-clock
+positioning, signed/clipped X coordinates, transparency/priority, four visible
+sprites per line, collision and fifth-sprite status. The VDP uses four coherent
+VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
+pattern walker. Two alternating framebuffer line banks use packed 4-bit M10K
+entries for pixel and visibility metadata; publication is interlocked with the
+registered raster coordinate.
+
+The serial renderer, replicated VRAM, registered request/wait schedule, packed
+line banks, sequential clear and publication interlock are deliberate RTL
+scaling accommodations shared by both compiler lanes. The original procedural
+sprite loop expanded to roughly 42K mapped combinational cells; the registered
+one-column/repeat schedule fits the fixed system-clock budget. The exact
+current recipes use Yosys `da6373c0`, nextpnr-mistral `2d3c216` with
+`--router gpu` and seed 5, and Mistral `b28e30a`. The Quartus wrapper retains
+the literal `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the
+registered semantic schedule rather than that vendor literal. No missing
+nextpnr BEL or pack feature is implied.
+
+The open diagnostics and focused simulations exercise CPU-driven VDP writes,
+controller modes, sprite status and the exact 720p frame in both conditional
+lanes. The build recipes require a clean checkout and seal format-2 packages;
+they never program hardware. Parent selection and exact-kit acceptance are
+recorded in the FES validation documents.
+
+### OSS/Yosys/nextpnr workarounds
+
+These are the portability accommodations to hand to the Yosys/nextpnr/Mistral
+owner. The RTL scheduling choices are shared by both compiler lanes; entries
+marked as path-specific are not requirements of the other lane.
+
+| Boundary | Current accommodation and ownership |
+| --- | --- |
+| Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
+| Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
+| Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
+| VDP multi-read VRAM | A single VRAM with one CPU port and three combinational raster reads fails OSS mapping and leaves Quartus with an oversized direct-memory implementation. Both lanes use four coherent copies, broadcast CPU writes, and pipelined name-to-pattern/color reads; the fourth copy feeds the serial sprite walker. |
+| Sprite line banks | Both lanes use alternating 256-entry packed 4-bit M10K entries, registered renderer read/write phases, a sequential clear and a raster-coordinate publication interlock. This keeps the renderer inside the system-clock budget and avoids publishing a line into the preceding framebuffer row. |
+| Read-during-write mode | Quartus 17.0.2 rejects `OLD_DATA` for the bidirectional packed sprite shape, so the Quartus primitive uses `NEW_DATA_NO_NBE_READ`. The renderer consumes `q_a` one phase later; OSS preserves that schedule without depending on the Quartus literal. |
+| Sprite rendering | The procedural 16x2 loop expanded to about 42K mapped combinational cells and stalled routing. Registered column/repeat counters issue one source-pixel read/write pair per system clock and pack pixel, occupied and visible metadata, reducing the measured fabric to about 3.1K ALUT cells. This source-level scaling is shared by both lanes. |
+| Bulk initialization | `initial` loops over 16 KiB VRAM, cartridge RAM or the 49,152-entry framebuffer create large memory initialization structures. The bring-up initializes scalar state only and clears active line storage sequentially. |
+| Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
+| PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
+| Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, no `--tmg-ripup`, at 74.25 MHz. Seeds 3, 4 and 5 passed host routing; no missing BEL or pack feature was identified. |
+
+The concrete build entry points are `make build-fes-coleco-quartus` and
+`make build-fes-coleco`; both require a clean source checkout, seal format-2
+packages and never program hardware. Exact-artifact kit acceptance remains a
+separate FES integration step.
 
 ## Standalone Pong game
 
@@ -1721,17 +1995,25 @@ bring-up lane.
 `fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use registered
-`ram_style="m10k_tdp"` tables; simulation keeps combo-read. The 720p
-capture buffer is a dual-clock M10K SDP. The Z80 is Verilog T80pa/TV80.
+M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use native
+asynchronous-read M10K tables; the two-write media path uses native
+asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
+Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-nextpnr `4d055dae` forms the 50→52 MHz integer on the 520 MHz feedback
-profile (`M=52 N=5 C6=10`). Place-and-route uses seed 7, `router1` and
-`--tmg-ripup` so `clk_sys` meets 52 MHz. The recipe requires two
+nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
+profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 300,
+criticality exponent 5 and `--router gpu`, nextpnr's connection-based
+router with a pure-delay timing-repair phase (merged PR #66; the
+repository toolchain builds it without a GPU and its host backend
+produces the same routing a GPU would). `--timing-allow-fail` permits an early
+estimate to miss while the recipe checks final signoff and records the first
+passing seed. This keeps native async-M10K address paths within the 52 MHz
+system constraint. The recipe requires two
 `altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
 mailbox, the I2C bridge,
 and at least one M10K. It seals the format-2 exporter only when both
@@ -1740,7 +2022,17 @@ clocks meet their constraints. The command never programs hardware.
 A sealed OSS package has been used for a **hardware diagnostic** on the
 designated kit (BASIC, sofa keyboard, empty `LOAD ""` → `0/0`, committed
 `.p` → `10 PRINT "OK"`). That is not exact-artifact hardware acceptance
-and does not inherit the Quartus bring-up result (TV80, registered M10K).
+and does not inherit the Quartus bring-up result (the diagnostic used TV80
+and the former registered-M10K workaround). A GPU-routed package of that
+same registered-M10K recipe base (nextpnr 9c751533, misteross 9ad19189)
+also booted to the ZX81 editor on the kit on 2026-09-12 and answered
+`PRINT` + NEWLINE with `0/0` through the host keyboard route. The current
+native async-M10K recipe has **not** booted on the kit: its sealed packages
+`74ef917a` (`--router gpu`, seed 2) and `247e2af4` (unchanged `router1`
+control, seed 6, same toolchain) both load, pass signoff and show only a
+black 720p frame for 40 s, while the older package re-loaded afterwards
+shows the editor within 5 s. Evidence: FES `out/gpu-router-kit-diagnostic/`.
+The regression is in the recipe or toolchain, not the router choice.
 FogCast library install/launch of that package
 is a host concern; this recipe only seals the `.fcore`.
 
@@ -1752,227 +2044,13 @@ matching workaround rather than keep both.
 
 | Gap | Observed failure | Current ZX81 workaround |
 | --- | --- | --- |
-| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` becomes LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | `FES_ZX81_OSS` uses registered `ram_style="m10k_tdp"` write-first ports. Simulation keeps combo-read. Quartus keeps `altsyncram`. |
+| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | Native Yosys async M10K inference maps 10/20/40-bit SDP and two-write/two-read TDP shapes; the OSS recipe uses `ramstyle="M10K"` and nextpnr routes flow-through reads. Quartus keeps `altsyncram`. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
-| QSF `-entity` | `ERROR: Unknown option '-entity' to command 'set_instance_assignment'` on Quartus `HPS_LOCATION`. | `constraints-oss.qsf` has pins and I/O standards only. I2C site is the `BEL` attribute on the HPS cell. |
+| QSF `HPS_LOCATION` | Internal HPS I2C previously ignored the Quartus instance assignment. | nextpnr now converts `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to `cyclonev_hps_interface_peripheral_i2c.52.60.0`. ZX81 OSS still also sets the RTL `BEL`. |
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
 Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
-
-## FES ColecoVision first slice
-
-`cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
-uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
-as the system reference, but is a reduced Verilog-first adapter around the
-existing `fes.simple-computer` 1.0 mailbox. It does not copy the MiSTer
-framework or claim complete retail-game compatibility.
-
-The first slice owns a TV80 Z80-compatible CPU, the Coleco reset/cartridge/RAM
-map, bounded TMS9918-style Graphics I and Graphics II VDP paths, two active-low
-controller views, and the established FES fixed-video shell. The reset shim occupies
-`0x0000–0x1fff` and begins with `JP 0x8000` (`c3 00 80`); it avoids embedding a
-proprietary BIOS. A raw 1–16 KiB mailbox blob is mirrored over `0x8000–ffff`.
-CPU RAM is 1 KiB at `0x6000–0x63ff`, mirrored through `0x7fff`. VDP data/control
-ports are `0xbe`/`0xbf`; controller reads decode `0xe0–0xff`, selecting the
-player by A1 (including `0xfc`/`0xff`). A shared latch resets to keypad mode;
-writes to `0x80–0x9f` select keypad, `0xc0–0xdf` joystick. The unchanged
-40-bit keyboard matrix supplies directions, two fire buttons and twelve keypad
-keys for each player. Standard-controller reads use bit 7=0, bits 5/4=1,
-active-low selected fire in bit 6, and directions or an encoded keypad nibble.
-The [controller guide](../cores/fes-coleco/README.md#standard-controller-mapping)
-records exact key mapping, MiSTer reference revision and multi-key priority.
-No ABI, RAM wrapper or compiler constraint changes accompany this functional
-controller change. Audio, BIOS services, expansion hardware, bank switching,
-full VDP modes, cycle-perfect timing, and native FogCast/runtime selection
-remain outside this first slice. Graphics II is bounded to normal 8x8/16x16
-sprites, magnification, early-clock positioning, clipping,
-transparency/priority, four visible sprites per line, collision and
-fifth-sprite status.
-
-`coleco_vdp.sv` keeps a 16 KiB VRAM aperture, register-based name/pattern/color
-tables, Graphics I tile pixels, bounded Graphics II sprites, buffered CPU VRAM
-reads, collision/overflow/index status and a VBlank status bit in the logical
-256×192 domain. In the registered-memory lanes, four coherent VRAM copies feed
-the CPU, Graphics I and serial SAT/pattern reads; each of the two alternating
-sprite line banks is a 256-entry packed 4-bit M10K word containing pixel,
-occupied and visible metadata. Port A performs the renderer's registered
-read/write pair and port B supplies the registered raster read. A sequential
-256-word clear and matching-y publication interlock keep bank transitions out
-of the preceding framebuffer row. `coleco_video_720p.v` captures a centered 512×384 2× image in
-the system domain and reads it in the 74.25 MHz pixel domain for the existing
-1650×750 HDMI timing. The mailbox and top-level clock/I²C boundaries are
-otherwise the same as FES ZX81; the 52 MHz CPU/VDP enable is an approximation
-of the Coleco clock and is not presented as cycle-accurate emulation.
-
-The registered sprite renderer advances one source column/repeat per system
-clock rather than expanding a full 16×2 procedural write loop. The wider loop
-produced roughly 42K mapped combinational cells and made the fixed OSS route
-unusable; the serial counters plus packed line entries reduce the measured
-fabric to roughly 3.1K ALUT cells while leaving the sprite priority, collision
-and clipping behavior unchanged. This is a synthesis/route-scaling workaround,
-not a change to the logical sprite contract.
-
-The VDP snapshots each held IN transaction once, retaining its original return
-byte through RD/IORQ release. Read-address setup starts read-ahead, data reads
-return the buffer and advance, and data writes update VRAM and the shared
-buffer. A two-system-edge fetch schedule accommodates both FPGA lanes'
-registered memory address without changing the public ports. Status reads
-clear pending VBlank/collision/overflow/index flags and the control-byte latch.
-VBlank gated by
-register 1 bit 5 drives active-low Z80 NMI; enable-with-pending, acknowledgement,
-disable and later-frame reassertion are implemented. The open shim forwards
-0066 to cartridge 8066; enabling programs supply a handler and initialized
-stack. This is not a proprietary BIOS or full retail-cartridge ABI.
-The [VDP guide](../cores/fes-coleco/README.md#vdp-reads-and-interrupts) specifies
-the bounded behavior and open CPU-driven pass/fail diagnostic. The original
-graphics and controller ROMs leave VDP interrupts disabled and are unchanged.
-
-`make sim-fes-coleco` covers the mailbox, machine map/CPU/controller path,
-VDP tile/sprite/status path, 720p timing, and board shell in both the default and
-`FES_COLECO_OSS` conditional lanes; `make sim-fes-coleco-oss` runs the latter
-directly. The Quartus recipe is `make build-fes-coleco-quartus`; the OSS recipe
-is `make build-fes-coleco`. Both recipes require a clean source checkout before
-sealing an artifact and never program hardware. An earlier raw OSS RBF was
-loaded through the FogCast target-agent lease on the designated disposable kit;
-its development probe timed out, then the core was stopped and the lease was
-released cleanly. The exact format-2 package path was exercised separately
-after the clean integration build, as recorded below.
-
-The open MIT-licensed `diagnostic/generate.py` emits a raw 989-byte Z80 cartridge
-and an optional 720p PPM reference via `make coleco-diagnostic`. The program
-clears all VRAM through real CPU I/O, writes Graphics I tables, and halts on a
-green border with alternating green/orange inset squares. The board test loads
-the exact generated compact/full-16-KiB/compact bytes through GP with immediate
-execution release, compares cartridge RAM including the final byte, observes
-all VRAM writes, and checks the complete output frame in both simulation lanes.
-The [core guide](../cores/fes-coleco/README.md#open-graphics-i-diagnostic) specifies
-the image, generation commands, palette limitations and existing one-pixel
-framebuffer read latency. RAM power-up contents are randomized in the board test.
-
-The separate open `diagnostic/sprite_io.py` emits a BIOS-free Graphics II
-cartridge through `make coleco-sprite-diagnostic`. It first creates five
-8x8 sprites on one line, polls real VDP status for collision plus the
-four-sprites-per-line overflow/index result, and records `A5` on success. It
-then displays three 16x16 magnified sprites exercising early-clock placement,
-right-edge clipping and a second color; the board test checks the exact
-1280x720 reference image in both compiler-conditioned lanes. This diagnostic
-is deliberately separate from the Graphics I ROM and does not expand the
-mailbox or hardware ABI.
-
-The same generator's optional `--interactive` cartridge selects joystick mode,
-polls FC/FF and maps Fire 1 bit 6 into two rows of five active-low input panels.
-It initializes its two cached input bytes in CPU RAM and repaints only a changed
-player row. `make coleco-diagnostic` supplies compact/full-aperture input images
-and a neutral preview; preview-only `--row0`/`--row1` select expected key states.
-The [input diagnostic guide](../cores/fes-coleco/README.md#two-player-input-diagnostic)
-defines panel geometry and the reused Shift/Z/X/C/V and A/S/D/F/G keyboard
-mapping. Regenerate this cartridge for the current controller RTL; the old
-five-bit-adapter ROM and FPGA packages do not establish compatibility.
-
-The `--controllers` cartridge switches modes and displays four raw-byte banks:
-player 1 joystick/keypad, then player 2 joystick/keypad. Each bank has eight
-panels, low bit first. Preview-only `--matrix` accepts the unchanged 40-bit
-active-low matrix. Board tests observe real CPU VRAM writes for every matrix
-bit and compare complete representative HDMI frames. Machine tests use real
-CPU IN/OUT instructions to cover all mode/read aliases, unrelated writes and
-reset-only reruns. These are standard controllers only: no spinner, Super
-Action extras or physical gamepad transport is added.
-
-`coleco_machine` holds CPU and VDP reset while execution reset is requested,
-committed media is absent, or the cartridge copy has not finished. GP commit
-only publishes `media_ready`; the internal `media_loaded` flag releases the
-machine after the final RAM write, including the OSS registered flush. This
-permits immediate GP RELEASE without a host sleep or a wire-contract change.
-The adapter also consumes each held TV80 OUT transaction once: IORQ/WR span
-multiple CPU enables, which otherwise duplicate VDP control/data bytes. These
-are RTL behavior fixes discovered by CPU-driven board simulation, not compiler
-workarounds. They require a newly built/sealed FPGA artifact; historical
-packages and load/stop evidence below do not cover them. This diagnostic step
-performs no full FPGA builds or hardware operations.
-
-The functional OUT regression reproduced register 1=`81` after a CPU BF write
-of value `C0` with selector `81`, and the board monitor rejected two VDP write
-strobes during one held IORQ/WR transaction. The immediate-release regression
-also rejected CPU/VDP leaving reset before `media_loaded`. The core guide's
-functional-fix section records these separately from the compiler workarounds
-below; direct VDP strobe tests did not exercise either machine-level boundary.
-
-The later Quartus-specific regression uses Intel's unmodified Quartus 17.0.2
-`altera_mf.v` with Icarus (`make sim-fes-coleco-quartus`). The operator reported
-correct OSS video but deterministic wrong Quartus colors/offset at `5f239c9`.
-Vendor probes reproduced two mismatches: altsyncram's registered address made
-the nominally UNREGISTERED mailbox read one clock late for the old Quartus
-copier (`40 41...` became `40 40...`), and the framebuffer's registered address
-plus registered output added two edges instead of one. Quartus now shares the
-existing registered-media copy/flush path and keeps only the framebuffer's
-address register. OSS behavior is unchanged. The core guide records actual
-before/after outputs, model digest, Icarus compatibility notes and replay command.
-The vendor media regression checks 1/3/989/16384/989 bytes with immediate release;
-default/OSS still supply the full CPU/HDMI-frame regression. Corrected Quartus
-video remains an operator-owned exact-artifact hardware check, not a claim of
-these focused probes. The runner invokes neither synthesis nor hardware tools.
-
-### FES ColecoVision OSS evidence and handoff
-
-The earlier clean integration build of implementation revision
-`b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` uses Yosys
-`synth_intel_alm -nolutram -nodsp`, nextpnr Mistral for `5CSEBA6U23I7`, seed 7,
-`router1`, and `--tmg-ripup`. It synthesizes 85 `MISTRAL_M10K_TDP` cells and 48
-`MISTRAL_M10K` cells, places/routes with no unrouted nets, and reports 59.62 MHz
-on `clk_sys` against 52 MHz and 90.88 MHz on `pixel_clk` against 74.25 MHz.
-The sealed RBF is 2,484,053 bytes with SHA-256
-`370e478fcb1706845bc39eb71a3ee3caeb9dedfed1855126f49579efbe0389e8`, package
-`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`.
-
-A clean Quartus Prime Lite 17.0.2 compile of the same implementation revision
-completed analysis, fitting, assembly, and the required TimeQuest checks. It
-used 2,168 logic cells and 100 RAM segments. The sealed RBF is 2,294,532 bytes
-with SHA-256
-`b0b315e758e8cb7ae0171ad4be501acfad3ea7c600fe473bfea479cb9a7dc973`, package
-`6e863542effce1b60ff45f8665edfead60297f5bb31c15782c3de8bbb667114e`.
-
-The earlier raw diagnostic artifacts (`c6a060fa...a83eca9` OSS and
-`5efb4f43...80d3fed` Quartus) came from the intentionally dirty pre-provenance
-worktree. The exact clean OSS format-2 package was then loaded through the
-native FogCast path on the designated kit. The target reported package
-`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`, ABI
-`fes.simple-computer@1.0`, build `af69f2796385b64a92b328bd40df05b9`, and the
-three required interfaces; host stop returned the kit to idle. The HDMI sample
-was black, so this is exact-artifact load/stop diagnostic evidence, not Coleco
-functional or video acceptance.
-
-The following workarounds are concrete handoff items for the
-Yosys/nextpnr/Mistral owner:
-
-| Boundary | Observed result and current accommodation |
-| --- | --- |
-| TV80 frontend | The OSS source set selects Verilog `T80pa`/TV80 with `TV80_REFRESH=1`; it does not depend on the ZX81 VHDL T80. |
-| Machine RAM inference | Direct cartridge/CPU/reset arrays fail Mistral memory mapping with `-nolutram`. `coleco_dpram` selects registered `ram_style="m10k_tdp"` under `FES_COLECO_OSS`; Quartus has registered addresses and UNREGISTERED outputs. Only default simulation reads asynchronously. |
-| Registered media bridge | Both compiler lanes have a one-clock mailbox-RAM result. The machine primes the address, consumes the previous result at a delayed write address, holds the last request for a final flush edge, and clears/re-arms on `media_ready` falling or reset rising. Vendor probes cover the Quartus path. |
-| VDP VRAM inference | One direct 16 KiB VRAM with a CPU port and three combinational raster reads fails with `no valid mapping found for memory top.machine.vdp.vram`; after the video fix it also left Quartus with 186,906 combinational nodes. Both paths use four coherent explicit dual-port copies, broadcast CPU writes, and pipeline the name lookup before pattern/color reads; the fourth copy feeds the serial SAT/pattern walker. |
-| Registered sprite line publication | A sprite bank swap made at the scan-ahead counter can put the next line into the preceding framebuffer row because the registered raster lookup presents its coordinate one edge later. The evaluator targets `display_y+1`, then defers bank/status publication until the pending line's logical y matches that raster coordinate. A `!sprite_pending_valid` interlock prevents a new build from clearing the bank whose publication is still pending. Each bank is a packed 4-bit M10K entry; renderer port A uses a registered read/write pair and raster port B uses a registered read. Quartus 17.0.2 rejects `OLD_DATA` for this bidirectional RAM shape, but the renderer consumes q_a one phase later, so the legal `NEW_DATA_NO_NBE_READ` mode is equivalent for this use. |
-| Sprite evaluator startup | The serial evaluator can sample the reset-time or stale/uninitialized SAT while the CPU is still configuring VDP registers and sprite tables. The diagnostic allows one warm-up frame before asserting line-zero sprites; this is a startup sequencing accommodation for the registered-memory lanes. |
-| Sprite render scaling | The original procedural 16×2 line-buffer write loop expanded to about 42K mapped combinational cells; a clean router attempt ran for more than 55 minutes without a route report, and `router2` plateaued with about 35K overused resources. Registered column/repeat counters now issue one source pixel read/write pair per system clock. Packing pixel and occupancy metadata into the M10K entry reduces synthesis to about 3.1K ALUT cells while fitting the existing ~4K system-clock line budget. This source-level serialization and memory packing are required until the route can be reproduced without them. |
-| Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` makes the system write/pixel read boundary explicit with an independent-clock registered-read `altsyncram` in Quartus and an M10K-shaped wrapper in OSS. |
-| Initial RAM clears | `initial` loops over 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer expand into thousands of `$meminit` cells and previously drove Yosys toward a memory-budget/cgroup failure. Those RAMs are not bulk-cleared; only scalar state is initialized. |
-| Reset image format | The raw byte-per-line `coleco_reset_rom.hex` is used by OSS `$readmemh`; Quartus `altsyncram` is given the tracked range-form `coleco_reset_rom.mif`. The Quartus recipe copies both into the generated project and pins both as build inputs. |
-| PLL modeling | The two existing `altera_pll` wrappers remain in the design. OSS keeps the Mistral PLL cells and uses a clock-enable divider for the approximate CPU cadence instead of generating a third fabric clock. |
-| HDMI I²C | Quartus and OSS pad models stay separate. OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
-| QSF/SDC parsing | The OSS copies omit Quartus-only HPS location/clock-group syntax. `clocks-oss.sdc` contains only the accepted 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
-| Routing | The selected reproduction is device `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, with no `--tmg-ripup`, requesting 74.25 MHz. The GPU report passed seeds 3, 4 and 5 on both tested AMD hosts; exact-artifact kit validation remains separate. Timing-driven rip-up was slower and moved a passing system-clock route below target. No missing nextpnr BEL or pack feature was identified; the backend regression candidate is a small packed 4-bit registered dual-port M10K fixture with two clocks, explicit read-during-write mode and replicated banks. |
-
-The Quartus lane retains `altsyncram` M10K instances, the MIF reset image,
-Quartus tri-state I²C,
-the `HPS_LOCATION` assignment, and its full SDC. The OSS split is therefore a
-compiler portability boundary, not a change to the public FES mailbox
-contract. The raw OSS run was performed before this worker checkout had a
-clean commit; the normal recipe must be rerun by the integrator after selecting
-the resulting source revision so the build record, manifest, and package
-export carry authenticated provenance. The clean package and Quartus results
-above are the integrator's selected-revision evidence; documentation-only
-follow-up commits require the normal recipes to be rerun if they become the
-selected producer revision.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -2030,10 +2108,11 @@ Linux's existing HPS I2C controller to SCL U10 and SDA AA4. Each explicit
 `MISTRAL_IO` has constant-zero data, the matching HPS low-enable on OE, and
 pad feedback returned to the HPS. This preserves low-or-release behavior
 through OSS synthesis; neither line may actively drive high. The source `BEL`
-attribute places the internal hard block because QSF `HPS_LOCATION` does not
-place internal cells in this lane. Simulation covers all combinations of HPS
-and external-device low enables, with digital pull-ups and observable drive
-intent; it does not model analog bus timing or replace hardware validation.
+attribute still places the internal hard block. nextpnr also honors QSF
+`HPS_LOCATION` for this I2C cell (experiment `850_hps_location`).
+Simulation covers all combinations of HPS and external-device low enables,
+with digital pull-ups and observable drive intent; it does not model analog
+bus timing or replace hardware validation.
 
 Top has the synthesis parameter `BUILD_ID[127:0]`. The standalone build recipe
 overrides that parameter with the 32 hexadecimal digits of the build-record ID; identity

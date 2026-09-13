@@ -316,10 +316,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   Simulation uses a digital toggling stand-in. Run `make sim EXP=760_pll_52`
   and `make oss EXP=760_pll_52`; no Quartus comparison lane is implemented.
 - `770_m10k_async_read`, 512-by-20 M10K with a combinational read port.
-  Locked Yosys still emits a clocked read, so OSS sets `CFG_ASYNC_READ`
-  and drops `B1EN`/`CLK2`. Run `make sim EXP=770_m10k_async_read` and
-  `make oss EXP=770_m10k_async_read`; no Quartus comparison lane is
-  implemented.
+  The native Yosys mapper emits `CFG_ASYNC_READ` with a constant-high
+  `B1EN`; nextpnr routes the physical read enable and keeps the read data
+  combinational. Run `make sim EXP=770_m10k_async_read` and `make oss
+  EXP=770_m10k_async_read`; no Quartus comparison lane is implemented.
 - `780_quartus_sdc`, 50→25 MHz PLL routed with Quartus SDC/QSF forms
   (`get_clocks`, `derive_pll_clocks`, multiline `set_clock_groups`,
   `-entity`). Simulation uses the 090 digital toggling stand-in. Run
@@ -335,6 +335,39 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `CFG_OUT_REG_B`. Run `make sim EXP=800_m10k_out_reg` and
   `make oss EXP=800_m10k_out_reg`; no Quartus comparison lane is
   implemented.
+- `810_m10k_async_defaults`, 512-by-20 M10K with a combinational read
+  packed to initialized async defaults (omitted `B1EN`, no `ENABLE[0]`).
+  Run `make sim EXP=810_m10k_async_defaults` and
+  `make oss EXP=810_m10k_async_defaults`; no Quartus comparison lane is
+  implemented.
+- `820_m10k_async_enable`, 512-by-20 M10K with a combinational read and a
+  packer-generated constant-high `ENABLE[0]`. Run
+  `make sim EXP=820_m10k_async_enable` and
+  `make oss EXP=820_m10k_async_enable`; no Quartus comparison lane is
+  implemented.
+- `830_pll_frac_27`, 50→27 MHz fractional-N PLL from the bounded
+  calculator (400–500 MHz reported VCO). Simulation uses a digital
+  toggling stand-in. Run `make sim EXP=830_pll_frac_27` and
+  `make oss EXP=830_pll_frac_27`; no Quartus comparison lane is
+  implemented.
+- `840_m10k_rdw`, TDP M10K same-port write-through. OSS sets
+  `CFG_RDW_MODE_A`/`CFG_RDW_MODE_B` to `NEW_DATA_NO_NBE_READ`. Run
+  `make sim EXP=840_m10k_rdw` and `make oss EXP=840_m10k_rdw`; no
+  Quartus comparison lane is implemented.
+- `850_hps_location`, HPS I2C placed from QSF `HPS_LOCATION` with no RTL
+  BEL. Run `make sim EXP=850_hps_location` and
+  `make oss EXP=850_hps_location`; no Quartus comparison lane is
+  implemented.
+- `860_m10k_selectors`, two dual-clock 512-by-20 M10Ks with live CLK2 and
+  unique sites. Run `make sim EXP=860_m10k_selectors` and
+  `make oss EXP=860_m10k_selectors`; no Quartus comparison lane is
+  implemented.
+- `870_m10k_narrow`, 8192-by-1 true-dual-port M10K. Run
+  `make sim EXP=870_m10k_narrow` and `make oss EXP=870_m10k_narrow`; no
+  Quartus comparison lane is implemented.
+- `880_m10k_async_rom`, 1024-by-10 read-only async M10K. Run
+  `make sim EXP=880_m10k_async_rom` and `make oss EXP=880_m10k_async_rom`;
+  no Quartus comparison lane is implemented.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

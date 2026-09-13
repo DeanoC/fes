@@ -101,13 +101,20 @@ def m10k_tdp_byte_physical_init(address: int, width: int) -> int:
 
 
 def m10k_tdp_abits(width: int) -> int:
-    """Return CFG_ABITS for an equal-width 10- or 20-bit true dual-port M10K."""
+    """Return CFG_ABITS for an equal-width true dual-port M10K."""
 
-    if width == 10:
-        return 10
-    if width == 20:
-        return 9
-    raise PolicyError(f"unsupported TDP M10K width {width}")
+    mapping = {1: 13, 2: 12, 5: 11, 10: 10, 20: 9}
+    if width not in mapping:
+        raise PolicyError(f"unsupported TDP M10K width {width}")
+    return mapping[width]
+
+
+def m10k_narrow_init_word(address: int, width: int) -> int:
+    """Return the closed narrow TDP power-up word at *address*."""
+
+    if width not in (1, 2, 5):
+        raise PolicyError(f"unsupported narrow TDP width {width}")
+    return ((int(address) * 73) ^ (int(address) >> 1) ^ 0xA6) & ((1 << width) - 1)
 
 
 def m10k_tdp_mixed_physical_dbits(logical: int) -> int:
@@ -225,6 +232,7 @@ class ExperimentPolicy:
     sim_jobs: tuple[SimJob, ...] = ()
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
+    required_nextpnr_bels: Mapping[str, str] = MappingProxyType({})
     synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_mlab_init: bool = False
@@ -242,8 +250,12 @@ class ExperimentPolicy:
     m10k_require_aclr1: bool = False
     m10k_tdp_constant_clk2: bool = False
     m10k_async_read: bool = False
+    m10k_async_readonly: bool = False
     m10k_addrstalla_gpo_bit: int | None = None
     m10k_out_reg_b: bool = False
+    m10k_rdw_new_data: bool = False
+    m10k_selector_pair: bool = False
+    m10k_tdp_narrow_width: int = 0
 
     def __post_init__(self) -> None:
         if not self.name or not isinstance(self.name, str):
@@ -281,7 +293,10 @@ class ExperimentPolicy:
             ("m10k_require_aclr1", self.m10k_require_aclr1),
             ("m10k_tdp_constant_clk2", self.m10k_tdp_constant_clk2),
             ("m10k_async_read", self.m10k_async_read),
+            ("m10k_async_readonly", self.m10k_async_readonly),
             ("m10k_out_reg_b", self.m10k_out_reg_b),
+            ("m10k_rdw_new_data", self.m10k_rdw_new_data),
+            ("m10k_selector_pair", self.m10k_selector_pair),
         ):
             if not isinstance(flag, bool):
                 raise PolicyError(f"{self.name}: {flag_name} must be a boolean")
@@ -308,6 +323,8 @@ class ExperimentPolicy:
             )
         if self.m10k_tdp_width not in (0, 10, 20):
             raise PolicyError(f"{self.name}: m10k_tdp_width must be 0, 10, or 20")
+        if self.m10k_tdp_narrow_width not in (0, 1, 2, 5):
+            raise PolicyError(f"{self.name}: m10k_tdp_narrow_width must be 0, 1, 2, or 5")
         if self.m10k_tdp_byte_width not in (0, 16, 20):
             raise PolicyError(f"{self.name}: m10k_tdp_byte_width must be 0, 16, or 20")
         mixed_tdp = (self.m10k_tdp_mixed_a, self.m10k_tdp_mixed_b)
@@ -333,14 +350,26 @@ class ExperimentPolicy:
             or self.m10k_dual_clock_width
             or self.m10k_tdp_byte_width
             or self.m10k_tdp_mixed_a
+            or self.m10k_tdp_narrow_width
         ):
-            raise PolicyError(f"{self.name}: TDP M10K cannot combine byte-enable, equal-width dual-clock, TDP byte-enable, or mixed-TDP policy")
+            raise PolicyError(f"{self.name}: TDP M10K cannot combine byte-enable, equal-width dual-clock, TDP byte-enable, mixed-TDP, or narrow-TDP policy")
+        if self.m10k_tdp_narrow_width and (
+            self.m10k_byte_enable
+            or self.m10k_dual_clock_width
+            or self.m10k_tdp_byte_width
+            or self.m10k_tdp_mixed_a
+            or self.m10k_selector_pair
+            or self.m10k_rdw_new_data
+        ):
+            raise PolicyError(f"{self.name}: narrow TDP M10K cannot combine other M10K geometry policies")
         if self.m10k_tdp_byte_width and (
             self.m10k_byte_enable or self.m10k_dual_clock_width or self.m10k_tdp_mixed_a
         ):
             raise PolicyError(f"{self.name}: TDP byte-enable M10K cannot combine SDP byte-enable, equal-width dual-clock, or mixed-TDP policy")
         if self.m10k_tdp_mixed_a and (self.m10k_byte_enable or self.m10k_dual_clock_width):
             raise PolicyError(f"{self.name}: mixed-TDP M10K cannot combine SDP byte-enable or equal-width dual-clock policy")
+        if self.m10k_async_read and self.m10k_async_readonly:
+            raise PolicyError(f"{self.name}: async-read M10K cannot combine with read-only async ROM policy")
         if self.nextpnr_router not in ("", "router1"):
             raise PolicyError(f"{self.name}: nextpnr_router must be empty or router1")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
@@ -377,6 +406,19 @@ class ExperimentPolicy:
                 )
             packed[cell] = count
         object.__setattr__(self, "required_packed_sites", MappingProxyType(packed))
+
+        bels: dict[str, str] = {}
+        for cell, bel in dict(self.required_nextpnr_bels).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: required nextpnr BEL cell names must be non-empty strings")
+            if not isinstance(bel, str) or not bel:
+                raise PolicyError(f"{self.name}: required nextpnr BEL for {cell} must be a non-empty string")
+            if cell not in synth_cells:
+                raise PolicyError(
+                    f"{self.name}: required nextpnr BEL {cell} must also be a required synth cell"
+                )
+            bels[cell] = bel
+        object.__setattr__(self, "required_nextpnr_bels", MappingProxyType(bels))
 
         input_ports: dict[str, tuple[str, ...]] = {}
         for cell, ports in dict(self.synth_json_input_ports).items():
@@ -679,10 +721,18 @@ class ExperimentPolicy:
             self._require_m10k_tdp_mixed(design)
         if self.m10k_async_read:
             self._require_m10k_async_read(design)
+        if self.m10k_async_readonly:
+            self._require_m10k_async_readonly(design)
         if self.m10k_addrstalla_gpo_bit is not None:
             self._require_m10k_addrstalla(design)
         if self.m10k_out_reg_b:
             self._require_m10k_out_reg_b(design)
+        if self.m10k_rdw_new_data:
+            self._require_m10k_rdw(design)
+        if self.m10k_selector_pair:
+            self._require_m10k_selector_pair(design)
+        if self.m10k_tdp_narrow_width:
+            self._require_m10k_tdp_narrow(design)
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -846,6 +896,65 @@ class ExperimentPolicy:
             raise PolicyError("M10K ACLR1 must be a connected fabric net")
 
     def _require_m10k_async_read(self, design: Mapping[str, Any]) -> None:
+        sdp_cells = self._m10k_cells(design)
+        tdp_cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(sdp_cells) == 1 and not tdp_cells:
+            cell = sdp_cells[0]
+            tdp = False
+        elif len(tdp_cells) == 1 and not sdp_cells:
+            cell = tdp_cells[0]
+            tdp = True
+        else:
+            raise PolicyError(
+                "synth json must contain exactly one asynchronous M10K "
+                f"(got {len(sdp_cells)} MISTRAL_M10K and {len(tdp_cells)} MISTRAL_M10K_TDP)"
+            )
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_ASYNC_READ")) != 1:
+            raise PolicyError(
+                f"M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
+            )
+        if tdp:
+            if json_bit_parameter(parameters.get("CFG_MIXED_WIDTH")) not in (None, 0):
+                raise PolicyError("async-read TDP M10K cannot use mixed-width mode")
+            if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
+                raise PolicyError("async-read TDP M10K cannot use byte-enable mode")
+            for port in (
+                "CLK1", "CLK2", "A1ADDR", "B1ADDR", "A1DATA", "B1DATA",
+                "A1EN", "B1EN", "A1WE", "B1WE", "A1Q", "B1Q",
+            ):
+                value = connections.get(port)
+                if not isinstance(value, list) or not value:
+                    raise PolicyError(f"async-read TDP M10K must connect {port}")
+                if port in ("CLK1", "CLK2") and value[0] in (0, 1, "0", "1"):
+                    raise PolicyError(f"async-read TDP M10K {port} must be a live fabric clock")
+            return
+
+        dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
+        if dual not in (None, 0):
+            raise PolicyError(
+                "async-read M10K CFG_DUAL_CLOCK must be omitted or 0, "
+                f"got {parameters.get('CFG_DUAL_CLOCK')!r}"
+            )
+        # Native Yosys emits a constant-high B1EN so the packer routes the
+        # physical read-enable pin.  Older JSON may omit it and nextpnr will
+        # materialise the same constant; a live/dynamic B1EN is invalid.
+        if "B1EN" in connections:
+            b1en = connections.get("B1EN")
+            if not isinstance(b1en, list) or b1en not in ([1], ["1"]):
+                raise PolicyError("async-read M10K B1EN must be tied high")
+        if "CLK2" in connections:
+            raise PolicyError("async-read M10K must not connect CLK2")
+        clk1 = connections.get("CLK1")
+        if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+            raise PolicyError("async-read M10K CLK1 must be a live fabric clock")
+        if "B1ADDR" not in connections or "B1DATA" not in connections:
+            raise PolicyError("async-read M10K must connect B1ADDR and B1DATA")
+
+    def _require_m10k_async_readonly(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design)
         if len(cells) != 1:
             raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
@@ -856,20 +965,42 @@ class ExperimentPolicy:
             raise PolicyError("M10K cell is missing parameters or connections")
         if json_bit_parameter(parameters.get("CFG_ASYNC_READ")) != 1:
             raise PolicyError(
-                f"M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
+                f"read-only async M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
             )
-        dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
-        if dual not in (None, 0):
-            raise PolicyError(f"async-read M10K CFG_DUAL_CLOCK must be omitted or 0, got {parameters.get('CFG_DUAL_CLOCK')!r}")
-        if "B1EN" in connections:
-            raise PolicyError("async-read M10K must not connect B1EN")
-        if "CLK2" in connections:
-            raise PolicyError("async-read M10K must not connect CLK2")
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != 10:
+            raise PolicyError(f"read-only async M10K CFG_ABITS must be 10, got {parameters.get('CFG_ABITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != 10:
+            raise PolicyError(f"read-only async M10K CFG_DBITS must be 10, got {parameters.get('CFG_DBITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
+            raise PolicyError("read-only async M10K cannot set CFG_BYTE_ENABLE")
+        if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) not in (None, 0):
+            raise PolicyError("read-only async M10K cannot set CFG_DUAL_CLOCK")
         clk1 = connections.get("CLK1")
-        if not isinstance(clk1, list) or not clk1 or clk1[0] in ("0", "1"):
-            raise PolicyError("async-read M10K CLK1 must be a live fabric clock")
-        if "B1ADDR" not in connections or "B1DATA" not in connections:
-            raise PolicyError("async-read M10K must connect B1ADDR and B1DATA")
+        if clk1 not in (["0"], [0]):
+            raise PolicyError(f"read-only async M10K CLK1 must be folded to 0, got {clk1!r}")
+        a1en = connections.get("A1EN")
+        if a1en not in (["1"], [1]):
+            raise PolicyError(f"read-only async M10K A1EN must be tied high, got {a1en!r}")
+        if "CLK2" in connections:
+            raise PolicyError("read-only async M10K must not connect CLK2")
+        if "A1BE" in connections:
+            raise PolicyError("read-only async M10K must not connect A1BE")
+        b1addr = connections.get("B1ADDR")
+        b1data = connections.get("B1DATA")
+        if not isinstance(b1addr, list) or len(b1addr) != 10:
+            raise PolicyError("read-only async M10K B1ADDR must be 10 bits")
+        if not isinstance(b1data, list) or len(b1data) != 10:
+            raise PolicyError("read-only async M10K B1DATA must be 10 bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("read-only async M10K INIT is missing")
+        for address in (0, 1, 2, 7, 15, 31, 255, 512, 1023):
+            actual = (init >> (address * 10)) & 0x3FF
+            expected = m10k_init_word(address, 10)
+            if actual != expected:
+                raise PolicyError(
+                    f"read-only async M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
 
     def _require_m10k_addrstalla(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
@@ -884,28 +1015,145 @@ class ExperimentPolicy:
 
     def _require_m10k_out_reg_b(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design)
+        expected = 2 if self.m10k_selector_pair else 1
+        if len(cells) != expected:
+            raise PolicyError(
+                f"synth json must contain exactly {expected} MISTRAL_M10K, got {len(cells)}"
+            )
+        for cell in cells:
+            parameters = cell.get("parameters")
+            connections = cell.get("connections")
+            if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+                raise PolicyError("M10K cell is missing parameters or connections")
+            if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                )
+            out_a = json_bit_parameter(parameters.get("CFG_OUT_REG_A"))
+            if out_a not in (None, 0):
+                raise PolicyError(
+                    f"narrow SDP CFG_OUT_REG_A must be omitted or 0, got {parameters.get('CFG_OUT_REG_A')!r}"
+                )
+            async_read = json_bit_parameter(parameters.get("CFG_ASYNC_READ"))
+            if async_read not in (None, 0):
+                raise PolicyError("registered-output M10K cannot set CFG_ASYNC_READ")
+            clk2 = connections.get("CLK2")
+            if not isinstance(clk2, list) or not clk2 or clk2[0] in ("0", "1"):
+                raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
+            if "B1DATA" not in connections or "B1ADDR" not in connections:
+                raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
+
+    def _require_m10k_rdw(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
         if len(cells) != 1:
-            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+            raise PolicyError(
+                f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}"
+            )
+        if self._m10k_cells(design, "MISTRAL_M10K"):
+            raise PolicyError("read-during-write contracts require TDP, not SDP")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise PolicyError("TDP M10K cell is missing parameters")
+        if parameters.get("CFG_RDW_MODE_A") != "NEW_DATA_NO_NBE_READ":
+            raise PolicyError(
+                f"CFG_RDW_MODE_A must be NEW_DATA_NO_NBE_READ, got {parameters.get('CFG_RDW_MODE_A')!r}"
+            )
+        if parameters.get("CFG_RDW_MODE_B") != "NEW_DATA_NO_NBE_READ":
+            raise PolicyError(
+                f"CFG_RDW_MODE_B must be NEW_DATA_NO_NBE_READ, got {parameters.get('CFG_RDW_MODE_B')!r}"
+            )
+        if parameters.get("CFG_RDW_MODE_MIXED") != "DONT_CARE":
+            raise PolicyError(
+                f"CFG_RDW_MODE_MIXED must be DONT_CARE, got {parameters.get('CFG_RDW_MODE_MIXED')!r}"
+            )
+
+    def _require_m10k_selector_pair(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 2:
+            raise PolicyError(f"synth json must contain exactly two MISTRAL_M10K, got {len(cells)}")
+        inits: list[int] = []
+        for cell in cells:
+            parameters = cell.get("parameters")
+            connections = cell.get("connections")
+            if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+                raise PolicyError("M10K cell is missing parameters or connections")
+            if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_DUAL_CLOCK must be 1, got {parameters.get('CFG_DUAL_CLOCK')!r}"
+                )
+            if json_bit_parameter(parameters.get("CFG_DBITS")) != 20:
+                raise PolicyError(f"M10K CFG_DBITS must be 20, got {parameters.get('CFG_DBITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_ABITS")) != 9:
+                raise PolicyError(f"M10K CFG_ABITS must be 9, got {parameters.get('CFG_ABITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+                raise PolicyError(
+                    f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                )
+            clk1 = connections.get("CLK1")
+            clk2 = connections.get("CLK2")
+            if not isinstance(clk1, list) or not clk1:
+                raise PolicyError("M10K CLK1 must be connected")
+            if not isinstance(clk2, list) or not clk2:
+                raise PolicyError("M10K CLK2 must be connected")
+            init = json_bit_parameter(parameters.get("INIT"))
+            if init is None:
+                raise PolicyError("M10K INIT is missing")
+            inits.append(init & 0xFFFFF)
+        if set(inits) != {0xA6, 0xB7}:
+            raise PolicyError(f"M10K selector pair INIT words must be 0xa6 and 0xb7, got {inits!r}")
+
+    def _require_m10k_tdp_narrow(self, design: Mapping[str, Any]) -> None:
+        width = self.m10k_tdp_narrow_width
+        cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
+        if len(cells) != 1:
+            raise PolicyError(
+                f"synth json must contain exactly one MISTRAL_M10K_TDP, got {len(cells)}"
+            )
         cell = cells[0]
         parameters = cell.get("parameters")
         connections = cell.get("connections")
         if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
-            raise PolicyError("M10K cell is missing parameters or connections")
-        if json_bit_parameter(parameters.get("CFG_OUT_REG_B")) != 1:
+            raise PolicyError("TDP M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != width:
+            raise PolicyError(f"narrow TDP CFG_DBITS must be {width}, got {parameters.get('CFG_DBITS')!r}")
+        expected_abits = m10k_tdp_abits(width)
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != expected_abits:
             raise PolicyError(
-                f"M10K CFG_OUT_REG_B must be 1, got {parameters.get('CFG_OUT_REG_B')!r}"
+                f"narrow TDP CFG_ABITS must be {expected_abits}, got {parameters.get('CFG_ABITS')!r}"
             )
-        out_a = json_bit_parameter(parameters.get("CFG_OUT_REG_A"))
-        if out_a not in (None, 0):
-            raise PolicyError(f"narrow SDP CFG_OUT_REG_A must be omitted or 0, got {parameters.get('CFG_OUT_REG_A')!r}")
-        async_read = json_bit_parameter(parameters.get("CFG_ASYNC_READ"))
-        if async_read not in (None, 0):
-            raise PolicyError("registered-output M10K cannot set CFG_ASYNC_READ")
+        mixed = json_bit_parameter(parameters.get("CFG_MIXED_WIDTH"))
+        if mixed not in (None, 0):
+            raise PolicyError("narrow TDP cannot set CFG_MIXED_WIDTH")
+        clk1 = connections.get("CLK1")
         clk2 = connections.get("CLK2")
-        if not isinstance(clk2, list) or not clk2 or clk2[0] in ("0", "1"):
-            raise PolicyError("registered-output M10K CLK2 must be a live fabric clock")
-        if "B1DATA" not in connections or "B1ADDR" not in connections:
-            raise PolicyError("registered-output M10K must connect B1ADDR and B1DATA")
+        if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+            raise PolicyError("narrow TDP CLK1 must be a live fabric clock")
+        if not isinstance(clk2, list) or not clk2:
+            raise PolicyError("narrow TDP CLK2 must be connected")
+        for port in ("A1EN", "A1WE"):
+            nets = connections.get(port)
+            if not isinstance(nets, list) or not nets:
+                raise PolicyError(f"narrow TDP {port} must be connected")
+        write_a = connections.get("A1DATA")
+        if not isinstance(write_a, list) or len(write_a) != width:
+            raise PolicyError(f"narrow TDP A1DATA must be {width} bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("narrow TDP INIT is missing")
+        mask = (1 << width) - 1
+        addresses = [0, 1, 2, 7, 15, 31, 63, 127, 255]
+        if expected_abits >= 12:
+            addresses.extend((1023, 4095))
+        if expected_abits >= 13:
+            addresses.append(8191)
+        for address in addresses:
+            actual = (init >> (address * width)) & mask
+            expected = m10k_narrow_init_word(address, width)
+            if actual != expected:
+                raise PolicyError(
+                    f"narrow TDP INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
 
     def _require_m10k_mixed_width(self, design: Mapping[str, Any]) -> None:
         write_bits = self.m10k_mixed_write_dbits
@@ -1217,6 +1465,7 @@ class ExperimentPolicy:
             and not self.m10k_async_read
             and self.m10k_addrstalla_gpo_bit is None
             and not self.m10k_out_reg_b
+            and not self.m10k_rdw_new_data
         ):
             return
         try:
@@ -1240,9 +1489,13 @@ class ExperimentPolicy:
                 changed = True
             if self._apply_m10k_async_read(cells):
                 changed = True
+            if self._apply_m10k_async_readonly(cells):
+                changed = True
             if self._attach_m10k_addrstalla(cells):
                 changed = True
             if self._apply_m10k_out_reg_b(cells):
+                changed = True
+            if self._apply_m10k_rdw(cells):
                 changed = True
             for cell in cells.values():
                 if not isinstance(cell, dict):
@@ -1262,6 +1515,12 @@ class ExperimentPolicy:
                     cell["port_directions"] = directions
                 for port in extra:
                     if port not in connections:
+                        # Native async simple-dual cells do not have a byte
+                        # mask unless the source explicitly requested one.
+                        # Keep the legacy experiment's A1BE direction fix
+                        # while allowing the native narrow shape to omit it.
+                        if self.m10k_async_read and cell_type == "MISTRAL_M10K" and port == "A1BE":
+                            continue
                         raise PolicyError(f"synth cell {cell_type} is missing input port {port}")
                     if directions.get(port) != "input":
                         directions[port] = "input"
@@ -1393,10 +1652,85 @@ class ExperimentPolicy:
                 changed = True
         return changed
 
+    def _apply_m10k_rdw(self, cells: dict[str, Any]) -> bool:
+        """Request Cyclone V TDP write-through contracts after Yosys omits them."""
+
+        if not self.m10k_rdw_new_data:
+            return False
+        changed = False
+        for cell in cells.values():
+            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_M10K_TDP":
+                continue
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = {}
+                cell["parameters"] = parameters
+            wanted = {
+                "CFG_RDW_MODE_A": "NEW_DATA_NO_NBE_READ",
+                "CFG_RDW_MODE_B": "NEW_DATA_NO_NBE_READ",
+                "CFG_RDW_MODE_MIXED": "DONT_CARE",
+            }
+            for key, value in wanted.items():
+                if parameters.get(key) != value:
+                    parameters[key] = value
+                    changed = True
+        return changed
+
     def _apply_m10k_async_read(self, cells: dict[str, Any]) -> bool:
-        """Rewrite Yosys M10K JSON into the combinational-read contract."""
+        """Normalize legacy M10K JSON into the combinational-read contract.
+
+        New Yosys emits ``CFG_ASYNC_READ`` and a routed constant-high B1EN
+        itself.  Keep that connection intact; only older SDP JSON needs the
+        mode bit and removal of its incompatible second clock.  TDP cells keep
+        both clocks because each physical port may still write.
+        """
 
         if not self.m10k_async_read:
+            return False
+        changed = False
+        found = 0
+        for cell in cells.values():
+            if not isinstance(cell, dict) or cell.get("type") not in ("MISTRAL_M10K", "MISTRAL_M10K_TDP"):
+                continue
+            found += 1
+            tdp = cell.get("type") == "MISTRAL_M10K_TDP"
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = {}
+                cell["parameters"] = parameters
+            async_value = f"{1:032b}"
+            if parameters.get("CFG_ASYNC_READ") != async_value:
+                parameters["CFG_ASYNC_READ"] = async_value
+                changed = True
+            if not tdp:
+                dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
+                if dual not in (None, 0):
+                    parameters["CFG_DUAL_CLOCK"] = f"{0:032b}"
+                    changed = True
+            connections = cell.get("connections")
+            if not isinstance(connections, dict):
+                raise PolicyError("M10K cell is missing connections")
+            directions = cell.get("port_directions")
+            if not isinstance(directions, dict):
+                directions = {}
+                cell["port_directions"] = directions
+            # An SDP's second clock is incompatible with flow-through reads;
+            # preserve the native constant-high B1EN instead of dropping it.
+            if not tdp and ("CLK2" in connections or "CLK2" in directions):
+                connections.pop("CLK2", None)
+                directions.pop("CLK2", None)
+                changed = True
+            for port in ("ACLR0", "ACLR1"):
+                if connections.get(port) != ["0"] or directions.get(port) != "input":
+                    connections[port] = ["0"]
+                    directions[port] = "input"
+                    changed = True
+        return changed
+
+    def _apply_m10k_async_readonly(self, cells: dict[str, Any]) -> bool:
+        """Mark a folded-clock 1024x10 M10K as combinational read-only."""
+
+        if not self.m10k_async_readonly:
             return False
         changed = False
         found = 0
@@ -1412,10 +1746,7 @@ class ExperimentPolicy:
             if parameters.get("CFG_ASYNC_READ") != async_value:
                 parameters["CFG_ASYNC_READ"] = async_value
                 changed = True
-            dual = json_bit_parameter(parameters.get("CFG_DUAL_CLOCK"))
-            if dual not in (None, 0):
-                parameters["CFG_DUAL_CLOCK"] = f"{0:032b}"
-                changed = True
+            parameters.pop("CFG_BYTE_ENABLE", None)
             connections = cell.get("connections")
             if not isinstance(connections, dict):
                 raise PolicyError("M10K cell is missing connections")
@@ -1423,11 +1754,12 @@ class ExperimentPolicy:
             if not isinstance(directions, dict):
                 directions = {}
                 cell["port_directions"] = directions
-            for port in ("B1EN", "CLK2"):
-                if port in connections or port in directions:
-                    connections.pop(port, None)
-                    directions.pop(port, None)
-                    changed = True
+            connections.pop("CLK2", None)
+            directions.pop("CLK2", None)
+            connections.pop("A1BE", None)
+            directions.pop("A1BE", None)
+            connections.pop("B1EN", None)
+            directions.pop("B1EN", None)
             for port in ("ACLR0", "ACLR1"):
                 if connections.get(port) != ["0"] or directions.get(port) != "input":
                     connections[port] = ["0"]
@@ -1438,7 +1770,12 @@ class ExperimentPolicy:
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
 
-        if not self.required_packed_sites:
+        if (
+            not self.required_packed_sites
+            and not self.required_nextpnr_bels
+            and not self.m10k_selector_pair
+            and not self.m10k_async_readonly
+        ):
             return
         try:
             design = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -1449,6 +1786,83 @@ class ExperimentPolicy:
         modules = design.get("modules")
         if not isinstance(modules, Mapping):
             raise PolicyError("routed json has no modules")
+        if self.required_nextpnr_bels:
+            found: dict[str, list[str]] = {name: [] for name in self.required_nextpnr_bels}
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping):
+                        continue
+                    cell_type = cell.get("type")
+                    if not isinstance(cell_type, str) or cell_type not in found:
+                        continue
+                    attributes = cell.get("attributes")
+                    if not isinstance(attributes, Mapping):
+                        raise PolicyError(f"routed {cell_type} cell has no attributes")
+                    bel = attributes.get("NEXTPNR_BEL")
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError(f"routed {cell_type} cell is missing NEXTPNR_BEL")
+                    found[cell_type].append(bel)
+            for name, expected in self.required_nextpnr_bels.items():
+                bels = found[name]
+                if bels != [expected]:
+                    raise PolicyError(
+                        f"routed {name} BEL must be {expected!r}, got {bels!r}"
+                    )
+        if self.m10k_selector_pair:
+            bels: list[str] = []
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping) or cell.get("type") != "MISTRAL_M10K":
+                        continue
+                    connections = cell.get("connections")
+                    clk2 = connections.get("CLK2") if isinstance(connections, Mapping) else None
+                    if not isinstance(clk2, list) or not clk2:
+                        raise PolicyError("routed M10K CLK2 must stay connected")
+                    attributes = cell.get("attributes")
+                    if not isinstance(attributes, Mapping):
+                        raise PolicyError("routed M10K cell has no attributes")
+                    bel = attributes.get("NEXTPNR_BEL")
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError("routed M10K cell is missing NEXTPNR_BEL")
+                    bels.append(bel)
+            if len(bels) != 2 or len(set(bels)) != 2:
+                raise PolicyError(f"routed M10K cells must occupy two unique sites, got {bels!r}")
+        if self.m10k_async_readonly:
+            found = 0
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping) or cell.get("type") != "MISTRAL_M10K":
+                        continue
+                    found += 1
+                    connections = cell.get("connections")
+                    clk1 = connections.get("CLK1") if isinstance(connections, Mapping) else None
+                    if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+                        raise PolicyError(
+                            f"routed read-only async M10K CLK1 must be a borrowed live clock, got {clk1!r}"
+                        )
+                    attributes = cell.get("attributes")
+                    bel = attributes.get("NEXTPNR_BEL") if isinstance(attributes, Mapping) else None
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError("routed read-only async M10K is missing NEXTPNR_BEL")
+            if found != 1:
+                raise PolicyError(f"routed read-only async M10K must occur once, got {found}")
+        if not self.required_packed_sites:
+            return
         cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
         for module in modules.values():
             if not isinstance(module, Mapping):
@@ -1542,6 +1956,8 @@ class ExperimentPolicy:
             "required_synth_cells": dict(self.required_synth_cells),
             **({"required_packed_sites": dict(self.required_packed_sites)}
                if self.required_packed_sites else {}),
+            **({"required_nextpnr_bels": dict(self.required_nextpnr_bels)}
+               if self.required_nextpnr_bels else {}),
             **(
                 {
                     "synth_json_input_ports": {
@@ -1589,9 +2005,14 @@ class ExperimentPolicy:
             **({"m10k_require_aclr1": True} if self.m10k_require_aclr1 else {}),
             **({"m10k_tdp_constant_clk2": True} if self.m10k_tdp_constant_clk2 else {}),
             **({"m10k_async_read": True} if self.m10k_async_read else {}),
+            **({"m10k_async_readonly": True} if self.m10k_async_readonly else {}),
             **({"m10k_addrstalla_gpo_bit": self.m10k_addrstalla_gpo_bit}
                if self.m10k_addrstalla_gpo_bit is not None else {}),
             **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
+            **({"m10k_rdw_new_data": True} if self.m10k_rdw_new_data else {}),
+            **({"m10k_selector_pair": True} if self.m10k_selector_pair else {}),
+            **({"m10k_tdp_narrow_width": self.m10k_tdp_narrow_width}
+               if self.m10k_tdp_narrow_width else {}),
         }
 
 
@@ -5276,6 +5697,415 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/800_m10k_out_reg/sim/m10k_out_reg_model.v",
                     ),
                     tb="experiments/800_m10k_out_reg/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "810_m10k_async_defaults": ExperimentPolicy(
+            name="810_m10k_async_defaults",
+            sources=("experiments/810_m10k_async_defaults/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            m10k_async_read=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "A1EN", "A1BE")},
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/810_m10k_async_defaults/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/810_m10k_async_defaults/sim/m10k_async_defaults_model.v",
+                    ),
+                    tb="experiments/810_m10k_async_defaults/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "820_m10k_async_enable": ExperimentPolicy(
+            name="820_m10k_async_enable",
+            sources=("experiments/820_m10k_async_enable/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            m10k_async_read=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={"MISTRAL_M10K": ("CLK1", "A1EN", "A1BE")},
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/820_m10k_async_enable/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/820_m10k_async_enable/sim/m10k_async_enable_model.v",
+                    ),
+                    tb="experiments/820_m10k_async_enable/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "830_pll_frac_27": ExperimentPolicy(
+            name="830_pll_frac_27",
+            sources=("experiments/830_pll_frac_27/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("meter.refclk",),
+            additional_clocks_mhz={"clk27": 27.0},
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS
+                if pattern not in {"PLL", "phase_locked"}
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "altera_pll": 1,
+            },
+            required_synth_cells={"altera_pll": 1},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/830_pll_frac_27/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/830_pll_frac_27/sim/pll_model.v",
+                    ),
+                    tb="experiments/830_pll_frac_27/sim/tb.cpp",
+                ),
+                SimJob(
+                    name="meter",
+                    top="pll_meter",
+                    sources=("experiments/830_pll_frac_27/rtl/top.v",),
+                    tb="experiments/090_pll_clock/sim/meter_sim.cpp",
+                    parameters={"WINDOW_BITS": "12"},
+                ),
+            ),
+        ),
+        "840_m10k_rdw": ExperimentPolicy(
+            name="840_m10k_rdw",
+            sources=("experiments/840_m10k_rdw/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K_TDP": 1},
+            nobram=False,
+            m10k_rdw_new_data=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "B1EN",
+                    "A1WE",
+                    "B1WE",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K_TDP": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/840_m10k_rdw/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/840_m10k_rdw/sim/m10k_rdw_model.v",
+                    ),
+                    tb="experiments/840_m10k_rdw/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "850_hps_location": ExperimentPolicy(
+            name="850_hps_location",
+            sources=("experiments/850_hps_location/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/850_hps_location/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_peripheral_i2c": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"HDMI"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_peripheral_i2c": 1,
+            },
+            required_synth_cells={"cyclonev_hps_interface_peripheral_i2c": 1},
+            required_nextpnr_bels={
+                "cyclonev_hps_interface_peripheral_i2c": (
+                    "cyclonev_hps_interface_peripheral_i2c.52.60.0"
+                ),
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/850_hps_location/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/850_hps_location/sim/hps_i2c_model.v",
+                    ),
+                    tb="experiments/850_hps_location/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "860_m10k_selectors": ExperimentPolicy(
+            name="860_m10k_selectors",
+            sources=("experiments/860_m10k_selectors/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 2,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 2,
+            },
+            required_synth_cells={"MISTRAL_M10K": 2},
+            required_packed_sites={"MISTRAL_M10K": 2},
+            nobram=False,
+            m10k_selector_pair=True,
+            m10k_out_reg_b=True,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "A1BE",
+                    "B1EN",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/860_m10k_selectors/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/860_m10k_selectors/sim/m10k_selector_model.v",
+                    ),
+                    tb="experiments/860_m10k_selectors/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "870_m10k_narrow": ExperimentPolicy(
+            name="870_m10k_narrow",
+            sources=("experiments/870_m10k_narrow/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K_TDP": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K_TDP": 1},
+            nobram=False,
+            m10k_tdp_narrow_width=1,
+            require_read_clock_arc=False,
+            synth_json_input_ports={
+                "MISTRAL_M10K_TDP": (
+                    "CLK1",
+                    "CLK2",
+                    "A1EN",
+                    "B1EN",
+                    "A1WE",
+                    "B1WE",
+                )
+            },
+            synth_json_tied_low={"MISTRAL_M10K_TDP": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/870_m10k_narrow/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/870_m10k_narrow/sim/m10k_narrow_model.v",
+                    ),
+                    tb="experiments/870_m10k_narrow/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "880_m10k_async_rom": ExperimentPolicy(
+            name="880_m10k_async_rom",
+            sources=("experiments/880_m10k_async_rom/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            m10k_async_readonly=True,
+            require_read_clock_arc=False,
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/880_m10k_async_rom/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/880_m10k_async_rom/sim/m10k_async_rom_model.v",
+                    ),
+                    tb="experiments/880_m10k_async_rom/sim/tb.cpp",
                 ),
             ),
         ),

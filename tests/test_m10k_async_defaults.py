@@ -6,43 +6,43 @@ from pathlib import Path
 from scripts.experiment_policy import PolicyError, policy_for
 
 ROOT = Path(__file__).resolve().parents[1]
-RTL = ROOT / "experiments/770_m10k_async_read/rtl/top.v"
-PROBE = ROOT / "experiments/770_m10k_async_read/hardware/probe.sh"
+RTL = ROOT / "experiments/810_m10k_async_defaults/rtl/top.v"
+PROBE = ROOT / "experiments/810_m10k_async_defaults/hardware/probe.sh"
 
 
-class M10kAsyncReadTests(unittest.TestCase):
+class M10kAsyncDefaultsTests(unittest.TestCase):
     def test_sources_exist(self) -> None:
         for relative in (
             "rtl/top.v",
             "sim/tb.cpp",
-            "sim/m10k_async_model.v",
+            "sim/m10k_async_defaults_model.v",
             "expected.md",
             "hardware/probe.sh",
         ):
-            path = ROOT / "experiments/770_m10k_async_read" / relative
+            path = ROOT / "experiments/810_m10k_async_defaults" / relative
             self.assertTrue(path.is_file(), path)
 
     def test_primitive_omits_read_enable_and_second_clock(self) -> None:
         rtl = RTL.read_text(encoding="utf-8")
-        self.assertIn("16'hD42B", rtl)
+        self.assertIn("16'hD42E", rtl)
         self.assertIn(".B1EN(1'b1)", rtl)
         self.assertNotIn(".CLK2", rtl)
         self.assertNotIn(".CFG_ASYNC_READ", rtl)
         self.assertNotIn("altera_pll", rtl)
-        policy = policy_for("770_m10k_async_read")
-        policy.validate_source_text("experiments/770_m10k_async_read/rtl/top.v", rtl)
+        policy = policy_for("810_m10k_async_defaults")
+        policy.validate_source_text("experiments/810_m10k_async_defaults/rtl/top.v", rtl)
         self.assertTrue(policy.m10k_async_read)
         self.assertFalse(policy.require_read_clock_arc)
 
     def test_probe_reads_without_enable_or_read_clock(self) -> None:
         probe = PROBE.read_text(encoding="utf-8")
-        self.assertIn("54315", probe)
+        self.assertIn("54318", probe)
         self.assertIn("0x80000000", probe)
         self.assertNotIn("0x40000000", probe)
         self.assertNotIn("0x60000000", probe)
 
     def test_apply_synth_json_preserves_constant_b1en_and_drops_legacy_clk2(self) -> None:
-        policy = policy_for("770_m10k_async_read")
+        policy = policy_for("810_m10k_async_defaults")
         design = {
             "modules": {
                 "top": {

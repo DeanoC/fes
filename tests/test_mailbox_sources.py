@@ -201,6 +201,14 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "780_quartus_sdc",
             "790_m10k_addrstall",
             "800_m10k_out_reg",
+            "810_m10k_async_defaults",
+            "820_m10k_async_enable",
+            "830_pll_frac_27",
+            "840_m10k_rdw",
+            "850_hps_location",
+            "860_m10k_selectors",
+            "870_m10k_narrow",
+            "880_m10k_async_rom",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

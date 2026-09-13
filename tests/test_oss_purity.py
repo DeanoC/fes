@@ -133,6 +133,15 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/780_quartus_sdc/rtl/top.v",
             "experiments/790_m10k_addrstall/rtl/top.v",
             "experiments/800_m10k_out_reg/rtl/top.v",
+            "experiments/810_m10k_async_defaults/rtl/top.v",
+            "experiments/820_m10k_async_enable/rtl/top.v",
+            "experiments/830_pll_frac_27/rtl/top.v",
+            "experiments/840_m10k_rdw/rtl/top.v",
+            "experiments/850_hps_location/rtl/top.v",
+            "experiments/850_hps_location/pins.qsf",
+            "experiments/860_m10k_selectors/rtl/top.v",
+            "experiments/870_m10k_narrow/rtl/top.v",
+            "experiments/880_m10k_async_rom/rtl/top.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -773,6 +782,84 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
 
+    def test_print_commands_keeps_memory_and_dsp_disabled_for_frac_27(self) -> None:
+        result = self._run("--print-commands", "--experiment", "830_pll_frac_27")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/830_pll_frac_27/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("pll_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_async_rom(self) -> None:
+        result = self._run("--print-commands", "--experiment", "880_m10k_async_rom")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/880_m10k_async_rom/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_async_rom_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_narrow_tdp(self) -> None:
+        result = self._run("--print-commands", "--experiment", "870_m10k_narrow")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/870_m10k_narrow/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_narrow_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_selector_pair(self) -> None:
+        result = self._run("--print-commands", "--experiment", "860_m10k_selectors")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/860_m10k_selectors/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_selector_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_uses_hps_location_qsf_for_i2c(self) -> None:
+        result = self._run("--print-commands", "--experiment", "850_hps_location")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/850_hps_location/rtl/top.v", commands)
+        self.assertIn("--qsf experiments/850_hps_location/pins.qsf", commands)
+        self.assertIn("--sdc boards/de10nano/clocks.sdc", commands)
+        self.assertIn("synth_intel_alm -nobram -nolutram -nodsp -top top", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("hps_i2c_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_tdp_rdw(self) -> None:
+        result = self._run("--print-commands", "--experiment", "840_m10k_rdw")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/840_m10k_rdw/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_rdw_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
     def test_print_commands_enables_block_memory_for_async_m10k_read(self) -> None:
         result = self._run("--print-commands", "--experiment", "770_m10k_async_read")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -821,6 +908,32 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotIn("-nobram", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("m10k_out_reg_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_async_defaults(self) -> None:
+        result = self._run("--print-commands", "--experiment", "810_m10k_async_defaults")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/810_m10k_async_defaults/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_async_defaults_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_async_enable(self) -> None:
+        result = self._run("--print-commands", "--experiment", "820_m10k_async_enable")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/820_m10k_async_enable/rtl/top.v", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
+        self.assertNotIn("hps_gp_model.v", commands)
+        self.assertNotIn("m10k_async_enable_model.v", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")

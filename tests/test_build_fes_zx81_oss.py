@@ -5,6 +5,9 @@ import unittest
 from pathlib import Path
 from scripts.build_fes_zx81_oss import (
     OUTPUT_RELATIVE,
+    PLACER_SEEDS,
+    PLACER_TIMING_WEIGHT,
+    PLACER_CRITICALITY_EXPONENT,
     RTL_SOURCES,
     BuildError,
     _manifest,
@@ -43,7 +46,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         program = yosys[2]
         self.assertIn("tv80_core.v", program)
         self.assertIn("t80pa.v", program)
-        self.assertIn("-DFES_ZX81_OSS=1", program)
+        self.assertNotIn("-DFES_ZX81_OSS=1", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("-nobram", program)
         self.assertNotIn("T80pa.vhd", program)
@@ -51,9 +54,16 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertIn("7", nextpnr)
-        self.assertIn("router1", nextpnr)
-        self.assertIn("--tmg-ripup", nextpnr)
+        self.assertIn(str(PLACER_SEEDS[0]), nextpnr)
+        self.assertIn("--placer-heap-timingweight", nextpnr)
+        self.assertIn(str(PLACER_TIMING_WEIGHT), nextpnr)
+        self.assertIn("--placer-heap-critexp", nextpnr)
+        self.assertIn(str(PLACER_CRITICALITY_EXPONENT), nextpnr)
+        self.assertIn("--router", nextpnr)
+        self.assertIn("gpu", nextpnr)
+        self.assertNotIn("router1", nextpnr)
+        self.assertIn("--timing-allow-fail", nextpnr)
+        self.assertNotIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
         self.assertIn("cores/fes-zx81/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-zx81/clocks-oss.sdc", joined)
@@ -67,8 +77,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("`ifdef QUARTUS", top)
         self.assertIn("hdmi_scl_low ? 1'b0 : 1'bz", top)
         dpram = (ROOT / "cores/fes-zx81/rtl/zx81_dpram.v").read_text(encoding="utf-8")
-        self.assertIn("`ifdef FES_ZX81_OSS", dpram)
-        self.assertIn('ram_style = "m10k_tdp"', dpram)
+        self.assertNotIn("FES_ZX81_OSS", dpram)
+        self.assertIn('ramstyle = "M10K"', dpram)
         self.assertIn("assign q_a = ram[address_a]", dpram)
         sys_pll = (ROOT / "cores/fes-zx81/rtl/sys_pll.v").read_text(encoding="utf-8")
         self.assertIn('.output_clock_frequency0("52.0 MHz")', sys_pll)
