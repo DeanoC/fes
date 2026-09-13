@@ -46,6 +46,9 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 - [Coleco Graphics II sprites](validation/2026-09-12-coleco-sprites.md):
   bounded sprite rendering, sprite-status behavior, paired compiler evidence
   and the current exact-artifact hardware gate.
+- [Coleco current-pin integration](validation/2026-09-13-coleco-nextpnr-integration.md):
+  parent pin selection, current OSS/Quartus package identities and exact-kit
+  acceptance for the selected nextpnr recipe.
 - [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
   host expander and tests landed; assembly stays the fixed 1 GiB image.
 - [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
