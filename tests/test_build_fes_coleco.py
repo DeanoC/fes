@@ -10,10 +10,13 @@ from scripts.build_fes_coleco import (
     project_qsf,
 )
 from scripts.build_fes_coleco_oss import (
+    COLECO_TOOLCHAIN_LOCK,
+    COLECO_TOOLCHAIN_ROOT,
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS,
     RTL_SOURCES,
     BuildError,
+    _require_gpu_backend,
     _manifest,
     build_commands,
     create_build_record,
@@ -43,6 +46,23 @@ class BuildFesColecoTests(unittest.TestCase):
                 result.stdout.strip(),
                 f'python3 {recipe} --root "{ROOT}"',
             )
+
+    def test_coleco_toolchain_entrypoint_selects_core_lock_and_hip_backend(self) -> None:
+        result = subprocess.run(
+            ["make", "-n", "toolchain-fes-coleco"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
+        self.assertIn("cores/fes-coleco/toolchain.lock", result.stdout)
+        self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
+        self.assertIn("build/toolchain/fes-coleco", result.stdout)
+        self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
+        self.assertIn("FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201'", result.stdout)
 
     def test_oss_simulation_entrypoint_compiles_conditional_branches(self) -> None:
         result = subprocess.run(
@@ -104,9 +124,34 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(b'"router":"gpu"', record)
 
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
-        pins = load_lock(ROOT / "toolchain.lock")
+        pins = load_lock(ROOT / COLECO_TOOLCHAIN_LOCK)
         self.assertEqual(pins["yosys"].commit, "da6373c0d7565f36036051efc7895fb0d9ac13c3")
         self.assertEqual(pins["nextpnr"].commit, "2d3c216afb7051d2e2070cbf678a50f274b3f786")
+
+    def test_coleco_uses_a_core_local_toolchain_without_downgrading_main(self) -> None:
+        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "cores/fes-coleco/toolchain.lock")
+        self.assertEqual(COLECO_TOOLCHAIN_ROOT, "build/toolchain/fes-coleco")
+        self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
+        global_pins = load_lock(ROOT / "toolchain.lock")
+        self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
+        self.assertEqual(global_pins["nextpnr"].commit, "9cbbf7353dd2b818ab73031fcf30d9993578c783")
+
+    def test_oss_rejects_a_cpu_only_gpu_router_binary(self) -> None:
+        with self.assertRaisesRegex(BuildError, "device backend"):
+            _require_gpu_backend(
+                "Info: GPU router: nextpnr was built without a GPU device backend; "
+                "falling back to the CPU reference backend.\n"
+                "Info: backend cpu-reference ready\n"
+            )
+
+    def test_oss_accepts_a_live_hip_gpu_router_backend(self) -> None:
+        self.assertEqual(
+            _require_gpu_backend(
+                "Info: GPU devices: hip:AMD Radeon RX 7900 XTX\n"
+                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
+            ),
+            "hip",
+        )
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")

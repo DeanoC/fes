@@ -100,8 +100,8 @@ PLL_ROUTE_LOG = (
 )
 EXPECTED_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "2d3c216afb7051d2e2070cbf678a50f274b3f786",
-    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
+    "nextpnr": "9cbbf7353dd2b818ab73031fcf30d9993578c783",
+    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
 }
 
 
@@ -184,13 +184,27 @@ def _read_evidence(path: Path, expected: str) -> str:
     return value
 
 
-def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
+def _authenticate_tools(
+    root: Path,
+    *,
+    lock_path: Path | None = None,
+    toolchain_root: Path | None = None,
+    expected_commits: Mapping[str, str] | None = None,
+) -> dict[str, AuthenticatedTool]:
+    root = Path(root).resolve()
+    lock_path = root / "toolchain.lock" if lock_path is None else Path(lock_path)
+    if not lock_path.is_absolute():
+        lock_path = root / lock_path
+    toolchain_root = root / "build/toolchain" if toolchain_root is None else Path(toolchain_root)
+    if not toolchain_root.is_absolute():
+        toolchain_root = root / toolchain_root
+    expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
     try:
-        pins = load_lock(root / "toolchain.lock")
+        pins = load_lock(lock_path)
     except (OSError, LockfileError, ValueError) as exc:
         raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
-    install = root / "build/toolchain/install/bin"
-    build_root = root / "build/toolchain/build"
+    install = toolchain_root / "install/bin"
+    build_root = toolchain_root / "build"
     definitions = (
         ("yosys", "yosys", "yosys", ("--version",)),
         ("mistral", "mistral", "mistral-cv", ("models",)),
@@ -199,9 +213,9 @@ def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
     authenticated: dict[str, AuthenticatedTool] = {}
     for record_name, lock_name, executable, arguments in definitions:
         pin = pins[lock_name]
-        if pin.commit != EXPECTED_TOOL_COMMITS[lock_name]:
+        if pin.commit != expected_commits[lock_name]:
             raise BuildError(
-                f"Task10 requires {lock_name} commit {EXPECTED_TOOL_COMMITS[lock_name]}, "
+                f"authenticated {lock_name} commit {expected_commits[lock_name]}, "
                 f"got {pin.commit}"
             )
         path = install / executable

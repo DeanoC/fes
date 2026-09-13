@@ -34,6 +34,13 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
+COLECO_TOOLCHAIN_LOCK = "cores/fes-coleco/toolchain.lock"
+COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
+COLECO_TOOL_COMMITS = {
+    "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
+    "nextpnr": "2d3c216afb7051d2e2070cbf678a50f274b3f786",
+    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
+}
 RECIPE = "scripts/build_fes_coleco_oss.py"
 ABI_DEFINITION = "cores/fes-coleco/generated/fes_simple_computer.vh"
 QSF = "cores/fes-coleco/constraints-oss.qsf"
@@ -57,7 +64,7 @@ RTL_SOURCES = (
 PINNED_INPUTS = (
     RECIPE,
     ABI_DEFINITION,
-    "toolchain.lock",
+    COLECO_TOOLCHAIN_LOCK,
     QSF,
     SDC,
     "cores/fes-coleco/rtl/coleco_reset_rom.hex",
@@ -102,6 +109,27 @@ FORBIDDEN_RESOURCES = frozenset(
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
+
+
+def _require_gpu_backend(route_text: str) -> str:
+    """Require nextpnr to have routed on a live HIP/CUDA device backend."""
+
+    lowered = route_text.lower()
+    if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
+        raise BuildError("route log proves that --router gpu has no live GPU device backend and fell back to the CPU reference backend")
+    match = re.search(r"\bbackend\s+(hip|cuda):[^\n]*\bready\b", route_text, re.IGNORECASE)
+    if match is None:
+        raise BuildError("route log does not prove a live GPU device backend")
+    return match.group(1).lower()
+
+
+def _authenticate_coleco_tools(root: Path):
+    return _authenticate_tools(
+        root,
+        lock_path=root / COLECO_TOOLCHAIN_LOCK,
+        toolchain_root=root / COLECO_TOOLCHAIN_ROOT,
+        expected_commits=COLECO_TOOL_COMMITS,
+    )
 
 
 def _regular_input(root: Path, relative: str) -> Path:
@@ -161,6 +189,8 @@ def create_build_record(
             "reference_clock_hz": 50_000_000,
             "seed": 5,
             "router": ROUTER,
+            "toolchain_lock": COLECO_TOOLCHAIN_LOCK,
+            "toolchain_lock_sha256": _sha256(_regular_input(root, COLECO_TOOLCHAIN_LOCK)),
             "top": TOP,
         },
     }
@@ -279,6 +309,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    gpu_backend = _require_gpu_backend(route_text)
     if "50 MHz -> 52 MHz" not in route_text:
         raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
@@ -304,7 +335,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
     return {
         "status": "pass",
-        "route": {"status": "pass", "unrouted": False},
+        "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
             "system": {
                 "clock": system[0],
@@ -375,7 +406,7 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
     if package_store != root / "build/packages":
         raise BuildError(f"FES ColecoVision package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root)
-    authenticated = _authenticate_tools(root)
+    authenticated = _authenticate_coleco_tools(root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     record = create_build_record(root, repository, revision, identities)
     output = _prepare_output(root)
@@ -406,7 +437,7 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_tools(root)
+        final_tools = _authenticate_coleco_tools(root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root)
@@ -430,7 +461,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if arguments.print_commands:
             repository, revision = _require_clean_source(arguments.root)
-            authenticated = _authenticate_tools(arguments.root)
+            authenticated = _authenticate_coleco_tools(arguments.root)
             identities = {name: tool.identity for name, tool in authenticated.items()}
             record = create_build_record(arguments.root, repository, revision, identities)
             build_id = build_identity(record)

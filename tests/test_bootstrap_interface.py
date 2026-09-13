@@ -11,9 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = ROOT / "scripts" / "bootstrap.sh"
 ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
-    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
+    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "2d3c216afb7051d2e2070cbf678a50f274b3f786",
+    "nextpnr": "9cbbf7353dd2b818ab73031fcf30d9993578c783",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -56,9 +56,9 @@ case "$1" in
     status|submodule) exit 0 ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) commit="da6373c0d7565f36036051efc7895fb0d9ac13c3" ;;
+            yosys) commit="ec34fcf38986217af9b5558936044b7197d968a7" ;;
             mistral) commit="b28e30a36b5139aaed5a5d361a30b542e6b7c758" ;;
-            nextpnr) commit="2d3c216afb7051d2e2070cbf678a50f274b3f786" ;;
+            nextpnr) commit="9cbbf7353dd2b818ab73031fcf30d9993578c783" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
             openfpgaloader) commit="0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86" ;;
             *) exit 1 ;;
@@ -128,6 +128,39 @@ class BootstrapInterfaceTests(unittest.TestCase):
         self.assertEqual(before is not None, after is not None)
         if before is not None and after is not None:
             self.assertEqual(before.st_mtime_ns, after.st_mtime_ns)
+
+    def test_print_plan_honors_core_lock_root_and_gpu_overrides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scripts = root / "scripts"
+            scripts.mkdir()
+            shutil.copy2(BOOTSTRAP, scripts / "bootstrap.sh")
+            shutil.copy2(ROOT / "scripts" / "lockfile.py", scripts / "lockfile.py")
+            lock_path = root / "coleco.lock"
+            shutil.copy2(ROOT / "cores/fes-coleco/toolchain.lock", lock_path)
+            toolchain_root = root / "coleco-toolchain"
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "FES_TOOLCHAIN_LOCKFILE": str(lock_path),
+                    "FES_TOOLCHAIN_ROOT": str(toolchain_root),
+                    "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
+                    "FES_TOOLCHAIN_HIP_ARCHITECTURES": "gfx1100;gfx1201",
+                }
+            )
+            result = subprocess.run(
+                [str(scripts / "bootstrap.sh"), "--print-plan"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                env=environment,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("da6373c0d7565f36036051efc7895fb0d9ac13c3", result.stdout)
+        self.assertIn(f"source: {toolchain_root}/src/yosys", result.stdout)
+        self.assertIn(f"lock: {lock_path}", result.stdout)
+        self.assertIn("gpu-router: HIP", result.stdout)
+        self.assertIn("hip-architectures: gfx1100;gfx1201", result.stdout)
 
     def test_check_prereqs_reports_without_invoking_package_managers(self):
         marker = ROOT / "build" / "toolchain-prereq-test-marker"

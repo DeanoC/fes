@@ -19,7 +19,8 @@ production source lists, and OSS synthesis flags come from the closed experiment
 policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock`. nextpnr writes a compressed Cyclone V RBF
+`toolchain.lock` (core recipes may select a tracked core-local compatibility
+lock and isolated toolchain root). nextpnr writes a compressed Cyclone V RBF
 (`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
 sources and tools live under `build/toolchain/`. Build output lives under
 `build/oss/<experiment>/`.
@@ -1825,9 +1826,10 @@ The serial renderer, replicated VRAM, registered request/wait schedule, packed
 line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
-one-column/repeat schedule fits the fixed system-clock budget. The exact
-current recipes use Yosys `da6373c0`, nextpnr-mistral `2d3c216` with
-`--router gpu` and seed 5, and Mistral `b28e30a`. The Quartus wrapper retains
+one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
+recipe uses its core-local lock with Yosys `da6373c0`, nextpnr-mistral
+`2d3c216` with `--router gpu` and seed 5, and Mistral `b28e30a`; the selected
+toolchain enables the HIP device backend. The Quartus wrapper retains
 the literal `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the
 registered semantic schedule rather than that vendor literal. No missing
 nextpnr BEL or pack feature is implied.
@@ -1846,6 +1848,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Coleco's OSS recipe selects `cores/fes-coleco/toolchain.lock`, builds it under `build/toolchain/fes-coleco`, and enables the HIP device backend; Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1857,7 +1860,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, no `--tmg-ripup`, at 74.25 MHz. Seeds 3, 4 and 5 passed host routing; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, no `--tmg-ripup`, at 74.25 MHz. Seeds 3, 4 and 5 passed host routing. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2

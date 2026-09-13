@@ -8,13 +8,25 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 OPEN_MISTER_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 LOCKFILE="$OPEN_MISTER_ROOT/scripts/lockfile.py"
 PYTHON="${PYTHON:-python3}"
-TOOLCHAIN_ROOT="$OPEN_MISTER_ROOT/build/toolchain"
+resolve_repo_path() {
+    local path="$1"
+    if [[ "$path" == /* ]]; then
+        printf '%s\n' "$path"
+    else
+        printf '%s/%s\n' "$OPEN_MISTER_ROOT" "$path"
+    fi
+}
+
+TOOLCHAIN_ROOT="$(resolve_repo_path "${FES_TOOLCHAIN_ROOT:-build/toolchain}")"
+TOOLCHAIN_LOCK_PATH="$(resolve_repo_path "${FES_TOOLCHAIN_LOCKFILE:-toolchain.lock}")"
 SRC_ROOT="$TOOLCHAIN_ROOT/src"
 BUILD_ROOT="$TOOLCHAIN_ROOT/build"
 INSTALL_ROOT="$TOOLCHAIN_ROOT/install"
 JOBS="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || printf '2')}"
+GPU_ROUTER="${FES_TOOLCHAIN_GPU_ROUTER:-OFF}"
+HIP_ARCHITECTURES="${FES_TOOLCHAIN_HIP_ARCHITECTURES:-gfx1100;gfx1201}"
 
-readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS
+readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS GPU_ROUTER HIP_ARCHITECTURES
 
 TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
 declare -A REPO COMMIT ORDER
@@ -25,7 +37,7 @@ die() {
 }
 
 lock_get() {
-    "$PYTHON" "$LOCKFILE" get "$1" "$2"
+    FES_TOOLCHAIN_LOCKFILE="$TOOLCHAIN_LOCK_PATH" "$PYTHON" "$LOCKFILE" get "$1" "$2"
 }
 
 load_lock() {
@@ -55,6 +67,11 @@ print_plan() {
         printf 'build: %s\n' "$BUILD_ROOT/$tool"
         printf 'install: %s\n\n' "$INSTALL_ROOT"
     done < <(ordered_tools)
+    printf 'lock: %s\n' "$TOOLCHAIN_LOCK_PATH"
+    printf 'gpu-router: %s\n' "$GPU_ROUTER"
+    if [[ "$GPU_ROUTER" == "HIP" ]]; then
+        printf 'hip-architectures: %s\n' "$HIP_ARCHITECTURES"
+    fi
 }
 
 declare -a MISSING_COMMANDS=()
@@ -377,10 +394,23 @@ build_mistral() {
 
 build_nextpnr() {
     local build_dir="$BUILD_ROOT/nextpnr"
+    local -a gpu_options=()
+    case "$GPU_ROUTER" in
+        OFF|'') ;;
+        HIP)
+            gpu_options+=("-DGPU_ROUTER=HIP" "-DCMAKE_HIP_ARCHITECTURES=$HIP_ARCHITECTURES")
+            ;;
+        CUDA)
+            gpu_options+=("-DGPU_ROUTER=CUDA")
+            ;;
+        *)
+            die "FES_TOOLCHAIN_GPU_ROUTER must be OFF, HIP or CUDA (got '$GPU_ROUTER')"
+            ;;
+    esac
     run_logged nextpnr cmake -S "$SRC_ROOT/nextpnr" -B "$build_dir" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT" \
         -DARCH=mistral -DMISTRAL_ROOT="$SRC_ROOT/mistral" -DBUILD_PYTHON=OFF \
-        -DBUILD_GUI=OFF -DBUILD_TESTS=OFF -DUSE_IPO=OFF
+        -DBUILD_GUI=OFF -DBUILD_TESTS=OFF -DUSE_IPO=OFF "${gpu_options[@]}"
     run_logged nextpnr ninja -C "$build_dir" nextpnr-mistral -j"$JOBS"
     run_logged nextpnr ninja -C "$build_dir" install
 }
@@ -445,7 +475,9 @@ usage() {
 Usage: scripts/bootstrap.sh [--check-prereqs | --print-plan]
        scripts/bootstrap.sh
 
-Builds the five repositories pinned in toolchain.lock under build/toolchain.
+Builds the five repositories pinned in the selected lock under the selected
+toolchain root. Defaults are toolchain.lock and build/toolchain; Coleco uses
+FES_TOOLCHAIN_LOCKFILE, FES_TOOLCHAIN_ROOT, and FES_TOOLCHAIN_GPU_ROUTER=HIP.
 --check-prereqs reports missing host capabilities without installing anything.
 --print-plan prints the lock-derived plan without cloning or creating files.
 EOF
