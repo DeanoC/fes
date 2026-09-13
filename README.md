@@ -16,6 +16,14 @@ and content selection; the MiSTer is a small, directly controlled target.
   `game_id` programs the package and attaches keyboard input. Development
   package loads remain volatile.
 
+- Development media upload for an active described `fes.simple-computer` package
+  with `fes.media.blob`: `fogcast --api http://127.0.0.1:8797 core-media PATH`
+  sends 1..16384 raw bytes through that running host's existing session and kit
+  lease. See [development media](docs/ARCHITECTURE.md#development-media-upload)
+  for admission, identity binding and failure handling. This is a development
+  operation; Coleco hardware acceptance is separate. A ZX81 upload resets
+  execution, so wait for the BASIC prompt before entering `LOAD`.
+
 
 - Thousands of catalogued games across the systems in
   `internal/systems/table.go`.

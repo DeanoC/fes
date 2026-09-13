@@ -310,6 +310,79 @@ archive snapshot, and the command never opens or closes a target-owning
 same package, ABI, and build identities, a positive generation, and a valid
 descriptor-consistent active-interface set.
 
+### Development media upload
+
+`fogcast [--api ORIGIN] core-media PATH` snapshots one regular local file of
+1..16384 bytes. It reads `GET /api/v1/session` from the running host and sends
+the exact bytes to `POST /api/v1/session/development-media`. Like `core-load`,
+API origin precedence is `--api`, `FOGCAST_API`, then `http://127.0.0.1:8787`.
+The CLI never opens a target-owning service. File extensions do not select
+behavior; the bytes are opaque to FogCast. No library association or durable
+media record is created.
+
+Both the host POST and target `POST /v1/development/media` require a fixed
+`Content-Length` in that range, `Content-Type: application/octet-stream`,
+`X-FogCast-Package-ID` (the current 64-character lowercase package digest), and
+`X-FogCast-Core-Generation` (the current positive decimal generation). The host
+also requires `X-FogCast-Session-ID`, copied from the current host session's
+`id`, and `X-FogCast-Target`, copied from its `target` name. When the session
+reports `target_id`, send that exact value as `X-FogCast-Target-ID` too.
+The service checks both target name and target ID under lifecycle admission
+and the target lock: switching targets cannot reuse a colliding package and
+target-local generation. Generation values remain uint64 throughout, including in the CLI.
+Chunked, empty, oversized, truncated and excess bodies are rejected. A host
+restart, package replacement or generation change requires a fresh session read.
+
+The service reuses lifecycle admission and the session's bound target. It
+checks artifact compatibility and active package identity before upload. The
+target requires the existing kit lease, rejects the hostless owner, and uses
+the existing update exclusion and lifecycle serialization. This operation
+never claims a new lease. Admission requires an active, error-free described
+`fes.simple-computer` 1.0 package with active `fes.media.blob` 1.0; raw RBFs,
+inactive cores, recovery states and stale identities are refused before
+dispatch. Rejected admission preserves existing input and session ownership.
+
+`internal/misterruntime/development_media.go` rechecks runtime identity before
+staging and immediately before mutation. It creates a unique private directory
+(0700), writes a regular `media.bin` (0600), and sends exactly
+`{"protocol":2,"operation":"load_media","path":"<absolute staged file>"}`
+over the existing local socket. The file is removed when the operation returns;
+cleanup failure is reported. No network caller supplies a target filesystem
+path. The target keeps its lifecycle admission and operation owner for the
+bounded runtime call (15 seconds to accommodate the runtime's 10-second
+deadline), even if the uploading connection disappears after admission.
+
+Success preserves package and generation, input and host session identity.
+The native adapter serializes keyboard posts with media transfer. Posts wait
+while media is in flight, preventing runtime `BUSY` from closing the keyboard
+stream. After successful media delivery on a keyboard-capable core, it restores
+the last held-key matrix cleared by the hold/reset sequence before admitting
+queued input events. That cache is bound to the package and generation in the
+last successful keyboard response. A different generation or package restores
+neutral, including after failed replacement neutralization. A transfer failure does not attempt keyboard restoration
+through a potentially poisoned transport.
+There is no automatic retry or replay: an unchanged package status cannot
+prove media delivery after a lost reply. The coordinator observes runtime
+state after a transfer failure. A failed transport can leave reset held and
+report `reboot_required`; use the existing leased Stop/reboot recovery path.
+Stop cannot bypass a poisoned GP transport by merely quiescing it. Physical
+hold/reset, byte transfer and recovery remain runtime responsibilities.
+
+For a separately started diagnostic host on port 8797, the operator sequence
+is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
+`fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
+deploying its matching agent/runtime, and hardware validation are separate
+integration operations. The FogCast lock and expected-runtime compatibility
+constant select runtime `f700e342023e21f5917857326a0c533d621905b8`.
+
+Focused tests cover admission, existing leases, update exclusion, lifecycle
+serialization, staging permissions and exact bytes, generation changes,
+cross-target package/generation collisions, keyboard events during transfer,
+recovery status, Unix request shape and no replay. The end-to-end test runs
+CLI → real host API/service → real target client/lease/HTTP/controller → native
+adapter and Unix socket, with only the hardware daemon simulated. This is
+host-only evidence, not Coleco hardware acceptance.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are
