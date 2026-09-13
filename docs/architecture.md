@@ -19,7 +19,8 @@ production source lists, and OSS synthesis flags come from the closed experiment
 policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock`. nextpnr writes a compressed Cyclone V RBF
+`toolchain.lock` (core recipes may select a tracked core-local compatibility
+lock and isolated toolchain root). nextpnr writes a compressed Cyclone V RBF
 (`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
 sources and tools live under `build/toolchain/`. Build output lives under
 `build/oss/<experiment>/`.
@@ -1799,6 +1800,75 @@ only), and an 8192x1 true-dual-port M10K (fabric GPI only), and a
 1024x10 read-only async M10K ROM (fabric GPI only). It does
 not establish native
 game acceptance.
+
+## FES ColecoVision first slice
+
+`cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
+uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
+as a system reference, but is a reduced Verilog-first adapter around the
+existing `fes.simple-computer` 1.0 mailbox. The first slice contains a TV80
+Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
+Graphics I and Graphics II video, two active-low controller views and the FES
+fixed-video shell. A raw 1–16 KiB cartridge image is mirrored through the
+16 KiB `0x8000–0xffff` aperture. Audio, BIOS services, expansion hardware, bank
+switching, full VDP modes, cycle-perfect timing and retail-cartridge
+compatibility remain outside this slice.
+
+Graphics II covers normal 8x8/16x16 sprites, magnification, early-clock
+positioning, signed/clipped X coordinates, transparency/priority, four visible
+sprites per line, collision and fifth-sprite status. The VDP uses four coherent
+VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
+pattern walker. Two alternating framebuffer line banks use packed 4-bit M10K
+entries for pixel and visibility metadata; publication is interlocked with the
+registered raster coordinate.
+
+The serial renderer, replicated VRAM, registered request/wait schedule, packed
+line banks, sequential clear and publication interlock are deliberate RTL
+scaling accommodations shared by both compiler lanes. The original procedural
+sprite loop expanded to roughly 42K mapped combinational cells; the registered
+one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
+recipe uses its core-local lock with Yosys `da6373c0`, nextpnr-mistral
+`2d3c216` with `--router gpu` and seed 5, and Mistral `b28e30a`; the selected
+toolchain enables the HIP device backend. Because the sealed build record
+changes the embedded `BUILD_ID`, the seed is part of the route recipe: on the
+current record seed 3 misses `clk_sys` timing, seed 4 fails legality, and seed
+5 passes the final router1 check. The Quartus wrapper retains
+the literal `altsyncram` mode `NEW_DATA_NO_NBE_READ`; OSS preserves the
+registered semantic schedule rather than that vendor literal. No missing
+nextpnr BEL or pack feature is implied.
+
+The open diagnostics and focused simulations exercise CPU-driven VDP writes,
+controller modes, sprite status and the exact 720p frame in both conditional
+lanes. The build recipes require a clean checkout and seal format-2 packages;
+they never program hardware. Parent selection and exact-kit acceptance are
+recorded in the FES validation documents.
+
+### OSS/Yosys/nextpnr workarounds
+
+These are the portability accommodations to hand to the Yosys/nextpnr/Mistral
+owner. The RTL scheduling choices are shared by both compiler lanes; entries
+marked as path-specific are not requirements of the other lane.
+
+| Boundary | Current accommodation and ownership |
+| --- | --- |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Coleco's OSS recipe selects `cores/fes-coleco/toolchain.lock`, builds it under `build/toolchain/fes-coleco`, and enables the HIP device backend; Quartus uses its own vendor tools and needs neither lock. |
+| Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
+| Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
+| Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
+| VDP multi-read VRAM | A single VRAM with one CPU port and three combinational raster reads fails OSS mapping and leaves Quartus with an oversized direct-memory implementation. Both lanes use four coherent copies, broadcast CPU writes, and pipelined name-to-pattern/color reads; the fourth copy feeds the serial sprite walker. |
+| Sprite line banks | Both lanes use alternating 256-entry packed 4-bit M10K entries, registered renderer read/write phases, a sequential clear and a raster-coordinate publication interlock. This keeps the renderer inside the system-clock budget and avoids publishing a line into the preceding framebuffer row. |
+| Read-during-write mode | Quartus 17.0.2 rejects `OLD_DATA` for the bidirectional packed sprite shape, so the Quartus primitive uses `NEW_DATA_NO_NBE_READ`. The renderer consumes `q_a` one phase later; OSS preserves that schedule without depending on the Quartus literal. |
+| Sprite rendering | The procedural 16x2 loop expanded to about 42K mapped combinational cells and stalled routing. Registered column/repeat counters issue one source-pixel read/write pair per system clock and pack pixel, occupied and visible metadata, reducing the measured fabric to about 3.1K ALUT cells. This source-level scaling is shared by both lanes. |
+| Bulk initialization | `initial` loops over 16 KiB VRAM, cartridge RAM or the 49,152-entry framebuffer create large memory initialization structures. The bring-up initializes scalar state only and clears active line storage sequentially. |
+| Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
+| PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
+| Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the sealed recipe: on the current record seed 3 misses `clk_sys` timing, seed 4 fails legality, and seed 5 passes. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+
+The concrete build entry points are `make build-fes-coleco-quartus` and
+`make build-fes-coleco`; both require a clean source checkout, seal format-2
+packages and never program hardware. Exact-artifact kit acceptance remains a
+separate FES integration step.
 
 ## Standalone Pong game
 

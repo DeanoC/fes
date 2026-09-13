@@ -1,0 +1,12 @@
+-- FES ColecoVision reset shim image for Quartus altsyncram.
+-- The OSS lane uses coleco_reset_rom.hex because Yosys reads $readmemh.
+DEPTH = 8192;
+WIDTH = 8;
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
+CONTENT BEGIN
+0000: C3 00 80 00 00;
+[0005..0065] : 00;
+0066: C3 66 80;
+[0069..1FFF] : 00;
+END;

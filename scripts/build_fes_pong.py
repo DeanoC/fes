@@ -184,13 +184,29 @@ def _read_evidence(path: Path, expected: str) -> str:
     return value
 
 
-def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
+def _authenticate_tools(
+    root: Path,
+    *,
+    lock_path: Path | None = None,
+    toolchain_root: Path | None = None,
+    expected_commits: Mapping[str, str] | None = None,
+    expected_configuration: Mapping[str, str] | None = None,
+) -> dict[str, AuthenticatedTool]:
+    root = Path(root).resolve()
+    lock_path = root / "toolchain.lock" if lock_path is None else Path(lock_path)
+    if not lock_path.is_absolute():
+        lock_path = root / lock_path
+    toolchain_root = root / "build/toolchain" if toolchain_root is None else Path(toolchain_root)
+    if not toolchain_root.is_absolute():
+        toolchain_root = root / toolchain_root
+    expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
+    expected_configuration = {} if expected_configuration is None else expected_configuration
     try:
-        pins = load_lock(root / "toolchain.lock")
+        pins = load_lock(lock_path)
     except (OSError, LockfileError, ValueError) as exc:
         raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
-    install = root / "build/toolchain/install/bin"
-    build_root = root / "build/toolchain/build"
+    install = toolchain_root / "install/bin"
+    build_root = toolchain_root / "build"
     definitions = (
         ("yosys", "yosys", "yosys", ("--version",)),
         ("mistral", "mistral", "mistral-cv", ("models",)),
@@ -199,9 +215,9 @@ def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
     authenticated: dict[str, AuthenticatedTool] = {}
     for record_name, lock_name, executable, arguments in definitions:
         pin = pins[lock_name]
-        if pin.commit != EXPECTED_TOOL_COMMITS[lock_name]:
+        if pin.commit != expected_commits[lock_name]:
             raise BuildError(
-                f"Task10 requires {lock_name} commit {EXPECTED_TOOL_COMMITS[lock_name]}, "
+                f"authenticated {lock_name} commit {expected_commits[lock_name]}, "
                 f"got {pin.commit}"
             )
         path = install / executable
@@ -215,6 +231,14 @@ def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
         actual_digest = _sha256(path)
         if actual_digest != expected_digest:
             raise BuildError(f"tool executable digest does not match lock evidence: {executable}")
+        configuration = expected_configuration.get(lock_name)
+        if configuration is not None:
+            configuration_path = build_root / lock_name / f".config-{pin.commit}.txt"
+            actual_configuration = _read_evidence(configuration_path, "configuration")
+            if actual_configuration != configuration:
+                raise BuildError(
+                    f"tool configuration does not match the requested build lane: {executable}"
+                )
         try:
             result = subprocess.run(
                 [str(path), *arguments],
@@ -232,9 +256,12 @@ def _authenticate_tools(root: Path) -> dict[str, AuthenticatedTool]:
             raise BuildError(f"authenticated tool identity check failed: {executable}")
         if lock_name == "mistral" and TARGET not in output:
             raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+        identity = f"commit={pin.commit}; sha256={actual_digest}"
+        if configuration is not None:
+            identity += f"; {configuration}"
         authenticated[record_name] = AuthenticatedTool(
             path=path,
-            identity=f"commit={pin.commit}; sha256={actual_digest}",
+            identity=identity,
         )
     return authenticated
 

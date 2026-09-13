@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import os
 import sys
 import tomllib
 from dataclasses import dataclass
@@ -22,6 +23,12 @@ EXPECTED_TOOLS = (
 REQUIRED_FIELDS = frozenset({"repo", "commit", "order", "rationale"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DEFAULT_LOCK = Path(__file__).resolve().parents[1] / "toolchain.lock"
+
+
+def selected_lock() -> Path:
+    """Return the lock selected for the current toolchain bootstrap lane."""
+
+    return Path(os.environ.get("FES_TOOLCHAIN_LOCKFILE", DEFAULT_LOCK))
 
 
 @dataclass(frozen=True)
@@ -175,18 +182,19 @@ def _single_line(message: object) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
+        lock_path = selected_lock()
         if args == ["validate"]:
-            errors = validate_lock(DEFAULT_LOCK)
+            errors = validate_lock(lock_path)
             if errors:
                 message = _single_line("; ".join(errors))
-                print(f"{DEFAULT_LOCK.name}: invalid: {message}", file=sys.stderr)
+                print(f"{lock_path.name}: invalid: {message}", file=sys.stderr)
                 return 2
-            print(f"{DEFAULT_LOCK.name}: valid")
+            print(f"{lock_path.name}: valid")
             return 0
 
         if len(args) == 3 and args[0] == "get":
             _, tool, field = args
-            lock = load_lock(DEFAULT_LOCK)
+            lock = load_lock(lock_path)
             if tool not in lock:
                 raise LockfileError(f"unknown tool: {tool}")
             if field not in REQUIRED_FIELDS:

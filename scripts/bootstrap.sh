@@ -8,13 +8,25 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 OPEN_MISTER_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 LOCKFILE="$OPEN_MISTER_ROOT/scripts/lockfile.py"
 PYTHON="${PYTHON:-python3}"
-TOOLCHAIN_ROOT="$OPEN_MISTER_ROOT/build/toolchain"
+resolve_repo_path() {
+    local path="$1"
+    if [[ "$path" == /* ]]; then
+        printf '%s\n' "$path"
+    else
+        printf '%s/%s\n' "$OPEN_MISTER_ROOT" "$path"
+    fi
+}
+
+TOOLCHAIN_ROOT="$(resolve_repo_path "${FES_TOOLCHAIN_ROOT:-build/toolchain}")"
+TOOLCHAIN_LOCK_PATH="$(resolve_repo_path "${FES_TOOLCHAIN_LOCKFILE:-toolchain.lock}")"
 SRC_ROOT="$TOOLCHAIN_ROOT/src"
 BUILD_ROOT="$TOOLCHAIN_ROOT/build"
 INSTALL_ROOT="$TOOLCHAIN_ROOT/install"
 JOBS="${JOBS:-$(command -v nproc >/dev/null 2>&1 && nproc || printf '2')}"
+GPU_ROUTER="${FES_TOOLCHAIN_GPU_ROUTER:-OFF}"
+HIP_ARCHITECTURES="${FES_TOOLCHAIN_HIP_ARCHITECTURES:-gfx1100;gfx1201}"
 
-readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS
+readonly SCRIPT_DIR OPEN_MISTER_ROOT LOCKFILE PYTHON TOOLCHAIN_ROOT TOOLCHAIN_LOCK_PATH SRC_ROOT BUILD_ROOT INSTALL_ROOT JOBS GPU_ROUTER HIP_ARCHITECTURES
 
 TOOLS=(yosys mistral nextpnr verilator openfpgaloader)
 declare -A REPO COMMIT ORDER
@@ -25,7 +37,7 @@ die() {
 }
 
 lock_get() {
-    "$PYTHON" "$LOCKFILE" get "$1" "$2"
+    FES_TOOLCHAIN_LOCKFILE="$TOOLCHAIN_LOCK_PATH" "$PYTHON" "$LOCKFILE" get "$1" "$2"
 }
 
 load_lock() {
@@ -55,6 +67,11 @@ print_plan() {
         printf 'build: %s\n' "$BUILD_ROOT/$tool"
         printf 'install: %s\n\n' "$INSTALL_ROOT"
     done < <(ordered_tools)
+    printf 'lock: %s\n' "$TOOLCHAIN_LOCK_PATH"
+    printf 'gpu-router: %s\n' "$GPU_ROUTER"
+    if [[ "$GPU_ROUTER" == "HIP" ]]; then
+        printf 'hip-architectures: %s\n' "$HIP_ARCHITECTURES"
+    fi
 }
 
 declare -a MISSING_COMMANDS=()
@@ -305,6 +322,75 @@ digest_file() {
     printf '%s\n' "$BUILD_ROOT/$1/.digest-${COMMIT[$1]}.sha256"
 }
 
+configuration_file() {
+    case "$1" in
+        nextpnr) printf '%s\n' "$BUILD_ROOT/$1/.config-${COMMIT[$1]}.txt" ;;
+        *) return 1 ;;
+    esac
+}
+
+tool_configuration() {
+    case "$1" in
+        nextpnr)
+            if [[ "$GPU_ROUTER" == "HIP" ]]; then
+                printf 'gpu-router=%s; hip-architectures=%s\n' "$GPU_ROUTER" "$HIP_ARCHITECTURES"
+            else
+                printf 'gpu-router=%s; hip-architectures=unused\n' "$GPU_ROUTER"
+            fi
+            ;;
+        *) die "unknown tool for configuration attestation: $1" ;;
+    esac
+}
+
+cmake_cache_value() {
+    local build_dir="$1"
+    local key="$2"
+    local cache="$build_dir/CMakeCache.txt"
+    [[ -f "$cache" ]] || return 1
+    sed -n -E "s/^${key}:[^=]*=(.*)$/\1/p" "$cache" | head -n 1
+}
+
+actual_tool_configuration() {
+    case "$1" in
+        nextpnr)
+            local build_dir="$BUILD_ROOT/nextpnr"
+            local build_ninja="$build_dir/build.ninja"
+            local router
+            router="$(cmake_cache_value "$build_dir" GPU_ROUTER)" || return 1
+            [[ -f "$build_ninja" ]] || return 1
+            case "$router" in
+                HIP)
+                    local architectures
+                    architectures="$(cmake_cache_value "$build_dir" CMAKE_HIP_ARCHITECTURES)" || return 1
+                    [[ -n "$architectures" ]] || return 1
+                    grep -Fq 'NPNR_GPU_ROUTER_DEVICE=1' "$build_ninja" || return 1
+                    grep -Fq '__HIP_PLATFORM_AMD__=1' "$build_ninja" || return 1
+                    printf 'gpu-router=%s; hip-architectures=%s\n' "$router" "$architectures"
+                    ;;
+                CUDA)
+                    grep -Fq 'NPNR_GPU_ROUTER_DEVICE=1' "$build_ninja" || return 1
+                    printf 'gpu-router=%s; hip-architectures=unused\n' "$router"
+                    ;;
+                OFF)
+                    if grep -Eq 'NPNR_GPU_ROUTER_DEVICE=1|__HIP_PLATFORM_AMD__=1|__CUDACC__' "$build_ninja"; then
+                        return 1
+                    fi
+                    printf 'gpu-router=%s; hip-architectures=unused\n' "$router"
+                    ;;
+                *) return 1 ;;
+            esac
+            ;;
+        *) die "unknown tool for configuration attestation: $1" ;;
+    esac
+}
+
+configuration_matches_expected() {
+    local tool="$1"
+    local actual
+    actual="$(actual_tool_configuration "$tool")" || return 1
+    [[ "$actual" == "$(tool_configuration "$tool")" ]]
+}
+
 binary_digest() {
     local tool="$1"
     local binary
@@ -327,16 +413,21 @@ run_identity() {
 record_identity() {
     local tool="$1"
     local output
+    local config_path
     output="$(run_identity "$tool" 2>&1)" || return 1
     [[ -n "$output" ]] || return 1
     printf '%s\n' "$output" >"$(identity_file "$tool")"
     binary_digest "$tool" >"$(digest_file "$tool")"
+    if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
+        actual_tool_configuration "$tool" >"$config_path"
+    fi
 }
 
 artifact_verified() {
     local tool="$1"
     local expected actual
     local digest_path
+    local config_path
     local output
 
     output="$(run_identity "$tool" 2>&1)" || return 1
@@ -346,7 +437,12 @@ artifact_verified() {
     expected="$(tr -d '[:space:]' <"$digest_path")"
     [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || return 1
     actual="$(binary_digest "$tool")" || return 1
-    [[ "$expected" == "$actual" ]]
+    [[ "$expected" == "$actual" ]] || return 1
+    if config_path="$(configuration_file "$tool" 2>/dev/null)"; then
+        [[ -f "$config_path" ]] || return 1
+        configuration_matches_expected "$tool" || return 1
+        [[ "$(tr -d '\r' <"$config_path")" == "$(actual_tool_configuration "$tool")" ]] || return 1
+    fi
 }
 
 build_yosys() {
@@ -377,10 +473,25 @@ build_mistral() {
 
 build_nextpnr() {
     local build_dir="$BUILD_ROOT/nextpnr"
+    local -a gpu_options=()
+    case "$GPU_ROUTER" in
+        OFF|'') gpu_options+=("-DGPU_ROUTER=OFF") ;;
+        HIP)
+            gpu_options+=("-DGPU_ROUTER=HIP" "-DCMAKE_HIP_ARCHITECTURES=$HIP_ARCHITECTURES")
+            ;;
+        CUDA)
+            gpu_options+=("-DGPU_ROUTER=CUDA")
+            ;;
+        *)
+            die "FES_TOOLCHAIN_GPU_ROUTER must be OFF, HIP or CUDA (got '$GPU_ROUTER')"
+            ;;
+    esac
     run_logged nextpnr cmake -S "$SRC_ROOT/nextpnr" -B "$build_dir" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_ROOT" \
         -DARCH=mistral -DMISTRAL_ROOT="$SRC_ROOT/mistral" -DBUILD_PYTHON=OFF \
-        -DBUILD_GUI=OFF -DBUILD_TESTS=OFF -DUSE_IPO=OFF
+        -DBUILD_GUI=OFF -DBUILD_TESTS=OFF -DUSE_IPO=OFF "${gpu_options[@]}"
+    configuration_matches_expected nextpnr ||
+        die "nextpnr CMake configuration or compiled backend does not match the requested toolchain lane"
     run_logged nextpnr ninja -C "$build_dir" nextpnr-mistral -j"$JOBS"
     run_logged nextpnr ninja -C "$build_dir" install
 }
@@ -445,7 +556,9 @@ usage() {
 Usage: scripts/bootstrap.sh [--check-prereqs | --print-plan]
        scripts/bootstrap.sh
 
-Builds the five repositories pinned in toolchain.lock under build/toolchain.
+Builds the five repositories pinned in the selected lock under the selected
+toolchain root. Defaults are toolchain.lock and build/toolchain; Coleco uses
+FES_TOOLCHAIN_LOCKFILE, FES_TOOLCHAIN_ROOT, and FES_TOOLCHAIN_GPU_ROUTER=HIP.
 --check-prereqs reports missing host capabilities without installing anything.
 --print-plan prints the lock-derived plan without cloning or creating files.
 EOF

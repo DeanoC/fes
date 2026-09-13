@@ -406,6 +406,48 @@ clock pass timing. The 52 MHz integer uses the 520 MHz PLL feedback
 profile (M=52 N=5 C6=10). Recipe presence alone is no RBF, timing or
 hardware-support evidence. The command never programs a kit.
 
+`make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
+default and OSS-conditional lanes: a reduced ColecoVision machine with an open
+`JP 0x8000` reset shim, a raw 1–16 KiB cartridge aperture, mirrored CPU RAM,
+Graphics I VDP tile/status path with buffered reads and VBlank NMI, two joystick/keypad controllers with two fire
+buttons and twelve encoded keypad keys each, and the fixed
+1650×750 HDMI shell. The board tests upload the exact open diagnostic bytes
+through GP, release execution immediately, and check CPU-driven pixels across
+compact/full-size/repeated loads. `make coleco-diagnostic` generates the
+MIT-licensed raw cartridge and 720p reference image; see
+[the core guide](cores/fes-coleco/README.md#open-graphics-i-diagnostic).
+The optional joystick and raw-controller-byte diagnostics reuse the unchanged
+40-bit keyboard ABI; see [controller mapping](cores/fes-coleco/README.md#standard-controller-mapping).
+These are host simulations, not hardware acceptance.
+
+`make coleco-vdp-diagnostic` generates a BIOS-free CPU read/status/NMI test.
+`make sim-fes-coleco-vdp-io` and its `-oss` counterpart check its real CPU
+results and pass picture, including reset/reload. Enabling cartridges provide
+their NMI handler at 8066; see [VDP interfaces](cores/fes-coleco/README.md#vdp-reads-and-interrupts).
+
+`make sim-fes-coleco-quartus` separately checks the actual Quartus RAM/media
+branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
+See the core guide for prerequisites and reproducible before/after probes.
+
+`make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 recipe for
+`fes.coleco` 1.0.0. `make build-fes-coleco` is its authenticated OSS
+Yosys/nextpnr-Mistral counterpart for `5CSEBA6U23I7`; both require a clean
+committed tree before sealing and neither programs a kit. The OSS path uses
+Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
+four coherent VDP VRAM copies for the raster read ports (the fourth feeds the
+serial Graphics II sprite walker), `MISTRAL_IO` at HPS
+I²C BEL 52.60.0, and the accepted OSS 50 MHz `create_clock` constraint subset.
+The clean integration OSS build of implementation revision
+`b60e1aaccc5ec0c6f93d654c5cb2e6caf9f3e873` routes at 59.62 MHz system /
+90.88 MHz pixel with no unrouted nets; see `cores/fes-coleco/README.md` and the
+architecture note for the measured workaround handoff. It uses 85
+`MISTRAL_M10K_TDP` and 48 `MISTRAL_M10K` cells and seals package
+`3b1b9dbcf2a30e8b389ee2aaf11dc0d9facfd3c4b9461b4c9f301afa6244f368`. The exact
+clean package loaded through the native FogCast path and stopped back to idle
+under the designated target-agent lease. The HDMI sample was black; this is
+exact-artifact load/stop diagnostic evidence, not Coleco functional or video
+acceptance.
+
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
 MiSTer Pong and simulates the board top with independently driven,
@@ -470,6 +512,10 @@ build/fes-zx81-oss/core.rbf                             # OSS nextpnr/Mistral FE
 build/fes-zx81-oss/build-inputs.json                    # pre-synthesis canonical inputs
 build/fes-zx81-oss/build-summary.json                   # timing/resource/tool evidence
 build/fes-zx81-oss/manifest.toml                        # generated format-2 manifest
+build/fes-coleco-quartus/core.rbf                       # Quartus bring-up FES ColecoVision RBF
+build/fes-coleco-oss/core.rbf                            # OSS nextpnr/Mistral FES ColecoVision RBF
+build/fes-coleco-oss/build-summary.json                  # timing/resource/tool evidence
+build/fes-coleco-oss/manifest.toml                       # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest
 build/packages/<package-id>/core.rbf                    # unchanged payload
 build/packages/<package-id>.fcore                       # restricted ustar package
