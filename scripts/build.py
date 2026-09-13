@@ -628,36 +628,44 @@ def publish_bundle_cache(directory, system):
         raise ValueError("FPGA bundle cache must not be a symlink")
     if dest_root.exists() and not dest_root.is_dir():
         raise ValueError("FPGA bundle cache must be a directory")
-    dest_root.mkdir(parents=True, exist_ok=True)
     system_root = dest_root / system
-    if system_root.is_symlink():
-        raise ValueError("FPGA bundle cache system directory must not be a symlink")
-    if system_root.exists() and not system_root.is_dir():
-        raise ValueError("FPGA bundle cache system directory must be a directory")
-    system_root.mkdir(exist_ok=True)
-    destination = system_root / _closed_bundle_digest(directory, system)
-    if destination.is_symlink():
-        raise ValueError(f"FPGA bundle cache destination must not be a symlink: {destination}")
-    if destination.exists():
-        try:
-            _require_sealed_bundle(destination, system)
-        except ValueError as exc:
-            raise ValueError(f"FPGA bundle cache destination is not sealed: {destination}: {exc}") from exc
-        for name in names:
-            if (destination / name).read_bytes() != (directory / name).read_bytes():
-                raise ValueError(f"existing FPGA bundle cache entry differs: {destination}")
-        return destination
-    staged = Path(tempfile.mkdtemp(prefix=".new-", dir=system_root))
+    destination = None
+    staged = None
     try:
+        dest_root.mkdir(parents=True, exist_ok=True)
+        if system_root.is_symlink():
+            raise ValueError("FPGA bundle cache system directory must not be a symlink")
+        if system_root.exists() and not system_root.is_dir():
+            raise ValueError("FPGA bundle cache system directory must be a directory")
+        system_root.mkdir(exist_ok=True)
+        destination = system_root / _closed_bundle_digest(directory, system)
+        if destination.is_symlink():
+            raise ValueError(f"FPGA bundle cache destination must not be a symlink: {destination}")
+        if destination.exists():
+            try:
+                _require_sealed_bundle(destination, system)
+            except ValueError as exc:
+                raise ValueError(f"FPGA bundle cache destination is not sealed: {destination}: {exc}") from exc
+            for name in names:
+                if (destination / name).read_bytes() != (directory / name).read_bytes():
+                    raise ValueError(f"existing FPGA bundle cache entry differs: {destination}")
+            return destination
+        staged = Path(tempfile.mkdtemp(prefix=".new-", dir=system_root))
         for name in names:
             shutil.copy2(directory / name, staged / name)
             (staged / name).chmod(0o444)
         staged.chmod(0o555)
         staged.replace(destination)
         return destination
+    except OSError as exc:
+        target = destination if destination is not None else system_root
+        raise OSError(f"FPGA bundle cache publication failed: {target}: {exc}") from exc
     finally:
-        if staged.exists() or staged.is_symlink():
-            _remove_tree(staged)
+        if staged is not None and (staged.exists() or staged.is_symlink()):
+            try:
+                _remove_tree(staged)
+            except OSError:
+                pass
 
 
 def validate_bundle(directory, source, revision, system):
@@ -666,7 +674,7 @@ def validate_bundle(directory, source, revision, system):
                             expected_revision=revision if system == "pong" else None)
 
 
-def _validated_bundle_candidates(source, revision, system):
+def _validated_bundle_candidates(source, revision, system, diagnostics=None):
     source = Path(source)
     selected_root = source / "build/bundles" / system
     selected = []
@@ -690,6 +698,12 @@ def _validated_bundle_candidates(source, revision, system):
             _require_sealed_bundle(candidate, system)
             manifest = validate_bundle(candidate, source, revision, system)
         except ValueError:
+            continue
+        except OSError as exc:
+            reason = f"stable candidate skipped: {candidate}: {exc}"
+            if diagnostics is not None:
+                diagnostics.cache("fpga:" + system, "miss", reason)
+            print(reason, flush=True)
             continue
         stable.append((candidate, manifest))
     pairs = selected + stable
@@ -715,7 +729,8 @@ def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics
         raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
     if not force:
-        candidates = _validated_bundle_candidates(source, revisions["misteross"], system)
+        candidates = _validated_bundle_candidates(
+            source, revisions["misteross"], system, diagnostics)
         if candidates:
             bundle_dir = candidates[0]
             try:
@@ -750,7 +765,7 @@ def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics
     bundle_dir = bundles[0].parent
     try:
         publish_bundle_cache(bundle_dir, system)
-    except ValueError as exc:
+    except (ValueError, OSError) as exc:
         reason = f"stable publish skipped: {exc}"
         if diagnostics is not None:
             diagnostics.cache("fpga:" + system, "miss", reason)

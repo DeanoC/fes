@@ -101,10 +101,11 @@ two files in a temporary sibling directory, seal the files and directory, and
 atomically install the digest directory. If the destination already exists,
 FES will accept it only when its closed contents are byte-for-byte identical;
 otherwise publication raises rather than overwrite an existing artifact. A
-publication `ValueError` after a successful real build is recorded as an
-observable miss that includes the destination and error, printed as a skip,
-and does not fail the build; the validated selected-checkout bundle is still
-returned.
+publication `ValueError` or `OSError` after a successful real build is
+recorded as an observable miss that includes the destination and error,
+printed as a skip, and does not fail the build; the validated selected-checkout
+bundle is still returned. Cleanup of a failed staging directory must not mask
+the primary publication error.
 
 The source checkout remains the returned path for the build that just ran. A
 later invocation may use the stable copy. This avoids changing image assembly
@@ -150,7 +151,8 @@ No changes are planned for `scripts/bundle.py` or
 - Require regular files, the exact two-file closed set, and sealed permissions
   for stable entries.
 - Never overwrite an existing stable entry with different bytes.
-- Ignore invalid stable candidates and rebuild when no valid candidate remains.
+- Ignore invalid or unreadable stable candidates, record the skipped path, and
+  rebuild when no valid candidate remains.
 - Reject multiple distinct valid artifacts instead of guessing. Name the
   conflicting candidate directories. Recover by removing
   `out/cache/fpga-bundles/<system>` and retrying.

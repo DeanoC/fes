@@ -605,3 +605,87 @@ class CoreBuildTest(unittest.TestCase):
             self.assertTrue(reasons)
             self.assertTrue(any(str(dest) in reason and 'stable publish skipped' in reason
                                 for reason in reasons))
+
+    def test_publish_oserror_does_not_fail_a_real_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            produced = source / 'build/bundles/megadrive/identity'
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            def fake_run(args, **kwargs):
+                produced.mkdir(parents=True, exist_ok=True)
+                (produced / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+                (produced / 'megadrive-rbf.toml').write_bytes(b'manifest')
+
+            recorder = Recorder()
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=fake_run), \
+                 patch.object(build.shutil, 'copy2', side_effect=OSError('copy failed')), \
+                 patch.object(build, '_remove_tree', side_effect=OSError('cleanup failed')):
+                result = build.build_bundle(
+                    {'misteross': 'b' * 40}, {'QUARTUS_ROOTDIR': '/quartus'},
+                    system='megadrive', diagnostics=recorder)
+            self.assertEqual(result, produced)
+            dest = cache / 'megadrive' / build._closed_bundle_digest(produced, 'megadrive')
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(any(str(dest) in reason and 'stable publish skipped' in reason
+                                and 'copy failed' in reason for reason in reasons))
+            self.assertFalse(any('cleanup failed' in reason for reason in reasons))
+
+    def test_unreadable_stable_entry_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            readable = root / 'cache' / 'megadrive' / ('a' * 64)
+            unreadable = root / 'cache' / 'megadrive' / ('b' * 64)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            self._sealed_bundle(readable, 'megadrive')
+            self._sealed_bundle(unreadable, 'megadrive')
+
+            def require(directory, system):
+                if Path(directory) == unreadable:
+                    raise OSError('Permission denied')
+                build._require_closed_bundle(directory, system, sealed=True)
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            recorder = Recorder()
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build, '_require_sealed_bundle', side_effect=require), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                result = build.build_bundle(
+                    {'misteross': 'c' * 40}, {}, system='megadrive', diagnostics=recorder)
+            self.assertEqual(result, readable)
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(any(str(unreadable) in reason and 'stable candidate skipped' in reason
+                                for reason in reasons))

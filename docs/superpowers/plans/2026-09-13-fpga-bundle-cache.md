@@ -95,7 +95,7 @@ git commit -m "build: add sealed FPGA cache primitives"
 **Interfaces:**
 - Produces `_validated_bundle_candidates(source: Path, revision: str, system: str) -> tuple[Path, ...]`.
 - The helper searches the selected checkout's `build/bundles/<system>` and `FPGA_BUNDLE_CACHE/<system>`.
-- It validates candidates with `validate_bundle`; stable-cache validation failures are ignored as advisory misses, while a malformed selected-checkout candidate raises.
+- It validates candidates with `validate_bundle`; stable-cache `ValueError` and `OSError` failures are ignored as advisory misses and the skipped path is recorded, while a malformed selected-checkout candidate raises.
 - It deduplicates candidates by the validated manifest `sha256` and raises if more than one distinct valid artifact remains. The ambiguity error lists the conflicting candidate directories and does not prefer the selected checkout.
 
 - [ ] **Step 1: Write the failing cross-revision and boundary tests**
@@ -206,10 +206,11 @@ different bytes. Clean up the staging directory on every error.
 
 After `export-core-bundle` produces exactly one bundle and `validate_bundle`
 accepts it, call `publish_bundle_cache` and retain the selected-checkout path
-as the return value. Catch publication `ValueError`, record
+as the return value. Catch publication `ValueError` and `OSError`, record
 `stable publish skipped: <destination/error>` as a miss, print the skip, and
-still return the validated checkout bundle. The `force` path must still build
-first, then attempt to publish.
+still return the validated checkout bundle. Staging cleanup must not mask the
+primary error. The `force` path must still build first, then attempt to
+publish.
 
 - [ ] **Step 5: Run focused tests and verify GREEN**
 
