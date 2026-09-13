@@ -17,6 +17,10 @@ fail() {
     exit 2
 }
 
+if [[ -n "${FES_TOOLCHAIN_CACHE_ROOT:-}" ]]; then
+    fail "run_sim.sh: shared toolchain cache is unsupported; use an FES Python recipe or unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane"
+fi
+
 while (( $# > 0 )); do
     case "$1" in
         --experiment)

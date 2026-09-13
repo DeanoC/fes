@@ -35,6 +35,27 @@ dependency.
 are expected; the comparison focuses on target, sources, resources, timing,
 and successful artifact production.
 
+## Shared compiler installation
+
+`FES_TOOLCHAIN_CACHE_ROOT` is an explicit opt-in for the FES Python Pong, ZX81,
+and Coleco recipes. Version 1 supports one user on one Linux x86-64 glibc host.
+The request identity combines the selected lock and recipe bytes, normalized
+host/compiler probes, and the OFF/HIP/CUDA configuration. The per-key lock
+covers private source/build directories and publication. The resulting slot
+keeps the compiled-in absolute prefix and is consumed in place; its ready
+manifest authenticates the complete install/support-file closure, internal
+links, and evidence before any tool path is used.
+
+A failed or interrupted build leaves a partial slot and no ready manifest.
+The resolver reports that slot and refuses to retry until an operator performs
+manual recovery. Unsetting `FES_TOOLCHAIN_CACHE_ROOT` preserves the repository
+local lane. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`, Make
+simulation goals, `scripts/program.py`, and generic `make oss` paths reject the
+opt-in rather than selecting a local or ambient tool; only the FES Python
+recipes have shared-slot consumers in this version. FPGA output schemas and
+the `BUILD_ID` algorithm are unchanged, although tool hashes and resulting
+artifacts may differ when a shared compiler is used.
+
 ## Experiments
 
 `010_blinky` is a 50 MHz counter driving one LED. It is the smallest physical

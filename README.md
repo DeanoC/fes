@@ -561,6 +561,40 @@ make oracle EXP=020_linux_mailbox
 make compare EXP=020_linux_mailbox
 ```
 
+### Shared immutable toolchain cache
+
+The FES Python recipes can opt into a same-user, same-host shared compiler
+installation instead of rebuilding the pinned tools in every checkout. The
+supported host boundary is Linux x86-64 with glibc. Select a cache explicitly:
+
+```sh
+export FES_TOOLCHAIN_CACHE_ROOT="$HOME/.cache/fes-toolchains"
+make toolchain
+make build-fes-pong
+make build-fes-zx81
+make toolchain-fes-coleco
+make build-fes-coleco
+make doctor
+```
+
+The cache key includes the selected lock and recipe bytes, normalized compiler
+and host identities, and the OFF/HIP/CUDA configuration. A per-key lock covers
+the private source/build directories and publication of a stable slot. A
+ready manifest authenticates every installed tool, support file, internal
+link, and evidence record; consumers use the recorded absolute install path
+and never relocate or modify it. A failed build leaves its partial slot for
+manual recovery and is refused until an operator removes that slot.
+
+The default local toolchain behavior is unchanged when the variable is unset.
+The shared lane is limited to the FES Python Pong, ZX81, and Coleco recipes.
+Sourcing `scripts/env.sh`, `scripts/run_sim.sh`, standalone `make sim*`
+targets, `scripts/program.py`, and generic `make oss` fail early when shared
+mode is selected rather than silently using a local or ambient tool. Unset
+`FES_TOOLCHAIN_CACHE_ROOT` for those existing local workflows. FPGA output
+schemas and the `BUILD_ID` algorithm do not change; a shared compiler may
+produce different tool bytes, which remain represented by the existing digest
+fields and provenance records.
+
 Fetch the upstream Mega Drive pin and compile the source-built RBF:
 
 ```sh

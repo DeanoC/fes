@@ -1756,6 +1756,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     try:
+        if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT", "").strip():
+            raise _fail(
+                "shared toolchain cache is unsupported for program.py loader selection; "
+                "unset FES_TOOLCHAIN_CACHE_ROOT for the existing local programming workflow"
+            )
         args = parse_args(argv)
         evidence = validate_artifact(Path(args.repo_root), str(args.experiment), str(args.build))
         _print_artifact(evidence)
