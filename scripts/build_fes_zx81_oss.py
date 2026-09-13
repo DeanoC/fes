@@ -203,7 +203,7 @@ def build_commands(
         "--seed", str(seed),
         "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
         "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
-        "--router", "router1",
+        "--router", "gpu",
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",
