@@ -12,13 +12,13 @@
 
 ## Global Constraints
 
-- Stable entries live below the ignored workspace-local path `out/cache/fpga-bundles/<system>/<artifact-sha256>/`.
+- Stable entries live below the ignored workspace-local path `out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`.
 - Existing format-1 bundle manifests and child-repository exporters are unchanged.
 - Mega Drive, SNES, and NES may reuse across unrelated `misteross` commits only when the current recipe and manifest policy validate the candidate.
 - Pong requires the exact selected `misteross` revision and is never treated as equivalent across commits.
 - `make rebuild` bypasses both stable and selected-checkout candidates.
 - Invalid stable cache entries are advisory misses; malformed selected-checkout bundles remain errors.
-- Distinct valid artifacts are ambiguous and must be rejected rather than selected nondeterministically.
+- Distinct valid artifacts are ambiguous and must be rejected rather than selected nondeterministically. The error lists the conflicting candidate directories. Recover by removing `out/cache/fpga-bundles/<system>` and retrying; do not silently prefer the selected checkout.
 - Do not add shared-cache support for legacy generic OSS builds or FES format-2 package lanes.
 - Do not run Quartus or a full image build for unit-level implementation verification.
 
@@ -32,7 +32,7 @@
 
 **Interfaces:**
 - Produces `FPGA_BUNDLE_CACHE: Path`, set to `ROOT / "out/cache/fpga-bundles"`.
-- Produces `_bundle_directories(root: Path, system: str) -> tuple[Path, ...]`, returning digest-directory candidates below `root` without following a symlink root.
+- Produces `_bundle_directories(root: Path, system: str) -> tuple[Path, ...]`, returning digest-directory candidates below `root` without following a symlink root. Skip names starting with `.`, including `.new-*` staging leftovers.
 - Produces `_require_sealed_bundle(directory: Path, system: str) -> None`, requiring a non-symlink directory containing exactly `<system>.rbf` and `<system>-rbf.toml`, with regular non-symlink files and no write bits.
 
 - [ ] **Step 1: Write the failing tests**
@@ -96,7 +96,7 @@ git commit -m "build: add sealed FPGA cache primitives"
 - Produces `_validated_bundle_candidates(source: Path, revision: str, system: str) -> tuple[Path, ...]`.
 - The helper searches the selected checkout's `build/bundles/<system>` and `FPGA_BUNDLE_CACHE/<system>`.
 - It validates candidates with `validate_bundle`; stable-cache validation failures are ignored as advisory misses, while a malformed selected-checkout candidate raises.
-- It deduplicates candidates by the validated manifest `sha256` and raises if more than one distinct valid artifact remains.
+- It deduplicates candidates by the validated manifest `sha256` and raises if more than one distinct valid artifact remains. The ambiguity error lists the conflicting candidate directories and does not prefer the selected checkout.
 
 - [ ] **Step 1: Write the failing cross-revision and boundary tests**
 
@@ -170,7 +170,7 @@ git commit -m "build: reuse validated FPGA bundles across revisions"
 
 **Interfaces:**
 - Produces `publish_bundle_cache(directory: Path, system: str) -> Path`.
-- The destination is `FPGA_BUNDLE_CACHE / system / digest(directory / f"{system}.rbf")`.
+- The destination is `FPGA_BUNDLE_CACHE / system / closed-bundle-sha256`.
 - Publication copies exactly the RBF and manifest into a staged sibling,
   seals the files and directory, and atomically installs the digest directory.
 
@@ -206,7 +206,10 @@ different bytes. Clean up the staging directory on every error.
 
 After `export-core-bundle` produces exactly one bundle and `validate_bundle`
 accepts it, call `publish_bundle_cache` and retain the selected-checkout path
-as the return value. The `force` path must still build first, then publish.
+as the return value. Catch publication `ValueError`, record
+`stable publish skipped: <destination/error>` as a miss, print the skip, and
+still return the validated checkout bundle. The `force` path must still build
+first, then attempt to publish.
 
 - [ ] **Step 5: Run focused tests and verify GREEN**
 

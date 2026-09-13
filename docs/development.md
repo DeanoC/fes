@@ -122,11 +122,14 @@ a change to the locked RBF policy selects a new base. This intentionally
 conservative key can be narrowed later with evidence.
 
 Validated format-1 FPGA bundles are also copied into the ignored workspace
-cache `out/cache/fpga-bundles/<system>/<artifact-sha256>/`. That cache is
+cache `out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`. That cache is
 disposable local state, not provenance: Mega Drive, SNES and NES entries may
 be reused across `misteross` commits when the current recipe still validates
 them, Pong entries require the exact selected revision, and `make rebuild`
-bypasses reuse.
+bypasses reuse. Distinct validated artifacts are fail-closed: the error lists
+the conflicting candidate directories rather than preferring the selected
+checkout. Recover by removing the affected disposable subtree under
+`out/cache/fpga-bundles/<system>` and retrying.
 
 `make dev` builds selected clean revisions, not arbitrary uncommitted worker
 checkouts. Integrate reviewed component commits using the commands above before

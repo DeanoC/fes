@@ -1,4 +1,5 @@
 """The selected profile controls the complete installed FPGA core set."""
+from contextlib import contextmanager
 from pathlib import Path
 import hashlib
 import sys
@@ -236,6 +237,28 @@ class CoreBuildTest(unittest.TestCase):
                 load.assert_called_once_with(bundle, build.digest(source / 'scripts/build_pong.py'),
                                              system='pong', expected_revision='a' * 40)
 
+    def _write_format1_megadrive(self, directory, recipe_sha256, payload=b'rbf'):
+        directory.mkdir(parents=True, exist_ok=True)
+        rbf = directory / 'megadrive.rbf'
+        manifest = directory / 'megadrive-rbf.toml'
+        rbf.write_bytes(payload)
+        manifest.write_text(
+            'format = 1\n'
+            'abi = "mister"\n'
+            'system = "megadrive"\n'
+            'artifact = "megadrive.rbf"\n'
+            f'sha256 = "{hashlib.sha256(payload).hexdigest()}"\n'
+            f'size = {len(payload)}\n'
+            f'repository = "{build.core_bundle.REPOSITORY}"\n'
+            f'revision = "{build.core_bundle.REVISION}"\n'
+            'recipe = "scripts/rebuild_core.py"\n'
+            f'recipe_sha256 = "{recipe_sha256}"\n'
+            f'toolchain = "{build.core_bundle.TOOLCHAIN}"\n')
+        rbf.chmod(0o444)
+        manifest.chmod(0o444)
+        directory.chmod(0o555)
+        return directory
+
     def _sealed_bundle(self, directory, system, extra=()):
         directory.mkdir(parents=True, exist_ok=True)
         rbf = directory / f'{system}.rbf'
@@ -302,6 +325,13 @@ class CoreBuildTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'symlink'):
                 build._require_sealed_bundle(linked_bundle, 'megadrive')
 
+    def test_stable_bundle_directories_skip_hidden_staging_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            digest = self._sealed_bundle(root / 'megadrive' / ('e' * 64), 'megadrive')
+            self._sealed_bundle(root / 'megadrive' / '.new-staging', 'megadrive')
+            self.assertEqual(build._bundle_directories(root, 'megadrive'), (digest,))
+
     def test_upstream_bundle_from_another_misteross_revision_is_reused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -348,8 +378,56 @@ class CoreBuildTest(unittest.TestCase):
                               side_effect=lambda directory, *args, **kwargs: {
                                   'sha256': Path(directory).name}), \
                  patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
-                with self.assertRaisesRegex(ValueError, 'ambiguous'):
+                with self.assertRaises(ValueError) as raised:
                     build.build_bundle({'misteross': 'c' * 40}, {}, system='megadrive')
+            message = str(raised.exception)
+            self.assertIn('ambiguous', message)
+            self.assertIn(str(first), message)
+            self.assertIn(str(second), message)
+
+    def test_selected_checkout_and_distinct_stable_artifact_are_ambiguous(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            selected = source / 'build/bundles/megadrive' / ('a' * 64)
+            stable = root / 'cache' / 'megadrive' / ('b' * 64)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            selected.mkdir(parents=True)
+            (selected / 'megadrive.rbf').write_bytes(b'rbf-selected')
+            (selected / 'megadrive-rbf.toml').write_bytes(b'manifest-selected')
+            self._sealed_bundle(stable, 'megadrive')
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load',
+                              side_effect=lambda directory, *args, **kwargs: {
+                                  'sha256': Path(directory).name}), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaises(ValueError) as raised:
+                    build.build_bundle({'misteross': 'c' * 40}, {}, system='megadrive')
+            message = str(raised.exception)
+            self.assertIn('ambiguous', message)
+            self.assertIn(str(selected), message)
+            self.assertIn(str(stable), message)
+
+    def test_sealed_stable_megadrive_misses_after_recipe_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            (source / 'scripts').mkdir(parents=True)
+            recipe = source / 'scripts/rebuild_core.py'
+            recipe.write_text('recipe-v1')
+            cache = root / 'cache' / 'megadrive' / ('a' * 64)
+            self._write_format1_megadrive(cache, build.digest(recipe))
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                self.assertEqual(
+                    build.build_bundle({'misteross': 'b' * 40}, {}, system='megadrive'),
+                    cache)
+                recipe.write_text('recipe-v2')
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle({'misteross': 'b' * 40}, {}, system='megadrive')
 
     def test_pong_stable_candidate_requires_selected_revision(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -388,7 +466,7 @@ class CoreBuildTest(unittest.TestCase):
             cache = root / 'cache'
             with patch.object(build, 'FPGA_BUNDLE_CACHE', cache):
                 published = build.publish_bundle_cache(source, 'megadrive')
-            digest = build.digest(source / 'megadrive.rbf')
+            digest = build._closed_bundle_digest(source, 'megadrive')
             self.assertEqual(published, cache / 'megadrive' / digest)
             self.assertEqual((published / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
             self.assertEqual((published / 'megadrive-rbf.toml').read_bytes(), b'manifest-bytes')
@@ -397,6 +475,7 @@ class CoreBuildTest(unittest.TestCase):
             self.assertFalse(published.stat().st_mode & 0o222)
             with patch.object(build, 'FPGA_BUNDLE_CACHE', cache):
                 self.assertEqual(build.publish_bundle_cache(source, 'megadrive'), published)
+            self.assertNotEqual(digest, build.digest(source / 'megadrive.rbf'))
             published.chmod(0o755)
             cached_rbf = published / 'megadrive.rbf'
             cached_rbf.chmod(0o644)
@@ -407,6 +486,26 @@ class CoreBuildTest(unittest.TestCase):
                  self.assertRaisesRegex(ValueError, 'differ|exists'):
                 build.publish_bundle_cache(source, 'megadrive')
             self.assertEqual(cached_rbf.read_bytes(), b'different')
+
+    def test_publish_keys_manifest_only_changes_to_a_new_closed_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+            (source / 'megadrive-rbf.toml').write_bytes(b'manifest-v1')
+            cache = root / 'cache'
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache):
+                first = build.publish_bundle_cache(source, 'megadrive')
+                (source / 'megadrive-rbf.toml').write_bytes(b'manifest-v2')
+                second = build.publish_bundle_cache(source, 'megadrive')
+            self.assertNotEqual(first, second)
+            self.assertEqual(first, cache / 'megadrive' / build._closed_bundle_digest(
+                first, 'megadrive'))
+            self.assertEqual((first / 'megadrive-rbf.toml').read_bytes(), b'manifest-v1')
+            self.assertEqual((second / 'megadrive-rbf.toml').read_bytes(), b'manifest-v2')
+            self.assertEqual((first / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
+            self.assertEqual((second / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
 
     def test_publish_bundle_cache_rejects_symlinks_without_following(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -455,6 +554,54 @@ class CoreBuildTest(unittest.TestCase):
                     {'misteross': 'b' * 40}, {'QUARTUS_ROOTDIR': '/quartus'},
                     system='megadrive')
             self.assertEqual(result, produced)
-            cached = cache / 'megadrive' / build.digest(produced / 'megadrive.rbf')
+            cached = cache / 'megadrive' / build._closed_bundle_digest(produced, 'megadrive')
             self.assertEqual((cached / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
             self.assertFalse(cached.stat().st_mode & 0o222)
+
+    def test_unsealed_cache_destination_does_not_fail_a_real_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            produced = source / 'build/bundles/megadrive/identity'
+            template = root / 'template'
+            template.mkdir()
+            (template / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+            (template / 'megadrive-rbf.toml').write_bytes(b'manifest')
+            dest = cache / 'megadrive' / build._closed_bundle_digest(template, 'megadrive')
+            dest.mkdir(parents=True)
+            (dest / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+            (dest / 'megadrive-rbf.toml').write_bytes(b'manifest')
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            def fake_run(args, **kwargs):
+                produced.mkdir(parents=True, exist_ok=True)
+                (produced / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+                (produced / 'megadrive-rbf.toml').write_bytes(b'manifest')
+
+            recorder = Recorder()
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=fake_run):
+                result = build.build_bundle(
+                    {'misteross': 'b' * 40}, {'QUARTUS_ROOTDIR': '/quartus'},
+                    system='megadrive', diagnostics=recorder)
+            self.assertEqual(result, produced)
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(reasons)
+            self.assertTrue(any(str(dest) in reason and 'stable publish skipped' in reason
+                                for reason in reasons))

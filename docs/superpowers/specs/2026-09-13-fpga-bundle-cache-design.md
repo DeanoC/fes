@@ -55,7 +55,7 @@ The current validation boundary is sufficient for the supported bundle lanes:
 FES will use the ignored workspace-local directory:
 
 ```text
-out/cache/fpga-bundles/<system>/<artifact-sha256>/
+out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/
   <system>.rbf
   <system>-rbf.toml
 ```
@@ -64,6 +64,9 @@ The cache entry is an exact closed copy of the two files emitted by
 `export-core-bundle`. It remains sealed and is never edited in place. Existing
 per-revision locations under `out/work/misteross-*/build/bundles/` remain valid
 and are searched for compatibility.
+The directory name is a SHA-256 of the closed two-file set with unambiguous
+name, length and byte encoding. Older RBF-only keys remain discoverable when
+they still validate; a manifest-only change publishes under a new key.
 
 ### Candidate lookup and validation
 
@@ -72,12 +75,17 @@ For each selected system, FES will:
 1. Create or validate the selected `misteross` source checkout so the current
    recipe digest is available.
 2. If the action is not `rebuild`, enumerate candidates from the stable cache
-   and the selected checkout's existing bundle directory.
+   and the selected checkout's existing bundle directory. Skip hidden names
+   including `.new-*` staging directories.
 3. Validate each candidate through the existing `core_bundle.load` contract,
    using the current recipe digest. Pong candidates also receive the selected
    `misteross` revision; the three upstream-core candidates do not.
 4. Deduplicate candidates by validated artifact digest. If more than one
-   distinct valid artifact remains, fail rather than choose nondeterministically.
+   distinct valid artifact remains, fail closed rather than prefer the
+   selected checkout or choose nondeterministically. The error lists the
+   conflicting candidate directories. Recover by removing the affected
+   disposable cache subtree under `out/cache/fpga-bundles/<system>` and
+   retrying.
 5. Return the sole valid candidate without invoking Quartus.
 
 Stable-cache corruption or incomplete entries is treated as a cache miss and
@@ -92,7 +100,11 @@ FES will publish an exact copy to the stable cache. Publication will stage the
 two files in a temporary sibling directory, seal the files and directory, and
 atomically install the digest directory. If the destination already exists,
 FES will accept it only when its closed contents are byte-for-byte identical;
-otherwise it will fail rather than overwrite an existing artifact.
+otherwise publication raises rather than overwrite an existing artifact. A
+publication `ValueError` after a successful real build is recorded as an
+observable miss that includes the destination and error, printed as a skip,
+and does not fail the build; the validated selected-checkout bundle is still
+returned.
 
 The source checkout remains the returned path for the build that just ran. A
 later invocation may use the stable copy. This avoids changing image assembly
@@ -113,6 +125,7 @@ FPGA diagnostics will distinguish at least these outcomes:
 - `hit`: validated stable-cache bundle reused;
 - `hit`: validated selected-checkout bundle reused;
 - `miss`: no valid candidate, followed by a real build;
+- `miss`: stable publication skipped after a successful real build;
 - `forced`: explicit rebuild.
 
 Messages will identify the selected bundle path and will not claim that a
@@ -138,7 +151,11 @@ No changes are planned for `scripts/bundle.py` or
   for stable entries.
 - Never overwrite an existing stable entry with different bytes.
 - Ignore invalid stable candidates and rebuild when no valid candidate remains.
-- Reject multiple distinct valid artifacts instead of guessing.
+- Reject multiple distinct valid artifacts instead of guessing. Name the
+  conflicting candidate directories. Recover by removing
+  `out/cache/fpga-bundles/<system>` and retrying.
+- A publication failure after a successful real build is skipped with an
+  observable miss; the checkout bundle remains the result.
 - Keep all cache writes below the ignored FES `out/` tree.
 
 ## Verification
@@ -155,4 +172,3 @@ The implementation must demonstrate:
    invocation.
 5. Existing focused core-build tests and the full Python test suite remain
    green.
-
