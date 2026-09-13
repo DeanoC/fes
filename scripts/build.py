@@ -588,22 +588,66 @@ def validate_bundle(directory, source, revision, system):
                             expected_revision=revision if system == "pong" else None)
 
 
+def _validated_bundle_candidates(source, revision, system):
+    source = Path(source)
+    selected_root = source / "build/bundles" / system
+    selected = []
+    if selected_root.exists() or selected_root.is_symlink():
+        try:
+            metadata = selected_root.lstat()
+        except FileNotFoundError:
+            metadata = None
+        else:
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                raise ValueError(f"misteross {system} bundle directory must be a non-symlink directory")
+            bundles = list(selected_root.glob(f"*/{system}-rbf.toml"))
+            if bundles:
+                if len(bundles) != 1:
+                    raise ValueError(f"misteross has more than one cached {system} bundle")
+                bundle_dir = bundles[0].parent
+                selected.append((bundle_dir, validate_bundle(bundle_dir, source, revision, system)))
+    stable = []
+    for candidate in _bundle_directories(FPGA_BUNDLE_CACHE, system):
+        try:
+            _require_sealed_bundle(candidate, system)
+            manifest = validate_bundle(candidate, source, revision, system)
+        except ValueError:
+            continue
+        stable.append((candidate, manifest))
+    pairs = selected + stable
+    if not pairs:
+        return ()
+    if len(pairs) == 1:
+        return (pairs[0][0],)
+    by_digest = {}
+    for path, manifest in pairs:
+        digest_value = manifest.get("sha256") if isinstance(manifest, dict) else None
+        if not isinstance(digest_value, str) or not digest_value:
+            raise ValueError(f"validated {system} bundle is missing sha256")
+        if digest_value not in by_digest:
+            by_digest[digest_value] = path
+    if len(by_digest) > 1:
+        raise ValueError(f"ambiguous validated {system} FPGA bundles")
+    return tuple(by_digest.values())
+
+
 def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics=None):
     if system not in ("megadrive", "pong", "snes", "nes"):
         raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
-    directory = source / "build/bundles" / system
-    bundles = list(directory.glob(f"*/{system}-rbf.toml"))
-    if bundles and not force:
-        if len(bundles) != 1:
-            raise ValueError(f"misteross has more than one cached {system} bundle")
-        bundle_dir = bundles[0].parent
-        validate_bundle(bundle_dir, source, revisions["misteross"], system)
-        if diagnostics is not None:
-            diagnostics.cache("fpga:" + system, "hit",
-                              "validated revision-scoped FPGA bundle")
-        print(f"Reusing validated revision-scoped FPGA bundle: {bundle_dir}", flush=True)
-        return bundle_dir
+    if not force:
+        candidates = _validated_bundle_candidates(source, revisions["misteross"], system)
+        if candidates:
+            bundle_dir = candidates[0]
+            try:
+                Path(bundle_dir).relative_to(FPGA_BUNDLE_CACHE)
+                reason = "validated stable-cache FPGA bundle"
+            except ValueError:
+                reason = "validated selected-checkout FPGA bundle"
+            if diagnostics is not None:
+                diagnostics.cache("fpga:" + system, "hit", reason)
+            print(f"Reusing {reason}: {bundle_dir}", flush=True)
+            return bundle_dir
     if diagnostics is not None:
         diagnostics.cache("fpga:" + system, "forced" if force else "miss",
                           "validated bundle missing" if not force else "forced rebuild")
@@ -619,6 +663,7 @@ def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics
                   ["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
     run_stage(diagnostics, "fpga:" + system + " subprocess",
               ["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
+    directory = source / "build/bundles" / system
     bundles = list(directory.glob(f"*/{system}-rbf.toml"))
     if len(bundles) != 1:
         raise ValueError(f"misteross did not produce exactly one {system} bundle")

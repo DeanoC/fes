@@ -301,3 +301,79 @@ class CoreBuildTest(unittest.TestCase):
             self.assertTrue(linked_bundle.is_symlink())
             with self.assertRaisesRegex(ValueError, 'symlink'):
                 build._require_sealed_bundle(linked_bundle, 'megadrive')
+
+    def test_upstream_bundle_from_another_misteross_revision_is_reused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache' / 'megadrive' / ('a' * 64)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            self._sealed_bundle(cache, 'megadrive')
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                self.assertEqual(
+                    build.build_bundle({'misteross': 'b' * 40}, {}, system='megadrive'), cache)
+
+    def test_malformed_stable_entry_is_a_cache_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache' / 'megadrive' / ('a' * 64)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            self._sealed_bundle(cache, 'megadrive', extra=('extra',))
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle({'misteross': 'b' * 40}, {}, system='megadrive')
+
+    def test_distinct_valid_stable_artifacts_are_ambiguous(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            first = root / 'cache' / 'megadrive' / ('a' * 64)
+            second = root / 'cache' / 'megadrive' / ('b' * 64)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            self._sealed_bundle(first, 'megadrive')
+            self._sealed_bundle(second, 'megadrive')
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load',
+                              side_effect=lambda directory, *args, **kwargs: {
+                                  'sha256': Path(directory).name}), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaisesRegex(ValueError, 'ambiguous'):
+                    build.build_bundle({'misteross': 'c' * 40}, {}, system='megadrive')
+
+    def test_pong_stable_candidate_requires_selected_revision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache' / 'pong' / ('a' * 64)
+            selected = 'b' * 40
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/build_pong.py').write_text('recipe')
+            self._sealed_bundle(cache, 'pong')
+
+            def load(directory, recipe_sha256, *, system='megadrive', expected_revision=None):
+                if system == 'pong' and expected_revision != selected:
+                    raise ValueError('bundle expected revision differs from policy')
+                return {'sha256': 'a' * 64}
+
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', root / 'cache'), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', side_effect=load), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                self.assertEqual(
+                    build.build_bundle({'misteross': selected}, {}, system='pong'), cache)
+                build.core_bundle.load.assert_called_with(
+                    cache, build.digest(source / 'scripts/build_pong.py'),
+                    system='pong', expected_revision=selected)
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle({'misteross': 'c' * 40}, {}, system='pong')
