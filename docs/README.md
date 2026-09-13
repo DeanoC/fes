@@ -34,6 +34,21 @@ recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes
 
 ## What has been verified
 
+- [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
+  VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
+- [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard
+  joystick/keypad mode selection, two fire buttons and encoded keypad diagnostics.
+- [Coleco input diagnostic](validation/2026-09-12-coleco-input.md): two-player
+  keyboard-driven cartridge and input validation.
+- [Coleco cartridge diagnostic](validation/2026-09-12-coleco-media.md):
+  open Z80 cartridge, reset/VDP fixes, paired Quartus/nextpnr build evidence
+  and the exact status of leased media/graphics validation.
+- [Coleco Graphics II sprites](validation/2026-09-12-coleco-sprites.md):
+  bounded sprite rendering, sprite-status behavior, paired compiler evidence
+  and the current exact-artifact hardware gate.
+- [Coleco current-pin integration](validation/2026-09-13-coleco-nextpnr-integration.md):
+  parent pin selection, current OSS/Quartus package identities and exact-kit
+  acceptance for the selected nextpnr recipe.
 - [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
   host expander and tests landed; assembly stays the fixed 1 GiB image.
 - [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
