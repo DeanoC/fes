@@ -213,8 +213,39 @@ void TestSaveFileAdmissionAndAtomicRetry()
 
 } // namespace
 
+void TestComputerMediaIsBoundedOpaqueRegularFile()
+{
+	TempDirectory d;
+	std::vector<std::uint8_t> bytes;
+	for (const auto& item : std::vector<std::pair<std::string, std::size_t>>{
+		{"zx81.p", 1}, {"coleco.bin", 3}, {"cartridge", 16384}}) {
+		const std::string path = d.File(item.first, item.second);
+		const int fd = open(path.c_str(), O_WRONLY);
+		const unsigned char first = 0xc3;
+		assert(write(fd, &first, 1) == 1);
+		assert(close(fd) == 0);
+		assert(mister::native::ReadComputerMedia(path, &bytes).ok());
+		assert(bytes.size() == item.second && bytes[0] == 0xc3);
+	}
+	for (const std::size_t size : {0u, 16385u}) {
+		const std::string path = d.File("invalid" + std::to_string(size), size);
+		assert(!mister::native::ReadComputerMedia(path, &bytes).ok());
+	}
+	const std::string fifo = d.path + "/fifo";
+	assert(mkfifo(fifo.c_str(), 0600) == 0);
+	d.files.push_back(fifo);
+	assert(!mister::native::ReadComputerMedia(fifo, &bytes).ok());
+	const std::string link = d.path + "/link";
+	assert(symlink(d.files[0].c_str(), link.c_str()) == 0);
+	d.files.push_back(link);
+	assert(!mister::native::ReadComputerMedia(link, &bytes).ok());
+	assert(!mister::native::ReadComputerMedia(d.path, &bytes).ok());
+	assert(!mister::native::ReadComputerMedia(d.files[0] + std::string("\0x", 2), &bytes).ok());
+}
+
 int main()
 {
+	TestComputerMediaIsBoundedOpaqueRegularFile();
 	TestSaveFileAdmissionAndAtomicRetry();
 	TestMissingDirectoryAndZeroLengthAreRejected();
 	TestOversizeRbfIsRejected();
@@ -223,6 +254,6 @@ int main()
 	TestAbsoluteAndRelativeOpenUseTheSameFileAdmission();
 	TestCompleteSetFailureDoesNotAssignOutput();
 	TestMultiFilePreflightRetainsAndClosesDescriptors();
-	puts("artifacts_test: 8 passed");
+	puts("artifacts_test: 9 passed");
 	return 0;
 }

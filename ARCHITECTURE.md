@@ -115,8 +115,19 @@ ABIs over the same GP transport: tag 1 with gamepad plus fixed 720p60 for
 Pong, tag 2 with keyboard, fixed 720p60 and media blob for ZX81. Gamepad
 input stays disabled for the computer ABI. After video bring-up the driver
 writes eight neutral keyboard rows and releases execution. Live `set_keyboard`
-uses a 40-bit active-low matrix (five bits per ULA row); `load_media` commits
-a 1..16384-byte `.p` through begin/data/commit. Advertised ABIs are sorted by
+uses a 40-bit active-low matrix (five bits per ULA row); `load_media` reads a
+1..16384-byte regular file into a bounded snapshot before touching the core.
+The blob ABI is filename-independent: ZX81 `.p` and Coleco cartridge bytes use
+the same operation. Final symlinks, FIFOs, empty and oversized files are
+rejected. The driver holds execution reset, sends begin/data/commit, and only
+releases reset after a successful commit. The core must keep execution held
+until its committed blob is ready for consumption. A transfer failure after
+acknowledged hold leaves reset held; the caller can retry a rejected command.
+A poisoned transport can prevent Stop from quiescing the core and require the
+existing reboot recovery path. ZX81 uploads now reset the machine; wait for
+BASIC before issuing `LOAD ""` against the retained blob.
+The runtime owns reset ordering; FogCast owns upload staging and session/lease
+admission. These development loads remain volatile. Advertised ABIs are sorted by
 id so FogCast protocol-2 inspect can admit ZX81. The programming-profile header retains the reviewed mister-packages tree
 `85a7771470ef0ff872e7a27d9fbf87d102e4a30f`. The GP header and persistence
 fixtures are generated from mister-packages

@@ -3,6 +3,7 @@
 
 #include "native/artifacts.hpp"
 #include "native/diagnostic.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -62,6 +63,40 @@ Artifact& Artifact::operator=(Artifact&& other) noexcept
 int Artifact::fd() const { return fd_; }
 std::uint64_t Artifact::size() const { return size_; }
 const std::string& Artifact::path() const { return path_; }
+
+Error ReadComputerMedia(const std::string& path, std::vector<std::uint8_t>* output)
+{
+	if (!output || path.empty() || path[0] != '/' ||
+		path.find('\0') != std::string::npos)
+		return {ErrorCode::invalid_request, "computer media path is invalid", "request"};
+	const auto slash = path.find_last_of('/');
+	const std::string parent = slash == 0 ? "/" : path.substr(0, slash);
+	const int directory = open(parent.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (directory < 0) return IoError("open media directory failed", parent);
+	Artifact artifact;
+	PosixArtifactOpener opener;
+	const Error admitted = opener.OpenRelative(directory, parent, path.substr(slash + 1),
+		generated::FesSimpleComputerMediaMaxBytes, &artifact);
+	close(directory);
+	if (!admitted.ok()) return admitted;
+	// Read at most max+1, even if a concurrent writer grows the retained file.
+	std::vector<std::uint8_t> bytes(generated::FesSimpleComputerMediaMaxBytes + 1);
+	std::size_t offset = 0;
+	while (offset < bytes.size()) {
+		const ssize_t count = read(artifact.fd(), bytes.data() + offset, bytes.size() - offset);
+		if (count < 0) {
+			if (errno == EINTR) continue;
+			return IoError("read computer media failed", path);
+		}
+		if (count == 0) break;
+		offset += static_cast<std::size_t>(count);
+	}
+	if (offset != artifact.size())
+		return {ErrorCode::invalid_request, "computer media size changed while reading", "request"};
+	bytes.resize(offset);
+	*output = std::move(bytes);
+	return {};
+}
 
 Error PosixArtifactOpener::Open(const std::string& path,
 	std::uint64_t maximum_size, Artifact* output)

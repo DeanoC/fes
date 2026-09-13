@@ -92,6 +92,7 @@ private:
 
 Error OpenLaunchArtifacts(const PreparedLaunch&, ArtifactOpener&, ArtifactSet*);
 Error OpenRBFArtifact(const std::string&, ArtifactOpener&, Artifact*);
+Error ReadComputerMedia(const std::string&, std::vector<std::uint8_t>*);
 
 } // namespace native
 } // namespace mister

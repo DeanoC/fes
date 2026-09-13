@@ -426,6 +426,10 @@ Error FesGpCoreDriver::LoadMedia(
 		bytes.size() > FesSimpleComputerMediaMaxBytes)
 		return {ErrorCode::invalid_request, "FES computer media size is invalid",
 			"request"};
+	// The computer consumes committed media while execution reset is held.
+	// Never release after a partial transfer or an unacknowledged commit.
+	CoreDriverResult held = Quiesce({}, deadline);
+	if (!held.error.ok()) return held.error;
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 		static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
@@ -456,7 +460,10 @@ Error FesGpCoreDriver::LoadMedia(
 	if (!error.ok()) return WithPhase(error, "input");
 	if (response != 0)
 		return {ErrorCode::io_failed, "FES computer media commit failed", "input"};
-	return {};
+	CoreDriverResult released = Gameplay(
+		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
+	if (released.error.ok()) reset_held_ = false;
+	return WithPhase(std::move(released.error), "input");
 }
 
 CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
