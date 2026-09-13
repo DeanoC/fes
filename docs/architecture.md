@@ -38,15 +38,19 @@ and successful artifact production.
 ## Shared compiler installation
 
 FES Python Pong, ZX81, and Coleco recipes select a shared compiler only through
-an explicit `--cache-root` argument. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not
-a policy selector for those producers. HIP (`gpu-router=HIP`,
-`hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane: nextpnr
-commands include `--router gpu`, build records store that HIP configuration,
-and route evidence must name a live HIP backend rather than a CPU-reference
-fallback. Pong and ZX81 use the repository-wide `toolchain.lock` HIP slot;
-Coleco keeps `cores/fes-coleco/toolchain.lock` and does not share that slot.
-Omitting `--cache-root` preserves the repository-local toolchain. Quartus
-ZX81/Coleco recipes are oracle-only and are not a nextpnr fallback.
+an explicit `--cache-root` argument or the Make `CACHE_ROOT=` variable on
+`build-fes-pong`, `build-fes-zx81`, and `build-fes-coleco`. Ambient
+`FES_TOOLCHAIN_CACHE_ROOT` is not a policy selector for those producers. HIP
+(`gpu-router=HIP`, `hip-architectures=gfx1100;gfx1201`) is the standard FES
+nextpnr lane: nextpnr commands include `--router gpu`, build records store that
+HIP configuration, and route evidence must name a live HIP backend rather than
+a CPU-reference fallback. Pong and ZX81 use the repository-wide
+`toolchain.lock` HIP slot; Coleco keeps `cores/fes-coleco/toolchain.lock` and
+does not share that slot. Local HIP tools come from `make toolchain-fes` for
+Pong/ZX81 and `make toolchain-fes-coleco` for Coleco. `make toolchain` remains
+GPU-router OFF for generic OSS experiments. Omitting `--cache-root` /
+`CACHE_ROOT` preserves that local HIP install. Quartus ZX81/Coleco recipes are
+oracle-only and are not a nextpnr fallback.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,7 +15,8 @@ from scripts.build_fes_pong import AuthenticatedTool, BuildError, build_commands
 from scripts.build_fes_zx81_oss import OUTPUT_RELATIVE as ZX81_OUTPUT
 from scripts.build_fes_zx81_oss import build_commands as zx81_build_commands
 from scripts.build_fes_zx81_oss import create_build_record as zx81_create_build_record
-from tests.test_build_fes_pong import publish_shared_toolchain
+from scripts.lockfile import load_lock
+from tests.test_build_fes_pong import _write_fake_tool, publish_shared_toolchain
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +34,30 @@ LIVE_HIP_LOG = (
     "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
     "Info: Program finished normally.\n"
 )
+OFF_CONFIGURATION = "gpu-router=OFF; hip-architectures=unused"
+
+
+def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
+    (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+    install = root / "build/toolchain/install/bin"
+    install.mkdir(parents=True)
+    pins = load_lock(root / "toolchain.lock")
+    for lock_name, binary_name in (
+        ("yosys", "yosys"),
+        ("mistral", "mistral-cv"),
+        ("nextpnr", "nextpnr-mistral"),
+    ):
+        binary = install / binary_name
+        _write_fake_tool(binary, lock_name)
+        evidence = root / "build/toolchain/build" / lock_name
+        evidence.mkdir(parents=True)
+        commit = pins[lock_name].commit
+        (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
+        digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+        (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+        if lock_name == "nextpnr" and nextpnr_config is not None:
+            (evidence / f".config-{commit}.txt").write_text(f"{nextpnr_config}\n", encoding="utf-8")
+    return install
 
 
 class FesHipLaneTests(unittest.TestCase):
@@ -216,6 +243,88 @@ class FesHipLaneTests(unittest.TestCase):
             ):
                 build_fes_pong.build(root, root / "build/packages", cache_root=cache)
             self.assertEqual(seen, [cache, cache])
+
+    def test_local_off_or_unstamped_nextpnr_is_rejected_for_pong_and_zx81(self) -> None:
+        for module in (build_fes_pong, build_fes_zx81_oss):
+            for stamp in (OFF_CONFIGURATION, None):
+                with self.subTest(module=module.__name__, stamp=stamp):
+                    with tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        _write_local_root_tools(root, nextpnr_config=stamp)
+                        with patch.dict(os.environ, {}, clear=True):
+                            with self.assertRaisesRegex(BuildError, r"make toolchain-fes"):
+                                module._authenticate_tools(root)
+
+    def test_local_hip_stamp_from_toolchain_fes_lane_authenticates_pong_and_zx81(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            install = _write_local_root_tools(root, nextpnr_config=HIP_CONFIGURATION)
+            with patch.dict(os.environ, {}, clear=True):
+                for module in (build_fes_pong, build_fes_zx81_oss):
+                    with self.subTest(module=module.__name__):
+                        authenticated = module._authenticate_tools(root)
+                        self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
+                        self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+
+    def test_toolchain_fes_provisions_root_lock_hip_lane(self) -> None:
+        result = subprocess.run(
+            ["make", "-n", "toolchain-fes"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
+        self.assertIn("FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201'", result.stdout)
+        self.assertIn("scripts/bootstrap.sh", result.stdout)
+        self.assertNotIn("cores/fes-coleco/toolchain.lock", result.stdout)
+        self.assertNotIn("build/toolchain/fes-coleco", result.stdout)
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertRegex(makefile, r"\.PHONY:.*\btoolchain-fes\b")
+        self.assertIn("toolchain-fes  Build the repository-local HIP toolchain for FES Pong/ZX81", makefile)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("make toolchain-fes", readme)
+        self.assertIn("make toolchain", readme)
+
+    def test_make_forwards_cache_root_to_fes_producers(self) -> None:
+        cache = "/tmp/fes-explicit-cache"
+        producers = (
+            ("build-fes-pong", "scripts/build_fes_pong.py"),
+            ("build-fes-zx81", "scripts/build_fes_zx81_oss.py"),
+            ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+        )
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        self.assertIn("CACHE_ROOT=", makefile)
+        self.assertNotIn("optional --cache-root", makefile)
+        for target, script in producers:
+            with self.subTest(target=target, forwarded=True):
+                result = subprocess.run(
+                    ["make", "-n", target, f"CACHE_ROOT={cache}"],
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f'{script} --root "{ROOT}" --cache-root "{cache}"', result.stdout)
+            with self.subTest(target=target, forwarded=False):
+                result = subprocess.run(
+                    ["make", "-n", target],
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    result.stdout.strip(),
+                    f'python3 {script} --root "{ROOT}"',
+                )
+                self.assertNotIn("--cache-root", result.stdout)
 
 
 if __name__ == "__main__":

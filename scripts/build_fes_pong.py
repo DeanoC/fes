@@ -318,6 +318,17 @@ def _authenticate_shared_tools(
     return authenticated
 
 
+def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: str) -> str:
+    if configuration != FES_TOOLCHAIN_CONFIGURATION:
+        return ""
+    try:
+        if lock_path.resolve() != (root / "toolchain.lock").resolve():
+            return ""
+    except OSError:
+        return ""
+    return "; run `make toolchain-fes` to provision the FES HIP local toolchain"
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -387,10 +398,14 @@ def _authenticate_tools(
         configuration = expected_configuration.get(lock_name)
         if configuration is not None:
             configuration_path = build_root / lock_name / f".config-{pin.commit}.txt"
-            actual_configuration = _read_evidence(configuration_path, "configuration")
+            hint = _fes_hip_local_provision_hint(root, lock_path, configuration)
+            try:
+                actual_configuration = _read_evidence(configuration_path, "configuration")
+            except BuildError as exc:
+                raise BuildError(f"{exc}{hint}") from exc
             if actual_configuration != configuration:
                 raise BuildError(
-                    f"tool configuration does not match the requested build lane: {executable}"
+                    f"tool configuration does not match the requested build lane: {executable}{hint}"
                 )
         _probe_authenticated_tool(root, path, lock_name, executable, arguments)
         identity = f"commit={pin.commit}; sha256={actual_digest}"

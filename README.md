@@ -400,12 +400,14 @@ does not program hardware.
 
 `make build-fes-zx81` authenticates Yosys, nextpnr-mistral and Mistral against
 the repository-wide `toolchain.lock` HIP slot, routes with `--router gpu`,
-and rejects a CPU-reference fallback. Pass `--cache-root` for a shared
-compiler slot. It synthesizes the board shell with Verilog T80pa/TV80 and
-M10K allowed, and seals `build/fes-zx81-oss/` when the 52 MHz system clock
-and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses the 520 MHz
-PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is no RBF,
-timing or hardware-support evidence. The command never programs a kit.
+and rejects a CPU-reference fallback. Provision the local HIP tools with
+`make toolchain-fes` (`make toolchain` stays GPU-router OFF for generic OSS
+experiments). Pass `CACHE_ROOT=/absolute/cache` for a shared compiler slot;
+omit it for the local HIP install. It synthesizes the board shell with Verilog
+T80pa/TV80 and M10K allowed, and seals `build/fes-zx81-oss/` when the 52 MHz
+system clock and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses
+the 520 MHz PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is
+no RBF, timing or hardware-support evidence. The command never programs a kit.
 
 `make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
 default and OSS-conditional lanes: a reduced ColecoVision machine with an open
@@ -432,9 +434,11 @@ See the core guide for prerequisites and reproducible before/after probes.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`
-is the authenticated HIP nextpnr/Mistral production recipe for `5CSEBA6U23I7`
-and accepts `--cache-root` for a shared compiler slot. Both require a clean
-committed tree before sealing and neither programs a kit. The OSS path uses
+is the authenticated HIP nextpnr/Mistral production recipe for `5CSEBA6U23I7`.
+Provision its local HIP tools with `make toolchain-fes-coleco`. Pass
+`CACHE_ROOT=/absolute/cache` for a shared compiler slot; omit it for the local
+HIP install. Both require a clean committed tree before sealing and neither
+programs a kit. The OSS path uses
 Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
 four coherent VDP VRAM copies for the raster read ports (the fourth feeds the
 serial Graphics II sprite walker), `MISTRAL_IO` at HPS
@@ -460,8 +464,9 @@ that exact route and constant-low output data.
 
 `make build-fes-pong` authenticates Yosys, nextpnr-mistral and Mistral against
 `toolchain.lock` on the standard HIP lane (`--router gpu`, live HIP backend
-required). Pass `--cache-root` to use a shared compiler slot; omit it for the
-repository-local toolchain. It constructs canonical
+required). Provision the local HIP tools with `make toolchain-fes`. Pass
+`CACHE_ROOT=/absolute/cache` for a shared compiler slot; omit it for the local
+HIP install. It constructs canonical
 `build/fes-pong/build-inputs.json` before synthesis, and passes its 128-bit ID
 as `top.BUILD_ID`. It rejects missing or failing 50/74.25 MHz timing, incomplete
 routing, a CPU-reference GPU fallback, unexpected hard resources, a changed
@@ -545,6 +550,17 @@ make toolchain
 source scripts/env.sh
 ```
 
+`make toolchain` builds the generic OSS tools with GPU router OFF. FES Pong
+and ZX81 local HIP builds need the FES HIP lane instead:
+
+```sh
+make toolchain-fes
+make build-fes-pong
+make build-fes-zx81
+```
+
+Coleco keeps `make toolchain-fes-coleco` and its specialized lock.
+
 Build the mailbox experiment with the open toolchain:
 
 ```sh
@@ -569,18 +585,27 @@ make compare EXP=020_linux_mailbox
 
 The FES Python Pong, ZX81, and Coleco recipes use HIP nextpnr (`--router gpu`
 with a live HIP backend) as the standard production lane. Shared-cache mode
-is selected only by an explicit `--cache-root PATH` on the producer CLI, not
-by ambient `FES_TOOLCHAIN_CACHE_ROOT`. Omitting `--cache-root` keeps the
-repository-local toolchain. Pong and ZX81 authenticate the repository-wide
-`toolchain.lock` HIP slot (`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`).
-Coleco keeps `cores/fes-coleco/toolchain.lock` and the same HIP lane without
-aliasing the root-lock cache slot. Quartus recipes remain oracle-only for ZX81
-and Coleco and are not a nextpnr fallback.
+is selected only by an explicit `--cache-root PATH` on the producer CLI or by
+`CACHE_ROOT=/absolute/cache` on `make build-fes-pong`, `make build-fes-zx81`,
+and `make build-fes-coleco`, not by ambient `FES_TOOLCHAIN_CACHE_ROOT`.
+Omitting `--cache-root` / `CACHE_ROOT` keeps the repository-local HIP
+toolchain from `make toolchain-fes` (Pong/ZX81) or `make toolchain-fes-coleco`.
+Pong and ZX81 authenticate the repository-wide `toolchain.lock` HIP slot
+(`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). Coleco keeps
+`cores/fes-coleco/toolchain.lock` and the same HIP lane without aliasing the
+root-lock cache slot. Quartus recipes remain oracle-only for ZX81 and Coleco
+and are not a nextpnr fallback.
+
+`FES_ROOT` is the FES parent checkout (not this misteross worktree). The
+parent cache lives at `${FES_ROOT}/out/cache/misteross-toolchains`.
 
 ```sh
-python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
-python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
-python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
+CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-pong
+CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-zx81
+CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-coleco
+python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
+python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
+python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 ```
 
 A nextpnr command that merely contains `--router gpu` is not sufficient: the
