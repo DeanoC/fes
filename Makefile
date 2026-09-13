@@ -44,11 +44,11 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
-		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
-		"  build-fes-coleco-quartus  Quartus 17.0.2 bring-up package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision with the pinned Yosys/nextpnr-mistral tools" \
-		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
+		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
+		"  build-fes-zx81  Seal FES ZX81 with HIP nextpnr/Mistral (optional --cache-root)" \
+		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
+		"  build-fes-coleco  Seal FES ColecoVision with HIP nextpnr/Mistral (optional --cache-root)" \
+		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (optional --cache-root)" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \

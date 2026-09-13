@@ -21,6 +21,7 @@ from scripts.build_fes_pong import (
     _git,
     _i2c_evidence,
     _read_json,
+    _require_gpu_backend,
     _run_tool,
     _sha256,
     _write_atomic,
@@ -118,19 +119,7 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
 
-def _require_gpu_backend(route_text: str) -> str:
-    """Require nextpnr to have routed on the live Coleco HIP backend."""
-
-    lowered = route_text.lower()
-    if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
-        raise BuildError("route log proves that --router gpu has no live GPU device backend and fell back to the CPU reference backend")
-    match = re.search(r"\bbackend\s+hip:[^\n]*\bready\b", route_text, re.IGNORECASE)
-    if match is None:
-        raise BuildError("route log does not prove a live HIP device backend")
-    return COLECO_GPU_BACKEND
-
-
-def _authenticate_coleco_tools(root: Path):
+def _authenticate_coleco_tools(root: Path, cache_root: Path | None = None):
     return _authenticate_tools(
         root,
         lock_path=root / COLECO_TOOLCHAIN_LOCK,
@@ -139,6 +128,7 @@ def _authenticate_coleco_tools(root: Path):
         expected_configuration={"nextpnr": COLECO_TOOLCHAIN_CONFIGURATION},
         gpu_router=COLECO_GPU_ROUTER,
         hip_architectures=COLECO_GPU_ARCHITECTURES,
+        cache_root=cache_root,
     )
 
 
@@ -420,13 +410,13 @@ def _manifest(
     return encode_manifest(fields)
 
 
-def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES ColecoVision package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root)
-    authenticated = _authenticate_coleco_tools(root)
+    authenticated = _authenticate_coleco_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     record = create_build_record(root, repository, revision, identities)
     output = _prepare_output(root)
@@ -457,7 +447,7 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_coleco_tools(root)
+        final_tools = _authenticate_coleco_tools(root, cache_root=cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root)
@@ -476,12 +466,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
             repository, revision = _require_clean_source(arguments.root)
-            authenticated = _authenticate_coleco_tools(arguments.root)
+            authenticated = _authenticate_coleco_tools(arguments.root, cache_root=arguments.cache_root)
             identities = {name: tool.identity for name, tool in authenticated.items()}
             record = create_build_record(arguments.root, repository, revision, identities)
             build_id = build_identity(record)
@@ -494,7 +485,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(" ".join(yosys))
             print(" ".join(nextpnr))
             return 0
-        print(build(arguments.root, arguments.package_output))
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-coleco-oss: {exc}", file=sys.stderr)
         return 1

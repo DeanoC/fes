@@ -184,6 +184,7 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(nextpnr[nextpnr.index("--sdc") + 1], "boards/de10nano/clocks.sdc")
         self.assertEqual(nextpnr[nextpnr.index("--freq") + 1], "74.25")
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "1")
+        self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertEqual(nextpnr[nextpnr.index("--rbf") + 1], "build/fes-pong/core.rbf")
         self.assertEqual(nextpnr[nextpnr.index("--write") + 1], "build/fes-pong/routed.json")
         self.assertEqual(nextpnr[nextpnr.index("--report") + 1], "build/fes-pong/timing.json")
@@ -271,9 +272,12 @@ class BuildFesPongTests(unittest.TestCase):
             fields["parameters"],
             {
                 "device": "5CSEBA6U23I7",
+                "gpu_architectures": "gfx1100;gfx1201",
+                "gpu_backend": "hip",
                 "pixel_clock_hz": 74250000,
                 "pll_fractional_vco_multiplier": True,
                 "reference_clock_hz": 50000000,
+                "router": "gpu",
                 "seed": 1,
                 "top": "top",
             },
@@ -292,11 +296,11 @@ class BuildFesPongTests(unittest.TestCase):
                     encoding="utf-8",
                 )
                 (decoy / name).chmod(0o755)
-            request, manifest = publish_shared_toolchain(base)
+            request, manifest = publish_shared_toolchain(base, gpu_router="HIP")
 
             with patch.dict(
                 os.environ,
-                {"PATH": str(decoy), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(decoy), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -307,7 +311,9 @@ class BuildFesPongTests(unittest.TestCase):
                 "compiler_inventory",
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
-                authenticated = build_fes_pong._authenticate_tools(ROOT)
+                authenticated = build_fes_pong._authenticate_tools(
+                    ROOT, cache_root=request.cache_root
+                )
 
             self.assertEqual(
                 {name: tool.path for name, tool in authenticated.items()},
@@ -352,10 +358,10 @@ class BuildFesPongTests(unittest.TestCase):
     def test_shared_lane_runs_the_mistral_target_database_probe(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _ = publish_shared_toolchain(base, mistral_target=False)
+            request, _ = publish_shared_toolchain(base, gpu_router="HIP", mistral_target=False)
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -367,15 +373,15 @@ class BuildFesPongTests(unittest.TestCase):
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
                 with self.assertRaisesRegex(BuildError, "Mistral database"):
-                    build_fes_pong._authenticate_tools(ROOT)
+                    build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
     def test_shared_lane_rechecks_the_closure_after_identity_probes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _ = publish_shared_toolchain(base, mutate_after_probe=True)
+            request, _ = publish_shared_toolchain(base, gpu_router="HIP", mutate_after_probe=True)
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -390,12 +396,12 @@ class BuildFesPongTests(unittest.TestCase):
                     BuildError,
                     "shared toolchain verification failed after identity probes: .*closure differs",
                 ):
-                    build_fes_pong._authenticate_tools(ROOT)
+                    build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
     def test_shared_lane_rejects_tampered_ready_provenance_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _ = publish_shared_toolchain(base)
+            request, _ = publish_shared_toolchain(base, gpu_router="HIP")
             ready = toolchain_cache.ready_path(request)
             ready.chmod(0o644)
             data = json.loads(ready.read_text(encoding="utf-8"))
@@ -405,7 +411,7 @@ class BuildFesPongTests(unittest.TestCase):
 
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(toolchain_cache, "host_identity", return_value={"system": "Linux"}), patch.object(
                 toolchain_cache,
@@ -413,17 +419,17 @@ class BuildFesPongTests(unittest.TestCase):
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
-                    build_fes_pong._authenticate_tools(ROOT)
+                    build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
     def test_shared_lane_rejects_partial_slot_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, _ = publish_shared_toolchain(base)
+            request, _ = publish_shared_toolchain(base, gpu_router="HIP")
             toolchain_cache.ready_path(request).unlink()
 
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(toolchain_cache, "host_identity", return_value={"system": "Linux"}), patch.object(
                 toolchain_cache,
@@ -431,7 +437,7 @@ class BuildFesPongTests(unittest.TestCase):
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
                 with self.assertRaisesRegex(BuildError, "shared toolchain"):
-                    build_fes_pong._authenticate_tools(ROOT)
+                    build_fes_pong._authenticate_tools(ROOT, cache_root=request.cache_root)
 
     def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -455,6 +461,11 @@ class BuildFesPongTests(unittest.TestCase):
                 (evidence / f".built-{commit}").write_text(f"commit={commit}\n", encoding="utf-8")
                 digest = hashlib.sha256(binary.read_bytes()).hexdigest()
                 (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n", encoding="utf-8")
+                if lock_name == "nextpnr":
+                    (evidence / f".config-{commit}.txt").write_text(
+                        "gpu-router=HIP; hip-architectures=gfx1100;gfx1201\n",
+                        encoding="utf-8",
+                    )
 
             with patch.dict(os.environ, {}, clear=True):
                 authenticated = build_fes_pong._authenticate_tools(root)
@@ -528,6 +539,7 @@ class BuildFesPongTests(unittest.TestCase):
             "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
             "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, M=8 N=1 C6=6, "
             "bel altera_pll.0.14.0\n"
+            "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
             "Info: Program finished normally.\n",
             encoding="utf-8",
         )
@@ -652,7 +664,11 @@ class BuildFesPongTests(unittest.TestCase):
             output = Path(directory)
             self._write_passing_outputs(output)
             route_log = output / "nextpnr.log"
-            route_log.write_text("Info: Program finished normally.\n", encoding="utf-8")
+            route_log.write_text(
+                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
+                "Info: Program finished normally.\n",
+                encoding="utf-8",
+            )
             with self.assertRaisesRegex(BuildError, "50.00 MHz"):
                 validate_build_evidence(output)
 
@@ -670,6 +686,7 @@ class BuildFesPongTests(unittest.TestCase):
             self._write_passing_outputs(output)
             route_log.write_text(
                 "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
+                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
                 "Info: Program finished normally.\n",
                 encoding="utf-8",
             )

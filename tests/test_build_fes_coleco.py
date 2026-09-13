@@ -94,7 +94,7 @@ class BuildFesColecoTests(unittest.TestCase):
             )
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -105,7 +105,9 @@ class BuildFesColecoTests(unittest.TestCase):
                 "compiler_inventory",
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
-                authenticated = build_fes_coleco_oss._authenticate_coleco_tools(ROOT)
+                authenticated = build_fes_coleco_oss._authenticate_coleco_tools(
+                    ROOT, cache_root=request.cache_root
+                )
 
             self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
             self.assertEqual(
@@ -139,7 +141,7 @@ class BuildFesColecoTests(unittest.TestCase):
 
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -151,7 +153,9 @@ class BuildFesColecoTests(unittest.TestCase):
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
                 with self.assertRaisesRegex(BuildError, "configuration"):
-                    build_fes_coleco_oss._authenticate_coleco_tools(ROOT)
+                    build_fes_coleco_oss._authenticate_coleco_tools(
+                        ROOT, cache_root=request.cache_root
+                    )
 
     def test_oss_auth_rejects_a_verified_off_lane_for_coleco(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -166,7 +170,7 @@ class BuildFesColecoTests(unittest.TestCase):
                 os.environ,
                 {
                     "PATH": str(base),
-                    "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root),
+                    "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache"),
                     "FES_TOOLCHAIN_GPU_ROUTER": "OFF",
                 },
                 clear=True,
@@ -179,8 +183,10 @@ class BuildFesColecoTests(unittest.TestCase):
                 "compiler_inventory",
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
-                with self.assertRaisesRegex(BuildError, "shared toolchain"):
-                    build_fes_coleco_oss._authenticate_coleco_tools(ROOT)
+                with self.assertRaisesRegex(BuildError, "shared toolchain|configuration"):
+                    build_fes_coleco_oss._authenticate_coleco_tools(
+                        ROOT, cache_root=request.cache_root
+                    )
 
     def test_oss_simulation_entrypoint_compiles_conditional_branches(self) -> None:
         result = subprocess.run(

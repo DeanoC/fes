@@ -37,24 +37,34 @@ and successful artifact production.
 
 ## Shared compiler installation
 
-`FES_TOOLCHAIN_CACHE_ROOT` is an explicit opt-in for the FES Python Pong, ZX81,
-and Coleco recipes. Version 1 supports one user on one Linux x86-64 glibc host.
-The request identity combines the selected lock and recipe bytes, normalized
-host/compiler probes, and the OFF/HIP/CUDA configuration. The per-key lock
-covers private source/build directories and publication. The resulting slot
-keeps the compiled-in absolute prefix and is consumed in place; its ready
-manifest authenticates the complete install/support-file closure, internal
-links, and evidence before any tool path is used.
+FES Python Pong, ZX81, and Coleco recipes select a shared compiler only through
+an explicit `--cache-root` argument. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not
+a policy selector for those producers. HIP (`gpu-router=HIP`,
+`hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane: nextpnr
+commands include `--router gpu`, build records store that HIP configuration,
+and route evidence must name a live HIP backend rather than a CPU-reference
+fallback. Pong and ZX81 use the repository-wide `toolchain.lock` HIP slot;
+Coleco keeps `cores/fes-coleco/toolchain.lock` and does not share that slot.
+Omitting `--cache-root` preserves the repository-local toolchain. Quartus
+ZX81/Coleco recipes are oracle-only and are not a nextpnr fallback.
+
+Version 1 supports one user on one Linux x86-64 glibc host. The request
+identity combines the selected lock and recipe bytes, normalized host/compiler
+probes, and the OFF/HIP/CUDA configuration. The per-key lock covers private
+source/build directories and publication. The resulting slot keeps the
+compiled-in absolute prefix and is consumed in place; its ready manifest
+authenticates the complete install/support-file closure, internal links, and
+evidence before any tool path is used.
 
 A failed or interrupted build leaves a partial slot and no ready manifest.
 The resolver reports that slot and refuses to retry until an operator performs
-manual recovery. Unsetting `FES_TOOLCHAIN_CACHE_ROOT` preserves the repository
-local lane. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`, Make
-simulation goals, `scripts/program.py`, and generic `make oss` paths reject the
-opt-in rather than selecting a local or ambient tool; only the FES Python
-recipes have shared-slot consumers in this version. FPGA output schemas and
-the `BUILD_ID` algorithm are unchanged, although tool hashes and resulting
-artifacts may differ when a shared compiler is used.
+manual recovery. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
+Make simulation goals, `scripts/program.py`, and generic `make oss` paths
+reject a set `FES_TOOLCHAIN_CACHE_ROOT` rather than selecting a local or
+ambient tool; only the FES Python recipes have shared-slot consumers in this
+version. FPGA output schemas and the `BUILD_ID` algorithm are unchanged,
+although tool hashes and resulting artifacts may differ when a shared compiler
+is used.
 
 ## Experiments
 
@@ -2165,8 +2175,9 @@ standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
 `video_720p.v` and the existing `pong_game.sv`, with the generated ABI include
 directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
 forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
-seed 1, the task-local QSF, the 50 MHz board SDC and an explicit 74.25 MHz
-target; all outputs stay under `build/fes-pong/`.
+seed 1, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
+explicit 74.25 MHz target; all outputs stay under `build/fes-pong/`. The route
+log must prove a live HIP backend.
 
 Before synthesis, the recipe requires a clean source checkout, checks every
 recipe/source/constraint/ABI/lock input is tracked and non-symlinked,

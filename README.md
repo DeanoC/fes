@@ -391,20 +391,21 @@ ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
 through the tape-loader patch, and 1650×750 HDMI timing for the scaled
 raster. It is simulation, not a Quartus RBF or kit evidence.
 
-`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 bring-up
-recipe for package `fes.zx81` 1.0.0. Set
+`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 oracle
+recipe for package `fes.zx81` 1.0.0; it is not a nextpnr fallback. Set
 `QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. It requires a
 clean committed tree, writes `build/fes-zx81-quartus/build-inputs.json`,
 embeds that build id, and seals a format-2 package when timing passes. This
 does not program hardware.
 
-`make build-fes-zx81` authenticates the repository-local Yosys,
-nextpnr-mistral and Mistral cache against `toolchain.lock`, synthesizes the
-same board shell with Verilog T80pa/TV80 and M10K allowed, and seals
-`build/fes-zx81-oss/` when the 52 MHz system clock and 74.25 MHz pixel
-clock pass timing. The 52 MHz integer uses the 520 MHz PLL feedback
-profile (M=52 N=5 C6=10). Recipe presence alone is no RBF, timing or
-hardware-support evidence. The command never programs a kit.
+`make build-fes-zx81` authenticates Yosys, nextpnr-mistral and Mistral against
+the repository-wide `toolchain.lock` HIP slot, routes with `--router gpu`,
+and rejects a CPU-reference fallback. Pass `--cache-root` for a shared
+compiler slot. It synthesizes the board shell with Verilog T80pa/TV80 and
+M10K allowed, and seals `build/fes-zx81-oss/` when the 52 MHz system clock
+and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses the 520 MHz
+PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is no RBF,
+timing or hardware-support evidence. The command never programs a kit.
 
 `make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
 default and OSS-conditional lanes: a reduced ColecoVision machine with an open
@@ -429,9 +430,10 @@ their NMI handler at 8066; see [VDP interfaces](cores/fes-coleco/README.md#vdp-r
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 See the core guide for prerequisites and reproducible before/after probes.
 
-`make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.coleco` 1.0.0. `make build-fes-coleco` is its authenticated OSS
-Yosys/nextpnr-Mistral counterpart for `5CSEBA6U23I7`; both require a clean
+`make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
+for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`
+is the authenticated HIP nextpnr/Mistral production recipe for `5CSEBA6U23I7`
+and accepts `--cache-root` for a shared compiler slot. Both require a clean
 committed tree before sealing and neither programs a kit. The OSS path uses
 Verilog TV80 with `TV80_REFRESH=1`, explicit registered M10K TDP wrappers,
 four coherent VDP VRAM copies for the raster read ports (the fourth feeds the
@@ -456,13 +458,15 @@ low-or-release drive and feedback from an external device. The standalone shell
 uses the HPS I2C bridge at X52/Y60 with U10/AA4 pads; its export checks require
 that exact route and constant-low output data.
 
-`make build-fes-pong` authenticates the repository-local Yosys,
-nextpnr-mistral and Mistral cache against `toolchain.lock`, constructs canonical
+`make build-fes-pong` authenticates Yosys, nextpnr-mistral and Mistral against
+`toolchain.lock` on the standard HIP lane (`--router gpu`, live HIP backend
+required). Pass `--cache-root` to use a shared compiler slot; omit it for the
+repository-local toolchain. It constructs canonical
 `build/fes-pong/build-inputs.json` before synthesis, and passes its 128-bit ID
 as `top.BUILD_ID`. It rejects missing or failing 50/74.25 MHz timing, incomplete
-routing, unexpected hard resources, a changed tool identity, or a dirty source
-checkout before calling the format-2 exporter. The command never programs a
-kit.
+routing, a CPU-reference GPU fallback, unexpected hard resources, a changed
+tool identity, or a dirty source checkout before calling the format-2 exporter.
+The command never programs a kit.
 
 `cores.lock` also selects SNES and NES Release 20260823. `make fetch-core
 CORE=snes` and `make fetch-core CORE=nes` use the existing fetch/hash-check
@@ -563,19 +567,25 @@ make compare EXP=020_linux_mailbox
 
 ### Shared immutable toolchain cache
 
-The FES Python recipes can opt into a same-user, same-host shared compiler
-installation instead of rebuilding the pinned tools in every checkout. The
-supported host boundary is Linux x86-64 with glibc. Select a cache explicitly:
+The FES Python Pong, ZX81, and Coleco recipes use HIP nextpnr (`--router gpu`
+with a live HIP backend) as the standard production lane. Shared-cache mode
+is selected only by an explicit `--cache-root PATH` on the producer CLI, not
+by ambient `FES_TOOLCHAIN_CACHE_ROOT`. Omitting `--cache-root` keeps the
+repository-local toolchain. Pong and ZX81 authenticate the repository-wide
+`toolchain.lock` HIP slot (`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`).
+Coleco keeps `cores/fes-coleco/toolchain.lock` and the same HIP lane without
+aliasing the root-lock cache slot. Quartus recipes remain oracle-only for ZX81
+and Coleco and are not a nextpnr fallback.
 
 ```sh
-export FES_TOOLCHAIN_CACHE_ROOT="$HOME/.cache/fes-toolchains"
-make toolchain
-make build-fes-pong
-make build-fes-zx81
-make toolchain-fes-coleco
-make build-fes-coleco
-make doctor
+python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
+python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
+python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "$PWD/../out/cache/misteross-toolchains"
 ```
+
+A nextpnr command that merely contains `--router gpu` is not sufficient: the
+route log must identify a live HIP backend and is rejected if it falls back to
+the CPU reference backend.
 
 The cache key includes the selected lock and recipe bytes, normalized compiler
 and host identities, and the OFF/HIP/CUDA configuration. A per-key lock covers
@@ -585,15 +595,12 @@ link, and evidence record; consumers use the recorded absolute install path
 and never relocate or modify it. A failed build leaves its partial slot for
 manual recovery and is refused until an operator removes that slot.
 
-The default local toolchain behavior is unchanged when the variable is unset.
-The shared lane is limited to the FES Python Pong, ZX81, and Coleco recipes.
 Sourcing `scripts/env.sh`, `scripts/run_sim.sh`, standalone `make sim*`
-targets, `scripts/program.py`, and generic `make oss` fail early when shared
-mode is selected rather than silently using a local or ambient tool. Unset
-`FES_TOOLCHAIN_CACHE_ROOT` for those existing local workflows. FPGA output
-schemas and the `BUILD_ID` algorithm do not change; a shared compiler may
-produce different tool bytes, which remain represented by the existing digest
-fields and provenance records.
+targets, `scripts/program.py`, and generic `make oss` still fail early if
+`FES_TOOLCHAIN_CACHE_ROOT` is set rather than silently using a local or
+ambient tool. FPGA output schemas and the `BUILD_ID` algorithm do not change;
+a shared compiler may produce different tool bytes, which remain represented
+by the existing digest fields and provenance records.
 
 Fetch the upstream Mega Drive pin and compile the source-built RBF:
 

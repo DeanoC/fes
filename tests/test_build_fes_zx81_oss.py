@@ -45,10 +45,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
     def test_oss_auth_uses_verified_shared_tools_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, manifest = publish_shared_toolchain(base)
+            request, manifest = publish_shared_toolchain(base, gpu_router="HIP")
             with patch.dict(
                 os.environ,
-                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
                 clear=True,
             ), patch.object(
                 toolchain_cache,
@@ -59,7 +59,9 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 "compiler_inventory",
                 return_value={"commands": {"cc": {"path": "/test/cc"}}},
             ):
-                authenticated = build_fes_zx81_oss._authenticate_tools(ROOT)
+                authenticated = build_fes_zx81_oss._authenticate_tools(
+                    ROOT, cache_root=request.cache_root
+                )
 
             self.assertEqual(authenticated["yosys"].path, manifest.install / "bin/yosys")
             self.assertEqual(

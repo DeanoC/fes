@@ -16,11 +16,14 @@ if __package__ in (None, ""):
 
 from scripts.build_fes_pong import (
     BuildError,
+    FES_GPU_ARCHITECTURES,
+    FES_GPU_BACKEND,
     _authenticate_tools,
     _cell_counts,
     _git,
     _i2c_evidence,
     _read_json,
+    _require_gpu_backend,
     _run_tool,
     _sha256,
     _write_atomic,
@@ -159,9 +162,12 @@ def create_build_record(
         "tools": dict(tool_identities),
         "parameters": {
             "device": TARGET,
+            "gpu_architectures": FES_GPU_ARCHITECTURES,
+            "gpu_backend": FES_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
+            "router": "gpu",
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
@@ -291,6 +297,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    gpu_backend = _require_gpu_backend(route_text)
     if "50 MHz -> 52 MHz" not in route_text:
         raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
@@ -316,7 +323,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
     return {
         "status": "pass",
-        "route": {"status": "pass", "unrouted": False},
+        "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
             "system": {
                 "clock": system[0],
@@ -381,13 +388,13 @@ def _manifest(
     return encode_manifest(fields)
 
 
-def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES ZX81 package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root)
-    authenticated = _authenticate_tools(root)
+    authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     record = create_build_record(root, repository, revision, identities)
     output = _prepare_output(root)
@@ -438,7 +445,7 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_tools(root)
+        final_tools = _authenticate_tools(root, cache_root=cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root)
@@ -457,12 +464,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
             repository, revision = _require_clean_source(arguments.root)
-            authenticated = _authenticate_tools(arguments.root)
+            authenticated = _authenticate_tools(arguments.root, cache_root=arguments.cache_root)
             identities = {name: tool.identity for name, tool in authenticated.items()}
             record = create_build_record(arguments.root, repository, revision, identities)
             build_id = build_identity(record)
@@ -475,7 +483,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(" ".join(yosys))
             print(" ".join(nextpnr))
             return 0
-        print(build(arguments.root, arguments.package_output))
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-zx81-oss: {exc}", file=sys.stderr)
         return 1
