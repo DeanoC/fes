@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -111,6 +113,74 @@ class BuildFesColecoTests(unittest.TestCase):
                 manifest.install / "bin/nextpnr-mistral",
             )
             self.assertIn(COLECO_TOOLCHAIN_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+
+    def test_oss_auth_rejects_mismatched_staged_hip_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, manifest = publish_shared_toolchain(
+                base,
+                lock_path=ROOT / COLECO_TOOLCHAIN_LOCK,
+                gpu_router=COLECO_GPU_ROUTER,
+                hip_architectures=COLECO_GPU_ARCHITECTURES,
+            )
+            commit = manifest.tools["nextpnr"]["commit"]
+            configuration_path = manifest.evidence / "nextpnr" / f".config-{commit}.txt"
+            configuration_path.chmod(0o644)
+            configuration_path.write_text("gpu-router=OFF; hip-architectures=unused\n", encoding="utf-8")
+            configuration_path.chmod(0o444)
+            ready = toolchain_cache.ready_path(request)
+            ready.chmod(0o644)
+            data = json.loads(ready.read_text(encoding="utf-8"))
+            entry = data["files"][f"evidence/nextpnr/{configuration_path.name}"]
+            entry["sha256"] = hashlib.sha256(configuration_path.read_bytes()).hexdigest()
+            entry["size"] = configuration_path.stat().st_size
+            ready.write_text(json.dumps(data, sort_keys=True) + "\n", encoding="utf-8")
+            ready.chmod(0o444)
+
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "configuration"):
+                    build_fes_coleco_oss._authenticate_coleco_tools(ROOT)
+
+    def test_oss_auth_rejects_a_verified_off_lane_for_coleco(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(
+                base,
+                lock_path=ROOT / COLECO_TOOLCHAIN_LOCK,
+                gpu_router="OFF",
+                hip_architectures=COLECO_GPU_ARCHITECTURES,
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "PATH": str(base),
+                    "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root),
+                    "FES_TOOLCHAIN_GPU_ROUTER": "OFF",
+                },
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "shared toolchain"):
+                    build_fes_coleco_oss._authenticate_coleco_tools(ROOT)
 
     def test_oss_simulation_entrypoint_compiles_conditional_branches(self) -> None:
         result = subprocess.run(

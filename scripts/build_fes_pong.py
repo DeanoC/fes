@@ -184,6 +184,34 @@ def _read_evidence(path: Path, expected: str) -> str:
     return value
 
 
+def _probe_authenticated_tool(
+    root: Path,
+    path: Path,
+    lock_name: str,
+    executable: str,
+    arguments: tuple[str, ...],
+) -> None:
+    """Run the same short identity probe for local and shared tools."""
+
+    try:
+        result = subprocess.run(
+            [str(path), *arguments],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BuildError(f"cannot execute authenticated tool identity check: {executable}") from exc
+    output = "\n".join((result.stdout, result.stderr)).strip()
+    if result.returncode != 0 or not output:
+        raise BuildError(f"authenticated tool identity check failed: {executable}")
+    if lock_name == "mistral" and TARGET not in output:
+        raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+
+
 def _authenticate_shared_tools(
     root: Path,
     *,
@@ -209,12 +237,12 @@ def _authenticate_shared_tools(
         raise BuildError(f"shared toolchain verification failed: {exc}") from exc
 
     definitions = (
-        ("yosys", "yosys", "yosys"),
-        ("mistral", "mistral", "mistral-cv"),
-        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral"),
+        ("yosys", "yosys", "yosys", ("--version",)),
+        ("mistral", "mistral", "mistral-cv", ("models",)),
+        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
     )
     authenticated: dict[str, AuthenticatedTool] = {}
-    for record_name, lock_name, executable in definitions:
+    for record_name, lock_name, executable, arguments in definitions:
         record = manifest.tools.get(lock_name)
         if not isinstance(record, Mapping):
             raise BuildError(f"shared toolchain manifest has no authenticated {lock_name} record")
@@ -234,11 +262,36 @@ def _authenticate_shared_tools(
             raise BuildError(f"shared authenticated tool is not a regular executable: {path}")
         if not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None:
             raise BuildError(f"shared authenticated tool digest is invalid: {executable}")
-        identity = f"commit={commit}; sha256={digest}"
         configuration = expected_configuration.get(lock_name)
+        if configuration is not None:
+            try:
+                manifest_configuration = (
+                    f"gpu-router={manifest.configuration['gpu-router']}; "
+                    f"hip-architectures={manifest.configuration['hip-architectures']}"
+                )
+            except (KeyError, TypeError) as exc:
+                raise BuildError(
+                    f"shared toolchain manifest configuration is invalid: {executable}"
+                ) from exc
+            if manifest_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration does not match the requested build lane: {executable}"
+                )
+            configuration_path = manifest.evidence / lock_name / f".config-{commit}.txt"
+            actual_configuration = _read_evidence(configuration_path, "configuration")
+            if actual_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration evidence does not match the requested build lane: {executable}"
+                )
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
+        identity = f"commit={commit}; sha256={digest}"
         if configuration is not None:
             identity += f"; {configuration}"
         authenticated[record_name] = AuthenticatedTool(path=path, identity=identity)
+    try:
+        toolchain_cache.verify_ready(request)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(f"shared toolchain verification failed after identity probes: {exc}") from exc
     return authenticated
 
 
@@ -308,23 +361,7 @@ def _authenticate_tools(
                 raise BuildError(
                     f"tool configuration does not match the requested build lane: {executable}"
                 )
-        try:
-            result = subprocess.run(
-                [str(path), *arguments],
-                cwd=root,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=30.0,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise BuildError(f"cannot execute authenticated tool identity check: {executable}") from exc
-        output = "\n".join((result.stdout, result.stderr)).strip()
-        if result.returncode != 0 or not output:
-            raise BuildError(f"authenticated tool identity check failed: {executable}")
-        if lock_name == "mistral" and TARGET not in output:
-            raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
         identity = f"commit={pin.commit}; sha256={actual_digest}"
         if configuration is not None:
             identity += f"; {configuration}"

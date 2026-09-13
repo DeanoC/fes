@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import shutil
 import subprocess
 import tempfile
 import tomllib
@@ -36,11 +37,31 @@ PLL_PARAMETERS = {
 }
 
 
-def _write_fake_tool(path: Path, tool_name: str) -> None:
+def _write_fake_tool(
+    path: Path,
+    tool_name: str,
+    *,
+    include_target: bool = True,
+    mutation_target: Path | None = None,
+) -> None:
+    target_output = "5CSEBA6U23I7 fake database" if include_target else "other device database"
+    mutation = ""
+    if mutation_target is not None:
+        chmod_command = shutil.which("chmod") or "/bin/chmod"
+        quoted_chmod = chmod_command.replace("'", "'\"'\"'")
+        quoted_target = str(mutation_target).replace("'", "'\"'\"'")
+        mutation = (
+            "if [ \"${1:-}\" = '--version' ]; then\n"
+            f"  '{quoted_chmod}' u+w '{quoted_target}'\n"
+            f"  printf '%s\\n' '# tampered by identity probe' >> '{quoted_target}'\n"
+            f"  '{quoted_chmod}' u-w '{quoted_target}'\n"
+            "fi\n"
+        )
     path.write_text(
         "#!/bin/sh\n"
-        "case \"${1:-}\" in\n"
-        "  models) printf '%s\\n' '5CSEBA6U23I7 fake database' ;;\n"
+        + mutation
+        + "case \"${1:-}\" in\n"
+        f"  models) printf '%s\\n' '{target_output}' ;;\n"
         f"  *) printf '%s\\n' 'fake {tool_name} identity' ;;\n"
         "esac\n",
         encoding="utf-8",
@@ -54,6 +75,8 @@ def publish_shared_toolchain(
     lock_path: Path | None = None,
     gpu_router: str = "OFF",
     hip_architectures: str = toolchain_cache.DEFAULT_HIP_ARCHITECTURES,
+    mistral_target: bool = True,
+    mutate_after_probe: bool = False,
 ) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
     """Publish a complete five-tool lane through the real cache API."""
 
@@ -86,7 +109,14 @@ def publish_shared_toolchain(
     tools = {}
     for lock_name, binary_name in toolchain_cache.TOOL_BINARY_NAMES.items():
         binary = slot / "install" / "bin" / binary_name
-        _write_fake_tool(binary, lock_name)
+        _write_fake_tool(
+            binary,
+            lock_name,
+            include_target=mistral_target,
+            mutation_target=slot / "install" / "bin/mistral-cv"
+            if mutate_after_probe and lock_name == "yosys"
+            else None,
+        )
         tool_evidence = slot / "evidence" / lock_name
         tool_evidence.mkdir(parents=True)
         commit = pins[lock_name].commit
@@ -96,6 +126,12 @@ def publish_shared_toolchain(
         (tool_evidence / f".identity-{commit}.txt").write_text(
             f"fake {lock_name} identity\n", encoding="utf-8"
         )
+        if lock_name == "nextpnr":
+            lane_architectures = hip_architectures if gpu_router.upper() == "HIP" else "unused"
+            (tool_evidence / f".config-{commit}.txt").write_text(
+                f"gpu-router={gpu_router.upper()}; hip-architectures={lane_architectures}\n",
+                encoding="utf-8",
+            )
         tools[lock_name] = {
             "binary": f"bin/{binary_name}",
             "commit": commit,
@@ -312,6 +348,49 @@ class BuildFesPongTests(unittest.TestCase):
             )
             self.assertEqual(shared_record, local_record)
             self.assertEqual(build_identity(shared_record), build_identity(local_record))
+
+    def test_shared_lane_runs_the_mistral_target_database_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base, mistral_target=False)
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(BuildError, "Mistral database"):
+                    build_fes_pong._authenticate_tools(ROOT)
+
+    def test_shared_lane_rechecks_the_closure_after_identity_probes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _ = publish_shared_toolchain(base, mutate_after_probe=True)
+            with patch.dict(
+                os.environ,
+                {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(request.cache_root)},
+                clear=True,
+            ), patch.object(
+                toolchain_cache,
+                "host_identity",
+                return_value={"system": "Linux", "release": "test", "machine": "x86_64"},
+            ), patch.object(
+                toolchain_cache,
+                "compiler_inventory",
+                return_value={"commands": {"cc": {"path": "/test/cc"}}},
+            ):
+                with self.assertRaisesRegex(
+                    BuildError,
+                    "shared toolchain verification failed after identity probes: .*closure differs",
+                ):
+                    build_fes_pong._authenticate_tools(ROOT)
 
     def test_shared_lane_rejects_tampered_ready_provenance_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
