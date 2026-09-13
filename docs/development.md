@@ -128,8 +128,18 @@ be reused across `misteross` commits when the current recipe still validates
 them, Pong entries require the exact selected revision, and `make rebuild`
 bypasses reuse. Distinct validated artifacts are fail-closed: the error lists
 the conflicting candidate directories rather than preferring the selected
-checkout. Recover by removing the affected disposable subtree under
-`out/cache/fpga-bundles/<system>` and retrying.
+checkout. Sealed cache files are read-only and their directories are mode
+0555, so a plain recursive removal cannot delete them. Recover the affected
+disposable system subtree by restoring owner write and search permission,
+then removing that exact tree. Replace `<system>` with `megadrive`, `pong`,
+`snes`, or `nes`:
+
+```sh
+chmod -R u+rwX -- out/cache/fpga-bundles/<system>
+rm -rf -- out/cache/fpga-bundles/<system>
+```
+
+Then retry.
 
 `make dev` builds selected clean revisions, not arbitrary uncommitted worker
 checkouts. Integrate reviewed component commits using the commands above before

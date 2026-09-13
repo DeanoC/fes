@@ -693,7 +693,15 @@ def _validated_bundle_candidates(source, revision, system, diagnostics=None):
                 bundle_dir = bundles[0].parent
                 selected.append((bundle_dir, validate_bundle(bundle_dir, source, revision, system)))
     stable = []
-    for candidate in _bundle_directories(FPGA_BUNDLE_CACHE, system):
+    try:
+        stable_dirs = _bundle_directories(FPGA_BUNDLE_CACHE, system)
+    except OSError as exc:
+        reason = f"stable cache skipped: {FPGA_BUNDLE_CACHE / system}: {exc}"
+        if diagnostics is not None:
+            diagnostics.cache("fpga:" + system, "miss", reason)
+        print(reason, flush=True)
+        stable_dirs = ()
+    for candidate in stable_dirs:
         try:
             _require_sealed_bundle(candidate, system)
             manifest = validate_bundle(candidate, source, revision, system)

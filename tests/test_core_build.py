@@ -689,3 +689,123 @@ class CoreBuildTest(unittest.TestCase):
                        if name == 'fpga:megadrive' and status == 'miss']
             self.assertTrue(any(str(unreadable) in reason and 'stable candidate skipped' in reason
                                 for reason in reasons))
+
+    def test_unreadable_cache_root_metadata_is_a_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            cache.mkdir()
+            (cache / 'megadrive').mkdir()
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            original_lstat = build.Path.lstat
+
+            def lstat(self):
+                if self == cache:
+                    raise OSError('Permission denied')
+                return original_lstat(self)
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            recorder = Recorder()
+            with patch.object(build.Path, 'lstat', lstat), \
+                 patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle(
+                        {'misteross': 'c' * 40}, {}, system='megadrive',
+                        diagnostics=recorder)
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(any(str(cache) in reason for reason in reasons))
+
+    def test_unreadable_cache_system_metadata_is_a_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            system_root = cache / 'megadrive'
+            system_root.mkdir(parents=True)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            original_lstat = build.Path.lstat
+
+            def lstat(self):
+                if self == system_root:
+                    raise OSError('Permission denied')
+                return original_lstat(self)
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            recorder = Recorder()
+            with patch.object(build.Path, 'lstat', lstat), \
+                 patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle(
+                        {'misteross': 'c' * 40}, {}, system='megadrive',
+                        diagnostics=recorder)
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(any(str(system_root) in reason for reason in reasons))
+
+    def test_unreadable_cache_system_enumeration_is_a_miss(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            system_root = cache / 'megadrive'
+            system_root.mkdir(parents=True)
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            original_iterdir = build.Path.iterdir
+
+            def iterdir(self):
+                if self == system_root:
+                    raise OSError('Permission denied')
+                return original_iterdir(self)
+
+            class Recorder:
+                def __init__(self):
+                    self.events = []
+
+                def cache(self, name, status, reason):
+                    self.events.append((name, status, reason))
+
+                @contextmanager
+                def measure(self, name):
+                    yield
+
+            recorder = Recorder()
+            with patch.object(build.Path, 'iterdir', iterdir), \
+                 patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build, 'run', side_effect=AssertionError('unexpected FPGA build')):
+                with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
+                    build.build_bundle(
+                        {'misteross': 'c' * 40}, {}, system='megadrive',
+                        diagnostics=recorder)
+            reasons = [reason for name, status, reason in recorder.events
+                       if name == 'fpga:megadrive' and status == 'miss']
+            self.assertTrue(any(str(system_root) in reason for reason in reasons))
