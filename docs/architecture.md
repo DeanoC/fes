@@ -48,9 +48,12 @@ a CPU-reference fallback. Pong and ZX81 use the repository-wide
 `toolchain.lock` HIP slot; Coleco keeps `cores/fes-coleco/toolchain.lock` and
 does not share that slot. Local HIP tools come from `make toolchain-fes` for
 Pong/ZX81 and `make toolchain-fes-coleco` for Coleco. `make toolchain` remains
-GPU-router OFF for generic OSS experiments. Omitting `--cache-root` /
-`CACHE_ROOT` preserves that local HIP install. Quartus ZX81/Coleco recipes are
-oracle-only and are not a nextpnr fallback.
+GPU-router OFF for generic OSS experiments. `make toolchain` and
+`make toolchain-fes` share `build/toolchain`; the last one run wins.
+`CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid shared-cache
+forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer recipes.
+Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP install.
+Quartus ZX81/Coleco recipes are oracle-only and are not a nextpnr fallback.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler

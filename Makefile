@@ -89,8 +89,10 @@ endef
 # GNU Make adds jobserver and verbosity controls to MAKEFLAGS/MFLAGS.  They
 # describe this parent invocation, not the immutable shared compiler lane;
 # clear them only for shared subprocesses while preserving the requested JOBS
-# setting used by bootstrap.
-SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
+# setting used by bootstrap.  CACHE_ROOT selects the FES producer shared
+# path via --cache-root; FES_TOOLCHAIN_CACHE_ROOT remains the bootstrap
+# shared-cache selector.  Either one must drop parent Make flags.
+SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)$(CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
 
 # Reject an explicitly requested legacy simulation goal while Make is still
 # parsing the graph.  This runs before any prerequisite (including diagnostic

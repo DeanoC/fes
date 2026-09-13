@@ -159,6 +159,48 @@ class SharedEntrypointTests(unittest.TestCase):
         self.assertIn("PYTHON=<unset>", record)
         self.assertIn("CMD=MAKEFLAGS= MFLAGS=", record)
 
+    def test_make_cache_root_clears_make_flags_and_forwards_cache_root(self) -> None:
+        cache = "/x"
+        environment = os.environ.copy()
+        environment.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        environment.pop("CACHE_ROOT", None)
+        environment.pop("PYTHON", None)
+        for target, script in (
+            ("build-fes-pong", "scripts/build_fes_pong.py"),
+            ("build-fes-zx81", "scripts/build_fes_zx81_oss.py"),
+            ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+        ):
+            with self.subTest(target=target):
+                shell = self.fixture / f"make-shell-{target}"
+                log = self.fixture / f"make-shell-{target}.log"
+                shell.write_text(
+                    "#!/bin/sh\n"
+                    f"printf 'MAKEFLAGS=%s\\nMFLAGS=%s\\nCMD=%s\\n' "
+                    f"\"${{MAKEFLAGS-<unset>}}\" \"${{MFLAGS-<unset>}}\" \"$2\" > {str(log)!r}\n"
+                    "exit 0\n",
+                    encoding="utf-8",
+                )
+                shell.chmod(shell.stat().st_mode | stat.S_IXUSR)
+                result = self._run(
+                    [
+                        "make",
+                        "-s",
+                        "-j2",
+                        "-C",
+                        str(ROOT),
+                        target,
+                        f"CACHE_ROOT={cache}",
+                        f"SHELL={shell}",
+                    ],
+                    env=environment,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                record = log.read_text(encoding="utf-8")
+                self.assertIn(
+                    f'CMD=MAKEFLAGS= MFLAGS= python3 {script} --root "{ROOT}" --cache-root "{cache}"',
+                    record,
+                )
+
     def test_make_rejects_explicit_python_override_before_bootstrap(self) -> None:
         environment = self._env(PYTHON="/opt/x")
         result = self._run(

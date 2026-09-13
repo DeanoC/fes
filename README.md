@@ -559,7 +559,9 @@ make build-fes-pong
 make build-fes-zx81
 ```
 
-Coleco keeps `make toolchain-fes-coleco` and its specialized lock.
+`make toolchain` and `make toolchain-fes` install into the same
+`build/toolchain` prefix; the last one run wins. Coleco keeps
+`make toolchain-fes-coleco` and its specialized lock.
 
 Build the mailbox experiment with the open toolchain:
 
@@ -597,12 +599,17 @@ root-lock cache slot. Quartus recipes remain oracle-only for ZX81 and Coleco
 and are not a nextpnr fallback.
 
 `FES_ROOT` is the FES parent checkout (not this misteross worktree). The
-parent cache lives at `${FES_ROOT}/out/cache/misteross-toolchains`.
+parent cache lives at `${FES_ROOT}/out/cache/misteross-toolchains`. Both
+`CACHE_ROOT=… make build-fes-pong` and `make build-fes-pong CACHE_ROOT=…`
+are valid; Make clears `MAKEFLAGS`/`MFLAGS` for the producer in either form.
 
 ```sh
 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-pong
+make build-fes-pong CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-zx81
+make build-fes-zx81 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-coleco
+make build-fes-coleco CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
