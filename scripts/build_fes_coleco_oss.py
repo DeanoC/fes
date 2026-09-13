@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
+SEED = 5
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -196,7 +197,7 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": 3,
+            "seed": SEED,
             "router": ROUTER,
             "toolchain_lock": COLECO_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, COLECO_TOOLCHAIN_LOCK)),
@@ -233,14 +234,14 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Seed 3 is the reproducible packed-sprite placement that clears both
-        # the 52 MHz system-clock check and nextpnr's final router1 legality
-        # check on the live GPU backend. Seeds 4 and 5 are retained in the
-        # host sweep evidence, but seed 5 is seed-sensitive at final router1
-        # timing for this build ID. Timing-driven rip-up is intentionally not
-        # enabled: on this netlist it is slower and can move a passing route
-        # back below the timing target.
-        "--seed", "3",
+        # Seed 5 is the reproducible packed-sprite placement for this sealed
+        # build record that clears both the 52 MHz system-clock check and
+        # nextpnr's final router1 legality check on the live GPU backend. The
+        # embedded BUILD_ID changes the placement search space, so this seed
+        # is part of the sealed recipe. Timing-driven rip-up is intentionally
+        # not enabled: on this netlist it is slower and can move a passing
+        # route back below the timing target.
+        "--seed", str(SEED),
         "--router", ROUTER,
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",

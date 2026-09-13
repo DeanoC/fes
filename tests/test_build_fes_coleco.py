@@ -16,6 +16,7 @@ from scripts.build_fes_coleco_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS,
     RTL_SOURCES,
+    SEED,
     BuildError,
     COLECO_GPU_ARCHITECTURES,
     COLECO_GPU_BACKEND,
@@ -109,7 +110,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "3")
+        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertIn("--router", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertNotIn("router1", nextpnr)
@@ -125,7 +126,7 @@ class BuildFesColecoTests(unittest.TestCase):
             "a" * 40,
             {"yosys": "test"},
         )
-        self.assertIn(b'"seed":3', record)
+        self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_architectures":"gfx1100;gfx1201"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
