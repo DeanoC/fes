@@ -4,7 +4,7 @@ import "github.com/DeanoC/FogCast/protocol"
 
 // expectedRuntimeCommit is the libmister-runtime pin this FogCast tree was
 // selected against. Tests require it to match build/native-runtime.inputs.lock.toml.
-const expectedRuntimeCommit = "2629c6e1a896663b3e06688462624c3fac67ba67"
+const expectedRuntimeCommit = "d56b9523da704f9f617d6e73c63dd1657cc4f77a"
 
 // ExpectedRuntimeCommit is the runtime git identity this host admits.
 func ExpectedRuntimeCommit() string {
