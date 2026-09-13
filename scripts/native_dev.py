@@ -202,13 +202,15 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
 '''
     print(f'Development: persistent base {key[:16]} in {volume}', flush=True)
     run_stage(diagnostics, 'target Buildroot subprocess',
-              [image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
+              [image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script],
+              env=dict(env, NATIVE_RUNTIME_MODE=mode))
     built = image / 'build/output/target-image/fes-development'
     exported = Path(EXPORT)
     run_stage(diagnostics, 'target verification subprocess',
               [image / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
                exported / 'manifest.tsv', exported / 'library-report.tsv',
-               *([exported / 'megadrive.selection.toml'] if mode == 'format1' else [])], env=env)
+               *([exported / 'megadrive.selection.toml'] if mode == 'format1' else [])],
+              env=dict(env, NATIVE_RUNTIME_MODE=mode))
     names = ['linux.img', 'manifest.tsv', 'library-report.tsv'] + [
         core + '.selection.toml' for core in cores]
     for name in names:

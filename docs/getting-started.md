@@ -57,7 +57,7 @@ format-1 source build needs the installed Quartus location:
 
 ```sh
 QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 \
-  make dev PROFILE=native-source-dev
+  make build PROFILE=native-source-dev
 ```
 
 The first development build can copy a compatible existing clean base or build

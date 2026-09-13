@@ -339,9 +339,7 @@ EOF
     }
   done
 
-  if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
-    verify_package_only_native "$root"
-  elif [ "$variant" = native-dev ]; then
+  if [ "$variant" = native-dev ]; then
     [ ! -e "$root/etc/init.d/S40mister-main" ] || {
       printf '%s\n' 'verify-target-image: native image contains the Main init service' >&2
       exit 1
@@ -373,6 +371,11 @@ EOF
       printf '%s\n' 'verify-target-image: native init contains conventional Main, MGL, or FIFO startup wiring' >&2
       exit 1
     fi
+  fi
+
+  if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+    verify_package_only_native "$root"
+  elif [ "$variant" = native-dev ]; then
 
     [ -f "$selection_file" ] && [ ! -L "$selection_file" ] || {
       printf '%s\n' 'verify-target-image: Mega Drive selection is not a regular non-symlink file' >&2
@@ -770,6 +773,9 @@ case "${1:-}" in
     image=$2
     manifest=$3
     library_report=$4
+    if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ] && [ "$#" -eq 5 ]; then
+      usage
+    fi
     if [ "$variant" = native-dev ]; then
       if [ "$#" -eq 5 ]; then
         native_selection_file=$5

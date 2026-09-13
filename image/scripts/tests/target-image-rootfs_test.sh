@@ -558,6 +558,10 @@ native_package_only_target=$native_fixture/package-only-target
 cp -R "$native_fixture/target" "$native_package_only_target"
 mkdir -p "$native_package_only_target/usr/share/mister-runtime/cores" \
   "$native_package_only_target/usr/share/mister-runtime/selections"
+: > "$native_package_only_target/etc/init.d/S40mister-main"
+: > "$native_package_only_target/usr/sbin/mister-disable-menu-blanking"
+chmod 0755 "$native_package_only_target/etc/init.d/S40mister-main" \
+  "$native_package_only_target/usr/sbin/mister-disable-menu-blanking"
 printf '%s\n' stale > \
   "$native_package_only_target/usr/share/mister-runtime/cores/megadrive.rbf"
 printf '%s\n' stale > \
@@ -571,6 +575,8 @@ NATIVE_RUNTIME_IDLE_FILE=$native_package_cache/idle.rbf \
   "$native_post_build" "$native_package_only_target"
 test ! -e "$native_package_only_target/usr/share/mister-runtime/cores/megadrive.rbf"
 test ! -e "$native_package_only_target/usr/share/mister-runtime/selections/megadrive.toml"
+test ! -e "$native_package_only_target/etc/init.d/S40mister-main"
+test ! -e "$native_package_only_target/usr/sbin/mister-disable-menu-blanking"
 test "$(find "$native_package_only_target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 2
 test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/idle.rbf")" = 644
 test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/core-packages/$package_id")" = 555

@@ -91,6 +91,9 @@ idle_sha=$(read_lock_value idle_rbf sha256)
 idle_size=$(read_lock_value idle_rbf size)
 idle_install_path=$(read_lock_value idle_rbf install_path)
 
+/bin/rm -f "$target/etc/init.d/S40mister-main" \
+  "$target/usr/sbin/mister-disable-menu-blanking"
+
 if [ "$native_mode" = package-only ]; then
   "$extra_cores" validate
   [ -f "$idle_input" ] && [ ! -L "$idle_input" ] || {
@@ -300,8 +303,6 @@ esac
   exit 1
 }
 
-/bin/rm -f "$target/etc/init.d/S40mister-main" \
-  "$target/usr/sbin/mister-disable-menu-blanking"
 /bin/mkdir -p "$target/usr/share/mister-runtime"
 /usr/bin/install -m 0644 \
   "$idle_input" \
