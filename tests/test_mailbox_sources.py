@@ -206,6 +206,7 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "850_hps_location",
             "860_m10k_selectors",
             "870_m10k_narrow",
+            "880_m10k_async_rom",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
