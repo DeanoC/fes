@@ -105,10 +105,10 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     output = root / 'out' / profile_name / 'development'
     owned_diagnostics = diagnostics is None
     diagnostics = diagnostics or BuildDiagnostics(output, 'dev')
-    if reusable(output, 'development', fingerprint):
+    hit, reason = reuse_status(output, 'development', fingerprint)
+    diagnostics.cache('development', 'hit' if hit else 'miss', reason)
+    if hit:
         verify_package_outputs(output, package)
-        hit, reason = reuse_status(output, 'development', fingerprint)
-        diagnostics.cache('development', 'hit' if hit else 'miss', reason)
         if owned_diagnostics:
             diagnostics.finish('success')
         print('Development: reusing checked output; nothing to rebuild', flush=True)
@@ -129,8 +129,6 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                       stderr=subprocess.DEVNULL).returncode:
         run_stage(diagnostics, 'target subprocess',
                   [container, 'pull', '--platform', base['platform'], ref])
-    hit, reason = reuse_status(output, 'development', fingerprint)
-    diagnostics.cache('development', 'hit' if hit else 'miss', reason)
     with diagnostics.measure('native base setup'):
         seed_base(container, base, output_volume(root, profile_name), volume,
                   seed_digest(output.parent, info))
