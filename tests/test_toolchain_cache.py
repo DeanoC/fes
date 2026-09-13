@@ -1,7 +1,11 @@
 import hashlib
+import fcntl
 import json
 import os
+import platform
+import shutil
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,8 +19,11 @@ class ToolchainCacheContractTests(unittest.TestCase):
         root.mkdir(parents=True, exist_ok=True)
         cache.mkdir(parents=True, exist_ok=True)
         cache.chmod(0o700)
+        scripts = root / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(Path(toolchain_cache.__file__).resolve().parent / "lockfile.py", scripts / "lockfile.py")
         lock = root / "toolchain.lock"
-        lock.write_text("lock-content\n", encoding="utf-8")
+        shutil.copy2(Path(toolchain_cache.__file__).resolve().parents[1] / "toolchain.lock", lock)
         return toolchain_cache.ToolchainRequest(
             root=root,
             lock_path=lock,
@@ -90,16 +97,42 @@ class ToolchainCacheContractTests(unittest.TestCase):
             )
             (evidence / ".identity-pin.txt").write_text("fake\n", encoding="utf-8")
 
+            from scripts.lockfile import load_lock
+
+            pins = load_lock(request.lock_path)
+            tools = {
+                "yosys": {
+                    "binary": "bin/yosys",
+                    "commit": pins["yosys"].commit,
+                    "identity": "fake",
+                }
+            }
+            for name, binary_name in toolchain_cache.TOOL_BINARY_NAMES.items():
+                if name == "yosys":
+                    continue
+                binary_path = install_bin / binary_name
+                binary_path.write_text(f"fake {name}\n", encoding="utf-8")
+                tool_evidence = evidence / name
+                tool_evidence.mkdir()
+                (tool_evidence / f".built-{pins[name].commit}").write_text(
+                    f"commit={pins[name].commit}\n", encoding="utf-8"
+                )
+                (tool_evidence / f".identity-{pins[name].commit}.txt").write_text(
+                    f"fake-{name}\n", encoding="utf-8"
+                )
+                (tool_evidence / f".digest-{pins[name].commit}.sha256").write_text(
+                    hashlib.sha256(binary_path.read_bytes()).hexdigest() + "\n", encoding="utf-8"
+                )
+                tools[name] = {
+                    "binary": f"bin/{binary_name}",
+                    "commit": pins[name].commit,
+                    "identity": f"fake-{name}",
+                }
+
             with toolchain_cache.acquire_build_lock(request):
                 manifest = toolchain_cache.publish_ready(
                     request,
-                    tools={
-                        "yosys": {
-                            "binary": "bin/yosys",
-                            "commit": "pin",
-                            "identity": "fake",
-                        }
-                    },
+                    tools=tools,
                 )
             self.assertEqual(manifest.install, slot / "install")
             self.assertTrue(toolchain_cache.ready_path(request).is_file())
@@ -180,6 +213,15 @@ class ToolchainCacheContractTests(unittest.TestCase):
     def test_shared_environment_rejects_nondefault_compiler_override_but_allows_lane(self):
         with self.assertRaises(toolchain_cache.CacheError):
             toolchain_cache.validate_shared_environment({"CC": "clang"})
+        with self.assertRaises(toolchain_cache.CacheError):
+            toolchain_cache.validate_shared_environment(
+                {
+                    "FES_TOOLCHAIN_CACHE_RESOLVED": "1",
+                    "LD_LIBRARY_PATH": "/caller/override",
+                    "PKG_CONFIG_PATH": "/caller/pkgconfig",
+                    "CMAKE_PREFIX_PATH": "/caller/cmake",
+                }
+            )
         toolchain_cache.validate_shared_environment(
             {
                 "FES_TOOLCHAIN_GPU_ROUTER": "HIP",
@@ -189,6 +231,152 @@ class ToolchainCacheContractTests(unittest.TestCase):
             gpu_router="HIP",
             hip_architectures="gfx1100;gfx1201",
         )
+
+    def test_lane_selector_defaults_are_canonical(self):
+        """Implicit and explicit defaults select one semantic cache lane."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            root.mkdir()
+            (root / "toolchain.lock").write_text("lock\n", encoding="utf-8")
+            (root / "scripts").mkdir()
+            for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
+                (root / "scripts" / name).write_text(f"{name}\n", encoding="utf-8")
+            cache = base / "cache"
+            host = {"system": "Linux", "machine": "x86_64", "libc": "glibc-test"}
+            compiler = {"commands": {"cc": {"path": "/usr/bin/cc", "sha256": "cc"}}}
+            clean = {
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": os.environ.get("HOME", str(base)),
+                "USER": os.environ.get("USER", "test"),
+            }
+            with mock.patch.object(toolchain_cache, "host_identity", return_value=host), mock.patch.object(
+                toolchain_cache, "compiler_inventory", return_value=compiler
+            ), mock.patch.dict(os.environ, clean, clear=True):
+                implicit_off = toolchain_cache.request_from_environment(root, cache_root=cache)
+                os.environ["FES_TOOLCHAIN_GPU_ROUTER"] = "OFF"
+                explicit_off = toolchain_cache.request_from_environment(root, cache_root=cache)
+                self.assertEqual(toolchain_cache.cache_key(implicit_off), toolchain_cache.cache_key(explicit_off))
+
+                os.environ["FES_TOOLCHAIN_GPU_ROUTER"] = "HIP"
+                os.environ.pop("FES_TOOLCHAIN_HIP_ARCHITECTURES", None)
+                implicit_hip = toolchain_cache.request_from_environment(root, cache_root=cache)
+                os.environ["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = toolchain_cache.DEFAULT_HIP_ARCHITECTURES
+                explicit_hip = toolchain_cache.request_from_environment(root, cache_root=cache)
+                self.assertEqual(toolchain_cache.cache_key(implicit_hip), toolchain_cache.cache_key(explicit_hip))
+
+                os.environ["ROCM_PATH"] = "/opt/rocm-a"
+                changed_hip_root = toolchain_cache.request_from_environment(root, cache_root=cache)
+                self.assertNotEqual(toolchain_cache.cache_key(explicit_hip), toolchain_cache.cache_key(changed_hip_root))
+
+    def test_dependency_fixture_discards_cmake_temp_and_timing_output(self):
+        """CMake's unstable log is never part of dependency identity."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            bin_dir = base / "bin"
+            bin_dir.mkdir()
+            (bin_dir / "pkg-config").write_text(
+                "#!/bin/sh\ncase \"$1\" in --modversion) echo 1.2.3;; --cflags) echo -I/fixed/include;; --libs) echo -L/fixed/lib -lfixed;; esac\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "cc").write_text("#!/bin/sh\ncat >/dev/null\nexit 0\n", encoding="utf-8")
+            (bin_dir / "c++").write_text("#!/bin/sh\ncat >/dev/null\nexit 0\n", encoding="utf-8")
+            (bin_dir / "python3-config").write_text("#!/bin/sh\necho -I/fixed/python\n", encoding="utf-8")
+            (bin_dir / "cmake").write_text(
+                "#!/bin/sh\n"
+                "src= build=\n"
+                "while [ $# -gt 0 ]; do case $1 in -S) src=$2; shift 2;; -B) build=$2; shift 2;; *) shift;; esac; done\n"
+                "mkdir -p \"$build\"\n"
+                "identity=$(awk -F'\\\"' '/file\\(WRITE/ {print $2; exit}' \"$src/CMakeLists.txt\")\n"
+                "if grep -q 'Boost' \"$src/CMakeLists.txt\"; then probe=boost-components; else probe=eigen3; fi\n"
+                "printf '%s\\nBoost_VERSION=1.83.0\\nBoost_VERSION_STRING=1.83.0\\nBoost_DIR=/fixed/boost\\nEigen3_VERSION_STRING=3.4.0\\nEigen3_DIR=/fixed/eigen\\n' \"probe=$probe\" > \"$identity\"\n"
+                "echo \"Configuring done (/tmp/probe-$$, 0.$$/s)\"\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            for executable in bin_dir.iterdir():
+                executable.chmod(0o755)
+            commands = {
+                "pkg-config": {"path": str(bin_dir / "pkg-config")},
+                "cc": {"path": str(bin_dir / "cc")},
+                "c++": {"path": str(bin_dir / "c++")},
+                "python3-config": {"path": str(bin_dir / "python3-config")},
+                "cmake": {"path": str(bin_dir / "cmake")},
+            }
+            first = toolchain_cache._dependency_inventory(commands)
+            second = toolchain_cache._dependency_inventory(commands)
+            self.assertEqual(first, second)
+            serialized = json.dumps(first, sort_keys=True)
+            self.assertNotIn("Configuring done", serialized)
+            self.assertNotIn("/tmp/probe-", serialized)
+
+    @unittest.skipUnless(
+        platform.system() == "Linux" and platform.machine() == "x86_64",
+        "the repeated host-probe check targets the supported powerboat lane",
+    )
+    def test_real_request_and_cli_key_repeat_is_stable(self):
+        """Run the actual dependency probes twice, including the CLI path."""
+
+        root = Path(__file__).resolve().parents[1]
+        clean = {
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": os.environ.get("HOME", "/tmp"),
+            "USER": os.environ.get("USER", "test"),
+            "LANG": "C",
+            "LC_ALL": "C",
+        }
+        required = (
+            "git",
+            "cc",
+            "c++",
+            "cmake",
+            "ninja",
+            "make",
+            "perl",
+            "python3",
+            "python3-config",
+            "pkg-config",
+            "autoconf",
+            "flex",
+            "bison",
+            "help2man",
+        )
+        if any(shutil.which(command, path=clean["PATH"]) is None for command in required):
+            self.skipTest("powerboat host tool inventory is incomplete")
+        with tempfile.TemporaryDirectory(prefix="misteross-cache-key-") as directory:
+            cache = Path(directory)
+            with mock.patch.dict(os.environ, clean, clear=True):
+                first = toolchain_cache.request_from_environment(root, cache_root=cache)
+                second = toolchain_cache.request_from_environment(root, cache_root=cache)
+                self.assertEqual(toolchain_cache.cache_key(first), toolchain_cache.cache_key(second))
+
+            cli_env = dict(clean)
+            command = [
+                str(root / "scripts" / "toolchain_cache.py"),
+                "--root",
+                str(root),
+                "--lock",
+                str(root / "toolchain.lock"),
+                "--cache",
+                str(cache),
+                "plan",
+                "--field",
+                "key",
+            ]
+            first_cli = subprocess.run(
+                ["python3", *command], env=cli_env, check=True, capture_output=True, text=True
+            ).stdout.strip()
+            second_cli = subprocess.run(
+                ["python3", *command], env=cli_env, check=True, capture_output=True, text=True
+            ).stdout.strip()
+            self.assertEqual(first_cli, second_cli)
+            cli_env["FES_TOOLCHAIN_GPU_ROUTER"] = "OFF"
+            explicit_cli = subprocess.run(
+                ["python3", *command], env=cli_env, check=True, capture_output=True, text=True
+            ).stdout.strip()
+            self.assertEqual(first_cli, explicit_cli)
 
     def test_manifest_path_is_not_relocatable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -221,6 +409,19 @@ class ToolchainCacheContractTests(unittest.TestCase):
             )
             with self.assertRaises(toolchain_cache.CacheError):
                 toolchain_cache.verify_ready(request)
+
+    def test_external_publish_lock_requires_exclusive_flock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            lock = Path(directory) / "shared.lock"
+            lock.touch()
+            fd = os.open(lock, os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH)
+                with self.assertRaises(toolchain_cache.CacheError):
+                    toolchain_cache.assert_external_lock(lock, fd)
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
 
 
 if __name__ == "__main__":

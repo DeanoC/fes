@@ -28,6 +28,13 @@ from typing import Any, Iterator, Mapping
 SCHEMA_VERSION = 1
 DEFAULT_GPU_ROUTER = "OFF"
 DEFAULT_HIP_ARCHITECTURES = "gfx1100;gfx1201"
+TOOL_BINARY_NAMES = {
+    "yosys": "yosys",
+    "mistral": "mistral-cv",
+    "nextpnr": "nextpnr-mistral",
+    "verilator": "verilator",
+    "openfpgaloader": "openFPGALoader",
+}
 _HELD_LOCKS: set[tuple[str, str]] = set()
 _RUNTIME_ENVIRONMENT = frozenset(
     {
@@ -183,6 +190,24 @@ def _recipe_digests(request: ToolchainRequest) -> list[str]:
         _regular_file(path, "recipe")
         digests.append(_sha256_file(path))
     return digests
+
+
+def _load_locked_pins(request: ToolchainRequest) -> Mapping[str, Any]:
+    """Load the selected lock through the repository's validating parser."""
+
+    import importlib.util
+
+    parser_path = request.root / "scripts" / "lockfile.py"
+    spec = importlib.util.spec_from_file_location("misteross_cache_lockfile", parser_path)
+    if spec is None or spec.loader is None:
+        raise CacheError(f"cannot load lockfile parser below {request.root}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return module.load_lock(request.lock_path)
+    except Exception as exc:
+        raise CacheError(f"cannot validate toolchain lock {request.lock_path}: {exc}") from exc
 
 
 def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
@@ -559,14 +584,17 @@ def publish_ready(
     request: ToolchainRequest,
     *,
     tools: Mapping[str, Mapping[str, Any]],
-    _lock_held: bool = False,
+    external_lock_fd: int | None = None,
 ) -> ToolchainManifest:
     """Verify a completed slot, freeze consumer trees, and atomically publish it."""
 
     root = ensure_cache_root(request.cache_root)
     key = cache_key(request)
-    if not _lock_held and (str(root), key) not in _HELD_LOCKS:
-        raise CacheError("ready publication must run under the per-key build lock")
+    if external_lock_fd is None:
+        if (str(root), key) not in _HELD_LOCKS:
+            raise CacheError("ready publication must run under the per-key build lock")
+    else:
+        assert_external_lock(lock_path(request), external_lock_fd)
     slot = slot_path(request)
     source, build, install, evidence = _check_slot_paths(request, slot)
     ready = slot / "ready.json"
@@ -658,6 +686,61 @@ def publish_ready(
     return manifest
 
 
+def assert_external_lock(path: Path, fd: int) -> None:
+    """Prove an inherited descriptor owns the expected kernel flock.
+
+    Bootstrap keeps the descriptor open while its child Python process seals
+    the slot.  ``fdinfo`` identifies a lock attached to this exact inherited
+    open-file description; a separately opened descriptor must then be unable
+    to acquire the same inode.  A bare boolean or an inherited descriptor that
+    was merely opened is insufficient and fails closed.
+    """
+
+    if not isinstance(fd, int) or fd < 0:
+        raise CacheError("external lock descriptor is invalid")
+    path = Path(path)
+    try:
+        expected = path.stat(follow_symlinks=False)
+        actual = os.fstat(fd)
+    except OSError as exc:
+        raise CacheError(f"cannot inspect external lock descriptor: {exc}") from exc
+    if not stat.S_ISREG(expected.st_mode) or not stat.S_ISREG(actual.st_mode):
+        raise CacheError("external lock path and descriptor must be regular files")
+    if (expected.st_dev, expected.st_ino) != (actual.st_dev, actual.st_ino):
+        raise CacheError("external lock descriptor does not refer to the request lock file")
+
+    device = f"{os.major(expected.st_dev):02x}:{os.minor(expected.st_dev):02x}"
+    fdinfo = Path(f"/proc/self/fdinfo/{fd}")
+    try:
+        fdinfo_text = fdinfo.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CacheError(f"cannot inspect inherited lock descriptor {fd}: {exc}") from exc
+    lock_token = f"{device}:{expected.st_ino}"
+    if not any(
+        line.startswith("lock:")
+        and "FLOCK" in line
+        and "WRITE" in line
+        and lock_token in line
+        for line in fdinfo_text.splitlines()
+    ):
+        raise CacheError("external lock descriptor is not holding a flock on the request lock file")
+
+    try:
+        probe_fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise CacheError(f"cannot open a fresh lock probe descriptor: {exc}") from exc
+    try:
+        try:
+            fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        else:
+            fcntl.flock(probe_fd, fcntl.LOCK_UN)
+            raise CacheError("external lock descriptor is not serialized by a held flock")
+    finally:
+        os.close(probe_fd)
+
+
 def _verify_files(manifest: ToolchainManifest) -> None:
     actual: dict[str, dict[str, Any]] = {}
     actual.update(_scan_tree(manifest.install, "install"))
@@ -727,14 +810,32 @@ def verify_ready(request: ToolchainRequest) -> ToolchainManifest:
         raise CacheError("ready manifest lane attestation is invalid")
     if manifest.lane.get("install") != str(manifest.install):
         raise CacheError("ready manifest lane prefix is invalid")
+    pins = _load_locked_pins(request)
+    if set(manifest.tools) != set(TOOL_BINARY_NAMES):
+        raise CacheError(
+            "ready manifest must authenticate exactly the locked tools: "
+            + ", ".join(sorted(TOOL_BINARY_NAMES))
+        )
     _check_slot_paths(request, expected_slot)
     _verify_files(manifest)
-    for name, record in manifest.tools.items():
+    for name in sorted(TOOL_BINARY_NAMES):
+        record = manifest.tools[name]
         if not isinstance(record, Mapping):
             raise CacheError(f"ready manifest tool record is malformed: {name}")
+        if set(record) != {"binary", "path", "commit", "identity", "sha256"}:
+            raise CacheError(f"ready manifest tool record fields are invalid: {name}")
         binary_name = record.get("binary")
         if not isinstance(binary_name, str):
             raise CacheError(f"ready manifest tool binary is missing: {name}")
+        expected_binary = f"bin/{TOOL_BINARY_NAMES[name]}"
+        if binary_name != expected_binary or record.get("path") != f"install/{expected_binary}":
+            raise CacheError(f"ready manifest tool path is invalid: {name}")
+        if record.get("commit") != pins[name].commit:
+            raise CacheError(f"ready manifest tool commit does not match the selected lock: {name}")
+        if not isinstance(record.get("identity"), str) or not record["identity"].strip():
+            raise CacheError(f"ready manifest tool identity is missing: {name}")
+        if not isinstance(record.get("sha256"), str) or len(record["sha256"]) != 64:
+            raise CacheError(f"ready manifest tool digest is invalid: {name}")
         binary = _safe_child(manifest.install, binary_name, f"{name} binary")
         if record.get("sha256") != _sha256_file(binary):
             raise CacheError(f"ready manifest tool digest changed: {name}")
@@ -775,8 +876,14 @@ def stage_evidence(request: ToolchainRequest, build_root: Path) -> Path:
     return evidence
 
 
-def _command_identity(command: str, args: tuple[str, ...] = ("--version",)) -> dict[str, Any]:
-    executable = shutil.which(command)
+def _command_identity(
+    command: str,
+    args: tuple[str, ...] = ("--version",),
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    probe_environment = None if environment is None else dict(environment)
+    executable = shutil.which(command, path=None if probe_environment is None else probe_environment.get("PATH"))
     if executable is None:
         raise CacheError(f"required host command is missing: {command}")
     path = Path(executable)
@@ -795,6 +902,7 @@ def _command_identity(command: str, args: tuple[str, ...] = ("--version",)) -> d
             encoding="utf-8",
             errors="replace",
             timeout=15,
+            env=probe_environment,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise CacheError(f"cannot probe host command {command}: {exc}") from exc
@@ -823,11 +931,42 @@ def host_identity() -> dict[str, Any]:
     }
 
 
-def compiler_inventory(gpu_router: str) -> dict[str, Any]:
+def _controlled_probe_environment(values: Mapping[str, str], router: str) -> dict[str, str]:
+    """Return the same environment policy used by a shared build child."""
+
+    controlled = {
+        name: values[name]
+        for name in sorted(values)
+        if name in _RUNTIME_ENVIRONMENT and values.get(name)
+    }
+    # Tool version/help and CMake diagnostics must not vary with the caller's
+    # locale or timezone.  These values are also what bootstrap exports for
+    # the actual compiler children.
+    controlled.update({"LANG": "C", "LC_ALL": "C", "TZ": "UTC"})
+    if router == "HIP":
+        for name in ("ROCM_PATH", "HIPCC"):
+            if values.get(name):
+                controlled[name] = values[name]
+    elif router == "CUDA":
+        for name in ("CUDA_HOME", "CUDACXX", "CUDA_PATH"):
+            if values.get(name):
+                controlled[name] = values[name]
+    return controlled
+
+
+def compiler_inventory(
+    gpu_router: str,
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Probe required build commands and the selected accelerator compiler."""
 
+    router = str(gpu_router or DEFAULT_GPU_ROUTER).upper()
+    probe_environment = _controlled_probe_environment(
+        dict(os.environ if environment is None else environment), router
+    )
     commands = {
-        name: _command_identity(name)
+        name: _command_identity(name, environment=probe_environment)
         for name in (
             "git",
             "cc",
@@ -845,12 +984,14 @@ def compiler_inventory(gpu_router: str) -> dict[str, Any]:
             "help2man",
         )
     }
-    router = str(gpu_router or DEFAULT_GPU_ROUTER).upper()
     if router == "HIP":
-        commands["hipcc"] = _command_identity("hipcc")
+        commands["hipcc"] = _command_identity("hipcc", environment=probe_environment)
     elif router == "CUDA":
-        commands["nvcc"] = _command_identity("nvcc", ("--version",))
-    return {"commands": commands, "dependencies": _dependency_inventory(commands)}
+        commands["nvcc"] = _command_identity("nvcc", ("--version",), environment=probe_environment)
+    return {
+        "commands": commands,
+        "dependencies": _dependency_inventory(commands, environment=probe_environment),
+    }
 
 
 def validate_shared_environment(
@@ -896,7 +1037,17 @@ def validate_shared_environment(
             }:
                 continue
             raise CacheError(f"shared cache v1 rejects unsupported CMake override: {name}")
-        if name in {"MAKEFLAGS", "MFLAGS", "NINJAFLAGS", "NINJA_STATUS", "LD_PRELOAD", "SOURCE_DATE_EPOCH"} or name.startswith(("GIT_", "CCACHE_", "DISTCC_")):
+        if name in {
+            "MAKEFLAGS",
+            "MFLAGS",
+            "NINJAFLAGS",
+            "NINJA_STATUS",
+            "LD_PRELOAD",
+            "SOURCE_DATE_EPOCH",
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_SSH_COMMAND",
+        } or name.startswith(("GIT_CONFIG_", "CCACHE_", "DISTCC_")):
             raise CacheError(f"shared cache rejects unsupported build environment: {name}")
         # Unknown variables are scrubbed from child builds.  Refuse them only
         # when they are an explicit toolchain control; ordinary process
@@ -904,16 +1055,27 @@ def validate_shared_environment(
 
 
 def _request_environment(values: Mapping[str, str]) -> dict[str, str]:
+    # Lane selectors are represented canonically by ToolchainRequest's
+    # ``gpu_router``/``hip_architectures`` fields and therefore must not also
+    # be keyed as raw environment presence.  Keeping them here would make an
+    # omitted default (OFF or the default HIP list) differ from the explicit
+    # spelling used by bootstrap's command line.  Backend roots and compiler
+    # selectors remain environment identity because they can change the
+    # actual accelerator toolchain behind an otherwise identical lane.
     return {
         name: values[name]
         for name in sorted(values)
-        if name in {"FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES"}
-        or name == "CMAKE_HIP_ARCHITECTURES"
-        or name in {"ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH"}
+        if name in {"ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH"}
     }
 
 
-def _probe_command(path: str, arguments: list[str], *, label: str) -> str:
+def _probe_command(
+    path: str,
+    arguments: list[str],
+    *,
+    label: str,
+    environment: Mapping[str, str] | None = None,
+) -> str:
     try:
         result = subprocess.run(
             [path, *arguments],
@@ -924,6 +1086,7 @@ def _probe_command(path: str, arguments: list[str], *, label: str) -> str:
             encoding="utf-8",
             errors="replace",
             timeout=30,
+            env=None if environment is None else dict(environment),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise CacheError(f"cannot run {label} probe: {exc}") from exc
@@ -932,7 +1095,11 @@ def _probe_command(path: str, arguments: list[str], *, label: str) -> str:
     return result.stdout
 
 
-def _dependency_inventory(commands: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+def _dependency_inventory(
+    commands: Mapping[str, Mapping[str, Any]],
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Capture the host dependencies used by bootstrap's real probes.
 
     Boost and Eigen deliberately use header/CMake probes.  They are not
@@ -943,9 +1110,15 @@ def _dependency_inventory(commands: Mapping[str, Mapping[str, Any]]) -> dict[str
     packages: dict[str, dict[str, str]] = {}
     for package in ("libffi", "readline", "tcl", "zlib", "liblzma", "libusb-1.0", "libftdi1"):
         packages[package] = {
-            "modversion": _probe_command(pkg_config, ["--modversion", package], label=f"pkg-config {package}"),
-            "cflags": _probe_command(pkg_config, ["--cflags", package], label=f"pkg-config {package} cflags"),
-            "libs": _probe_command(pkg_config, ["--libs", package], label=f"pkg-config {package} libs"),
+            "modversion": _probe_command(
+                pkg_config, ["--modversion", package], label=f"pkg-config {package}", environment=environment
+            ),
+            "cflags": _probe_command(
+                pkg_config, ["--cflags", package], label=f"pkg-config {package} cflags", environment=environment
+            ),
+            "libs": _probe_command(
+                pkg_config, ["--libs", package], label=f"pkg-config {package} libs", environment=environment
+            ),
         }
 
     cc = str(commands["cc"]["path"])
@@ -978,34 +1151,46 @@ def _dependency_inventory(commands: Mapping[str, Mapping[str, Any]]) -> dict[str
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
+                env=None if environment is None else dict(environment),
             )
         except (OSError, subprocess.SubprocessError) as exc:
             raise CacheError(f"cannot run header probe for {header}: {exc}") from exc
         if result.returncode != 0:
             raise CacheError(f"required header probe failed for {header}: {result.stdout.strip()}")
-        headers[header] = {"compiler": compiler, "output": result.stdout}
+        headers[header] = {"compiler": compiler, "status": "ok"}
 
     cmake = str(commands["cmake"]["path"])
-    cmake_probes: dict[str, str] = {}
+    cmake_probes: dict[str, dict[str, str]] = {}
     projects = {
         "boost-components": (
             "find_package(Boost REQUIRED COMPONENTS program_options iostreams thread)\n"
             "add_executable(probe main.cpp)\n"
             "target_link_libraries(probe PRIVATE Boost::program_options Boost::iostreams Boost::thread)\n",
             "#include <boost/program_options.hpp>\n#include <boost/iostreams/device/array.hpp>\n#include <boost/thread.hpp>\nint main() { return 0; }\n",
+            "Boost_VERSION;Boost_VERSION_STRING;Boost_DIR",
         ),
         "eigen3": (
             "find_package(Eigen3 REQUIRED NO_MODULE)\n"
             "add_executable(probe main.cpp)\n"
             "target_link_libraries(probe PRIVATE Eigen3::Eigen)\n",
             "#include <Eigen/Core>\nint main() { Eigen::Vector3f value; return value.size(); }\n",
+            "Eigen3_VERSION_STRING;EIGEN3_VERSION_STRING;Eigen3_DIR",
         ),
     }
-    for name, (find_text, source_text) in projects.items():
+    for name, (find_text, source_text, variables) in projects.items():
         with tempfile.TemporaryDirectory(prefix="misteross-cache-probe-") as directory:
             probe_root = Path(directory)
+            result_file = probe_root / "identity.txt"
             (probe_root / "CMakeLists.txt").write_text(
-                "cmake_minimum_required(VERSION 3.16)\nproject(probe LANGUAGES CXX)\n" + find_text,
+                "cmake_minimum_required(VERSION 3.16)\n"
+                "project(probe LANGUAGES CXX)\n"
+                + find_text
+                + f"file(WRITE \"{result_file}\" \"probe={name}\\n\")\n"
+                + "\n".join(
+                    f"if(DEFINED {variable})\nfile(APPEND \"{result_file}\" \"{variable}=${{{variable}}}\\n\")\nendif()"
+                    for variable in variables.split(";")
+                )
+                + "\n",
                 encoding="utf-8",
             )
             (probe_root / "main.cpp").write_text(source_text, encoding="utf-8")
@@ -1019,17 +1204,26 @@ def _dependency_inventory(commands: Mapping[str, Mapping[str, Any]]) -> dict[str
                     encoding="utf-8",
                     errors="replace",
                     timeout=60,
+                    env=None if environment is None else dict(environment),
                 )
             except (OSError, subprocess.SubprocessError) as exc:
                 raise CacheError(f"cannot run {name} CMake probe: {exc}") from exc
             if result.returncode != 0:
-                raise CacheError(f"required {name} CMake probe failed: {result.stdout.strip()}")
-            cmake_probes[name] = result.stdout
+                raise CacheError(f"required {name} CMake probe failed")
+            try:
+                records = {}
+                for line in result_file.read_text(encoding="utf-8").splitlines():
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        records[key] = value
+            except OSError as exc:
+                raise CacheError(f"required {name} CMake probe did not write identity") from exc
+            cmake_probes[name] = records
     return {
         "pkg-config": packages,
         "headers": headers,
         "cmake": cmake_probes,
-        "python-config": python_includes,
+        "python-config": python_includes.strip(),
     }
 
 
@@ -1038,8 +1232,16 @@ def request_from_environment(
     lock_path: Path | None = None,
     *,
     cache_root: Path | None = None,
+    gpu_router: str | None = None,
+    hip_architectures: str | None = None,
 ) -> ToolchainRequest:
-    """Build a request from the opt-in environment after host probing."""
+    """Build a request from the opt-in environment after host probing.
+
+    ``gpu_router`` and ``hip_architectures`` may be supplied by a consumer
+    explicitly (Coleco's HIP lane does this) so selecting a lane does not
+    require mutating the process environment.  Unspecified values retain the
+    existing environment/default precedence.
+    """
 
     root = Path(root).resolve()
     selected_lock = lock_path or Path(os.environ.get("FES_TOOLCHAIN_LOCKFILE", root / "toolchain.lock"))
@@ -1049,18 +1251,29 @@ def request_from_environment(
     selected_cache = cache_root or os.environ.get("FES_TOOLCHAIN_CACHE_ROOT")
     if not selected_cache:
         raise CacheError("FES_TOOLCHAIN_CACHE_ROOT is not set; shared lane is not selected")
-    router = os.environ.get("FES_TOOLCHAIN_GPU_ROUTER", DEFAULT_GPU_ROUTER).upper()
-    architectures = os.environ.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
-    allow_resolved_paths = os.environ.get("FES_TOOLCHAIN_CACHE_RESOLVED") == "1"
+    router = str(
+        gpu_router
+        if gpu_router is not None
+        else os.environ.get("FES_TOOLCHAIN_GPU_ROUTER", DEFAULT_GPU_ROUTER)
+    ).upper()
+    architectures = str(
+        hip_architectures
+        if hip_architectures is not None
+        else os.environ.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
+    )
+    # The resolver marker is internal plumbing for consumers after a manifest
+    # has been selected.  It is never an authorization to accept a caller's
+    # compiler/search-path overrides: the request must validate the original
+    # environment before any generated cache paths are introduced.
     validate_shared_environment(
         os.environ,
         gpu_router=router,
         hip_architectures=architectures,
-        allow_resolved_paths=allow_resolved_paths,
+        allow_resolved_paths=False,
     )
     environment = _request_environment(os.environ)
     host = host_identity()
-    compiler = compiler_inventory(router)
+    compiler = compiler_inventory(router, environment=os.environ)
     return ToolchainRequest(
         root=root,
         lock_path=selected_lock,
@@ -1086,6 +1299,12 @@ def _load_request_arguments(argv: list[str]) -> ToolchainRequest:
     parser.add_argument("--field", choices=("key", "slot", "source", "build", "install", "evidence", "lock"))
     parser.add_argument("--build-root", type=Path)
     parser.add_argument("--format", choices=("json", "lines"), default="json")
+    parser.add_argument("--expect-key", help="require the recomputed request key to match this value")
+    parser.add_argument(
+        "--lock-fd",
+        type=int,
+        help="inherited descriptor whose held flock must be proven for publish",
+    )
     args = parser.parse_args(argv)
     environment = os.environ.copy()
     if args.gpu_router is not None:
@@ -1116,6 +1335,12 @@ def _temporary_environment(values: Mapping[str, str]) -> Iterator[None]:
 def _main(argv: list[str]) -> int:
     try:
         request, args = _load_request_arguments(argv)
+        if args.expect_key is not None:
+            actual_key = cache_key(request)
+            if actual_key != args.expect_key:
+                raise CacheError(
+                    f"request key changed across cache phases: expected {args.expect_key}, got {actual_key}"
+                )
         if args.command == "init":
             ensure_cache_root(request.cache_root)
             ensure_lock_file(request)
@@ -1138,7 +1363,31 @@ def _main(argv: list[str]) -> int:
                 print(json.dumps({name: str(value) for name, value in values.items()}, sort_keys=True))
         elif args.command == "verify":
             manifest = verify_ready(request)
-            print(json.dumps({"key": manifest.key, "install": str(manifest.install)}, sort_keys=True))
+            if args.format == "lines":
+                print(f"key\t{manifest.key}")
+                print(f"install\t{manifest.install}")
+                print(f"evidence\t{manifest.evidence}")
+                print(
+                    "tools\t"
+                    + json.dumps(
+                        {name: dict(record) for name, record in sorted(manifest.tools.items())},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
+            else:
+                print(
+                    json.dumps(
+                        {
+                            "key": manifest.key,
+                            "install": str(manifest.install),
+                            "evidence": str(manifest.evidence),
+                            "tools": {name: dict(record) for name, record in sorted(manifest.tools.items())},
+                        },
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                )
         elif args.command == "stage-evidence":
             if args.build_root is None:
                 raise CacheError("stage-evidence requires --build-root")
@@ -1153,11 +1402,7 @@ def _main(argv: list[str]) -> int:
                 "verilator": ("verilator", "verilator"),
                 "openfpgaloader": ("openfpgaloader", "openFPGALoader"),
             }
-            # lockfile.py is intentionally imported only for this publishing
-            # path; the key itself remains the raw lock content digest.
-            from scripts.lockfile import load_lock
-
-            pins = load_lock(request.lock_path)
+            pins = _load_locked_pins(request)
             install = slot_path(request) / "install"
             build = slot_path(request) / "build"
             tools: dict[str, dict[str, Any]] = {}
@@ -1172,10 +1417,11 @@ def _main(argv: list[str]) -> int:
                     "commit": pin.commit,
                     "identity": identity_path.read_text(encoding="utf-8").strip(),
                 }
-            # bootstrap owns the kernel flock for this process tree.  Taking
-            # another blocking flock here would deadlock; the private flag is
-            # only used by this child after the shell has acquired that lock.
-            manifest = publish_ready(request, tools=tools, _lock_held=True)
+            # Bootstrap owns the kernel flock for this process tree.  Taking
+            # another blocking flock here would deadlock; the inherited
+            # descriptor is checked against /proc/self/fdinfo and a fresh
+            # descriptor before publication.
+            manifest = publish_ready(request, tools=tools, external_lock_fd=args.lock_fd)
             print(json.dumps({"key": manifest.key, "install": str(manifest.install)}, sort_keys=True))
         return 0
     except CacheError as exc:
