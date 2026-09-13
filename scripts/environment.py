@@ -8,7 +8,8 @@ def build_environment():
         if (name.startswith(("TARGET_IMAGE_", "NATIVE_RUNTIME_", "MEGADRIVE_RBF_", "PONG_RBF_", "SNES_RBF_", "NES_RBF_", "FES_PONG_PACKAGE_"))
                 or name in ("LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
                             "GOFLAGS", "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64",
-                            "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140")):
+                            "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140",
+                            "FES_TOOLCHAIN_CACHE_ROOT")):
             del env[name]
     env.update(GOENV="off", GOWORK="off", GOFLAGS="", GOEXPERIMENT="",
                GOAMD64="v1", GOTOOLCHAIN="auto", GOFIPS140="off")

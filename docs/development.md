@@ -141,6 +141,17 @@ rm -rf -- out/cache/fpga-bundles/<system>
 
 Then retry.
 
+The default parent integration path also opts the FES Pong format-2 package
+producer into the disposable shared compiler cache at
+`out/cache/misteross-toolchains` through `FES_TOOLCHAIN_CACHE_ROOT`. Generic
+format-1 Mega Drive, SNES and NES bundle lanes keep the local toolchain
+environment; misteross rejects shared mode for those legacy OSS, simulation
+and programming paths. That cache is workspace-local ignored state, not
+provenance. Remove `out/cache/misteross-toolchains` to drop retained compiler
+installs. The shared-cache implementation and real OFF/HIP evidence live in
+misteross PR #60; this parent slice does not claim a fresh cold build or
+hardware validation.
+
 `make dev` builds selected clean revisions, not arbitrary uncommitted worker
 checkouts. Integrate reviewed component commits using the commands above before
 running the parent build. Workers can still use their component's artifact-only
