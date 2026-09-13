@@ -235,3 +235,69 @@ class CoreBuildTest(unittest.TestCase):
                 self.assertEqual(build.build_bundle({'misteross': 'a' * 40}, {}, system='pong'), bundle)
                 load.assert_called_once_with(bundle, build.digest(source / 'scripts/build_pong.py'),
                                              system='pong', expected_revision='a' * 40)
+
+    def _sealed_bundle(self, directory, system, extra=()):
+        directory.mkdir(parents=True, exist_ok=True)
+        rbf = directory / f'{system}.rbf'
+        manifest = directory / f'{system}-rbf.toml'
+        rbf.write_bytes(b'rbf')
+        manifest.write_bytes(b'manifest')
+        rbf.chmod(0o444)
+        manifest.chmod(0o444)
+        for name in extra:
+            path = directory / name
+            path.write_bytes(b'unexpected')
+            path.chmod(0o444)
+        directory.chmod(0o555)
+        return directory
+
+    def test_stable_bundle_requires_the_closed_sealed_two_file_set(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / ('a' * 64)
+            self._sealed_bundle(directory, 'megadrive')
+            build._require_sealed_bundle(directory, 'megadrive')
+            extra = directory / 'extra'
+            directory.chmod(0o755)
+            extra.write_bytes(b'unexpected')
+            extra.chmod(0o444)
+            directory.chmod(0o555)
+            with self.assertRaisesRegex(ValueError, 'closed|unexpected'):
+                build._require_sealed_bundle(directory, 'megadrive')
+
+    def test_stable_bundle_rejects_a_writable_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / ('b' * 64)
+            self._sealed_bundle(directory, 'megadrive')
+            directory.chmod(0o755)
+            (directory / 'megadrive.rbf').chmod(0o644)
+            directory.chmod(0o555)
+            with self.assertRaisesRegex(ValueError, 'write|sealed|writable'):
+                build._require_sealed_bundle(directory, 'megadrive')
+
+    def test_stable_bundle_rejects_a_missing_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / ('c' * 64)
+            directory.mkdir()
+            rbf = directory / 'megadrive.rbf'
+            rbf.write_bytes(b'rbf')
+            rbf.chmod(0o444)
+            directory.chmod(0o555)
+            with self.assertRaisesRegex(ValueError, 'manifest|closed'):
+                build._require_sealed_bundle(directory, 'megadrive')
+
+    def test_stable_bundle_directories_skip_symlink_roots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / 'real'
+            digest = self._sealed_bundle(real / 'megadrive' / ('d' * 64), 'megadrive')
+            link = root / 'link'
+            link.symlink_to(real, target_is_directory=True)
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(build._bundle_directories(link, 'megadrive'), ())
+            self.assertEqual(build._bundle_directories(root / 'missing', 'megadrive'), ())
+            self.assertEqual(build._bundle_directories(real, 'megadrive'), (digest,))
+            linked_bundle = root / 'bundle-link'
+            linked_bundle.symlink_to(digest, target_is_directory=True)
+            self.assertTrue(linked_bundle.is_symlink())
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                build._require_sealed_bundle(linked_bundle, 'megadrive')

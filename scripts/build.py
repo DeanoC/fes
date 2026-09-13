@@ -24,6 +24,7 @@ from environment import build_environment
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
 DIAGNOSTIC_RECIPE_NAMES = frozenset({"scripts/build_diagnostics.py"})
+FPGA_BUNDLE_CACHE = ROOT / "out/cache/fpga-bundles"
 
 
 def is_diagnostic_recipe_file(path, root=ROOT):
@@ -518,6 +519,67 @@ def bundle_arguments(cores, bundles):
         raise ValueError("bundle set differs from selected cores")
     return ["NATIVE_RUNTIME_SYSTEMS=" + " ".join(cores), "MEGADRIVE_RBF_SOURCE=source-built"] + [
         core.upper() + "_RBF_BUNDLE=" + str(bundles[core]) for core in cores]
+
+
+def _bundle_write_bits(mode):
+    return bool(stat.S_IMODE(mode) & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
+
+
+def _bundle_directories(root, system):
+    root = Path(root)
+    try:
+        metadata = root.lstat()
+    except FileNotFoundError:
+        return ()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        return ()
+    base = root / system
+    try:
+        metadata = base.lstat()
+    except FileNotFoundError:
+        return ()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        return ()
+    candidates = []
+    for child in sorted(base.iterdir(), key=lambda path: path.name):
+        try:
+            metadata = child.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            continue
+        candidates.append(child)
+    return tuple(candidates)
+
+
+def _require_sealed_bundle(directory, system):
+    directory = Path(directory)
+    try:
+        metadata = directory.lstat()
+    except FileNotFoundError as exc:
+        raise ValueError("bundle directory must exist") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise ValueError("bundle directory must not be a symlink")
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("bundle path must be a directory")
+    if _bundle_write_bits(metadata.st_mode):
+        raise ValueError("sealed bundle directory must not be writable")
+    expected = {f"{system}.rbf", f"{system}-rbf.toml"}
+    names = []
+    for child in sorted(directory.iterdir(), key=lambda path: path.name):
+        try:
+            metadata = child.lstat()
+        except FileNotFoundError as exc:
+            raise ValueError("sealed bundle files must exist") from exc
+        if child.name.startswith("."):
+            raise ValueError("sealed bundle has unexpected files")
+        names.append(child.name)
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("bundle files must be non-symlink regular files")
+        if _bundle_write_bits(metadata.st_mode):
+            raise ValueError("sealed bundle files must not be writable")
+    if set(names) != expected:
+        raise ValueError("sealed bundle must contain the closed two-file set")
 
 
 def validate_bundle(directory, source, revision, system):
