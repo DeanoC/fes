@@ -224,8 +224,8 @@ fi
         "bison": "#!/bin/sh\necho bison-fake\n",
         "help2man": "#!/bin/sh\necho help2man-fake\n",
         "pkg-config": "#!/bin/sh\ncase \"$1\" in --exists) exit 0;; --modversion) echo 1.0;; --cflags|--libs) :;; esac\n",
-        "cc": "#!/bin/sh\nif [ \"$1\" = --version ]; then echo cc-fake; else cat >/dev/null; fi\n",
-        "c++": "#!/bin/sh\nif [ \"$1\" = --version ]; then echo cxx-fake; else cat >/dev/null; fi\n",
+        "cc": "#!/bin/sh\nif [ \"${1:-}\" = --version ]; then echo cc-fake; exit 0; fi\ndepfile=\nwhile [ $# -gt 0 ]; do case \"$1\" in -MF) depfile=$2; shift 2;; *) shift;; esac; done\nif [ -n \"$depfile\" ]; then printf 'probe: /etc/hosts\\n' >\"$depfile\"; else cat >/dev/null; fi\n",
+        "c++": "#!/bin/sh\nif [ \"${1:-}\" = --version ]; then echo cxx-fake; exit 0; fi\ndepfile=\nwhile [ $# -gt 0 ]; do case \"$1\" in -MF) depfile=$2; shift 2;; *) shift;; esac; done\nif [ -n \"$depfile\" ]; then printf 'probe: /etc/hosts\\n' >\"$depfile\"; else cat >/dev/null; fi\n",
         "hipcc": "#!/bin/sh\necho hipcc-fake\n",
     }
     for command, body in commands.items():
@@ -234,6 +234,36 @@ fi
 
 
 class SharedBootstrapEnvironmentTests(unittest.TestCase):
+    def test_shared_check_prereqs_reports_missing_capabilities_before_cache_planning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            log = base / "child-env.log"
+            fake_bin = _prepare_fixture(root, log)
+            environment = {
+                "PATH": f"{fake_bin}:{os.environ['PATH']}",
+                "HOME": str(base),
+                "USER": "test",
+                "LANG": "C",
+                "LC_ALL": "C",
+                "FES_TOOLCHAIN_CACHE_ROOT": str(base / "cache"),
+                "PYTHON_CONFIG": "missing-python-config",
+            }
+            result = subprocess.run(
+                [str(root / "scripts" / "bootstrap.sh"), "--check-prereqs"],
+                cwd=root,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            output = result.stdout + result.stderr
+            self.assertIn("Required build commands:", output)
+            self.assertIn("Required development headers:", output)
+            self.assertIn("[missing] Python development headers (python3-dev)", output)
+            self.assertNotIn("cannot derive shared toolchain cache identity", output)
+
     def test_shared_build_scrubs_unknown_environment_and_handles_special_lock_path(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)

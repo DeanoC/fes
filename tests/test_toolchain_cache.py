@@ -278,11 +278,23 @@ class ToolchainCacheContractTests(unittest.TestCase):
             bin_dir = base / "bin"
             bin_dir.mkdir()
             (bin_dir / "pkg-config").write_text(
-                "#!/bin/sh\ncase \"$1\" in --modversion) echo 1.2.3;; --cflags) echo -I/fixed/include;; --libs) echo -L/fixed/lib -lfixed;; esac\n",
+                "#!/bin/sh\ncase \"$1\" in --modversion) echo 1.2.3;; --cflags|--libs) :;; esac\n",
                 encoding="utf-8",
             )
-            (bin_dir / "cc").write_text("#!/bin/sh\ncat >/dev/null\nexit 0\n", encoding="utf-8")
-            (bin_dir / "c++").write_text("#!/bin/sh\ncat >/dev/null\nexit 0\n", encoding="utf-8")
+            compiler_fixture = (
+                "#!/bin/sh\n"
+                "depfile=\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  case \"$1\" in\n"
+                "    -MF) depfile=$2; shift 2 ;;\n"
+                "    *) shift ;;\n"
+                "  esac\n"
+                "done\n"
+                "if [ -n \"$depfile\" ]; then printf 'probe: /etc/hosts\\n' >\"$depfile\"; else cat >/dev/null; fi\n"
+                "exit 0\n"
+            )
+            (bin_dir / "cc").write_text(compiler_fixture, encoding="utf-8")
+            (bin_dir / "c++").write_text(compiler_fixture, encoding="utf-8")
             (bin_dir / "python3-config").write_text("#!/bin/sh\necho -I/fixed/python\n", encoding="utf-8")
             (bin_dir / "cmake").write_text(
                 "#!/bin/sh\n"
@@ -311,6 +323,152 @@ class ToolchainCacheContractTests(unittest.TestCase):
             serialized = json.dumps(first, sort_keys=True)
             self.assertNotIn("Configuring done", serialized)
             self.assertNotIn("/tmp/probe-", serialized)
+
+    def test_dependency_inventory_fingerprints_resolved_content(self):
+        """Dependency bytes, not only package metadata, select the cache lane."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            bin_dir = base / "bin"
+            include_dir = base / "include"
+            library_dir = base / "lib"
+            bin_dir.mkdir()
+            include_dir.mkdir()
+            library_dir.mkdir()
+            headers = (
+                "Python.h",
+                "ffi.h",
+                "readline/readline.h",
+                "tcl.h",
+                "zlib.h",
+                "lzma.h",
+                "libusb-1.0/libusb.h",
+                "libftdi1/ftdi.h",
+                "boost/version.hpp",
+                "boost/iostreams/device/array.hpp",
+                "boost/program_options.hpp",
+                "boost/thread.hpp",
+                "Eigen/Core",
+            )
+            for relative in headers:
+                path = include_dir / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"// {relative}\n", encoding="utf-8")
+            library = library_dir / "libfixture.so"
+            library.write_bytes(b"fixture-v1\n")
+
+            (bin_dir / "pkg-config").write_text(
+                "#!/bin/sh\n"
+                "case \"$1\" in\n"
+                "  --modversion) echo 1.2.3 ;;\n"
+                "  --cflags) printf '%s\\n' \"-I$FAKE_INCLUDE\" ;;\n"
+                "  --libs) printf '%s\\n' \"-L$FAKE_LIB -lfixture\" ;;\n"
+                "esac\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "cc").write_text(
+                "#!/bin/sh\n"
+                "case \"${1:-}\" in\n"
+                "  -print-file-name=*) printf '%s\\n' \"$FAKE_LIB/libfixture.so\"; exit 0 ;;\n"
+                "esac\n"
+                "depfile= source=\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  case \"$1\" in\n"
+                "    -MF) depfile=$2; shift 2 ;;\n"
+                "    -M) shift ;;\n"
+                "    -MT) shift 2 ;;\n"
+                "    -*) shift ;;\n"
+                "    *) source=$1; shift ;;\n"
+                "  esac\n"
+                "done\n"
+                "if [ -n \"$depfile\" ]; then\n"
+                "  header=$(sed -n 's/^#include [<\\\"]\\([^>\\\"]*\\).*$/\\1/p' \"$source\" | head -n 1)\n"
+                "  printf 'probe: %s\\n' \"$FAKE_INCLUDE/$header\" >\"$depfile\"\n"
+                "else\n"
+                "  cat >/dev/null\n"
+                "fi\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "c++").write_text(
+                "#!/bin/sh\n"
+                "exec \"$(dirname \"$0\")/cc\" \"$@\"\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "python3-config").write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"-I$FAKE_INCLUDE\"\n",
+                encoding="utf-8",
+            )
+            (bin_dir / "cmake").write_text(
+                "#!/bin/sh\n"
+                "src= build=\n"
+                "while [ $# -gt 0 ]; do case $1 in -S) src=$2; shift 2;; -B) build=$2; shift 2;; *) shift;; esac; done\n"
+                "mkdir -p \"$build\"\n"
+                "identity=$(awk -F'\\\"' '/file\\(WRITE/ {print $2; exit}' \"$src/CMakeLists.txt\")\n"
+                "if grep -q 'Boost' \"$src/CMakeLists.txt\"; then probe=boost-components; else probe=eigen3; fi\n"
+                "printf '%s\\nBoost_VERSION=1.83.0\\nBoost_VERSION_STRING=1.83.0\\nBoost_DIR=/fixed/boost\\nEigen3_VERSION_STRING=3.4.0\\nEigen3_DIR=/fixed/eigen\\n' \"probe=$probe\" > \"$identity\"\n"
+                "printf 'link-libraries=%s/libfixture.so\\n' \"$FAKE_LIB\" >> \"$identity\"\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            for executable in bin_dir.iterdir():
+                executable.chmod(0o755)
+
+            commands = {
+                "pkg-config": {"path": str(bin_dir / "pkg-config")},
+                "cc": {"path": str(bin_dir / "cc")},
+                "c++": {"path": str(bin_dir / "c++")},
+                "python3-config": {"path": str(bin_dir / "python3-config")},
+                "cmake": {"path": str(bin_dir / "cmake")},
+            }
+            environment = {
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": str(base),
+                "FAKE_INCLUDE": str(include_dir),
+                "FAKE_LIB": str(library_dir),
+                "CPLUS_INCLUDE_PATH": str(include_dir),
+                "LANG": "C",
+                "LC_ALL": "C",
+            }
+
+            first = toolchain_cache._dependency_inventory(commands, environment=environment)
+            first_header_paths = {
+                record["path"]
+                for records in first["content"]["headers"].values()
+                for record in records
+            }
+            first_library_paths = {
+                record["path"]
+                for records in first["content"]["libraries"].values()
+                for record in records
+            }
+            self.assertIn(str((include_dir / "ffi.h").resolve()), first_header_paths)
+            self.assertIn(str(library.resolve()), first_library_paths)
+            first_cmake_library_paths = {
+                record["path"]
+                for records in first["content"]["cmake-libraries"].values()
+                for record in records
+            }
+            self.assertIn(str(library.resolve()), first_cmake_library_paths)
+
+            recipe = base / "recipe.sh"
+            recipe.write_text("recipe\n", encoding="utf-8")
+            request = self._request(base / "checkout", base / "cache", recipe)
+            first_request = toolchain_cache.ToolchainRequest(
+                **{**request.__dict__, "compiler_identity": first}
+            )
+
+            (include_dir / "ffi.h").write_text("// changed\n", encoding="utf-8")
+            library.write_bytes(b"fixture-v2\n")
+            second = toolchain_cache._dependency_inventory(commands, environment=environment)
+            second_request = toolchain_cache.ToolchainRequest(
+                **{**request.__dict__, "compiler_identity": second}
+            )
+
+            self.assertNotEqual(first["content"], second["content"])
+            self.assertNotEqual(
+                toolchain_cache.cache_key(first_request),
+                toolchain_cache.cache_key(second_request),
+            )
 
     @unittest.skipUnless(
         platform.system() == "Linux" and platform.machine() == "x86_64",

@@ -50,7 +50,10 @@ die() {
     exit 1
 }
 
-if [[ -n "$CACHE_ROOT_REQUEST" ]]; then
+# Prerequisite reporting is intentionally independent of cache identity.  A
+# missing host capability must be listed by --check-prereqs rather than being
+# converted into an opaque compiler-inventory failure while planning a slot.
+if [[ -n "$CACHE_ROOT_REQUEST" && "${1:-}" != "--check-prereqs" ]]; then
     [[ -f "$CACHE_HELPER" ]] || die "shared cache helper is missing: $CACHE_HELPER"
     command -v "$PYTHON" >/dev/null 2>&1 || die "shared cache requires Python: $PYTHON"
     [[ -z "$INHERITED_TOOLCHAIN_ROOT" && -z "$INHERITED_TOOLCHAIN_INSTALL" && -z "$INHERITED_TOOLCHAIN_BUILD" ]] ||

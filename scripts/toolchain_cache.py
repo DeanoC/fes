@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import platform
+import shlex
 import shutil
 import stat
 import subprocess
@@ -1095,6 +1096,214 @@ def _probe_command(
     return result.stdout
 
 
+def _content_record(path: Path) -> dict[str, Any]:
+    """Return a path-independent content identity for one dependency file."""
+
+    try:
+        resolved = Path(path).resolve(strict=True)
+    except OSError as exc:
+        raise CacheError(f"cannot resolve dependency file {path}: {exc}") from exc
+    _regular_file(resolved, "dependency file")
+    try:
+        size = resolved.stat().st_size
+    except OSError as exc:
+        raise CacheError(f"cannot stat dependency file {resolved}: {exc}") from exc
+    return {
+        "path": str(resolved),
+        "sha256": _sha256_file(resolved),
+        "size": size,
+    }
+
+
+def _dependency_file_paths(depfile: Path) -> list[Path]:
+    try:
+        text = depfile.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CacheError(f"cannot read compiler dependency file {depfile}: {exc}") from exc
+    text = text.replace("\\\n", " ")
+    if ":" not in text:
+        raise CacheError(f"compiler dependency file has no target: {depfile}")
+    try:
+        tokens = shlex.split(text.split(":", 1)[1], posix=True)
+    except ValueError as exc:
+        raise CacheError(f"cannot parse compiler dependency file {depfile}: {exc}") from exc
+    return [Path(token) for token in tokens if token]
+
+
+def _compiler_dependency_records(
+    compiler: str,
+    language: str,
+    source: str,
+    extra_flags: list[str],
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fingerprint the files resolved by a compiler preprocessor probe."""
+
+    with tempfile.TemporaryDirectory(prefix="misteross-cache-deps-") as directory:
+        probe_root = Path(directory)
+        source_path = probe_root / "probe.source"
+        depfile = probe_root / "probe.d"
+        source_path.write_text(source, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                [
+                    compiler,
+                    *extra_flags,
+                    "-M",
+                    "-MF",
+                    str(depfile),
+                    "-MT",
+                    "misteross-cache-probe",
+                    "-x",
+                    language,
+                    str(source_path),
+                ],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                env=None if environment is None else dict(environment),
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CacheError(f"cannot fingerprint compiler dependencies: {exc}") from exc
+        if result.returncode != 0:
+            raise CacheError(f"compiler dependency probe failed: {result.stdout.strip()}")
+        if not depfile.is_file():
+            raise CacheError("compiler dependency probe did not produce a dependency file")
+
+        source_resolved = source_path.resolve()
+        records: dict[str, dict[str, Any]] = {}
+        for candidate in _dependency_file_paths(depfile):
+            if not candidate.is_absolute():
+                candidate = depfile.parent / candidate
+            try:
+                resolved = candidate.resolve(strict=True)
+            except OSError as exc:
+                raise CacheError(f"compiler dependency file names missing file {candidate}: {exc}") from exc
+            if resolved == source_resolved:
+                continue
+            record = _content_record(resolved)
+            records[record["path"]] = record
+        if not records:
+            raise CacheError("compiler dependency probe resolved no dependency files")
+        return [records[path] for path in sorted(records)]
+
+
+def _flag_tokens(value: str, label: str) -> list[str]:
+    try:
+        return shlex.split(value, posix=True)
+    except ValueError as exc:
+        raise CacheError(f"cannot parse {label} flags: {exc}") from exc
+
+
+def _compiler_library_file(
+    compiler: str,
+    filename: str,
+    search_dirs: list[Path],
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> Path | None:
+    for directory in search_dirs:
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
+
+    try:
+        result = subprocess.run(
+            [compiler, f"-print-file-name={filename}"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            env=None if environment is None else dict(environment),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise CacheError(f"cannot resolve library {filename}: {exc}") from exc
+    if result.returncode != 0:
+        raise CacheError(f"cannot resolve library {filename}: {result.stdout.strip()}")
+    resolved = result.stdout.strip()
+    if not resolved or resolved == filename:
+        return None
+    candidate = Path(resolved)
+    return candidate if candidate.is_file() else None
+
+
+def _library_content_records(
+    compiler: str,
+    flags: str,
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Resolve and fingerprint libraries named by one pkg-config result."""
+
+    tokens = _flag_tokens(flags, "pkg-config --libs")
+    search_dirs = [Path(token[2:]) for token in tokens if token.startswith("-L") and token[2:]]
+    records: dict[str, dict[str, Any]] = {}
+    for token in tokens:
+        if token.startswith("-l:"):
+            filenames = [token[3:]]
+        elif token.startswith("-l") and token[2:]:
+            name = token[2:]
+            filenames = [f"lib{name}.so", f"lib{name}.a"]
+        elif token.startswith("/"):
+            path = Path(token)
+            if path.is_file():
+                record = _content_record(path)
+                records[record["path"]] = record
+            continue
+        else:
+            continue
+
+        path = None
+        for filename in filenames:
+            path = _compiler_library_file(
+                compiler,
+                filename,
+                search_dirs,
+                environment=environment,
+            )
+            if path is not None:
+                break
+        if path is None:
+            raise CacheError(f"cannot resolve pkg-config library flag: {token}")
+        record = _content_record(path)
+        records[record["path"]] = record
+    return [records[path] for path in sorted(records)]
+
+
+def _cmake_include_flags(value: str) -> list[str]:
+    flags: list[str] = []
+    for raw_path in value.split(";"):
+        path = raw_path.strip()
+        if not path or "$<" in path:
+            continue
+        candidate = Path(path)
+        if candidate.is_dir():
+            flags.append(f"-I{candidate}")
+    return flags
+
+
+def _cmake_library_records(value: str) -> list[dict[str, Any]]:
+    records: dict[str, dict[str, Any]] = {}
+    for raw_path in value.split(";"):
+        path = raw_path.strip()
+        if not path or "$<" in path or path.endswith("-NOTFOUND"):
+            continue
+        candidate = Path(path)
+        if not candidate.is_absolute() or not candidate.is_file():
+            continue
+        record = _content_record(candidate)
+        records[record["path"]] = record
+    return [records[path] for path in sorted(records)]
+
+
 def _dependency_inventory(
     commands: Mapping[str, Mapping[str, Any]],
     *,
@@ -1108,6 +1317,7 @@ def _dependency_inventory(
 
     pkg_config = str(commands["pkg-config"]["path"])
     packages: dict[str, dict[str, str]] = {}
+    library_content: dict[str, list[dict[str, Any]]] = {}
     for package in ("libffi", "readline", "tcl", "zlib", "liblzma", "libusb-1.0", "libftdi1"):
         packages[package] = {
             "modversion": _probe_command(
@@ -1120,12 +1330,18 @@ def _dependency_inventory(
                 pkg_config, ["--libs", package], label=f"pkg-config {package} libs", environment=environment
             ),
         }
+        library_content[package] = _library_content_records(
+            str(commands["cc"]["path"]),
+            packages[package]["libs"],
+            environment=environment,
+        )
 
     cc = str(commands["cc"]["path"])
     cxx = str(commands["c++"]["path"])
     python_config = str(commands["python3-config"]["path"])
     python_includes = _probe_command(python_config, ["--includes"], label="python3-config")
     headers: dict[str, dict[str, Any]] = {}
+    header_content: dict[str, list[dict[str, Any]]] = {}
     for compiler, language, header, package, extra in (
         (cc, "c", "Python.h", None, python_includes.split()),
         (cc, "c", "ffi.h", "libffi", []),
@@ -1158,6 +1374,13 @@ def _dependency_inventory(
         if result.returncode != 0:
             raise CacheError(f"required header probe failed for {header}: {result.stdout.strip()}")
         headers[header] = {"compiler": compiler, "status": "ok"}
+        header_content[header] = _compiler_dependency_records(
+            compiler,
+            language,
+            source,
+            list(extra),
+            environment=environment,
+        )
 
     cmake = str(commands["cmake"]["path"])
     cmake_probes: dict[str, dict[str, str]] = {}
@@ -1168,6 +1391,7 @@ def _dependency_inventory(
             "target_link_libraries(probe PRIVATE Boost::program_options Boost::iostreams Boost::thread)\n",
             "#include <boost/program_options.hpp>\n#include <boost/iostreams/device/array.hpp>\n#include <boost/thread.hpp>\nint main() { return 0; }\n",
             "Boost_VERSION;Boost_VERSION_STRING;Boost_DIR",
+            "Boost::program_options;Boost::iostreams;Boost::thread",
         ),
         "eigen3": (
             "find_package(Eigen3 REQUIRED NO_MODULE)\n"
@@ -1175,9 +1399,27 @@ def _dependency_inventory(
             "target_link_libraries(probe PRIVATE Eigen3::Eigen)\n",
             "#include <Eigen/Core>\nint main() { Eigen::Vector3f value; return value.size(); }\n",
             "Eigen3_VERSION_STRING;EIGEN3_VERSION_STRING;Eigen3_DIR",
+            "Eigen3::Eigen",
         ),
     }
-    for name, (find_text, source_text, variables) in projects.items():
+    cmake_content: dict[str, list[dict[str, Any]]] = {}
+    cmake_library_content: dict[str, list[dict[str, Any]]] = {}
+    for name, (find_text, source_text, variables, targets) in projects.items():
+        target_lines = ""
+        target_values: list[str] = []
+        for index, target in enumerate(targets.split(";")):
+            target_lines += (
+                f"get_target_property(probe_link_{index} {target} IMPORTED_LOCATION)\n"
+                f"get_target_property(probe_link_{index}_release {target} IMPORTED_LOCATION_RELEASE)\n"
+                f"get_target_property(probe_link_{index}_noconfig {target} IMPORTED_LOCATION_NOCONFIG)\n"
+            )
+            target_values.extend(
+                [
+                    f"${{probe_link_{index}}}",
+                    f"${{probe_link_{index}_release}}",
+                    f"${{probe_link_{index}_noconfig}}",
+                ]
+            )
         with tempfile.TemporaryDirectory(prefix="misteross-cache-probe-") as directory:
             probe_root = Path(directory)
             result_file = probe_root / "identity.txt"
@@ -1186,6 +1428,10 @@ def _dependency_inventory(
                 "project(probe LANGUAGES CXX)\n"
                 + find_text
                 + f"file(WRITE \"{result_file}\" \"probe={name}\\n\")\n"
+                + f"get_target_property(probe_include_dirs {targets.split(';')[0]} INTERFACE_INCLUDE_DIRECTORIES)\n"
+                + target_lines
+                + f"file(APPEND \"{result_file}\" \"include-dirs=${{probe_include_dirs}}\\n\")\n"
+                + f"file(APPEND \"{result_file}\" \"link-libraries={';'.join(target_values)}\\n\")\n"
                 + "\n".join(
                     f"if(DEFINED {variable})\nfile(APPEND \"{result_file}\" \"{variable}=${{{variable}}}\\n\")\nendif()"
                     for variable in variables.split(";")
@@ -1219,11 +1465,25 @@ def _dependency_inventory(
             except OSError as exc:
                 raise CacheError(f"required {name} CMake probe did not write identity") from exc
             cmake_probes[name] = records
+            cmake_content[name] = _compiler_dependency_records(
+                cxx,
+                "c++",
+                source_text,
+                _cmake_include_flags(records.get("include-dirs", "")),
+                environment=environment,
+            )
+            cmake_library_content[name] = _cmake_library_records(records.get("link-libraries", ""))
     return {
         "pkg-config": packages,
         "headers": headers,
         "cmake": cmake_probes,
         "python-config": python_includes.strip(),
+        "content": {
+            "headers": header_content,
+            "libraries": library_content,
+            "cmake": cmake_content,
+            "cmake-libraries": cmake_library_content,
+        },
     }
 
 
