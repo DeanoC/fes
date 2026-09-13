@@ -183,7 +183,7 @@ class NativeDevTest(unittest.TestCase):
                 'directory': package_source,
                 'selection_path': package_selection,
                 'inputs': {
-                    'selection': {'package_id': package_id},
+                    'selection': {'package_id': package_id, 'core_id': 'fes.pong'},
                     'selection_sha256': build.digest(package_selection),
                     'manifest_sha256': build.digest(package_source / 'manifest.toml'),
                     'core_rbf_sha256': build.digest(package_source / 'core.rbf'),

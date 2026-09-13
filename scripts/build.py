@@ -20,6 +20,7 @@ from inputs import git, validate
 import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
+from recipes import FORMAT2_RECIPES, recipe_for
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
@@ -328,16 +329,36 @@ def selected_packages(profile, profile_name):
         raise ValueError("fpga_packages must be an array of tables")
     if not packages:
         return ()
-    if (profile_name != "native-integration-dev" or packages != [{"core_id": "fes.pong"}]):
-        raise ValueError("only native-integration-dev may select the fes.pong package recipe")
-    return ("fes.pong",)
+    core_ids = []
+    for entry in packages:
+        if not isinstance(entry, dict) or type(entry.get("core_id")) is not str:
+            raise ValueError("fpga_packages entries must be tables with a core_id")
+        core_id = entry["core_id"]
+        if core_id not in FORMAT2_RECIPES:
+            supported = ", ".join(FORMAT2_RECIPES)
+            raise ValueError(f"unknown format-2 recipe {core_id!r}; supported: {supported}")
+        core_ids.append(core_id)
+    if len(core_ids) != len(set(core_ids)):
+        raise ValueError("duplicate format-2 package selections are not supported")
+    if len(core_ids) > 1:
+        raise ValueError(
+            "multiple format-2 packages are not supported by the current target-image selector")
+    if profile_name != "native-integration-dev":
+        raise ValueError("format-2 packages are only selected by native-integration-dev")
+    selected = core_ids[0]
+    if selected != "fes.pong":
+        raise ValueError(
+            f"native-integration-dev image selection does not yet install {selected}; "
+            "the recipe registry supports it for later image-selector work")
+    return (selected,)
 
 
 def package_arguments(package):
     if package is None:
         return []
-    return ["FES_PONG_PACKAGE_DIR=" + str(package["directory"]),
-            "FES_PONG_PACKAGE_SELECTION=" + str(package["selection_path"])]
+    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
+    return [recipe.package_dir_env + "=" + str(package["directory"]),
+            recipe.package_selection_env + "=" + str(package["selection_path"])]
 
 
 def image_fingerprint(base_fingerprint, info, package):
@@ -372,7 +393,8 @@ def package_output_names(package):
     if not re.fullmatch(r"[0-9a-f]{64}", identity):
         raise ValueError("selected package has an invalid package ID")
     prefix = "core-packages/" + identity + "/"
-    return ["fes-pong.package-selection.toml", prefix + "manifest.toml", prefix + "core.rbf"]
+    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
+    return [recipe.selection_filename, prefix + "manifest.toml", prefix + "core.rbf"]
 
 
 def verify_package_outputs(output, package):
@@ -380,8 +402,8 @@ def verify_package_outputs(output, package):
     output = Path(output)
     if package is None:
         try:
-            for path in (output / "fes-pong.package-selection.toml",
-                         output / "core-packages"):
+            stale = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
+            for path in stale + [output / "core-packages"]:
                 try:
                     path.lstat()
                 except FileNotFoundError:
@@ -422,10 +444,10 @@ def verify_package_outputs(output, package):
 def _remove_package_outputs(output):
     """Remove a previous package pair without following output symlinks."""
     output = Path(output)
-    selection = output / "fes-pong.package-selection.toml"
+    selections = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
     root = output / "core-packages"
     present = []
-    for path, expected in ((selection, stat.S_ISREG), (root, stat.S_ISDIR)):
+    for path, expected in [(path, stat.S_ISREG) for path in selections] + [(root, stat.S_ISDIR)]:
         try:
             metadata = path.lstat()
         except FileNotFoundError:
@@ -433,8 +455,9 @@ def _remove_package_outputs(output):
         if stat.S_ISLNK(metadata.st_mode) or not expected(metadata.st_mode):
             raise ValueError("package output destination must be a non-symlink regular file or directory")
         present.append(path)
-    if selection in present:
-        selection.unlink()
+    for path in selections:
+        if path in present:
+            path.unlink()
     if root in present:
         for current, directories, files in os.walk(root, topdown=False, followlinks=False):
             for name in files + directories:
@@ -799,11 +822,11 @@ def locked_diagnostics(root, output, action):
             yield lock, diagnostics
 
 
-def resolve_selected_package(revisions, selection_path, env, force=False):
+def resolve_selected_package(revisions, selection_path, env, force=False, recipe=None):
     recipe_source = source_checkout("misteross", revisions["misteross"])
     return core_bundle.resolve_core_package(
         recipe_source, revisions["mister-packages"], selection_path,
-        force=force, env=env)
+        force=force, env=env, recipe=recipe)
 
 
 def main():
@@ -857,8 +880,10 @@ def main():
         package = None
         image_fp, image_info = fp, info
         if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
+            selected_recipe = recipe_for(package_recipes[0])
             package = resolve_selected_package(
-                revisions, output / "fes-pong.package-selection.toml", env)
+                revisions, output / selected_recipe.selection_filename, env,
+                recipe=selected_recipe)
             image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
@@ -962,7 +987,8 @@ def main():
                             names.append(name)
                 names.extend(publish_package_state(
                     package,
-                    built / "fes-pong.package-selection.toml" if package is not None else None,
+                    built / recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename
+                    if package is not None else None,
                     output))
                 publish_action_inputs(output, args.action, image_info)
                 names.append("inputs.json")

@@ -82,7 +82,7 @@ class CoreBuildTest(unittest.TestCase):
     def test_parent_package_resolution_forwards_scrubbed_environment(self):
         captured = {}
 
-        def fake_resolve(source, packages_revision, selection_path, force=False, env=None):
+        def fake_resolve(source, packages_revision, selection_path, force=False, env=None, recipe=None):
             captured['source'] = source
             captured['packages'] = packages_revision
             captured['selection'] = selection_path
@@ -168,7 +168,7 @@ class CoreBuildTest(unittest.TestCase):
                 'directory': source,
                 'selection_path': selection,
                 'inputs': {
-                    'selection': {'package_id': identity},
+                    'selection': {'package_id': identity, 'core_id': 'fes.pong'},
                     'selection_sha256': hashlib.sha256(selection.read_bytes()).hexdigest(),
                     'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
                     'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
@@ -259,7 +259,7 @@ class CoreBuildTest(unittest.TestCase):
             selection = root / 'selection.toml'
             selection.write_bytes(b'format = 2\n')
             package = {'directory': source, 'selection_path': selection, 'inputs': {
-                'selection': {'package_id': 'a' * 64},
+                'selection': {'package_id': 'a' * 64, 'core_id': 'fes.pong'},
                 'selection_sha256': build.digest(selection),
                 'manifest_sha256': build.digest(source / 'manifest.toml'),
                 'core_rbf_sha256': build.digest(source / 'core.rbf')}}
