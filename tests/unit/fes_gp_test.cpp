@@ -464,6 +464,50 @@ void TestComputerKeyboardMatrixAndMediaBlob()
 		mister::ErrorCode::io_failed);
 	assert(mmio.writes.size() == before_invalid + 8);
 	assert((mmio.writes.back().value & 0x7fffffff) == 0x06000000);
+	// A failed commit leaves reset held, but a retry starts with a fresh hold
+	// and may publish the media once the commit succeeds.
+	const std::size_t retry_start = mmio.writes.size();
+	for (int i = 0; i < 5; ++i) {
+		PushCompleted(&mmio, toggle, 0);
+		toggle = !toggle;
+	}
+	assert(driver.LoadMedia(std::vector<std::uint8_t>{4, 5}, 10000).ok());
+	const std::uint32_t retry_expected[] = {
+		0x02000000, 0x04000002, 0x05000504, 0x06000000, 0x02000001};
+	assert(mmio.writes.size() == retry_start + 10);
+	for (std::size_t i = 0; i < 5; ++i)
+		assert((mmio.writes[retry_start + i * 2].value & 0x7fffffff) ==
+			retry_expected[i]);
+
+	// Rejected data must not commit or release reset.  The next successful
+	// transfer's hold is the observable recovery contract.
+	const std::size_t reject_start = mmio.writes.size();
+	for (int i = 0; i < 3; ++i) {
+		PushCompleted(&mmio, toggle, i == 2 ? 1 : 0);
+		toggle = !toggle;
+	}
+	assert(driver.LoadMedia(std::vector<std::uint8_t>{6, 7}, 10000).code ==
+		mister::ErrorCode::io_failed);
+	assert(mmio.writes.size() == reject_start + 6);
+	assert((mmio.writes[reject_start].value & 0x7fffffff) == 0x02000000);
+	assert((mmio.writes[reject_start + 2].value & 0x7fffffff) == 0x04000002);
+	assert((mmio.writes[reject_start + 4].value & 0x7fffffff) == 0x05000706);
+
+	// Even-length media has no tail exchange and still commits/releases.
+	const std::size_t even_start = mmio.writes.size();
+	for (int i = 0; i < 6; ++i) {
+		PushCompleted(&mmio, toggle, 0);
+		toggle = !toggle;
+	}
+	assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11, 0x12, 0x13},
+		10000).ok());
+	const std::uint32_t even_expected[] = {
+		0x02000000, 0x04000004, 0x05001110, 0x05001312, 0x06000000,
+		0x02000001};
+	assert(mmio.writes.size() == even_start + 12);
+	for (std::size_t i = 0; i < 6; ++i)
+		assert((mmio.writes[even_start + i * 2].value & 0x7fffffff) ==
+			even_expected[i]);
 	assert(driver.SetKeyboardMatrix(1ull << 40, 10000).code ==
 		mister::ErrorCode::invalid_request);
 }
