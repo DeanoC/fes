@@ -21,7 +21,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   sends 1..16384 raw bytes through that running host's existing session and kit
   lease. See [development media](docs/ARCHITECTURE.md#development-media-upload)
   for admission, identity binding and failure handling. This is a development
-  operation; Coleco hardware acceptance is separate.
+  operation; Coleco hardware acceptance is separate. A ZX81 upload resets
+  execution, so wait for the BASIC prompt before entering `LOAD`.
 
 
 - Thousands of catalogued games across the systems in
