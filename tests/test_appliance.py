@@ -220,7 +220,7 @@ class VerificationBoundaryTests(unittest.TestCase):
         import media
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            with mock.patch.object(media.cold_build,'git',return_value=''), mock.patch.object(media,'select',return_value=('fingerprint',root/'fogcast',[],{})):
+            with mock.patch.object(media.cold_build,'git',return_value=''), mock.patch.object(media,'select',return_value=('image-fingerprint','host-fingerprint',root/'fogcast',[],{})):
                 with self.assertRaisesRegex(ValueError,'cold image receipt'):
                     appliance.verified_inputs(root,'native-integration-dev')
 

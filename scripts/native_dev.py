@@ -11,7 +11,8 @@ import tomllib
 from build import (digest, output_volume, publish_file, reusable, run, write_receipt,
                    selected_cores, bundle_arguments, package_arguments,
                    publish_package_state, recorded_image_fingerprint,
-                   verify_package_outputs)
+                   reuse_status, verify_package_outputs)
+from build_diagnostics import BuildDiagnostics
 from inputs import git
 
 # Keep the clean builder's absolute path: Buildroot host tools are not relocatable.
@@ -22,7 +23,8 @@ EXPORT = '/work/build/output/target-image/fes-development'
 def base_key(image, fogcast):
     names = git(image, 'ls-files', '-z').split('\0')
     files = {name: digest(image / name) for name in names if name and (
-        name.startswith(('buildroot/', 'containers/target-image/', 'scripts/'))
+        name.startswith(('buildroot/', 'containers/target-image/'))
+        or (name.startswith('scripts/') and not name.startswith('scripts/tests/'))
         or name in ('Makefile', 'build/target-image.sources.lock.toml',
                     'build/target-image-container-packages.sha256'))}
     native = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
@@ -88,13 +90,27 @@ mv /dest/seed-in-progress /dest/work-2-native-dev
          sha, os.getuid(), os.getgid()])
 
 
+def run_stage(diagnostics, name, args, **kwargs):
+    if diagnostics is None:
+        return run(args, **kwargs)
+    with diagnostics.measure(name):
+        return run(args, **kwargs)
+
+
 def build_development(root, image, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, fogcast_make, image_make, bundles, package=None):
+                      fingerprint, env, fogcast_make, image_make, bundles, package=None,
+                      diagnostics=None):
     if profile.get('bundle_interface') != 'selection':
         raise ValueError('make dev requires native-integration-dev; historical profiles stay cold')
     output = root / 'out' / profile_name / 'development'
-    if reusable(output, 'development', fingerprint):
+    owned_diagnostics = diagnostics is None
+    diagnostics = diagnostics or BuildDiagnostics(output, 'dev')
+    hit, reason = reuse_status(output, 'development', fingerprint)
+    diagnostics.cache('development', 'hit' if hit else 'miss', reason)
+    if hit:
         verify_package_outputs(output, package)
+        if owned_diagnostics:
+            diagnostics.finish('success')
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
     cores = selected_cores(profile)
@@ -111,14 +127,16 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     ref = base['image'] + '@' + base['digest']
     if subprocess.run([container, 'image', 'inspect', ref], stdout=subprocess.DEVNULL,
                       stderr=subprocess.DEVNULL).returncode:
-        run([container, 'pull', '--platform', base['platform'], ref])
-    seed_base(container, base, output_volume(root, profile_name), volume,
-              seed_digest(output.parent, info))
-    run(fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
-    run(image_make + ['build-target-image-lock-container'], env=env)
-    run([image / 'scripts/target-image-container.sh', 'fetch',
+        run_stage(diagnostics, 'target subprocess',
+                  [container, 'pull', '--platform', base['platform'], ref])
+    with diagnostics.measure('native base setup'):
+        seed_base(container, base, output_volume(root, profile_name), volume,
+                  seed_digest(output.parent, info))
+    run_stage(diagnostics, 'target subprocess', fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
+    run_stage(diagnostics, 'target subprocess', image_make + ['build-target-image-lock-container'], env=env)
+    run_stage(diagnostics, 'target subprocess', [image / 'scripts/target-image-container.sh', 'fetch',
          '/work/scripts/fetch-target-image-sources.sh'], env=env)
-    run(image_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
+    run_stage(diagnostics, 'target subprocess', image_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))
     env['LIBMISTER_RUNTIME_DIR'] = str(runtime)
@@ -165,12 +183,14 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
 {selection_copy}
 '''
     print(f'Development: persistent base {key[:16]} in {volume}', flush=True)
-    run([image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
+    run_stage(diagnostics, 'target Buildroot subprocess',
+              [image / 'scripts/target-image-container.sh', 'run', 'sh', '-c', script], env=env)
     built = image / 'build/output/target-image/fes-development'
     exported = Path(EXPORT)
-    run([image / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
-         exported / 'manifest.tsv', exported / 'library-report.tsv',
-         exported / 'megadrive.selection.toml'], env=env)
+    run_stage(diagnostics, 'target verification subprocess',
+              [image / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
+               exported / 'manifest.tsv', exported / 'library-report.tsv',
+               exported / 'megadrive.selection.toml'], env=env)
     names = ['linux.img', 'manifest.tsv', 'library-report.tsv'] + [
         core + '.selection.toml' for core in cores]
     for name in names:
@@ -186,5 +206,7 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
     write_receipt(output, 'development', fingerprint, names + ['inputs.json'])
+    if owned_diagnostics:
+        diagnostics.finish('success')
     print(f'Development image: {output / "linux.img"} (structural checks passed; diagnostic only)',
           flush=True)

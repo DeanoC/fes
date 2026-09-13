@@ -40,6 +40,84 @@ class ReceiptTest(unittest.TestCase):
             after, _ = build.build_fingerprint(revisions, profile, "go test")
         self.assertEqual(before, after)
 
+    def test_host_fingerprint_excludes_unrelated_system_inputs_but_binds_host_inputs(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        revisions = {'FogCast': 'a' * 40, 'libmister-runtime': 'b' * 40,
+                     'misteross': 'c' * 40, 'mister-packages': 'd' * 40}
+        profile = {'host_os': 'linux', 'host_arch': 'amd64', 'version': '1',
+                   'host_build_options': {'tags': ['native']}}
+        with mock.patch.object(build, 'recipe_fingerprint', return_value={'host': 'recipe'}):
+            before, info = build.host_fingerprint(revisions, profile, 'go1')
+            changed_system, _ = build.host_fingerprint(
+                dict(revisions, **{'libmister-runtime': 'e' * 40,
+                                   'misteross': 'f' * 40, 'mister-packages': '0' * 40}),
+                profile, 'go1')
+        self.assertEqual(before, changed_system)
+        self.assertEqual({path.relative_to(build.ROOT).as_posix() for path in build.HOST_RECIPE_FILES},
+                         {'scripts/build.py', 'scripts/environment.py'})
+        self.assertEqual(info['sources'], {'FogCast': 'a' * 40})
+        self.assertEqual(info['profile'], profile)
+
+        def key(revision='a' * 40, toolchain='go1', selected_profile=None,
+                recipe='recipe'):
+            selected_profile = selected_profile or profile
+            with mock.patch.object(build, 'recipe_fingerprint', return_value={'host': recipe}):
+                return build.host_fingerprint(
+                    dict(revisions, FogCast=revision), selected_profile, toolchain)[0]
+
+        self.assertNotEqual(before, key(revision='1' * 40))
+        self.assertNotEqual(before, key(toolchain='go2'))
+        self.assertNotEqual(before, key(selected_profile=dict(profile, host_os='darwin')))
+        self.assertNotEqual(before, key(selected_profile=dict(profile, host_os='darwin', host_arch='arm64')))
+        self.assertNotEqual(before, key(selected_profile=dict(profile, version='2')))
+        self.assertNotEqual(before, key(selected_profile=dict(profile, host_build_options={'tags': ['debug']})))
+        self.assertNotEqual(before, key(recipe='changed-recipe'))
+
+    def test_reuse_status_explains_hits_and_fail_closed_misses(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / 'linux.img').write_bytes(b'image')
+            build.write_receipt(output, 'image', 'inputs-a', ['linux.img'])
+            self.assertEqual(build.reuse_status(output, 'image', 'inputs-a'),
+                             (True, 'verified receipt and output digests match selected inputs'))
+            self.assertEqual(build.reuse_status(output, 'image', 'inputs-b'),
+                             (False, 'selected inputs changed'))
+            self.assertTrue(build.reusable(output, 'image', 'inputs-a'))
+
+            cases = (
+                ('receipt missing', lambda: (output / 'image.json').unlink()),
+                ('receipt malformed', lambda: (output / 'image.json').write_text('{')),
+                ('receipt has no outputs', lambda: (output / 'image.json').write_text(
+                    json.dumps({'inputs': 'inputs-a', 'files': {}, 'fes_revision': 'a' * 40}))),
+                ('output missing or digest changed', lambda: (output / 'linux.img').unlink()),
+            )
+            for reason, mutate in cases:
+                with self.subTest(reason=reason):
+                    (output / 'linux.img').write_bytes(b'image')
+                    build.write_receipt(output, 'image', 'inputs-a', ['linux.img'])
+                    mutate()
+                    self.assertEqual(build.reuse_status(output, 'image', 'inputs-a'),
+                                     (False, reason))
+                    self.assertFalse(build.reusable(output, 'image', 'inputs-a'))
+
+    def test_diagnostic_sidecar_changes_do_not_invalidate_receipt(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        from build_diagnostics import BuildDiagnostics
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / 'linux.img').write_bytes(b'image')
+            build.write_receipt(output, 'image', 'inputs-a', ['linux.img'])
+            report = BuildDiagnostics(output, 'image')
+            report.finish('success')
+            report.path.write_text('{"status":"updated"}\n')
+            self.assertTrue(build.reusable(output, 'image', 'inputs-a'))
+            recipe_names = {str(path.relative_to(build.ROOT)) for path in build.BUILD_RECIPE_FILES}
+            self.assertNotIn('scripts/build_diagnostics.py', recipe_names)
+
     def test_verified_image_rejects_missing_or_mismatched_evidence(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

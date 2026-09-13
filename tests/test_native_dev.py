@@ -67,6 +67,14 @@ class NativeDevTest(unittest.TestCase):
             subprocess.run(['git', '-C', str(image), 'add', str(path)], check=True)
             self.assertNotEqual(before, native_dev.base_key(image, fogcast))
 
+            non_build_test = image / 'scripts/tests/diagnostic_test.sh'
+            non_build_test.parent.mkdir(parents=True)
+            non_build_test.write_text('test')
+            subprocess.run(['git', '-C', str(image), 'add', str(non_build_test)], check=True)
+            filtered = native_dev.base_key(image, fogcast)
+            non_build_test.write_text('changed test')
+            self.assertEqual(filtered, native_dev.base_key(image, fogcast))
+
     def test_seed_requires_matching_sources_and_intact_cold_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
@@ -113,9 +121,34 @@ class NativeDevTest(unittest.TestCase):
             output.mkdir(parents=True)
             (output / 'linux.img').write_bytes(b'dev')
             build.write_receipt(output, 'development', 'same-inputs', ['linux.img'])
-            with patch.object(native_dev, 'run', side_effect=AssertionError('unexpected rebuild')):
+            with patch.object(native_dev, 'run', side_effect=AssertionError('unexpected rebuild')), \
+                 patch.object(build, 'digest', wraps=build.digest) as digest:
                 native_dev.build_development(root, None, None, None, 'native-integration-dev',
                     {'bundle_interface': 'selection'}, {}, 'same-inputs', {}, [], [], None)
+            self.assertEqual(digest.call_count, 1, 'cached image must be hashed only once')
+
+    def test_development_miss_preserves_reason_before_rebuild_setup(self):
+        for changed, fingerprint, reason in (
+                (False, 'new-inputs', 'selected inputs changed'),
+                (True, 'same-inputs', 'output missing or digest changed')):
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                output = root / 'out/native-integration-dev/development'
+                output.mkdir(parents=True)
+                (output / 'linux.img').write_bytes(b'dev')
+                build.write_receipt(output, 'development', 'same-inputs', ['linux.img'])
+                if changed:
+                    (output / 'linux.img').write_bytes(b'corrupted')
+                # Stop before external build setup; receipt checking and reporting stay real.
+                with patch.object(native_dev, 'bundle_arguments', return_value=[]), \
+                     patch.object(native_dev, 'base_key', side_effect=RuntimeError('stop setup')), \
+                     self.assertRaisesRegex(RuntimeError, 'stop setup'):
+                    native_dev.build_development(root, None, None, None,
+                        'native-integration-dev', {'bundle_interface': 'selection'}, {},
+                        fingerprint, {}, [], [], {})
+                report = json.loads((output / 'build-diagnostics.json').read_text())
+                self.assertIn({'name': 'development', 'status': 'miss', 'reason': reason},
+                              report['stages'])
 
     def test_four_core_build_receipts_cover_every_selected_artifact(self):
         with tempfile.TemporaryDirectory() as tmp:

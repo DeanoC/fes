@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the pinned native system using the FES image recipe."""
 import argparse
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
@@ -17,10 +18,21 @@ import tempfile
 
 from inputs import git, validate
 import bundle as core_bundle
+from build_diagnostics import BuildDiagnostics
 from environment import build_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
+DIAGNOSTIC_RECIPE_NAMES = frozenset({"scripts/build_diagnostics.py"})
+
+
+def is_diagnostic_recipe_file(path, root=ROOT):
+    try:
+        return path.relative_to(root).as_posix() in DIAGNOSTIC_RECIPE_NAMES
+    except ValueError:
+        return False
+
+
 MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/media.py", "scripts/media_inputs.py", "scripts/media_container.py",
     "scripts/media_inside.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
@@ -29,7 +41,7 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
-                           if path not in MEDIA_RECIPE_FILES)
+                           if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path))
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",
@@ -37,6 +49,8 @@ IMAGE_RECIPE_NAMES = (
     "build/target-image-kernel-defconfig.sha256",
 )
 IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts")
+HOST_RECIPE_FILES = tuple(ROOT / name for name in (
+    "scripts/build.py", "scripts/environment.py"))
 
 
 def image_recipe_files(root=ROOT):
@@ -48,11 +62,19 @@ def image_recipe_files(root=ROOT):
             continue
         paths.extend(path for path in sorted(base.rglob("*")) if path.is_file()
                      and "tests" not in path.parts)
-    return tuple(paths)
+    return tuple(path for path in paths if not is_diagnostic_recipe_file(path, root))
 
 def run(args, **kwargs):
     print("+ " + " ".join(map(str, args)), flush=True)
     return subprocess.run(list(map(str, args)), check=True, **kwargs)
+
+
+def run_stage(diagnostics, name, args, **kwargs):
+    if diagnostics is None:
+        return run(args, **kwargs)
+    with diagnostics.measure(name):
+        return run(args, **kwargs)
+
 
 def digest(path):
     with Path(path).open("rb") as stream:
@@ -101,15 +123,82 @@ def receipt_revision(receipt):
     return revision
 
 
-def reusable(output, kind, fingerprint):
+def reuse_status(output, kind, fingerprint):
+    """Return whether a receipt is reusable and a safe explanation."""
+    output = Path(output)
     try:
-        receipt = json.loads((output / (kind + ".json")).read_text())
-        if kind in ("host", "image"):
+        raw = (output / (kind + '.json')).read_text()
+    except FileNotFoundError:
+        return False, 'receipt missing'
+    except (OSError, UnicodeDecodeError):
+        return False, 'receipt malformed'
+    try:
+        receipt = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return False, 'receipt malformed'
+    if not isinstance(receipt, dict):
+        return False, 'receipt metadata invalid'
+    if kind in ('host', 'image'):
+        try:
             receipt_revision(receipt)
-        return (receipt["inputs"] == fingerprint and bool(receipt["files"])
-                and all(digest(output / name) == sha for name, sha in receipt["files"].items()))
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
+        except (ValueError, TypeError):
+            return False, 'receipt metadata invalid'
+    if kind == 'host':
+        if set(receipt) != {'inputs', 'files', 'fes_revision', 'os', 'arch'}:
+            return False, 'receipt metadata invalid'
+        try:
+            host_platform(receipt['os'], receipt['arch'])
+        except (KeyError, TypeError, ValueError):
+            return False, 'receipt metadata invalid'
+    if receipt.get('inputs') != fingerprint:
+        return False, 'selected inputs changed'
+    files = receipt.get('files')
+    if not isinstance(files, dict):
+        return False, 'receipt metadata invalid'
+    if not files:
+        return False, 'receipt has no outputs'
+    try:
+        for name, expected in files.items():
+            if not isinstance(name, str):
+                return False, 'receipt metadata invalid'
+            relative = Path(name)
+            if (relative.is_absolute() or '..' in relative.parts or type(expected) is not str
+                    or not re.fullmatch('[0-9a-f]{64}', expected)):
+                return False, 'receipt metadata invalid'
+            metadata = (output / relative).lstat()
+            if not stat.S_ISREG(metadata.st_mode):
+                return False, 'output missing or digest changed'
+            if digest(output / name) != expected:
+                return False, 'output missing or digest changed'
+    except (OSError, TypeError, ValueError, AttributeError):
+        return False, 'output missing or digest changed'
+    return True, 'verified receipt and output digests match selected inputs'
+
+
+def reusable(output, kind, fingerprint):
+    """Retain the boolean receipt-reuse API for existing callers."""
+    return reuse_status(output, kind, fingerprint)[0]
+
+
+def _host_profile(profile):
+    selected = {key: value for key, value in profile.items()
+                if key == 'version' or key.startswith('host_')}
+    os_name, arch = host_platform(selected.get('host_os'), selected.get('host_arch'))
+    selected['host_os'] = os_name
+    selected['host_arch'] = arch
+    return selected
+
+
+def host_fingerprint(revisions, profile, toolchain):
+    """Fingerprint only inputs that can affect the host binaries."""
+    data = {
+        'sources': {'FogCast': revisions['FogCast']},
+        'profile': _host_profile(profile),
+        'go': toolchain,
+        'recipe': recipe_fingerprint(HOST_RECIPE_FILES),
+    }
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
+
 
 def recipe_fingerprint(paths):
     return {str(path.relative_to(ROOT)): digest(path) for path in paths}
@@ -437,7 +526,7 @@ def validate_bundle(directory, source, revision, system):
                             expected_revision=revision if system == "pong" else None)
 
 
-def build_bundle(revisions, env, force=False, *, system="megadrive"):
+def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics=None):
     if system not in ("megadrive", "pong", "snes", "nes"):
         raise ValueError("unsupported FPGA core")
     source = source_checkout("misteross", revisions["misteross"])
@@ -448,16 +537,26 @@ def build_bundle(revisions, env, force=False, *, system="megadrive"):
             raise ValueError(f"misteross has more than one cached {system} bundle")
         bundle_dir = bundles[0].parent
         validate_bundle(bundle_dir, source, revisions["misteross"], system)
+        if diagnostics is not None:
+            diagnostics.cache("fpga:" + system, "hit",
+                              "validated revision-scoped FPGA bundle")
         print(f"Reusing validated revision-scoped FPGA bundle: {bundle_dir}", flush=True)
         return bundle_dir
+    if diagnostics is not None:
+        diagnostics.cache("fpga:" + system, "forced" if force else "miss",
+                          "validated bundle missing" if not force else "forced rebuild")
     if not env.get("QUARTUS_ROOTDIR"):
         raise ValueError("source-built cores require QUARTUS_ROOTDIR")
     if system == "pong":
-        run(["make", "-C", source, "build-pong"], env=env)
+        run_stage(diagnostics, "fpga:" + system + " subprocess",
+                  ["make", "-C", source, "build-pong"], env=env)
     else:
-        run(["make", "-C", source, "fetch-core", "CORE=" + system], env=env)
-        run(["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
-    run(["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
+        run_stage(diagnostics, "fpga:" + system + " subprocess",
+                  ["make", "-C", source, "fetch-core", "CORE=" + system], env=env)
+        run_stage(diagnostics, "fpga:" + system + " subprocess",
+                  ["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
+    run_stage(diagnostics, "fpga:" + system + " subprocess",
+              ["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
     bundles = list(directory.glob(f"*/{system}-rbf.toml"))
     if len(bundles) != 1:
         raise ValueError(f"misteross did not produce exactly one {system} bundle")
@@ -465,8 +564,22 @@ def build_bundle(revisions, env, force=False, *, system="megadrive"):
     return bundles[0].parent
 
 
-def build_bundles(revisions, env, cores, force=False):
-    return {core: build_bundle(revisions, env, force, system=core) for core in cores}
+def build_bundles(revisions, env, cores, force=False, diagnostics=None):
+    return {core: build_bundle(revisions, env, force, system=core, diagnostics=diagnostics)
+            for core in cores}
+
+
+@contextmanager
+def locked_diagnostics(root, output, action):
+    """Acquire the parent lock before creating or updating diagnostics."""
+    lock_path = Path(root) / "out/build.lock"
+    with lock_path.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("another parent build is running in this workspace") from None
+        with BuildDiagnostics(output, action) as diagnostics:
+            yield lock, diagnostics
 
 
 def main():
@@ -502,23 +615,21 @@ def main():
     output = ROOT / "out" / args.profile
     output.mkdir(parents=True, exist_ok=True)
     # Serialize this workspace only; do not share the child's default output volume.
-    with (ROOT / "out/build.lock").open("w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ValueError("another parent build is running in this workspace")
-        restore = ("build/native-runtime.inputs.lock.toml",) if args.profile == "native-source-dev" else ()
-        fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile, restore)
-        if profile.get("check_packages"):
-            from consistency import check
-            selected = {name: source_checkout(name, revision)
-                        for name, revision in revisions.items() if name != "FogCast"}
-            check(ROOT, dict(selected, FogCast=fogcast))
+    with locked_diagnostics(ROOT, output, args.action) as (lock, diagnostics):
+        with diagnostics.measure("source staging"):
+            restore = ("build/native-runtime.inputs.lock.toml",) if args.profile == "native-source-dev" else ()
+            fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile, restore)
+            if profile.get("check_packages"):
+                from consistency import check
+                selected = {name: source_checkout(name, revision)
+                            for name, revision in revisions.items() if name != "FogCast"}
+                check(ROOT, dict(selected, FogCast=fogcast))
         lock_path = fogcast / "build/native-runtime.inputs.lock.toml"
         lock_path.write_bytes(subprocess.check_output([
             "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
         ]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
+        host_fp, _ = host_fingerprint(revisions, profile, toolchain)
         package = None
         image_fp, image_info = fp, info
         if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
@@ -542,26 +653,34 @@ def main():
                 raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
-            bundles = build_bundles(revisions, env, cores)
+            bundles = build_bundles(revisions, env, cores, diagnostics=diagnostics)
             build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
-                              image_fp, env, fogcast_make, image_make, bundles, package)
+                              image_fp, env, fogcast_make, image_make, bundles, package,
+                              diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
-            if args.action != "rebuild" and reusable(output, "host", fp):
+            host_hit, host_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
+                output, "host", host_fp)
+            if host_hit:
+                diagnostics.cache("host", "hit", host_reason)
                 print("Host: reusing verified output", flush=True)
             else:
-                run(fogcast_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
+                diagnostics.cache("host", "forced" if args.action == "rebuild" else "miss", host_reason)
+                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast", "FOGCAST_GOOS=" + profile["host_os"],
                     "FOGCAST_GOARCH=" + profile["host_arch"],
                     "FOGCAST_OUTPUT=" + str(output / "fogcast"),
                     "REVISION=" + revisions["FogCast"]], env=env)
-                run(fogcast_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
+                run_stage(diagnostics, "host subprocess", fogcast_make + ["build-fogcast-api", "FOGCAST_GOOS=" + profile["host_os"],
                     "FOGCAST_GOARCH=" + profile["host_arch"],
                     "FOGCAST_API_OUTPUT=" + str(output / "fogcast-api"),
                     "REVISION=" + revisions["FogCast"]], env=env)
-                write_receipt(output, "host", fp, ["fogcast", "fogcast-api"],
+                write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
                               os_name=profile["host_os"], arch=profile["host_arch"])
         if args.action in ("build", "image", "rebuild"):
-            if args.action != "rebuild" and reusable(output, "image", image_fp):
+            image_hit, image_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
+                output, "image", image_fp)
+            if image_hit:
+                diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
                 verify_package_outputs(output, package)
                 if profile.get("fpga_source") == "misteross":
@@ -569,40 +688,43 @@ def main():
                     for core in cores:
                         validate_bundle(output, recipe_source, revisions["misteross"], core)
             else:
+                diagnostics.cache("image", "forced" if args.action == "rebuild" else "miss", image_reason)
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
                 source_lock = tomllib.loads((IMAGE / "build/target-image.sources.lock.toml").read_text())
                 base = source_lock["container"]
                 ref = base["image"] + "@" + base["digest"]
                 present = subprocess.run([container, "image", "inspect", ref], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if present.returncode:
-                    run([container, "pull", "--platform", base["platform"], ref])
-                run(fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
-                run(image_make + ["build-target-image-lock-container"], env=env)
-                run([IMAGE / "scripts/target-image-container.sh", "fetch",
+                    run_stage(diagnostics, "image subprocess", [container, "pull", "--platform", base["platform"], ref], env=env)
+                run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
+                run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
+                run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=env)
                 if profile.get("fpga_source") == "misteross":
-                    bundles = build_bundles(revisions, env, cores, args.action == "rebuild")
+                    bundles = build_bundles(revisions, env, cores, args.action == "rebuild",
+                                            diagnostics=diagnostics)
                     bundle_dir = bundles["megadrive"]
                     recipe_source = source_checkout("misteross", revisions["misteross"])
                     recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
                     manifest = core_bundle.load(bundle_dir, recipe_sha)
                     if profile.get("bundle_interface") == "selection":
-                        run(image_make + ["target-image-native",
+                        run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
                             "LIBMISTER_RUNTIME_DIR=" + str(runtime),
                             *bundle_arguments(cores, bundles), *package_arguments(package)], env=env)
                     else:
-                        run([IMAGE / "scripts/target-image-container.sh", "fetch",
+                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
                         core_bundle.prepare(fogcast, bundle_dir, recipe_sha, cache_root=IMAGE)
-                        run([IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
+                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
                             env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
-                        run([IMAGE / "scripts/build-target-image.sh", "native-dev"],
+                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "native-dev"],
                             env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
                 else:
                     manifest = None
-                    run(image_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
+                    run_stage(diagnostics, "image subprocess",
+                              image_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
-                run(image_make + ["target-image-native-verify"],
+                run_stage(diagnostics, "image subprocess", image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                              **dict(argument.split("=", 1) for argument in package_arguments(package))))
                 built = IMAGE / "build/output/target-image/native-dev"
@@ -624,7 +746,11 @@ def main():
                 names.append("inputs.json")
                 write_receipt(output, "image", image_fp, names)
         if args.action == "verify":
-            if not reusable(output, "host", fp) or not reusable(output, "image", image_fp):
+            host_hit, host_reason = reuse_status(output, "host", host_fp)
+            image_hit, image_reason = reuse_status(output, "image", image_fp)
+            diagnostics.cache("verify host", "hit" if host_hit else "miss", host_reason)
+            diagnostics.cache("verify image", "hit" if image_hit else "miss", image_reason)
+            if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
             verify_package_outputs(output, package)
             if profile.get("fpga_source") == "misteross":
@@ -639,10 +765,10 @@ def main():
             built = IMAGE / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
-            run(image_make + ["target-image-native-verify"],
+            run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                              **dict(argument.split("=", 1) for argument in package_arguments(package))))
-            run(image_make + ["target-image-native-qemu-smoke"],
+            run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
                          **dict(argument.split("=", 1) for argument in package_arguments(package))))
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
