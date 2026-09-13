@@ -104,7 +104,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
-        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "5")
+        self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], "3")
         self.assertIn("--router", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertNotIn("router1", nextpnr)
@@ -120,7 +120,7 @@ class BuildFesColecoTests(unittest.TestCase):
             "a" * 40,
             {"yosys": "test"},
         )
-        self.assertIn(b'"seed":5', record)
+        self.assertIn(b'"seed":3', record)
         self.assertIn(b'"router":"gpu"', record)
 
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:

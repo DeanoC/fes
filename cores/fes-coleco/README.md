@@ -359,9 +359,11 @@ Coleco compatibility lock at `cores/fes-coleco/toolchain.lock` into
 `build/toolchain/fes-coleco`, enabling the HIP device backend for
 `gfx1100;gfx1201`. The selected OSS recipe uses Yosys
 `da6373c0d7565f36036051efc7895fb0d9ac13c3`, nextpnr
-`2d3c216afb7051d2e2070cbf678a50f274b3f786`, `--router gpu`, seed 5, and a
+`2d3c216afb7051d2e2070cbf678a50f274b3f786`, `--router gpu`, seed 3, and a
 74.25 MHz request without `--tmg-ripup`; it rejects a CPU-reference fallback
-in the route log. Quartus does not consume the OSS lock or GPU toolchain.
+in the route log. Seeds 3 and 4 passed the current live-HIP build, while seed
+5 is marginal in the final router1 timing check for this build ID. Quartus
+does not consume the OSS lock or GPU toolchain.
 Neither build command programs hardware.
 
 The earlier clean integration build of implementation revision
@@ -491,7 +493,7 @@ Yosys/nextpnr/Mistral owner:
 | PLLs | The two `altera_pll` wrappers are retained. OSS models them through the existing Mistral cells; the CPU frequency approximation is a clock-enable divider, not a fabric-generated clock. |
 | HDMI I²C | Quartus uses tri-state assignments; OSS uses `MISTRAL_IO` open-drain pads and places the HPS I²C primitive at BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only the accepted `constraints-oss.qsf` and `clocks-oss.sdc` subset: pin assignments plus a 50 MHz input `create_clock`; nextpnr derives the PLL clocks. |
-| Route pressure | The selected settings are device `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 5, no `--tmg-ripup`, and a 74.25 MHz request. Seeds 3, 4 and 5 passed the exact fixture in the GPU-router report. The sealed recipe requires a `backend hip:<device> ready` log entry, so a CPU-only nextpnr cannot be mislabeled as a GPU result. Timing-driven rip-up remains disabled because it was slower on the packed netlist and regressed a passing `clk_sys` route. No missing nextpnr BEL or pack feature was identified. |
+| Route pressure | The selected settings are device `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 3, no `--tmg-ripup`, and a 74.25 MHz request. Seeds 3 and 4 passed the current live-HIP build; seed 5 is marginal in final router1 timing for this build ID. The sealed recipe requires a `backend hip:<device> ready` log entry, so a CPU-only nextpnr cannot be mislabeled as a GPU result. Timing-driven rip-up remains disabled because it was slower on the packed netlist and regressed a passing `clk_sys` route. No missing nextpnr BEL or pack feature was identified. |
 | Relocated Quartus/Icarus probe | The local Icarus wrapper needs `IVERILOG_BASE` set to its actual `.../usr/lib/x86_64-linux-gnu/ivl` directory; use `QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0/quartus`. The runner uses Icarus for the unmodified Intel `altera_mf.v` model because Verilator rejects the model's `i_good_to_write_a2`/`i_good_to_write_b2` feedback constructs. Quartus 17.0.2 also rejects `OLD_DATA` on the packed bidirectional sprite RAM's registered port A; `NEW_DATA_NO_NBE_READ` is legal because the renderer consumes q_a one phase later. |
 | Conditional simulation | `make sim-fes-coleco-oss` compiles GP, VDP, machine, and top-level tests with `FES_COLECO_OSS`; `make sim-fes-coleco` includes that target before the default lane. |
 
