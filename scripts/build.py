@@ -552,7 +552,7 @@ def _bundle_directories(root, system):
     return tuple(candidates)
 
 
-def _require_sealed_bundle(directory, system):
+def _require_closed_bundle(directory, system, *, sealed=False):
     directory = Path(directory)
     try:
         metadata = directory.lstat()
@@ -562,7 +562,7 @@ def _require_sealed_bundle(directory, system):
         raise ValueError("bundle directory must not be a symlink")
     if not stat.S_ISDIR(metadata.st_mode):
         raise ValueError("bundle path must be a directory")
-    if _bundle_write_bits(metadata.st_mode):
+    if sealed and _bundle_write_bits(metadata.st_mode):
         raise ValueError("sealed bundle directory must not be writable")
     expected = {f"{system}.rbf", f"{system}-rbf.toml"}
     names = []
@@ -576,10 +576,73 @@ def _require_sealed_bundle(directory, system):
         names.append(child.name)
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise ValueError("bundle files must be non-symlink regular files")
-        if _bundle_write_bits(metadata.st_mode):
+        if sealed and _bundle_write_bits(metadata.st_mode):
             raise ValueError("sealed bundle files must not be writable")
     if set(names) != expected:
         raise ValueError("sealed bundle must contain the closed two-file set")
+
+
+def _require_sealed_bundle(directory, system):
+    _require_closed_bundle(directory, system, sealed=True)
+
+
+def _remove_tree(path):
+    path = Path(path)
+    if path.is_symlink():
+        path.unlink()
+        return
+    if not path.exists():
+        return
+    if not path.is_dir():
+        path.chmod(0o644)
+        path.unlink()
+        return
+    for current, directories, files in os.walk(path, topdown=False, followlinks=False):
+        for name in files + directories:
+            child = Path(current) / name
+            metadata = child.lstat()
+            if not stat.S_ISLNK(metadata.st_mode):
+                child.chmod(0o755 if stat.S_ISDIR(metadata.st_mode) else 0o644)
+    path.chmod(0o755)
+    shutil.rmtree(path)
+
+
+def publish_bundle_cache(directory, system):
+    directory = Path(directory)
+    _require_closed_bundle(directory, system, sealed=False)
+    names = (f"{system}.rbf", f"{system}-rbf.toml")
+    dest_root = Path(FPGA_BUNDLE_CACHE)
+    if dest_root.is_symlink():
+        raise ValueError("FPGA bundle cache must not be a symlink")
+    if dest_root.exists() and not dest_root.is_dir():
+        raise ValueError("FPGA bundle cache must be a directory")
+    dest_root.mkdir(parents=True, exist_ok=True)
+    system_root = dest_root / system
+    if system_root.is_symlink():
+        raise ValueError("FPGA bundle cache system directory must not be a symlink")
+    if system_root.exists() and not system_root.is_dir():
+        raise ValueError("FPGA bundle cache system directory must be a directory")
+    system_root.mkdir(exist_ok=True)
+    destination = system_root / digest(directory / f"{system}.rbf")
+    if destination.is_symlink():
+        raise ValueError("FPGA bundle cache destination must not be a symlink")
+    if destination.exists():
+        _require_sealed_bundle(destination, system)
+        for name in names:
+            if (destination / name).read_bytes() != (directory / name).read_bytes():
+                raise ValueError("existing FPGA bundle cache entry differs")
+        return destination
+    staged = Path(tempfile.mkdtemp(prefix=".new-", dir=system_root))
+    try:
+        for name in names:
+            shutil.copy2(directory / name, staged / name)
+            (staged / name).chmod(0o444)
+        staged.chmod(0o555)
+        staged.replace(destination)
+        return destination
+    finally:
+        if staged.exists() or staged.is_symlink():
+            _remove_tree(staged)
 
 
 def validate_bundle(directory, source, revision, system):
@@ -668,6 +731,7 @@ def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics
     if len(bundles) != 1:
         raise ValueError(f"misteross did not produce exactly one {system} bundle")
     validate_bundle(bundles[0].parent, source, revisions["misteross"], system)
+    publish_bundle_cache(bundles[0].parent, system)
     return bundles[0].parent
 
 

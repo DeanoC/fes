@@ -377,3 +377,84 @@ class CoreBuildTest(unittest.TestCase):
                     system='pong', expected_revision=selected)
                 with self.assertRaisesRegex(ValueError, 'QUARTUS_ROOTDIR'):
                     build.build_bundle({'misteross': 'c' * 40}, {}, system='pong')
+
+    def test_publish_bundle_cache_installs_a_sealed_digest_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            source.mkdir()
+            (source / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+            (source / 'megadrive-rbf.toml').write_bytes(b'manifest-bytes')
+            cache = root / 'cache'
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache):
+                published = build.publish_bundle_cache(source, 'megadrive')
+            digest = build.digest(source / 'megadrive.rbf')
+            self.assertEqual(published, cache / 'megadrive' / digest)
+            self.assertEqual((published / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
+            self.assertEqual((published / 'megadrive-rbf.toml').read_bytes(), b'manifest-bytes')
+            self.assertFalse((published / 'megadrive.rbf').stat().st_mode & 0o222)
+            self.assertFalse((published / 'megadrive-rbf.toml').stat().st_mode & 0o222)
+            self.assertFalse(published.stat().st_mode & 0o222)
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache):
+                self.assertEqual(build.publish_bundle_cache(source, 'megadrive'), published)
+            published.chmod(0o755)
+            cached_rbf = published / 'megadrive.rbf'
+            cached_rbf.chmod(0o644)
+            cached_rbf.write_bytes(b'different')
+            cached_rbf.chmod(0o444)
+            published.chmod(0o555)
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 self.assertRaisesRegex(ValueError, 'differ|exists'):
+                build.publish_bundle_cache(source, 'megadrive')
+            self.assertEqual(cached_rbf.read_bytes(), b'different')
+
+    def test_publish_bundle_cache_rejects_symlinks_without_following(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ambient = root / 'ambient'
+            ambient.mkdir()
+            marker = ambient / 'keep'
+            marker.write_bytes(b'unchanged')
+            source = root / 'source'
+            source.mkdir()
+            (source / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+            (source / 'megadrive-rbf.toml').write_bytes(b'manifest-bytes')
+            linked_source = root / 'linked-source'
+            linked_source.symlink_to(source, target_is_directory=True)
+            cache = root / 'cache'
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 self.assertRaisesRegex(ValueError, 'symlink'):
+                build.publish_bundle_cache(linked_source, 'megadrive')
+            cache.mkdir()
+            cache.joinpath('megadrive').symlink_to(ambient, target_is_directory=True)
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 self.assertRaisesRegex(ValueError, 'symlink'):
+                build.publish_bundle_cache(source, 'megadrive')
+            self.assertEqual(marker.read_bytes(), b'unchanged')
+            self.assertEqual([path.name for path in ambient.iterdir()], ['keep'])
+
+    def test_built_bundle_is_published_and_checkout_path_is_returned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / 'source'
+            cache = root / 'cache'
+            (source / 'scripts').mkdir(parents=True)
+            (source / 'scripts/rebuild_core.py').write_text('recipe')
+            produced = source / 'build/bundles/megadrive/identity'
+
+            def fake_run(args, **kwargs):
+                produced.mkdir(parents=True, exist_ok=True)
+                (produced / 'megadrive.rbf').write_bytes(b'rbf-bytes')
+                (produced / 'megadrive-rbf.toml').write_bytes(b'manifest')
+
+            with patch.object(build, 'FPGA_BUNDLE_CACHE', cache), \
+                 patch.object(build, 'source_checkout', return_value=source), \
+                 patch.object(build.core_bundle, 'load', return_value={'sha256': 'a' * 64}), \
+                 patch.object(build, 'run', side_effect=fake_run):
+                result = build.build_bundle(
+                    {'misteross': 'b' * 40}, {'QUARTUS_ROOTDIR': '/quartus'},
+                    system='megadrive')
+            self.assertEqual(result, produced)
+            cached = cache / 'megadrive' / build.digest(produced / 'megadrive.rbf')
+            self.assertEqual((cached / 'megadrive.rbf').read_bytes(), b'rbf-bytes')
+            self.assertFalse(cached.stat().st_mode & 0o222)
