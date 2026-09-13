@@ -545,6 +545,44 @@ TARGET_IMAGE_LOCK_BIN=$package_selector \
 NATIVE_RUNTIME_SYSTEMS=megadrive \
   "$repo/scripts/native-extra-cores.sh" verify-image "$native_cache" "$native_package_target"
 
+native_package_cache=$native_fixture/package-only-cache
+mkdir -p "$native_package_cache"
+cp "$native_cache/idle.rbf" "$native_package_cache/idle.rbf"
+chmod 0444 "$native_package_cache/idle.rbf"
+NATIVE_RUNTIME_MODE=package-only \
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+  "$repo/scripts/native-extra-cores.sh" fetch "$native_package_cache"
+native_package_only_target=$native_fixture/package-only-target
+cp -R "$native_fixture/target" "$native_package_only_target"
+mkdir -p "$native_package_only_target/usr/share/mister-runtime/cores" \
+  "$native_package_only_target/usr/share/mister-runtime/selections"
+printf '%s\n' stale > \
+  "$native_package_only_target/usr/share/mister-runtime/cores/megadrive.rbf"
+printf '%s\n' stale > \
+  "$native_package_only_target/usr/share/mister-runtime/selections/megadrive.toml"
+NATIVE_RUNTIME_MODE=package-only \
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+NATIVE_RUNTIME_INPUT_LOCK=$native_lock \
+NATIVE_RUNTIME_IDLE_FILE=$native_package_cache/idle.rbf \
+  "$native_post_build" "$native_package_only_target"
+test ! -e "$native_package_only_target/usr/share/mister-runtime/cores/megadrive.rbf"
+test ! -e "$native_package_only_target/usr/share/mister-runtime/selections/megadrive.toml"
+test "$(find "$native_package_only_target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq 2
+test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/idle.rbf")" = 644
+test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/core-packages/$package_id")" = 555
+test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/core-packages/$package_id/manifest.toml")" = 444
+test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/core-packages/$package_id/core.rbf")" = 444
+test "$(stat -c %a "$native_package_only_target/usr/share/mister-runtime/selections/fes-pong.package.toml")" = 444
+NATIVE_RUNTIME_MODE=package-only \
+FES_PONG_PACKAGE_DIR=$package_source \
+FES_PONG_PACKAGE_SELECTION=$package_selection \
+TARGET_IMAGE_LOCK_BIN=$package_selector \
+  "$repo/scripts/native-extra-cores.sh" verify-image "$native_package_cache" "$native_package_only_target"
+
 native_upstream_lock=$native_fixture/upstream-native-runtime.inputs.lock.toml
 sed \
   -e "s/sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'/sha256 = '$native_megadrive_sha'/" \

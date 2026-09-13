@@ -2,10 +2,7 @@ host_os = "linux"
 host_arch = "amd64"
 image_variant = "native-dev"
 version = "0.1.0"
-fpga_source = "misteross"
-fpga_cores = ["megadrive", "pong", "snes", "nes"]
-quartus_version = "17.0.2"
-bundle_interface = "selection"
+native_image_mode = "package-only"
 check_packages = true
 
 [[fpga_packages]]

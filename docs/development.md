@@ -68,10 +68,10 @@ component remote; a local-only commit will break recursive clones elsewhere.
 
 The default is `native-integration-dev`. Select a historical profile explicitly
 with `PROFILE=native-dev` or `PROFILE=native-source-dev`; their evidence applies
-to those revisions and artifacts. Source builds require the configured
-Quartus toolchain (`QUARTUS_ROOTDIR`). Build and verify do not deploy. The
-default profile also authenticates the pinned open-source misteross tools before
-selecting its described FES Pong package. See
+to those revisions and artifacts. Those historical format-1 source builds
+require the configured Quartus toolchain (`QUARTUS_ROOTDIR`). Build and verify
+do not deploy. The default profile authenticates the pinned open-source
+misteross HIP/nextpnr tools before selecting its described FES Pong package. See
 [described FPGA core packages](core-packages.md) for first-checkout setup and
 the inspect/load/Stop workflow. Host-only builds do not require those tools.
 
@@ -89,14 +89,15 @@ Coordinate shared expensive runs rather than starting one per agent.
 Run `make dev` for the selected `native-integration-dev` revisions. It publishes
 `out/native-integration-dev/development/linux.img` and a `development.json`
 receipt after structural validation. It uses the same pinned package,
-FES `image/` overlay and image recipes as the clean build. It does not deploy, run QEMU,
+FES `image/` overlay and image recipes as the clean build. The native image
+contains the locked idle RBF and selected FES package only. It does not deploy, run QEMU,
 produce two-pass evidence, or replace the clean image and receipts.
 
 The development Buildroot volume retains the compiler, libraries and package
 outputs. The Go agent uses Go's compilation cache; the runtime package is cleaned
 and rebuilt when its selected commit changes. An unchanged complete output is
 reused after receipt/hash checks. Otherwise, full Buildroot finalization runs to
-install the current agent, selected RBF set and build-input record. A package
+install the current agent, locked idle RBF, selected package and build-input record. A package
 selection change retains the compiler/base volume but forces final image
 assembly. The development receipt binds the emitted package selection and the
 exact external `manifest.toml` and `core.rbf` bytes.
@@ -116,23 +117,19 @@ Makefile, FogCast native input policy except the runtime commit, and the parent
 incremental runner. Changes to these inputs select a separate fresh volume.
 Application-source changes and runtime commit changes retain the base. The
 container cache identity uses input contents rather than checkout locations, so
-identical compiler containers are shared across component worktrees. RBF
-selection from different source-built bundles is installed during finalization;
-a change to the locked RBF policy selects a new base. This intentionally
-conservative key can be narrowed later with evidence.
+identical compiler containers are shared across component worktrees. The package
+selection and locked idle RBF are installed during finalization; a change to
+that policy selects a new base. This intentionally conservative key can be
+narrowed later with evidence.
 
-Validated format-1 FPGA bundles are also copied into the ignored workspace
-cache `out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`. That cache is
-disposable local state, not provenance: Mega Drive, SNES and NES entries may
-be reused across `misteross` commits when the current recipe still validates
-them, Pong entries require the exact selected revision, and `make rebuild`
-bypasses reuse. Distinct validated artifacts are fail-closed: the error lists
-the conflicting candidate directories rather than preferring the selected
-checkout. Sealed cache files are read-only and their directories are mode
-0555, so a plain recursive removal cannot delete them. Recover the affected
-disposable system subtree by restoring owner write and search permission,
-then removing that exact tree. Replace `<system>` with `megadrive`, `pong`,
-`snes`, or `nes`:
+Historical format-1 FPGA bundles, when an explicitly selected legacy profile
+needs them, use the disposable workspace cache
+`out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`. They are not part of
+the default image and are not package provenance. Distinct validated artifacts
+remain fail-closed; the error lists conflicting candidate directories. Sealed
+cache files are read-only and their directories are mode 0555, so recover only
+the exact historical subtree when necessary. Replace `<system>` with the
+historical core name:
 
 ```sh
 chmod -R u+rwX -- out/cache/fpga-bundles/<system>
@@ -143,7 +140,7 @@ Then retry.
 
 The default parent integration path also opts the FES Pong format-2 package
 producer into the disposable shared compiler cache at
-`out/cache/misteross-toolchains` through `FES_TOOLCHAIN_CACHE_ROOT`. Generic
+`out/cache/misteross-toolchains` through an explicit producer `--cache-root`. Generic
 format-1 Mega Drive, SNES and NES bundle lanes keep the local toolchain
 environment; misteross rejects shared mode for those legacy OSS, simulation
 and programming paths. That cache is workspace-local ignored state, not
@@ -168,8 +165,8 @@ diagnostic loop. Historical profiles continue to use their cold builds.
 
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those
-commands' release receipts. `make rebuild` still forces the full cold build,
-including Quartus. Native development does not build the separate QEMU test
+commands' release receipts. `make rebuild` still forces the full cold build;
+historical format-1 profiles include Quartus. Native development does not build the separate QEMU test
 kernel. Unused development volumes may consume several GB each; their exact
 names are recorded in the development `inputs.json`.
 

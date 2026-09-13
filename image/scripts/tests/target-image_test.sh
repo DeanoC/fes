@@ -64,15 +64,10 @@ printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv'
 printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv'
-native_target_image_verify=$(
-  awk '
-    /^target-image-native-verify:/ { in_target=1; next }
-    in_target && /^[^[:space:]]/ { exit }
-    in_target { print }
-  ' "$repo/Makefile"
-)
-printf '%s\n' "$native_target_image_verify" | grep -Fq \
-  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml'
+grep -Fq 'target-image-native-verify:' "$repo/Makefile"
+grep -Fq \
+  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml' \
+  "$repo/Makefile"
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-target-image.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1

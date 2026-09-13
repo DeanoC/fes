@@ -13,6 +13,36 @@ from environment import build_environment
 
 
 class CoreBuildTest(unittest.TestCase):
+    def test_native_image_mode_is_explicit_and_historical_profiles_are_isolated(self):
+        root = Path(__file__).resolve().parents[1]
+        integration = tomllib.loads(
+            (root / 'profiles/native-integration-dev.toml').read_text())
+        historical = tomllib.loads((root / 'profiles/native-dev.toml').read_text())
+        source_historical = tomllib.loads(
+            (root / 'profiles/native-source-dev.toml').read_text())
+
+        self.assertEqual(build.native_image_mode(integration), 'package-only')
+        self.assertNotIn('fpga_cores', integration)
+        self.assertNotIn('fpga_core', integration)
+        self.assertNotIn('quartus_version', integration)
+        self.assertEqual(build.native_image_mode(historical), 'format1')
+        self.assertEqual(build.native_image_mode(source_historical), 'format1')
+        readme = (root / 'README.md').read_text()
+        development = (root / 'docs/development.md').read_text()
+        packages = (root / 'docs/core-packages.md').read_text()
+        self.assertIn('HIP/nextpnr', readme)
+        self.assertIn('Format-1 catalog cores are not part of the', readme)
+        self.assertIn('historical format-1 source builds', development)
+        self.assertIn('not built or installed by this FES production path', packages)
+        self.assertNotIn('alongside the four existing format-1 catalog cores', packages)
+
+    def test_package_only_profile_never_dispatches_format1_bundles(self):
+        profile = {'native_image_mode': 'package-only'}
+        with patch.object(build, 'build_bundles',
+                          side_effect=AssertionError('format-1 bundle dispatch')):
+            self.assertEqual(
+                build.build_bundles_for_profile(profile, {}, {}, ()), {})
+
     def test_historical_default_and_explicit_set(self):
         self.assertEqual(build.selected_cores({'fpga_core': 'megadrive'}), ('megadrive',))
         self.assertEqual(build.selected_cores({'fpga_cores': ['megadrive', 'pong', 'snes', 'nes']}),
@@ -60,6 +90,10 @@ class CoreBuildTest(unittest.TestCase):
                                       'NATIVE_RUNTIME_SYSTEMS': 'pong',
                                       'FES_PONG_PACKAGE_DIR': '/untrusted-package',
                                       'FES_PONG_PACKAGE_SELECTION': '/untrusted-selection',
+                                      'FES_ZX81_PACKAGE_DIR': '/untrusted-zx81-package',
+                                      'FES_ZX81_PACKAGE_SELECTION': '/untrusted-zx81-selection',
+                                      'FES_COLECO_PACKAGE_DIR': '/untrusted-coleco-package',
+                                      'FES_COLECO_PACKAGE_SELECTION': '/untrusted-coleco-selection',
                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
             env = build_environment()
         self.assertFalse('PONG_RBF_BUNDLE' in env)
@@ -68,6 +102,10 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('NATIVE_RUNTIME_SYSTEMS' in env)
         self.assertFalse('FES_PONG_PACKAGE_DIR' in env)
         self.assertFalse('FES_PONG_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_ZX81_PACKAGE_DIR' in env)
+        self.assertFalse('FES_ZX81_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_COLECO_PACKAGE_DIR' in env)
+        self.assertFalse('FES_COLECO_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
     def test_generic_build_environment_keeps_local_compiler_overrides(self):
@@ -161,6 +199,11 @@ class CoreBuildTest(unittest.TestCase):
             selection.write_bytes(b'format = 2\n')
             built = root / 'built.toml'
             built.write_bytes(selection.read_bytes())
+            for stale_name in ('fes-zx81.package-selection.toml',
+                               'fes-coleco.package-selection.toml'):
+                stale_selection = output / stale_name
+                stale_selection.write_bytes(b'stale selection')
+                stale_selection.chmod(0o444)
             stale = output / 'core-packages/stale'
             stale.mkdir(parents=True)
             (stale / 'old').write_bytes(b'old')
@@ -179,7 +222,14 @@ class CoreBuildTest(unittest.TestCase):
                 'fes-pong.package-selection.toml',
                 f'core-packages/{identity}/manifest.toml',
                 f'core-packages/{identity}/core.rbf'])
+            self.assertFalse((output / 'fes-zx81.package-selection.toml').exists())
+            self.assertFalse((output / 'fes-coleco.package-selection.toml').exists())
             build.verify_package_outputs(output, package)
+            (output / 'megadrive.rbf').write_bytes(b'legacy')
+            with self.assertRaisesRegex(ValueError, 'legacy format-1'):
+                build.verify_package_only_outputs(output, package)
+            build.remove_format1_parent_outputs(output)
+            build.verify_package_only_outputs(output, package)
             self.assertEqual([path.name for path in (output / 'core-packages').iterdir()], [identity])
             payload = output / 'core-packages' / identity / 'core.rbf'
             payload.chmod(0o644)

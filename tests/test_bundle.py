@@ -300,9 +300,10 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
-        self.assertIn('FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
-        self.assertIn('make -C "out/work/misteross-$revision" toolchain', docs)
-        self.assertIn('make -C "out/work/misteross-$revision" doctor-strict', docs)
+        self.assertIn(
+            'make -C "out/work/misteross-$revision" \\\n  toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+        self.assertIn(
+            'make -C "out/work/misteross-$revision" \\\n  doctor-strict CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

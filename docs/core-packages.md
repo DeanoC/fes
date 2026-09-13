@@ -2,14 +2,16 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
-A later described ZX81 computer is planned on `feat/zx81`; see
-[FES ZX81](fes-zx81.md). It is not installed by this profile.
+The recipe registry also supports the described `fes.zx81` and `fes.coleco`
+packages for resolver work. The current target-image selector remains a
+single-package Pong-only contract, so neither is installed by this profile.
+See [FES ZX81](fes-zx81.md) for its bring-up notes.
 
-The default `native-integration-dev` profile installs the standalone FES Pong
-format-2 package alongside the four existing format-1 catalog cores. This is an
-package that can be installed on the host and given an explicit ROM-less
-library entry. It does not infer ROM or media inputs or replace the existing
-`pong` catalog system.
+The default `native-integration-dev` profile installs the locked idle RBF and
+exactly one standalone FES Pong format-2 package. Format-1 catalog cores are
+not built or installed by this FES production path. The package can be
+installed on the host and given an explicit ROM-less library entry; it does not
+infer ROM or media inputs or replace the existing `pong` catalog system.
 
 ## Build and inspect
 
@@ -32,10 +34,10 @@ and check the shared slot with:
 make dev
 # If this reports missing authenticated FES Pong build inputs:
 revision=$(git rev-parse :sources/misteross)
-FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains" \
-  make -C "out/work/misteross-$revision" toolchain
-FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains" \
-  make -C "out/work/misteross-$revision" doctor-strict
+make -C "out/work/misteross-$revision" \
+  toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"
+make -C "out/work/misteross-$revision" \
+  doctor-strict CACHE_ROOT="$PWD/out/cache/misteross-toolchains"
 make dev
 ```
 
@@ -84,7 +86,8 @@ behavior: no inferred game/media launch and no fabricated custom ABI or input
 capability. The separate `development-contained-v1` profile is an explicit raw
 diagnostic selection with contained bridges and SDRAM. Its live identity is
 unverified, so it infers no ABI and exposes no controller or video service.
-Format-1 catalog bundles and `NATIVE_RUNTIME_SYSTEMS` are unchanged.
+Format-1 catalog bundles and `NATIVE_RUNTIME_SYSTEMS` remain available only
+through the explicitly selected historical image path.
 
 ## Install and select a library package
 

@@ -4,11 +4,20 @@ set -eu
 target=${1:?TARGET_DIR is required}
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)
 fogcast=${FOGCAST_DIR:?FOGCAST_DIR is required}
+native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+case "$native_mode" in
+  format1|package-only) : ;;
+  *)
+    printf '%s\n' 'native-post-build: native runtime mode must be format1 or package-only' >&2
+    exit 2
+    ;;
+esac
 launcher=$fogcast/bin/fogcast-kit-linux-armv7
 lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast/build/native-runtime.inputs.lock.toml}
 idle_input=${NATIVE_RUNTIME_IDLE_FILE:-/work/build/cache/target-image/native/idle.rbf}
 megadrive_input=${NATIVE_RUNTIME_MEGADRIVE_FILE:-/work/build/cache/target-image/native/megadrive.rbf}
 selection_input=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-/work/build/cache/target-image/native/megadrive.selection.toml}
+extra_cores=$(CDPATH='' cd -- "$(dirname "$0")/../../.." && pwd)/scripts/native-extra-cores.sh
 
 read_lock_value() {
   read_section=$1
@@ -81,6 +90,79 @@ idle_path=$(read_lock_value idle_rbf path)
 idle_sha=$(read_lock_value idle_rbf sha256)
 idle_size=$(read_lock_value idle_rbf size)
 idle_install_path=$(read_lock_value idle_rbf install_path)
+
+if [ "$native_mode" = package-only ]; then
+  "$extra_cores" validate
+  [ -f "$idle_input" ] && [ ! -L "$idle_input" ] || {
+    printf '%s\n' 'native-post-build: idle input is not a regular non-symlink file' >&2
+    exit 1
+  }
+  [ "$idle_install_path" = /usr/share/mister-runtime/idle.rbf ] || {
+    printf '%s\n' 'native-post-build: idle install path differs from image policy' >&2
+    exit 1
+  }
+  printf '%s\n' "$idle_sha" | grep -Eq '^[0-9a-f]{64}$' || exit 1
+  printf '%s\n' "$idle_size" | grep -Eq '^[1-9][0-9]*$' || exit 1
+  [ "$(/usr/bin/sha256sum "$idle_input" | /usr/bin/awk '{print $1}')" = "$idle_sha" ] || {
+    printf '%s\n' 'native-post-build: idle input digest differs from the lock' >&2
+    exit 1
+  }
+  [ "$(/usr/bin/wc -c < "$idle_input" | /usr/bin/tr -d ' ')" = "$idle_size" ] || {
+    printf '%s\n' 'native-post-build: idle input size differs from the lock' >&2
+    exit 1
+  }
+  idle_mode=$(/usr/bin/stat -c %a "$idle_input" 2>/dev/null || true)
+  printf '%s\n' "$idle_mode" | grep -Eq '^[0145]{3,4}$' || {
+    printf '%s\n' 'native-post-build: idle input must not be writable' >&2
+    exit 1
+  }
+
+  /bin/rm -f "$target/usr/share/mister-runtime/cores/megadrive.rbf" \
+    "$target/usr/share/mister-runtime/cores/pong.rbf" \
+    "$target/usr/share/mister-runtime/cores/snes.rbf" \
+    "$target/usr/share/mister-runtime/cores/nes.rbf" \
+    "$target/usr/share/mister-runtime/selections/megadrive.toml" \
+    "$target/usr/share/mister-runtime/selections/pong.toml" \
+    "$target/usr/share/mister-runtime/selections/snes.toml" \
+    "$target/usr/share/mister-runtime/selections/nes.toml"
+  /bin/mkdir -p "$target/usr/share/mister-runtime"
+  /usr/bin/install -m 0644 "$idle_input" \
+    "$target/usr/share/mister-runtime/idle.rbf"
+  /bin/chmod 0755 "$target/etc/init.d/S40mister-runtime" \
+    "$target/etc/init.d/S50mister-agent" \
+    "$target/etc/init.d/S60fogcast-kit"
+
+  # The stable FES bootstrap retains its root here after pivot_root. This must
+  # exist in the immutable candidate; boot cannot create it on a read-only image.
+  /bin/mkdir -p "$target/.fes-bootstrap"
+
+  "$extra_cores" install "$(dirname "$idle_input")" "$target"
+  build_inputs="$target/usr/share/mister-runtime/build-inputs"
+  mister_agent_sha=$(/usr/bin/sha256sum "$target/usr/sbin/mister-agent" | /usr/bin/awk '{print $1}')
+  {
+    printf 'format=1\n'
+    printf 'mister_runtime_commit=%s\n' "$runtime_commit"
+    printf 'mister_agent_sha256=%s\n' "$mister_agent_sha"
+    printf 'fogcast_kit_sha256=%s\n' "$(/usr/bin/sha256sum "$target/usr/sbin/fogcast-kit" | /usr/bin/awk '{print $1}')"
+    printf 'idle_repository=%s\n' "$idle_repository"
+    printf 'idle_commit=%s\n' "$idle_commit"
+    printf 'idle_path=%s\n' "$idle_path"
+    printf 'idle_sha256=%s\n' "$idle_sha"
+    printf 'idle_size=%s\n' "$idle_size"
+    printf 'idle_install_path=%s\n' "$idle_install_path"
+    "$extra_cores" build-inputs "$(dirname "$idle_input")" "$target"
+  } > "$build_inputs"
+
+  expected_rbf_count=$("$extra_cores" count)
+  rbf_count=$(find "$target" -iname '*.rbf' | /usr/bin/wc -l | /usr/bin/tr -d ' ')
+  [ "$rbf_count" -eq "$expected_rbf_count" ] || {
+    printf 'native-post-build: installed RBF count differs from package-only inputs, found %s\n' "$rbf_count" >&2
+    exit 1
+  }
+  exit 0
+fi
+
+[ "$native_mode" = format1 ] || exit 2
 megadrive_repository=$(read_lock_value megadrive_rbf repository)
 megadrive_commit=$(read_lock_value megadrive_rbf commit)
 megadrive_path=$(read_lock_value megadrive_rbf path)
