@@ -145,7 +145,15 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `2d3c216afb7051d2e2070cbf678a50f274b3f786` is
+The current nextpnr pin `9cbbf7353dd2b818ab73031fcf30d9993578c783` is
+merged PR #68 (`6535e945377283260431cc14d3f9700536588833` onto
+`2d3c216afb7051d2e2070cbf678a50f274b3f786`). It borrows a live design
+clock for read-only asynchronous M10Ks whose write clock is folded,
+fans that clock to both `CLKIN` sinks, routes `ENABLE[0]`, and programs
+`TOP_CE0_SEL` for native 1024x10 cells without `CFG_BYTE_ENABLE`. Pair
+it with Yosys `ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `2d3c216afb7051d2e2070cbf678a50f274b3f786`,
 merged PR #67 (`edabecce3a8759b641351aadbe1526d56c53f05a` onto
 `9c75153384c57d913ec6c8720f941f13ca4ca904`). It packs equal-width
 8192x1, 4096x2 and 2048x5 true-dual-port M10Ks, including scalar
@@ -1736,6 +1744,23 @@ completed development reboot recovery and left the lease free. The current
 nextpnr pin `2d3c216a` with Yosys `ec34fcf3` reproduces those same RBF
 bytes.
 
+`880_m10k_async_rom` instantiates one 1024-by-10 read-only `MISTRAL_M10K`
+with a folded write clock. GPI signature `0xD880`. See
+`experiments/880_m10k_async_rom/expected.md`.
+
+The OSS `880_m10k_async_rom` artifact has SHA-256
+`eb7ae06559e8d716bd89ba2dd05015720611b834ac91b1b92c38522a1a7b4ab9`
+and size 1,955,929 bytes. nextpnr packed `MISTRAL_M10K.26.79.0` with
+`CFG_ABITS=10`, `CFG_DBITS=10`, `CFG_ASYNC_READ=1`, no `CFG_BYTE_ENABLE`,
+a borrowed live `CLK1`, decompiled `TOP_CE0_SEL=1`, `BOT_CLK_SEL=1`,
+`A_DATA_WIDTH=10`, and routes on `CLKIN.0`/`CLKIN.1`/`ENABLE.0`.
+Reported Fmax is 918.274 MHz against 50 MHz. Utilization is one M10K
+and one HPS GP. Exact-artifact kit diagnostics on 2026-09-13 returned
+GPI `0xD88000A6` and INIT words at low, mid, and last addresses. Load
+JSON timed out; GPI and probe still passed. `stop` completed development
+reboot recovery and left the lease free. The current nextpnr pin
+`9cbbf735` with Yosys `ec34fcf3` reproduces those same RBF bytes.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,
@@ -1770,7 +1795,8 @@ fractional-N PLL from the bounded calculator (fabric GPI only), and a
 TDP M10K same-port NEW_DATA write-through (fabric GPI only), and an HPS
 I2C cell placed from QSF `HPS_LOCATION` (fabric GPI only), and two
 dual-clock M10Ks with unique sites and packed `ENABLE.1` (fabric GPI
-only), and an 8192x1 true-dual-port M10K (fabric GPI only). It does
+only), and an 8192x1 true-dual-port M10K (fabric GPI only), and a
+1024x10 read-only async M10K ROM (fabric GPI only). It does
 not establish native
 game acceptance.
 

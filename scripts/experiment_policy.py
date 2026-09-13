@@ -250,6 +250,7 @@ class ExperimentPolicy:
     m10k_require_aclr1: bool = False
     m10k_tdp_constant_clk2: bool = False
     m10k_async_read: bool = False
+    m10k_async_readonly: bool = False
     m10k_addrstalla_gpo_bit: int | None = None
     m10k_out_reg_b: bool = False
     m10k_rdw_new_data: bool = False
@@ -292,6 +293,7 @@ class ExperimentPolicy:
             ("m10k_require_aclr1", self.m10k_require_aclr1),
             ("m10k_tdp_constant_clk2", self.m10k_tdp_constant_clk2),
             ("m10k_async_read", self.m10k_async_read),
+            ("m10k_async_readonly", self.m10k_async_readonly),
             ("m10k_out_reg_b", self.m10k_out_reg_b),
             ("m10k_rdw_new_data", self.m10k_rdw_new_data),
             ("m10k_selector_pair", self.m10k_selector_pair),
@@ -366,6 +368,8 @@ class ExperimentPolicy:
             raise PolicyError(f"{self.name}: TDP byte-enable M10K cannot combine SDP byte-enable, equal-width dual-clock, or mixed-TDP policy")
         if self.m10k_tdp_mixed_a and (self.m10k_byte_enable or self.m10k_dual_clock_width):
             raise PolicyError(f"{self.name}: mixed-TDP M10K cannot combine SDP byte-enable or equal-width dual-clock policy")
+        if self.m10k_async_read and self.m10k_async_readonly:
+            raise PolicyError(f"{self.name}: async-read M10K cannot combine with read-only async ROM policy")
         if self.nextpnr_router not in ("", "router1"):
             raise PolicyError(f"{self.name}: nextpnr_router must be empty or router1")
         if not isinstance(self.yosys_post_synth, str) or "\n" in self.yosys_post_synth:
@@ -717,6 +721,8 @@ class ExperimentPolicy:
             self._require_m10k_tdp_mixed(design)
         if self.m10k_async_read:
             self._require_m10k_async_read(design)
+        if self.m10k_async_readonly:
+            self._require_m10k_async_readonly(design)
         if self.m10k_addrstalla_gpo_bit is not None:
             self._require_m10k_addrstalla(design)
         if self.m10k_out_reg_b:
@@ -947,6 +953,54 @@ class ExperimentPolicy:
             raise PolicyError("async-read M10K CLK1 must be a live fabric clock")
         if "B1ADDR" not in connections or "B1DATA" not in connections:
             raise PolicyError("async-read M10K must connect B1ADDR and B1DATA")
+
+    def _require_m10k_async_readonly(self, design: Mapping[str, Any]) -> None:
+        cells = self._m10k_cells(design)
+        if len(cells) != 1:
+            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
+        cell = cells[0]
+        parameters = cell.get("parameters")
+        connections = cell.get("connections")
+        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+            raise PolicyError("M10K cell is missing parameters or connections")
+        if json_bit_parameter(parameters.get("CFG_ASYNC_READ")) != 1:
+            raise PolicyError(
+                f"read-only async M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
+            )
+        if json_bit_parameter(parameters.get("CFG_ABITS")) != 10:
+            raise PolicyError(f"read-only async M10K CFG_ABITS must be 10, got {parameters.get('CFG_ABITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_DBITS")) != 10:
+            raise PolicyError(f"read-only async M10K CFG_DBITS must be 10, got {parameters.get('CFG_DBITS')!r}")
+        if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
+            raise PolicyError("read-only async M10K cannot set CFG_BYTE_ENABLE")
+        if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) not in (None, 0):
+            raise PolicyError("read-only async M10K cannot set CFG_DUAL_CLOCK")
+        clk1 = connections.get("CLK1")
+        if clk1 not in (["0"], [0]):
+            raise PolicyError(f"read-only async M10K CLK1 must be folded to 0, got {clk1!r}")
+        a1en = connections.get("A1EN")
+        if a1en not in (["1"], [1]):
+            raise PolicyError(f"read-only async M10K A1EN must be tied high, got {a1en!r}")
+        if "CLK2" in connections:
+            raise PolicyError("read-only async M10K must not connect CLK2")
+        if "A1BE" in connections:
+            raise PolicyError("read-only async M10K must not connect A1BE")
+        b1addr = connections.get("B1ADDR")
+        b1data = connections.get("B1DATA")
+        if not isinstance(b1addr, list) or len(b1addr) != 10:
+            raise PolicyError("read-only async M10K B1ADDR must be 10 bits")
+        if not isinstance(b1data, list) or len(b1data) != 10:
+            raise PolicyError("read-only async M10K B1DATA must be 10 bits")
+        init = json_bit_parameter(parameters.get("INIT"))
+        if init is None:
+            raise PolicyError("read-only async M10K INIT is missing")
+        for address in (0, 1, 2, 7, 15, 31, 255, 512, 1023):
+            actual = (init >> (address * 10)) & 0x3FF
+            expected = m10k_init_word(address, 10)
+            if actual != expected:
+                raise PolicyError(
+                    f"read-only async M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                )
 
     def _require_m10k_addrstalla(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
@@ -1435,6 +1489,8 @@ class ExperimentPolicy:
                 changed = True
             if self._apply_m10k_async_read(cells):
                 changed = True
+            if self._apply_m10k_async_readonly(cells):
+                changed = True
             if self._attach_m10k_addrstalla(cells):
                 changed = True
             if self._apply_m10k_out_reg_b(cells):
@@ -1671,6 +1727,46 @@ class ExperimentPolicy:
                     changed = True
         return changed
 
+    def _apply_m10k_async_readonly(self, cells: dict[str, Any]) -> bool:
+        """Mark a folded-clock 1024x10 M10K as combinational read-only."""
+
+        if not self.m10k_async_readonly:
+            return False
+        changed = False
+        found = 0
+        for cell in cells.values():
+            if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_M10K":
+                continue
+            found += 1
+            parameters = cell.get("parameters")
+            if not isinstance(parameters, dict):
+                parameters = {}
+                cell["parameters"] = parameters
+            async_value = f"{1:032b}"
+            if parameters.get("CFG_ASYNC_READ") != async_value:
+                parameters["CFG_ASYNC_READ"] = async_value
+                changed = True
+            parameters.pop("CFG_BYTE_ENABLE", None)
+            connections = cell.get("connections")
+            if not isinstance(connections, dict):
+                raise PolicyError("M10K cell is missing connections")
+            directions = cell.get("port_directions")
+            if not isinstance(directions, dict):
+                directions = {}
+                cell["port_directions"] = directions
+            connections.pop("CLK2", None)
+            directions.pop("CLK2", None)
+            connections.pop("A1BE", None)
+            directions.pop("A1BE", None)
+            connections.pop("B1EN", None)
+            directions.pop("B1EN", None)
+            for port in ("ACLR0", "ACLR1"):
+                if connections.get(port) != ["0"] or directions.get(port) != "input":
+                    connections[port] = ["0"]
+                    directions[port] = "input"
+                    changed = True
+        return changed
+
     def validate_routed_json(self, path: Path) -> None:
         """Require packed BEL co-location that utilization counts cannot express."""
 
@@ -1678,6 +1774,7 @@ class ExperimentPolicy:
             not self.required_packed_sites
             and not self.required_nextpnr_bels
             and not self.m10k_selector_pair
+            and not self.m10k_async_readonly
         ):
             return
         try:
@@ -1740,6 +1837,30 @@ class ExperimentPolicy:
                     bels.append(bel)
             if len(bels) != 2 or len(set(bels)) != 2:
                 raise PolicyError(f"routed M10K cells must occupy two unique sites, got {bels!r}")
+        if self.m10k_async_readonly:
+            found = 0
+            for module in modules.values():
+                if not isinstance(module, Mapping):
+                    continue
+                cells = module.get("cells")
+                if not isinstance(cells, Mapping):
+                    continue
+                for cell in cells.values():
+                    if not isinstance(cell, Mapping) or cell.get("type") != "MISTRAL_M10K":
+                        continue
+                    found += 1
+                    connections = cell.get("connections")
+                    clk1 = connections.get("CLK1") if isinstance(connections, Mapping) else None
+                    if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+                        raise PolicyError(
+                            f"routed read-only async M10K CLK1 must be a borrowed live clock, got {clk1!r}"
+                        )
+                    attributes = cell.get("attributes")
+                    bel = attributes.get("NEXTPNR_BEL") if isinstance(attributes, Mapping) else None
+                    if not isinstance(bel, str) or not bel:
+                        raise PolicyError("routed read-only async M10K is missing NEXTPNR_BEL")
+            if found != 1:
+                raise PolicyError(f"routed read-only async M10K must occur once, got {found}")
         if not self.required_packed_sites:
             return
         cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
@@ -1884,6 +2005,7 @@ class ExperimentPolicy:
             **({"m10k_require_aclr1": True} if self.m10k_require_aclr1 else {}),
             **({"m10k_tdp_constant_clk2": True} if self.m10k_tdp_constant_clk2 else {}),
             **({"m10k_async_read": True} if self.m10k_async_read else {}),
+            **({"m10k_async_readonly": True} if self.m10k_async_readonly else {}),
             **({"m10k_addrstalla_gpo_bit": self.m10k_addrstalla_gpo_bit}
                if self.m10k_addrstalla_gpo_bit is not None else {}),
             **({"m10k_out_reg_b": True} if self.m10k_out_reg_b else {}),
@@ -5937,6 +6059,53 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/870_m10k_narrow/sim/m10k_narrow_model.v",
                     ),
                     tb="experiments/870_m10k_narrow/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "880_m10k_async_rom": ExperimentPolicy(
+            name="880_m10k_async_rom",
+            sources=("experiments/880_m10k_async_rom/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 1,
+            },
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            m10k_async_readonly=True,
+            require_read_clock_arc=False,
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/880_m10k_async_rom/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/880_m10k_async_rom/sim/m10k_async_rom_model.v",
+                    ),
+                    tb="experiments/880_m10k_async_rom/sim/tb.cpp",
                 ),
             ),
         ),
