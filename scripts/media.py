@@ -339,9 +339,10 @@ def select(root, profile):
         (Path(temporary) / 'go.mod').write_text(cold_build.git(root / 'sources/FogCast', 'show',
                                                            revisions['FogCast'] + ':go.mod') + '\n')
         toolchain = subprocess.check_output(['go', 'version'], cwd=temporary, env=env, text=True).strip()
-    fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
+    host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
-    return fingerprint, fogcast, cold_build.selected_cores(configuration), env
+    return image_fingerprint, host_fingerprint, fogcast, cold_build.selected_cores(configuration), env
 
 
 
@@ -359,13 +360,18 @@ def provenance_for(root, fogcast, cold):
 
 
 def prepare(root, profile):
-    fingerprint, fogcast, cores, env = select(root, profile)
+    image_fingerprint, host_fingerprint, fogcast, cores, env = select(root, profile)
     output = root / 'out' / profile
-    cold = cold_build.load_verified_image(output, fingerprint)
-    host = cold_build.load_verified_host(output, fingerprint)
-    if host['fes_revision'] != cold['fes_revision']:
+    cold = cold_build.load_verified_image(output, image_fingerprint)
+    host = cold_build.load_verified_host(output, host_fingerprint)
+    # Host and image receipts have independent input keys. Preserve both
+    # provenance revisions instead of relabelling a reused host artifact or
+    # requiring an unrelated image/runtime change to rebuild it.
+    current_fes_revision = cold_build.git(root, 'rev-parse', 'HEAD')
+    if (host['fes_revision'] != cold['fes_revision']
+            and cold['fes_revision'] != current_fes_revision):
         raise ValueError('cold host and image artifact revisions differ; run make rebuild and make verify')
-    cold.update(host)
+    cold.update({key: value for key, value in host.items() if key != 'fes_revision'})
     try:
         child_manifest = output / 'manifest.tsv'
         if not stat.S_ISREG(child_manifest.lstat().st_mode):

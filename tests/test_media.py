@@ -94,7 +94,7 @@ class MediaTests(unittest.TestCase):
         (self.output / 'idle.rbf').write_bytes(b'idle')
         (self.output / 'fogcast').write_bytes(b'host cli')
         (self.output / 'fogcast-api').write_bytes(b'host api')
-        cold_build.write_receipt(self.output, 'host', 'cold-fp', ['fogcast', 'fogcast-api'])
+        cold_build.write_receipt(self.output, 'host', 'host-fp', ['fogcast', 'fogcast-api'])
         (self.output / 'manifest.tsv').write_text('verified child manifest')
         (self.output / 'qemu-smoke.log').write_text('smoke')
         sha = cold_build.digest(self.output / 'linux.img')
@@ -106,7 +106,7 @@ class MediaTests(unittest.TestCase):
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
-        patch.object(media, 'select', return_value=('cold-fp', self.fogcast, ('megadrive', 'pong', 'snes', 'nes'), {})).start()
+        patch.object(media, 'select', return_value=('cold-fp', 'host-fp', self.fogcast, ('megadrive', 'pong', 'snes', 'nes'), {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.
@@ -391,10 +391,27 @@ class MediaTests(unittest.TestCase):
                 media.verify(self.root, runner=self.runner)
             path.write_bytes(original)
         (self.output / 'fogcast-api').write_bytes(b'changed host')
-        cold_build.write_receipt(self.output, 'host', 'cold-fp', ['fogcast', 'fogcast-api'])
+        cold_build.write_receipt(self.output, 'host', 'host-fp', ['fogcast', 'fogcast-api'])
         refreshed = media.verify(self.root, runner=self.runner)
         self.assertEqual(refreshed.image.read_bytes(), first.image.read_bytes())
         self.assertNotEqual(refreshed.generation, first.generation)
+
+    def test_reused_host_keeps_separate_provenance_from_new_image(self):
+        first = self.build()
+        host_receipt = json.loads((self.output / 'host.json').read_text())
+        host_receipt['fes_revision'] = '0' * 40
+        (self.output / 'host.json').write_text(json.dumps(host_receipt))
+
+        refreshed = media.verify(self.root, runner=self.runner)
+
+        self.assertEqual(refreshed.image.read_bytes(), first.image.read_bytes())
+        self.assertNotEqual(refreshed.generation, first.generation)
+        manifest = load_manifest(refreshed.generation / 'fes-media.toml')
+        self.assertEqual(manifest['fes']['revision'], 'f' * 40)
+        receipt = json.loads((refreshed.generation / 'media.json').read_text())
+        self.assertEqual(receipt['inputs']['cold']['fes_revision'], 'f' * 40)
+        self.assertEqual(receipt['inputs']['cold']['host_receipt_sha256'],
+                         cold_build.digest(self.output / 'host.json'))
 
     def test_published_manifest_promotes_only_successful_child_checks(self):
         before_child = []

@@ -343,8 +343,8 @@ def verified_inputs(root,profile):
     from media_inputs import MediaLock,resolve_payloads
     if media.cold_build.git(root,'status','--porcelain','--untracked-files=all','--ignore-submodules=all'):
         raise ValueError('appliance release requires a clean committed FES checkout')
-    fingerprint,fogcast,_,env=media.select(root,profile)
-    cold=media.cold_build.load_verified_image(root/'out'/profile,fingerprint)
+    image_fingerprint,_host_fingerprint,fogcast,_,env=media.select(root,profile)
+    cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint)
     lock=MediaLock.load(root/'boot-media.lock.toml')
     cache=root/'out/work/boot-media'/('image-creator-'+lock.commit)
     if not cache.is_dir(): raise ValueError('locked boot payload cache is absent; provision it separately')

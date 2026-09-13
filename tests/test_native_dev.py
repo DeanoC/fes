@@ -67,6 +67,14 @@ class NativeDevTest(unittest.TestCase):
             subprocess.run(['git', '-C', str(image), 'add', str(path)], check=True)
             self.assertNotEqual(before, native_dev.base_key(image, fogcast))
 
+            non_build_test = image / 'scripts/tests/diagnostic_test.sh'
+            non_build_test.parent.mkdir(parents=True)
+            non_build_test.write_text('test')
+            subprocess.run(['git', '-C', str(image), 'add', str(non_build_test)], check=True)
+            filtered = native_dev.base_key(image, fogcast)
+            non_build_test.write_text('changed test')
+            self.assertEqual(filtered, native_dev.base_key(image, fogcast))
+
     def test_seed_requires_matching_sources_and_intact_cold_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
