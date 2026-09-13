@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the pinned native system using the FES image recipe."""
 import argparse
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
@@ -49,7 +50,7 @@ IMAGE_RECIPE_NAMES = (
 )
 IMAGE_RECIPE_DIRS = ("buildroot", "containers/target-image", "scripts")
 HOST_RECIPE_FILES = tuple(ROOT / name for name in (
-    "Makefile", "scripts/build.py", "scripts/environment.py"))
+    "scripts/build.py", "scripts/environment.py"))
 
 
 def image_recipe_files(root=ROOT):
@@ -568,6 +569,19 @@ def build_bundles(revisions, env, cores, force=False, diagnostics=None):
             for core in cores}
 
 
+@contextmanager
+def locked_diagnostics(root, output, action):
+    """Acquire the parent lock before creating or updating diagnostics."""
+    lock_path = Path(root) / "out/build.lock"
+    with lock_path.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("another parent build is running in this workspace") from None
+        with BuildDiagnostics(output, action) as diagnostics:
+            yield lock, diagnostics
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
@@ -601,12 +615,7 @@ def main():
     output = ROOT / "out" / args.profile
     output.mkdir(parents=True, exist_ok=True)
     # Serialize this workspace only; do not share the child's default output volume.
-    with BuildDiagnostics(output, args.action) as diagnostics, \
-            (ROOT / "out/build.lock").open("w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise ValueError("another parent build is running in this workspace")
+    with locked_diagnostics(ROOT, output, args.action) as (lock, diagnostics):
         with diagnostics.measure("source staging"):
             restore = ("build/native-runtime.inputs.lock.toml",) if args.profile == "native-source-dev" else ()
             fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile, restore)

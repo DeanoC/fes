@@ -18,8 +18,9 @@
 - Diagnostic records contain stage labels, status, static reasons and elapsed seconds only; never record secret environment values or full commands.
 - Host keys retain the FogCast commit, Go version, effective OS/architecture, version/build options and actual host recipe; binary embedded identity must remain bound.
 - Existing `reusable(...)` remains a boolean API with equivalent valid-output semantics; old receipts may intentionally miss after the key split.
-- Media and appliance verification must use the new host key where they consume host artifacts while continuing to require strict image, host, manifest and release evidence. Media preserves image provenance and binds the separately preserved host provenance through the exact host-receipt digest when a validated host is reused.
+- Media and appliance verification must use the new host key where they consume host artifacts while continuing to require strict image, host, manifest and release evidence. Media preserves image provenance in the manifest and binds the separately preserved host provenance through `host_fes_revision` plus the exact host-receipt digest in the nested media receipt; host revision remains receipt-only because host binaries are not embedded in the disk image.
 - Native development base-key changes are limited to excluding the non-build `image/scripts/tests/` tree; actual Buildroot inputs remain keyed.
+- The slice edits key-bound recipe runners (`scripts/build.py` participates in the cold image recipe and `scripts/native_dev.py` is bound by the native-development base runner digest), so existing image and native-development base artifacts deliberately miss once when this revision is first integrated; subsequent invocations reuse matching keys. The diagnostic sidecar remains excluded, so diagnostic-only edits do not rotate those artifacts.
 - No shared cache volumes, source moves, FPGA BUILD_ID changes, submodule pin changes, cold compiler/image builds or deployment are in scope.
 
 ---
@@ -144,7 +145,7 @@ continue to identify the unchanged receipt behavior.
 - Modify: `scripts/build.py:24-51,84-129,138-164`
 
 **Interfaces:**
-- `HOST_RECIPE_FILES`: parent files that directly define host invocation and environment normalization; include `Makefile`, `scripts/build.py` and `scripts/environment.py`.
+- `HOST_RECIPE_FILES`: parent files that directly define host invocation and environment normalization; include `scripts/build.py` and `scripts/environment.py`, but not the profile-dispatching parent `Makefile`.
 - `host_fingerprint(revisions, profile, toolchain) -> (fingerprint, info)`: include only `sources.FogCast`, host-prefixed profile options plus `version`, the effective Go version string, and `HOST_RECIPE_FILES`.
 - `reuse_status(output, kind, fingerprint) -> (bool, str)`: return static, non-sensitive explanations while validating the same receipt/output digest relationship.
 - `reusable(output, kind, fingerprint) -> bool`: return `reuse_status(...)[0]` and remain usable by all existing callers.
@@ -225,7 +226,7 @@ Finish the diagnostic in the existing parent action `try/finally`, selecting
 `failed` when an exception escapes and `success` on normal completion. Keep
 existing exception propagation and receipt publication order unchanged.
 
-- [ ] **Step 4: Instrument native development without changing artifact keys.**
+- [ ] **Step 4: Instrument native development without changing artifact keys after the one-time rollout rotation.**
 
 Pass the existing diagnostics object into `native_dev.build_development` (with
 an optional default for unit callers). Record the development receipt hit/miss

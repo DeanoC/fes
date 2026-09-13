@@ -54,6 +54,8 @@ class ReceiptTest(unittest.TestCase):
                                    'misteross': 'f' * 40, 'mister-packages': '0' * 40}),
                 profile, 'go1')
         self.assertEqual(before, changed_system)
+        self.assertEqual({path.relative_to(build.ROOT).as_posix() for path in build.HOST_RECIPE_FILES},
+                         {'scripts/build.py', 'scripts/environment.py'})
         self.assertEqual(info['sources'], {'FogCast': 'a' * 40})
         self.assertEqual(info['profile'], profile)
 

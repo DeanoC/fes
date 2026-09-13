@@ -366,12 +366,13 @@ def prepare(root, profile):
     host = cold_build.load_verified_host(output, host_fingerprint)
     # Host and image receipts have independent input keys. Preserve both
     # provenance revisions instead of relabelling a reused host artifact or
-    # requiring an unrelated image/runtime change to rebuild it.
-    current_fes_revision = cold_build.git(root, 'rev-parse', 'HEAD')
-    if (host['fes_revision'] != cold['fes_revision']
-            and cold['fes_revision'] != current_fes_revision):
-        raise ValueError('cold host and image artifact revisions differ; run make rebuild and make verify')
+    # requiring an unrelated image/runtime change to rebuild it. The nested
+    # media receipt keeps host_fes_revision as receipt-only provenance: the
+    # manifest's fes.revision identifies the image/rootfs, and the host
+    # binaries are not embedded in the disk image. host_receipt_sha256 binds
+    # the separately validated host bytes.
     cold.update({key: value for key, value in host.items() if key != 'fes_revision'})
+    cold['host_fes_revision'] = host['fes_revision']
     try:
         child_manifest = output / 'manifest.tsv'
         if not stat.S_ISREG(child_manifest.lstat().st_mode):
