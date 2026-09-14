@@ -107,3 +107,39 @@
 - Scope boundary: no parent checkout, other worktree, image shell suite,
   Quartus, cold image build, hardware, push, PR, merge, or Task 2 work was
   performed.
+
+## Task 2 — completed
+
+- Implementation commits: 931fdd7 and ddcc3e5.
+- FogCast now resolves the selected format-2 package through the generalized
+  selector; the FES parent binds the selector to fes.pong, fes.zx81 and
+  fes.coleco descriptors and preserves the exact package identity.
+- Focused FogCast tests and native-package-only_test.sh passed.
+- Independent review: SPEC PASS / QUALITY PASS; no P1, P2 or P3 findings.
+
+## Task 3 — completed
+
+- Implementation commits: 4a2269e, 5b656c8 and c09a6c8.
+- The default profile and current guides describe the ordered closed
+  Pong/ZX81/Coleco package-only set, HIP/nextpnr as the normal FES route, and
+  Quartus as a check/oracle lane.
+- Focused profile/image tests: Ran 55; OK.
+- Independent review after the documentation repair: SPEC PASS / QUALITY
+  PASS; no P1, P2 or P3 findings.
+
+## Task 4 — verification in progress
+
+- The first full Python run exposed a stale one-package media fixture after
+  the default profile became a three-package set: FAILED (failures=6,
+  errors=35, skipped=36). The root cause was traced to the fixture's
+  one-record inputs.json, not production cache or publication logic.
+- The fixture repair creates and fingerprints Pong/ZX81/Coleco while keeping
+  explicit single- and two-package compatibility cases.
+- Final checks so far: media 62 tests PASS; full Python suite 289 tests PASS
+  with 36 skipped; make -C image test PASS; make check, Python syntax
+  compilation and git diff --check PASS.
+- Isolated resolver evidence recorded one miss and one exact hit for each of
+  Pong, ZX81 and Coleco; all three report router=HIP, the shared toolchain
+  cache root, miss_builds=1 and hit_builds=0.
+- No cold release build, Quartus run, physical hardware test, push, PR or
+  merge was performed.
