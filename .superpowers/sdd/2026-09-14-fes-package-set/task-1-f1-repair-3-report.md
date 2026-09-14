@@ -6,7 +6,7 @@
 - Branch: `feat/fes-package-set`
 - Base: `28c8df5` (`docs: finalize FES package recovery handoff`)
 - Scope: P1 completed-backup cleanup only; Task 2 was not started.
-- Implementation commit: recorded after the commit below and finalized in this report.
+- Implementation commit: `4c9caee` (`fix: make FES backup cleanup recoverable`).
 
 ## TDD evidence
 
