@@ -102,6 +102,7 @@ mister_packages_revision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 install_path = '/usr/share/mister-runtime/core-packages/$package_id'
 SELECTION
 chmod 0444 "$package_selection"
+export FES_PACKAGE_IDS=fes.pong
 export FES_PONG_PACKAGE_DIR=$package FES_PONG_PACKAGE_SELECTION=$package_selection
 cat > "$fixture/container" <<'CONTAINER'
 #!/bin/sh

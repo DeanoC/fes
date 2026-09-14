@@ -442,6 +442,7 @@ verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/na
 package_id=b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0
 package_source=$fixture/fes-pong-package
 package_input_selection=$fixture/fes-pong.package-input-selection.toml
+export FES_PACKAGE_IDS=fes.pong
 mkdir "$package_source"
 cp "$fogcast_src/internal/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml" \
   "$package_source/manifest.toml"

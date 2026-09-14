@@ -497,6 +497,7 @@ grep -Fqx 'megadrive_toolchain=fixture-toolchain' \
 package_id=b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0
 package_source=$native_fixture/fes-pong-package
 package_selection=$native_fixture/fes-pong.package-selection.toml
+export FES_PACKAGE_IDS=fes.pong
 mkdir "$package_source"
 cp "$fogcast_src/internal/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml" "$package_source/manifest.toml"
 cp "$fogcast_src/internal/corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf" "$package_source/core.rbf"

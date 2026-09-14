@@ -13,6 +13,23 @@ case "$native_mode" in
 esac
 "$repo/scripts/native-extra-cores.sh" validate
 
+selected_package_cores() {
+  remaining=${FES_PACKAGE_IDS:-}
+  while :; do
+    case "$remaining" in
+      *,*) package_id=${remaining%%,*}; remaining=${remaining#*,} ;;
+      *) package_id=$remaining; remaining= ;;
+    esac
+    case "$package_id" in
+      fes.pong) printf '%s\n' pong ;;
+      fes.zx81) printf '%s\n' zx81 ;;
+      fes.coleco) printf '%s\n' coleco ;;
+      *) exit 2 ;;
+    esac
+    [ -n "$remaining" ] || break
+  done
+}
+
 usage() {
   printf 'usage: build-target-image.sh prod|dev|native-dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
@@ -417,11 +434,14 @@ if [ "$first_sha" != "$second_sha" ]; then
 fi
 
 if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
-  cmp "$output_root/work-1-$variant/fes-pong.package-selection.toml" \
-    "$output_root/work-2-$variant/fes-pong.package-selection.toml" || {
-    printf '%s\n' 'build-target-image: FES package selection differs between reproducible outputs' >&2
-    exit 1
-  }
+  package_cores=$(selected_package_cores)
+  for package_core in $package_cores; do
+    cmp "$output_root/work-1-$variant/fes-$package_core.package-selection.toml" \
+      "$output_root/work-2-$variant/fes-$package_core.package-selection.toml" || {
+      printf 'build-target-image: FES %s package selection differs between reproducible outputs\n' "$package_core" >&2
+      exit 1
+    }
+  done
   for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
     for stale in megadrive.rbf megadrive-rbf.toml megadrive.selection.toml \
       pong.rbf pong-rbf.toml pong.selection.toml snes.rbf snes-rbf.toml \
@@ -474,11 +494,7 @@ trap '/bin/rm -f "$image_tmp" "$evidence_tmp" "$selection_final_tmp"' EXIT INT T
 printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
   "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
 if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
-  selection_final_tmp=$final_dir/fes-pong.package-selection.toml.new.$$
-  /bin/cp "$output_root/work-2-$variant/fes-pong.package-selection.toml" "$selection_final_tmp"
-  /bin/chmod 0444 "$selection_final_tmp"
-  /bin/mv "$selection_final_tmp" "$final_dir/fes-pong.package-selection.toml"
-  selection_final_tmp=
+  "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
 elif [ "$variant" = native-dev ]; then
   selection_final_tmp=$final_dir/megadrive.selection.toml.new.$$
   /bin/cp "$output_root/work-2-$variant/megadrive.selection.toml" "$selection_final_tmp"

@@ -800,6 +800,7 @@ NATIVE_RUNTIME_EXPECTED_COMMIT=$runtime_commit \
 NATIVE_RUNTIME_INPUT_LOCK=$lock \
 NATIVE_RUNTIME_IDLE_FILE=$idle \
 NATIVE_RUNTIME_MEGADRIVE_FILE=$megadrive \
+FOGCAST_DIR="$repo/../sources/FogCast" \
 LIBMISTER_RUNTIME_DIR=$runtime_source \
 TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
   sh "$container" run true
@@ -842,6 +843,7 @@ NATIVE_RUNTIME_INPUT_LOCK=$lock \
 NATIVE_RUNTIME_IDLE_FILE=$idle \
 NATIVE_RUNTIME_MEGADRIVE_FILE=$megadrive \
 NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=$upstream_selection \
+FOGCAST_DIR="$repo/../sources/FogCast" \
 LIBMISTER_RUNTIME_DIR=$runtime_source \
 TARGET_IMAGE_CONTAINER_RUNTIME=$fake_container \
 MEGADRIVE_RBF_SOURCE=upstream \

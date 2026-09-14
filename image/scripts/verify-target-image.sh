@@ -63,6 +63,54 @@ register_inspection_root() {
 inspection_package_id() {
 	inspection_root=$1
 	package_root=$inspection_root/usr/share/mister-runtime/core-packages
+	if [ "$native_mode" = package-only ]; then
+		[ -d "$package_root" ] && [ ! -L "$package_root" ] || return 1
+		expected_ids=
+		expected_count=0
+		remaining=${FES_PACKAGE_IDS:-}
+		[ -n "$remaining" ] || return 1
+		while :; do
+			case "$remaining" in
+				*,*) package_id_name=${remaining%%,*}; remaining=${remaining#*,} ;;
+				*) package_id_name=$remaining; remaining= ;;
+			esac
+			case "$package_id_name" in
+				fes.pong) package_selection_path=${FES_PONG_PACKAGE_SELECTION:-} ;;
+				fes.zx81) package_selection_path=${FES_ZX81_PACKAGE_SELECTION:-} ;;
+				fes.coleco) package_selection_path=${FES_COLECO_PACKAGE_SELECTION:-} ;;
+				*) return 1 ;;
+			esac
+			[ -f "$package_selection_path" ] && [ ! -L "$package_selection_path" ] || return 1
+			package_id=$(awk -v wanted=package_id '
+				$0 ~ "^[[:space:]]*" wanted "[[:space:]]*=" {
+					value=$0
+					sub(/^[^=]*=[[:space:]]*/, "", value)
+					quote=substr(value, 1, 1)
+					if ((quote == "\"" || quote == sprintf("%c", 39)) &&
+						    substr(value, length(value), 1) == quote) {
+						value=substr(value, 2, length(value) - 2)
+					}
+					print value
+					exit
+				}
+			' "$package_selection_path")
+			printf '%s\n' "$package_id" | grep -Eq '^[0-9a-f]{64}$' || return 1
+			case " $expected_ids " in *" $package_id "*) return 1 ;; esac
+			expected_ids="$expected_ids $package_id"
+			expected_count=$((expected_count + 1))
+			[ -n "$remaining" ] || break
+		done
+		expected_ids=${expected_ids# }
+		package_entries=$(find -P "$package_root" -mindepth 1 -maxdepth 1 -printf '%f\n')
+		package_count=$(printf '%s\n' "$package_entries" | sed '/^$/d' | wc -l | tr -d ' ')
+		[ "$package_count" -eq "$expected_count" ] || return 1
+		for package_entry in $package_entries; do
+			case " $expected_ids " in *" $package_entry "*) ;; *) return 1 ;; esac
+			[ -d "$package_root/$package_entry" ] && [ ! -L "$package_root/$package_entry" ] || return 1
+		done
+		printf '%s\n' "$package_entries"
+		return 0
+	fi
 	if [ ! -e "$package_root" ] && [ ! -L "$package_root" ]; then
 		return 0
 	fi
@@ -263,7 +311,6 @@ verify_root() {
 /usr/sbin/mister-agent
 /usr/share/mister-runtime/idle.rbf
 /usr/share/mister-runtime/core-packages
-/usr/share/mister-runtime/selections/fes-pong.package.toml
 /usr/share/mister-runtime/build-inputs
 /etc/init.d/S20mister-network
 /etc/init.d/S40mister-runtime
