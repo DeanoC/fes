@@ -19,6 +19,30 @@ const corePackageSelectionName = "fes-pong.package-selection.toml"
 
 var lowerRevision = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+func packageCoreName(coreID string) (string, error) {
+	switch coreID {
+	case "fes.pong":
+		return "pong", nil
+	case "fes.zx81":
+		return "zx81", nil
+	case "fes.coleco":
+		return "coleco", nil
+	default:
+		return "", fmt.Errorf("unsupported format-2 package core %q", coreID)
+	}
+}
+
+func packageSelectionNameForCore(coreID string) (string, error) {
+	coreName, err := packageCoreName(coreID)
+	if err != nil {
+		return "", err
+	}
+	if coreName == "pong" {
+		return corePackageSelectionName, nil
+	}
+	return "fes-" + coreName + ".package-selection.toml", nil
+}
+
 // CorePackageSelection is the closed producer/package projection consumed by
 // native image assembly. The package manifest remains the descriptor authority.
 type CorePackageSelection struct {
@@ -35,7 +59,21 @@ type CorePackageSelection struct {
 // PrepareCorePackageSelection pins the selected record and package members,
 // validates their combined identity, and publishes one sealed cache pair.
 func PrepareCorePackageSelection(directory, record, cache, output string) (CorePackageSelection, error) {
+	return PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong")
+}
+
+// PrepareCorePackageSelectionForCore pins one selected record/package pair
+// while binding it to the expected format-2 core ID.
+func PrepareCorePackageSelectionForCore(directory, record, cache, output, expectedCoreID string) (CorePackageSelection, error) {
 	var selection CorePackageSelection
+	coreName, err := packageCoreName(expectedCoreID)
+	if err != nil {
+		return selection, err
+	}
+	selectionName, err := packageSelectionNameForCore(expectedCoreID)
+	if err != nil {
+		return selection, err
+	}
 	if err := validateAbsoluteDestination(directory, "package directory"); err != nil {
 		return selection, err
 	}
@@ -48,10 +86,10 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 	if err := validateAbsoluteDestination(output, "output"); err != nil {
 		return selection, err
 	}
-	if filepath.Clean(output) != filepath.Join(filepath.Clean(cache), corePackageSelectionName) {
+	if filepath.Clean(output) != filepath.Join(filepath.Clean(cache), selectionName) {
 		return selection, fmt.Errorf("package selection output must use the closed cache filename")
 	}
-	recordBytes, selection, err := readCorePackageSelection(record, true)
+	recordBytes, selection, err := readCorePackageSelection(record, true, expectedCoreID)
 	if err != nil {
 		return CorePackageSelection{}, err
 	}
@@ -63,7 +101,7 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 		return CorePackageSelection{}, fmt.Errorf("package cache must be a non-symlink directory")
 	}
 	packageParent := filepath.Join(cache, "core-packages")
-	temporaryRoot, err := os.MkdirTemp(cache, ".fes-pong-package-root.*")
+	temporaryRoot, err := os.MkdirTemp(cache, ".fes-"+coreName+"-package-root.*")
 	if err != nil {
 		return CorePackageSelection{}, fmt.Errorf("create temporary package root: %w", err)
 	}
@@ -91,7 +129,7 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 	if err := os.Chmod(temporary, 0o555); err != nil {
 		return CorePackageSelection{}, fmt.Errorf("seal package directory: %w", err)
 	}
-	recordTemporary, err := os.CreateTemp(cache, ".fes-pong-selection.*")
+	recordTemporary, err := os.CreateTemp(cache, ".fes-"+coreName+"-selection.*")
 	if err != nil {
 		return CorePackageSelection{}, fmt.Errorf("create temporary selection: %w", err)
 	}
@@ -116,7 +154,7 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 	if err := os.Chmod(recordTemporaryPath, 0o444); err != nil {
 		return CorePackageSelection{}, fmt.Errorf("seal package selection: %w", err)
 	}
-	if _, _, err := InspectCorePackageSelection(temporary, recordTemporaryPath); err != nil {
+	if _, _, err := InspectCorePackageSelectionForCore(temporary, recordTemporaryPath, expectedCoreID); err != nil {
 		return CorePackageSelection{}, fmt.Errorf("verify staged package selection: %w", err)
 	}
 	if err := replacePackagePair(temporaryRoot, recordTemporaryPath, packageParent, output); err != nil {
@@ -130,14 +168,25 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 // VerifyCorePackageSelection re-reads one sealed directory/record pair and
 // requires the closed selection to match the package descriptor and bytes.
 func VerifyCorePackageSelection(directory, record string) error {
-	_, _, err := InspectCorePackageSelection(directory, record)
+	return VerifyCorePackageSelectionForCore(directory, record, "fes.pong")
+}
+
+// VerifyCorePackageSelectionForCore re-reads one pair with an expected core ID.
+func VerifyCorePackageSelectionForCore(directory, record, expectedCoreID string) error {
+	_, _, err := InspectCorePackageSelectionForCore(directory, record, expectedCoreID)
 	return err
 }
 
 // InspectCorePackageSelection verifies one sealed directory/record pair and
 // returns its closed selection plus the SHA-256 of the exact record bytes.
 func InspectCorePackageSelection(directory, record string) (CorePackageSelection, string, error) {
-	recordBytes, selection, err := readCorePackageSelection(record, true)
+	return InspectCorePackageSelectionForCore(directory, record, "fes.pong")
+}
+
+// InspectCorePackageSelectionForCore verifies one pair and binds its record
+// and manifest to the expected format-2 core ID.
+func InspectCorePackageSelectionForCore(directory, record, expectedCoreID string) (CorePackageSelection, string, error) {
+	recordBytes, selection, err := readCorePackageSelection(record, true, expectedCoreID)
 	if err != nil {
 		return CorePackageSelection{}, "", err
 	}
@@ -158,7 +207,10 @@ func InspectCorePackageSelection(directory, record string) (CorePackageSelection
 	return selection, fmt.Sprintf("%x", digest), nil
 }
 
-func readCorePackageSelection(path string, sealed bool) ([]byte, CorePackageSelection, error) {
+func readCorePackageSelection(path string, sealed bool, expectedCoreID string) ([]byte, CorePackageSelection, error) {
+	if _, err := packageCoreName(expectedCoreID); err != nil {
+		return nil, CorePackageSelection{}, err
+	}
 	file, info, err := openRegularNoFollow(path, sealed)
 	if err != nil {
 		return nil, CorePackageSelection{}, fmt.Errorf("open package selection: %w", err)
@@ -177,7 +229,7 @@ func readCorePackageSelection(path string, sealed bool) ([]byte, CorePackageSele
 	if err := decoder.Decode(&selection); err != nil {
 		return nil, CorePackageSelection{}, fmt.Errorf("decode package selection: %w", err)
 	}
-	if selection.Format != 2 || selection.Kind != "core-package" || selection.CoreID != "fes.pong" ||
+	if selection.Format != 2 || selection.Kind != "core-package" || selection.CoreID != expectedCoreID ||
 		!validSHA256(selection.PackageID) || !validSHA256(selection.PayloadSHA256) ||
 		!lowerRevision.MatchString(selection.MisterossRevision) ||
 		!lowerRevision.MatchString(selection.MisterPackagesRevision) ||

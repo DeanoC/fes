@@ -12,6 +12,10 @@ import (
 )
 
 func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection) {
+	return packageSelectionFixtureForCore(t, "fes.pong")
+}
+
+func packageSelectionFixtureForCore(t *testing.T, coreID string) (string, string, CorePackageSelection) {
 	t.Helper()
 	directory := filepath.Join(t.TempDir(), "package")
 	if err := os.Mkdir(directory, 0o700); err != nil {
@@ -22,6 +26,9 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 			map[string]string{"manifest.toml": "manifests/valid-basic.toml", "core.rbf": "payloads/fes-fixture.rbf"}[name]))
 		if err != nil {
 			t.Fatal(err)
+		}
+		if name == "manifest.toml" {
+			data = []byte(strings.Replace(string(data), "fes.pong", coreID, 1))
 		}
 		if err := os.WriteFile(filepath.Join(directory, name), data, 0o444); err != nil {
 			t.Fatal(err)
@@ -36,20 +43,64 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 		t.Fatal(err)
 	}
 	selection := CorePackageSelection{
-		Format: 2, Kind: "core-package", CoreID: "fes.pong", PackageID: inspection.PackageID,
+		Format: 2, Kind: "core-package", CoreID: coreID, PackageID: inspection.PackageID,
 		PayloadSHA256:          inspection.Descriptor.Payload.SHA256,
 		MisterossRevision:      inspection.Descriptor.Build.Revision,
 		MisterPackagesRevision: strings.Repeat("a", 40),
 		InstallPath:            "/usr/share/mister-runtime/core-packages/" + inspection.PackageID,
 	}
-	record := filepath.Join(t.TempDir(), "fes-pong.package-selection.toml")
-	data := fmt.Sprintf("format = 2\nkind = 'core-package'\ncore_id = 'fes.pong'\npackage_id = '%s'\npayload_sha256 = '%s'\nmisteross_revision = '%s'\nmister_packages_revision = '%s'\ninstall_path = '%s'\n",
-		selection.PackageID, selection.PayloadSHA256, selection.MisterossRevision,
+	record := filepath.Join(t.TempDir(), corePackageSelectionRecordNameForTest(coreID))
+	data := fmt.Sprintf("format = 2\nkind = 'core-package'\ncore_id = '%s'\npackage_id = '%s'\npayload_sha256 = '%s'\nmisteross_revision = '%s'\nmister_packages_revision = '%s'\ninstall_path = '%s'\n",
+		coreID, selection.PackageID, selection.PayloadSHA256, selection.MisterossRevision,
 		selection.MisterPackagesRevision, selection.InstallPath)
 	if err := os.WriteFile(record, []byte(data), 0o444); err != nil {
 		t.Fatal(err)
 	}
 	return directory, record, selection
+}
+
+func corePackageSelectionRecordNameForTest(coreID string) string {
+	switch coreID {
+	case "fes.pong":
+		return "fes-pong.package-selection.toml"
+	case "fes.zx81":
+		return "fes-zx81.package-selection.toml"
+	case "fes.coleco":
+		return "fes-coleco.package-selection.toml"
+	default:
+		panic("unsupported test core ID")
+	}
+}
+
+func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
+	for _, coreID := range []string{"fes.pong", "fes.zx81", "fes.coleco"} {
+		t.Run(coreID, func(t *testing.T) {
+			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
+			cache := t.TempDir()
+			output := filepath.Join(cache, corePackageSelectionRecordNameForTest(coreID))
+			got, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, coreID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != selection {
+				t.Fatalf("selection=%+v want=%+v", got, selection)
+			}
+			published := filepath.Join(cache, "core-packages", selection.PackageID)
+			t.Cleanup(func() { _ = os.Chmod(published, 0o755) })
+			if err := VerifyCorePackageSelectionForCore(published, output, coreID); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestCorePackageSelectionRejectsExpectedCoreMismatch(t *testing.T) {
+	directory, record, _ := packageSelectionFixtureForCore(t, "fes.zx81")
+	cache := t.TempDir()
+	output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.zx81"))
+	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err == nil {
+		t.Fatal("selection accepted with a mismatched expected core ID")
+	}
 }
 
 func TestCorePackageSelectionPublishesAndVerifiesExactClosedPair(t *testing.T) {

@@ -221,7 +221,7 @@ func TestVerifyPackagePrintsCanonicalBuildInputs(t *testing.T) {
 	}
 	wantRecordSHA := fmt.Sprintf("%x", sha256.Sum256(recordBytes))
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"verify-package", "--package", directory, "--selection", record, "--print-inputs"}, &stdout, &stderr, nil); code != 0 {
+	if code := run([]string{"verify-package", "--core-id", "fes.pong", "--package", directory, "--selection", record, "--print-inputs"}, &stdout, &stderr, nil); code != 0 {
 		t.Fatalf("run returned %d: %s", code, stderr.String())
 	}
 	want := fmt.Sprintf("fes_pong_package_selection_sha256=%s\nfes_pong_package_id=%s\nfes_pong_payload_sha256=%s\nfes_pong_misteross_revision=%s\nfes_pong_mister_packages_revision=%s\nfes_pong_install_path=%s\n",
