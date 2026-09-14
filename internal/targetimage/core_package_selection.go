@@ -395,6 +395,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 	packageBackup := filepath.Join(backupRoot, "current-package")
 	previousBackup := filepath.Join(backupRoot, "previous-package")
 	recordBackup := filepath.Join(backupRoot, "selection")
+	currentMadeWritable, previousMadeWritable := false, false
 	currentMoved, previousMoved, recordMoved, packagePublished, recordPublished := false, false, false, false, false
 	rollback := func() {
 		if recordPublished {
@@ -409,9 +410,13 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 		if currentMoved {
 			_ = os.Rename(packageBackup, currentPackage)
 			_ = os.Chmod(currentPackage, 0o555)
+		} else if currentMadeWritable {
+			_ = os.Chmod(currentPackage, 0o555)
 		}
 		if previousMoved {
 			_ = os.Rename(previousBackup, previousPackage)
+			_ = os.Chmod(previousPackage, 0o555)
+		} else if previousMadeWritable {
 			_ = os.Chmod(previousPackage, 0o555)
 		}
 		_ = removePath(backupRoot)
@@ -429,6 +434,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 			rollback()
 			return fmt.Errorf("prepare previous package: %w", err)
 		}
+		currentMadeWritable = true
 		if err := os.Rename(currentPackage, packageBackup); err != nil {
 			rollback()
 			return fmt.Errorf("retain previous package: %w", err)
@@ -441,6 +447,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 				rollback()
 				return fmt.Errorf("prepare superseded package: %w", err)
 			}
+			previousMadeWritable = true
 			if err := os.Rename(previousPackage, previousBackup); err != nil {
 				rollback()
 				return fmt.Errorf("retain superseded package: %w", err)

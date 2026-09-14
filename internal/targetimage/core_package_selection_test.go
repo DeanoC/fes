@@ -135,6 +135,32 @@ func TestCorePackageSelectionPreservesOtherCorePackages(t *testing.T) {
 	}
 }
 
+func TestCorePackageSelectionFailedReplacementResealsCurrentPackage(t *testing.T) {
+	directory, record, selection := packageSelectionFixtureForCore(t, "fes.pong")
+	cache := t.TempDir()
+	output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.pong"))
+	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err != nil {
+		t.Fatal(err)
+	}
+	packageRoot := filepath.Join(cache, "core-packages")
+	if err := os.Chmod(packageRoot, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = filepath.Walk(cache, func(path string, _ os.FileInfo, _ error) error { _ = os.Chmod(path, 0o755); return nil })
+	})
+	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err == nil {
+		t.Fatal("replacement succeeded with a non-writable package root")
+	}
+	info, err := os.Stat(filepath.Join(packageRoot, selection.PackageID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o555 {
+		t.Fatalf("failed replacement left package mode %o, want 555", info.Mode().Perm())
+	}
+}
+
 func TestCorePackageSelectionPublishesAndVerifiesExactClosedPair(t *testing.T) {
 	directory, record, selection := packageSelectionFixture(t)
 	cache := t.TempDir()
