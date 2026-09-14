@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast/host/tenfoot"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func init() {

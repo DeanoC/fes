@@ -25,7 +25,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -40,8 +40,12 @@ test: build-agent test-ui
 	sh scripts/tests/native-runtime-smoke_test.sh
 
 test-ui:
+	$(MAKE) test-ui-boundary
 	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
 	node --test internal/hostapi/ui_browser_test.js
+
+test-ui-boundary:
+	sh scripts/tests/ui-boundary_test.sh
 
 test-ui-browser:
 	node --test internal/hostapi/ui_browser_test.js

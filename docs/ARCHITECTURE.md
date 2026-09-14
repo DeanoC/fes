@@ -70,6 +70,19 @@ invents host event schema or joins through the launcher listener.
 These are simple process boundaries on a local, disposable development kit;
 they are not a distributed ownership, failover, or recovery protocol.
 
+### Source ownership
+
+FogCast keeps the host applications, host services, and target agent in one Go
+module, but the source tree names their ownership explicitly. The ten-foot UI
+and kit launcher live under `ui/tenfoot` and `ui/kitlauncher`; their Go package
+names remain `tenfoot` and `kitlauncher` for compatibility. `internal/hostapi`,
+`internal/mediasession`, and related host packages own host-facing services,
+while `internal/agent` owns target HTTP/cache coordination and
+`internal/mister` owns local MiSTer integration. UI packages may consume host
+contracts, input, and protocol types, but do not own target handlers, runtime
+lifecycle, image assembly, or FPGA builds. The FES parent selects the FogCast
+revision and owns image integration and release evidence.
+
 Target `GET /v1/health` may include an `artifacts` object: the SHA-256 of the
 installed `/usr/share/mister-runtime/build-inputs` record, the runtime commit,
 agent revision (stamped at `make build-agent`), agent and kit digests from that record, idle and catalog core digests, the
@@ -469,7 +482,7 @@ stored agent, and PATCH sends `agent` only when the operator edited or
 cleared it.
 
 Attract prefers a playlist `video` handle when present. Darwin CGO builds
-decode with AVFoundation (`host/tenfoot/attractvideo`) after streaming
+decode with AVFoundation (`ui/tenfoot/attractvideo`) after streaming
 `Accept: video/*` to a temp file (128 MiB cap). Linux uses the same download
 when `ffmpeg` is on PATH and decodes with the ffmpeg CLI; otherwise it skips
 the download and falls back to stills. Non-CGO Darwin builds also skip video.
@@ -489,19 +502,19 @@ unpark, Stop, app close, attract entry, and GPU-using overlays cancel the HTTP
 stream, close the reader, and drop the preview texture so no background
 goroutine holds the stream.
 
-Source entry points are `host/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
-helpers use `host/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
+Source entry points are `ui/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
+helpers use `ui/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
 embedded Go Regular and Go Bold, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
-SDL in `host/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
-path (`CommandFromKey` in `host/tenfoot/keyboard.go`): arrows, Enter, Esc, and
+SDL in `ui/tenfoot/sdl.go`. USB keyboard is first-class browse/nav on that
+path (`CommandFromKey` in `ui/tenfoot/keyboard.go`): arrows, Enter, Esc, and
 Tab drive shelf, detail, and search without a gamepad. USB mouse/pointer is
 first-class on the same path (`PointerMove` / `PointerClick` in
-`host/tenfoot/pointer.go`): hover moves focus, primary click activates
+`ui/tenfoot/pointer.go`): hover moves focus, primary click activates
 select/launch/confirm on shelf, detail, and search, and it coexists with
 keyboard nav. Hints and focus ownership follow the last-used keyboard, mouse,
-or gamepad (`host/tenfoot/affinity.go`). SDL keyboard, mouse, and gamepad
+or gamepad (`ui/tenfoot/affinity.go`). SDL keyboard, mouse, and gamepad
 add/remove events claim affinity on plug without restarting the process, and
 unplug restores a remaining device. Letter shortcuts already
 patterned stay (`/` or `f` search, `o` settings, `g` filters, `l` layout). While
@@ -521,16 +534,16 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 
 | Backend | Construction | Role |
 | --- | --- | --- |
-| SDL3 | `gfx.WrapSDLRenderer` (`host/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
-| Software | `gfx.NewSoftware` (`host/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
-| FPGA | `gfx.NewFPGA` (`host/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`host/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `host/tenfoot/anim`. |
-| FPGA stub | `gfx.NewFPGAStub` (`host/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`host/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `host/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `host/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `host/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
+| SDL3 | `gfx.WrapSDLRenderer` (`ui/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
+| Software | `gfx.NewSoftware` (`ui/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
+| FPGA | `gfx.NewFPGA` (`ui/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/tenfoot/anim`. |
+| FPGA stub | `gfx.NewFPGAStub` (`ui/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-Tenfoot looks are data-driven. `host/tenfoot/theme` loads colour, spacing,
+Tenfoot looks are data-driven. `ui/tenfoot/theme` loads colour, spacing,
 typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
 (`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
@@ -998,7 +1011,7 @@ the chord. Split Right enters the same mates in the hero when they exist;
 Left/B return to the list. The short split meta line still omits series.
 Meaningful scene cuts (detail open/close, attract show/hide, wheel
 enter/leave, Y layout, X pack, search OSK open/close) paint a short CGO-free overlay from the
-theme `transition` token through `host/tenfoot/anim`: Classic a curtain,
+theme `transition` token through `ui/tenfoot/anim`: Classic a curtain,
 Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
 400ms and do not block pad input. `transition` `none`, `-no-transition`,
 or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane or search OSK is open. Catalog cells paint decoded box-art from
@@ -1056,7 +1069,7 @@ session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
 pad. Kit input discovers every eligible USB gamepad (`event*` only) plus
 physical USB keyboards for play-session HID, merges
-polls in stable device-id order through `host/tenfoot/inputmap`, and remaps
+polls in stable device-id order through `ui/tenfoot/inputmap`, and remaps
 logical codes with a JSON profile (default identity). Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the
 idle framebuffer and restores it after Stop.

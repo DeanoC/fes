@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host/tenfoot"
-	"github.com/DeanoC/FogCast/host/tenfoot/anim"
-	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/host/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/host/tenfoot/theme"
-	"github.com/DeanoC/FogCast/kitlauncher"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/kitlauncher"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/FogCast/ui/tenfoot/anim"
+	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
+	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
 )
 
 func TestPadsSelftestReportsIdentityBeforeOpen(t *testing.T) {

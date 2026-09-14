@@ -6,7 +6,7 @@ same public host API client; there is no second launch path.
 
 ## What this guide covers
 
-1. **Linux SDL3 build** for `cmd/fogcast-tenfoot` / `host/tenfoot` with `-tags sdl3`.
+1. **Linux SDL3 build** for `cmd/fogcast-tenfoot` / `ui/tenfoot` with `-tags sdl3`.
 2. **Makefile / `TENFOOT_CGO_ENV`** that follows `uname -s`: Darwin keeps the
    Homebrew deployment-target flags; other hosts get `CGO_ENABLED=1` only.
 3. **Docs** for distro packages, native-on-Linux build/run, and an honest split
@@ -34,8 +34,8 @@ same public host API client; there is no second launch path.
 | `Makefile` `TENFOOT_CGO_ENV` | Darwin: `MACOSX_DEPLOYMENT_TARGET=11.0`, `-mmacosx-version-min=11.0`, `CGO_LDFLAGS_ALLOW`. Else: `CGO_ENABLED=1`. Override with `make TENFOOT_CGO_ENV='…'`. |
 | `make tenfoot-cgo-env` | Prints the env the tenfoot target uses on this host. |
 | `make build-fogcast-tenfoot` | `$(TENFOOT_CGO_ENV) go build -tags sdl3 … ./cmd/fogcast-tenfoot` |
-| `host/tenfoot/sdl.go` | `//go:build sdl3` + `#cgo pkg-config: sdl3` |
-| `host/tenfoot/run_stub.go` | `//go:build !sdl3` stub |
+| `ui/tenfoot/sdl.go` | `//go:build sdl3` + `#cgo pkg-config: sdl3` |
+| `ui/tenfoot/run_stub.go` | `//go:build !sdl3` stub |
 | Fonts (`label.go`) | Mac system fonts first; Noto/DejaVu Linux paths; embedded Go Regular fallback |
 | Prefs | `os.UserConfigDir()` → Mac `~/Library/Application Support/FogCast/tenfoot.json`; Linux `$XDG_CONFIG_HOME/FogCast/tenfoot.json` or `~/.config/FogCast/tenfoot.json` |
 | CI | No Linux SDL3 job (out of scope) |
@@ -45,14 +45,14 @@ same public host API client; there is no second launch path.
 | Check | Where | Status |
 |-------|--------|--------|
 | Darwin `make tenfoot-cgo-env` includes `MACOSX_DEPLOYMENT_TARGET` | Mac mini | Proven |
-| Darwin `go test ./host/tenfoot/` | Mac mini | Proven |
+| Darwin `go test ./ui/tenfoot/` | Mac mini | Proven |
 | Darwin `make build-fogcast-tenfoot` | Mac mini | Proven |
 | Darwin `make tenfoot-smoke` vs `:8787` | Mac mini | Proven (kit may be unavailable) |
 | Linux `TENFOOT_CGO_ENV` is `CGO_ENABLED=1` (no Darwin flags) | Linux `uname` | Proven: fake-`uname` on mini + debian:sid container both print `CGO_ENABLED=1` |
 | Linux `pkg-config --modversion sdl3` + `make build-fogcast-tenfoot` | debian:sid **container** on mini (aarch64) | Proven: `libsdl3-dev` → `sdl3` 3.4.16; ELF linked to `libSDL3.so.0`. This is a Linux userspace compile, not `GOOS=linux` from Darwin cgo. |
 | Linux `-smoke` vs host API | debian:sid **container** on mini using `-api http://host.docker.internal:8787` | **Proven** (this wave): `-smoke` sends `Host: 127.0.0.1:8787`, no `403 HOST_NOT_ALLOWED`, same launch JSON as Darwin (`MISTER_UNAVAILABLE` because the kit is down). `-api-host` / `FOGCAST_API_HOST` override. This is a client Host header, not a host API change. Native same-box `http://127.0.0.1:8787` on Deano’s Linux box is still the living-room check. |
 | Linux windowed/fullscreen on X11/Wayland | Linux box with a display | **NEED** — cannot fake on the mini |
-| Linux attract video decode | Linux box with `ffmpeg` on PATH and a display | Code path landed: optional ffmpeg CLI (`host/tenfoot/attractvideo`) when `ffmpeg` is on PATH; otherwise skip the video download and use stills. debian:sid container with ffmpeg ran `go test ./host/tenfoot/attractvideo`. GUI video on a real display is **NEED**. Darwin still uses AVFoundation. |
+| Linux attract video decode | Linux box with `ffmpeg` on PATH and a display | Code path landed: optional ffmpeg CLI (`ui/tenfoot/attractvideo`) when `ffmpeg` is on PATH; otherwise skip the video download and use stills. debian:sid container with ffmpeg ran `go test ./ui/tenfoot/attractvideo`. GUI video on a real display is **NEED**. Darwin still uses AVFoundation. |
 
 Cross-compile from Mac (`GOOS=linux go build -tags sdl3` on Darwin) is **not**
 provided. CGO + SDL3 needs a Linux compiler, headers, and `sdl3.pc`. A Linux
