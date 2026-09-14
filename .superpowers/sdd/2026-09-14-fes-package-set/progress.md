@@ -35,3 +35,20 @@
 - Syntax: `python3 -m py_compile scripts/*.py` — exit 0.
 - Whitespace: `git diff --check` — exit 0 before the implementation commit.
 - Scope boundary: no Quartus, cold full image build, image shell suite, hardware test, push, PR, or merge was performed; target-image shell mounting/install work remains Task 2 and the all-three default profile update remains Task 3.
+
+## Task 1 review fixes — completed
+
+- Fix commit: `14b5c71` (`fix: close FES package publication review findings`).
+- F1 red: `python3 -m unittest tests.test_core_build.CoreBuildTest.test_package_publication_rolls_back_after_a_selection_replacement_failure` — `Ran 1`; `FAILED`, with the new root/selection bytes visible after the injected post-replacement failure. The sealed-staging regression also reproduced the pre-fix `PermissionError` when run alongside it.
+- F1 green: `python3 -m unittest tests.test_core_build.CoreBuildTest.test_package_publication_rolls_back_after_a_selection_replacement_failure tests.test_core_build.CoreBuildTest.test_package_publication_cleans_sealed_interrupted_staging` — `Ran 2`; `OK`. `python3 -m unittest tests.test_core_build` — `Ran 44`; `OK`.
+- F2 red: `python3 -m unittest tests.test_media.MediaTests.test_singular_published_package_preserves_legacy_shape` — `Ran 1`; `FAILED` because the empty result was `()` instead of `None`.
+- F2 green: the compatibility test passed in the focused parent/media run below; singular lookup now returns `None` or the sole package dictionary and rejects plural use.
+- F3 red: `python3 -m unittest tests.test_media.MediaTests.test_package_only_media_reuses_the_complete_ordered_package_set` — `Ran 1`; `FAILED` because the base receipt allowed reordered package inputs.
+- F3 green: the same test — `Ran 1`; `OK` after binding the fixture receipt to `image_fingerprint` and checking reordered inputs; `python3 -m unittest tests.test_media` — `Ran 62`; `OK`.
+- Focused parent/media suite: `python3 -m unittest tests.test_core_build tests.test_media` — `Ran 106`; `OK`.
+- Full Python suite: `python3 -m unittest discover -s tests` — `Ran 282`; `OK (skipped=39)`.
+- Consistency: `make check` — `consistency: package YAML valid; 14 generated consumers, 11 fixture copies and 4 copied source pins match`.
+- Syntax: `python3 -m py_compile scripts/*.py` — exit 0.
+- Whitespace: `git diff --check` — exit 0.
+- F1 retains symlink/non-regular destination rejection, stages and verifies the complete set before commit, keeps a prior generation for rollback, and cleans sealed current/legacy staging residue. F2 preserves the singular public shape. F3 binds the single- and multi-package media fixtures to the package-derived image receipt and rejects mutation/reordering.
+- Scope boundary: no Quartus, cold full image build, image shell suite, hardware test, push, PR, or merge was performed.
