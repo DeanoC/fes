@@ -585,8 +585,8 @@ def _remove_sealed_tree(path):
     shutil.rmtree(path)
 
 
-def _package_tree_inventory(root, prefix='core-packages'):
-    """Return all directories and files below a package tree safely."""
+def _package_tree_inventory(root, prefix='core-packages', *, closed=False):
+    """Return a safe inventory, optionally requiring a closed package tree."""
     root = Path(root)
     try:
         metadata = root.lstat()
@@ -597,25 +597,50 @@ def _package_tree_inventory(root, prefix='core-packages'):
     directories = [prefix]
     files = []
 
-    def visit(directory, relative):
-        for child in sorted(directory.iterdir(), key=lambda path: path.name):
-            metadata = child.lstat()
-            child_relative = relative + '/' + child.name
+    if not closed:
+        def visit(directory, relative):
+            for child in sorted(directory.iterdir(), key=lambda path: path.name):
+                metadata = child.lstat()
+                child_relative = relative + '/' + child.name
+                if stat.S_ISLNK(metadata.st_mode):
+                    raise ValueError("package output tree must not contain symlinks")
+                if stat.S_ISDIR(metadata.st_mode):
+                    directories.append(child_relative)
+                    visit(child, child_relative)
+                elif stat.S_ISREG(metadata.st_mode):
+                    files.append(child_relative)
+                else:
+                    raise ValueError(
+                        "package output tree must contain only regular files and directories")
+
+        visit(root, prefix)
+        return tuple(sorted(directories)), tuple(sorted(files))
+
+    for child in sorted(root.iterdir(), key=lambda path: path.name):
+        metadata = child.lstat()
+        if stat.S_ISLNK(metadata.st_mode):
+            raise ValueError("package output tree must not contain symlinks")
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError("package output tree must contain only package directories")
+        if not re.fullmatch(r"[0-9a-f]{64}", child.name):
+            raise ValueError("package output tree contains an invalid package identity")
+        child_relative = prefix + '/' + child.name
+        directories.append(child_relative)
+        entries = sorted(child.iterdir(), key=lambda path: path.name)
+        for entry in entries:
+            metadata = entry.lstat()
             if stat.S_ISLNK(metadata.st_mode):
                 raise ValueError("package output tree must not contain symlinks")
-            if stat.S_ISDIR(metadata.st_mode):
-                directories.append(child_relative)
-                visit(child, child_relative)
-            elif stat.S_ISREG(metadata.st_mode):
-                files.append(child_relative)
-            else:
-                raise ValueError("package output tree must contain only regular files and directories")
-
-    visit(root, prefix)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise ValueError(
+                    "package generation contains nested or special entries")
+        if [entry.name for entry in entries] != ["core.rbf", "manifest.toml"]:
+            raise ValueError("package directories must contain the closed two-file set")
+        files.extend(child_relative + '/' + name for name in ("manifest.toml", "core.rbf"))
     return tuple(sorted(directories)), tuple(sorted(files))
 
 
-def _package_output_inventory(output):
+def _package_output_inventory(output, *, closed=False):
     """Inspect only the package-owned destinations in a parent output."""
     output = Path(output)
     files = []
@@ -624,7 +649,8 @@ def _package_output_inventory(output):
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
             raise ValueError("package selection destination must be a non-symlink regular file")
         files.append(selection.name)
-    directories, package_files = _package_tree_inventory(output / 'core-packages')
+    directories, package_files = _package_tree_inventory(
+        output / 'core-packages', closed=closed)
     files.extend(package_files)
     return directories, tuple(sorted(files))
 
@@ -647,7 +673,8 @@ def _package_generation_inventory(generation):
                 raise ValueError("package generation marker must be a regular file")
             continue
         if child.name == 'core-packages':
-            package_directories, package_files = _package_tree_inventory(child)
+            package_directories, package_files = _package_tree_inventory(
+                child, closed=True)
             directories.extend(package_directories)
             files.extend(package_files)
         elif child.name.endswith(_PACKAGE_SELECTION_SUFFIX):
@@ -657,6 +684,23 @@ def _package_generation_inventory(generation):
         else:
             raise ValueError("package generation contains an unexpected entry")
     return tuple(sorted(directories)), tuple(sorted(files))
+
+
+def _validate_package_generation_shape(generation, directories, files):
+    """Require an empty generation or a complete generic package set."""
+    if not directories and not files:
+        return
+    package_root_present = 'core-packages' in directories
+    package_directories = [relative for relative in directories
+                           if relative.startswith('core-packages/')
+                           and relative.count('/') == 1]
+    selection_files = [relative for relative in files
+                       if '/' not in relative and
+                       relative.endswith(_PACKAGE_SELECTION_SUFFIX)]
+    if (not package_root_present or not package_directories or
+            len(package_directories) != len(selection_files)):
+        raise ValueError(
+            f"{generation} is not an empty or complete package generation")
 
 
 def _manifest_path(value, field):
@@ -743,6 +787,7 @@ def _validate_package_generation(generation, manifest, *, require_marker=False, 
     if metadata is not None and (stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode)):
         raise ValueError("package generation marker must be a non-symlink regular file")
     directories, files = _package_generation_inventory(generation)
+    _validate_package_generation_shape(generation, directories, files)
     expected_directories = tuple(manifest['directories'])
     expected_files = tuple(path for path, _ in manifest['files'])
     if directories != expected_directories or files != expected_files:
@@ -764,6 +809,7 @@ def _validate_package_generation(generation, manifest, *, require_marker=False, 
 def _package_generation_manifest(generation):
     generation = Path(generation)
     directories, files = _package_generation_inventory(generation)
+    _validate_package_generation_shape(generation, directories, files)
     return _normalize_package_generation_manifest({
         'format': 1,
         'directories': list(directories),
@@ -772,6 +818,75 @@ def _package_generation_manifest(generation):
             for relative in files
         ],
     })
+
+
+def _fsync_regular_file(path):
+    """Fsync one regular file without following a replacement symlink."""
+    path = Path(path)
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ValueError("package durability path must be a regular file")
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+    descriptor = os.open(str(path), flags)
+    try:
+        opened = os.fstat(descriptor)
+        if stat.S_ISLNK(opened.st_mode) or not stat.S_ISREG(opened.st_mode):
+            raise ValueError("package durability path must be a regular file")
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_directory(path):
+    """Fsync one directory without following a replacement symlink."""
+    path = Path(path)
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package durability path must be a directory")
+    flags = (os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) |
+             getattr(os, 'O_NOFOLLOW', 0))
+    descriptor = os.open(str(path), flags)
+    try:
+        opened = os.fstat(descriptor)
+        if stat.S_ISLNK(opened.st_mode) or not stat.S_ISDIR(opened.st_mode):
+            raise ValueError("package durability path must be a directory")
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_relative_tree(root, directories, files, include_marker=False):
+    """Fsync every file and containing directory in a package-owned tree."""
+    root = Path(root)
+    for relative in files:
+        _fsync_regular_file(root / relative)
+    if include_marker:
+        marker = root / _PACKAGE_GENERATION_MARKER
+        try:
+            marker.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            _fsync_regular_file(marker)
+    for relative in sorted(directories,
+                          key=lambda value: (value.count('/'), value),
+                          reverse=True):
+        _fsync_directory(root / relative)
+    _fsync_directory(root)
+
+
+def _fsync_package_generation(generation):
+    """Fsync a staged or marked package generation and its payload."""
+    generation = Path(generation)
+    directories, files = _package_generation_inventory(generation)
+    _fsync_relative_tree(generation, directories, files, include_marker=True)
+
+
+def _fsync_package_output(output):
+    """Fsync the live package payload and every containing directory."""
+    output = Path(output)
+    directories, files = _package_output_inventory(output, closed=True)
+    _fsync_relative_tree(output, directories, files)
 
 
 def _write_package_generation_manifest(backup, manifest):
@@ -787,17 +902,11 @@ def _write_package_generation_manifest(backup, manifest):
         ],
     }
     temporary.write_text(json.dumps(data, sort_keys=True) + '\n')
-    with temporary.open('rb') as stream:
-        os.fsync(stream.fileno())
     temporary.chmod(0o444)
+    _fsync_regular_file(temporary)
     temporary.replace(backup / _PACKAGE_GENERATION_MARKER)
-    with (backup / _PACKAGE_GENERATION_MARKER).open('rb') as stream:
-        os.fsync(stream.fileno())
-    directory_fd = os.open(str(backup), os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
-    finally:
-        os.close(directory_fd)
+    _fsync_regular_file(backup / _PACKAGE_GENERATION_MARKER)
+    _fsync_directory(backup)
 
 
 def _copy_package_tree(source, destination):
@@ -826,6 +935,10 @@ def _copy_package_outputs(output, destination):
     output = Path(output)
     destination = Path(destination)
     _package_output_inventory(output)
+    try:
+        _validate_complete_package_output(output)
+    except ValueError:
+        return
     metadata = destination.lstat()
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         raise ValueError("package backup path must be a non-symlink directory")
@@ -861,7 +974,7 @@ def _copy_package_generation(source, destination):
 def _validate_package_output_manifest(output, manifest):
     """Validate live output against a previously sealed generation."""
     output = Path(output)
-    directories, files = _package_output_inventory(output)
+    directories, files = _package_output_inventory(output, closed=True)
     expected_directories = tuple(manifest['directories'])
     expected_files = tuple(path for path, _ in manifest['files'])
     if directories != expected_directories or files != expected_files:
@@ -910,6 +1023,14 @@ def _validate_package_output_destinations(output):
     _package_output_inventory(output)
 
 
+def _validate_complete_package_output(output):
+    """Validate the live output as a generic complete package generation."""
+    output = Path(output)
+    directories, files = _package_output_inventory(output, closed=True)
+    _validate_package_generation_shape(output, directories, files)
+    return directories, files
+
+
 def _clean_package_staging(output):
     """Clean sealed staging left by an interrupted current or prior publisher."""
     output = Path(output)
@@ -940,6 +1061,8 @@ def _restore_package_backup(output, backup, clear_current=True):
         else:
             _remove_sealed_tree(restore)
         _copy_package_generation(backup, restore)
+        _fsync_package_generation(restore)
+        _fsync_directory(output)
         _validate_package_generation(restore, manifest, require_marker=True)
         if clear_current:
             _remove_package_outputs(output)
@@ -956,6 +1079,7 @@ def _restore_package_backup(output, backup, clear_current=True):
         for selection in sorted(_format2_selection_paths(restore), key=lambda path: path.name):
             selection.replace(output / selection.name)
         _validate_package_output_manifest(output, manifest)
+        _fsync_package_output(output)
     finally:
         try:
             _remove_sealed_tree(restore)
@@ -978,10 +1102,12 @@ def _recover_package_backup(output, packages):
         marker.lstat()
     except FileNotFoundError:
         try:
-            verify_package_outputs(output, packages)
+            _validate_complete_package_output(output)
         except (OSError, KeyError, TypeError, ValueError):
             raise ValueError("unmarked package backup cannot be used for recovery") from None
+        _fsync_package_output(output)
         _remove_sealed_tree(backup)
+        _fsync_directory(output)
         return
     manifest = _read_package_generation_manifest(backup)
     _validate_package_generation(backup, manifest, require_marker=True, sealed=True)
@@ -989,7 +1115,10 @@ def _recover_package_backup(output, packages):
         verify_package_outputs(output, packages)
     except (OSError, KeyError, TypeError, ValueError):
         _restore_package_backup(output, backup)
+    else:
+        _fsync_package_output(output)
     _remove_sealed_tree(backup)
+    _fsync_directory(output)
 
 
 def _remove_package_outputs(output):
@@ -1086,6 +1215,7 @@ def publish_package_outputs(packages, built_selections, output):
         staged_root.chmod(0o555)
         staged_generation.chmod(0o755)
         verify_package_outputs(staged_generation, normalized)
+        _fsync_package_generation(staged_generation)
         _validate_package_output_destinations(output)
         backup.mkdir()
         backup_created = True
@@ -1097,16 +1227,14 @@ def publish_package_outputs(packages, built_selections, output):
             selection.chmod(0o444)
         manifest = _package_generation_manifest(backup)
         _validate_package_generation(backup, manifest, sealed=True)
+        _fsync_package_generation(backup)
         _write_package_generation_manifest(backup, manifest)
         backup.chmod(0o555)
         _validate_package_generation(
             backup, _read_package_generation_manifest(backup),
             require_marker=True, sealed=True)
-        directory_fd = os.open(str(output), os.O_RDONLY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        _fsync_directory(output)
+        _fsync_directory(backup)
         backup_complete = True
         staged_root.chmod(0o755)
         old_root = output / 'core-packages'
@@ -1121,8 +1249,10 @@ def publish_package_outputs(packages, built_selections, output):
                           f"core-packages/{identity}/manifest.toml",
                           f"core-packages/{identity}/core.rbf"])
         verify_package_outputs(output, normalized)
+        _fsync_package_output(output)
         backup_complete = False
         _remove_sealed_tree(backup)
+        _fsync_directory(output)
         return names
     except BaseException:
         if backup_created:
@@ -1134,6 +1264,7 @@ def publish_package_outputs(packages, built_selections, output):
                 else:
                     try:
                         _remove_sealed_tree(backup)
+                        _fsync_directory(output)
                     except BaseException:
                         pass
             else:

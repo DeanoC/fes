@@ -1,6 +1,7 @@
 """The selected profile controls the complete installed FPGA core set."""
 from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
 import hashlib
 import shutil
@@ -505,6 +506,114 @@ class CoreBuildTest(unittest.TestCase):
 
             self.assertEqual(package_file_snapshot(output), before)
             self.assertTrue((output / '.package-generation.previous').is_dir())
+
+    def test_selection_only_package_backup_is_rejected_without_touching_live_generation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(root, 'old', ('a' * 64,))
+            build.publish_package_outputs(old_packages, old_built, output)
+            before = package_file_snapshot(output)
+
+            backup = output / '.package-generation.previous'
+            backup.mkdir()
+            selection = backup / 'fes-pong.package-selection.toml'
+            selection.write_bytes((output / selection.name).read_bytes())
+            selection.chmod(0o444)
+            marker = backup / '.package-generation.complete'
+            marker.write_text(json.dumps({
+                'format': 1,
+                'directories': [],
+                'files': [{'path': selection.name,
+                           'sha256': build.digest(selection)}],
+            }, sort_keys=True) + '\n')
+            marker.chmod(0o444)
+            backup.chmod(0o555)
+
+            new_packages, new_built = make_package_generation(root, 'new', ('b' * 64,))
+            with self.assertRaisesRegex(ValueError, 'closed|generation|package'):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertEqual(package_file_snapshot(output), before)
+            self.assertTrue(backup.is_dir())
+            self.assertTrue(marker.is_file())
+
+    def test_unmarked_partial_backup_is_discarded_after_validating_current_generation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(
+                root, 'old', ('a' * 64, 'b' * 64))
+            build.publish_package_outputs(old_packages, old_built, output)
+
+            backup = output / '.package-generation.previous'
+            partial = backup / 'core-packages' / ('a' * 64)
+            partial.mkdir(parents=True)
+            (partial / 'manifest.toml').write_bytes(b'partial')
+            partial.chmod(0o555)
+            (backup / 'core-packages').chmod(0o555)
+            backup.chmod(0o555)
+
+            new_packages, new_built = make_package_generation(
+                root, 'new', ('c' * 64, 'd' * 64))
+            build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertEqual(build.verify_package_outputs(output, new_packages), [
+                'fes-pong.package-selection.toml',
+                'core-packages/' + 'c' * 64 + '/manifest.toml',
+                'core-packages/' + 'c' * 64 + '/core.rbf',
+                'fes-zx81.package-selection.toml',
+                'core-packages/' + 'd' * 64 + '/manifest.toml',
+                'core-packages/' + 'd' * 64 + '/core.rbf',
+            ])
+            self.assertFalse(backup.exists())
+
+    def test_package_publication_fsyncs_payloads_and_replacement_boundaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(
+                root, 'old', ('a' * 64, 'b' * 64))
+            build.publish_package_outputs(old_packages, old_built, output)
+            new_packages, new_built = make_package_generation(
+                root, 'new', ('c' * 64, 'd' * 64))
+            fsynced = []
+
+            def record_fsync(descriptor):
+                try:
+                    fsynced.append(Path(os.readlink(f'/proc/self/fd/{descriptor}')))
+                except OSError:
+                    pass
+
+            with patch.object(build.os, 'fsync', side_effect=record_fsync):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            expected = {
+                output / '.package-generation.previous' / 'fes-pong.package-selection.toml',
+                output / '.package-generation.previous' / 'fes-zx81.package-selection.toml',
+                output / '.package-generation.previous' / 'core-packages',
+                output / '.package-generation.previous' / 'core-packages' / ('a' * 64),
+                output / '.package-generation.previous' / 'core-packages' / ('b' * 64),
+                output / '.package-generation.previous' / 'core-packages' / ('a' * 64) / 'manifest.toml',
+                output / '.package-generation.previous' / 'core-packages' / ('a' * 64) / 'core.rbf',
+                output / '.package-generation.previous' / 'core-packages' / ('b' * 64) / 'manifest.toml',
+                output / '.package-generation.previous' / 'core-packages' / ('b' * 64) / 'core.rbf',
+                output / 'fes-pong.package-selection.toml',
+                output / 'fes-zx81.package-selection.toml',
+                output / 'core-packages',
+                output / 'core-packages' / ('c' * 64),
+                output / 'core-packages' / ('d' * 64),
+                output / 'core-packages' / ('c' * 64) / 'manifest.toml',
+                output / 'core-packages' / ('c' * 64) / 'core.rbf',
+                output / 'core-packages' / ('d' * 64) / 'manifest.toml',
+                output / 'core-packages' / ('d' * 64) / 'core.rbf',
+                output,
+            }
+            self.assertTrue(expected.issubset(set(fsynced)),
+                            f'missing fsync paths: {sorted(expected - set(fsynced))}')
 
     def test_rollback_failure_preserves_backup_for_the_next_normal_publish(self):
         with tempfile.TemporaryDirectory() as tmp:

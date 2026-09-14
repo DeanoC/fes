@@ -77,3 +77,33 @@
 - Syntax/whitespace: `python3 -m py_compile scripts/*.py` and `git diff --check` — exit 0.
 - Scope boundary: no Quartus, cold image build, image shell suite, hardware
   test, parent pin/shared-contract change, push, PR, merge, or Task 2 was run.
+
+## Task 1 F1 repair 2 — completed
+
+- Base: `1d033d60b5e50a5a2491c50319b64dc42d9b89da` on
+  `feat/fes-package-set`; result commit pending final commit creation.
+- F1-1: complete generation validation now accepts only an empty generation or
+  a closed package set with lowercase 64-hex package identities, exactly
+  `manifest.toml` and `core.rbf` per package, and matching selection count.
+  Recursive lstat and symlink/special-file protections remain enforced.
+- F1-2: staged, backup, restore, marker, live payload files and containing
+  directories are fsynced with explicit error propagation before the next
+  durable publication boundary.
+- F1-3: an unmarked backup is discarded only after the current live output is
+  validated as a generic complete generation; malformed or unsafe current
+  output preserves both paths and fails closed.
+- TDD red: the three new regressions ran `Ran 3`; `FAILED (failures=2,
+  errors=1)` against the pre-fix implementation.
+- TDD green: the same three regressions ran `Ran 3`; `OK`. Existing recovery
+  regressions and the full core suite also passed.
+- Focused core/media suite: `python3 -m unittest tests.test_core_build
+  tests.test_media` — `Ran 111`; `OK`.
+- Full Python suite: `python3 -m unittest discover -s tests` — `Ran 287`;
+  `OK (skipped=39)`.
+- Consistency: `make check` — package YAML valid; 14 generated consumers, 11
+  fixture copies and 4 copied source pins match.
+- Syntax/whitespace: `python3 -m py_compile scripts/*.py` and
+  `git diff --check` — exit 0.
+- Scope boundary: no parent checkout, other worktree, image shell suite,
+  Quartus, cold image build, hardware, push, PR, merge, or Task 2 work was
+  performed.
