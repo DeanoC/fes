@@ -72,7 +72,7 @@
 - [x] After the component commit is available, update only `sources/FogCast` in the isolated FES parent worktree to that commit.
 - [x] Update the parent boundary document to name `sources/FogCast/ui/tenfoot` and `sources/FogCast/ui/kitlauncher` as the application UI locations.
 - [x] Confirm the parent diff has no unrelated submodule movement or generated artifacts.
-- [ ] Run the parent checks:
+- [x] Run the parent checks:
 
   ```sh
   make test
@@ -80,8 +80,8 @@
   git diff --check
   ```
 
-- [ ] Commit as `build: select FogCast UI package boundaries`, push `refactor/fes-ui-boundaries`, and open the FES PR.
-- [ ] Request Codex review and leave the PR ready to merge, with physical target/image acceptance explicitly recorded as pending.
+- [x] Commit as `build: select FogCast UI package boundaries` (`1d7bbb4`), push `refactor/fes-ui-boundaries`, and open [FES PR #48](https://github.com/DeanoC/fes/pull/48).
+- [x] Request Codex review and leave the PR ready to merge, with physical target/image acceptance explicitly recorded as pending.
 
 ## Task 6: Queue the next architectural slices
 
