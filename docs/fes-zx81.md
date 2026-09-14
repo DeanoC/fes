@@ -5,9 +5,10 @@ The first slice is a ROM-less `fes.simple-computer` 1.0 package (`fes.zx81`
 and fixed 720p60 HDMI. There is no ZX80, colour, YM2149, turbo, joystick or
 SDRAM in this slice.
 
-FES does not install this package in the native image catalog. The host
-library path is `core-install` / `core-entry` / `POST /api/v1/session/launch`
-with the returned `game_id`, as for other ROM-less FPGA cores. See
+FES installs this package as part of the ordered native package-only image set.
+The host library path is `core-install` / `core-entry` /
+`POST /api/v1/session/launch` with the returned `game_id`, as for other
+ROM-less FPGA cores. See
 [described FPGA core packages](core-packages.md) and the selected FogCast
 [core package library](../sources/FogCast/docs/core-package-library.md).
 

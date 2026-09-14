@@ -83,3 +83,24 @@ class ImageAssemblyTest(unittest.TestCase):
         for text in (readme, packages, getting_started, development):
             self.assertNotIn('single-package Pong-only', text)
             self.assertNotIn('currently installs only the described FES Pong package', text)
+
+        current_docs = (
+            'README.md',
+            'docs/README.md',
+            'docs/core-packages.md',
+            'docs/getting-started.md',
+            'docs/development.md',
+            'docs/component-boundaries.md',
+            'docs/project-map.md',
+            'docs/fes-zx81.md',
+        )
+        current_text = '\n'.join((ROOT / relative).read_text()
+                                  for relative in current_docs)
+        for stale in (
+                'installs the described FES Pong package',
+                'publishes the selected `fes-pong.package-selection.toml`',
+                'The current profile selects the described FES Pong package',
+                'It is not in the selected image',
+                'does not install this package in the native image catalog',
+                'described format-2 FES Pong package'):
+            self.assertNotIn(stale.replace('`', chr(96)), current_text)
