@@ -13,7 +13,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
 - [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
 - [Appliance releases](docs/appliance-releases.md): versioned images, prepared cards, network updates and automatic fallback.
-- [Described FPGA core packages](docs/core-packages.md): build, inspect, load and stop the standalone FES Pong package.
+- [Described FPGA core packages](docs/core-packages.md): build, inspect, load and stop the FES package set.
 - [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
 - [Artifact identities](docs/artifacts.md): named host/target/FPGA/OS outputs and what may differ.
 - [Image assembly](docs/image-assembly.md): FES `image/` recipe vs FogCast inputs.
@@ -75,21 +75,20 @@ make verify
 ```
 
 The default `native-integration-dev` selects component revisions through the
-submodule gitlinks, retains the locked idle RBF, and installs exactly one
-described format-2 package: the current `fes.pong` package. The registry also
-understands `fes.zx81` and `fes.coleco` for package resolution, but the current
-image selector is intentionally Pong-only and rejects a ZX81, Coleco or
-multi-package image selection. Format-1 catalog cores are not part of the
-default FES production image.
+submodule gitlinks, retains the locked idle RBF, and installs the ordered,
+closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
+package is independently resolved, cached, installed and recorded; this is the
+closed package set for the default image, and package-only verification rejects
+missing, extra or misidentified packages. Format-1 catalog cores are not part of the default FES production image.
 
-The normal package build uses the authenticated HIP/nextpnr producer and its
-workspace-local compiler cache at `out/cache/misteross-toolchains`. A matching
-package is reused only after its locked inputs, manifest, payload and sealed
-selection are checked; a miss runs the selected format-2 producer. Quartus Lite
-17.0.2 remains available for explicit historical format-1 profiles and as a
-bring-up/oracle check where a recipe documents one. It is not run by the
-default FES path, and a failed HIP route never falls back to Quartus. Downloads
-are checked against component locks; image compilation runs twice in
+The normal package-only build uses the authenticated HIP/nextpnr producers and
+their workspace-local compiler cache at `out/cache/misteross-toolchains`. A
+matching package is reused only after its locked inputs, manifest, payload and
+sealed selection are checked; a miss runs that package's format-2 producer.
+Quartus Lite 17.0.2 remains available for explicit historical format-1 profiles
+and as a bring-up/oracle check where a recipe documents one. It is not run by
+the default FES path, and a failed HIP route never falls back to Quartus.
+Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 
 ```text
@@ -98,7 +97,7 @@ out/native-integration-dev/
   fogcast                     Linux amd64 CLI
   linux.img                   ARMv7 target root filesystem
   idle.rbf                     locked MiSTer idle RBF
-  fes-pong.package-selection.toml described-package selection
+  fes-*.package-selection.toml one selection record per package
   core-packages/<package-id>/  exact manifest.toml and core.rbf
   inputs.json                 selected sources, profile, Go and parent recipe
   host.json / image.json      input fingerprints, OS/arch (host), and output hashes
@@ -147,7 +146,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and one described FES Pong format-2 package |
+| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` format-2 package set |
 | `native-dev` | Original FogCast `cd85971` / runtime `443b603`, upstream core |
 | `native-source-dev` | Same original pair, source-built core and historical lock overlay |
 
@@ -177,7 +176,7 @@ components; the default Actions token cannot read sibling private repositories.
 CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
-The normal profile currently installs only the described FES Pong package and
-the locked idle RBF. The older [Pong, SNES and Mega Drive](docs/multi-system-development.md)
+The normal profile installs the locked idle RBF and the ordered FES package set.
+The older [Pong, SNES and Mega Drive](docs/multi-system-development.md)
 catalog image remains historical/independent; its native [SNES cartridge saves](docs/snes-saves.md)
 and enhancement-chip limitations do not change the package-only default.

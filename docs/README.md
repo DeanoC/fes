@@ -28,8 +28,8 @@ All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile
 and instructions; the same target name can mean different things there.
 
-The current integration profile is package-only and installs the described FES
-Pong package through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
+The current integration profile is package-only and installs the ordered closed
+format-2 set `fes.pong`, `fes.zx81` and `fes.coleco` through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
 catalog, including exact NES video and native session lifecycle acceptance, is
 recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
 and is not current-profile acceptance.
@@ -107,11 +107,12 @@ is implemented: stable target-local data across compatible package versions,
 starting with standalone Pong. See the [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
 and [acceptance record](validation/2026-09-09-core-persistence.md).
 
-[FES ZX81](superpowers/specs/2026-09-10-fes-zx81-design.md) is the next
-described-core computer: a custom GP ABI derived from the MiSTer Quartus ZX81
-implementation, Quartus bring-up, then nextpnr/mistral. It is not in the
-selected image. See the [implementation plan](superpowers/plans/2026-09-10-fes-zx81.md)
-and the [ZX81 working page](fes-zx81.md).
+[FES ZX81](superpowers/specs/2026-09-10-fes-zx81-design.md) is one of the
+selected described-core packages: a custom GP ABI derived from the MiSTer
+Quartus ZX81 implementation, with Quartus bring-up and nextpnr/mistral
+evidence kept separate from the normal package-only build. See the
+[implementation plan](superpowers/plans/2026-09-10-fes-zx81.md) and the
+[ZX81 working page](fes-zx81.md).
 
 ## Earlier designs and plans
 

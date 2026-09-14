@@ -2,37 +2,43 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
-The recipe registry also supports the described `fes.zx81` and `fes.coleco`
-packages for resolver work. The current target-image selector remains a
-single-package Pong-only contract, so neither is installed by this profile.
-See [FES ZX81](fes-zx81.md) for its bring-up notes.
+The recipe registry supports the described `fes.pong`, `fes.zx81` and
+`fes.coleco` packages. The default target-image selector installs the ordered
+closed package set, while focused profiles may select a smaller package set.
+See [FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up
+notes.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-exactly one standalone FES Pong format-2 package. Format-1 catalog cores are
-not built or installed by this FES production path. The package can be
-installed on the host and given an explicit ROM-less library entry; it does not
-infer ROM or media inputs or replace the existing `pong` catalog system.
+the ordered `fes.pong`, `fes.zx81` and `fes.coleco` format-2 package set.
+Format-1 catalog cores are not built or installed by this FES production path;
+the historical format-1 lanes remain separate from the package-only contract.
+Quartus is reserved for those explicit historical format-1 profiles or a
+documented bring-up/oracle check; the package-only route does not invoke it.
+Each package can be installed on the host and given an explicit library entry;
+the package route does not infer ROM or media inputs or replace the existing
+catalog system.
 
 ## Build and inspect
 
-FES resolves the package from the selected misteross recipe before an image or
-development-cache reuse decision. It authenticates the clean misteross source,
-the pinned OSS tools and the canonical build-input record. A cached package is
-reused only when exactly one package has matching build-input bytes and its
-manifest, payload, build identity and provenance all validate. If no match
-exists, the recipe runs once and the result goes through the same checks.
+FES resolves every selected package from its misteross recipe before an image
+or development-cache reuse decision. It authenticates the clean misteross
+source, the pinned OSS tools and each canonical build-input record. A cached
+package is reused only when its matching build-input bytes, manifest, payload,
+build identity and provenance all validate. A miss runs that recipe once and
+the result goes through the same checks.
 
-The parent default path opts the FES Pong producer into the workspace-local
-shared compiler cache at `out/cache/misteross-toolchains`. Shared mode
-verifies the selected misteross checkout and lock pins, then authenticates
-Yosys, nextpnr-mistral and Mistral from the matching published cache slot
-rather than from `build/toolchain` in that checkout. An old package record
-still cannot prove which tools are selected now. A new checkout can prepare
-and check the shared slot with:
+The default FES package producers use the authenticated HIP/nextpnr route.
+The parent default path opts all selected FES package producers into the
+workspace-local shared compiler cache at `out/cache/misteross-toolchains`.
+Shared mode verifies the selected misteross checkout and lock pins, then
+authenticates Yosys, nextpnr-mistral and Mistral from the matching published
+cache slot rather than from `build/toolchain` in that checkout. An old package
+record still cannot prove which tools are selected now. A new checkout can
+prepare and check the shared slot with:
 
 ```sh
 make dev
-# If this reports missing authenticated FES Pong build inputs:
+# If this reports missing authenticated FES package build inputs:
 revision=$(git rev-parse :sources/misteross)
 make -C "out/work/misteross-$revision" \
   toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"
@@ -51,6 +57,8 @@ The parent publishes and receipts these external image inputs:
 
 ```text
 fes-pong.package-selection.toml
+fes-zx81.package-selection.toml
+fes-coleco.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
 ```
@@ -94,7 +102,8 @@ through the explicitly selected historical image path.
 The producer writes an installable archive at
 `out/work/misteross-<selected-revision>/build/packages/<package-id>.fcore`.
 Use the package ID in `fes-pong.package-selection.toml` to select the matching
-archive. The image directory and the host archive store have separate roles:
+archive; the ZX81 and Coleco records follow the same per-core naming pattern.
+The image directory and the host archive store have separate roles:
 installation on the host retains the archive used for future library launches.
 
 With the running host API:
@@ -108,11 +117,11 @@ out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'ZX81'
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-select GAME_ID CURRENT_PACKAGE_ID NEXT_PACKAGE_ID
 ```
 
-`fes.zx81` is not an image-selected catalog core. Host `core-install` /
-`core-entry` plus `POST /api/v1/session/launch` with the returned `game_id`
-is the library path. It is a volatile `fes.simple-computer` package
-(`fes.keyboard`, no gamepad). `core-load` remains development-only and does
-not create the entry.
+The selected packages are image inputs as well as host library packages. Host
+`core-install` / `core-entry` plus `POST /api/v1/session/launch` with the
+returned `game_id` is the library path. The ZX81 package remains a volatile
+`fes.simple-computer` package (`fes.keyboard`, no gamepad), and `core-load`
+remains development-only without creating a library entry.
 
 Import works offline and never activates hardware. Creating an entry or changing
 its selected version requires current target compatibility. Selection is an

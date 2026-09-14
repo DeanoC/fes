@@ -216,6 +216,38 @@ class ReceiptTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'stale'):
                 build.load_verified_image(output, 'base-fingerprint')
 
+    def test_verified_image_accepts_and_binds_an_ordered_package_set(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            image_sha256, _ = self.make_verified_output(build, output)
+            packages = tuple({
+                'inputs': {
+                    'selection': {'core_id': core_id, 'package_id': package_id},
+                    'selection_sha256': selection_sha,
+                    'manifest_sha256': manifest_sha,
+                    'core_rbf_sha256': payload_sha,
+                }
+            } for core_id, package_id, selection_sha, manifest_sha, payload_sha in (
+                ('fes.pong', 'a' * 64, '1' * 64, '2' * 64, '3' * 64),
+                ('fes.zx81', 'b' * 64, '4' * 64, '5' * 64, '6' * 64)))
+            derived, info = build.image_fingerprint(
+                'base-fingerprint', {'sources': {}}, packages)
+            (output / 'inputs.json').write_text(json.dumps(info, sort_keys=True))
+            build.write_receipt(output, 'image', derived,
+                                ['linux.img', 'reproducibility.txt', 'inputs.json'])
+            self.assertEqual(build.recorded_image_fingerprint(info), derived)
+            self.assertEqual(build.load_verified_image(output, 'base-fingerprint')['rootfs_sha256'],
+                             image_sha256)
+            reversed_info = dict(info, fpga_packages=list(reversed(info['fpga_packages'])))
+            with self.assertRaisesRegex(ValueError, 'differs'):
+                build.recorded_image_fingerprint(reversed_info)
+            duplicate_info = dict(info, fpga_packages=[
+                info['fpga_packages'][0], info['fpga_packages'][0]])
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                build.recorded_image_fingerprint(duplicate_info)
+
     def test_host_only_refresh_preserves_package_bound_image_inputs_and_media_lookup(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

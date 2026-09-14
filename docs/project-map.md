@@ -53,10 +53,10 @@ integration, not a production dependency of its native image.
 mister-packages definitions generate checked-in consumers used by the runtime
 and FPGA source, and describe upstream core sources. FogCast consumes the
 runtime-advertised ABI registry without a second static Go allowlist. misteross
-produces format-1 FPGA bundles and the described format-2 FES Pong package. FES
-selects component commits, checks that their definitions and locks agree, then
-invokes the FES `image/` recipe to assemble the agent, runtime,
-libraries, catalog RBFs and the described package. FogCast remains an input
+produces historical format-1 FPGA bundles and the described format-2 FES
+package set. FES selects component commits, checks that their definitions and
+locks agree, then invokes the FES `image/` recipe to assemble the agent,
+runtime, libraries, historical catalog RBFs and the ordered package set. FogCast remains an input
 (agent, kit, extra-core selector and native-runtime lock) via `FOGCAST_DIR`.
 
 ## Directory guide

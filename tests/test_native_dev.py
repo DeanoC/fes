@@ -314,6 +314,74 @@ class NativeDevTest(unittest.TestCase):
             self.assertFalse((output / 'megadrive.rbf').exists())
             self.assertFalse((output / 'megadrive.selection.toml').exists())
 
+    def test_package_only_development_publishes_the_complete_package_tuple(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / 'image'
+            fogcast = root / 'FogCast'
+            (image / 'build').mkdir(parents=True)
+            (image / 'scripts').mkdir()
+            (image / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
+            (image / 'build/target-image.sources.lock.toml').write_text(
+                '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
+            built = image / 'build/output/target-image/fes-development'
+            built.mkdir(parents=True)
+            for name in ('linux.img', 'manifest.tsv', 'library-report.tsv'):
+                (built / name).write_text(name)
+            packages = []
+            for index, (core_id, selection_name, package_id) in enumerate((
+                    ('fes.pong', 'fes-pong.package-selection.toml', 'a' * 64),
+                    ('fes.zx81', 'fes-zx81.package-selection.toml', 'b' * 64))):
+                package_source = root / core_id
+                package_source.mkdir()
+                (package_source / 'manifest.toml').write_bytes(f'manifest-{index}'.encode())
+                (package_source / 'core.rbf').write_bytes(f'payload-{index}'.encode())
+                package_selection = root / selection_name
+                package_selection.write_bytes(f'format = 2\ncore = "{core_id}"\n'.encode())
+                (built / selection_name).write_bytes(package_selection.read_bytes())
+                packages.append({
+                    'directory': package_source,
+                    'selection_path': package_selection,
+                    'inputs': {
+                        'selection': {'package_id': package_id, 'core_id': core_id},
+                        'selection_sha256': build.digest(package_selection),
+                        'manifest_sha256': build.digest(package_source / 'manifest.toml'),
+                        'core_rbf_sha256': build.digest(package_source / 'core.rbf'),
+                    },
+                })
+            packages = tuple(packages)
+            profile = {'bundle_interface': 'selection', 'native_image_mode': 'package-only'}
+            calls = []
+
+            with patch.object(native_dev, 'base_key', return_value='base'), \
+                 patch.object(native_dev, 'seed_base'), \
+                 patch.object(native_dev, 'git', return_value='a' * 40), \
+                 patch.object(native_dev.subprocess, 'run',
+                              return_value=subprocess.CompletedProcess([], 0)), \
+                 patch.object(native_dev, 'run',
+                              side_effect=lambda args, **kwargs: calls.append((args, kwargs))):
+                native_dev.build_development(
+                    root, image, fogcast, root / 'runtime', 'native-integration-dev',
+                    profile, {}, 'candidate',
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'],
+                    {}, packages)
+
+            flattened = [' '.join(str(value) for value in args) for args, _ in calls]
+            self.assertTrue(any('FES_PACKAGE_IDS=fes.pong,fes.zx81' in call for call in flattened))
+            self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(root / 'fes.pong') in call
+                                for call in flattened))
+            self.assertTrue(any('FES_ZX81_PACKAGE_DIR=' + str(root / 'fes.zx81') in call
+                                for call in flattened))
+            output = root / 'out/native-integration-dev/development'
+            self.assertEqual(build.verify_package_outputs(output, packages), [
+                'fes-pong.package-selection.toml',
+                'core-packages/' + 'a' * 64 + '/manifest.toml',
+                'core-packages/' + 'a' * 64 + '/core.rbf',
+                'fes-zx81.package-selection.toml',
+                'core-packages/' + 'b' * 64 + '/manifest.toml',
+                'core-packages/' + 'b' * 64 + '/core.rbf',
+            ])
+
     def test_package_free_development_rebuild_removes_previous_package_outputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

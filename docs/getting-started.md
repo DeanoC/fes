@@ -9,7 +9,7 @@ one of those parts. The [project map](project-map.md) explains the distinction.
 Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
 Go selects the version required by the chosen FogCast `go.mod`. The normal FES
-FPGA package route uses the authenticated HIP/nextpnr producer. Quartus Lite
+FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
 17.0.2 is needed only for an explicit historical format-1 profile or a recipe's
 bring-up/oracle check; it is not required by the default package-only path.
 
@@ -187,9 +187,11 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and selected FES Pong format-2 package; use the media command above for the
-complete flashable layout. ZX81/Coleco are resolver-supported but not image
-selected yet, and format-1 catalog cores remain outside this production path.
+RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` format-2 package set;
+use the media command above for the complete flashable layout. Format-1 catalog
+cores remain outside this production path.
+The `make build`, `make dev`, `make verify` and `make media` paths use the
+same closed package set.
 
 Build commands do not deploy. Use the exact kit and deployment instructions in
 the selected FogCast [working policy](../sources/FogCast/AGENTS.md) and

@@ -44,7 +44,29 @@ esac
 
 "$repo_root/scripts/native-extra-cores.sh" validate
 package_enabled=0
-if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then package_enabled=1; fi
+package_ids_reverse=
+load_package_mount_order() {
+  remaining=${FES_PACKAGE_IDS:-}
+  while :; do
+    case "$remaining" in
+      *,*) package_id=${remaining%%,*}; remaining=${remaining#*,} ;;
+      *) package_id=$remaining; remaining= ;;
+    esac
+    case "$package_id" in
+      fes.pong) package_core=pong ;;
+      fes.zx81) package_core=zx81 ;;
+      fes.coleco) package_core=coleco ;;
+      *) exit 2 ;;
+    esac
+    package_ids_reverse="$package_core $package_ids_reverse"
+    [ -n "$remaining" ] || break
+  done
+}
+if [ "$native_mode" = package-only ]; then
+  load_package_mount_order
+else
+  if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then package_enabled=1; fi
+fi
 fogcast_dir=
 if [ -n "${FOGCAST_DIR:-}" ]; then
   case "$FOGCAST_DIR" in
@@ -61,6 +83,36 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fogcast_dir=$(CDPATH='' cd -- "$FOGCAST_DIR" && pwd -P)
 fi
 docker_run() {
+  if [ "$native_mode" = package-only ]; then
+    set -- --env "FES_PACKAGE_IDS=$FES_PACKAGE_IDS" "$@"
+    for package_core in $package_ids_reverse; do
+      case "$package_core" in
+        pong)
+          package_dir=$FES_PONG_PACKAGE_DIR
+          package_selection=$FES_PONG_PACKAGE_SELECTION
+          package_dir_env=FES_PONG_PACKAGE_DIR
+          package_selection_env=FES_PONG_PACKAGE_SELECTION
+          ;;
+        zx81)
+          package_dir=$FES_ZX81_PACKAGE_DIR
+          package_selection=$FES_ZX81_PACKAGE_SELECTION
+          package_dir_env=FES_ZX81_PACKAGE_DIR
+          package_selection_env=FES_ZX81_PACKAGE_SELECTION
+          ;;
+        coleco)
+          package_dir=$FES_COLECO_PACKAGE_DIR
+          package_selection=$FES_COLECO_PACKAGE_SELECTION
+          package_dir_env=FES_COLECO_PACKAGE_DIR
+          package_selection_env=FES_COLECO_PACKAGE_SELECTION
+          ;;
+        *) exit 2 ;;
+      esac
+      set -- --volume "$package_dir:/fes-$package_core-package:ro" \
+        --env "$package_dir_env=/fes-$package_core-package" \
+        --volume "$package_selection:/fes-$package_core-package-selection.toml:ro" \
+        --env "$package_selection_env=/fes-$package_core-package-selection.toml" "$@"
+    done
+  fi
   if [ -n "$fogcast_dir" ]; then
     exec "$runtime" run --volume "$fogcast_dir:/fogcast:ro" \
       --env FOGCAST_DIR=/fogcast --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
@@ -95,7 +147,7 @@ run_container() {
     fi
     docker_run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' "$@"
   fi
-  if [ "$package_enabled" -eq 1 ]; then
+  if [ "$native_mode" != package-only ] && [ "$package_enabled" -eq 1 ]; then
     docker_run \
       --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
       --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"

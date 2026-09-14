@@ -350,30 +350,42 @@ def select(root, profile):
     return image_fingerprint, host_fingerprint, fogcast, cores, env
 
 
-def published_package(output, configuration, profile):
-    """Return the selected package bound to the verified parent output."""
+def published_packages(output, configuration, profile):
+    """Return the ordered selected packages bound to the verified parent output."""
     selected = cold_build.selected_packages(configuration, profile)
     if not selected:
-        return None
+        return ()
     try:
         inputs = json.loads((Path(output) / 'inputs.json').read_text())
         package_inputs = inputs['fpga_packages']
-        if type(package_inputs) is not list or len(package_inputs) != 1:
+        if type(package_inputs) is not list or len(package_inputs) != len(selected):
             raise ValueError
-        package_inputs = package_inputs[0]
-        selection = package_inputs['selection']
-        if selection['core_id'] != selected[0]:
-            raise ValueError
-        recipe = cold_build.recipe_for(selected[0])
-        package = {
-            'directory': Path(output) / 'core-packages' / selection['package_id'],
-            'selection_path': Path(output) / recipe.selection_filename,
-            'inputs': package_inputs,
-        }
-        cold_build.verify_package_only_outputs(output, package)
-        return package
+        packages = []
+        for core_id, package_input in zip(selected, package_inputs):
+            selection = package_input['selection']
+            if selection['core_id'] != core_id:
+                raise ValueError
+            recipe = cold_build.recipe_for(core_id)
+            packages.append({
+                'directory': Path(output) / 'core-packages' / selection['package_id'],
+                'selection_path': Path(output) / recipe.selection_filename,
+                'inputs': package_input,
+            })
+        packages = tuple(packages)
+        cold_build.verify_package_only_outputs(output, packages)
+        return packages
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         raise ValueError('published FES package output is missing or stale; run make build and make verify') from None
+
+
+def published_package(output, configuration, profile):
+    """Return the legacy singular package value for compatibility callers."""
+    packages = published_packages(output, configuration, profile)
+    if not packages:
+        return None
+    if len(packages) != 1:
+        raise ValueError('singular published package lookup requires one package')
+    return packages[0]
 
 
 def provenance_for(root, fogcast, cold):
@@ -396,8 +408,8 @@ def prepare(root, profile):
     mode = cold_build.native_image_mode(configuration)
     cold = cold_build.load_verified_image(output, image_fingerprint)
     host = cold_build.load_verified_host(output, host_fingerprint)
-    package = published_package(output, configuration, profile)
-    if mode == 'package-only' and package is None:
+    packages = published_packages(output, configuration, profile)
+    if mode == 'package-only' and not packages:
         raise ValueError('package-only native image requires one selected format-2 package')
     # Host and image receipts have independent input keys. Preserve both
     # provenance revisions instead of relabelling a reused host artifact or
@@ -436,7 +448,7 @@ def prepare(root, profile):
     if mode == 'format1':
         env['NATIVE_RUNTIME_SYSTEMS'] = ' '.join(cores)
     else:
-        env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(package)))
+        env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(packages)))
     return cold, fogcast, image, env, inputs, lock
 
 
