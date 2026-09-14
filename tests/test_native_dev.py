@@ -352,14 +352,21 @@ class NativeDevTest(unittest.TestCase):
             packages = tuple(packages)
             profile = {'bundle_interface': 'selection', 'native_image_mode': 'package-only'}
             calls = []
+            native_container_envs = []
+
+            def record_run(args, **kwargs):
+                if (len(args) >= 2 and
+                        str(args[0]).endswith('target-image-container.sh') and
+                        args[1] in ('fetch', 'run')):
+                    native_container_envs.append(dict(kwargs['env']))
+                calls.append((args, kwargs))
 
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
                  patch.object(native_dev, 'git', return_value='a' * 40), \
                  patch.object(native_dev.subprocess, 'run',
                               return_value=subprocess.CompletedProcess([], 0)), \
-                 patch.object(native_dev, 'run',
-                              side_effect=lambda args, **kwargs: calls.append((args, kwargs))):
+                 patch.object(native_dev, 'run', side_effect=record_run):
                 native_dev.build_development(
                     root, image, fogcast, root / 'runtime', 'native-integration-dev',
                     profile, {}, 'candidate',
@@ -372,6 +379,11 @@ class NativeDevTest(unittest.TestCase):
                                 for call in flattened))
             self.assertTrue(any('FES_ZX81_PACKAGE_DIR=' + str(root / 'fes.zx81') in call
                                 for call in flattened))
+            self.assertGreaterEqual(len(native_container_envs), 2)
+            for env in native_container_envs:
+                self.assertEqual(env['FES_PACKAGE_IDS'], 'fes.pong,fes.zx81')
+                self.assertEqual(env['FES_PONG_PACKAGE_DIR'], str(root / 'fes.pong'))
+                self.assertEqual(env['FES_ZX81_PACKAGE_DIR'], str(root / 'fes.zx81'))
             output = root / 'out/native-integration-dev/development'
             self.assertEqual(build.verify_package_outputs(output, packages), [
                 'fes-pong.package-selection.toml',

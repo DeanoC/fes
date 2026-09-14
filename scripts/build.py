@@ -1761,8 +1761,12 @@ def main():
                     run_stage(diagnostics, "image subprocess", [container, "pull", "--platform", base["platform"], ref], env=env)
                 run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
+                fetch_env = dict(env)
+                if mode == "package-only":
+                    fetch_env.update(dict(argument.split("=", 1)
+                                         for argument in package_arguments(packages)))
                 run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
-                     "/work/scripts/fetch-target-image-sources.sh"], env=env)
+                     "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
                 if mode == 'package-only':
                     bundles = {}
                     run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
