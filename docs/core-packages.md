@@ -12,6 +12,8 @@ The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.pong`, `fes.zx81` and `fes.coleco` format-2 package set.
 Format-1 catalog cores are not built or installed by this FES production path;
 the historical format-1 lanes remain separate from the package-only contract.
+Quartus is reserved for those explicit historical format-1 profiles or a
+documented bring-up/oracle check; the package-only route does not invoke it.
 Each package can be installed on the host and given an explicit library entry;
 the package route does not infer ROM or media inputs or replace the existing
 catalog system.

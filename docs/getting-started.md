@@ -9,7 +9,7 @@ one of those parts. The [project map](project-map.md) explains the distinction.
 Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
 Go selects the version required by the chosen FogCast `go.mod`. The normal FES
-FPGA package route uses the authenticated HIP/nextpnr producer. Quartus Lite
+FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
 17.0.2 is needed only for an explicit historical format-1 profile or a recipe's
 bring-up/oracle check; it is not required by the default package-only path.
 

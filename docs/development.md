@@ -92,14 +92,15 @@ Run `make dev` for the selected `native-integration-dev` revisions. It publishes
 `out/native-integration-dev/development/linux.img` and a `development.json`
 receipt after structural validation. It uses the same pinned package set,
 FES `image/` overlay and image recipes as the clean build. The native image
-contains the locked idle RBF and the ordered selected FES package set only. It does not deploy, run QEMU,
+contains the locked idle RBF and the same closed `fes.pong`, `fes.zx81`,
+`fes.coleco` package set. It does not deploy, run QEMU,
 produce two-pass evidence, or replace the clean image and receipts.
 
 The development Buildroot volume retains the compiler, libraries and package
 outputs. The Go agent uses Go's compilation cache; the runtime package is cleaned
 and rebuilt when its selected commit changes. An unchanged complete output is
 reused after receipt/hash checks. Otherwise, full Buildroot finalization runs to
-install the current agent, locked idle RBF, selected package and build-input record. A package
+install the current agent, locked idle RBF, selected package set and build-input record. A package
 selection change retains the compiler/base volume but forces final image
 assembly. The development receipt binds the emitted package selection and the
 exact external `manifest.toml` and `core.rbf` bytes.

@@ -81,14 +81,14 @@ package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. Format-1 catalog cores are not part of the default FES production image.
 
-The normal package build uses the authenticated HIP/nextpnr producer and its
-workspace-local compiler cache at `out/cache/misteross-toolchains`. A matching
-package is reused only after its locked inputs, manifest, payload and sealed
-selection are checked; a miss runs the selected format-2 producer. Quartus Lite
-17.0.2 remains available for explicit historical format-1 profiles and as a
-bring-up/oracle check where a recipe documents one. It is not run by the
-default FES path, and a failed HIP route never falls back to Quartus. Downloads
-are checked against component locks; image compilation runs twice in
+The normal package-only build uses the authenticated HIP/nextpnr producers and
+their workspace-local compiler cache at `out/cache/misteross-toolchains`. A
+matching package is reused only after its locked inputs, manifest, payload and
+sealed selection are checked; a miss runs that package's format-2 producer.
+Quartus Lite 17.0.2 remains available for explicit historical format-1 profiles
+and as a bring-up/oracle check where a recipe documents one. It is not run by
+the default FES path, and a failed HIP route never falls back to Quartus.
+Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 
 ```text
