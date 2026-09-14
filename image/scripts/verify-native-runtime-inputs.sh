@@ -4,6 +4,14 @@ set -eu
 repo_root=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 
+case "$native_mode" in
+  package-only) : ;;
+  *)
+    printf '%s\n' 'verify-native-runtime-inputs: native runtime mode must be package-only' >&2
+    exit 2
+    ;;
+esac
+
 if [ "$native_mode" = package-only ]; then
   [ "$#" -eq 3 ] || {
     printf '%s\n' 'usage: verify-native-runtime-inputs.sh LOCK RUNTIME_SOURCE IDLE_FILE (package-only)' >&2

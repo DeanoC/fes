@@ -133,4 +133,12 @@ if NATIVE_RUNTIME_MODE=format1 sh "$repo/scripts/fetch-native-runtime-inputs.sh"
   >"$fixture/legacy.out" 2>"$fixture/legacy.err"; then
   fail 'legacy format-1 mode was accepted'
 fi
+if NATIVE_RUNTIME_MODE=format1 sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  >"$fixture/verify-legacy.out" 2>"$fixture/verify-legacy.err"; then
+  fail 'verifier accepted the retired format-1 mode'
+fi
+if NATIVE_RUNTIME_MODE=unsupported sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  >"$fixture/verify-unsupported.out" 2>"$fixture/verify-unsupported.err"; then
+  fail 'verifier accepted an unsupported runtime mode'
+fi
 printf '%s\n' 'native runtime package-only inputs passed'

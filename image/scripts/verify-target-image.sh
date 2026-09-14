@@ -223,7 +223,8 @@ verify_package_only_native() {
     printf '%s\n' 'verify-target-image: native idle RBF size differs from the lock' >&2
     exit 1
   }
-  for stale_dir in "$package_root/../cores" "$package_root/../selections"; do
+  runtime_root=$package_root/usr/share/mister-runtime
+  for stale_dir in "$runtime_root/cores" "$runtime_root/selections"; do
     [ ! -e "$stale_dir" ] && [ ! -L "$stale_dir" ] || {
       printf 'verify-target-image: package-only image contains unmanaged runtime directory: %s\n' "$stale_dir" >&2
       exit 1
