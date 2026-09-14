@@ -160,6 +160,24 @@ class CoreBuildTest(unittest.TestCase):
         self.assertNotIn('MAKEFLAGS', env)
         self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
 
+    def test_rebuild_forces_selected_package_production(self):
+        captured = {}
+
+        def fake_resolve(revisions, selection_path, env, force=False, recipe=None):
+            captured.update(revisions=revisions, selection=selection_path,
+                            env=env, force=force, recipe=recipe)
+            return {'directory': Path('/pkg')}
+
+        recipe = build.recipe_for('fes.pong')
+        with patch.object(build, 'resolve_selected_package', side_effect=fake_resolve):
+            result = build.resolve_package_for_action(
+                {'misteross': 'a' * 40, 'mister-packages': 'b' * 40},
+                Path('/out'), {'KEEP': '1'}, 'rebuild', recipe)
+        self.assertEqual(result['directory'], Path('/pkg'))
+        self.assertEqual(captured['selection'], Path('/out/' + recipe.selection_filename))
+        self.assertTrue(captured['force'])
+        self.assertIs(captured['recipe'], recipe)
+
     def test_package_arguments_and_image_fingerprint_bind_exact_selection_bytes(self):
         package = {
             'directory': Path('/packages/identity'),

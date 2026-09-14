@@ -904,6 +904,13 @@ def resolve_selected_package(revisions, selection_path, env, force=False, recipe
         force=force, env=env, recipe=recipe)
 
 
+def resolve_package_for_action(revisions, output, env, action, recipe):
+    """Resolve the selected package, rebuilding it for an explicit rebuild."""
+    return resolve_selected_package(
+        revisions, Path(output) / recipe.selection_filename, env,
+        force=action == 'rebuild', recipe=recipe)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
@@ -959,9 +966,8 @@ def main():
         image_fp, image_info = fp, info
         if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
             selected_recipe = recipe_for(package_recipes[0])
-            package = resolve_selected_package(
-                revisions, output / selected_recipe.selection_filename, env,
-                recipe=selected_recipe)
+            package = resolve_package_for_action(
+                revisions, output, env, args.action, selected_recipe)
             image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
