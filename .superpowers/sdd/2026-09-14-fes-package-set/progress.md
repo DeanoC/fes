@@ -127,7 +127,7 @@
 - Independent review after the documentation repair: SPEC PASS / QUALITY
   PASS; no P1, P2 or P3 findings.
 
-## Task 4 — verification in progress
+## Task 4 — completed
 
 - The first full Python run exposed a stale one-package media fixture after
   the default profile became a three-package set: FAILED (failures=6,
@@ -145,5 +145,8 @@
   synthetic package IDs, package stores, shared cache root, selection paths,
   manifest/payload hashes, and explicit per-lane not-run/not-generated fields
   for Yosys/nextpnr, Quartus, QEMU and image receipts.
+- Independent repair review of 4735f01: no P1, P2 or P3 findings; SPEC PASS /
+  QUALITY PASS. The reviewer’s three-lane evidence consistency probe and
+  8e3c427..4735f01 diff check both passed.
 - No cold release build, Quartus run, physical hardware test, push, PR or
   merge was performed.
