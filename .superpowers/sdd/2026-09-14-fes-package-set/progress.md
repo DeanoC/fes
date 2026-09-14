@@ -24,3 +24,14 @@
 
 - Ruling: Keep the current default profile as the all-three FES package set — the user explicitly asked to include ZX81 and Coleco, and the merged recipe registry already defines their independent HIP lanes; the cost is a larger first cold image build, mitigated by per-lane cache reuse.
 - Ruling: Keep historical format-1 profiles intact — the request removes format-1 from FES production, not from unrelated historical reproduction paths; the cost is retaining legacy code outside the default path.
+
+## Task 1 — completed
+
+- Implementation commit: `ccc51c112ccb9dcccc44bede69074c50498fc5cd` (`build: track ordered FES package sets`).
+- Red: `python3 -m unittest tests.test_core_build tests.test_receipt tests.test_native_dev tests.test_media` — `Ran 128 tests`; `FAILED (errors=6)` at the ordered selection, package arguments, ordered fingerprint, multi-package publication, native-dev tuple, and media tuple regression tests.
+- Green: `python3 -m unittest tests.test_core_build tests.test_receipt tests.test_native_dev tests.test_media` — `Ran 129 tests in 1.849s`; `OK`.
+- Full Python suite: `python3 -m unittest discover -s tests` — `Ran 279 tests in 3.893s`; `OK (skipped=39)`.
+- Consistency: `make check` — `consistency: package YAML valid; 14 generated consumers, 11 fixture copies and 4 copied source pins match`.
+- Syntax: `python3 -m py_compile scripts/*.py` — exit 0.
+- Whitespace: `git diff --check` — exit 0 before the implementation commit.
+- Scope boundary: no Quartus, cold full image build, image shell suite, hardware test, push, PR, or merge was performed; target-image shell mounting/install work remains Task 2 and the all-three default profile update remains Task 3.
