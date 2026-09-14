@@ -151,9 +151,9 @@ class BundleTest(unittest.TestCase):
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
         self.assertIn(
-            'make -C "out/work/misteross-$revision" \\\n  toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(
-            'make -C "out/work/misteross-$revision" \\\n  doctor-strict CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

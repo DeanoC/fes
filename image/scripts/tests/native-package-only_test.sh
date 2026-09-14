@@ -261,6 +261,7 @@ for variable in FES_PONG_PACKAGE_DIR FES_PONG_PACKAGE_SELECTION \
 done
 make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
   FES_PACKAGE_IDS="$package_ids" \
+  LIBMISTER_RUNTIME_DIR="$fixture/runtime" \
   FES_PONG_PACKAGE_DIR="$fixture/pong-package" \
   FES_PONG_PACKAGE_SELECTION="$fixture/pong.package-selection.toml" \
   FES_ZX81_PACKAGE_DIR="$fixture/zx81-package" \
@@ -268,6 +269,8 @@ make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
   FES_COLECO_PACKAGE_DIR="$fixture/coleco-package" \
   FES_COLECO_PACKAGE_SELECTION="$fixture/coleco.package-selection.toml" \
   FOGCAST_DIR="$fogcast_make" target-image-native-fetch >"$fixture/make.log"
+grep -Fq 'LIBMISTER_RUNTIME_DIR= ' "$fixture/make.log"
+grep -Fq "LIBMISTER_RUNTIME_DIR=\"$fixture/runtime\"" "$fixture/make.log"
 grep -Fq 'NATIVE_RUNTIME_MODE="package-only"' "$fixture/make.log"
 if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIVE_RUNTIME_SYSTEMS|fetch-core|rebuild-core|export-core-bundle|megadrive\.selection\.toml' "$fixture/make.log"; then
   printf '%s\n' 'package-only make graph still exposes format-1 inputs' >&2

@@ -52,6 +52,7 @@ target-image-native-fetch: build-target-image-lock-container
 target-image-native-fetch:
 	$(require_fogcast)
 	NATIVE_RUNTIME_MODE="$(NATIVE_RUNTIME_MODE)" \
+	  LIBMISTER_RUNTIME_DIR= \
 	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  FOGCAST_DIR="$(FOGCAST_DIR)" \
 	  scripts/target-image-container.sh fetch \
