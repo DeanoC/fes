@@ -13,12 +13,20 @@ profile consumes the component graph; native image assembly lives in FES `image/
 | mister-packages | Describe boards, SoCs, registers, system protocols and upstream core sources; generate consumer definitions | YAML, emitter, generated C++/Go definitions and reports |
 | misteross | Build FPGA artifacts and validate their build provenance; maintain FPGA development tools and experiments | RBF bundles, simulations and compiler recipes |
 | libmister-runtime | Execute the hardware lifecycle on the target: program FPGA, configure hardware, load media, handle input, stop and return to idle | Native library and daemon, runtime protocol |
-| FogCast | Own the user-facing application, game library, launch selection, host services and target agent | UI, host binaries, agent and public APIs |
+| FogCast | Own the user-facing application, game library, launch selection, host services and target agent | `ui/tenfoot`, `ui/kitlauncher`, host binaries, agent and public APIs |
 | Main_MiSTer | Original implementation and comparison/test reference | Reference behavior and optional test fixtures; not an FES production dependency |
 
 An upstream core-source pin describes what to fetch; misteross owns fetching
 and compiling it. FES selects component revisions and which resulting
 artifacts belong in a system image. These are different responsibilities.
+
+Within FogCast, the application UI is explicitly under
+`sources/FogCast/ui/tenfoot` and `sources/FogCast/ui/kitlauncher`. Their Go
+package names remain `tenfoot` and `kitlauncher` for compatibility. Host
+services and public API ownership stays with FogCast, while target HTTP/cache
+coordination remains in the agent and physical lifecycle remains in
+libmister-runtime. The UI does not own target handlers, runtime lifecycle,
+image assembly, or FPGA builds.
 
 ## FogCast agent, runtime and FPGA builder
 
