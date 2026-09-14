@@ -32,8 +32,8 @@ class StagingTest(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         self.assertNotEqual(
-            module.output_volume(Path("/repo"), "native-dev"),
-            module.output_volume(Path("/repo"), "native-source-dev"),
+            module.output_volume(Path("/repo"), "native-integration-dev"),
+            module.output_volume(Path("/repo"), "native-integration-dev-development"),
         )
 
     def test_staging_restores_only_declared_generated_overlay(self):

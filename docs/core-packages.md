@@ -9,11 +9,10 @@ See [FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up
 notes.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.pong`, `fes.zx81` and `fes.coleco` format-2 package set.
-Format-1 catalog cores are not built or installed by this FES production path;
-the historical format-1 lanes remain separate from the package-only contract.
-Quartus is reserved for those explicit historical format-1 profiles or a
-documented bring-up/oracle check; the package-only route does not invoke it.
+the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
+image route is package-only. Quartus is reserved for a documented bring-up or
+oracle/check when a system is not yet supported by nextpnr; the package-only
+route does not invoke it.
 Each package can be installed on the host and given an explicit library entry;
 the package route does not infer ROM or media inputs or replace the existing
 catalog system.
@@ -94,8 +93,8 @@ behavior: no inferred game/media launch and no fabricated custom ABI or input
 capability. The separate `development-contained-v1` profile is an explicit raw
 diagnostic selection with contained bridges and SDRAM. Its live identity is
 unverified, so it infers no ABI and exposes no controller or video service.
-Format-1 catalog bundles and `NATIVE_RUNTIME_SYSTEMS` remain available only
-through the explicitly selected historical image path.
+The package-only image does not use catalog bundle inputs or legacy runtime
+system-selection variables; it installs only the selected sealed packages.
 
 ## Install and select a library package
 

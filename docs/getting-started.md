@@ -10,8 +10,8 @@ Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
 Go selects the version required by the chosen FogCast `go.mod`. The normal FES
 FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
-17.0.2 is needed only for an explicit historical format-1 profile or a recipe's
-bring-up/oracle check; it is not required by the default package-only path.
+17.0.2 is only an explicit bring-up/oracle check for a system whose nextpnr
+route is not implemented; it is not required by the default package-only path.
 
 You need Git access to FES and all four component repositories. The clone
 example below uses SSH for FES, but `.gitmodules` currently uses HTTPS for the
@@ -52,13 +52,9 @@ pinned commits, not whichever branch tips are newest.
 | Reverify published native media | `make verify-media` | Media, payload, embedded-rootfs and QEMU checks |
 
 For the default package-only image, the first producer run authenticates or
-reuses the selected HIP/nextpnr toolchain automatically. A historical
-format-1 source build needs the installed Quartus location:
-
-```sh
-QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 \
-  make build PROFILE=native-source-dev
-```
+reuses the selected HIP/nextpnr toolchain automatically. A system whose nextpnr
+route is not implemented yet has a separate, recipe-defined Quartus oracle/check;
+it is never an automatic fallback and never creates an image bundle.
 
 The first development build can copy a compatible existing clean base or build
 it once. Later builds retain unchanged compiler/base packages. Completely
@@ -79,16 +75,7 @@ make verify-media
 `make build` also reuses matching complete outputs. When it must assemble a new
 image, it runs two independent clean passes. `make rebuild` forces the host,
 selected package production and both image passes; use it when that expensive
-work is intended. A historical format-1 profile may additionally invoke
-Quartus.
-
-The default profile is `native-integration-dev`. Historical profiles are for
-reproducing earlier combinations, not the normal development starting point:
-
-```sh
-make doctor PROFILE=native-dev
-make doctor PROFILE=native-source-dev
-```
+work is intended. The only parent profile is `native-integration-dev`.
 
 `make verify` requires both host and clean-image receipts, so run `make host`
 as well if you previously built only `make image`. The host receipt names
@@ -99,8 +86,8 @@ so it can embed the selected target agent automatically. Set up that file before
 publishing media, or set `FES_UNPROVISIONED=1` when an image without an agent
 configuration is deliberately required.
 
-`make dev` supports only the current integration profile. The word `dev` in a
-historical profile name does not imply that it supports incremental builds.
+`make dev` supports the current integration profile and its package-only image
+contract.
 
 ## 3. Run the host
 
@@ -187,9 +174,9 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` format-2 package set;
-use the media command above for the complete flashable layout. Format-1 catalog
-cores remain outside this production path.
+RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set; use the
+media command above for the complete flashable layout. The image has no legacy
+bundle lane.
 The `make build`, `make dev`, `make verify` and `make media` paths use the
 same closed package set.
 
@@ -208,7 +195,7 @@ and input behavior require separate hardware checks of the exact image.
 | `source checkout is dirty` | Preserve edits in the component task worktree; see [development](development.md#isolate-component-work) |
 | Runtime lock differs from parent pin | Select the FogCast/runtime pair together; changing only the gitlink is insufficient |
 | Generated consumer or copied source-pin drift | Reconcile the authoritative package definition and affected consumers; `make check` reports drift but does not repair it |
-| Missing Quartus | Only relevant to an explicit historical format-1 profile or documented oracle check; the default package-only path uses HIP/nextpnr |
+| Missing Quartus | Only relevant to a documented oracle/check for a system not yet supported by nextpnr; the default package-only path uses HIP/nextpnr |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |
 | Private-component CI checkout fails | Configure repository secret `FES_COMPONENTS_TOKEN` with access to the parent and four components |

@@ -66,16 +66,17 @@ component remote; a local-only commit will break recursive clones elsewhere.
 | `make media` | Assemble a flashable disk image from verified cold outputs |
 | `make verify-media` | Verify `media/current/fes.img` and its host-side evidence without deployment |
 
-The default is `native-integration-dev`. Select a historical profile explicitly
-with `PROFILE=native-dev` or `PROFILE=native-source-dev`; their evidence applies
-to those revisions and artifacts. Those historical format-1 source builds
-require the configured Quartus toolchain (`QUARTUS_ROOTDIR`). Build and verify
-do not deploy. The default profile authenticates the pinned open-source
+The default and only FES integration profile is `native-integration-dev`.
+Build and verify do not deploy. The profile authenticates the pinned open-source
 misteross HIP/nextpnr tools before selecting the ordered
 `fes.pong`, `fes.zx81`, `fes.coleco` package set. See [described FPGA core
 packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
 workflow. Host-only builds do not require those tools.
-The clean, development, verification and media paths all reuse the same closed package set.
+The clean, development, verification and media paths are package-only and all
+reuse the same closed package set.
+Systems whose nextpnr route is not implemented yet use an explicit Quartus
+oracle/check documented by that system's recipe. Quartus is never an automatic
+fallback and never creates a legacy image bundle.
 
 During component development, use the narrow relevant component tests and
 build only changed artifacts. For target diagnostics, follow the selected
@@ -125,29 +126,11 @@ selection and locked idle RBF are installed during finalization; a change to
 that policy selects a new base. This intentionally conservative key can be
 narrowed later with evidence.
 
-Historical format-1 FPGA bundles, when an explicitly selected legacy profile
-needs them, use the disposable workspace cache
-`out/cache/fpga-bundles/<system>/<closed-bundle-sha256>/`. They are not part of
-the default image and are not package provenance. Distinct validated artifacts
-remain fail-closed; the error lists conflicting candidate directories. Sealed
-cache files are read-only and their directories are mode 0555, so recover only
-the exact historical subtree when necessary. Replace `<system>` with the
-historical core name:
-
-```sh
-chmod -R u+rwX -- out/cache/fpga-bundles/<system>
-rm -rf -- out/cache/fpga-bundles/<system>
-```
-
-Then retry.
-
-The default parent integration path also opts every selected FES format-2
+The default parent integration path also opts every selected FES
 package producer into the disposable shared compiler cache at
-`out/cache/misteross-toolchains` through an explicit producer `--cache-root`. Generic
-format-1 Mega Drive, SNES and NES bundle lanes keep the local toolchain
-environment; misteross rejects shared mode for those legacy OSS, simulation
-and programming paths. That cache is workspace-local ignored state, not
-provenance. Published slots seal `install/` and `evidence/` as 0555
+`out/cache/misteross-toolchains` through an explicit producer `--cache-root`.
+That cache is workspace-local ignored state, not provenance. Published slots
+seal `install/` and `evidence/` as 0555
 directories with 0444 files and also keep writable `src/` and `build/`
 trees, so a plain recursive removal cannot delete them. Restore owner write
 and search permission, then remove that exact tree:
@@ -164,14 +147,14 @@ hardware validation.
 `make dev` builds selected clean revisions, not arbitrary uncommitted worker
 checkouts. Integrate reviewed component commits using the commands above before
 running the parent build. Workers can still use their component's artifact-only
-diagnostic loop. Historical profiles continue to use their cold builds.
+diagnostic loop.
 
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those
-commands' release receipts. `make rebuild` still forces the full cold build;
-historical format-1 profiles include Quartus. Native development does not build the separate QEMU test
-kernel. Unused development volumes may consume several GB each; their exact
-names are recorded in the development `inputs.json`.
+commands' release receipts. `make rebuild` still forces the full cold build.
+Native development does not build the separate QEMU test kernel. Unused
+development volumes may consume several GB each; their exact names are
+recorded in the development `inputs.json`.
 
 After those cold receipts pass, `make media` can assemble
 `out/native-integration-dev/media/current/fes.img`. On a local checkout it

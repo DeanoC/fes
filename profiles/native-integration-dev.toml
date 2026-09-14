@@ -5,8 +5,8 @@ version = "0.1.0"
 native_image_mode = "package-only"
 check_packages = true
 
-# Current component revisions are the parent gitlinks. Historical profiles
-# explicitly select earlier commits; this profile integrates this ordered set.
+# Current component revisions are the parent gitlinks; this profile integrates
+# the ordered package set.
 [[fpga_packages]]
 core_id = "fes.pong"
 

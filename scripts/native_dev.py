@@ -9,11 +9,11 @@ import subprocess
 import tomllib
 
 from build import (digest, output_volume, publish_file, reusable, run, write_receipt,
-                   selected_cores, bundle_arguments, package_arguments,
+                   package_arguments,
                    package_selection_names,
                    publish_package_state, recorded_image_fingerprint,
                    reuse_status, verify_package_outputs, native_image_mode,
-                   verify_package_only_outputs, remove_format1_parent_outputs)
+                   verify_package_only_outputs, remove_stale_parent_outputs)
 from build_diagnostics import BuildDiagnostics
 from inputs import git
 
@@ -100,37 +100,27 @@ def run_stage(diagnostics, name, args, **kwargs):
 
 
 def build_development(root, image, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, fogcast_make, image_make, bundles, packages=None,
+                      fingerprint, env, fogcast_make, image_make, packages=None,
                       diagnostics=None):
     mode = native_image_mode(profile)
-    if mode == 'format1' and profile.get('bundle_interface') != 'selection':
-        raise ValueError('make dev requires native-integration-dev; historical profiles stay cold')
+    if mode != 'package-only':
+        raise ValueError('FES native development requires package-only mode')
     output = root / 'out' / profile_name / 'development'
     owned_diagnostics = diagnostics is None
     diagnostics = diagnostics or BuildDiagnostics(output, 'dev')
     hit, reason = reuse_status(output, 'development', fingerprint)
     diagnostics.cache('development', 'hit' if hit else 'miss', reason)
     if hit:
-        if mode == 'package-only':
-            verify_package_only_outputs(output, packages)
-        else:
-            verify_package_outputs(output, packages)
+        verify_package_only_outputs(output, packages)
         if owned_diagnostics:
             diagnostics.finish('success')
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
-    cores = selected_cores(profile) if mode == 'format1' else ()
-    if mode == 'package-only':
-        if not packages:
-            raise ValueError('package-only native development requires a selected format-2 package')
-        cores = ()
-        selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(packages)
-    else:
-        selection_args = (['NATIVE_RUNTIME_MODE=format1'] +
-                          bundle_arguments(cores, bundles) + package_arguments(packages))
+    if not packages:
+        raise ValueError('package-only native development requires a selected format-2 package')
+    selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(packages)
     selection_env = dict(env)
-    if mode == 'package-only':
-        selection_env.update(dict(argument.split('=', 1) for argument in selection_args))
+    selection_env.update(dict(argument.split('=', 1) for argument in selection_args))
     key = base_key(image, fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
@@ -169,13 +159,6 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     if not re.fullmatch('[0-9a-f]{40}', runtime_revision):
         raise ValueError('runtime revision must be a full commit ID')
     selection_copy = ''
-    if mode == 'format1':
-        selection_copy = '\n'.join(
-            f'rm -f {EXPORT}/{core}.selection.toml.new\n'
-            f'cp /work/build/cache/target-image/native/{core}.selection.toml {EXPORT}/{core}.selection.toml.new\n'
-            f'chmod 0444 {EXPORT}/{core}.selection.toml.new\n'
-            f'mv {EXPORT}/{core}.selection.toml.new {EXPORT}/{core}.selection.toml'
-            for core in cores)
     package_selection_files = package_selection_names(packages)
     for package_selection_name in package_selection_files:
         selection_copy += f'''\nrm -f {EXPORT}/{package_selection_name}.new
@@ -209,24 +192,16 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
     exported = Path(EXPORT)
     run_stage(diagnostics, 'target verification subprocess',
               [image / 'scripts/verify-target-image.sh', 'native-dev', exported / 'linux.img',
-               exported / 'manifest.tsv', exported / 'library-report.tsv',
-               *([exported / 'megadrive.selection.toml'] if mode == 'format1' else [])],
+               exported / 'manifest.tsv', exported / 'library-report.tsv'],
               env=dict(env, NATIVE_RUNTIME_MODE=mode))
-    names = ['linux.img', 'manifest.tsv', 'library-report.tsv'] + [
-        core + '.selection.toml' for core in cores]
+    names = ['linux.img', 'manifest.tsv', 'library-report.tsv']
     for name in names:
         publish_file(built / name, output / name)
-    if mode == 'format1':
-        for core in cores:
-            for name in (core + '.rbf', core + '-rbf.toml'):
-                publish_file(bundles[core] / name, output / name)
-                names.append(name)
     built_selections = {name: built / name for name in package_selection_files}
     names.extend(publish_package_state(
         packages, built_selections if packages else None, output))
-    if mode == 'package-only':
-        remove_format1_parent_outputs(output)
-        verify_package_only_outputs(output, packages)
+    remove_stale_parent_outputs(output)
+    verify_package_only_outputs(output, packages)
     record = dict(info, build_mode='incremental-development', base_key=key,
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
