@@ -1,7 +1,9 @@
 """The selected profile controls the complete installed FPGA core set."""
 from contextlib import contextmanager
+import json
 from pathlib import Path
 import hashlib
+import shutil
 import sys
 import tempfile
 import tomllib
@@ -10,6 +12,81 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import build
 from environment import build_environment
+
+
+def make_package_generation(root, label, package_ids):
+    packages = []
+    built_selections = {}
+    for index, (core_id, selection_name, package_id) in enumerate(zip(
+            ('fes.pong', 'fes.zx81'),
+            ('fes-pong.package-selection.toml', 'fes-zx81.package-selection.toml'),
+            package_ids)):
+        source = root / f'{label}-{core_id}'
+        source.mkdir()
+        (source / 'manifest.toml').write_bytes(f'{label}-manifest-{index}'.encode())
+        (source / 'core.rbf').write_bytes(f'{label}-payload-{index}'.encode())
+        selection = root / f'{label}-{selection_name}'
+        selection.write_bytes(f'format = 2\nlabel = "{label}"\n'.encode())
+        built = root / 'built' / label / selection_name
+        built.parent.mkdir(parents=True, exist_ok=True)
+        built.write_bytes(selection.read_bytes())
+        packages.append({
+            'directory': source,
+            'selection_path': selection,
+            'inputs': {
+                'selection': {'package_id': package_id, 'core_id': core_id},
+                'selection_sha256': hashlib.sha256(selection.read_bytes()).hexdigest(),
+                'manifest_sha256': hashlib.sha256((source / 'manifest.toml').read_bytes()).hexdigest(),
+                'core_rbf_sha256': hashlib.sha256((source / 'core.rbf').read_bytes()).hexdigest(),
+            },
+        })
+        built_selections[selection_name] = built
+    return tuple(packages), built_selections
+
+
+def package_file_snapshot(output):
+    output = Path(output)
+    files = {}
+    root = output / 'core-packages'
+    if root.is_dir() and not root.is_symlink():
+        files.update({path.relative_to(output).as_posix(): path.read_bytes()
+                      for path in root.rglob('*') if path.is_file()})
+    files.update({path.name: path.read_bytes()
+                  for path in output.glob('*.package-selection.toml') if path.is_file()})
+    return files
+
+
+def write_complete_backup_fixture(output, package_id):
+    backup = output / '.package-generation.previous'
+    backup.mkdir()
+    shutil.copytree(output / 'core-packages', backup / 'core-packages', symlinks=True)
+    for path in output.glob('*.package-selection.toml'):
+        shutil.copy2(path, backup / path.name)
+    (backup / 'core-packages' / package_id).chmod(0o755)
+    nested = backup / 'core-packages' / package_id / 'nested'
+    nested.mkdir()
+    (nested / 'link').symlink_to('/tmp/package-backup-outside')
+    nested.chmod(0o555)
+    (backup / 'core-packages' / package_id).chmod(0o555)
+    (backup / 'core-packages').chmod(0o555)
+    entries = []
+    for relative in (
+            'fes-pong.package-selection.toml',
+            f'core-packages/{package_id}/manifest.toml',
+            f'core-packages/{package_id}/core.rbf'):
+        path = backup / relative
+        entries.append({'path': relative,
+                        'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+        path.chmod(0o444)
+    marker = backup / '.package-generation.complete'
+    marker.write_text(json.dumps({
+        'format': 1,
+        'directories': ['core-packages', f'core-packages/{package_id}'],
+        'files': entries,
+    }, sort_keys=True) + '\n')
+    marker.chmod(0o444)
+    backup.chmod(0o555)
+    return backup
 
 
 class CoreBuildTest(unittest.TestCase):
@@ -411,6 +488,71 @@ class CoreBuildTest(unittest.TestCase):
             self.assertFalse((output / '.package-selections.new').exists())
             self.assertFalse((output / '.package-generation.new').exists())
             self.assertFalse((output / '.package-generation.previous').exists())
+
+    def test_malformed_sealed_package_backup_preserves_the_live_generation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(root, 'old', ('a' * 64,))
+            build.publish_package_outputs(old_packages, old_built, output)
+            before = package_file_snapshot(output)
+            write_complete_backup_fixture(output, 'a' * 64)
+            new_packages, new_built = make_package_generation(root, 'new', ('b' * 64,))
+
+            with self.assertRaisesRegex(ValueError, 'backup|generation|symlink|closed'):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertEqual(package_file_snapshot(output), before)
+            self.assertTrue((output / '.package-generation.previous').is_dir())
+
+    def test_rollback_failure_preserves_backup_for_the_next_normal_publish(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(
+                root, 'old', ('a' * 64, 'b' * 64))
+            build.publish_package_outputs(old_packages, old_built, output)
+            old_files = package_file_snapshot(output)
+            new_packages, new_built = make_package_generation(
+                root, 'new', ('c' * 64, 'd' * 64))
+            backup = output / '.package-generation.previous'
+            original_replace = Path.replace
+            phase = 'publish'
+
+            def fail_during_rollback(source, target):
+                nonlocal phase
+                source = Path(source)
+                target = Path(target)
+                if (phase == 'publish' and target.parent == output and
+                        target.name == 'fes-pong.package-selection.toml'):
+                    result = original_replace(source, target)
+                    phase = 'rollback'
+                    raise RuntimeError('injected publish failure')
+                if (phase == 'rollback' and target.parent == output and
+                        target.name == 'fes-zx81.package-selection.toml'):
+                    raise RuntimeError('injected rollback failure')
+                return original_replace(source, target)
+
+            with patch.object(Path, 'replace', new=fail_during_rollback), \
+                    self.assertRaisesRegex(RuntimeError, 'injected publish failure'):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertTrue(backup.is_dir())
+            self.assertEqual(package_file_snapshot(backup), old_files)
+
+            build.publish_package_outputs(new_packages, new_built, output)
+            self.assertEqual(build.verify_package_outputs(output, new_packages), [
+                'fes-pong.package-selection.toml',
+                'core-packages/' + 'c' * 64 + '/manifest.toml',
+                'core-packages/' + 'c' * 64 + '/core.rbf',
+                'fes-zx81.package-selection.toml',
+                'core-packages/' + 'd' * 64 + '/manifest.toml',
+                'core-packages/' + 'd' * 64 + '/core.rbf',
+            ])
+            self.assertFalse(backup.exists())
+            self.assertFalse((output / '.package-generation.restore').exists())
 
     def test_package_publication_cleans_sealed_interrupted_staging(self):
         with tempfile.TemporaryDirectory() as tmp:
