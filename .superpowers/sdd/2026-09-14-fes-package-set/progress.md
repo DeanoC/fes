@@ -141,5 +141,9 @@
 - Isolated resolver evidence recorded one miss and one exact hit for each of
   Pong, ZX81 and Coleco; all three report router=HIP, the shared toolchain
   cache root, miss_builds=1 and hit_builds=0.
+- The validation record now includes the exact fixture producer revisions,
+  synthetic package IDs, package stores, shared cache root, selection paths,
+  manifest/payload hashes, and explicit per-lane not-run/not-generated fields
+  for Yosys/nextpnr, Quartus, QEMU and image receipts.
 - No cold release build, Quartus run, physical hardware test, push, PR or
   merge was performed.
