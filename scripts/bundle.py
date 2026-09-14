@@ -10,32 +10,22 @@ import subprocess
 import sys
 import tomllib
 
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+from recipes import FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, producer_environment, recipe_for
+
 REPOSITORY = "https://github.com/MiSTer-devel/MegaDrive_MiSTer"
 REVISION = "7365a137cfd8fa6f041e964d8b953159c0ec42d9"
 TOOLCHAIN = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
 MISTEROSS_REPOSITORY = "https://github.com/DeanoC/misteross.git"
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
-TOOLCHAIN_CACHE_ROOT = Path(__file__).resolve().parents[1] / "out/cache/misteross-toolchains"
-_SHARED_PRODUCER_OVERRIDE_NAMES = frozenset({
-    "CC", "CXX", "CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS",
-    "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "PYTHON", "PYTHON_CONFIG",
-    "MAKEFLAGS", "MFLAGS", "NINJAFLAGS", "NINJA_STATUS",
-    "LD_PRELOAD", "SOURCE_DATE_EPOCH",
-    "GIT_DIR", "GIT_WORK_TREE", "GIT_SSH_COMMAND",
-    "TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD",
-    "ROCM_PATH", "HIPCC", "CUDA_HOME", "CUDACXX", "CUDA_PATH",
-})
-_SHARED_PRODUCER_OVERRIDE_PREFIXES = ("GIT_CONFIG_", "CCACHE_", "DISTCC_", "CMAKE_")
 
 
-def package_build_environment(env=None):
-    mapped = os.environ.copy() if env is None else dict(env)
-    for name in tuple(mapped):
-        if name in _SHARED_PRODUCER_OVERRIDE_NAMES or name.startswith(_SHARED_PRODUCER_OVERRIDE_PREFIXES):
-            del mapped[name]
-    mapped["FES_TOOLCHAIN_CACHE_ROOT"] = str(TOOLCHAIN_CACHE_ROOT)
-    return mapped
+def package_build_environment(env=None, recipe=None):
+    """Build a child environment for a format-2 producer without selecting cache mode."""
+    return producer_environment(env, recipe=recipe)
 
 
 def digest(path):
@@ -142,36 +132,43 @@ def authenticate_misteross_origin(source):
         raise ValueError("selected misteross checkout has an ambiguous repository origin")
 
 
-def canonical_package_record(source, env=None):
-    """Derive the producer's canonical pre-synthesis record in isolation."""
+def canonical_package_record(source, env=None, recipe=None):
+    """Derive the selected producer's canonical pre-synthesis record in isolation."""
+    recipe = recipe_for("fes.pong") if recipe is None else recipe
     source = Path(source).resolve()
     authenticate_misteross_origin(source)
     program = r'''
 import sys
 from pathlib import Path
-from scripts import build_fes_pong as producer
+import importlib
 root = Path.cwd().resolve()
+producer = importlib.import_module(sys.argv[1])
+authenticate = getattr(producer, sys.argv[2])
+cache_root = Path(sys.argv[sys.argv.index("--cache-root") + 1])
 repository, revision = producer._require_clean_source(root)
-tools = producer._authenticate_tools(root)
+tools = authenticate(root, cache_root=cache_root)
 identities = {name: tool.identity for name, tool in tools.items()}
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities))
 '''
+    cache_root = str(recipe.cache_root)
+    command = [sys.executable, "-c", program, recipe.producer_module, recipe.authenticate,
+               "--cache-root", cache_root]
     try:
-        record = subprocess.check_output([sys.executable, "-c", program], cwd=source,
-                                         env=package_build_environment(env))
+        record = subprocess.check_output(
+            command, cwd=source, env=package_build_environment(env, recipe=recipe))
         parsed = json.loads(record)
     except (OSError, subprocess.CalledProcessError, UnicodeDecodeError,
             json.JSONDecodeError) as error:
         raise ValueError(
-            f"cannot derive authenticated FES Pong build inputs in {source}; "
+            f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
             f"inspect the producer error and, if the shared toolchain slot is missing, run "
-            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} toolchain then "
-            f"FES_TOOLCHAIN_CACHE_ROOT={TOOLCHAIN_CACHE_ROOT} make -C {source} doctor-strict"
+            f"{recipe.producer_script} --cache-root {recipe.cache_root} after "
+            f"make -C {source} toolchain with the recipe lock {recipe.lock_path}"
         ) from error
     canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"),
                            sort_keys=True).encode("utf-8") + b"\n"
     if record != canonical:
-        raise ValueError("producer returned a noncanonical FES Pong build-input record")
+        raise ValueError("producer returned a noncanonical format-2 build-input record")
     return record
 
 
@@ -193,8 +190,9 @@ def _plain_directory(path, field):
         raise ValueError(f"selected package {field} must be a non-symlink directory")
 
 
-def _inspect_package_candidate(source, package, record_path):
+def _inspect_package_candidate(source, package, record_path, recipe=None):
     """Use the selected producer/reader to validate package and build evidence."""
+    recipe = recipe_for("fes.pong") if recipe is None else recipe
     source = Path(source).resolve()
     package = Path(package).absolute()
     record_path = Path(record_path).absolute()
@@ -207,9 +205,10 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from scripts import build_fes_pong as producer
+import importlib
 from scripts.core_package import read_package
 from scripts.export_core_package import build_identity, _decode_build_record, _verify_build_evidence
+producer = importlib.import_module(sys.argv[3])
 root = Path.cwd().resolve()
 package_path = Path(sys.argv[1]).resolve()
 record_path = Path(sys.argv[2]).resolve()
@@ -233,29 +232,37 @@ print(json.dumps({"manifest": manifest, "package_id": package.package_id,
                   "core_rbf_sha256": hashlib.sha256(package.payload_bytes).hexdigest()}, sort_keys=True))
 '''
     try:
-        result = subprocess.run([sys.executable, "-c", program, str(package), str(record_path)],
-                                cwd=source, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, check=True)
+        result = subprocess.run(
+            [sys.executable, "-c", program, str(package), str(record_path), recipe.producer_module],
+            cwd=source, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         inspected = json.loads(result.stdout)
     except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
         detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else ""
-        raise ValueError("cached FES Pong package failed producer validation" +
+        raise ValueError(f"cached {recipe.core_id} package failed producer validation" +
                          (f": {detail}" if detail else "")) from error
     if set(inspected) != {"manifest", "package_id", "manifest_sha256", "core_rbf_sha256"}:
         raise ValueError("producer package inspection returned an unexpected result")
     return inspected
 
 
-def _build_fes_pong(source, env=None):
+def _build_package(source, recipe=None, env=None):
+    recipe = recipe_for("fes.pong") if recipe is None else recipe
     try:
-        subprocess.run([sys.executable, "scripts/build_fes_pong.py", "--root", str(source),
-                        "--package-output", str(Path(source) / "build/packages")],
-                       cwd=source, check=True, env=package_build_environment(env))
+        subprocess.run(
+            [sys.executable, recipe.producer_script, "--root", str(source),
+             "--package-output", str(Path(source) / "build/packages"),
+             "--cache-root", str(recipe.cache_root)],
+            cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
-        raise ValueError("selected FES Pong recipe failed") from error
+        raise ValueError(f"selected {recipe.core_id} recipe failed") from error
 
 
-def _matching_package_candidates(source, record):
+def _build_fes_pong(source, env=None):
+    _build_package(source, recipe=recipe_for("fes.pong"), env=env)
+
+
+def _matching_package_candidates(source, record, recipe=None):
+    recipe = recipe_for("fes.pong") if recipe is None else recipe
     source = Path(source).absolute()
     build = source / "build"
     store = build / "packages"
@@ -284,7 +291,7 @@ def _matching_package_candidates(source, record):
             raise ValueError("matching package evidence has an invalid package ID filename")
         package = store / identity
         _plain_directory(package, "candidate")
-        inspected = _inspect_package_candidate(source, package, sidecar)
+        inspected = _inspect_package_candidate(source, package, sidecar, recipe=recipe)
         if inspected.get("package_id") != identity:
             raise ValueError("matching package evidence differs from inspected package identity")
         matches.append((package, sidecar, inspected))
@@ -295,7 +302,7 @@ def _selection_bytes(selection):
     order = ("format", "kind", "core_id", "package_id", "payload_sha256",
              "misteross_revision", "mister_packages_revision", "install_path")
     if set(selection) != set(order) or selection["format"] != 2:
-        raise ValueError("invalid FES Pong package selection")
+        raise ValueError("invalid format-2 package selection")
     lines = [f"format = {selection['format']}"] + [
         f"{key} = {json.dumps(selection[key], ensure_ascii=False)}" for key in order[1:]]
     return ("\n".join(lines) + "\n").encode("utf-8")
@@ -316,24 +323,26 @@ def _publish_selection(path, data):
         temporary.unlink(missing_ok=True)
 
 
-def resolve_core_package(source, mister_packages_revision, selection_path, force=False, env=None):
+def resolve_core_package(source, mister_packages_revision, selection_path, force=False, env=None,
+                         recipe=None):
     """Resolve the unique authenticated package result and emit its closed selection."""
+    recipe = recipe_for("fes.pong") if recipe is None else recipe
     if HEX40.fullmatch(str(mister_packages_revision)) is None:
         raise ValueError("mister-packages revision must be a full lowercase commit")
     source = Path(source).absolute()
     _plain_directory(source, "source checkout")
     produce = {} if env is None else {"env": env}
-    record = canonical_package_record(source, **produce)
+    record = canonical_package_record(source, recipe=recipe, **produce)
     if force:
-        _build_fes_pong(source, **produce)
-    candidates = _matching_package_candidates(source, record)
+        _build_package(source, recipe=recipe, **produce)
+    candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates and not force:
-        _build_fes_pong(source, **produce)
-        candidates = _matching_package_candidates(source, record)
+        _build_package(source, recipe=recipe, **produce)
+        candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates:
-        raise ValueError("selected recipe did not produce a matching FES Pong package")
+        raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
     if len(candidates) != 1:
-        raise ValueError("multiple package IDs match the canonical FES Pong build inputs")
+        raise ValueError("multiple package IDs match the canonical format-2 build inputs")
     package, _, inspected = candidates[0]
     manifest = inspected["manifest"]
     package_id = inspected["package_id"]
@@ -342,18 +351,18 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     selection = {
         "format": 2,
         "kind": "core-package",
-        "core_id": "fes.pong",
+        "core_id": recipe.core_id,
         "package_id": package_id,
         "payload_sha256": payload_sha256,
         "misteross_revision": misteross_revision,
         "mister_packages_revision": str(mister_packages_revision),
         "install_path": "/usr/share/mister-runtime/core-packages/" + package_id,
     }
-    if (manifest.get("core", {}).get("id") != "fes.pong" or
+    if (manifest.get("core", {}).get("id") != recipe.core_id or
             HEX64.fullmatch(str(package_id)) is None or
             HEX64.fullmatch(str(payload_sha256)) is None or
             HEX40.fullmatch(str(misteross_revision)) is None):
-        raise ValueError("inspected package cannot satisfy the FES Pong selection")
+        raise ValueError(f"inspected package cannot satisfy the {recipe.core_id} selection")
     encoded = _selection_bytes(selection)
     manifest_sha256 = digest(package / "manifest.toml")
     core_rbf_sha256 = digest(package / "core.rbf")

@@ -2,6 +2,14 @@
 set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
+native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+case "$native_mode" in
+  format1|package-only) : ;;
+  *)
+    printf '%s\n' 'verify-target-image: native runtime mode must be format1 or package-only' >&2
+    exit 2
+    ;;
+esac
 cleanup_manifest_tmp=
 cleanup_library_tmp=
 cleanup_inspect_root=
@@ -169,6 +177,73 @@ read_native_selection_value() {
   ' "$native_selection_file"
 }
 
+verify_package_only_native() {
+  package_root=$1
+  idle=$package_root/usr/share/mister-runtime/idle.rbf
+  expected_idle_sha=$(read_native_lock_value idle_rbf sha256)
+  expected_idle_size=$(read_native_lock_value idle_rbf size)
+  [ -f "$idle" ] && [ ! -L "$idle" ] || {
+    printf '%s\n' 'verify-target-image: native idle RBF must be a regular non-symlink file' >&2
+    exit 1
+  }
+  [ "$(sha256sum "$idle" | awk '{print $1}')" = "$expected_idle_sha" ] || {
+    printf '%s\n' 'verify-target-image: native idle RBF digest differs from the lock' >&2
+    exit 1
+  }
+  [ "$(wc -c < "$idle" | tr -d ' ')" = "$expected_idle_size" ] || {
+    printf '%s\n' 'verify-target-image: native idle RBF size differs from the lock' >&2
+    exit 1
+  }
+  for stale in megadrive.rbf pong.rbf snes.rbf nes.rbf; do
+    [ ! -e "$package_root/usr/share/mister-runtime/cores/$stale" ] &&
+      [ ! -L "$package_root/usr/share/mister-runtime/cores/$stale" ] || {
+      printf 'verify-target-image: package-only image contains legacy RBF: %s\n' "$stale" >&2
+      exit 1
+    }
+  done
+  for stale in megadrive.toml pong.toml snes.toml nes.toml; do
+    [ ! -e "$package_root/usr/share/mister-runtime/selections/$stale" ] &&
+      [ ! -L "$package_root/usr/share/mister-runtime/selections/$stale" ] || {
+      printf 'verify-target-image: package-only image contains legacy selection: %s\n' "$stale" >&2
+      exit 1
+    }
+  done
+
+  extra_cores=$repo/scripts/native-extra-cores.sh
+  native_cache=${NATIVE_RUNTIME_CACHE:-$repo/build/cache/target-image/native}
+  NATIVE_RUNTIME_MODE=package-only "$extra_cores" verify-image \
+    "$native_cache" "$package_root"
+  expected_rbf_count=$(NATIVE_RUNTIME_MODE=package-only "$extra_cores" count)
+  rbf_count=$(find "$package_root" -iname '*.rbf' | wc -l | tr -d ' ')
+  [ "$rbf_count" -eq "$expected_rbf_count" ] || {
+    printf 'verify-target-image: package-only RBF count differs from selected inputs, found %s\n' "$rbf_count" >&2
+    exit 1
+  }
+
+  expected_inputs=$(mktemp "${TMPDIR:-/tmp}/fogcast-package-build-inputs.XXXXXX")
+  cleanup_native_inputs_tmp=$expected_inputs
+  {
+    printf 'format=1\n'
+    printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
+    printf 'mister_agent_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/mister-agent" | awk '{print $1}')"
+    printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-kit" | awk '{print $1}')"
+    printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
+    printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
+    printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
+    printf 'idle_sha256=%s\n' "$expected_idle_sha"
+    printf 'idle_size=%s\n' "$expected_idle_size"
+    printf 'idle_install_path=%s\n' "$(read_native_lock_value idle_rbf install_path)"
+    NATIVE_RUNTIME_MODE=package-only "$extra_cores" build-inputs \
+      "$native_cache" "$package_root"
+  } > "$expected_inputs"
+  cmp "$expected_inputs" "$package_root/usr/share/mister-runtime/build-inputs" >/dev/null 2>&1 || {
+    printf '%s\n' 'verify-target-image: package-only build-input record differs from the selected package' >&2
+    exit 1
+  }
+  /bin/rm -f "$expected_inputs"
+  cleanup_native_inputs_tmp=
+}
+
 verify_root() {
   variant=$1
   root=$2
@@ -179,7 +254,23 @@ verify_root() {
   validate_variant "$variant"
   root=$(CDPATH='' cd -- "$root" && pwd -P)
 
-  if [ "$variant" = native-dev ]; then
+  if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+    required_paths='/sbin/init
+/usr/bin/busybox
+/usr/bin/readlink
+/usr/sbin/mister-runtime
+/usr/sbin/fogcast-kit
+/usr/sbin/mister-agent
+/usr/share/mister-runtime/idle.rbf
+/usr/share/mister-runtime/core-packages
+/usr/share/mister-runtime/selections/fes-pong.package.toml
+/usr/share/mister-runtime/build-inputs
+/etc/init.d/S20mister-network
+/etc/init.d/S40mister-runtime
+/etc/init.d/S49fogcast-target-smoke
+/etc/init.d/S50mister-agent
+/etc/init.d/S60fogcast-kit'
+  elif [ "$variant" = native-dev ]; then
     required_paths='/sbin/init
 /usr/bin/busybox
 /usr/bin/readlink
@@ -280,6 +371,11 @@ EOF
       printf '%s\n' 'verify-target-image: native init contains conventional Main, MGL, or FIFO startup wiring' >&2
       exit 1
     fi
+  fi
+
+  if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+    verify_package_only_native "$root"
+  elif [ "$variant" = native-dev ]; then
 
     [ -f "$selection_file" ] && [ ! -L "$selection_file" ] || {
       printf '%s\n' 'verify-target-image: Mega Drive selection is not a regular non-symlink file' >&2
@@ -677,6 +773,9 @@ case "${1:-}" in
     image=$2
     manifest=$3
     library_report=$4
+    if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ] && [ "$#" -eq 5 ]; then
+      usage
+    fi
     if [ "$variant" = native-dev ]; then
       if [ "$#" -eq 5 ]; then
         native_selection_file=$5
@@ -686,6 +785,11 @@ case "${1:-}" in
         # default used by the build steps.
         native_selection_file=build/output/target-image/native-dev/megadrive.selection.toml
       fi
+    fi
+    if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+      exec "$repo/scripts/target-image-container.sh" run \
+        /work/scripts/verify-target-image.sh --inside \
+        "$variant" "$image" "$manifest" "$library_report"
     fi
     exec "$repo/scripts/target-image-container.sh" run \
       /work/scripts/verify-target-image.sh --inside \

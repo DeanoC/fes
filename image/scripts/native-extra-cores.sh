@@ -2,11 +2,29 @@
 # Additional source-built cores share one opt-in admission/install path.
 set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
-systems=${NATIVE_RUNTIME_SYSTEMS:-megadrive}
-case "$systems" in
-  megadrive) extras= ;;
-  'megadrive pong snes nes') extras='pong snes nes' ;;
-  *) echo 'native-extra-cores: expected megadrive or megadrive pong snes nes' >&2; exit 2 ;;
+native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+case "$native_mode" in
+  package-only)
+    [ -z "${NATIVE_RUNTIME_SYSTEMS:-}" ] || {
+      echo 'native-extra-cores: package-only mode forbids NATIVE_RUNTIME_SYSTEMS' >&2
+      exit 2
+    }
+    [ -z "${MEGADRIVE_RBF_SOURCE:-}" ] && [ -z "${MEGADRIVE_RBF_BUNDLE:-}" ] &&
+      [ -z "${PONG_RBF_BUNDLE:-}" ] && [ -z "${SNES_RBF_BUNDLE:-}" ] &&
+      [ -z "${NES_RBF_BUNDLE:-}" ] || {
+      echo 'native-extra-cores: package-only mode forbids format-1 bundle inputs' >&2
+      exit 2
+    }
+    extras= ;;
+  format1)
+    systems=${NATIVE_RUNTIME_SYSTEMS:-megadrive}
+    case "$systems" in
+      megadrive) extras= ;;
+      'megadrive pong snes nes') extras='pong snes nes' ;;
+      *) echo 'native-extra-cores: expected megadrive or megadrive pong snes nes' >&2; exit 2 ;;
+    esac
+    ;;
+  *) echo 'native-extra-cores: native runtime mode must be format1 or package-only' >&2; exit 2 ;;
 esac
 package_dir=${FES_PONG_PACKAGE_DIR:-}
 package_selection=${FES_PONG_PACKAGE_SELECTION:-}
@@ -25,7 +43,7 @@ fi
 # Host preflight also calls this helper before entering the Linux container.
 action=${1:-validate}
 selector=${TARGET_IMAGE_LOCK_BIN:-}
-if [ -z "$selector" ] && [ "$action" != validate ]; then
+if [ -z "$selector" ] && [ "$action" != validate ] && [ "$action" != count ]; then
   fogcast=${FOGCAST_DIR:?FOGCAST_DIR or TARGET_IMAGE_LOCK_BIN is required}
   case "$(uname -s)" in
     Darwin) selector=$fogcast/bin/target-image-lock ;;
@@ -35,7 +53,10 @@ fi
 case "$action" in
   validate) exit 0 ;;
   count)
-    if [ -n "$extras" ]; then count=5; else count=2; fi
+    if [ "$native_mode" = package-only ]; then count=1
+    elif [ -n "$extras" ]; then count=5
+    else count=2
+    fi
     if [ "$package_enabled" -eq 1 ]; then count=$((count + 1)); fi
     echo "$count"
     exit 0
@@ -45,6 +66,17 @@ case "$action" in
 esac
 cache=$2
 target=${3:-}
+if [ "$native_mode" = package-only ] && [ "$package_enabled" -eq 0 ]; then
+  echo 'native-extra-cores: package-only mode requires the selected FES package' >&2
+  exit 2
+fi
+if [ "$native_mode" = package-only ] && [ "$action" = fetch ]; then
+  rm -f "$cache/megadrive.rbf" "$cache/megadrive-rbf.toml" \
+    "$cache/megadrive.selection.toml" "$cache/pong.rbf" "$cache/pong-rbf.toml" \
+    "$cache/pong.selection.toml" "$cache/snes.rbf" "$cache/snes-rbf.toml" \
+    "$cache/snes.selection.toml" "$cache/nes.rbf" "$cache/nes-rbf.toml" \
+    "$cache/nes.selection.toml"
+fi
 for system in $extras; do
   record=$cache/$system.selection.toml
   artifact=$cache/$system.rbf
@@ -172,15 +204,34 @@ else
 fi
 case "$action" in
   install)
-    if [ -z "$extras" ]; then
+    if [ "$native_mode" = package-only ]; then
+      rm -f "$target/usr/share/mister-runtime/cores/megadrive.rbf" \
+        "$target/usr/share/mister-runtime/cores/pong.rbf" \
+        "$target/usr/share/mister-runtime/cores/snes.rbf" \
+        "$target/usr/share/mister-runtime/cores/nes.rbf" \
+        "$target/usr/share/mister-runtime/selections/megadrive.toml" \
+        "$target/usr/share/mister-runtime/selections/pong.toml" \
+        "$target/usr/share/mister-runtime/selections/snes.toml" \
+        "$target/usr/share/mister-runtime/selections/nes.toml"
+    elif [ -z "$extras" ]; then
       rm -f "$target/usr/share/mister-runtime/cores/pong.rbf" "$target/usr/share/mister-runtime/cores/snes.rbf" "$target/usr/share/mister-runtime/cores/nes.rbf" "$target/usr/share/mister-runtime/selections/pong.toml" "$target/usr/share/mister-runtime/selections/snes.toml" "$target/usr/share/mister-runtime/selections/nes.toml"
     fi
     ;;
   copy-records)
-    if [ -z "$extras" ]; then rm -f "$target/pong.selection.toml" "$target/snes.selection.toml" "$target/nes.selection.toml"; fi
+    if [ "$native_mode" = package-only ]; then
+      rm -f "$target/megadrive.selection.toml" "$target/pong.selection.toml" \
+        "$target/snes.selection.toml" "$target/nes.selection.toml"
+    elif [ -z "$extras" ]; then
+      rm -f "$target/pong.selection.toml" "$target/snes.selection.toml" "$target/nes.selection.toml"
+    fi
     ;;
   verify-image)
-    if [ -z "$extras" ]; then
+    if [ "$native_mode" = package-only ]; then
+      for system in megadrive pong snes nes; do
+        [ ! -e "$target/usr/share/mister-runtime/cores/$system.rbf" ] && [ ! -L "$target/usr/share/mister-runtime/cores/$system.rbf" ]
+        [ ! -e "$target/usr/share/mister-runtime/selections/$system.toml" ] && [ ! -L "$target/usr/share/mister-runtime/selections/$system.toml" ]
+      done
+    elif [ -z "$extras" ]; then
       for system in pong snes nes; do
         [ ! -e "$target/usr/share/mister-runtime/cores/$system.rbf" ] && [ ! -L "$target/usr/share/mister-runtime/cores/$system.rbf" ]
         [ ! -e "$target/usr/share/mister-runtime/selections/$system.toml" ] && [ ! -L "$target/usr/share/mister-runtime/selections/$system.toml" ]

@@ -2,6 +2,7 @@
 set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
+fogcast_src=${FOGCAST_DIR:-$repo/../sources/FogCast}
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image-image.XXXXXX")
 trap 'chmod -R u+w "$fixture" 2>/dev/null || true; rm -rf "$fixture"' EXIT INT TERM
 
@@ -64,15 +65,10 @@ printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv'
 printf '%s\n' "$target_image_verify" | grep -Fq \
   'scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv'
-native_target_image_verify=$(
-  awk '
-    /^target-image-native-verify:/ { in_target=1; next }
-    in_target && /^[^[:space:]]/ { exit }
-    in_target { print }
-  ' "$repo/Makefile"
-)
-printf '%s\n' "$native_target_image_verify" | grep -Fq \
-  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml'
+grep -Fq 'target-image-native-verify:' "$repo/Makefile"
+grep -Fq \
+  'scripts/verify-target-image.sh native-dev build/output/target-image/native-dev/linux.img build/output/target-image/native-dev/manifest.tsv build/output/target-image/native-dev/library-report.tsv build/output/target-image/native-dev/megadrive.selection.toml' \
+  "$repo/Makefile"
 if grep -Fq 'readonly=on' "$repo/scripts/qemu-smoke-target-image.sh"; then
   echo 'QEMU smoke config uses unsupported read-only SD backing' >&2
   exit 1
@@ -442,6 +438,150 @@ fi
 verify_fixture prod "$prod_root" "$fixture/prod.manifest" "$fixture/prod.libraries"
 verify_fixture dev "$dev_root" "$fixture/dev.manifest" "$fixture/dev.libraries"
 verify_fixture native-dev "$native_root" "$fixture/native.manifest" "$fixture/native.libraries"
+
+package_id=b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0
+package_source=$fixture/fes-pong-package
+package_input_selection=$fixture/fes-pong.package-input-selection.toml
+mkdir "$package_source"
+cp "$fogcast_src/internal/corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml" \
+  "$package_source/manifest.toml"
+cp "$fogcast_src/internal/corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf" \
+  "$package_source/core.rbf"
+chmod 0444 "$package_source"/*
+chmod 0555 "$package_source"
+cat > "$package_input_selection" <<EOF
+format = 2
+kind = 'core-package'
+core_id = 'fes.pong'
+package_id = '$package_id'
+payload_sha256 = 'e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1'
+misteross_revision = '1111111111111111111111111111111111111111'
+mister_packages_revision = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+install_path = '/usr/share/mister-runtime/core-packages/$package_id'
+EOF
+chmod 0444 "$package_input_selection"
+package_selector=$fixture/target-image-lock
+(cd "$fogcast_src" && go build -o "$package_selector" ./cmd/target-image-lock)
+package_cache=$fixture/package-only-cache
+mkdir -p "$package_cache"
+cp "$synthetic_idle" "$package_cache/idle.rbf"
+chmod 0444 "$package_cache/idle.rbf"
+package_only_env() {
+  env -u NATIVE_RUNTIME_SYSTEMS \
+    -u MEGADRIVE_RBF_SOURCE -u MEGADRIVE_RBF_BUNDLE \
+    -u NATIVE_RUNTIME_MEGADRIVE_FILE \
+    -u NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE \
+    -u PONG_RBF_BUNDLE -u SNES_RBF_BUNDLE -u NES_RBF_BUNDLE \
+    -u TARGET_IMAGE_EXTRA_CORE_CACHE "$@"
+}
+package_only_env NATIVE_RUNTIME_MODE=package-only \
+  FES_PONG_PACKAGE_DIR="$package_source" \
+  FES_PONG_PACKAGE_SELECTION="$package_input_selection" \
+  TARGET_IMAGE_LOCK_BIN="$package_selector" \
+  sh "$repo/scripts/native-extra-cores.sh" fetch "$package_cache"
+package_root=$fixture/package-only-root
+cp -R "$native_root" "$package_root"
+rm "$package_root/usr/share/mister-runtime/cores/megadrive.rbf"
+mkdir -p "$package_root/usr/share/mister-runtime/cores" \
+  "$package_root/usr/share/mister-runtime/selections"
+package_only_env NATIVE_RUNTIME_MODE=package-only \
+  FES_PONG_PACKAGE_DIR="$package_source" \
+  FES_PONG_PACKAGE_SELECTION="$package_input_selection" \
+  TARGET_IMAGE_LOCK_BIN="$package_selector" \
+  sh "$repo/scripts/native-extra-cores.sh" install "$package_cache" "$package_root"
+{
+  printf 'format=1\n'
+  printf 'mister_runtime_commit=%s\n' "$synthetic_runtime_commit"
+  printf 'mister_agent_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/mister-agent" | awk '{print $1}')"
+  printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-kit" | awk '{print $1}')"
+  printf 'idle_repository=https://fixture.invalid/fogcast/synthetic-idle\n'
+  printf 'idle_commit=%s\n' "$synthetic_idle_commit"
+  printf 'idle_path=synthetic-idle.rbf\n'
+  printf 'idle_sha256=%s\n' "$synthetic_idle_sha"
+  printf 'idle_size=%s\n' "$synthetic_idle_size"
+  printf 'idle_install_path=/usr/share/mister-runtime/idle.rbf\n'
+  package_only_env NATIVE_RUNTIME_MODE=package-only \
+  FES_PONG_PACKAGE_DIR="$package_source" \
+  FES_PONG_PACKAGE_SELECTION="$package_input_selection" \
+  TARGET_IMAGE_LOCK_BIN="$package_selector" \
+    sh "$repo/scripts/native-extra-cores.sh" build-inputs "$package_cache" "$package_root"
+} > "$package_root/usr/share/mister-runtime/build-inputs"
+
+verify_package_fixture() {
+  package_verify_root=$1
+  package_verify_manifest=$2
+  package_verify_libraries=$3
+  package_only_env PATH="$fake_bin:$PATH" TARGET_IMAGE_TEST_MODE=1 \
+  NATIVE_RUNTIME_MODE=package-only \
+  NATIVE_RUNTIME_CACHE="$package_cache" \
+  FES_PONG_PACKAGE_DIR="$package_source" \
+  FES_PONG_PACKAGE_SELECTION="$package_input_selection" \
+  TARGET_IMAGE_LOCK_BIN="$package_selector" \
+  TARGET_IMAGE_ROOT_FIXTURE_NATIVE_INPUT_LOCK="$native_input_lock" \
+    sh "$repo/scripts/verify-target-image.sh" --root-fixture \
+      native-dev "$package_verify_root" "$package_verify_manifest" \
+      "$package_verify_libraries"
+}
+
+verify_package_fixture "$package_root" "$fixture/package-only.manifest" \
+  "$fixture/package-only.libraries"
+
+package_main=$fixture/package-only-main
+cp -R "$package_root" "$package_main"
+: > "$package_main/etc/init.d/S40mister-main"
+chmod 0755 "$package_main/etc/init.d/S40mister-main"
+if verify_package_fixture "$package_main" "$fixture/package-only-main.manifest" \
+  "$fixture/package-only-main.libraries" >/dev/null 2>&1; then
+  echo 'package-only verifier accepted the Main init service' >&2
+  exit 1
+fi
+
+package_menu_helper=$fixture/package-only-menu-helper
+cp -R "$package_root" "$package_menu_helper"
+: > "$package_menu_helper/usr/sbin/mister-disable-menu-blanking"
+chmod 0755 "$package_menu_helper/usr/sbin/mister-disable-menu-blanking"
+if verify_package_fixture "$package_menu_helper" \
+  "$fixture/package-only-menu-helper.manifest" \
+  "$fixture/package-only-menu-helper.libraries" >/dev/null 2>&1; then
+  echo 'package-only verifier accepted the legacy Menu configuration helper' >&2
+  exit 1
+fi
+
+package_modified_launcher=$fixture/package-only-modified-launcher
+cp -R "$package_root" "$package_modified_launcher"
+printf '%s\n' altered >> "$package_modified_launcher/etc/init.d/S60fogcast-kit"
+if verify_package_fixture "$package_modified_launcher" \
+  "$fixture/package-only-modified-launcher.manifest" \
+  "$fixture/package-only-modified-launcher.libraries" >/dev/null 2>&1; then
+  echo 'package-only verifier accepted a modified launcher init service' >&2
+  exit 1
+fi
+
+package_legacy_rbf=$fixture/package-only-legacy-rbf
+cp -R "$package_root" "$package_legacy_rbf"
+cp "$package_root/usr/share/mister-runtime/idle.rbf" \
+  "$package_legacy_rbf/usr/share/mister-runtime/cores/megadrive.rbf"
+if verify_package_fixture "$package_legacy_rbf" "$fixture/package-only-legacy-rbf.manifest" \
+  "$fixture/package-only-legacy-rbf.libraries" >/dev/null 2>&1; then
+  echo 'package-only verifier accepted a legacy RBF' >&2
+  exit 1
+fi
+
+package_legacy_selection_log=$fixture/package-only-legacy-selection.log
+set +e
+package_only_env NATIVE_RUNTIME_MODE=package-only TARGET_IMAGE_CONTAINER_RUNTIME=/bin/false \
+  sh "$repo/scripts/verify-target-image.sh" native-dev \
+    "$fixture/not-an-image" "$fixture/not-a-manifest" \
+    "$fixture/not-a-library-report" "$native_selection" \
+    > "$package_legacy_selection_log" 2>&1
+package_legacy_selection_status=$?
+set -e
+test "$package_legacy_selection_status" -eq 2 || {
+  echo 'package-only verifier accepted a legacy selection argument' >&2
+  exit 1
+}
+grep -Fq 'usage:' "$package_legacy_selection_log"
+
 # The additional-core helper fixture supplies real externally selected pairs.
 if [ -n "${TARGET_IMAGE_EXTRA_CORE_CACHE:-}" ]; then
   extra_root=$fixture/four-system-root

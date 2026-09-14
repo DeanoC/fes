@@ -207,7 +207,7 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             }
             with patch.object(module, 'canonical_package_record', return_value=record), \
                  patch.object(module, '_inspect_package_candidate', return_value=inspected), \
-                 patch.object(module, '_build_fes_pong', side_effect=AssertionError('unexpected build')):
+                 patch.object(module, '_build_package', side_effect=AssertionError('unexpected build')):
                 resolved = module.resolve_core_package(source, 'd' * 40, selection_path)
             self.assertEqual(resolved['directory'], package)
             self.assertEqual(resolved['inputs']['selection']['package_id'], identity)
@@ -223,7 +223,7 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             (store / ('e' * 64) / 'core.rbf').write_bytes(b'payload')
             with patch.object(module, 'canonical_package_record', return_value=record), \
                  patch.object(module, '_inspect_package_candidate',
-                              side_effect=lambda _, package, __: dict(
+                              side_effect=lambda _, package, __, **_kwargs: dict(
                                   inspected, package_id=Path(package).name)):
                 with self.assertRaisesRegex(ValueError, 'multiple'):
                     module.resolve_core_package(source, 'd' * 40, selection_path)
@@ -243,7 +243,7 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                 'manifest_sha256': hashlib.sha256(b'manifest').hexdigest(),
                 'core_rbf_sha256': hashlib.sha256(b'payload').hexdigest(),
             }
-            def build_once(_):
+            def build_once(*_args, **_kwargs):
                 store.mkdir(parents=True)
                 (store / f'{identity}.build-inputs.json').write_bytes(record)
                 (store / f'{identity}.build-inputs.json').chmod(0o444)
@@ -252,9 +252,10 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                 (store / identity / 'core.rbf').write_bytes(b'payload')
             with patch.object(module, 'canonical_package_record', return_value=record), \
                  patch.object(module, '_inspect_package_candidate', return_value=inspected), \
-                 patch.object(module, '_build_fes_pong', side_effect=build_once) as build_package:
+                 patch.object(module, '_build_package', side_effect=build_once) as build_package:
                 module.resolve_core_package(source, 'd' * 40, source / 'selection.toml')
-            build_package.assert_called_once_with(source)
+            build_package.assert_called_once()
+            self.assertEqual(build_package.call_args.args[0], source)
 
     def test_package_resolution_rejects_symlinked_store_and_candidate(self):
         module = self.module()
@@ -295,13 +296,14 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
         staged = subprocess.check_output(
             ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
             text=True)
-        self.assertIn('d7b0a66345b1b2a6a9d4e0577afd1708a055eb17', staged)
+        self.assertIn('e1e6b6c36835b1c2ebb88fce356f44c2fed84b1e', staged)
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
-        self.assertIn('FES_TOOLCHAIN_CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
-        self.assertIn('make -C "out/work/misteross-$revision" toolchain', docs)
-        self.assertIn('make -C "out/work/misteross-$revision" doctor-strict', docs)
+        self.assertIn(
+            'make -C "out/work/misteross-$revision" \\\n  toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
+        self.assertIn(
+            'make -C "out/work/misteross-$revision" \\\n  doctor-strict CACHE_ROOT="$PWD/out/cache/misteross-toolchains"', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()
@@ -315,7 +317,9 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
                 module.canonical_package_record(source, env=caller)
             env = check.call_args.kwargs['env']
             self.assertEqual(env['KEEP'], '1')
-            self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+            self.assertIn('--cache-root', [str(part) for part in check.call_args.args[0]])
+            self.assertEqual(env['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
             self.assertNotIn('MAKEFLAGS', env)
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
             self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
@@ -361,7 +365,8 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             self.assertEqual(len(received), 2)
             for env in received:
                 self.assertEqual(env['KEEP'], '1')
-                self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+                self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+                self.assertEqual(env['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
                 self.assertNotIn('MAKEFLAGS', env)
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
 
@@ -383,14 +388,19 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             'MAKEFLAGS': 's',
             'MFLAGS': '-j2',
             'FES_TOOLCHAIN_GPU_ROUTER': 'OFF',
+            'ROCM_PATH': '/opt/rocm/core-7.14',
+            'HIPCC': '/opt/rocm/bin/hipcc',
         }
         sentinel = os.environ.get('LD_LIBRARY_PATH')
         mapped = module.package_build_environment(caller)
         self.assertEqual(mapped['PATH'], '/bin')
         self.assertEqual(mapped['HOME'], '/home/operator')
         self.assertEqual(mapped['KEEP'], '1')
-        self.assertEqual(mapped['FES_TOOLCHAIN_GPU_ROUTER'], 'OFF')
-        self.assertEqual(mapped['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+        self.assertEqual(mapped['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
+        self.assertEqual(mapped['FES_TOOLCHAIN_HIP_ARCHITECTURES'], 'gfx1100;gfx1201')
+        self.assertEqual(mapped['ROCM_PATH'], '/opt/rocm/core-7.14')
+        self.assertEqual(mapped['HIPCC'], '/opt/rocm/bin/hipcc')
+        self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', mapped)
         for name in ('LD_LIBRARY_PATH', 'PKG_CONFIG_PATH', 'PYTHON', 'CC', 'CXX',
                      'CPPFLAGS', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'MAKEFLAGS', 'MFLAGS'):
             self.assertNotIn(name, mapped)
@@ -402,8 +412,8 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             from_environ = module.package_build_environment()
             self.assertNotIn('LD_LIBRARY_PATH', from_environ)
             self.assertNotIn('CC', from_environ)
-            self.assertEqual(from_environ['FES_TOOLCHAIN_CACHE_ROOT'],
-                             str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', from_environ)
+            self.assertEqual(from_environ['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
             self.assertEqual(os.environ.get('LD_LIBRARY_PATH'), '/opt/rocm/lib')
             self.assertEqual(os.environ.get('CC'), 'gcc')
 
@@ -417,8 +427,12 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             with patch.object(module.subprocess, 'run', return_value=completed) as run:
                 module._build_fes_pong(source, env=caller)
             env = run.call_args.kwargs['env']
+            args = [str(part) for part in run.call_args.args[0]]
             self.assertEqual(env['KEEP'], '1')
-            self.assertEqual(env['FES_TOOLCHAIN_CACHE_ROOT'], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+            self.assertIn('--cache-root', args)
+            self.assertEqual(args[args.index('--cache-root') + 1], str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertEqual(env['FES_TOOLCHAIN_GPU_ROUTER'], 'HIP')
             self.assertNotIn('LD_LIBRARY_PATH', env)
             self.assertNotIn('MAKEFLAGS', env)
             self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', caller)
@@ -426,8 +440,8 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
             self.assertEqual(os.environ.get('FES_TOOLCHAIN_CACHE_ROOT'), sentinel)
             with patch.object(module.subprocess, 'run', return_value=completed) as run:
                 module._build_fes_pong(source)
-            self.assertEqual(run.call_args.kwargs['env']['FES_TOOLCHAIN_CACHE_ROOT'],
-                             str(module.TOOLCHAIN_CACHE_ROOT))
+            self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', run.call_args.kwargs['env'])
+            self.assertIn('--cache-root', [str(part) for part in run.call_args.args[0]])
 
     def test_package_resolution_opts_into_shared_toolchain_cache(self):
         module = self.module()
@@ -447,8 +461,9 @@ toolchain = "Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition"
 
             def fake_run(args, **kwargs):
                 env = kwargs.get('env') or {}
-                self.assertEqual(env.get('FES_TOOLCHAIN_CACHE_ROOT'),
-                                 str(module.TOOLCHAIN_CACHE_ROOT))
+                self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+                self.assertEqual(env.get('FES_TOOLCHAIN_GPU_ROUTER'), 'HIP')
+                self.assertIn('--cache-root', [str(part) for part in args])
                 store.mkdir(parents=True)
                 (store / f'{identity}.build-inputs.json').write_bytes(record)
                 (store / f'{identity}.build-inputs.json').chmod(0o444)

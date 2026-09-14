@@ -183,7 +183,7 @@ class NativeDevTest(unittest.TestCase):
                 'directory': package_source,
                 'selection_path': package_selection,
                 'inputs': {
-                    'selection': {'package_id': package_id},
+                    'selection': {'package_id': package_id, 'core_id': 'fes.pong'},
                     'selection_sha256': build.digest(package_selection),
                     'manifest_sha256': build.digest(package_source / 'manifest.toml'),
                     'core_rbf_sha256': build.digest(package_source / 'core.rbf'),
@@ -199,6 +199,7 @@ class NativeDevTest(unittest.TestCase):
                     {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'], bundles, package)
             for call in run.call_args_list:
                 if str(call.args[0][0]).endswith('verify-target-image.sh'):
+                    self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_MODE'], 'format1')
                     self.assertEqual(call.kwargs['env']['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
                     self.assertEqual(call.kwargs['env']['FES_PONG_PACKAGE_DIR'], str(package_source))
                     self.assertEqual(call.kwargs['env']['FES_PONG_PACKAGE_SELECTION'],
@@ -230,6 +231,88 @@ class NativeDevTest(unittest.TestCase):
             # A changed extra core, not only the original Mega Drive, invalidates reuse.
             (output / 'snes.rbf').write_text('changed')
             self.assertFalse(build.reusable(output, 'development', 'candidate'))
+
+    def test_package_only_development_passes_no_format1_inputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            image = root / 'image'
+            fogcast = root / 'FogCast'
+            (image / 'build').mkdir(parents=True)
+            (image / 'scripts').mkdir()
+            (image / 'scripts/build-target-image.sh').write_text('epoch=1234567890\n')
+            (image / 'build/target-image.sources.lock.toml').write_text(
+                '[container]\nimage="base"\ndigest="sha256:abc"\nplatform="linux/amd64"\n')
+            built = image / 'build/output/target-image/fes-development'
+            built.mkdir(parents=True)
+            for name in ('linux.img', 'manifest.tsv', 'library-report.tsv'):
+                (built / name).write_text(name)
+            package_id = 'a' * 64
+            package_source = root / 'package'
+            package_source.mkdir()
+            (package_source / 'manifest.toml').write_bytes(b'manifest')
+            (package_source / 'core.rbf').write_bytes(b'package-rbf')
+            package_selection = root / 'fes-pong.package-selection.toml'
+            package_selection.write_bytes(b'format = 2\n')
+            (built / 'fes-pong.package-selection.toml').write_bytes(
+                package_selection.read_bytes())
+            package = {
+                'directory': package_source,
+                'selection_path': package_selection,
+                'inputs': {
+                    'selection': {'package_id': package_id, 'core_id': 'fes.pong'},
+                    'selection_sha256': build.digest(package_selection),
+                    'manifest_sha256': build.digest(package_source / 'manifest.toml'),
+                    'core_rbf_sha256': build.digest(package_source / 'core.rbf'),
+                },
+            }
+            profile = {'bundle_interface': 'selection',
+                       'native_image_mode': 'package-only'}
+            shared_env = None
+            native_boundary_envs = []
+
+            def record_run(args, **kwargs):
+                nonlocal shared_env
+                arg_text = [str(argument) for argument in args]
+                if 'target-image-native-fetch' in arg_text:
+                    shared_env = kwargs['env']
+                is_native_container = (len(args) >= 2 and
+                                       str(args[0]).endswith('target-image-container.sh') and
+                                       args[1] == 'run')
+                is_native_verifier = str(args[0]).endswith('verify-target-image.sh')
+                if is_native_container or is_native_verifier:
+                    native_boundary_envs.append(
+                        (kwargs['env'] is not shared_env,
+                         kwargs['env'].get('NATIVE_RUNTIME_MODE')))
+
+            with patch.object(native_dev, 'base_key', return_value='base'), \
+                 patch.object(native_dev, 'seed_base'), \
+                 patch.object(native_dev, 'git', return_value='a' * 40), \
+                 patch.object(native_dev.subprocess, 'run',
+                              return_value=subprocess.CompletedProcess([], 0)), \
+                 patch.object(native_dev, 'run', side_effect=record_run) as run:
+                native_dev.build_development(
+                    root, image, fogcast, root / 'runtime', 'native-integration-dev',
+                    profile, {}, 'candidate',
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'],
+                    {}, package)
+
+            calls = [call.args[0] for call in run.call_args_list]
+            self.assertEqual(native_boundary_envs,
+                             [(True, 'package-only'), (True, 'package-only')])
+            self.assertTrue(any('target-image-native-fetch' in call for call in calls))
+            self.assertTrue(any('NATIVE_RUNTIME_MODE=package-only' in call for call in calls))
+            self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(package_source) in call
+                                for call in calls))
+            self.assertTrue(any('FES_PONG_PACKAGE_SELECTION=' + str(package_selection) in call
+                                for call in calls))
+            self.assertFalse(any('MEGADRIVE_RBF_' in arg or
+                                 'NATIVE_RUNTIME_SYSTEMS' in arg or
+                                 'megadrive.selection.toml' in arg
+                                 for call in calls for arg in map(str, call)))
+            output = root / 'out/native-integration-dev/development'
+            self.assertTrue((output / 'fes-pong.package-selection.toml').is_file())
+            self.assertFalse((output / 'megadrive.rbf').exists())
+            self.assertFalse((output / 'megadrive.selection.toml').exists())
 
     def test_package_free_development_rebuild_removes_previous_package_outputs(self):
         with tempfile.TemporaryDirectory() as tmp:

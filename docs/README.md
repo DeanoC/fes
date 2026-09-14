@@ -18,7 +18,7 @@ host software and target root filesystem.
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
-| Continue the Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
+| Review the historical Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
 | Use described-core settings and progress | [Core persistence](core-persistence.md) |
 | Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
@@ -28,9 +28,11 @@ All shell examples in the parent guides start at the FES repository root unless
 specified otherwise. Commands inside a component use that component's Makefile
 and instructions; the same target name can mean different things there.
 
-The current integration profile selects Mega Drive, Pong, SNES and NES. Exact
-NES video and native session lifecycle acceptance for the selected image is
-recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md).
+The current integration profile is package-only and installs the described FES
+Pong package through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
+catalog, including exact NES video and native session lifecycle acceptance, is
+recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
+and is not current-profile acceptance.
 
 ## What has been verified
 

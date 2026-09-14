@@ -20,6 +20,7 @@ from inputs import git, validate
 import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
+from recipes import FORMAT2_RECIPES, recipe_for
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
@@ -328,16 +329,36 @@ def selected_packages(profile, profile_name):
         raise ValueError("fpga_packages must be an array of tables")
     if not packages:
         return ()
-    if (profile_name != "native-integration-dev" or packages != [{"core_id": "fes.pong"}]):
-        raise ValueError("only native-integration-dev may select the fes.pong package recipe")
-    return ("fes.pong",)
+    core_ids = []
+    for entry in packages:
+        if not isinstance(entry, dict) or type(entry.get("core_id")) is not str:
+            raise ValueError("fpga_packages entries must be tables with a core_id")
+        core_id = entry["core_id"]
+        if core_id not in FORMAT2_RECIPES:
+            supported = ", ".join(FORMAT2_RECIPES)
+            raise ValueError(f"unknown format-2 recipe {core_id!r}; supported: {supported}")
+        core_ids.append(core_id)
+    if len(core_ids) != len(set(core_ids)):
+        raise ValueError("duplicate format-2 package selections are not supported")
+    if len(core_ids) > 1:
+        raise ValueError(
+            "multiple format-2 packages are not supported by the current target-image selector")
+    if profile_name != "native-integration-dev":
+        raise ValueError("format-2 packages are only selected by native-integration-dev")
+    selected = core_ids[0]
+    if selected != "fes.pong":
+        raise ValueError(
+            f"native-integration-dev image selection does not yet install {selected}; "
+            "the recipe registry supports it for later image-selector work")
+    return (selected,)
 
 
 def package_arguments(package):
     if package is None:
         return []
-    return ["FES_PONG_PACKAGE_DIR=" + str(package["directory"]),
-            "FES_PONG_PACKAGE_SELECTION=" + str(package["selection_path"])]
+    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
+    return [recipe.package_dir_env + "=" + str(package["directory"]),
+            recipe.package_selection_env + "=" + str(package["selection_path"])]
 
 
 def image_fingerprint(base_fingerprint, info, package):
@@ -372,7 +393,42 @@ def package_output_names(package):
     if not re.fullmatch(r"[0-9a-f]{64}", identity):
         raise ValueError("selected package has an invalid package ID")
     prefix = "core-packages/" + identity + "/"
-    return ["fes-pong.package-selection.toml", prefix + "manifest.toml", prefix + "core.rbf"]
+    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
+    return [recipe.selection_filename, prefix + "manifest.toml", prefix + "core.rbf"]
+
+
+FORMAT1_PARENT_OUTPUT_NAMES = (
+    'megadrive.rbf', 'megadrive-rbf.toml', 'megadrive.selection.toml',
+    'pong.rbf', 'pong-rbf.toml', 'pong.selection.toml',
+    'snes.rbf', 'snes-rbf.toml', 'snes.selection.toml',
+    'nes.rbf', 'nes-rbf.toml', 'nes.selection.toml',
+)
+
+
+def remove_format1_parent_outputs(output):
+    """Remove only known legacy top-level artifacts from a package output."""
+    output = Path(output)
+    for name in FORMAT1_PARENT_OUTPUT_NAMES:
+        path = output / name
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError('legacy format-1 output destination is not a regular file')
+        path.unlink()
+
+
+def verify_package_only_outputs(output, package):
+    """Verify a parent package-only output has no legacy core artifacts."""
+    verify_package_outputs(output, package)
+    output = Path(output)
+    for name in FORMAT1_PARENT_OUTPUT_NAMES:
+        try:
+            output.joinpath(name).lstat()
+        except FileNotFoundError:
+            continue
+        raise ValueError('package-only output contains a legacy format-1 artifact')
 
 
 def verify_package_outputs(output, package):
@@ -380,17 +436,26 @@ def verify_package_outputs(output, package):
     output = Path(output)
     if package is None:
         try:
-            for path in (output / "fes-pong.package-selection.toml",
-                         output / "core-packages"):
+            stale = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
+            for path in stale + [output / "core-packages"]:
                 try:
                     path.lstat()
                 except FileNotFoundError:
                     continue
                 raise ValueError
         except (OSError, ValueError):
-            raise ValueError("package-free output contains stale FES Pong package files") from None
+            raise ValueError("package-free output contains stale FES package files") from None
         return []
     names = package_output_names(package)
+    for recipe in FORMAT2_RECIPES.values():
+        stale = output / recipe.selection_filename
+        if stale.name == names[0]:
+            continue
+        try:
+            stale.lstat()
+        except FileNotFoundError:
+            continue
+        raise ValueError("published FES package selections are not a closed set")
     identity = package["inputs"]["selection"]["package_id"]
     root = output / "core-packages"
     directory = root / identity
@@ -415,17 +480,17 @@ def verify_package_outputs(output, package):
             if digest(path) != expected_sha256:
                 raise ValueError
     except (OSError, ValueError):
-        raise ValueError("published FES Pong package changed or differs from its selection") from None
+        raise ValueError("published FES package changed or differs from its selection") from None
     return names
 
 
 def _remove_package_outputs(output):
     """Remove a previous package pair without following output symlinks."""
     output = Path(output)
-    selection = output / "fes-pong.package-selection.toml"
+    selections = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
     root = output / "core-packages"
     present = []
-    for path, expected in ((selection, stat.S_ISREG), (root, stat.S_ISDIR)):
+    for path, expected in [(path, stat.S_ISREG) for path in selections] + [(root, stat.S_ISDIR)]:
         try:
             metadata = path.lstat()
         except FileNotFoundError:
@@ -433,8 +498,9 @@ def _remove_package_outputs(output):
         if stat.S_ISLNK(metadata.st_mode) or not expected(metadata.st_mode):
             raise ValueError("package output destination must be a non-symlink regular file or directory")
         present.append(path)
-    if selection in present:
-        selection.unlink()
+    for path in selections:
+        if path in present:
+            path.unlink()
     if root in present:
         for current, directories, files in os.walk(root, topdown=False, followlinks=False):
             for name in files + directories:
@@ -470,6 +536,7 @@ def publish_package_outputs(package, built_selection, output):
     output = Path(output)
     built_selection = Path(built_selection)
     names = package_output_names(package)
+    selected_name = output / names[0]
     try:
         metadata = built_selection.lstat()
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
@@ -477,7 +544,18 @@ def publish_package_outputs(package, built_selection, output):
         if built_selection.read_bytes() != Path(package["selection_path"]).read_bytes():
             raise ValueError
     except (OSError, ValueError):
-        raise ValueError("child FES Pong selection differs from selected inputs") from None
+        raise ValueError("child FES package selection differs from selected inputs") from None
+    for recipe in FORMAT2_RECIPES.values():
+        stale = output / recipe.selection_filename
+        if stale == selected_name:
+            continue
+        try:
+            metadata = stale.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("package selection destination must be a non-symlink regular file")
+        stale.unlink()
     identity = package["inputs"]["selection"]["package_id"]
     staged_root = output / ".core-packages.new"
     if staged_root.exists() or staged_root.is_symlink():
@@ -786,6 +864,26 @@ def build_bundles(revisions, env, cores, force=False, diagnostics=None):
             for core in cores}
 
 
+def native_image_mode(profile):
+    """Return the explicit native image lane selected by a profile."""
+    mode = profile.get('native_image_mode', 'format1')
+    if mode not in ('format1', 'package-only'):
+        raise ValueError('profile native_image_mode must be format1 or package-only')
+    return mode
+
+
+def build_bundles_for_profile(profile, revisions, env, cores, force=False, diagnostics=None):
+    """Dispatch legacy FPGA bundles only for an explicit historical lane."""
+    if native_image_mode(profile) == 'package-only':
+        return {}
+    return build_bundles(revisions, env, cores, force, diagnostics=diagnostics)
+
+
+def legacy_source_image_environment(env, runtime, mode):
+    """Bind the selected native lane when invoking the legacy image scripts."""
+    return dict(env, LIBMISTER_RUNTIME_DIR=str(runtime), NATIVE_RUNTIME_MODE=mode)
+
+
 @contextmanager
 def locked_diagnostics(root, output, action):
     """Acquire the parent lock before creating or updating diagnostics."""
@@ -799,11 +897,18 @@ def locked_diagnostics(root, output, action):
             yield lock, diagnostics
 
 
-def resolve_selected_package(revisions, selection_path, env, force=False):
+def resolve_selected_package(revisions, selection_path, env, force=False, recipe=None):
     recipe_source = source_checkout("misteross", revisions["misteross"])
     return core_bundle.resolve_core_package(
         recipe_source, revisions["mister-packages"], selection_path,
-        force=force, env=env)
+        force=force, env=env, recipe=recipe)
+
+
+def resolve_package_for_action(revisions, output, env, action, recipe):
+    """Resolve the selected package, rebuilding it for an explicit rebuild."""
+    return resolve_selected_package(
+        revisions, Path(output) / recipe.selection_filename, env,
+        force=action == 'rebuild', recipe=recipe)
 
 
 def main():
@@ -814,8 +919,11 @@ def main():
     args = parser.parse_args()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     revisions = validate(ROOT, profile)
-    cores = selected_cores(profile)
+    mode = native_image_mode(profile)
+    cores = selected_cores(profile) if mode == 'format1' else ()
     package_recipes = selected_packages(profile, args.profile)
+    if mode == 'package-only' and not package_recipes:
+        raise ValueError('package-only native image requires one selected format-2 package')
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
     container = os.environ.get("CONTAINER_RUNTIME", "docker")
@@ -857,8 +965,9 @@ def main():
         package = None
         image_fp, image_info = fp, info
         if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
-            package = resolve_selected_package(
-                revisions, output / "fes-pong.package-selection.toml", env)
+            selected_recipe = recipe_for(package_recipes[0])
+            package = resolve_package_for_action(
+                revisions, output, env, args.action, selected_recipe)
             image_fp, image_info = image_fingerprint(fp, info, package)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
@@ -869,13 +978,15 @@ def main():
         env["GOTMPDIR"] = str(temp)
         fogcast_make = ["make", "-C", fogcast, "CONTAINER_RUNTIME=" + container, "VERSION=" + profile["version"]]
         image_make = ["make", "-C", IMAGE, "FOGCAST_DIR=" + str(fogcast),
-                      "CONTAINER_RUNTIME=" + container]
+                      "CONTAINER_RUNTIME=" + container,
+                      "NATIVE_RUNTIME_MODE=" + mode]
         if args.action == "dev":
-            if profile.get("bundle_interface") != "selection":
+            if mode == 'format1' and profile.get("bundle_interface") != "selection":
                 raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
-            bundles = build_bundles(revisions, env, cores, diagnostics=diagnostics)
+            bundles = build_bundles_for_profile(
+                profile, revisions, env, cores, diagnostics=diagnostics)
             build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
                               image_fp, env, fogcast_make, image_make, bundles, package,
                               diagnostics=diagnostics)
@@ -904,8 +1015,11 @@ def main():
             if image_hit:
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
-                verify_package_outputs(output, package)
-                if profile.get("fpga_source") == "misteross":
+                if mode == 'package-only':
+                    verify_package_only_outputs(output, package)
+                else:
+                    verify_package_outputs(output, package)
+                if mode == 'format1' and profile.get("fpga_source") == "misteross":
                     recipe_source = source_checkout("misteross", revisions["misteross"])
                     for core in cores:
                         validate_bundle(output, recipe_source, revisions["misteross"], core)
@@ -922,7 +1036,12 @@ def main():
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=env)
-                if profile.get("fpga_source") == "misteross":
+                if mode == 'package-only':
+                    bundles = {}
+                    run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
+                        "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(package)], env=env)
+                    manifest = None
+                elif profile.get("fpga_source") == "misteross":
                     bundles = build_bundles(revisions, env, cores, args.action == "rebuild",
                                             diagnostics=diagnostics)
                     bundle_dir = bundles["megadrive"]
@@ -938,32 +1057,40 @@ def main():
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
                         core_bundle.prepare(fogcast, bundle_dir, recipe_sha, cache_root=IMAGE)
                         run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
-                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                            env=legacy_source_image_environment(env, runtime, mode))
                         run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "native-dev"],
-                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                            env=legacy_source_image_environment(env, runtime, mode))
                 else:
                     manifest = None
                     run_stage(diagnostics, "image subprocess",
                               image_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
+                verify_env = dict(env, NATIVE_RUNTIME_MODE=mode,
+                                  **dict(argument.split("=", 1)
+                                        for argument in package_arguments(package)))
+                if mode == 'format1':
+                    verify_env['NATIVE_RUNTIME_SYSTEMS'] = " ".join(cores)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native-verify"],
-                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
-                             **dict(argument.split("=", 1) for argument in package_arguments(package))))
+                    env=verify_env)
                 built = IMAGE / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
-                if profile.get("bundle_interface") == "selection":
+                if mode == 'format1' and profile.get("bundle_interface") == "selection":
                     names.extend(core + ".selection.toml" for core in cores)
                 for name in names:
                     publish_file(built / name, output / name)
-                if manifest is not None:
+                if mode == 'format1' and manifest is not None:
                     for core in cores:
                         for name in (core + "-rbf.toml", core + ".rbf"):
                             publish_file(bundles[core] / name, output / name)
                             names.append(name)
                 names.extend(publish_package_state(
                     package,
-                    built / "fes-pong.package-selection.toml" if package is not None else None,
+                    built / recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename
+                    if package is not None else None,
                     output))
+                if mode == 'package-only':
+                    remove_format1_parent_outputs(output)
+                    verify_package_only_outputs(output, package)
                 publish_action_inputs(output, args.action, image_info)
                 names.append("inputs.json")
                 write_receipt(output, "image", image_fp, names)
@@ -974,8 +1101,11 @@ def main():
             diagnostics.cache("verify image", "hit" if image_hit else "miss", image_reason)
             if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
-            verify_package_outputs(output, package)
-            if profile.get("fpga_source") == "misteross":
+            if mode == 'package-only':
+                verify_package_only_outputs(output, package)
+            else:
+                verify_package_outputs(output, package)
+            if mode == 'format1' and profile.get("fpga_source") == "misteross":
                 recipe_source = source_checkout("misteross", revisions["misteross"])
                 recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
                 for core in cores:
@@ -988,11 +1118,17 @@ def main():
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-verify"],
-                    env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
-                             **dict(argument.split("=", 1) for argument in package_arguments(package))))
+                    env=dict(env, NATIVE_RUNTIME_MODE=mode,
+                             **dict(argument.split("=", 1)
+                                   for argument in package_arguments(package)),
+                             **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
+                                if mode == 'format1' else {})))
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-qemu-smoke"],
-                env=dict(env, NATIVE_RUNTIME_SYSTEMS=" ".join(cores),
-                         **dict(argument.split("=", 1) for argument in package_arguments(package))))
+                env=dict(env, NATIVE_RUNTIME_MODE=mode,
+                         **dict(argument.split("=", 1)
+                               for argument in package_arguments(package)),
+                         **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
+                            if mode == 'format1' else {})))
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())

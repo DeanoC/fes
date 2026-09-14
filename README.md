@@ -32,7 +32,9 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 
 Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
-runtime controls hardware. Quartus runs on the build machine, not during launch.
+runtime controls hardware. The normal FES package route uses misteross's
+authenticated HIP/nextpnr producer. Quartus is a build-time oracle or an
+explicit historical-profile tool, never a launch dependency or hidden fallback.
 
 ## Start
 
@@ -51,7 +53,8 @@ make host
 For an existing checkout, inspect local changes before running
 `git submodule update --init --recursive`; preserve component work first.
 `make check` verifies clean pinned sources, the runtime lock, package YAML,
-fourteen generated consumers, eleven shared fixture copies and copied Mega Drive/SNES/NES source pins. It needs Go,
+fourteen generated consumers, eleven shared fixture copies and copied source
+pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -67,41 +70,34 @@ seed that cache; otherwise the first run builds the base once. See
 For clean integration and release verification:
 
 ```sh
-QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build
+make build
 make verify
 ```
 
 The default `native-integration-dev` selects component revisions through the
-submodule gitlinks, packages source-built Mega Drive, Pong, SNES and NES cores,
-and installs the described standalone `fes.pong` development package. Each
-format-1 core has its own validated bundle and installed selection record;
-the selected NES image has exact video and session-lifecycle acceptance recorded
-in [the dated FES validation](docs/validation/2026-09-08-native-nes-wire-acceptance.md).
-Historical profiles retain their Mega Drive-only inputs.
+submodule gitlinks, retains the locked idle RBF, and installs exactly one
+described format-2 package: the current `fes.pong` package. The registry also
+understands `fes.zx81` and `fes.coleco` for package resolution, but the current
+image selector is intentionally Pong-only and rejects a ZX81, Coleco or
+multi-package image selection. Format-1 catalog cores are not part of the
+default FES production image.
 
-A fresh FPGA build requires Quartus Lite 17.0.2. Validated Mega Drive, SNES and
-NES bundles may be reused from the workspace-local cache after the current
-recipe and bundle manifest still accept them, including across unrelated
-`misteross` commits. Pong reuse still requires the exact selected `misteross`
-revision. Distinct validated artifacts fail closed; recover by running
-`chmod -R u+rwX -- out/cache/fpga-bundles/<system>` then
-`rm -rf -- out/cache/fpga-bundles/<system>` and retrying. The FES Pong package
-producer uses the workspace-local compiler cache `out/cache/misteross-toolchains`;
-format-1 Mega Drive, SNES and NES bundles do not. Recover that compiler cache
-with `chmod -R u+rwX -- out/cache/misteross-toolchains` then
-`rm -rf -- out/cache/misteross-toolchains`. `make rebuild` bypasses that
-cache and rebuilds. Downloads are checked
-against component locks; image compilation runs twice in independent build
-roots with networking disabled. Allow several GB for tools and outputs.
+The normal package build uses the authenticated HIP/nextpnr producer and its
+workspace-local compiler cache at `out/cache/misteross-toolchains`. A matching
+package is reused only after its locked inputs, manifest, payload and sealed
+selection are checked; a miss runs the selected format-2 producer. Quartus Lite
+17.0.2 remains available for explicit historical format-1 profiles and as a
+bring-up/oracle check where a recipe documents one. It is not run by the
+default FES path, and a failed HIP route never falls back to Quartus. Downloads
+are checked against component locks; image compilation runs twice in
+independent build roots with networking disabled.
 
 ```text
 out/native-integration-dev/
   fogcast-api                 Linux amd64 server with browser UI
   fogcast                     Linux amd64 CLI
   linux.img                   ARMv7 target root filesystem
-  {megadrive,pong,snes,nes}.rbf selected source-built cores
-  <core>-rbf.toml              FPGA build provenance for each core
-  <core>.selection.toml        installed-core selection for each core
+  idle.rbf                     locked MiSTer idle RBF
   fes-pong.package-selection.toml described-package selection
   core-packages/<package-id>/  exact manifest.toml and core.rbf
   inputs.json                 selected sources, profile, Go and parent recipe
@@ -147,11 +143,11 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
 | `make media` | Publish a verified flashable disk image, auto-embedding the local target agent config |
 | `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
-| `make rebuild` | Force host, Quartus and both image passes |
+| `make rebuild` | Force host and both image passes; historical format-1 profiles may also run Quartus |
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, four source-built catalog cores and described FES Pong package |
+| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and one described FES Pong format-2 package |
 | `native-dev` | Original FogCast `cd85971` / runtime `443b603`, upstream core |
 | `native-source-dev` | Same original pair, source-built core and historical lock overlay |
 
@@ -181,7 +177,7 @@ components; the default Actions token cannot read sibling private repositories.
 CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
-The normal profile includes [Pong and basic SNES](docs/multi-system-development.md)
-alongside Mega Drive. Native [SNES cartridge saves](docs/snes-saves.md) retain
-battery RAM through clean Stop and relaunch. SNES enhancement chips remain outside
-this implementation.
+The normal profile currently installs only the described FES Pong package and
+the locked idle RBF. The older [Pong, SNES and Mega Drive](docs/multi-system-development.md)
+catalog image remains historical/independent; its native [SNES cartridge saves](docs/snes-saves.md)
+and enhancement-chip limitations do not change the package-only default.

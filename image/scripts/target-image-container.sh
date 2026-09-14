@@ -6,6 +6,14 @@ lock=${TARGET_IMAGE_LOCK:-$repo_root/build/target-image.sources.lock.toml}
 runtime=${TARGET_IMAGE_CONTAINER_RUNTIME:-docker}
 output_volume=${TARGET_IMAGE_OUTPUT_VOLUME:-fogcast-target-image-output}
 package_lock=$repo_root/build/target-image-container-packages.sha256
+native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+case "$native_mode" in
+  format1|package-only) : ;;
+  *)
+    printf '%s\n' 'target-image-container: native runtime mode must be format1 or package-only' >&2
+    exit 2
+    ;;
+esac
 
 case "$output_volume" in
   *[!a-zA-Z0-9_.-]*|'')
@@ -54,9 +62,10 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
 fi
 docker_run() {
   if [ -n "$fogcast_dir" ]; then
-    exec "$runtime" run --volume "$fogcast_dir:/fogcast:ro" --env FOGCAST_DIR=/fogcast "$@"
+    exec "$runtime" run --volume "$fogcast_dir:/fogcast:ro" \
+      --env FOGCAST_DIR=/fogcast --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
   fi
-  exec "$runtime" run "$@"
+  exec "$runtime" run --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
 }
 run_container() {
   if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
@@ -114,11 +123,17 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   }
   native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast_dir/build/native-runtime.inputs.lock.toml}
   native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
-  native_megadrive=${NATIVE_RUNTIME_MEGADRIVE_FILE:-$repo_root/build/cache/target-image/native/megadrive.rbf}
-  native_selection=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo_root/build/cache/target-image/native/megadrive.selection.toml}
-  "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-    "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive" \
-    "$native_selection"
+  if [ "$native_mode" = package-only ]; then
+    NATIVE_RUNTIME_MODE=package-only \
+      "$repo_root/scripts/verify-native-runtime-inputs.sh" \
+      "$native_lock" "$native_runtime_source" "$native_idle"
+  else
+    native_megadrive=${NATIVE_RUNTIME_MEGADRIVE_FILE:-$repo_root/build/cache/target-image/native/megadrive.rbf}
+    native_selection=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo_root/build/cache/target-image/native/megadrive.selection.toml}
+    "$repo_root/scripts/verify-native-runtime-inputs.sh" \
+      "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive" \
+      "$native_selection"
+  fi
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
 fi
 

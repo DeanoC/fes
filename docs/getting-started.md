@@ -8,9 +8,10 @@ one of those parts. The [project map](project-map.md) explains the distinction.
 
 Parent builds currently run on Linux amd64. Install Git, GNU Make, Python 3.11+
 and Go; image builds also require a running Docker-compatible container engine.
-Go selects the version required by the chosen FogCast `go.mod`. Source FPGA
-compilation requires Quartus Lite 17.0.2. An already-built, validated bundle for
-the selected revision can be reused without compiling it again.
+Go selects the version required by the chosen FogCast `go.mod`. The normal FES
+FPGA package route uses the authenticated HIP/nextpnr producer. Quartus Lite
+17.0.2 is needed only for an explicit historical format-1 profile or a recipe's
+bring-up/oracle check; it is not required by the default package-only path.
 
 You need Git access to FES and all four component repositories. The clone
 example below uses SSH for FES, but `.gitmodules` currently uses HTTPS for the
@@ -50,10 +51,13 @@ pinned commits, not whichever branch tips are newest.
 | Publish flashable native media | `make media` | `out/native-integration-dev/media/current/fes.img` and receipts |
 | Reverify published native media | `make verify-media` | Media, payload, embedded-rootfs and QEMU checks |
 
-On the first source-built image run, set your installed toolchain location:
+For the default package-only image, the first producer run authenticates or
+reuses the selected HIP/nextpnr toolchain automatically. A historical
+format-1 source build needs the installed Quartus location:
 
 ```sh
-QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make dev
+QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 \
+  make build PROFILE=native-source-dev
 ```
 
 The first development build can copy a compatible existing clean base or build
@@ -66,7 +70,7 @@ invalidation and output details. `make dev` builds the target image only; run
 For clean integration verification:
 
 ```sh
-QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build
+make build
 make verify
 make media
 make verify-media
@@ -74,7 +78,9 @@ make verify-media
 
 `make build` also reuses matching complete outputs. When it must assemble a new
 image, it runs two independent clean passes. `make rebuild` forces the host,
-FPGA build and both image passes; use it when that expensive work is intended.
+selected package production and both image passes; use it when that expensive
+work is intended. A historical format-1 profile may additionally invoke
+Quartus.
 
 The default profile is `native-integration-dev`. Historical profiles are for
 reproducing earlier combinations, not the normal development starting point:
@@ -180,10 +186,10 @@ separately authorized physical-card acceptance procedure.
 ## 5. Understand the target output
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
-bootable SD-card image. It contains the native runtime and selected RBFs; use
-the media command above for the complete flashable layout. The parent supports
-the native Mega Drive path and the existing MiSTer-compatible development-RBF
-lifecycle; other systems and arbitrary custom core protocols are not implied.
+bootable SD-card image. The default contains the native runtime, locked idle
+RBF and selected FES Pong format-2 package; use the media command above for the
+complete flashable layout. ZX81/Coleco are resolver-supported but not image
+selected yet, and format-1 catalog cores remain outside this production path.
 
 Build commands do not deploy. Use the exact kit and deployment instructions in
 the selected FogCast [working policy](../sources/FogCast/AGENTS.md) and
@@ -200,7 +206,7 @@ and input behavior require separate hardware checks of the exact image.
 | `source checkout is dirty` | Preserve edits in the component task worktree; see [development](development.md#isolate-component-work) |
 | Runtime lock differs from parent pin | Select the FogCast/runtime pair together; changing only the gitlink is insufficient |
 | Generated consumer or copied source-pin drift | Reconcile the authoritative package definition and affected consumers; `make check` reports drift but does not repair it |
-| Missing Quartus | Configure the required installation, or reuse a valid bundle for exactly the selected revision |
+| Missing Quartus | Only relevant to an explicit historical format-1 profile or documented oracle check; the default package-only path uses HIP/nextpnr |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |
 | Private-component CI checkout fails | Configure repository secret `FES_COMPONENTS_TOKEN` with access to the parent and four components |
