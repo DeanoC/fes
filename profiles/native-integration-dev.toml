@@ -9,3 +9,9 @@ check_packages = true
 core_id = "fes.pong"
 # Current component revisions are the parent gitlinks. Historical profiles
 # explicitly select earlier commits; this profile integrates the current set.
+
+[[fpga_packages]]
+core_id = "fes.zx81"
+
+[[fpga_packages]]
+core_id = "fes.coleco"

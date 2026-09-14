@@ -187,9 +187,11 @@ separately authorized physical-card acceptance procedure.
 
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
-RBF and selected FES Pong format-2 package; use the media command above for the
-complete flashable layout. ZX81/Coleco are resolver-supported but not image
-selected yet, and format-1 catalog cores remain outside this production path.
+RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` format-2 package set;
+use the media command above for the complete flashable layout. Format-1 catalog
+cores remain outside this production path.
+The `make build`, `make dev`, `make verify` and `make media` paths use the
+same closed package set.
 
 Build commands do not deploy. Use the exact kit and deployment instructions in
 the selected FogCast [working policy](../sources/FogCast/AGENTS.md) and

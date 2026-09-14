@@ -1,5 +1,6 @@
 """FES image/ is the native image recipe; FogCast supplies lock, agent and kit."""
 from pathlib import Path
+import tomllib
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,3 +57,29 @@ class ImageAssemblyTest(unittest.TestCase):
         for needle in ('make dev', 'make build', 'make media', 'image/', 'FOGCAST_DIR'):
             self.assertIn(needle, text)
         self.assertNotIn('Do not copy', text)
+
+    def test_default_package_contract_is_documented_as_the_complete_fes_set(self):
+        profile = tomllib.loads((ROOT / 'profiles/native-integration-dev.toml').read_text())
+        self.assertEqual(profile['native_image_mode'], 'package-only')
+        self.assertEqual(
+            [entry['core_id'] for entry in profile['fpga_packages']],
+            ['fes.pong', 'fes.zx81', 'fes.coleco'])
+
+        readme = (ROOT / 'README.md').read_text()
+        packages = (ROOT / 'docs/core-packages.md').read_text()
+        getting_started = (ROOT / 'docs/getting-started.md').read_text()
+        development = (ROOT / 'docs/development.md').read_text()
+        for text in (readme, packages, getting_started, development):
+            for needle in ('fes.pong', 'fes.zx81', 'fes.coleco', 'HIP/nextpnr', 'format-1'):
+                self.assertIn(needle, text)
+        self.assertIn('closed package set', readme)
+        self.assertIn('closed package set', packages)
+        self.assertIn('same closed package set', getting_started)
+        self.assertIn('same closed package set', development)
+        self.assertIn('Quartus', readme)
+        self.assertIn('historical format-1', development)
+        self.assertIn('fes-zx81.package-selection.toml', packages)
+        self.assertIn('fes-coleco.package-selection.toml', packages)
+        for text in (readme, packages, getting_started, development):
+            self.assertNotIn('single-package Pong-only', text)
+            self.assertNotIn('currently installs only the described FES Pong package', text)

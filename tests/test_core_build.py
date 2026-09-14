@@ -162,8 +162,12 @@ class CoreBuildTest(unittest.TestCase):
                 build.selected_packages(profile, profile_name)
         repository_profile = tomllib.loads((Path(__file__).resolve().parents[1] /
                                              'profiles/native-integration-dev.toml').read_text())
+        self.assertEqual(repository_profile['native_image_mode'], 'package-only')
+        self.assertEqual(
+            [entry['core_id'] for entry in repository_profile['fpga_packages']],
+            ['fes.pong', 'fes.zx81', 'fes.coleco'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
-                         ('fes.pong',))
+                         ('fes.pong', 'fes.zx81', 'fes.coleco'))
 
     def test_bundle_arguments_require_exact_selected_set(self):
         cores = ('megadrive', 'pong', 'snes', 'nes')
