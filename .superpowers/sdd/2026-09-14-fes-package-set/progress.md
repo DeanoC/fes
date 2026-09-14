@@ -81,7 +81,7 @@
 ## Task 1 F1 repair 2 — completed
 
 - Base: `1d033d60b5e50a5a2491c50319b64dc42d9b89da` on
-  `feat/fes-package-set`; result commit pending final commit creation.
+  `feat/fes-package-set`; result commit: `3412dfb`.
 - F1-1: complete generation validation now accepts only an empty generation or
   a closed package set with lowercase 64-hex package identities, exactly
   `manifest.toml` and `core.rbf` per package, and matching selection count.

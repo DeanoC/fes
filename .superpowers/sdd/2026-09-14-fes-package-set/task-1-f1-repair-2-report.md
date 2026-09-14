@@ -8,7 +8,7 @@ Branch: `feat/fes-package-set`
 
 Base: `1d033d60b5e50a5a2491c50319b64dc42d9b89da`
 
-Result commit: pending final commit creation
+Result commit: `3412dfb` (`fix: harden FES package generation validation`)
 
 ## Scope
 
