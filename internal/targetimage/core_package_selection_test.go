@@ -143,13 +143,16 @@ func TestCorePackageSelectionFailedReplacementResealsCurrentPackage(t *testing.T
 		t.Fatal(err)
 	}
 	packageRoot := filepath.Join(cache, "core-packages")
-	if err := os.Chmod(packageRoot, 0o555); err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		_ = filepath.Walk(cache, func(path string, _ os.FileInfo, _ error) error { _ = os.Chmod(path, 0o755); return nil })
 	})
-	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err == nil {
+	injectedRename := func(oldPath, newPath string) error {
+		if strings.HasSuffix(newPath, filepath.Join(".previous", "current-package")) {
+			return fmt.Errorf("injected package backup rename failure")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+	if _, err := prepareCorePackageSelectionForCoreWithRename(directory, record, cache, output, "fes.pong", injectedRename); err == nil {
 		t.Fatal("replacement succeeded with a non-writable package root")
 	}
 	info, err := os.Stat(filepath.Join(packageRoot, selection.PackageID))

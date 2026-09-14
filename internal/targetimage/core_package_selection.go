@@ -65,6 +65,10 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 // PrepareCorePackageSelectionForCore pins one selected record/package pair
 // while binding it to the expected format-2 core ID.
 func PrepareCorePackageSelectionForCore(directory, record, cache, output, expectedCoreID string) (CorePackageSelection, error) {
+	return prepareCorePackageSelectionForCoreWithRename(directory, record, cache, output, expectedCoreID, os.Rename)
+}
+
+func prepareCorePackageSelectionForCoreWithRename(directory, record, cache, output, expectedCoreID string, renamePath func(string, string) error) (CorePackageSelection, error) {
 	var selection CorePackageSelection
 	coreName, err := packageCoreName(expectedCoreID)
 	if err != nil {
@@ -157,7 +161,7 @@ func PrepareCorePackageSelectionForCore(directory, record, cache, output, expect
 	if _, _, err := InspectCorePackageSelectionForCore(temporary, recordTemporaryPath, expectedCoreID); err != nil {
 		return CorePackageSelection{}, fmt.Errorf("verify staged package selection: %w", err)
 	}
-	if err := replacePackagePair(temporary, recordTemporaryPath, packageParent, output, expectedCoreID); err != nil {
+	if err := replacePackagePair(temporary, recordTemporaryPath, packageParent, output, expectedCoreID, renamePath); err != nil {
 		return CorePackageSelection{}, err
 	}
 	removeRecordTemporary = false
@@ -301,7 +305,7 @@ func copyClosedPackage(source, destination string) error {
 	return nil
 }
 
-func replacePackagePair(packageTemporary, recordTemporary, packageDestination, recordDestination, expectedCoreID string) error {
+func replacePackagePair(packageTemporary, recordTemporary, packageDestination, recordDestination, expectedCoreID string, renamePath func(string, string) error) error {
 	packageID := filepath.Base(filepath.Clean(packageTemporary))
 	if !validSHA256(packageID) {
 		return fmt.Errorf("temporary package path has an invalid package ID")
@@ -402,19 +406,19 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 			_ = removePath(recordDestination)
 		}
 		if recordMoved {
-			_ = os.Rename(recordBackup, recordDestination)
+			_ = renamePath(recordBackup, recordDestination)
 		}
 		if packagePublished {
 			_ = removePath(currentPackage)
 		}
 		if currentMoved {
-			_ = os.Rename(packageBackup, currentPackage)
+			_ = renamePath(packageBackup, currentPackage)
 			_ = os.Chmod(currentPackage, 0o555)
 		} else if currentMadeWritable {
 			_ = os.Chmod(currentPackage, 0o555)
 		}
 		if previousMoved {
-			_ = os.Rename(previousBackup, previousPackage)
+			_ = renamePath(previousBackup, previousPackage)
 			_ = os.Chmod(previousPackage, 0o555)
 		} else if previousMadeWritable {
 			_ = os.Chmod(previousPackage, 0o555)
@@ -435,7 +439,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 			return fmt.Errorf("prepare previous package: %w", err)
 		}
 		currentMadeWritable = true
-		if err := os.Rename(currentPackage, packageBackup); err != nil {
+		if err := renamePath(currentPackage, packageBackup); err != nil {
 			rollback()
 			return fmt.Errorf("retain previous package: %w", err)
 		}
@@ -448,7 +452,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 				return fmt.Errorf("prepare superseded package: %w", err)
 			}
 			previousMadeWritable = true
-			if err := os.Rename(previousPackage, previousBackup); err != nil {
+			if err := renamePath(previousPackage, previousBackup); err != nil {
 				rollback()
 				return fmt.Errorf("retain superseded package: %w", err)
 			}
@@ -458,7 +462,7 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 			return err
 		}
 	}
-	if err := os.Rename(packageTemporary, currentPackage); err != nil {
+	if err := renamePath(packageTemporary, currentPackage); err != nil {
 		rollback()
 		return fmt.Errorf("publish package: %w", err)
 	}
@@ -469,13 +473,13 @@ func replacePackagePair(packageTemporary, recordTemporary, packageDestination, r
 	}
 
 	if recordExisted {
-		if err := os.Rename(recordDestination, recordBackup); err != nil {
+		if err := renamePath(recordDestination, recordBackup); err != nil {
 			rollback()
 			return fmt.Errorf("retain previous selection: %w", err)
 		}
 		recordMoved = true
 	}
-	if err := os.Rename(recordTemporary, recordDestination); err != nil {
+	if err := renamePath(recordTemporary, recordDestination); err != nil {
 		rollback()
 		return fmt.Errorf("publish package selection: %w", err)
 	}
