@@ -110,6 +110,62 @@ class SharedEntrypointTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
 
+    def test_make_cache_root_selects_shared_pong_toolchain(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        result = self._run(
+            ["make", "-n", "toolchain-fes", f"CACHE_ROOT={self.cache}"],
+            env=environment,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f'FES_TOOLCHAIN_CACHE_ROOT="{self.cache}"', result.stdout)
+        self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
+        self.assertNotIn("FES_TOOLCHAIN_ROOT=", result.stdout)
+
+    def test_make_cache_root_selects_shared_coleco_toolchain(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        result = self._run(
+            ["make", "-n", "toolchain-fes-coleco", f"CACHE_ROOT={self.cache}"],
+            env=environment,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(f'FES_TOOLCHAIN_CACHE_ROOT="{self.cache}"', result.stdout)
+        self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
+        self.assertNotIn("FES_TOOLCHAIN_ROOT=", result.stdout)
+
+    def test_make_cache_root_selects_shared_doctor_mode(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
+        fake_python = self.fixture / "python3"
+        marker = self.fixture / "doctor-cache-root-invoked"
+        fake_python.write_text(
+            "#!/bin/sh\n"
+            f"touch {str(marker)!r}\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        fake_python.chmod(fake_python.stat().st_mode | stat.S_IXUSR)
+        result = self._run(
+            ["make", "-s", "doctor", f"CACHE_ROOT={self.cache}",
+             f"PYTHON={fake_python}"],
+            env=environment,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
+
+    def test_make_rejects_conflicting_shared_cache_names(self) -> None:
+        result = self._run(
+            ["make", "-n", "toolchain-fes", f"CACHE_ROOT={self.cache}"],
+            env=self._env(FES_TOOLCHAIN_CACHE_ROOT=str(self.fixture / "other-cache")),
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must agree", result.stderr)
+
     def test_make_simulation_target_rejects_shared_cache(self) -> None:
         shell = self.fixture / "make-shell"
         shell.write_text(

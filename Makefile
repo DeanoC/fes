@@ -23,6 +23,17 @@ PACKAGE_RBF ?=
 PACKAGE_OUTPUT ?= $(CURDIR)/build/packages
 CACHE_ROOT ?=
 
+FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE := $(strip $(if $(FES_TOOLCHAIN_CACHE_ROOT),$(FES_TOOLCHAIN_CACHE_ROOT),$(CACHE_ROOT)))
+FES_TOOLCHAIN_CACHE_ENV = $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),FES_TOOLCHAIN_CACHE_ROOT="$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT)),)
+ifneq ($(strip $(CACHE_ROOT)),)
+ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT)),$(strip $(CACHE_ROOT)))
+$(error misteross: CACHE_ROOT and FES_TOOLCHAIN_CACHE_ROOT must agree when both are set)
+endif
+endif
+endif
+
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
@@ -80,7 +91,7 @@ define require_exp
 endef
 
 define require_local_sim
-	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
+	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \
 		printf '%s\n' 'misteross: shared toolchain cache is unsupported for Make simulation targets; use an FES Python recipe or unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane' >&2; \
 		exit 2; \
 	fi
@@ -93,12 +104,13 @@ endef
 # path via --cache-root; FES_TOOLCHAIN_CACHE_ROOT remains the bootstrap
 # shared-cache selector.  Either one must drop parent Make flags.
 SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)$(CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
+FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFLAGS= MFLAGS= ,)
 
 # Reject an explicitly requested legacy simulation goal while Make is still
 # parsing the graph.  This runs before any prerequisite (including diagnostic
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
-ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT)),)
+ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
 _SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
@@ -393,11 +405,11 @@ toolchain:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh
 
 toolchain-fes:
-	@$(SHARED_MAKE_ENV)FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-coleco:
-	@$(SHARED_MAKE_ENV)FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
@@ -405,15 +417,15 @@ toolchain-check:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh --check-prereqs
 
 doctor:
-	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
-		$(SHARED_MAKE_ENV)"$(PYTHON)" scripts/doctor.py; \
+	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \
+		$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) "$(PYTHON)" scripts/doctor.py; \
 	else \
 		bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py' _ "$(PYTHON)"; \
 	fi
 
 doctor-strict:
-	@if [ -n "$${FES_TOOLCHAIN_CACHE_ROOT:-}" ]; then \
-		$(SHARED_MAKE_ENV)"$(PYTHON)" scripts/doctor.py --strict oss; \
+	@if [ -n "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)" ]; then \
+		$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) "$(PYTHON)" scripts/doctor.py --strict oss; \
 	else \
 		bash -c '. scripts/env.sh; exec "$$1" scripts/doctor.py --strict oss' _ "$(PYTHON)"; \
 	fi

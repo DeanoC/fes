@@ -54,6 +54,11 @@ GPU-router OFF for generic OSS experiments. `make toolchain` and
 forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer recipes.
 Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP install.
 Quartus ZX81/Coleco recipes are oracle-only and are not a nextpnr fallback.
+For a shared cache, the same CACHE_ROOT=/absolute/cache spelling selects
+the FES HIP toolchain for both toolchain-fes and toolchain-fes-coleco;
+doctor and doctor-strict use that same selection. An explicit
+FES_TOOLCHAIN_CACHE_ROOT remains accepted and wins when it agrees with
+CACHE_ROOT.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler

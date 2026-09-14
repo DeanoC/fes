@@ -597,6 +597,18 @@ Pong and ZX81 authenticate the repository-wide `toolchain.lock` HIP slot
 `cores/fes-coleco/toolchain.lock` and the same HIP lane without aliasing the
 root-lock cache slot. Quartus recipes remain oracle-only for ZX81 and Coleco
 and are not a nextpnr fallback.
+An empty shared cache is provisioned with the same Make variable used by the
+producer recipes:
+
+    CACHE_ROOT=/absolute/cache make toolchain-fes
+    CACHE_ROOT=/absolute/cache make toolchain-fes-coleco
+    CACHE_ROOT=/absolute/cache make doctor-strict
+
+The first two commands populate the separate root-lock and Coleco-lock HIP
+slots. Later producer commands reuse those verified slots. An explicit
+FES_TOOLCHAIN_CACHE_ROOT is still supported for callers that already use the
+internal spelling; if both variables are set they must name the same absolute
+path.
 
 `FES_ROOT` is the FES parent checkout (not this misteross worktree). The
 parent cache lives at `${FES_ROOT}/out/cache/misteross-toolchains`. Both
