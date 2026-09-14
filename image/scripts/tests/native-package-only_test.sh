@@ -120,6 +120,10 @@ for core_id in $package_words; do
   test -d "$cache/core-packages/$package_id"
   test -f "$cache/fes-$core.package-selection.toml"
 done
+for core_id in $package_words; do
+  grep -Fq -- "select-package --core-id $core_id" "$SELECTOR_LOG"
+  grep -Fq -- "verify-package --core-id $core_id" "$SELECTOR_LOG"
+done
 
 target=$fixture/target
 mkdir -p "$target/usr/share/mister-runtime/core-packages" \
@@ -207,6 +211,17 @@ if FES_PACKAGE_IDS='fes.pong,fes.zx81' "$repo/scripts/native-extra-cores.sh" val
   echo 'package-only validator accepted extra package inputs' >&2
   exit 1
 fi
+
+chmod 0644 "$fixture/zx81.package-selection.toml"
+sed -i "s/core_id = 'fes.zx81'/core_id = 'fes.pong'/" "$fixture/zx81.package-selection.toml"
+chmod 0444 "$fixture/zx81.package-selection.toml"
+if "$repo/scripts/native-extra-cores.sh" validate; then
+  echo 'package-only validator accepted a misidentified selection' >&2
+  exit 1
+fi
+chmod 0644 "$fixture/zx81.package-selection.toml"
+sed -i "s/core_id = 'fes.pong'/core_id = 'fes.zx81'/" "$fixture/zx81.package-selection.toml"
+chmod 0444 "$fixture/zx81.package-selection.toml"
 
 container=$fixture/container
 cat >"$container" <<'CONTAINER'

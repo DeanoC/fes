@@ -61,6 +61,24 @@ package_installed_record_name_for() {
   package_core_for "$1"
   package_installed_record_name=fes-$package_core.package.toml
 }
+package_value_from_file() {
+  awk -v wanted="$2" '
+    $0 ~ "^[[:space:]]*" wanted "[[:space:]]*=" {
+      value=$0
+      sub(/^[^=]*=[[:space:]]*/, "", value)
+      quote=substr(value, 1, 1)
+      if ((quote == sprintf("%c", 34) || quote == sprintf("%c", 39)) &&
+          substr(value, length(value), 1) == quote) {
+        value=substr(value, 2, length(value) - 2)
+      }
+      print value
+      exit
+    }
+  ' "$1"
+}
+package_core_id_from_file() {
+  package_value_from_file "$1" core_id
+}
 validate_package_set() {
   [ -n "$package_ids" ] || {
     echo 'native-extra-cores: FES_PACKAGE_IDS is required in package-only mode' >&2
@@ -112,6 +130,10 @@ validate_package_set() {
     }
     [ -f "$package_selection" ] && [ ! -L "$package_selection" ] || {
       printf 'native-extra-cores: %s selection is not a file\n' "$selected_id" >&2
+      exit 2
+    }
+    [ "$(package_core_id_from_file "$package_selection")" = "$selected_id" ] || {
+      printf 'native-extra-cores: %s selection core ID is misidentified\n' "$selected_id" >&2
       exit 2
     }
     selected_packages="$selected_packages $selected_id"
@@ -243,21 +265,6 @@ find_single_package() {
   [ "$package_count" -eq 1 ] && [ -d "$package_entry" ] && [ ! -L "$package_entry" ] || return 1
   printf '%s\n' "$package_entry"
 }
-package_value_from_file() {
-  awk -v wanted="$2" '
-    $0 ~ "^[[:space:]]*" wanted "[[:space:]]*=" {
-      value=$0
-      sub(/^[^=]*=[[:space:]]*/, "", value)
-      quote=substr(value, 1, 1)
-      if ((quote == "\"" || quote == sprintf("%c", 39)) &&
-          substr(value, length(value), 1) == quote) {
-        value=substr(value, 2, length(value) - 2)
-      }
-      print value
-      exit
-    }
-  ' "$1"
-}
 package_record_path_for() {
   package_record_name_for "$1"
   package_record=$cache/$package_record_name
@@ -300,6 +307,10 @@ validate_cached_package_set() {
     package_selection_for "$selected_id"
     cmp "$package_selection" "$package_record" || {
       printf 'native-extra-cores: cached selection differs for %s\n' "$selected_id" >&2
+      exit 1
+    }
+    [ "$(package_core_id_from_file "$package_record")" = "$selected_id" ] || {
+      printf 'native-extra-cores: cached selection core ID is misidentified for %s\n' "$selected_id" >&2
       exit 1
     }
     package_id=$(package_value_from_file "$package_record" package_id)
@@ -362,7 +373,8 @@ verify_cached_packages() {
     package_record_path_for "$selected_id"
     package_id=$(package_value_from_file "$package_record" package_id)
     cached_package=$package_cache/$package_id
-    "$selector" verify-package --package "$cached_package" --selection "$package_record"
+    "$selector" verify-package --core-id "$selected_id" \
+      --package "$cached_package" --selection "$package_record"
   done
 }
 validate_installed_package_set() {
@@ -380,7 +392,8 @@ validate_installed_package_set() {
       printf 'native-extra-cores: installed package is not sealed: %s\n' "$package_id" >&2
       exit 1
     }
-    "$selector" verify-package --package "$installed_package" --selection "$package_record"
+    "$selector" verify-package --core-id "$selected_id" \
+      --package "$installed_package" --selection "$package_record"
     package_installed_record_path_for "$selected_id"
     [ -f "$installed_record" ] && [ ! -L "$installed_record" ] || {
       printf 'native-extra-cores: installed selection is missing for %s\n' "$selected_id" >&2
@@ -481,6 +494,10 @@ validate_package_records() {
       printf 'native-extra-cores: cached selection differs for %s\n' "$selected_id" >&2
       exit 1
     }
+    [ "$(package_core_id_from_file "$package_record")" = "$selected_id" ] || {
+      printf 'native-extra-cores: cached selection core ID is misidentified for %s\n' "$selected_id" >&2
+      exit 1
+    }
     [ "$(stat -c %a "$package_record")" = 444 ] || {
       printf 'native-extra-cores: cached selection is not sealed for %s\n' "$selected_id" >&2
       exit 1
@@ -495,7 +512,8 @@ if [ "$native_mode" = package-only ]; then
         package_dir_for "$selected_id"
         package_selection_for "$selected_id"
         package_record_path_for "$selected_id"
-        "$selector" select-package --package "$package_dir" --selection "$package_selection" \
+        "$selector" select-package --core-id "$selected_id" \
+          --package "$package_dir" --selection "$package_selection" \
           --cache "$cache" --output "$package_record"
       done
       verify_cached_packages
@@ -557,7 +575,8 @@ if [ "$native_mode" = package-only ]; then
         package_record_path_for "$selected_id"
         package_id=$(package_value_from_file "$package_record" package_id)
         cached_package=$package_cache/$package_id
-        "$selector" verify-package --package "$cached_package" --selection "$package_record" --print-inputs
+        "$selector" verify-package --core-id "$selected_id" \
+          --package "$cached_package" --selection "$package_record" --print-inputs
       done
       ;;
     copy-records)
