@@ -12,6 +12,10 @@ import (
 )
 
 func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection) {
+	return packageSelectionFixtureForCore(t, "fes.pong")
+}
+
+func packageSelectionFixtureForCore(t *testing.T, coreID string) (string, string, CorePackageSelection) {
 	t.Helper()
 	directory := filepath.Join(t.TempDir(), "package")
 	if err := os.Mkdir(directory, 0o700); err != nil {
@@ -22,6 +26,9 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 			map[string]string{"manifest.toml": "manifests/valid-basic.toml", "core.rbf": "payloads/fes-fixture.rbf"}[name]))
 		if err != nil {
 			t.Fatal(err)
+		}
+		if name == "manifest.toml" {
+			data = []byte(strings.Replace(string(data), "fes.pong", coreID, 1))
 		}
 		if err := os.WriteFile(filepath.Join(directory, name), data, 0o444); err != nil {
 			t.Fatal(err)
@@ -36,20 +43,125 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 		t.Fatal(err)
 	}
 	selection := CorePackageSelection{
-		Format: 2, Kind: "core-package", CoreID: "fes.pong", PackageID: inspection.PackageID,
+		Format: 2, Kind: "core-package", CoreID: coreID, PackageID: inspection.PackageID,
 		PayloadSHA256:          inspection.Descriptor.Payload.SHA256,
 		MisterossRevision:      inspection.Descriptor.Build.Revision,
 		MisterPackagesRevision: strings.Repeat("a", 40),
 		InstallPath:            "/usr/share/mister-runtime/core-packages/" + inspection.PackageID,
 	}
-	record := filepath.Join(t.TempDir(), "fes-pong.package-selection.toml")
-	data := fmt.Sprintf("format = 2\nkind = 'core-package'\ncore_id = 'fes.pong'\npackage_id = '%s'\npayload_sha256 = '%s'\nmisteross_revision = '%s'\nmister_packages_revision = '%s'\ninstall_path = '%s'\n",
-		selection.PackageID, selection.PayloadSHA256, selection.MisterossRevision,
+	record := filepath.Join(t.TempDir(), corePackageSelectionRecordNameForTest(coreID))
+	data := fmt.Sprintf("format = 2\nkind = 'core-package'\ncore_id = '%s'\npackage_id = '%s'\npayload_sha256 = '%s'\nmisteross_revision = '%s'\nmister_packages_revision = '%s'\ninstall_path = '%s'\n",
+		coreID, selection.PackageID, selection.PayloadSHA256, selection.MisterossRevision,
 		selection.MisterPackagesRevision, selection.InstallPath)
 	if err := os.WriteFile(record, []byte(data), 0o444); err != nil {
 		t.Fatal(err)
 	}
 	return directory, record, selection
+}
+
+func corePackageSelectionRecordNameForTest(coreID string) string {
+	switch coreID {
+	case "fes.pong":
+		return "fes-pong.package-selection.toml"
+	case "fes.zx81":
+		return "fes-zx81.package-selection.toml"
+	case "fes.coleco":
+		return "fes-coleco.package-selection.toml"
+	default:
+		panic("unsupported test core ID")
+	}
+}
+
+func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
+	for _, coreID := range []string{"fes.pong", "fes.zx81", "fes.coleco"} {
+		t.Run(coreID, func(t *testing.T) {
+			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
+			cache := t.TempDir()
+			output := filepath.Join(cache, corePackageSelectionRecordNameForTest(coreID))
+			got, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, coreID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != selection {
+				t.Fatalf("selection=%+v want=%+v", got, selection)
+			}
+			published := filepath.Join(cache, "core-packages", selection.PackageID)
+			t.Cleanup(func() { _ = os.Chmod(published, 0o755) })
+			if err := VerifyCorePackageSelectionForCore(published, output, coreID); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestCorePackageSelectionRejectsExpectedCoreMismatch(t *testing.T) {
+	directory, record, _ := packageSelectionFixtureForCore(t, "fes.zx81")
+	cache := t.TempDir()
+	output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.zx81"))
+	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err == nil {
+		t.Fatal("selection accepted with a mismatched expected core ID")
+	}
+}
+
+func TestCorePackageSelectionPreservesOtherCorePackages(t *testing.T) {
+	pongDirectory, pongRecord, pong := packageSelectionFixtureForCore(t, "fes.pong")
+	zx81Directory, zx81Record, zx81 := packageSelectionFixtureForCore(t, "fes.zx81")
+	cache := t.TempDir()
+	t.Cleanup(func() {
+		_ = filepath.Walk(cache, func(path string, _ os.FileInfo, _ error) error { _ = os.Chmod(path, 0o755); return nil })
+	})
+
+	pongOutput := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.pong"))
+	if _, err := PrepareCorePackageSelectionForCore(pongDirectory, pongRecord, cache, pongOutput, "fes.pong"); err != nil {
+		t.Fatal(err)
+	}
+	zx81Output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.zx81"))
+	if _, err := PrepareCorePackageSelectionForCore(zx81Directory, zx81Record, cache, zx81Output, "fes.zx81"); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := os.ReadDir(filepath.Join(cache, "core-packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("package cache entries=%v", entries)
+	}
+	if err := VerifyCorePackageSelectionForCore(filepath.Join(cache, "core-packages", pong.PackageID), pongOutput, "fes.pong"); err != nil {
+		t.Fatalf("Pong package was not preserved: %v", err)
+	}
+	if err := VerifyCorePackageSelectionForCore(filepath.Join(cache, "core-packages", zx81.PackageID), zx81Output, "fes.zx81"); err != nil {
+		t.Fatalf("ZX81 package was not published: %v", err)
+	}
+}
+
+func TestCorePackageSelectionFailedReplacementResealsCurrentPackage(t *testing.T) {
+	directory, record, selection := packageSelectionFixtureForCore(t, "fes.pong")
+	cache := t.TempDir()
+	output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.pong"))
+	if _, err := PrepareCorePackageSelectionForCore(directory, record, cache, output, "fes.pong"); err != nil {
+		t.Fatal(err)
+	}
+	packageRoot := filepath.Join(cache, "core-packages")
+	t.Cleanup(func() {
+		_ = filepath.Walk(cache, func(path string, _ os.FileInfo, _ error) error { _ = os.Chmod(path, 0o755); return nil })
+	})
+	injectedRename := func(oldPath, newPath string) error {
+		if strings.HasSuffix(newPath, filepath.Join(".previous", "current-package")) {
+			return fmt.Errorf("injected package backup rename failure")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+	if _, err := prepareCorePackageSelectionForCoreWithRename(directory, record, cache, output, "fes.pong", injectedRename); err == nil {
+		t.Fatal("replacement succeeded with a non-writable package root")
+	}
+	info, err := os.Stat(filepath.Join(packageRoot, selection.PackageID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o555 {
+		t.Fatalf("failed replacement left package mode %o, want 555", info.Mode().Perm())
+	}
 }
 
 func TestCorePackageSelectionPublishesAndVerifiesExactClosedPair(t *testing.T) {

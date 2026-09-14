@@ -59,6 +59,81 @@ func TestSnapshotReadsSealedBuildInputs(t *testing.T) {
 	}
 }
 
+func TestSnapshotReadsPackageIDForEachFESCore(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		key  string
+		id   string
+	}{
+		{name: "pong", key: "fes_pong_package_id", id: strings.Repeat("e", 64)},
+		{name: "zx81", key: "fes_zx81_package_id", id: strings.Repeat("f", 64)},
+		{name: "coleco", key: "fes_coleco_package_id", id: strings.Repeat("1", 64)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			path := filepath.Join(root, "build-inputs")
+			if err := os.WriteFile(path, []byte("format=1\n"+test.key+"="+test.id+"\n"), 0o444); err != nil {
+				t.Fatal(err)
+			}
+			got := Snapshot(Paths{
+				BuildInputs: path,
+				Selections:  filepath.Join(root, "missing"),
+				BootJSON:    filepath.Join(root, "missing"),
+				BootIDFile:  filepath.Join(root, "missing"),
+			}, "")
+			if got == nil || got.PackageID != test.id {
+				t.Fatalf("package ID = %v, want %s", got, test.id)
+			}
+		})
+	}
+}
+
+func TestSnapshotPrefersPongPackageIDForFESPackageSet(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	pongID := strings.Repeat("e", 64)
+	path := filepath.Join(root, "build-inputs")
+	record := "format=1\n" +
+		"fes_coleco_package_id=" + strings.Repeat("1", 64) + "\n" +
+		"fes_zx81_package_id=" + strings.Repeat("f", 64) + "\n" +
+		"fes_pong_package_id=" + pongID + "\n"
+	if err := os.WriteFile(path, []byte(record), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	got := Snapshot(Paths{
+		BuildInputs: path,
+		Selections:  filepath.Join(root, "missing"),
+		BootJSON:    filepath.Join(root, "missing"),
+		BootIDFile:  filepath.Join(root, "missing"),
+	}, "")
+	if got == nil || got.PackageID != pongID {
+		t.Fatalf("package ID = %v, want Pong ID %s", got, pongID)
+	}
+}
+
+func TestSnapshotOmitsAmbiguousNonPongPackageSet(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(root, "build-inputs")
+	record := "format=1\n" +
+		"fes_zx81_package_id=" + strings.Repeat("f", 64) + "\n" +
+		"fes_coleco_package_id=" + strings.Repeat("1", 64) + "\n"
+	if err := os.WriteFile(path, []byte(record), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	got := Snapshot(Paths{
+		BuildInputs: path,
+		Selections:  filepath.Join(root, "missing"),
+		BootJSON:    filepath.Join(root, "missing"),
+		BootIDFile:  filepath.Join(root, "missing"),
+	}, "")
+	if got == nil || got.PackageID != "" {
+		t.Fatalf("package ID = %v, want no scalar identity", got)
+	}
+}
+
 func TestSnapshotKeepsBuildInputsOverSelection(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

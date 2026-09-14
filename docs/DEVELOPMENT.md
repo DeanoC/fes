@@ -94,33 +94,52 @@ physical video, input and audio require acceptance of the exact assembled
 image. Basic SNES supports ordinary LoROM/HiROM cartridges, without enhancement
 chips or persistent saves.
 
-### FES Pong format-2 image package
+### FES format-2 image package set
 
-FES may select one sealed `fes.pong` package by passing both trusted absolute
-inputs below to image fetch, build, and verification:
+FES may select one or more sealed packages from the supported format-2 core IDs
+`fes.pong`, `fes.zx81`, and `fes.coleco`. The ordered, comma-separated package
+set and each selected core's trusted absolute inputs are passed to image fetch,
+build, and verification:
 
 ```sh
-export FES_PONG_PACKAGE_DIR=/absolute/path/to/<package-id>
+export FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco
+export FES_PONG_PACKAGE_DIR=/absolute/path/to/<pong-package-id>
 export FES_PONG_PACKAGE_SELECTION=/absolute/path/to/fes-pong.package-selection.toml
+export FES_ZX81_PACKAGE_DIR=/absolute/path/to/<zx81-package-id>
+export FES_ZX81_PACKAGE_SELECTION=/absolute/path/to/fes-zx81.package-selection.toml
+export FES_COLECO_PACKAGE_DIR=/absolute/path/to/<coleco-package-id>
+export FES_COLECO_PACKAGE_SELECTION=/absolute/path/to/fes-coleco.package-selection.toml
 ```
 
-The pair is all-or-nothing and is mounted read-only in image containers. The
-package directory contains exactly `manifest.toml` and `core.rbf`; the closed
-selection records format/kind, core and package IDs, payload SHA-256, the
-selected misteross and mister-packages revisions, and the derived install
-path. `target-image-lock select-package` copies a validated pair into the
-native cache. `verify-package` reinspects the exact bytes, while
-`verify-package --print-inputs` emits the canonical package projection used by
-the installed build-input record and image verifier.
+Each selected core requires its pair; unselected cores must not supply package
+inputs. The package directory contains exactly `manifest.toml` and `core.rbf`;
+the closed selection records format/kind, core and package IDs, payload
+SHA-256, the selected misteross and mister-packages revisions, and the derived
+install path. `target-image-lock select-package --core-id <core-id>` copies a
+validated pair into the native cache. `verify-package --core-id <core-id>`
+reinspects the exact bytes, while
+`verify-package --core-id <core-id> --print-inputs` emits the canonical
+package projection used by the installed build-input record and image verifier.
 
-The image installs the two members read-only beneath
-`/usr/share/mister-runtime/core-packages/<package-id>/` and installs the
-selection as
-`/usr/share/mister-runtime/selections/fes-pong.package.toml`. Both cold image
-passes compare the external `fes-pong.package-selection.toml` byte-for-byte.
-Removing the input pair removes cached and installed package state. The FES
-orchestrator derives these inputs from its selected recipe; they are not an
-ambient package lookup or fallback mechanism.
+The canonical per-core names and build-input prefixes are:
+
+| core ID | external selection | installed selection | input prefix |
+| --- | --- | --- | --- |
+| `fes.pong` | `fes-pong.package-selection.toml` | `fes-pong.package.toml` | `fes_pong` |
+| `fes.zx81` | `fes-zx81.package-selection.toml` | `fes-zx81.package.toml` | `fes_zx81` |
+| `fes.coleco` | `fes-coleco.package-selection.toml` | `fes-coleco.package.toml` | `fes_coleco` |
+
+For every selected core, `--print-inputs` emits
+`<input-prefix>_package_selection_sha256`, `<input-prefix>_package_id`,
+`<input-prefix>_payload_sha256`, `<input-prefix>_misteross_revision`,
+`<input-prefix>_mister_packages_revision`, and `<input-prefix>_install_path`.
+The image installs each pair read-only beneath
+`/usr/share/mister-runtime/core-packages/<package-id>/` and
+`/usr/share/mister-runtime/selections/`. Both cold image passes compare the
+external selection records byte-for-byte. Removing a selected input pair
+removes its cached and installed package state. The FES orchestrator derives
+these inputs from its selected recipe; they are not an ambient package lookup
+or fallback mechanism.
 
 ### Native Mega Drive RBF selection
 

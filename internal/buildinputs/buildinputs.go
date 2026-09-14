@@ -46,6 +46,11 @@ var (
 		"snes_sha256":      "snes",
 		"nes_sha256":       "nes",
 	}
+	fesPackageIDKeys = []string{
+		"fes_pong_package_id",
+		"fes_zx81_package_id",
+		"fes_coleco_package_id",
+	}
 )
 
 func (p Paths) withDefaults() Paths {
@@ -145,7 +150,21 @@ func applyRecord(artifacts *protocol.Artifacts, fields map[string]string) {
 	if abi := fields["megadrive_abi"]; abi != "" && !strings.ContainsAny(abi, " \t") {
 		artifacts.ABI = abi
 	}
-	artifacts.PackageID = digestIf(sha256Value, fields["fes_pong_package_id"])
+	// PackageID is the legacy scalar health field. Keep Pong as the stable
+	// primary identity when present. A non-Pong identity is reported only when
+	// it is the sole valid FES package identity; several non-Pong records cannot
+	// be represented by this scalar without misleading health consumers.
+	packageIDs := make([]string, 0, len(fesPackageIDKeys))
+	for _, key := range fesPackageIDKeys {
+		if packageID := digestIf(sha256Value, fields[key]); packageID != "" {
+			packageIDs = append(packageIDs, packageID)
+		}
+	}
+	if pongID := digestIf(sha256Value, fields["fes_pong_package_id"]); pongID != "" {
+		artifacts.PackageID = pongID
+	} else if len(packageIDs) == 1 {
+		artifacts.PackageID = packageIDs[0]
+	}
 	for key, system := range coreSHAKeys {
 		if value := digestIf(sha256Value, fields[key]); value != "" {
 			setCore(artifacts, system, value)

@@ -51,6 +51,7 @@ func run(args []string, stdout, stderr io.Writer, runner commandRunner) int {
 func runPackageSelection(command string, args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(stderr)
+	coreID := flags.String("core-id", "fes.pong", "expected format-2 package core ID")
 	packageDirectory := flags.String("package", "", "sealed format-2 package directory")
 	selection := flags.String("selection", "", "closed package selection record")
 	cache := flags.String("cache", "", "native package cache")
@@ -64,21 +65,24 @@ func runPackageSelection(command string, args []string, stdout, stderr io.Writer
 		if *cache == "" || *output == "" || *printInputs {
 			return 2
 		}
-		_, err = targetimage.PrepareCorePackageSelection(*packageDirectory, *selection, *cache, *output)
+		_, err = targetimage.PrepareCorePackageSelectionForCore(
+			*packageDirectory, *selection, *cache, *output, *coreID)
 	} else {
 		if *cache != "" || *output != "" {
 			return 2
 		}
 		var inspected targetimage.CorePackageSelection
 		var selectionSHA256 string
-		inspected, selectionSHA256, err = targetimage.InspectCorePackageSelection(*packageDirectory, *selection)
+		inspected, selectionSHA256, err = targetimage.InspectCorePackageSelectionForCore(
+			*packageDirectory, *selection, *coreID)
 		if err == nil && *printInputs {
-			fmt.Fprintf(stdout, "fes_pong_package_selection_sha256=%s\n", selectionSHA256)
-			fmt.Fprintf(stdout, "fes_pong_package_id=%s\n", inspected.PackageID)
-			fmt.Fprintf(stdout, "fes_pong_payload_sha256=%s\n", inspected.PayloadSHA256)
-			fmt.Fprintf(stdout, "fes_pong_misteross_revision=%s\n", inspected.MisterossRevision)
-			fmt.Fprintf(stdout, "fes_pong_mister_packages_revision=%s\n", inspected.MisterPackagesRevision)
-			fmt.Fprintf(stdout, "fes_pong_install_path=%s\n", inspected.InstallPath)
+			prefix := strings.ReplaceAll(*coreID, ".", "_")
+			fmt.Fprintf(stdout, "%s_package_selection_sha256=%s\n", prefix, selectionSHA256)
+			fmt.Fprintf(stdout, "%s_package_id=%s\n", prefix, inspected.PackageID)
+			fmt.Fprintf(stdout, "%s_payload_sha256=%s\n", prefix, inspected.PayloadSHA256)
+			fmt.Fprintf(stdout, "%s_misteross_revision=%s\n", prefix, inspected.MisterossRevision)
+			fmt.Fprintf(stdout, "%s_mister_packages_revision=%s\n", prefix, inspected.MisterPackagesRevision)
+			fmt.Fprintf(stdout, "%s_install_path=%s\n", prefix, inspected.InstallPath)
 		}
 	}
 	if err != nil {
@@ -86,7 +90,7 @@ func runPackageSelection(command string, args []string, stdout, stderr io.Writer
 		return 1
 	}
 	if !*printInputs {
-		fmt.Fprintln(stdout, command+" fes.pong verified")
+		fmt.Fprintln(stdout, command+" "+*coreID+" verified")
 	}
 	return 0
 }
