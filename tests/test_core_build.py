@@ -615,6 +615,70 @@ class CoreBuildTest(unittest.TestCase):
             self.assertTrue(expected.issubset(set(fsynced)),
                             f'missing fsync paths: {sorted(expected - set(fsynced))}')
 
+    def test_completed_backup_cleanup_failure_handoffs_before_deletion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            old_packages, old_built = make_package_generation(
+                root, 'old', ('a' * 64, 'b' * 64))
+            build.publish_package_outputs(old_packages, old_built, output)
+            old_files = package_file_snapshot(output)
+            new_packages, new_built = make_package_generation(
+                root, 'new', ('c' * 64, 'd' * 64))
+
+            original_replace = Path.replace
+            selection_replacements = 0
+
+            def fail_after_first_selection(source, target):
+                nonlocal selection_replacements
+                result = original_replace(source, target)
+                target = Path(target)
+                if (target.parent == output and
+                        target.name.endswith('.package-selection.toml')):
+                    selection_replacements += 1
+                    if selection_replacements == 1:
+                        raise RuntimeError('injected publish failure')
+                return result
+
+            original_remove = build._remove_sealed_tree
+            cleanup_path = None
+
+            def fail_during_completed_backup_cleanup(path):
+                nonlocal cleanup_path
+                path = Path(path)
+                if (cleanup_path is None and path.parent == output and
+                        (path.name == '.package-generation.previous' or
+                         path.name.startswith('.package-generation.previous.'))):
+                    cleanup_path = path
+                    payload = path / 'core-packages' / ('a' * 64) / 'core.rbf'
+                    payload.parent.chmod(0o755)
+                    payload.unlink()
+                    raise OSError('injected completed backup cleanup failure')
+                return original_remove(path)
+
+            with patch.object(Path, 'replace', new=fail_after_first_selection), \
+                    patch.object(build, '_remove_sealed_tree',
+                                  new=fail_during_completed_backup_cleanup), \
+                    self.assertRaisesRegex(RuntimeError, 'injected publish failure'):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertEqual(package_file_snapshot(output), old_files)
+            self.assertIsNotNone(cleanup_path)
+            self.assertFalse(
+                (output / '.package-generation.previous').exists(),
+                'completed backup cleanup left a malformed canonical backup')
+
+            build.publish_package_outputs(new_packages, new_built, output)
+            self.assertEqual(build.verify_package_outputs(output, new_packages), [
+                'fes-pong.package-selection.toml',
+                'core-packages/' + 'c' * 64 + '/manifest.toml',
+                'core-packages/' + 'c' * 64 + '/core.rbf',
+                'fes-zx81.package-selection.toml',
+                'core-packages/' + 'd' * 64 + '/manifest.toml',
+                'core-packages/' + 'd' * 64 + '/core.rbf',
+            ])
+
     def test_rollback_failure_preserves_backup_for_the_next_normal_publish(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

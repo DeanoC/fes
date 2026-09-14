@@ -463,6 +463,7 @@ FORMAT1_PARENT_OUTPUT_NAMES = (
 _PACKAGE_GENERATION_MARKER = '.package-generation.complete'
 _PACKAGE_RESTORE_STAGING = '.package-generation.restore'
 _PACKAGE_SELECTION_SUFFIX = '.package-selection.toml'
+_PACKAGE_BACKUP_CLEANUP_PREFIX = '.package-generation.previous.cleanup-'
 
 
 def remove_format1_parent_outputs(output):
@@ -889,6 +890,44 @@ def _fsync_package_output(output):
     _fsync_relative_tree(output, directories, files)
 
 
+def _cleanup_package_backup(output, backup):
+    """Atomically move a backup aside before best-effort deletion."""
+    output = Path(output)
+    backup = Path(backup)
+    try:
+        metadata = backup.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package backup path must be a non-symlink directory")
+
+    disposable = None
+    handed_off = False
+    try:
+        disposable = Path(tempfile.mkdtemp(
+            prefix=_PACKAGE_BACKUP_CLEANUP_PREFIX, dir=output))
+        disposable.rmdir()
+        backup.replace(disposable)
+        handed_off = True
+        _fsync_directory(output)
+    except BaseException:
+        if not handed_off and disposable is not None:
+            try:
+                disposable.rmdir()
+            except BaseException:
+                pass
+        return
+
+    try:
+        _remove_sealed_tree(disposable)
+    except BaseException:
+        return
+    try:
+        _fsync_directory(output)
+    except BaseException:
+        pass
+
+
 def _write_package_generation_manifest(backup, manifest):
     """Publish the complete marker only after the copied generation is valid."""
     backup = Path(backup)
@@ -1106,7 +1145,7 @@ def _recover_package_backup(output, packages):
         except (OSError, KeyError, TypeError, ValueError):
             raise ValueError("unmarked package backup cannot be used for recovery") from None
         _fsync_package_output(output)
-        _remove_sealed_tree(backup)
+        _cleanup_package_backup(output, backup)
         _fsync_directory(output)
         return
     manifest = _read_package_generation_manifest(backup)
@@ -1117,7 +1156,7 @@ def _recover_package_backup(output, packages):
         _restore_package_backup(output, backup)
     else:
         _fsync_package_output(output)
-    _remove_sealed_tree(backup)
+    _cleanup_package_backup(output, backup)
     _fsync_directory(output)
 
 
@@ -1251,7 +1290,7 @@ def publish_package_outputs(packages, built_selections, output):
         verify_package_outputs(output, normalized)
         _fsync_package_output(output)
         backup_complete = False
-        _remove_sealed_tree(backup)
+        _cleanup_package_backup(output, backup)
         _fsync_directory(output)
         return names
     except BaseException:
@@ -1262,16 +1301,9 @@ def publish_package_outputs(packages, built_selections, output):
                 except BaseException:
                     pass
                 else:
-                    try:
-                        _remove_sealed_tree(backup)
-                        _fsync_directory(output)
-                    except BaseException:
-                        pass
+                    _cleanup_package_backup(output, backup)
             else:
-                try:
-                    _remove_sealed_tree(backup)
-                except BaseException:
-                    pass
+                _cleanup_package_backup(output, backup)
         raise
     finally:
         try:
