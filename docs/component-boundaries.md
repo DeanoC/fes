@@ -90,10 +90,12 @@ would distribute the existing coupling across more locations.
 The gitlinks select matching merged implementations of native Mega Drive,
 Pong, basic SNES, NES and renewable kit ownership. Exact revisions are recorded by
 git; diagnostic artifact identities are in the multi-system and kit guides.
-The default profile packages source-built Mega Drive, Pong, SNES and NES, each
-with its own selection record. The selected NES image has exact video and
-session-lifecycle evidence in the [dated FES acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md);
-historical profiles remain Mega Drive-only.
+The current profile is package-only and installs the described FES Pong package
+through the HIP/nextpnr route. The source-built Mega Drive, Pong, SNES and NES
+catalog, including the selected NES image's exact video and session-lifecycle
+evidence in the [dated FES acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md),
+belongs to historical format-1 profile records and is not inherited by the
+current FES image.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
 lock, package YAML, fourteen generated consumer files, eleven shared fixture copies,
@@ -108,9 +110,12 @@ PR126. No component source changes were needed for parent reconciliation.
 The pinned mister-packages README still says “FogCast is not patched”; that
 sentence is stale relative to the selected consumers and the regeneration check.
 
-`native-integration-dev` uses FogCast's explicit source-bundle interface and
-publishes `megadrive.selection.toml`. Only the historical `native-source-dev`
-profile retains the lock overlay required by its older FogCast revision.
+`native-integration-dev` uses FES's package-only interface and publishes the
+selected `fes-pong.package-selection.toml` plus its sealed `core-packages/`
+directory. It does not publish a `megadrive.selection.toml`; the historical
+`native-dev` and `native-source-dev` format-1 profiles retain those catalog
+artifacts. Only the historical `native-source-dev` profile retains the lock
+overlay required by its older FogCast revision.
 Historical profiles select exact earlier commits recorded in their TOML files;
 current gitlinks remain the development starting point.
 
@@ -149,9 +154,12 @@ This does not require a fixed agent team for every change.
 
 ## Next integration milestone
 
-The normal profile selects [Mega Drive, Pong, SNES and NES](multi-system-development.md).
-The selected NES image has exact assembled-image video and session-lifecycle
-acceptance; later image or core revisions need their own dated kit evidence.
+The current profile selects the described FES Pong package. It has package,
+image and QEMU verification, but it does not inherit NES, four-core, or physical
+hardware acceptance from the historical [Mega Drive, Pong, SNES and NES
+catalog](multi-system-development.md). The selected NES image's exact
+assembled-image video and session-lifecycle acceptance remains tied to its dated
+historical artifact; later image or core revisions need their own evidence.
 Exact assembled-artifact results must remain distinct from the earlier hardware
 diagnostics.
 The following assembly milestones remain separate future work:
