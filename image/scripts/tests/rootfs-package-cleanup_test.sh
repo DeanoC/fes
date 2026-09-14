@@ -87,6 +87,31 @@ for status in 0 23; do
   rm -rf "$target"
 done
 
+# Package-only native images retain the complete selected FES package tuple.
+# The cleanup hook must relax every selected package directory before the
+# disposable Buildroot copy is removed, while still preserving sealed files.
+multi=$fixture/multi
+multi_package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+mkdir -p "$multi/usr/share/mister-runtime/core-packages/$package_id" \
+  "$multi/usr/share/mister-runtime/core-packages/$multi_package_id"
+printf 'format=1\nfes_pong_package_id=%s\nfes_zx81_package_id=%s\n' \
+  "$package_id" "$multi_package_id" \
+  > "$multi/usr/share/mister-runtime/build-inputs"
+for package in "$package_id" "$multi_package_id"; do
+  printf manifest > "$multi/usr/share/mister-runtime/core-packages/$package/manifest.toml"
+  printf payload > "$multi/usr/share/mister-runtime/core-packages/$package/core.rbf"
+  chmod 0444 "$multi/usr/share/mister-runtime/core-packages/$package/manifest.toml" \
+    "$multi/usr/share/mister-runtime/core-packages/$package/core.rbf"
+  chmod 0555 "$multi/usr/share/mister-runtime/core-packages/$package"
+done
+emit_exit_only "$multi" 0 "$fixture/fakeroot-multi"
+"$fixture/fakeroot-multi"
+for package in "$package_id" "$multi_package_id"; do
+  test "$(stat -c %a "$multi/usr/share/mister-runtime/core-packages/$package")" = 755
+  test "$(stat -c %a "$multi/usr/share/mister-runtime/core-packages/$package/manifest.toml")" = 444
+  test "$(stat -c %a "$multi/usr/share/mister-runtime/core-packages/$package/core.rbf")" = 444
+done
+
 # Absent packages are a no-op, while malformed/symlinked destinations make a
 # successful image command fail and never affect the symlink target.
 absent=$fixture/absent

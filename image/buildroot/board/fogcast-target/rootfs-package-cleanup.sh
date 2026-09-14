@@ -31,33 +31,62 @@ build_inputs=$target/usr/share/mister-runtime/build-inputs
   printf '%s\n' 'rootfs-package-cleanup: package identity record is unavailable' >&2
   exit 1
 }
-identity_count=$(grep -c '^fes_pong_package_id=' "$build_inputs" || :)
-[ "$identity_count" -eq 1 ] || {
+identities=
+identity_keys=
+identity_count=0
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    fes_*_package_id=*)
+      key=${line%%=*}
+      identity=${line#*=}
+      case "$identity_keys" in
+        *" $key "*)
+          printf '%s\n' 'rootfs-package-cleanup: package identity record is ambiguous' >&2
+          exit 1
+          ;;
+      esac
+      [ "${#identity}" -eq 64 ] || {
+        printf '%s\n' 'rootfs-package-cleanup: package identity is invalid' >&2
+        exit 1
+      }
+      case "$identity" in
+        *[!0-9a-f]*)
+          printf '%s\n' 'rootfs-package-cleanup: package identity is invalid' >&2
+          exit 1
+          ;;
+      esac
+      case "$identities" in
+        *" $identity "*)
+          printf '%s\n' 'rootfs-package-cleanup: package identity record is ambiguous' >&2
+          exit 1
+          ;;
+      esac
+      identity_keys="$identity_keys $key"
+      identities="$identities $identity"
+      identity_count=$((identity_count + 1))
+      ;;
+  esac
+done < "$build_inputs"
+[ "$identity_count" -gt 0 ] || {
   printf '%s\n' 'rootfs-package-cleanup: package identity record is ambiguous' >&2
   exit 1
 }
-identity=$(sed -n 's/^fes_pong_package_id=//p' "$build_inputs")
-[ "${#identity}" -eq 64 ] || {
-  printf '%s\n' 'rootfs-package-cleanup: package identity is invalid' >&2
-  exit 1
-}
-case "$identity" in
-  *[!0-9a-f]*)
-    printf '%s\n' 'rootfs-package-cleanup: package identity is invalid' >&2
-    exit 1
-    ;;
-esac
 
-directory=$root/$identity
-[ -d "$directory" ] && [ ! -L "$directory" ] || {
-  printf '%s\n' 'rootfs-package-cleanup: selected package must be a non-symlink directory' >&2
-  exit 1
-}
-[ "$(find "$root" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d ' ')" -eq 1 ] || {
+for identity in $identities; do
+  directory=$root/$identity
+  [ -d "$directory" ] && [ ! -L "$directory" ] || {
+    printf '%s\n' 'rootfs-package-cleanup: selected package must be a non-symlink directory' >&2
+    exit 1
+  }
+done
+[ "$(find "$root" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d ' ')" -eq "$identity_count" ] || {
   printf '%s\n' 'rootfs-package-cleanup: package root differs from selected identity' >&2
   exit 1
 }
 
 # Unlink permission belongs to directories. Keep manifest and RBF at 0444 so
 # the filesystem image and the copied tree retain the same sealed file modes.
-chmod u+w "$directory" "$root"
+for identity in $identities; do
+  chmod u+w "$root/$identity"
+done
+chmod u+w "$root"

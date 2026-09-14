@@ -128,6 +128,9 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     else:
         selection_args = (['NATIVE_RUNTIME_MODE=format1'] +
                           bundle_arguments(cores, bundles) + package_arguments(packages))
+    selection_env = dict(env)
+    if mode == 'package-only':
+        selection_env.update(dict(argument.split('=', 1) for argument in selection_args))
     key = base_key(image, fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
@@ -148,7 +151,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     run_stage(diagnostics, 'target subprocess', fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
     run_stage(diagnostics, 'target subprocess', image_make + ['build-target-image-lock-container'], env=env)
     run_stage(diagnostics, 'target subprocess', [image / 'scripts/target-image-container.sh', 'fetch',
-         '/work/scripts/fetch-target-image-sources.sh'], env=env)
+         '/work/scripts/fetch-target-image-sources.sh'], env=selection_env)
     run_stage(diagnostics, 'target subprocess', image_make + ['target-image-native-fetch', 'LIBMISTER_RUNTIME_DIR=' + str(runtime),
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))
