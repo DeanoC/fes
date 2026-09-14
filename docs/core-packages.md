@@ -39,16 +39,32 @@ prepare and check the shared slot with:
 make dev
 # If this reports missing authenticated FES package build inputs:
 revision=$(git rev-parse :sources/misteross)
-make -C "out/work/misteross-$revision" \
-  toolchain-fes CACHE_ROOT="$PWD/out/cache/misteross-toolchains"
-make -C "out/work/misteross-$revision" \
-  doctor-strict CACHE_ROOT="$PWD/out/cache/misteross-toolchains"
+work="out/work/misteross-$revision"
+cache="$PWD/out/cache/misteross-toolchains"
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  make -C "$work" toolchain-fes
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP \
+  FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  make -C "$work" doctor-strict
+# Seed the Coleco slot when Coleco packages are selected:
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  make -C "$work" toolchain-fes-coleco
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP \
+  FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  make -C "$work" doctor-strict
 make dev
 ```
 
-`make toolchain` may compile the pinned tools into that shared slot and is
-intentionally separate from ordinary parent tests. `make host` remains
-independent of package and FPGA tool authentication. `make check` validates
+`FES_TOOLCHAIN_CACHE_ROOT` selects the parent shared-cache root; `CACHE_ROOT`
+is not a substitute for it. The `toolchain-fes` and
+`toolchain-fes-coleco` targets compile the authenticated HIP/nextpnr tools into
+their respective slots. `make toolchain` may compile the pinned tools into
+that shared slot and is intentionally separate from ordinary parent tests.
+`make host` remains independent of package and FPGA tool authentication.
+`make check` validates
 the shared ABI and programming definitions, their three real generated
 consumers, and all shared fixture copies without running synthesis.
 
