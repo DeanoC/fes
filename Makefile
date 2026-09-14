@@ -21,6 +21,7 @@ PROGRAM_DRY_RUN ?=
 PACKAGE_MANIFEST ?=
 PACKAGE_RBF ?=
 PACKAGE_OUTPUT ?= $(CURDIR)/build/packages
+CACHE_ROOT ?=
 
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
@@ -33,6 +34,7 @@ help:
 		"" \
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
+		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong/ZX81" \
 		"  doctor     Report host, toolchain, oracle, and hardware readiness" \
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
@@ -44,11 +46,11 @@ help:
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
-		"  build-fes-zx81-quartus  Quartus 17.0.2 bring-up package for FES ZX81" \
-		"  build-fes-zx81  Seal FES ZX81 with the pinned Yosys/nextpnr-mistral tools" \
-		"  build-fes-coleco-quartus  Quartus 17.0.2 bring-up package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision with the pinned Yosys/nextpnr-mistral tools" \
-		"  build-fes-pong  Build and seal standalone FES Pong with the pinned OSS tools" \
+		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
+		"  build-fes-zx81  Seal FES ZX81 with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
+		"  build-fes-coleco  Seal FES ColecoVision with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
@@ -63,6 +65,7 @@ help:
 		"  clean      Remove generated output for an experiment" \
 		"" \
 		"Variables: EXP=010_blinky BUILD=oss CORE=megadrive ARTIFACT=rebuild PYTHON=python3" \
+		"  CACHE_ROOT= optional shared toolchain cache root for build-fes-pong/zx81/coleco" \
 		"  PACKAGE_MANIFEST/PACKAGE_RBF required for export-core-package; PACKAGE_OUTPUT defaults to build/packages" \
 		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
@@ -86,8 +89,10 @@ endef
 # GNU Make adds jobserver and verbosity controls to MAKEFLAGS/MFLAGS.  They
 # describe this parent invocation, not the immutable shared compiler lane;
 # clear them only for shared subprocesses while preserving the requested JOBS
-# setting used by bootstrap.
-SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
+# setting used by bootstrap.  CACHE_ROOT selects the FES producer shared
+# path via --cache-root; FES_TOOLCHAIN_CACHE_ROOT remains the bootstrap
+# shared-cache selector.  Either one must drop parent Make flags.
+SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)$(CACHE_ROOT)),MAKEFLAGS= MFLAGS= ,)
 
 # Reject an explicitly requested legacy simulation goal while Make is still
 # parsing the graph.  This runs before any prerequisite (including diagnostic
@@ -100,7 +105,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes-coleco toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-coleco toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -373,19 +378,23 @@ build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
 
 build-fes-zx81:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 build-fes-pong:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 toolchain:
 	@$(SHARED_MAKE_ENV)scripts/bootstrap.sh
+
+toolchain-fes:
+	@$(SHARED_MAKE_ENV)FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-coleco:
 	@$(SHARED_MAKE_ENV)FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \

@@ -28,6 +28,12 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-pong")
+FES_GPU_BACKEND = "hip"
+FES_GPU_ROUTER = "HIP"
+FES_GPU_ARCHITECTURES = "gfx1100;gfx1201"
+FES_TOOLCHAIN_CONFIGURATION = (
+    f"gpu-router={FES_GPU_ROUTER}; hip-architectures={FES_GPU_ARCHITECTURES}"
+)
 QSF = "cores/fes-pong/constraints.qsf"
 SDC = "boards/de10nano/clocks.sdc"
 RECIPE = "scripts/build_fes_pong.py"
@@ -107,6 +113,21 @@ EXPECTED_TOOL_COMMITS = {
 
 class BuildError(ValueError):
     """Raised when the build cannot produce authenticated passing evidence."""
+
+
+def _require_gpu_backend(route_text: str) -> str:
+    """Require nextpnr to have routed on a live HIP device backend."""
+
+    lowered = route_text.lower()
+    if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
+        raise BuildError(
+            "route log proves that --router gpu has no live GPU device backend and "
+            "fell back to the CPU reference backend"
+        )
+    match = re.search(r"\bbackend\s+hip:[^\n]*\bready\b", route_text, re.IGNORECASE)
+    if match is None:
+        raise BuildError("route log does not prove a live HIP device backend")
+    return FES_GPU_BACKEND
 
 
 @dataclass(frozen=True)
@@ -220,6 +241,7 @@ def _authenticate_shared_tools(
     expected_configuration: Mapping[str, str],
     gpu_router: str | None,
     hip_architectures: str | None,
+    cache_root: Path,
 ) -> dict[str, AuthenticatedTool]:
     """Resolve immutable shared tools through the verified cache manifest."""
 
@@ -229,6 +251,7 @@ def _authenticate_shared_tools(
         request = toolchain_cache.request_from_environment(
             root,
             lock_path,
+            cache_root=cache_root,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
         )
@@ -295,6 +318,17 @@ def _authenticate_shared_tools(
     return authenticated
 
 
+def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: str) -> str:
+    if configuration != FES_TOOLCHAIN_CONFIGURATION:
+        return ""
+    try:
+        if lock_path.resolve() != (root / "toolchain.lock").resolve():
+            return ""
+    except OSError:
+        return ""
+    return "; run `make toolchain-fes` to provision the FES HIP local toolchain"
+
+
 def _authenticate_tools(
     root: Path,
     *,
@@ -304,6 +338,7 @@ def _authenticate_tools(
     expected_configuration: Mapping[str, str] | None = None,
     gpu_router: str | None = None,
     hip_architectures: str | None = None,
+    cache_root: Path | None = None,
 ) -> dict[str, AuthenticatedTool]:
     root = Path(root).resolve()
     lock_path = root / "toolchain.lock" if lock_path is None else Path(lock_path)
@@ -313,13 +348,19 @@ def _authenticate_tools(
     if not toolchain_root.is_absolute():
         toolchain_root = root / toolchain_root
     expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
-    expected_configuration = {} if expected_configuration is None else expected_configuration
+    gpu_router = FES_GPU_ROUTER if gpu_router is None else gpu_router
+    hip_architectures = FES_GPU_ARCHITECTURES if hip_architectures is None else hip_architectures
+    expected_configuration = (
+        {"nextpnr": FES_TOOLCHAIN_CONFIGURATION}
+        if expected_configuration is None
+        else expected_configuration
+    )
     definitions = (
         ("yosys", "yosys", "yosys", ("--version",)),
         ("mistral", "mistral", "mistral-cv", ("models",)),
         ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
     )
-    if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT"):
+    if cache_root is not None:
         return _authenticate_shared_tools(
             root,
             lock_path=lock_path,
@@ -327,6 +368,7 @@ def _authenticate_tools(
             expected_configuration=expected_configuration,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
+            cache_root=Path(cache_root),
         )
     try:
         pins = load_lock(lock_path)
@@ -356,10 +398,14 @@ def _authenticate_tools(
         configuration = expected_configuration.get(lock_name)
         if configuration is not None:
             configuration_path = build_root / lock_name / f".config-{pin.commit}.txt"
-            actual_configuration = _read_evidence(configuration_path, "configuration")
+            hint = _fes_hip_local_provision_hint(root, lock_path, configuration)
+            try:
+                actual_configuration = _read_evidence(configuration_path, "configuration")
+            except BuildError as exc:
+                raise BuildError(f"{exc}{hint}") from exc
             if actual_configuration != configuration:
                 raise BuildError(
-                    f"tool configuration does not match the requested build lane: {executable}"
+                    f"tool configuration does not match the requested build lane: {executable}{hint}"
                 )
         _probe_authenticated_tool(root, path, lock_name, executable, arguments)
         identity = f"commit={pin.commit}; sha256={actual_digest}"
@@ -391,9 +437,12 @@ def create_build_record(
         "tools": dict(tool_identities),
         "parameters": {
             "device": TARGET,
+            "gpu_architectures": FES_GPU_ARCHITECTURES,
+            "gpu_backend": FES_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
             "pll_fractional_vco_multiplier": True,
             "reference_clock_hz": 50_000_000,
+            "router": "gpu",
             "seed": 1,
             "top": TOP,
         },
@@ -431,6 +480,7 @@ def build_commands(
         "--sdc", SDC,
         "--freq", "74.25",
         "--seed", "1",
+        "--router", "gpu",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
         "--compress-rbf",
         "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",
@@ -662,6 +712,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
+    gpu_backend = _require_gpu_backend(route_text)
     reference = _reference_clock_evidence(source_root, route_text)
 
     timing = _read_json(output / "timing.json", "timing report")
@@ -714,7 +765,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
     return {
         "status": "pass",
-        "route": {"status": "pass", "unrouted": False},
+        "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
             "pixel": {
                 "clock": pixel[0],
@@ -777,6 +828,7 @@ def _build_after_record(
     identities: Mapping[str, str],
     record: bytes,
     output: Path,
+    cache_root: Path | None = None,
 ) -> Path:
     build_id = build_identity(record)
     commands = build_commands(
@@ -805,7 +857,7 @@ def _build_after_record(
     )
     manifest = _manifest(record, evidence, repository, revision, identities)
     _write_atomic(output / "manifest.toml", manifest)
-    final_tools = _authenticate_tools(root)
+    final_tools = _authenticate_tools(root, cache_root=cache_root)
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise BuildError("authenticated tool identity changed during build")
     final_repository, final_revision = _require_clean_source(root)
@@ -823,13 +875,13 @@ def _invalidate_failed_artifact(output: Path) -> None:
             raise BuildError(f"cannot invalidate non-file failed build output: {path}")
 
 
-def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Pong package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root)
-    authenticated = _authenticate_tools(root)
+    authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     record = create_build_record(root, repository, revision, identities)
     output = _prepare_output(root)
@@ -844,6 +896,7 @@ def build(root: Path = ROOT, package_store: Path | None = None) -> Path:
             identities,
             record,
             output,
+            cache_root=cache_root,
         )
     except Exception:
         _invalidate_failed_artifact(output)
@@ -854,13 +907,14 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--cache-root", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
-        print(build(arguments.root, arguments.package_output))
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-pong: {exc}", file=sys.stderr)
         return 1
