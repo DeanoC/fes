@@ -112,6 +112,29 @@ for package in "$package_id" "$multi_package_id"; do
   test "$(stat -c %a "$multi/usr/share/mister-runtime/core-packages/$package/core.rbf")" = 444
 done
 
+# A duplicate package key must fail closed even when the duplicate is the
+# final token in the key accumulator and both payload directories exist.
+ambiguous_key=$fixture/ambiguous-key
+ambiguous_key_first=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+ambiguous_key_second=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+mkdir -p "$ambiguous_key/usr/share/mister-runtime/core-packages/$ambiguous_key_first" \
+  "$ambiguous_key/usr/share/mister-runtime/core-packages/$ambiguous_key_second"
+printf 'format=1\nfes_pong_package_id=%s\nfes_pong_package_id=%s\n' \
+  "$ambiguous_key_first" "$ambiguous_key_second" \
+  > "$ambiguous_key/usr/share/mister-runtime/build-inputs"
+for package in "$ambiguous_key_first" "$ambiguous_key_second"; do
+  printf manifest > "$ambiguous_key/usr/share/mister-runtime/core-packages/$package/manifest.toml"
+  printf payload > "$ambiguous_key/usr/share/mister-runtime/core-packages/$package/core.rbf"
+  chmod 0444 "$ambiguous_key/usr/share/mister-runtime/core-packages/$package/manifest.toml" \
+    "$ambiguous_key/usr/share/mister-runtime/core-packages/$package/core.rbf"
+  chmod 0555 "$ambiguous_key/usr/share/mister-runtime/core-packages/$package"
+done
+emit_exit_only "$ambiguous_key" 0 "$fixture/fakeroot-ambiguous-key"
+if "$fixture/fakeroot-ambiguous-key" >"$fixture/ambiguous-key.log" 2>&1; then
+  echo 'duplicate package identity key unexpectedly accepted' >&2
+  exit 1
+fi
+
 # Absent packages are a no-op, while malformed/symlinked destinations make a
 # successful image command fail and never affect the symlink target.
 absent=$fixture/absent

@@ -39,7 +39,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     fes_*_package_id=*)
       key=${line%%=*}
       identity=${line#*=}
-      case "$identity_keys" in
+      case " $identity_keys " in
         *" $key "*)
           printf '%s\n' 'rootfs-package-cleanup: package identity record is ambiguous' >&2
           exit 1
@@ -55,7 +55,7 @@ while IFS= read -r line || [ -n "$line" ]; do
           exit 1
           ;;
       esac
-      case "$identities" in
+      case " $identities " in
         *" $identity "*)
           printf '%s\n' 'rootfs-package-cleanup: package identity record is ambiguous' >&2
           exit 1
