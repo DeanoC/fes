@@ -55,16 +55,17 @@ class RecipeRegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
             recipes.recipe_for("fes.unknown")
 
-    def test_profile_rejects_unknown_duplicate_and_multi_package_image_selection(self):
+    def test_profile_rejects_unknown_duplicate_and_malformed_package_selection(self):
         pong = {"fpga_packages": [{"core_id": "fes.pong"}]}
         self.assertEqual(build.selected_packages(pong, "native-integration-dev"), ("fes.pong",))
+        self.assertEqual(build.selected_packages(
+            {"fpga_packages": [{"core_id": "fes.pong"}, {"core_id": "fes.zx81"}]},
+            "native-integration-dev"), ("fes.pong", "fes.zx81"))
         self.assertEqual(build.selected_packages({}, "native-dev"), ())
         cases = (
             ({"fpga_packages": [{"core_id": "fes.unknown"}]}, "unknown"),
             ({"fpga_packages": [{"core_id": "fes.pong"}, {"core_id": "fes.pong"}]}, "duplicate"),
-            ({"fpga_packages": [{"core_id": "fes.pong"}, {"core_id": "fes.zx81"}]}, "multiple"),
-            ({"fpga_packages": [{"core_id": "fes.zx81"}]}, "fes.zx81"),
-            ({"fpga_packages": [{"core_id": "fes.coleco"}]}, "fes.coleco"),
+            ({"fpga_packages": [{"core_id": "fes.pong"}, "fes.zx81"]}, "entries"),
         )
         for profile, needle in cases:
             with self.subTest(profile=profile), self.assertRaisesRegex(ValueError, needle):

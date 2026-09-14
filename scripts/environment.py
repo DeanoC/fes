@@ -10,7 +10,7 @@ def build_environment():
                 or name in ("LIBMISTER_RUNTIME_DIR", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS",
                             "GOFLAGS", "GOEXPERIMENT", "GOOS", "GOARCH", "GOARM", "GOAMD64",
                             "GOWORK", "GOTOOLCHAIN", "GOENV", "GOFIPS140",
-                            "FES_TOOLCHAIN_CACHE_ROOT")):
+                            "FES_TOOLCHAIN_CACHE_ROOT", "FES_PACKAGE_IDS")):
             del env[name]
     env.update(GOENV="off", GOWORK="off", GOFLAGS="", GOEXPERIMENT="",
                GOAMD64="v1", GOTOOLCHAIN="auto", GOFIPS140="off")

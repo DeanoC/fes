@@ -60,10 +60,17 @@ class CoreBuildTest(unittest.TestCase):
             with self.subTest(cores=cores), self.assertRaises(ValueError):
                 build.selected_cores({'fpga_cores': cores})
 
-    def test_only_integration_profile_selects_the_closed_fes_pong_recipe(self):
-        selection = {'fpga_packages': [{'core_id': 'fes.pong'}]}
+    def test_only_integration_profile_selects_the_ordered_supported_package_set(self):
+        selection = {'fpga_packages': [
+            {'core_id': 'fes.pong'},
+            {'core_id': 'fes.zx81'},
+            {'core_id': 'fes.coleco'},
+        ]}
         self.assertEqual(build.selected_packages(selection, 'native-integration-dev'),
-                         ('fes.pong',))
+                         ('fes.pong', 'fes.zx81', 'fes.coleco'))
+        self.assertEqual(build.selected_packages(
+            {'fpga_packages': [{'core_id': 'fes.zx81'}]}, 'native-integration-dev'),
+                         ('fes.zx81',))
         self.assertEqual(build.selected_packages({}, 'native-dev'), ())
         self.assertEqual(build.selected_packages({'fpga_packages': []}, 'native-integration-dev'), ())
         for profile_name, profile in (
@@ -103,6 +110,7 @@ class CoreBuildTest(unittest.TestCase):
                                       'FES_ZX81_PACKAGE_SELECTION': '/untrusted-zx81-selection',
                                       'FES_COLECO_PACKAGE_DIR': '/untrusted-coleco-package',
                                       'FES_COLECO_PACKAGE_SELECTION': '/untrusted-coleco-selection',
+                                      'FES_PACKAGE_IDS': 'fes.pong,fes.zx81',
                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
             env = build_environment()
         self.assertFalse('PONG_RBF_BUNDLE' in env)
@@ -115,6 +123,7 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_ZX81_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_COLECO_PACKAGE_DIR' in env)
         self.assertFalse('FES_COLECO_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_PACKAGE_IDS' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
     def test_generic_build_environment_keeps_local_compiler_overrides(self):
@@ -178,6 +187,23 @@ class CoreBuildTest(unittest.TestCase):
         self.assertTrue(captured['force'])
         self.assertIs(captured['recipe'], recipe)
 
+    def test_parent_resolves_each_selected_recipe_in_profile_order(self):
+        resolved = []
+
+        def fake_resolve(revisions, output, env, action, recipe):
+            resolved.append((output, action, recipe.core_id))
+            return {'recipe': recipe.core_id}
+
+        with patch.object(build, 'resolve_package_for_action', side_effect=fake_resolve):
+            result = build.resolve_packages_for_action(
+                {'misteross': 'a' * 40, 'mister-packages': 'b' * 40},
+                Path('/out'), {'KEEP': '1'}, 'build', ('fes.zx81', 'fes.coleco'))
+        self.assertEqual(result, ({'recipe': 'fes.zx81'}, {'recipe': 'fes.coleco'}))
+        self.assertEqual(resolved, [
+            (Path('/out'), 'build', 'fes.zx81'),
+            (Path('/out'), 'build', 'fes.coleco'),
+        ])
+
     def test_package_arguments_and_image_fingerprint_bind_exact_selection_bytes(self):
         package = {
             'directory': Path('/packages/identity'),
@@ -194,6 +220,7 @@ class CoreBuildTest(unittest.TestCase):
             },
         }
         self.assertEqual(build.package_arguments(package), [
+            'FES_PACKAGE_IDS=fes.pong',
             'FES_PONG_PACKAGE_DIR=/packages/identity',
             'FES_PONG_PACKAGE_SELECTION=/records/fes-pong.package-selection.toml'])
         first, first_info = build.image_fingerprint('base', {'sources': {}}, package)
@@ -203,6 +230,110 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(first_info['fpga_packages'], [package['inputs']])
         self.assertEqual(first_info['image_base_fingerprint'], 'base')
         self.assertEqual(first_info['image_fingerprint'], first)
+
+    def test_package_set_arguments_and_fingerprint_preserve_ordered_inputs(self):
+        packages = (
+            {
+                'directory': Path('/packages/pong'),
+                'selection_path': Path('/records/fes-pong.package-selection.toml'),
+                'inputs': {'selection': {'core_id': 'fes.pong', 'package_id': 'a' * 64},
+                           'selection_sha256': '1' * 64, 'manifest_sha256': '2' * 64,
+                           'core_rbf_sha256': '3' * 64},
+            },
+            {
+                'directory': Path('/packages/zx81'),
+                'selection_path': Path('/records/fes-zx81.package-selection.toml'),
+                'inputs': {'selection': {'core_id': 'fes.zx81', 'package_id': 'b' * 64},
+                           'selection_sha256': '4' * 64, 'manifest_sha256': '5' * 64,
+                           'core_rbf_sha256': '6' * 64},
+            },
+            {
+                'directory': Path('/packages/coleco'),
+                'selection_path': Path('/records/fes-coleco.package-selection.toml'),
+                'inputs': {'selection': {'core_id': 'fes.coleco', 'package_id': 'c' * 64},
+                           'selection_sha256': '7' * 64, 'manifest_sha256': '8' * 64,
+                           'core_rbf_sha256': '9' * 64},
+            },
+        )
+        self.assertEqual(build.package_arguments(packages), [
+            'FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco',
+            'FES_PONG_PACKAGE_DIR=/packages/pong',
+            'FES_PONG_PACKAGE_SELECTION=/records/fes-pong.package-selection.toml',
+            'FES_ZX81_PACKAGE_DIR=/packages/zx81',
+            'FES_ZX81_PACKAGE_SELECTION=/records/fes-zx81.package-selection.toml',
+            'FES_COLECO_PACKAGE_DIR=/packages/coleco',
+            'FES_COLECO_PACKAGE_SELECTION=/records/fes-coleco.package-selection.toml',
+        ])
+        first, first_info = build.image_fingerprint('base', {'sources': {}}, packages)
+        reversed_fingerprint, _ = build.image_fingerprint(
+            'base', {'sources': {}}, tuple(reversed(packages)))
+        changed = tuple(dict(package, inputs=dict(package['inputs'], selection_sha256='0' * 64))
+                        if index == 1 else package
+                        for index, package in enumerate(packages))
+        changed_fingerprint, _ = build.image_fingerprint('base', {'sources': {}}, changed)
+        self.assertNotEqual(first, reversed_fingerprint)
+        self.assertNotEqual(first, changed_fingerprint)
+        self.assertEqual(first_info['fpga_packages'],
+                         [package['inputs'] for package in packages])
+
+    def test_multi_package_publication_is_complete_and_rejects_extra_selection_or_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            packages = []
+            built_selections = {}
+            for index, (core_id, selection_name, package_id) in enumerate((
+                    ('fes.pong', 'fes-pong.package-selection.toml', 'a' * 64),
+                    ('fes.zx81', 'fes-zx81.package-selection.toml', 'b' * 64))):
+                source = root / core_id
+                source.mkdir()
+                (source / 'manifest.toml').write_bytes(f'manifest-{index}'.encode())
+                (source / 'core.rbf').write_bytes(f'payload-{index}'.encode())
+                selection = root / selection_name
+                selection.write_bytes(f'format = 2\ncore = "{core_id}"\n'.encode())
+                built = root / 'built' / selection_name
+                built.parent.mkdir(exist_ok=True)
+                built.write_bytes(selection.read_bytes())
+                packages.append({
+                    'directory': source,
+                    'selection_path': selection,
+                    'inputs': {
+                        'selection': {'package_id': package_id, 'core_id': core_id},
+                        'selection_sha256': build.digest(selection),
+                        'manifest_sha256': build.digest(source / 'manifest.toml'),
+                        'core_rbf_sha256': build.digest(source / 'core.rbf'),
+                    },
+                })
+                built_selections[selection_name] = built
+            packages = tuple(packages)
+
+            names = build.publish_package_outputs(packages, built_selections, output)
+            self.assertEqual(names, [
+                'fes-pong.package-selection.toml',
+                'core-packages/' + 'a' * 64 + '/manifest.toml',
+                'core-packages/' + 'a' * 64 + '/core.rbf',
+                'fes-zx81.package-selection.toml',
+                'core-packages/' + 'b' * 64 + '/manifest.toml',
+                'core-packages/' + 'b' * 64 + '/core.rbf',
+            ])
+            self.assertEqual(build.verify_package_outputs(output, packages), names)
+
+            (output / 'fes-coleco.package-selection.toml').write_bytes(b'extra')
+            with self.assertRaisesRegex(ValueError, 'closed set'):
+                build.verify_package_outputs(output, packages)
+            (output / 'fes-coleco.package-selection.toml').unlink()
+            extra = output / 'core-packages' / ('c' * 64)
+            (output / 'core-packages').chmod(0o755)
+            extra.mkdir()
+            (output / 'core-packages').chmod(0o555)
+            with self.assertRaisesRegex(ValueError, 'changed|differs'):
+                build.verify_package_outputs(output, packages)
+            (output / 'core-packages').chmod(0o755)
+            extra.rmdir()
+            (output / 'core-packages').chmod(0o555)
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                build.verify_package_outputs(output, (packages[0], packages[0]))
 
     def test_host_build_fingerprint_ignores_package_recipe_selection(self):
         revisions = {'FogCast': 'a' * 40}

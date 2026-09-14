@@ -340,34 +340,69 @@ def selected_packages(profile, profile_name):
         core_ids.append(core_id)
     if len(core_ids) != len(set(core_ids)):
         raise ValueError("duplicate format-2 package selections are not supported")
-    if len(core_ids) > 1:
-        raise ValueError(
-            "multiple format-2 packages are not supported by the current target-image selector")
     if profile_name != "native-integration-dev":
         raise ValueError("format-2 packages are only selected by native-integration-dev")
-    selected = core_ids[0]
-    if selected != "fes.pong":
-        raise ValueError(
-            f"native-integration-dev image selection does not yet install {selected}; "
-            "the recipe registry supports it for later image-selector work")
-    return (selected,)
+    return tuple(core_ids)
 
 
-def package_arguments(package):
-    if package is None:
+def _package_tuple(packages):
+    """Normalize compatibility inputs to the ordered package tuple."""
+    if packages is None:
+        return ()
+    if isinstance(packages, dict):
+        return (packages,)
+    if not isinstance(packages, (tuple, list)):
+        raise ValueError("selected format-2 packages must be an ordered tuple")
+    return tuple(packages)
+
+
+def _package_details(packages):
+    normalized = _package_tuple(packages)
+    details = []
+    core_ids = set()
+    package_ids = set()
+    for package in normalized:
+        if not isinstance(package, dict):
+            raise ValueError("selected format-2 package must be a record")
+        try:
+            selection = package["inputs"]["selection"]
+            core_id = selection["core_id"]
+            identity = selection["package_id"]
+            recipe = recipe_for(core_id)
+        except (KeyError, TypeError):
+            raise ValueError("selected format-2 package is malformed") from None
+        if not isinstance(identity, str) or not re.fullmatch(r"[0-9a-f]{64}", identity):
+            raise ValueError("selected package has an invalid package ID")
+        if core_id in core_ids:
+            raise ValueError("duplicate format-2 package selections are not supported")
+        if identity in package_ids:
+            raise ValueError("duplicate format-2 package IDs are not supported")
+        core_ids.add(core_id)
+        package_ids.add(identity)
+        details.append((package, recipe, identity))
+    return normalized, tuple(details)
+
+
+def package_arguments(packages):
+    normalized, details = _package_details(packages)
+    if not normalized:
         return []
-    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
-    return [recipe.package_dir_env + "=" + str(package["directory"]),
-            recipe.package_selection_env + "=" + str(package["selection_path"])]
+    arguments = ["FES_PACKAGE_IDS=" + ",".join(recipe.core_id for _, recipe, _ in details)]
+    for package, recipe, _ in details:
+        arguments.extend((recipe.package_dir_env + "=" + str(package["directory"]),
+                          recipe.package_selection_env + "=" + str(package["selection_path"])))
+    return arguments
 
 
-def image_fingerprint(base_fingerprint, info, package):
-    if package is None:
+def image_fingerprint(base_fingerprint, info, packages):
+    normalized = _package_tuple(packages)
+    if not normalized:
         return base_fingerprint, dict(info)
-    package_inputs = package["inputs"]
-    data = {"base_fingerprint": base_fingerprint, "fpga_packages": [package_inputs]}
+    package_inputs = [package["inputs"] for package in normalized]
+    _validate_package_input_records(package_inputs)
+    data = {"base_fingerprint": base_fingerprint, "fpga_packages": package_inputs}
     fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
-    enriched = dict(info, fpga_packages=[package_inputs],
+    enriched = dict(info, fpga_packages=package_inputs,
                     image_base_fingerprint=base_fingerprint, image_fingerprint=fingerprint)
     return fingerprint, enriched
 
@@ -378,8 +413,9 @@ def recorded_image_fingerprint(info):
     if packages is None:
         return hashlib.sha256(json.dumps(info, sort_keys=True).encode()).hexdigest()
     base = info.get("image_base_fingerprint")
-    if type(base) is not str or type(packages) is not list or len(packages) != 1:
+    if type(base) is not str or type(packages) is not list or not packages:
         raise ValueError("invalid persisted package image inputs")
+    _validate_package_input_records(packages)
     fingerprint = hashlib.sha256(json.dumps({
         "base_fingerprint": base, "fpga_packages": packages,
     }, sort_keys=True).encode()).hexdigest()
@@ -388,13 +424,33 @@ def recorded_image_fingerprint(info):
     return fingerprint
 
 
+def _validate_package_input_records(packages):
+    identities = set()
+    for package in packages:
+        try:
+            identity = package["selection"]["package_id"]
+        except (KeyError, TypeError):
+            raise ValueError("invalid persisted package image inputs") from None
+        if type(identity) is not str or not re.fullmatch(r"[0-9a-f]{64}", identity):
+            raise ValueError("invalid persisted package image inputs")
+        if identity in identities:
+            raise ValueError("duplicate format-2 package IDs in persisted image inputs")
+        identities.add(identity)
+
+
 def package_output_names(package):
-    identity = package["inputs"]["selection"]["package_id"]
-    if not re.fullmatch(r"[0-9a-f]{64}", identity):
-        raise ValueError("selected package has an invalid package ID")
+    normalized, details = _package_details(package)
+    if len(normalized) != 1:
+        raise ValueError("package output names require exactly one selected package")
+    _, recipe, identity = details[0]
     prefix = "core-packages/" + identity + "/"
-    recipe = recipe_for(package["inputs"]["selection"]["core_id"])
     return [recipe.selection_filename, prefix + "manifest.toml", prefix + "core.rbf"]
+
+
+def package_selection_names(packages):
+    """Return selected child record names in package order."""
+    _, details = _package_details(packages)
+    return tuple(recipe.selection_filename for _, recipe, _ in details)
 
 
 FORMAT1_PARENT_OUTPUT_NAMES = (
@@ -419,9 +475,9 @@ def remove_format1_parent_outputs(output):
         path.unlink()
 
 
-def verify_package_only_outputs(output, package):
+def verify_package_only_outputs(output, packages):
     """Verify a parent package-only output has no legacy core artifacts."""
-    verify_package_outputs(output, package)
+    verify_package_outputs(output, packages)
     output = Path(output)
     for name in FORMAT1_PARENT_OUTPUT_NAMES:
         try:
@@ -431,13 +487,19 @@ def verify_package_only_outputs(output, package):
         raise ValueError('package-only output contains a legacy format-1 artifact')
 
 
-def verify_package_outputs(output, package):
+def _format2_selection_paths(output):
+    output = Path(output)
+    return tuple(path for path in output.iterdir()
+                 if path.name.endswith('.package-selection.toml'))
+
+
+def verify_package_outputs(output, packages):
     """Require a closed parent copy of the exact selected package bytes."""
     output = Path(output)
-    if package is None:
+    normalized, details = _package_details(packages)
+    if not normalized:
         try:
-            stale = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
-            for path in stale + [output / "core-packages"]:
+            for path in list(_format2_selection_paths(output)) + [output / "core-packages"]:
                 try:
                     path.lstat()
                 except FileNotFoundError:
@@ -446,39 +508,47 @@ def verify_package_outputs(output, package):
         except (OSError, ValueError):
             raise ValueError("package-free output contains stale FES package files") from None
         return []
-    names = package_output_names(package)
-    for recipe in FORMAT2_RECIPES.values():
-        stale = output / recipe.selection_filename
-        if stale.name == names[0]:
-            continue
+    names = []
+    expected_selection_names = {recipe.selection_filename for _, recipe, _ in details}
+    for path in _format2_selection_paths(output):
         try:
-            stale.lstat()
-        except FileNotFoundError:
-            continue
-        raise ValueError("published FES package selections are not a closed set")
-    identity = package["inputs"]["selection"]["package_id"]
+            metadata = path.lstat()
+            if (path.name not in expected_selection_names or
+                    stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode)):
+                raise ValueError
+        except (OSError, ValueError):
+            raise ValueError("published FES package selections are not a closed set") from None
+    expected_identities = {identity for _, _, identity in details}
     root = output / "core-packages"
-    directory = root / identity
     try:
-        for path in (root, directory):
-            metadata = path.lstat()
-            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-                raise ValueError
-        if sorted(entry.name for entry in root.iterdir()) != [identity]:
+        metadata = root.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
             raise ValueError
-        if sorted(entry.name for entry in directory.iterdir()) != ["core.rbf", "manifest.toml"]:
+        if {entry.name for entry in root.iterdir()} != expected_identities:
             raise ValueError
-        expected = {
-            output / names[0]: package["inputs"]["selection_sha256"],
-            output / names[1]: package["inputs"]["manifest_sha256"],
-            output / names[2]: package["inputs"]["core_rbf_sha256"],
-        }
-        for path, expected_sha256 in expected.items():
-            metadata = path.lstat()
-            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        for package, recipe, identity in details:
+            directory = root / identity
+            for path in (directory,):
+                metadata = path.lstat()
+                if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+                    raise ValueError
+            if sorted(entry.name for entry in directory.iterdir()) != ["core.rbf", "manifest.toml"]:
                 raise ValueError
-            if digest(path) != expected_sha256:
-                raise ValueError
+            package_names = [recipe.selection_filename,
+                             f"core-packages/{identity}/manifest.toml",
+                             f"core-packages/{identity}/core.rbf"]
+            expected = {
+                output / package_names[0]: package["inputs"]["selection_sha256"],
+                output / package_names[1]: package["inputs"]["manifest_sha256"],
+                output / package_names[2]: package["inputs"]["core_rbf_sha256"],
+            }
+            for path, expected_sha256 in expected.items():
+                metadata = path.lstat()
+                if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                    raise ValueError
+                if digest(path) != expected_sha256:
+                    raise ValueError
+            names.extend(package_names)
     except (OSError, ValueError):
         raise ValueError("published FES package changed or differs from its selection") from None
     return names
@@ -487,7 +557,7 @@ def verify_package_outputs(output, package):
 def _remove_package_outputs(output):
     """Remove a previous package pair without following output symlinks."""
     output = Path(output)
-    selections = [output / recipe.selection_filename for recipe in FORMAT2_RECIPES.values()]
+    selections = list(_format2_selection_paths(output))
     root = output / "core-packages"
     present = []
     for path, expected in [(path, stat.S_ISREG) for path in selections] + [(root, stat.S_ISDIR)]:
@@ -512,12 +582,12 @@ def _remove_package_outputs(output):
         shutil.rmtree(root)
 
 
-def publish_package_state(package, built_selection, output):
+def publish_package_state(packages, built_selections, output):
     """Publish the selected pair, or close a successful package-free output."""
-    if package is None:
+    if not _package_tuple(packages):
         _remove_package_outputs(output)
         return verify_package_outputs(output, None)
-    return publish_package_outputs(package, built_selection, output)
+    return publish_package_outputs(packages, built_selections, output)
 
 
 def publish_action_inputs(output, action, info):
@@ -531,45 +601,64 @@ def publish_action_inputs(output, action, info):
     return True
 
 
-def publish_package_outputs(package, built_selection, output):
+def publish_package_outputs(packages, built_selections, output):
     """Publish the child-emitted record and an exact closed package directory."""
     output = Path(output)
-    built_selection = Path(built_selection)
-    names = package_output_names(package)
-    selected_name = output / names[0]
+    normalized, details = _package_details(packages)
+    expected_selection_names = [recipe.selection_filename for _, recipe, _ in details]
+    if isinstance(built_selections, dict) and len(normalized) > 1:
+        selections = built_selections
+    elif len(normalized) == 1 and not isinstance(built_selections, dict):
+        selections = {expected_selection_names[0]: built_selections}
+    else:
+        selections = built_selections
+    if not isinstance(selections, dict) or set(selections) != set(expected_selection_names):
+        raise ValueError("child FES package selections are not a complete set")
     try:
-        metadata = built_selection.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise ValueError
-        if built_selection.read_bytes() != Path(package["selection_path"]).read_bytes():
-            raise ValueError
-    except (OSError, ValueError):
+        for package, recipe, _ in details:
+            built_selection = Path(selections[recipe.selection_filename])
+            selected_path = Path(package["selection_path"])
+            metadata = built_selection.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                raise ValueError
+            if (built_selection.read_bytes() != selected_path.read_bytes() or
+                    digest(selected_path) != package["inputs"]["selection_sha256"]):
+                raise ValueError
+            for name, field in (("manifest.toml", "manifest_sha256"),
+                                ("core.rbf", "core_rbf_sha256")):
+                if digest(Path(package["directory"]) / name) != package["inputs"][field]:
+                    raise ValueError
+    except (OSError, KeyError, TypeError, ValueError):
         raise ValueError("child FES package selection differs from selected inputs") from None
-    for recipe in FORMAT2_RECIPES.values():
-        stale = output / recipe.selection_filename
-        if stale == selected_name:
-            continue
-        try:
-            metadata = stale.lstat()
-        except FileNotFoundError:
-            continue
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise ValueError("package selection destination must be a non-symlink regular file")
-        stale.unlink()
-    identity = package["inputs"]["selection"]["package_id"]
     staged_root = output / ".core-packages.new"
+    staged_selections = output / ".package-selections.new"
     if staged_root.exists() or staged_root.is_symlink():
         if staged_root.is_symlink() or not staged_root.is_dir():
             raise ValueError("package staging destination must be a non-symlink directory")
         shutil.rmtree(staged_root)
-    staged = staged_root / identity
-    staged.mkdir(parents=True)
+    if staged_selections.exists() or staged_selections.is_symlink():
+        if staged_selections.is_symlink() or not staged_selections.is_dir():
+            raise ValueError("package selection staging destination must be a non-symlink directory")
+        shutil.rmtree(staged_selections)
+    staged_root.mkdir()
+    staged_selections.mkdir()
     try:
-        for name in ("manifest.toml", "core.rbf"):
-            shutil.copy2(Path(package["directory"]) / name, staged / name)
-            (staged / name).chmod(0o444)
-        staged.chmod(0o555)
+        for package, recipe, identity in details:
+            staged = staged_root / identity
+            staged.mkdir()
+            for name in ("manifest.toml", "core.rbf"):
+                shutil.copy2(Path(package["directory"]) / name, staged / name)
+                (staged / name).chmod(0o444)
+            staged.chmod(0o555)
+            selection_stage = staged_selections / recipe.selection_filename
+            shutil.copy2(selections[recipe.selection_filename], selection_stage)
+            selection_stage.chmod(0o444)
         staged_root.chmod(0o555)
+        staged_selections.chmod(0o755)
+        for stale in _format2_selection_paths(output):
+            metadata = stale.lstat()
+            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+                raise ValueError("package selection destination must be a non-symlink regular file")
         old_root = output / "core-packages"
         if old_root.exists() or old_root.is_symlink():
             if old_root.is_symlink() or not old_root.is_dir():
@@ -580,8 +669,18 @@ def publish_package_outputs(package, built_selection, output):
             old_root.chmod(0o755)
             shutil.rmtree(old_root)
         staged_root.replace(old_root)
-        publish_file(built_selection, output / names[0])
-        verify_package_outputs(output, package)
+        expected = set(expected_selection_names)
+        for stale in _format2_selection_paths(output):
+            if stale.name not in expected:
+                stale.unlink()
+        for selection_name in expected_selection_names:
+            (staged_selections / selection_name).replace(output / selection_name)
+        names = []
+        for package, recipe, identity in details:
+            names.extend([recipe.selection_filename,
+                          f"core-packages/{identity}/manifest.toml",
+                          f"core-packages/{identity}/core.rbf"])
+        verify_package_outputs(output, normalized)
         return names
     finally:
         if staged_root.exists():
@@ -590,6 +689,12 @@ def publish_package_outputs(package, built_selection, output):
                     path.chmod(0o755 if path.is_dir() else 0o644)
             staged_root.chmod(0o755)
             shutil.rmtree(staged_root)
+        if staged_selections.exists():
+            for path in staged_selections.iterdir():
+                if not path.is_symlink():
+                    path.chmod(0o644)
+            staged_selections.chmod(0o755)
+            shutil.rmtree(staged_selections)
 
 
 def bundle_arguments(cores, bundles):
@@ -911,6 +1016,13 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
         force=action == 'rebuild', recipe=recipe)
 
 
+def resolve_packages_for_action(revisions, output, env, action, package_ids):
+    """Resolve every selected format-2 recipe in profile order."""
+    return tuple(resolve_package_for_action(
+        revisions, output, env, action, recipe_for(package_id))
+        for package_id in package_ids)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
@@ -921,8 +1033,8 @@ def main():
     revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
     cores = selected_cores(profile) if mode == 'format1' else ()
-    package_recipes = selected_packages(profile, args.profile)
-    if mode == 'package-only' and not package_recipes:
+    package_ids = selected_packages(profile, args.profile)
+    if mode == 'package-only' and not package_ids:
         raise ValueError('package-only native image requires one selected format-2 package')
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
@@ -962,13 +1074,12 @@ def main():
         ]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
         host_fp, _ = host_fingerprint(revisions, profile, toolchain)
-        package = None
+        packages = ()
         image_fp, image_info = fp, info
-        if package_recipes and args.action in ("build", "image", "verify", "rebuild", "dev"):
-            selected_recipe = recipe_for(package_recipes[0])
-            package = resolve_package_for_action(
-                revisions, output, env, args.action, selected_recipe)
-            image_fp, image_info = image_fingerprint(fp, info, package)
+        if package_ids and args.action in ("build", "image", "verify", "rebuild", "dev"):
+            packages = resolve_packages_for_action(
+                revisions, output, env, args.action, package_ids)
+            image_fp, image_info = image_fingerprint(fp, info, packages)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         env["FOGCAST_DIR"] = str(fogcast)
@@ -988,7 +1099,7 @@ def main():
             bundles = build_bundles_for_profile(
                 profile, revisions, env, cores, diagnostics=diagnostics)
             build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
-                              image_fp, env, fogcast_make, image_make, bundles, package,
+                              image_fp, env, fogcast_make, image_make, bundles, packages,
                               diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
@@ -1016,9 +1127,9 @@ def main():
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
                 if mode == 'package-only':
-                    verify_package_only_outputs(output, package)
+                    verify_package_only_outputs(output, packages)
                 else:
-                    verify_package_outputs(output, package)
+                    verify_package_outputs(output, packages)
                 if mode == 'format1' and profile.get("fpga_source") == "misteross":
                     recipe_source = source_checkout("misteross", revisions["misteross"])
                     for core in cores:
@@ -1039,7 +1150,7 @@ def main():
                 if mode == 'package-only':
                     bundles = {}
                     run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
-                        "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(package)], env=env)
+                        "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(packages)], env=env)
                     manifest = None
                 elif profile.get("fpga_source") == "misteross":
                     bundles = build_bundles(revisions, env, cores, args.action == "rebuild",
@@ -1051,7 +1162,7 @@ def main():
                     if profile.get("bundle_interface") == "selection":
                         run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
                             "LIBMISTER_RUNTIME_DIR=" + str(runtime),
-                            *bundle_arguments(cores, bundles), *package_arguments(package)], env=env)
+                            *bundle_arguments(cores, bundles), *package_arguments(packages)], env=env)
                     else:
                         run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
@@ -1067,7 +1178,7 @@ def main():
                 # Verification reads the runtime commit from the image/lock; no source mount required.
                 verify_env = dict(env, NATIVE_RUNTIME_MODE=mode,
                                   **dict(argument.split("=", 1)
-                                        for argument in package_arguments(package)))
+                                        for argument in package_arguments(packages)))
                 if mode == 'format1':
                     verify_env['NATIVE_RUNTIME_SYSTEMS'] = " ".join(cores)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native-verify"],
@@ -1083,14 +1194,15 @@ def main():
                         for name in (core + "-rbf.toml", core + ".rbf"):
                             publish_file(bundles[core] / name, output / name)
                             names.append(name)
-                names.extend(publish_package_state(
-                    package,
+                built_selections = {
+                    recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename:
                     built / recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename
-                    if package is not None else None,
-                    output))
+                    for package in packages}
+                names.extend(publish_package_state(
+                    packages, built_selections if packages else None, output))
                 if mode == 'package-only':
                     remove_format1_parent_outputs(output)
-                    verify_package_only_outputs(output, package)
+                    verify_package_only_outputs(output, packages)
                 publish_action_inputs(output, args.action, image_info)
                 names.append("inputs.json")
                 write_receipt(output, "image", image_fp, names)
@@ -1102,9 +1214,9 @@ def main():
             if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
             if mode == 'package-only':
-                verify_package_only_outputs(output, package)
+                verify_package_only_outputs(output, packages)
             else:
-                verify_package_outputs(output, package)
+                verify_package_outputs(output, packages)
             if mode == 'format1' and profile.get("fpga_source") == "misteross":
                 recipe_source = source_checkout("misteross", revisions["misteross"])
                 recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
@@ -1120,13 +1232,13 @@ def main():
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_MODE=mode,
                              **dict(argument.split("=", 1)
-                                   for argument in package_arguments(package)),
+                                   for argument in package_arguments(packages)),
                              **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
                                 if mode == 'format1' else {})))
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_MODE=mode,
                          **dict(argument.split("=", 1)
-                               for argument in package_arguments(package)),
+                               for argument in package_arguments(packages)),
                          **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
                             if mode == 'format1' else {})))
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")

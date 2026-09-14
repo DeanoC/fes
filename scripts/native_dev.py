@@ -10,10 +10,10 @@ import tomllib
 
 from build import (digest, output_volume, publish_file, reusable, run, write_receipt,
                    selected_cores, bundle_arguments, package_arguments,
+                   package_selection_names,
                    publish_package_state, recorded_image_fingerprint,
                    reuse_status, verify_package_outputs, native_image_mode,
-                   verify_package_only_outputs, remove_format1_parent_outputs,
-                   recipe_for)
+                   verify_package_only_outputs, remove_format1_parent_outputs)
 from build_diagnostics import BuildDiagnostics
 from inputs import git
 
@@ -100,7 +100,7 @@ def run_stage(diagnostics, name, args, **kwargs):
 
 
 def build_development(root, image, fogcast, runtime, profile_name, profile, info,
-                      fingerprint, env, fogcast_make, image_make, bundles, package=None,
+                      fingerprint, env, fogcast_make, image_make, bundles, packages=None,
                       diagnostics=None):
     mode = native_image_mode(profile)
     if mode == 'format1' and profile.get('bundle_interface') != 'selection':
@@ -112,22 +112,22 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     diagnostics.cache('development', 'hit' if hit else 'miss', reason)
     if hit:
         if mode == 'package-only':
-            verify_package_only_outputs(output, package)
+            verify_package_only_outputs(output, packages)
         else:
-            verify_package_outputs(output, package)
+            verify_package_outputs(output, packages)
         if owned_diagnostics:
             diagnostics.finish('success')
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
     cores = selected_cores(profile) if mode == 'format1' else ()
     if mode == 'package-only':
-        if package is None:
+        if not packages:
             raise ValueError('package-only native development requires a selected format-2 package')
         cores = ()
-        selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(package)
+        selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(packages)
     else:
         selection_args = (['NATIVE_RUNTIME_MODE=format1'] +
-                          bundle_arguments(cores, bundles) + package_arguments(package))
+                          bundle_arguments(cores, bundles) + package_arguments(packages))
     key = base_key(image, fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
     output.mkdir(parents=True, exist_ok=True)
@@ -173,10 +173,8 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
             f'chmod 0444 {EXPORT}/{core}.selection.toml.new\n'
             f'mv {EXPORT}/{core}.selection.toml.new {EXPORT}/{core}.selection.toml'
             for core in cores)
-    package_selection_name = None
-    if package is not None:
-        package_selection_name = recipe_for(
-            package['inputs']['selection']['core_id']).selection_filename
+    package_selection_files = package_selection_names(packages)
+    for package_selection_name in package_selection_files:
         selection_copy += f'''\nrm -f {EXPORT}/{package_selection_name}.new
 cp /work/build/cache/target-image/native/{package_selection_name} {EXPORT}/{package_selection_name}.new
 chmod 0444 {EXPORT}/{package_selection_name}.new
@@ -220,12 +218,12 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
             for name in (core + '.rbf', core + '-rbf.toml'):
                 publish_file(bundles[core] / name, output / name)
                 names.append(name)
+    built_selections = {name: built / name for name in package_selection_files}
     names.extend(publish_package_state(
-        package, built / package_selection_name if package is not None else None,
-        output))
+        packages, built_selections if packages else None, output))
     if mode == 'package-only':
         remove_format1_parent_outputs(output)
-        verify_package_only_outputs(output, package)
+        verify_package_only_outputs(output, packages)
     record = dict(info, build_mode='incremental-development', base_key=key,
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')

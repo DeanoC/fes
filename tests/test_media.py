@@ -493,6 +493,39 @@ class MediaTests(unittest.TestCase):
                          str(self.output / 'core-packages' / self.package_id))
         self.assertEqual(self.runner.asserted_env['FES_PONG_PACKAGE_SELECTION'],
                          str(self.output / 'fes-pong.package-selection.toml'))
+
+    def test_package_only_media_reuses_the_complete_ordered_package_set(self):
+        second_id = 'b' * 64
+        second = self.output / 'core-packages' / second_id
+        second.mkdir()
+        (second / 'manifest.toml').write_bytes(b'second package manifest')
+        (second / 'core.rbf').write_bytes(b'second package payload')
+        second_selection = self.output / 'fes-zx81.package-selection.toml'
+        second_selection.write_bytes(b'format = 2\n')
+        second_inputs = {
+            'selection': {
+                'format': 2,
+                'kind': 'core-package',
+                'core_id': 'fes.zx81',
+                'package_id': second_id,
+            },
+            'selection_sha256': cold_build.digest(second_selection),
+            'manifest_sha256': cold_build.digest(second / 'manifest.toml'),
+            'core_rbf_sha256': cold_build.digest(second / 'core.rbf'),
+        }
+        inputs = json.loads((self.output / 'inputs.json').read_text())
+        inputs['fpga_packages'].append(second_inputs)
+        (self.output / 'inputs.json').write_text(json.dumps(inputs))
+        (self.root / 'profiles/native-integration-dev.toml').write_text(
+            'host_os = "linux"\nhost_arch = "amd64"\nimage_variant = "native-dev"\n'
+            'version = "0.1.0"\nnative_image_mode = "package-only"\ncheck_packages = true\n\n'
+            '[[fpga_packages]]\ncore_id = "fes.pong"\n\n'
+            '[[fpga_packages]]\ncore_id = "fes.zx81"\n')
+        self.build()
+        self.assertEqual(self.runner.asserted_env['FES_PACKAGE_IDS'], 'fes.pong,fes.zx81')
+        self.assertEqual(self.runner.asserted_env['FES_ZX81_PACKAGE_DIR'], str(second))
+        self.assertEqual(self.runner.asserted_env['FES_ZX81_PACKAGE_SELECTION'],
+                         str(second_selection))
         self.assertEqual(self.runner.asserted_env['TARGET_IMAGE_OUTPUT_VOLUME'], cold_build.output_volume(self.root, 'native-integration-dev'))
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
         self.assertFalse((self.image / 'build/output/target-image/media-verify').exists())
