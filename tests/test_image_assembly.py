@@ -70,14 +70,15 @@ class ImageAssemblyTest(unittest.TestCase):
         getting_started = (ROOT / 'docs/getting-started.md').read_text()
         development = (ROOT / 'docs/development.md').read_text()
         for text in (readme, packages, getting_started, development):
-            for needle in ('fes.pong', 'fes.zx81', 'fes.coleco', 'HIP/nextpnr', 'format-1'):
+            for needle in ('fes.pong', 'fes.zx81', 'fes.coleco', 'HIP/nextpnr'):
                 self.assertIn(needle, text)
         self.assertIn('closed package set', readme)
         self.assertIn('closed package set', packages)
         self.assertIn('same closed package set', getting_started)
         self.assertIn('same closed package set', development)
         self.assertIn('Quartus', readme)
-        self.assertIn('historical format-1', development)
+        self.assertIn('Quartus', development)
+        self.assertIn('explicit', development)
         self.assertIn('fes-zx81.package-selection.toml', packages)
         self.assertIn('fes-coleco.package-selection.toml', packages)
         for text in (readme, packages, getting_started, development):

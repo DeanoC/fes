@@ -143,7 +143,7 @@ class MediaTests(unittest.TestCase):
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
-        patch.object(media, 'select', return_value=('cold-fp', 'host-fp', self.fogcast, (), {})).start()
+        patch.object(media, 'select', return_value=('cold-fp', 'host-fp', self.fogcast, {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.

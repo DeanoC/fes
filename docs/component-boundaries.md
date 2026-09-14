@@ -87,22 +87,16 @@ would distribute the existing coupling across more locations.
 
 ## Integrated source set
 
-The gitlinks select matching merged implementations of native Mega Drive,
-Pong, basic SNES, NES and renewable kit ownership. Exact revisions are recorded by
-git; diagnostic artifact identities are in the multi-system and kit guides.
-The current profile is package-only and installs the ordered closed
-format-2 set `fes.pong`, `fes.zx81` and `fes.coleco` through the HIP/nextpnr
-route. The source-built Mega Drive, Pong, SNES and NES
-catalog, including the selected NES image's exact video and session-lifecycle
-evidence in the [dated FES acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md),
-belongs to historical format-1 profile records and is not inherited by the
-current FES image.
+The gitlinks select matching merged implementations of the FES host, runtime,
+package and target-agent contracts. Exact revisions are recorded by git; the
+current profile is package-only and installs the ordered closed
+`fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr route.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, fourteen generated consumer files, eleven shared fixture copies,
-and copied Mega Drive/SNES/NES source pins. It regenerates to temporary files
-and never edits consumers. The format-2 additions are the actual runtime C++
-ABI/programming consumers and misteross Verilog ABI consumer. FogCast uses the
+lock, package YAML, fourteen generated consumer files and eleven shared fixture
+copies. It regenerates to temporary files and never edits consumers. The package
+definitions are the actual runtime C++ ABI/programming consumers and misteross
+Verilog ABI consumer. FogCast uses the
 negotiated runtime ABI registry, so no unused generated Go allowlist is added.
 
 The old review's unmerged-consumer concern is resolved: FogCast main consumes
@@ -113,13 +107,9 @@ sentence is stale relative to the selected consumers and the regeneration check.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
 ordered per-core selection records for `fes.pong`, `fes.zx81` and `fes.coleco`
-plus its sealed `core-packages/` directory. It does not publish a
-`megadrive.selection.toml`; the historical
-`native-dev` and `native-source-dev` format-1 profiles retain those catalog
-artifacts. Only the historical `native-source-dev` profile retains the lock
-overlay required by its older FogCast revision.
-Historical profiles select exact earlier commits recorded in their TOML files;
-current gitlinks remain the development starting point.
+plus its sealed `core-packages/` directory. Systems whose nextpnr route is not
+implemented yet are checked explicitly with Quartus; that check is not an image
+production route.
 
 ## Keep, combine, split and add
 

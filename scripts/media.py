@@ -346,8 +346,7 @@ def select(root, profile):
     image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
     host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
-    cores = cold_build.selected_cores(configuration) if mode == 'format1' else ()
-    return image_fingerprint, host_fingerprint, fogcast, cores, env
+    return image_fingerprint, host_fingerprint, fogcast, env
 
 
 def published_packages(output, configuration, profile):
@@ -402,7 +401,7 @@ def provenance_for(root, fogcast, cold):
 
 
 def prepare(root, profile):
-    image_fingerprint, host_fingerprint, fogcast, cores, env = select(root, profile)
+    image_fingerprint, host_fingerprint, fogcast, env = select(root, profile)
     output = root / 'out' / profile
     configuration = tomllib.loads((root / 'profiles' / (profile + '.toml')).read_text())
     mode = cold_build.native_image_mode(configuration)
@@ -441,14 +440,10 @@ def prepare(root, profile):
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
                FOGCAST_DIR=str(fogcast))
-    env.pop('NATIVE_RUNTIME_SYSTEMS', None)
     for recipe in cold_build.FORMAT2_RECIPES.values():
         env.pop(recipe.package_dir_env, None)
         env.pop(recipe.package_selection_env, None)
-    if mode == 'format1':
-        env['NATIVE_RUNTIME_SYSTEMS'] = ' '.join(cores)
-    else:
-        env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(packages)))
+    env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(packages)))
     return cold, fogcast, image, env, inputs, lock
 
 

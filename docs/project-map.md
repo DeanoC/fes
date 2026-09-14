@@ -53,10 +53,9 @@ integration, not a production dependency of its native image.
 mister-packages definitions generate checked-in consumers used by the runtime
 and FPGA source, and describe upstream core sources. FogCast consumes the
 runtime-advertised ABI registry without a second static Go allowlist. misteross
-produces historical format-1 FPGA bundles and the described format-2 FES
-package set. FES selects component commits, checks that their definitions and
-locks agree, then invokes the FES `image/` recipe to assemble the agent,
-runtime, libraries, historical catalog RBFs and the ordered package set. FogCast remains an input
+produces the FES package set. FES selects component commits, checks that their
+definitions and locks agree, then invokes the FES `image/` recipe to assemble
+the agent, runtime, libraries and ordered package set. FogCast remains an input
 (agent, kit, extra-core selector and native-runtime lock) via `FOGCAST_DIR`.
 
 ## Directory guide
@@ -65,7 +64,7 @@ runtime, libraries, historical catalog RBFs and the ordered package set. FogCast
 | --- | --- | --- |
 | `AGENTS.md` | Common working instructions for every agent | For parent workflow changes |
 | `Makefile` | User-facing parent commands | For parent command changes |
-| `profiles/` | Build settings and historical revision overrides | Integrator-owned |
+| `profiles/` | Active native integration build settings | Integrator-owned |
 | `scripts/inputs.py` | Component pin and runtime-lock checks | Parent implementation |
 | `scripts/consistency.py` | Package generation and source-pin checks | Parent implementation |
 | `image/` | Native Buildroot, container and SD/rootfs assembly | Parent image recipe |
@@ -89,8 +88,7 @@ recorded cache volume before removing it.
 ## Terms used in the guides
 
 - **Pin / gitlink:** the exact component commit recorded by the parent Git index.
-- **Profile:** a TOML selection of build settings; historical profiles also name
-  older component commits.
+- **Profile:** the TOML selection of the active native integration build settings.
 - **Worktree:** another checkout of a component, with its own branch and files,
   sharing Git history with the component repository.
 - **RBF:** the binary FPGA configuration loaded by the runtime.

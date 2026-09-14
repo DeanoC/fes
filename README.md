@@ -27,14 +27,15 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 | FES | Compatible revisions, integration checks, final system assembly and evidence |
 | [FogCast](sources/FogCast) | Browser/tenfoot UI, game library, host services and network-facing target agent |
 | [libmister-runtime](sources/libmister-runtime) | Local daemon/library controlling FPGA, media, input and hardware lifecycle |
-| [misteross](sources/misteross) | FPGA development, compilation and exported RBF bundles |
+| [misteross](sources/misteross) | FPGA development, compilation and exported FES package artifacts |
 | [mister-packages](sources/mister-packages) | Shared hardware/system definitions and generated C++/Go |
 
 Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
-authenticated HIP/nextpnr producer. Quartus is a build-time oracle or an
-explicit historical-profile tool, never a launch dependency or hidden fallback.
+authenticated HIP/nextpnr producer. Quartus is a build-time oracle/check for
+systems not yet supported by nextpnr, never a launch dependency or hidden
+fallback.
 
 ## Start
 
@@ -79,15 +80,16 @@ submodule gitlinks, retains the locked idle RBF, and installs the ordered,
 closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
-missing, extra or misidentified packages. Format-1 catalog cores are not part of the default FES production image.
+missing, extra or misidentified packages. The FES image has no legacy bundle
+lane.
 
 The normal package-only build uses the authenticated HIP/nextpnr producers and
 their workspace-local compiler cache at `out/cache/misteross-toolchains`. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's format-2 producer.
-Quartus Lite 17.0.2 remains available for explicit historical format-1 profiles
-and as a bring-up/oracle check where a recipe documents one. It is not run by
-the default FES path, and a failed HIP route never falls back to Quartus.
+Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
+where a recipe documents one. It is not run by the default FES path, and a
+failed HIP route never falls back to Quartus.
 Downloads are checked against component locks; image compilation runs twice in
 independent build roots with networking disabled.
 
@@ -117,9 +119,9 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native profiles support Mega Drive, ROM-less Pong, basic SNES and the existing MiSTer-compatible
-development-RBF lifecycle. It does not promise generalized/custom RBF ABIs or
-useful video/input from arbitrary development cores. The SDL tenfoot client
+The native image supports the ordered FES Pong, ZX81 and Coleco package set
+through the package/library lifecycle. It does not promise generalized/custom
+RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
 filesystem; run `make media` after a verified cold build to publish the
 flashable disk image. Build, media assembly and verification do not deploy or
@@ -142,21 +144,16 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
 | `make media` | Publish a verified flashable disk image, auto-embedding the local target agent config |
 | `make verify-media` | Reverify the published disk image and embedded root filesystem; no device writes |
-| `make rebuild` | Force host and both image passes; historical format-1 profiles may also run Quartus |
+| `make rebuild` | Force host and both package-only image passes |
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` format-2 package set |
-| `native-dev` | Original FogCast `cd85971` / runtime `443b603`, upstream core |
-| `native-source-dev` | Same original pair, source-built core and historical lock overlay |
+| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set |
 
-Use `PROFILE=native-dev` or `PROFILE=native-source-dev` to rebuild a historical
-combination. Their exact source overrides live in the profile files; those
-commits must remain available in component history. Historical profiles lack the
-new native development loader. They retain independent output directories and
-Docker volumes. Historical hash comparison is informational; see
-[original validation and provenance](docs/historical-parent-validation.md) and
-[source-profile hardware evidence](docs/source-build-validation.md).
+The parent exposes one FES integration profile. Systems whose nextpnr route is
+not implemented yet are checked explicitly with Quartus when their recipe
+requires it; that check does not create an image package or change the default
+package-only path.
 
 ## Development and integration
 
@@ -177,6 +174,5 @@ CI deliberately fails with an actionable message when this credential is absent.
 Quartus, full image builds and physical checks run on the development machine.
 
 The normal profile installs the locked idle RBF and the ordered FES package set.
-The older [Pong, SNES and Mega Drive](docs/multi-system-development.md)
-catalog image remains historical/independent; its native [SNES cartridge saves](docs/snes-saves.md)
-and enhancement-chip limitations do not change the package-only default.
+Older multi-system validation records remain historical evidence and do not
+change the package-only default.

@@ -25,7 +25,6 @@ from recipes import FORMAT2_RECIPES, recipe_for
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
 DIAGNOSTIC_RECIPE_NAMES = frozenset({"scripts/build_diagnostics.py"})
-FPGA_BUNDLE_CACHE = ROOT / "out/cache/fpga-bundles"
 
 
 def is_diagnostic_recipe_file(path, root=ROOT):
@@ -316,13 +315,6 @@ def source_checkout(name, revision, suffix="", restore=()):
     return path
 
 
-def selected_cores(profile):
-    cores = profile.get("fpga_cores", [profile.get("fpga_core", "megadrive")])
-    if cores not in (["megadrive"], ["megadrive", "pong", "snes", "nes"]):
-        raise ValueError("profile must select megadrive or megadrive, pong, snes, nes")
-    return tuple(cores)
-
-
 def selected_packages(profile, profile_name):
     packages = profile.get("fpga_packages", [])
     if not isinstance(packages, list):
@@ -453,43 +445,38 @@ def package_selection_names(packages):
     return tuple(recipe.selection_filename for _, recipe, _ in details)
 
 
-FORMAT1_PARENT_OUTPUT_NAMES = (
-    'megadrive.rbf', 'megadrive-rbf.toml', 'megadrive.selection.toml',
-    'pong.rbf', 'pong-rbf.toml', 'pong.selection.toml',
-    'snes.rbf', 'snes-rbf.toml', 'snes.selection.toml',
-    'nes.rbf', 'nes-rbf.toml', 'nes.selection.toml',
-)
-
 _PACKAGE_GENERATION_MARKER = '.package-generation.complete'
 _PACKAGE_RESTORE_STAGING = '.package-generation.restore'
 _PACKAGE_SELECTION_SUFFIX = '.package-selection.toml'
 _PACKAGE_BACKUP_CLEANUP_PREFIX = '.package-generation.previous.cleanup-'
+_PUBLISHED_PARENT_RBF_NAMES = frozenset(('idle.rbf',))
 
 
-def remove_format1_parent_outputs(output):
-    """Remove only known legacy top-level artifacts from a package output."""
+def stale_parent_outputs(output):
+    """Return stale top-level RBF/catalog artifacts outside the package set."""
     output = Path(output)
-    for name in FORMAT1_PARENT_OUTPUT_NAMES:
-        path = output / name
+    return tuple(path for path in output.iterdir()
+                 if path.name not in _PUBLISHED_PARENT_RBF_NAMES
+                 and path.name.endswith(('.rbf', '-rbf.toml', '.selection.toml')))
+
+
+def remove_stale_parent_outputs(output):
+    """Remove stale top-level artifacts without touching package records."""
+    for path in stale_parent_outputs(output):
         try:
             metadata = path.lstat()
         except FileNotFoundError:
             continue
         if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise ValueError('legacy format-1 output destination is not a regular file')
+            raise ValueError('stale parent output destination is not a regular file')
         path.unlink()
 
 
 def verify_package_only_outputs(output, packages):
-    """Verify a parent package-only output has no legacy core artifacts."""
+    """Verify a package output has no stale top-level artifacts."""
     verify_package_outputs(output, packages)
-    output = Path(output)
-    for name in FORMAT1_PARENT_OUTPUT_NAMES:
-        try:
-            output.joinpath(name).lstat()
-        except FileNotFoundError:
-            continue
-        raise ValueError('package-only output contains a legacy format-1 artifact')
+    if stale_parent_outputs(output):
+        raise ValueError('package output contains a stale top-level artifact')
 
 
 def _format2_selection_paths(output):
@@ -1313,296 +1300,12 @@ def publish_package_outputs(packages, built_selections, output):
                 raise
 
 
-def bundle_arguments(cores, bundles):
-    if set(cores) != set(bundles):
-        raise ValueError("bundle set differs from selected cores")
-    return ["NATIVE_RUNTIME_SYSTEMS=" + " ".join(cores), "MEGADRIVE_RBF_SOURCE=source-built"] + [
-        core.upper() + "_RBF_BUNDLE=" + str(bundles[core]) for core in cores]
-
-
-def _bundle_write_bits(mode):
-    return bool(stat.S_IMODE(mode) & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
-
-
-def _closed_bundle_digest(directory, system):
-    hasher = hashlib.sha256()
-    for name in (f"{system}.rbf", f"{system}-rbf.toml"):
-        encoded = name.encode("utf-8")
-        data = (Path(directory) / name).read_bytes()
-        hasher.update(len(encoded).to_bytes(8, "big"))
-        hasher.update(encoded)
-        hasher.update(len(data).to_bytes(8, "big"))
-        hasher.update(data)
-    return hasher.hexdigest()
-
-
-def _bundle_directories(root, system):
-    root = Path(root)
-    try:
-        metadata = root.lstat()
-    except FileNotFoundError:
-        return ()
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-        return ()
-    base = root / system
-    try:
-        metadata = base.lstat()
-    except FileNotFoundError:
-        return ()
-    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-        return ()
-    candidates = []
-    for child in sorted(base.iterdir(), key=lambda path: path.name):
-        try:
-            metadata = child.lstat()
-        except FileNotFoundError:
-            continue
-        if (child.name.startswith(".") or stat.S_ISLNK(metadata.st_mode)
-                or not stat.S_ISDIR(metadata.st_mode)):
-            continue
-        candidates.append(child)
-    return tuple(candidates)
-
-
-def _require_closed_bundle(directory, system, *, sealed=False):
-    directory = Path(directory)
-    try:
-        metadata = directory.lstat()
-    except FileNotFoundError as exc:
-        raise ValueError("bundle directory must exist") from exc
-    if stat.S_ISLNK(metadata.st_mode):
-        raise ValueError("bundle directory must not be a symlink")
-    if not stat.S_ISDIR(metadata.st_mode):
-        raise ValueError("bundle path must be a directory")
-    if sealed and _bundle_write_bits(metadata.st_mode):
-        raise ValueError("sealed bundle directory must not be writable")
-    expected = {f"{system}.rbf", f"{system}-rbf.toml"}
-    names = []
-    for child in sorted(directory.iterdir(), key=lambda path: path.name):
-        try:
-            metadata = child.lstat()
-        except FileNotFoundError as exc:
-            raise ValueError("sealed bundle files must exist") from exc
-        if child.name.startswith("."):
-            raise ValueError("sealed bundle has unexpected files")
-        names.append(child.name)
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            raise ValueError("bundle files must be non-symlink regular files")
-        if sealed and _bundle_write_bits(metadata.st_mode):
-            raise ValueError("sealed bundle files must not be writable")
-    if set(names) != expected:
-        raise ValueError("sealed bundle must contain the closed two-file set")
-
-
-def _require_sealed_bundle(directory, system):
-    _require_closed_bundle(directory, system, sealed=True)
-
-
-def _remove_tree(path):
-    path = Path(path)
-    if path.is_symlink():
-        path.unlink()
-        return
-    if not path.exists():
-        return
-    if not path.is_dir():
-        path.unlink()
-        return
-    for current, directories, _ in os.walk(path, topdown=False, followlinks=False):
-        for name in directories:
-            child = Path(current) / name
-            metadata = child.lstat()
-            if not stat.S_ISLNK(metadata.st_mode):
-                child.chmod(0o755)
-    path.chmod(0o755)
-    shutil.rmtree(path)
-
-
-def publish_bundle_cache(directory, system):
-    directory = Path(directory)
-    _require_closed_bundle(directory, system, sealed=False)
-    names = (f"{system}.rbf", f"{system}-rbf.toml")
-    dest_root = Path(FPGA_BUNDLE_CACHE)
-    if dest_root.is_symlink():
-        raise ValueError("FPGA bundle cache must not be a symlink")
-    if dest_root.exists() and not dest_root.is_dir():
-        raise ValueError("FPGA bundle cache must be a directory")
-    system_root = dest_root / system
-    destination = None
-    staged = None
-    try:
-        dest_root.mkdir(parents=True, exist_ok=True)
-        if system_root.is_symlink():
-            raise ValueError("FPGA bundle cache system directory must not be a symlink")
-        if system_root.exists() and not system_root.is_dir():
-            raise ValueError("FPGA bundle cache system directory must be a directory")
-        system_root.mkdir(exist_ok=True)
-        destination = system_root / _closed_bundle_digest(directory, system)
-        if destination.is_symlink():
-            raise ValueError(f"FPGA bundle cache destination must not be a symlink: {destination}")
-        if destination.exists():
-            try:
-                _require_sealed_bundle(destination, system)
-            except ValueError as exc:
-                raise ValueError(f"FPGA bundle cache destination is not sealed: {destination}: {exc}") from exc
-            for name in names:
-                if (destination / name).read_bytes() != (directory / name).read_bytes():
-                    raise ValueError(f"existing FPGA bundle cache entry differs: {destination}")
-            return destination
-        staged = Path(tempfile.mkdtemp(prefix=".new-", dir=system_root))
-        for name in names:
-            shutil.copy2(directory / name, staged / name)
-            (staged / name).chmod(0o444)
-        staged.chmod(0o555)
-        staged.replace(destination)
-        return destination
-    except OSError as exc:
-        target = destination if destination is not None else system_root
-        raise OSError(f"FPGA bundle cache publication failed: {target}: {exc}") from exc
-    finally:
-        if staged is not None and (staged.exists() or staged.is_symlink()):
-            try:
-                _remove_tree(staged)
-            except OSError:
-                pass
-
-
-def validate_bundle(directory, source, revision, system):
-    recipe = "scripts/build_pong.py" if system == "pong" else "scripts/rebuild_core.py"
-    return core_bundle.load(directory, digest(source / recipe), system=system,
-                            expected_revision=revision if system == "pong" else None)
-
-
-def _validated_bundle_candidates(source, revision, system, diagnostics=None):
-    source = Path(source)
-    selected_root = source / "build/bundles" / system
-    selected = []
-    if selected_root.exists() or selected_root.is_symlink():
-        try:
-            metadata = selected_root.lstat()
-        except FileNotFoundError:
-            metadata = None
-        else:
-            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
-                raise ValueError(f"misteross {system} bundle directory must be a non-symlink directory")
-            bundles = list(selected_root.glob(f"*/{system}-rbf.toml"))
-            if bundles:
-                if len(bundles) != 1:
-                    raise ValueError(f"misteross has more than one cached {system} bundle")
-                bundle_dir = bundles[0].parent
-                selected.append((bundle_dir, validate_bundle(bundle_dir, source, revision, system)))
-    stable = []
-    try:
-        stable_dirs = _bundle_directories(FPGA_BUNDLE_CACHE, system)
-    except OSError as exc:
-        reason = f"stable cache skipped: {FPGA_BUNDLE_CACHE / system}: {exc}"
-        if diagnostics is not None:
-            diagnostics.cache("fpga:" + system, "miss", reason)
-        print(reason, flush=True)
-        stable_dirs = ()
-    for candidate in stable_dirs:
-        try:
-            _require_sealed_bundle(candidate, system)
-            manifest = validate_bundle(candidate, source, revision, system)
-        except ValueError:
-            continue
-        except OSError as exc:
-            reason = f"stable candidate skipped: {candidate}: {exc}"
-            if diagnostics is not None:
-                diagnostics.cache("fpga:" + system, "miss", reason)
-            print(reason, flush=True)
-            continue
-        stable.append((candidate, manifest))
-    pairs = selected + stable
-    if not pairs:
-        return ()
-    if len(pairs) == 1:
-        return (pairs[0][0],)
-    by_digest = {}
-    for path, manifest in pairs:
-        digest_value = manifest.get("sha256") if isinstance(manifest, dict) else None
-        if not isinstance(digest_value, str) or not digest_value:
-            raise ValueError(f"validated {system} bundle is missing sha256")
-        if digest_value not in by_digest:
-            by_digest[digest_value] = path
-    if len(by_digest) > 1:
-        listed = ", ".join(str(path) for path, _ in pairs)
-        raise ValueError(f"ambiguous validated {system} FPGA bundles: {listed}")
-    return tuple(by_digest.values())
-
-
-def build_bundle(revisions, env, force=False, *, system="megadrive", diagnostics=None):
-    if system not in ("megadrive", "pong", "snes", "nes"):
-        raise ValueError("unsupported FPGA core")
-    source = source_checkout("misteross", revisions["misteross"])
-    if not force:
-        candidates = _validated_bundle_candidates(
-            source, revisions["misteross"], system, diagnostics)
-        if candidates:
-            bundle_dir = candidates[0]
-            try:
-                Path(bundle_dir).relative_to(FPGA_BUNDLE_CACHE)
-                reason = "validated stable-cache FPGA bundle"
-            except ValueError:
-                reason = "validated selected-checkout FPGA bundle"
-            if diagnostics is not None:
-                diagnostics.cache("fpga:" + system, "hit", reason)
-            print(f"Reusing {reason}: {bundle_dir}", flush=True)
-            return bundle_dir
-    if diagnostics is not None:
-        diagnostics.cache("fpga:" + system, "forced" if force else "miss",
-                          "validated bundle missing" if not force else "forced rebuild")
-    if not env.get("QUARTUS_ROOTDIR"):
-        raise ValueError("source-built cores require QUARTUS_ROOTDIR")
-    if system == "pong":
-        run_stage(diagnostics, "fpga:" + system + " subprocess",
-                  ["make", "-C", source, "build-pong"], env=env)
-    else:
-        run_stage(diagnostics, "fpga:" + system + " subprocess",
-                  ["make", "-C", source, "fetch-core", "CORE=" + system], env=env)
-        run_stage(diagnostics, "fpga:" + system + " subprocess",
-                  ["make", "-C", source, "rebuild-core", "CORE=" + system], env=env)
-    run_stage(diagnostics, "fpga:" + system + " subprocess",
-              ["make", "-C", source, "export-core-bundle", "CORE=" + system], env=env)
-    directory = source / "build/bundles" / system
-    bundles = list(directory.glob(f"*/{system}-rbf.toml"))
-    if len(bundles) != 1:
-        raise ValueError(f"misteross did not produce exactly one {system} bundle")
-    validate_bundle(bundles[0].parent, source, revisions["misteross"], system)
-    bundle_dir = bundles[0].parent
-    try:
-        publish_bundle_cache(bundle_dir, system)
-    except (ValueError, OSError) as exc:
-        reason = f"stable publish skipped: {exc}"
-        if diagnostics is not None:
-            diagnostics.cache("fpga:" + system, "miss", reason)
-        print(reason, flush=True)
-    return bundle_dir
-
-
-def build_bundles(revisions, env, cores, force=False, diagnostics=None):
-    return {core: build_bundle(revisions, env, force, system=core, diagnostics=diagnostics)
-            for core in cores}
-
-
 def native_image_mode(profile):
-    """Return the explicit native image lane selected by a profile."""
-    mode = profile.get('native_image_mode', 'format1')
-    if mode not in ('format1', 'package-only'):
-        raise ValueError('profile native_image_mode must be format1 or package-only')
+    """Return the only supported FES native image lane."""
+    mode = profile.get('native_image_mode', 'package-only')
+    if mode != 'package-only':
+        raise ValueError('FES native image mode is package-only')
     return mode
-
-
-def build_bundles_for_profile(profile, revisions, env, cores, force=False, diagnostics=None):
-    """Dispatch legacy FPGA bundles only for an explicit historical lane."""
-    if native_image_mode(profile) == 'package-only':
-        return {}
-    return build_bundles(revisions, env, cores, force, diagnostics=diagnostics)
-
-
-def legacy_source_image_environment(env, runtime, mode):
-    """Bind the selected native lane when invoking the legacy image scripts."""
-    return dict(env, LIBMISTER_RUNTIME_DIR=str(runtime), NATIVE_RUNTIME_MODE=mode)
 
 
 @contextmanager
@@ -1643,15 +1346,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["doctor", "build", "host", "image", "verify", "rebuild", "dev"])
     parser.add_argument("--profile", default="native-integration-dev",
-                        choices=["native-dev", "native-source-dev", "native-integration-dev"])
+                        choices=["native-integration-dev"])
     args = parser.parse_args()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
-    cores = selected_cores(profile) if mode == 'format1' else ()
     package_ids = selected_packages(profile, args.profile)
-    if mode == 'package-only' and not package_ids:
-        raise ValueError('package-only native image requires one selected format-2 package')
+    if not package_ids:
+        raise ValueError('native integration image requires one selected format-2 package')
     if platform.system() != "Linux" or platform.machine() not in ("x86_64", "amd64"):
         raise ValueError("this initial image builder requires Linux amd64")
     container = os.environ.get("CONTAINER_RUNTIME", "docker")
@@ -1659,7 +1361,6 @@ def main():
         if not shutil.which(tool):
             raise ValueError(f"required executable is missing: {tool}")
     env = build_environment()
-    # Historical profiles may select a different go.mod from the current gitlink.
     with tempfile.TemporaryDirectory(prefix="fes-go-version-") as temporary:
         (Path(temporary) / "go.mod").write_text(git(ROOT / "sources/FogCast", "show",
             revisions["FogCast"] + ":go.mod") + "\n")
@@ -1677,8 +1378,7 @@ def main():
     # Serialize this workspace only; do not share the child's default output volume.
     with locked_diagnostics(ROOT, output, args.action) as (lock, diagnostics):
         with diagnostics.measure("source staging"):
-            restore = ("build/native-runtime.inputs.lock.toml",) if args.profile == "native-source-dev" else ()
-            fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile, restore)
+            fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile)
             if profile.get("check_packages"):
                 from consistency import check
                 selected = {name: source_checkout(name, revision)
@@ -1708,14 +1408,10 @@ def main():
                       "CONTAINER_RUNTIME=" + container,
                       "NATIVE_RUNTIME_MODE=" + mode]
         if args.action == "dev":
-            if mode == 'format1' and profile.get("bundle_interface") != "selection":
-                raise ValueError("make dev requires native-integration-dev; historical profiles stay cold")
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
-            bundles = build_bundles_for_profile(
-                profile, revisions, env, cores, diagnostics=diagnostics)
             build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
-                              image_fp, env, fogcast_make, image_make, bundles, packages,
+                              image_fp, env, fogcast_make, image_make, packages=packages,
                               diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
@@ -1742,14 +1438,7 @@ def main():
             if image_hit:
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
-                if mode == 'package-only':
-                    verify_package_only_outputs(output, packages)
-                else:
-                    verify_package_outputs(output, packages)
-                if mode == 'format1' and profile.get("fpga_source") == "misteross":
-                    recipe_source = source_checkout("misteross", revisions["misteross"])
-                    for core in cores:
-                        validate_bundle(output, recipe_source, revisions["misteross"], core)
+                verify_package_only_outputs(output, packages)
             else:
                 diagnostics.cache("image", "forced" if args.action == "rebuild" else "miss", image_reason)
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
@@ -1762,67 +1451,30 @@ def main():
                 run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
-                if mode == "package-only":
-                    fetch_env.update(dict(argument.split("=", 1)
-                                         for argument in package_arguments(packages)))
+                fetch_env.update(dict(argument.split("=", 1)
+                                     for argument in package_arguments(packages)))
                 run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
-                if mode == 'package-only':
-                    bundles = {}
-                    run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
-                        "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(packages)], env=env)
-                    manifest = None
-                elif profile.get("fpga_source") == "misteross":
-                    bundles = build_bundles(revisions, env, cores, args.action == "rebuild",
-                                            diagnostics=diagnostics)
-                    bundle_dir = bundles["megadrive"]
-                    recipe_source = source_checkout("misteross", revisions["misteross"])
-                    recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
-                    manifest = core_bundle.load(bundle_dir, recipe_sha)
-                    if profile.get("bundle_interface") == "selection":
-                        run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
-                            "LIBMISTER_RUNTIME_DIR=" + str(runtime),
-                            *bundle_arguments(cores, bundles), *package_arguments(packages)], env=env)
-                    else:
-                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
-                             "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
-                        core_bundle.prepare(fogcast, bundle_dir, recipe_sha, cache_root=IMAGE)
-                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
-                            env=legacy_source_image_environment(env, runtime, mode))
-                        run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "native-dev"],
-                            env=legacy_source_image_environment(env, runtime, mode))
-                else:
-                    manifest = None
-                    run_stage(diagnostics, "image subprocess",
-                              image_make + ["target-image-native", "LIBMISTER_RUNTIME_DIR=" + str(runtime)], env=env)
+                run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
+                    "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(packages)], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
                 verify_env = dict(env, NATIVE_RUNTIME_MODE=mode,
                                   **dict(argument.split("=", 1)
                                         for argument in package_arguments(packages)))
-                if mode == 'format1':
-                    verify_env['NATIVE_RUNTIME_SYSTEMS'] = " ".join(cores)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native-verify"],
                     env=verify_env)
                 built = IMAGE / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
-                if mode == 'format1' and profile.get("bundle_interface") == "selection":
-                    names.extend(core + ".selection.toml" for core in cores)
                 for name in names:
                     publish_file(built / name, output / name)
-                if mode == 'format1' and manifest is not None:
-                    for core in cores:
-                        for name in (core + "-rbf.toml", core + ".rbf"):
-                            publish_file(bundles[core] / name, output / name)
-                            names.append(name)
                 built_selections = {
                     recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename:
                     built / recipe_for(package["inputs"]["selection"]["core_id"]).selection_filename
                     for package in packages}
                 names.extend(publish_package_state(
                     packages, built_selections if packages else None, output))
-                if mode == 'package-only':
-                    remove_format1_parent_outputs(output)
-                    verify_package_only_outputs(output, packages)
+                remove_stale_parent_outputs(output)
+                verify_package_only_outputs(output, packages)
                 publish_action_inputs(output, args.action, image_info)
                 names.append("inputs.json")
                 write_receipt(output, "image", image_fp, names)
@@ -1833,34 +1485,18 @@ def main():
             diagnostics.cache("verify image", "hit" if image_hit else "miss", image_reason)
             if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
-            if mode == 'package-only':
-                verify_package_only_outputs(output, packages)
-            else:
-                verify_package_outputs(output, packages)
-            if mode == 'format1' and profile.get("fpga_source") == "misteross":
-                recipe_source = source_checkout("misteross", revisions["misteross"])
-                recipe_sha = digest(recipe_source / "scripts/rebuild_core.py")
-                for core in cores:
-                    validate_bundle(output, recipe_source, revisions["misteross"], core)
-                # Recreate the generated lock/cache overlay from the published bundle
-                # before verifying the already-built image.
-                if profile.get("bundle_interface") != "selection":
-                    core_bundle.prepare(fogcast, output, recipe_sha, cache_root=IMAGE)
+            verify_package_only_outputs(output, packages)
             built = IMAGE / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_MODE=mode,
                              **dict(argument.split("=", 1)
-                                   for argument in package_arguments(packages)),
-                             **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
-                                if mode == 'format1' else {})))
+                                   for argument in package_arguments(packages))))
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_MODE=mode,
                          **dict(argument.split("=", 1)
-                               for argument in package_arguments(packages)),
-                         **({'NATIVE_RUNTIME_SYSTEMS': " ".join(cores)}
-                            if mode == 'format1' else {})))
+                               for argument in package_arguments(packages))))
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
@@ -1871,7 +1507,7 @@ def main():
             result = verification_record(output, actual, matches)
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
             print("Two-pass reproducibility, structural and QEMU packaging checks passed.", flush=True)
-            print(f"Historical image hash match: {matches} (see README provenance note)", flush=True)
+            print(f"Baseline image hash match: {matches} (see README provenance note)", flush=True)
 if __name__ == "__main__":
     try:
         main()

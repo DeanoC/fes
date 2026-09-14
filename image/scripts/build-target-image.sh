@@ -5,14 +5,12 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 case "$native_mode" in
-  format1|package-only) : ;;
+  package-only) : ;;
   *)
-    printf '%s\n' 'build-target-image: native runtime mode must be format1 or package-only' >&2
+    printf '%s\n' 'build-target-image: native runtime mode must be package-only' >&2
     exit 2
     ;;
 esac
-"$repo/scripts/native-extra-cores.sh" validate
-
 selected_package_cores() {
   remaining=${FES_PACKAGE_IDS:-}
   while :; do
@@ -91,20 +89,11 @@ verify_native_inputs() {
     printf '%s\n' 'build-target-image: LIBMISTER_RUNTIME_DIR is required for native-dev' >&2
     exit 2
   }
-  if [ "$native_mode" = package-only ]; then
-    NATIVE_RUNTIME_MODE=package-only \
-      "$repo/scripts/verify-native-runtime-inputs.sh" \
-      "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
-      "$LIBMISTER_RUNTIME_DIR" \
-      "$repo/build/cache/target-image/native/idle.rbf"
-  else
+  NATIVE_RUNTIME_MODE=package-only \
     "$repo/scripts/verify-native-runtime-inputs.sh" \
-      "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
-      "$LIBMISTER_RUNTIME_DIR" \
-      "$repo/build/cache/target-image/native/idle.rbf" \
-      "$repo/build/cache/target-image/native/megadrive.rbf" \
-      "${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}"
-  fi
+    "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
+    "$LIBMISTER_RUNTIME_DIR" \
+    "$repo/build/cache/target-image/native/idle.rbf"
 }
 
 run_target_container() {
@@ -154,19 +143,12 @@ inside_build() {
     --lock /work/build/target-image.sources.lock.toml \
     --cache /work/build/cache/target-image
 
-  if [ "$inside_variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+  if [ "$inside_variant" = native-dev ]; then
     NATIVE_RUNTIME_MODE=package-only \
       /work/scripts/verify-native-runtime-inputs.sh \
       "${FOGCAST_DIR}/build/native-runtime.inputs.lock.toml" \
       /runtime-source \
       /work/build/cache/target-image/native/idle.rbf
-  elif [ "$inside_variant" = native-dev ]; then
-    /work/scripts/verify-native-runtime-inputs.sh \
-      "${FOGCAST_DIR}/build/native-runtime.inputs.lock.toml" \
-      /runtime-source \
-      /work/build/cache/target-image/native/idle.rbf \
-      /work/build/cache/target-image/native/megadrive.rbf \
-      /work/build/cache/target-image/native/megadrive.selection.toml
   fi
 
 	cleanup_inside_output "$inside_output"
@@ -401,25 +383,9 @@ if [ "$promote_existing" -ne 1 ]; then
       printf 'build-target-image: build %s did not produce rootfs.ext4\n' "$run" >&2
       exit 1
     }
-    if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+    if [ "$variant" = native-dev ]; then
       "$repo/scripts/native-extra-cores.sh" copy-records \
         "$repo/build/cache/target-image/native" "$work"
-    elif [ "$variant" = native-dev ]; then
-      selection_source=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo/build/cache/target-image/native/megadrive.selection.toml}
-      [ -f "$selection_source" ] && [ ! -L "$selection_source" ] || {
-        printf '%s\n' 'build-target-image: native Mega Drive selection record is unavailable' >&2
-        exit 1
-      }
-      selection_mode=$(stat -c %a "$selection_source" 2>/dev/null || true)
-      printf '%s\n' "$selection_mode" | grep -Eq '^[0145]{3,4}$' || {
-        printf '%s\n' 'build-target-image: native Mega Drive selection record must not be writable' >&2
-        exit 1
-      }
-      selection_tmp=$work/megadrive.selection.toml.new.$$
-      /bin/cp "$selection_source" "$selection_tmp"
-      /bin/chmod 0444 "$selection_tmp"
-      /bin/mv "$selection_tmp" "$work/megadrive.selection.toml"
-      "$repo/scripts/native-extra-cores.sh" copy-records "$(dirname "$selection_source")" "$work"
     fi
   done
 fi
@@ -433,7 +399,7 @@ if [ "$first_sha" != "$second_sha" ]; then
   exit 1
 fi
 
-if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
+if [ "$variant" = native-dev ]; then
   package_cores=$(selected_package_cores)
   for package_core in $package_cores; do
     cmp "$output_root/work-1-$variant/fes-$package_core.package-selection.toml" \
@@ -443,64 +409,24 @@ if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
     }
   done
   for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
-    for stale in megadrive.rbf megadrive-rbf.toml megadrive.selection.toml \
-      pong.rbf pong-rbf.toml pong.selection.toml snes.rbf snes-rbf.toml \
-      snes.selection.toml nes.rbf nes-rbf.toml nes.selection.toml; do
-      [ ! -e "$work/$stale" ] && [ ! -L "$work/$stale" ] || {
-        printf 'build-target-image: package-only output retains legacy artifact: %s\n' "$stale" >&2
+    for stale in "$work"/*.rbf "$work"/*-rbf.toml "$work"/*.selection.toml; do
+      [ ! -e "$stale" ] && [ ! -L "$stale" ] || {
+        printf 'build-target-image: package-only output retains stale artifact: %s\n' "$stale" >&2
         exit 1
       }
     done
   done
-elif [ "$variant" = native-dev ]; then
-  [ -f "$output_root/work-1-$variant/megadrive.selection.toml" ] &&
-    [ -f "$output_root/work-2-$variant/megadrive.selection.toml" ] || {
-    printf '%s\n' 'build-target-image: native Mega Drive selection is missing beside a reproducible output' >&2
-    exit 1
-  }
-  cmp -s "$output_root/work-1-$variant/megadrive.selection.toml" \
-    "$output_root/work-2-$variant/megadrive.selection.toml" || {
-    printf '%s\n' 'build-target-image: native Mega Drive selection differs between reproducible outputs' >&2
-    exit 1
-  }
-  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
-    for system in pong snes nes; do
-      cmp "$output_root/work-1-$variant/$system.selection.toml" "$output_root/work-2-$variant/$system.selection.toml"
-    done
-  fi
-  if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then
-    cmp "$output_root/work-1-$variant/fes-pong.package-selection.toml" \
-      "$output_root/work-2-$variant/fes-pong.package-selection.toml" || {
-      printf '%s\n' 'build-target-image: FES Pong package selection differs between reproducible outputs' >&2
-      exit 1
-    }
-  else
-    for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
-      [ ! -e "$work/fes-pong.package-selection.toml" ] && [ ! -L "$work/fes-pong.package-selection.toml" ] || {
-        printf '%s\n' 'build-target-image: unselected FES Pong package selection was retained' >&2
-        exit 1
-      }
-    done
-  fi
 fi
 
 final_dir=$output_root/$variant
 /bin/mkdir -p "$final_dir"
 image_tmp=$final_dir/linux.img.new.$$
 evidence_tmp=$final_dir/reproducibility.txt.new.$$
-selection_final_tmp=
-trap '/bin/rm -f "$image_tmp" "$evidence_tmp" "$selection_final_tmp"' EXIT INT TERM
+trap '/bin/rm -f "$image_tmp" "$evidence_tmp"' EXIT INT TERM
 /bin/cp "$second" "$image_tmp"
 printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
   "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
-if [ "$variant" = native-dev ] && [ "$native_mode" = package-only ]; then
-  "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
-elif [ "$variant" = native-dev ]; then
-  selection_final_tmp=$final_dir/megadrive.selection.toml.new.$$
-  /bin/cp "$output_root/work-2-$variant/megadrive.selection.toml" "$selection_final_tmp"
-  /bin/chmod 0444 "$selection_final_tmp"
-  /bin/mv "$selection_final_tmp" "$final_dir/megadrive.selection.toml"
-  selection_final_tmp=
+if [ "$variant" = native-dev ]; then
   "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
 fi
 /bin/mv "$evidence_tmp" "$final_dir/reproducibility.txt"

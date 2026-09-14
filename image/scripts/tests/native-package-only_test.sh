@@ -4,6 +4,9 @@ set -eu
 repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 fixture=$(mktemp -d "/tmp/fogcast-native-package-only.XXXXXX")
 trap 'chmod -R u+rwX "$fixture" 2>/dev/null || :; rm -rf "$fixture"' EXIT INT TERM
+fogcast_make=$fixture/fogcast-make
+mkdir "$fogcast_make"
+printf '%s\n' 'build-target-image-lock-container:' >"$fogcast_make/Makefile"
 
 selector=$fixture/target-image-lock
 cat >"$selector" <<'SELECTOR'
@@ -264,7 +267,7 @@ make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
   FES_ZX81_PACKAGE_SELECTION="$fixture/zx81.package-selection.toml" \
   FES_COLECO_PACKAGE_DIR="$fixture/coleco-package" \
   FES_COLECO_PACKAGE_SELECTION="$fixture/coleco.package-selection.toml" \
-  FOGCAST_DIR="$repo/../sources/FogCast" target-image-native-fetch >"$fixture/make.log"
+  FOGCAST_DIR="$fogcast_make" target-image-native-fetch >"$fixture/make.log"
 grep -Fq 'NATIVE_RUNTIME_MODE="package-only"' "$fixture/make.log"
 if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIVE_RUNTIME_SYSTEMS|fetch-core|rebuild-core|export-core-bundle|megadrive\.selection\.toml' "$fixture/make.log"; then
   printf '%s\n' 'package-only make graph still exposes format-1 inputs' >&2
@@ -272,7 +275,7 @@ if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIV
 fi
 make -s -C "$repo" -n NATIVE_RUNTIME_MODE=package-only \
   FES_PACKAGE_IDS="$package_ids" \
-  FOGCAST_DIR="$repo/../sources/FogCast" target-image-native-verify >"$fixture/verify.log"
+  FOGCAST_DIR="$fogcast_make" target-image-native-verify >"$fixture/verify.log"
 if grep -Eq 'MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|NATIVE_RUNTIME_SYSTEMS|megadrive\.selection\.toml' "$fixture/verify.log"; then
   printf '%s\n' 'package-only verify graph still exposes format-1 inputs' >&2
   exit 1

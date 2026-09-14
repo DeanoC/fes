@@ -48,6 +48,6 @@ The selected FogCast gitlink still owns:
 
 - `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
 - `cmd/target-image-lock` (extra-core selector / lock verifier)
-- `build/native-runtime.inputs.lock.toml` (runtime/idle/Mega Drive policy)
+- `build/native-runtime.inputs.lock.toml` (runtime and idle policy)
 
 FPGA cores enter as sealed bundles / packages, not as a second image builder.

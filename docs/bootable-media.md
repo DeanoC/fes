@@ -10,11 +10,16 @@ Start with a current clean integration build. Media assembly consumes its cold
 receipts; it does not accept `make dev` output.
 
 ```sh
-QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0 make build
+make build
 make verify
 make media
 make verify-media
 ```
+
+The normal FES package route uses the authenticated HIP/nextpnr producers for
+Pong, ZX81 and Coleco. If a future system has no supported nextpnr route, its
+recipe documents an explicit Quartus oracle/check; do not set Quartus as an
+automatic fallback for the integration build.
 
 `make media` requires intact current `host.json`, `image.json`,
 `verification.json`, `reproducibility.txt` and QEMU evidence. If one is absent
@@ -193,30 +198,25 @@ card, verify all of the following before releasing the lease:
   and `idle.sha256` in `fes-media.toml`. The two idle hashes must both match
   the pinned idle value.
 - Compare the installed rootfs, agent, runtime, kernel, idle artifact and all
-  four selected cores before exact-artifact acceptance. Run:
+  selected package payloads before exact-artifact acceptance. Run:
 
   ```sh
   sha256sum /media/fat/linux/linux.img /media/fat/linux/zImage_dtb \
     /media/fat/menu.rbf /usr/share/mister-runtime/idle.rbf
   sha256sum /usr/sbin/mister-agent /usr/sbin/mister-runtime \
-    /usr/share/mister-runtime/cores/megadrive.rbf \
-    /usr/share/mister-runtime/cores/pong.rbf \
-    /usr/share/mister-runtime/cores/snes.rbf \
-    /usr/share/mister-runtime/cores/nes.rbf
+    /usr/share/mister-runtime/core-packages/*/core.rbf
   ```
 
   Compare the first line to the external `fes-media.toml`; compare the agent,
-  runtime and all four core digests to the retained cold `manifest.tsv` bound
-  by that generation's `image.json`. Do not use a manifest from a different
+  runtime and each package digest to the retained cold `manifest.tsv` bound by
+  that generation's `image.json`. Do not use a manifest from a different
   source revision, recipe or cold receipt.
 - `/media/fat` is writable and the loop-mounted root is read-only.
-- Pong, Mega Drive and SNES each launch, accept input, emit audio, and Stop
-  returns the system to idle.
-- The selected four-system image has exact NES video and session-lifecycle
-  acceptance in [the dated FES record](validation/2026-09-08-native-nes-wire-acceptance.md).
-  A later image or changed `nes.rbf` remains pending until that exact artifact
-  is exercised.
-- An SNES save survives a full reboot.
+- The selected `fes.pong`, `fes.zx81` and `fes.coleco` packages each launch
+  through the normal host API, report the expected package identity, and Stop
+  returns the system to idle. Use the package-runtime smoke target for this
+  check; it does not substitute for separate input, video, audio or persistence
+  acceptance for a changed package artifact.
 - No Main process or `/dev/MiSTer_cmd` is present.
 - Reboot produces a new boot ID and reaches ready/idle again.
 - The final Stop succeeds and the kit lease is released.

@@ -8,9 +8,9 @@ output_volume=${TARGET_IMAGE_OUTPUT_VOLUME:-fogcast-target-image-output}
 package_lock=$repo_root/build/target-image-container-packages.sha256
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 case "$native_mode" in
-  format1|package-only) : ;;
+  package-only) : ;;
   *)
-    printf '%s\n' 'target-image-container: native runtime mode must be format1 or package-only' >&2
+    printf '%s\n' 'target-image-container: native runtime mode must be package-only' >&2
     exit 2
     ;;
 esac
@@ -42,8 +42,12 @@ case "$mode" in
 esac
 
 
-"$repo_root/scripts/native-extra-cores.sh" validate
-package_enabled=0
+if [ -n "${FES_PACKAGE_IDS:-}" ] ||
+  [ -n "${FES_PONG_PACKAGE_DIR:-}" ] || [ -n "${FES_PONG_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_ZX81_PACKAGE_DIR:-}" ] || [ -n "${FES_ZX81_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_COLECO_PACKAGE_DIR:-}" ] || [ -n "${FES_COLECO_PACKAGE_SELECTION:-}" ]; then
+  "$repo_root/scripts/native-extra-cores.sh" validate
+fi
 package_ids_reverse=
 load_package_mount_order() {
   remaining=${FES_PACKAGE_IDS:-}
@@ -62,10 +66,8 @@ load_package_mount_order() {
     [ -n "$remaining" ] || break
   done
 }
-if [ "$native_mode" = package-only ]; then
+if [ -n "${FES_PACKAGE_IDS:-}" ]; then
   load_package_mount_order
-else
-  if [ -n "${FES_PONG_PACKAGE_DIR:-}" ]; then package_enabled=1; fi
 fi
 fogcast_dir=
 if [ -n "${FOGCAST_DIR:-}" ]; then
@@ -83,75 +85,41 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fogcast_dir=$(CDPATH='' cd -- "$FOGCAST_DIR" && pwd -P)
 fi
 docker_run() {
-  if [ "$native_mode" = package-only ]; then
-    set -- --env "FES_PACKAGE_IDS=$FES_PACKAGE_IDS" "$@"
-    for package_core in $package_ids_reverse; do
-      case "$package_core" in
-        pong)
-          package_dir=$FES_PONG_PACKAGE_DIR
-          package_selection=$FES_PONG_PACKAGE_SELECTION
-          package_dir_env=FES_PONG_PACKAGE_DIR
-          package_selection_env=FES_PONG_PACKAGE_SELECTION
-          ;;
-        zx81)
-          package_dir=$FES_ZX81_PACKAGE_DIR
-          package_selection=$FES_ZX81_PACKAGE_SELECTION
-          package_dir_env=FES_ZX81_PACKAGE_DIR
-          package_selection_env=FES_ZX81_PACKAGE_SELECTION
-          ;;
-        coleco)
-          package_dir=$FES_COLECO_PACKAGE_DIR
-          package_selection=$FES_COLECO_PACKAGE_SELECTION
-          package_dir_env=FES_COLECO_PACKAGE_DIR
-          package_selection_env=FES_COLECO_PACKAGE_SELECTION
-          ;;
-        *) exit 2 ;;
-      esac
-      set -- --volume "$package_dir:/fes-$package_core-package:ro" \
-        --env "$package_dir_env=/fes-$package_core-package" \
-        --volume "$package_selection:/fes-$package_core-package-selection.toml:ro" \
-        --env "$package_selection_env=/fes-$package_core-package-selection.toml" "$@"
-    done
-  fi
+  set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
+  for package_core in $package_ids_reverse; do
+    case "$package_core" in
+      pong)
+        package_dir=$FES_PONG_PACKAGE_DIR
+        package_selection=$FES_PONG_PACKAGE_SELECTION
+        package_dir_env=FES_PONG_PACKAGE_DIR
+        package_selection_env=FES_PONG_PACKAGE_SELECTION
+        ;;
+      zx81)
+        package_dir=$FES_ZX81_PACKAGE_DIR
+        package_selection=$FES_ZX81_PACKAGE_SELECTION
+        package_dir_env=FES_ZX81_PACKAGE_DIR
+        package_selection_env=FES_ZX81_PACKAGE_SELECTION
+        ;;
+      coleco)
+        package_dir=$FES_COLECO_PACKAGE_DIR
+        package_selection=$FES_COLECO_PACKAGE_SELECTION
+        package_dir_env=FES_COLECO_PACKAGE_DIR
+        package_selection_env=FES_COLECO_PACKAGE_SELECTION
+        ;;
+      *) exit 2 ;;
+    esac
+    set -- --volume "$package_dir:/fes-$package_core-package:ro" \
+      --env "$package_dir_env=/fes-$package_core-package" \
+      --volume "$package_selection:/fes-$package_core-package-selection.toml:ro" \
+      --env "$package_selection_env=/fes-$package_core-package-selection.toml" "$@"
+  done
   if [ -n "$fogcast_dir" ]; then
     exec "$runtime" run --volume "$fogcast_dir:/fogcast:ro" \
       --env FOGCAST_DIR=/fogcast --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
   fi
-  exec "$runtime" run --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
+  exec "$runtime" run --env NATIVE_RUNTIME_MODE=package-only "$@"
 }
 run_container() {
-  if [ "${NATIVE_RUNTIME_SYSTEMS:-megadrive}" = 'megadrive pong snes nes' ]; then
-    # Bundles are needed only for fetch; run/verify consume the sealed cache.
-    if [ "$mode" = fetch ]; then
-      for bundle in "${PONG_RBF_BUNDLE:-}" "${SNES_RBF_BUNDLE:-}" "${NES_RBF_BUNDLE:-}"; do
-        case "$bundle" in /*) ;; *) echo 'absolute native extra-core bundles required' >&2; exit 2 ;; esac
-        [ -d "$bundle" ] && [ ! -L "$bundle" ] || exit 2
-      done
-      if [ "$package_enabled" -eq 1 ]; then
-        docker_run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
-          --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
-          --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle \
-          --volume "$NES_RBF_BUNDLE:/nes-rbf-bundle:ro" --env NES_RBF_BUNDLE=/nes-rbf-bundle \
-          --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
-          --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
-      fi
-      docker_run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
-        --volume "$PONG_RBF_BUNDLE:/pong-rbf-bundle:ro" --env PONG_RBF_BUNDLE=/pong-rbf-bundle \
-        --volume "$SNES_RBF_BUNDLE:/snes-rbf-bundle:ro" --env SNES_RBF_BUNDLE=/snes-rbf-bundle \
-        --volume "$NES_RBF_BUNDLE:/nes-rbf-bundle:ro" --env NES_RBF_BUNDLE=/nes-rbf-bundle "$@"
-    fi
-    if [ "$package_enabled" -eq 1 ]; then
-      docker_run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' \
-        --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
-        --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
-    fi
-    docker_run --env 'NATIVE_RUNTIME_SYSTEMS=megadrive pong snes nes' "$@"
-  fi
-  if [ "$native_mode" != package-only ] && [ "$package_enabled" -eq 1 ]; then
-    docker_run \
-      --volume "$FES_PONG_PACKAGE_DIR:/fes-pong-package:ro" --env FES_PONG_PACKAGE_DIR=/fes-pong-package \
-      --volume "$FES_PONG_PACKAGE_SELECTION:/fes-pong-package-selection.toml:ro" --env FES_PONG_PACKAGE_SELECTION=/fes-pong-package-selection.toml "$@"
-  fi
   docker_run "$@"
 }
 native_runtime_source=
@@ -175,53 +143,10 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   }
   native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast_dir/build/native-runtime.inputs.lock.toml}
   native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
-  if [ "$native_mode" = package-only ]; then
-    NATIVE_RUNTIME_MODE=package-only \
-      "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-      "$native_lock" "$native_runtime_source" "$native_idle"
-  else
-    native_megadrive=${NATIVE_RUNTIME_MEGADRIVE_FILE:-$repo_root/build/cache/target-image/native/megadrive.rbf}
-    native_selection=${NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE:-$repo_root/build/cache/target-image/native/megadrive.selection.toml}
+  NATIVE_RUNTIME_MODE=package-only \
     "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-      "$native_lock" "$native_runtime_source" "$native_idle" "$native_megadrive" \
-      "$native_selection"
-  fi
+    "$native_lock" "$native_runtime_source" "$native_idle"
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
-fi
-
-native_megadrive_source=${MEGADRIVE_RBF_SOURCE:-}
-native_megadrive_bundle=
-if [ -n "$native_megadrive_source" ]; then
-  case "$native_megadrive_source" in
-    source-built)
-      [ -n "${MEGADRIVE_RBF_BUNDLE:-}" ] || {
-        printf '%s\n' 'target-image-container: source-built requires MEGADRIVE_RBF_BUNDLE' >&2
-        exit 2
-      }
-      case "$MEGADRIVE_RBF_BUNDLE" in
-        /*) : ;;
-        *)
-          printf '%s\n' 'target-image-container: source-built bundle must be absolute' >&2
-          exit 2
-          ;;
-      esac
-      [ -d "$MEGADRIVE_RBF_BUNDLE" ] && [ ! -L "$MEGADRIVE_RBF_BUNDLE" ] || {
-        printf '%s\n' 'target-image-container: source-built bundle is not a directory' >&2
-        exit 2
-      }
-      native_megadrive_bundle=$(CDPATH='' cd -- "$MEGADRIVE_RBF_BUNDLE" && pwd -P)
-      ;;
-    upstream)
-      [ -z "${MEGADRIVE_RBF_BUNDLE:-}" ] || {
-        printf '%s\n' 'target-image-container: upstream forbids MEGADRIVE_RBF_BUNDLE' >&2
-        exit 2
-      }
-      ;;
-    *)
-      printf 'target-image-container: unsupported Mega Drive source: %s\n' "$native_megadrive_source" >&2
-      exit 2
-      ;;
-  esac
 fi
 
 if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
@@ -406,67 +331,21 @@ if ! printf '%s\n' "$build_image_id" | grep -Eq '^sha256:[0-9a-f]{64}$' || \
   exit 1
 fi
 
+if [ "$mode" = run ] && [ -n "$native_runtime_source" ]; then
+  run_container --rm \
+    --platform "$platform" \
+    --network none \
+    --ulimit core=0:0 \
+    --user "$host_uid:$host_gid" \
+    --volume "$repo_root:/work" \
+    --volume "$output_volume:/target-image-output" \
+    --volume "$native_runtime_source:/runtime-source:ro" \
+    --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+    --workdir /work \
+    "$build_image_id" "$@"
+fi
+
 if [ "$mode" = run ]; then
-  if [ -n "$native_runtime_source" ]; then
-    if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-      run_container --rm \
-        --platform "$platform" \
-        --network none \
-        --ulimit core=0:0 \
-        --user "$host_uid:$host_gid" \
-        --volume "$repo_root:/work" \
-        --volume "$output_volume:/target-image-output" \
-        --volume "$native_runtime_source:/runtime-source:ro" \
-        --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
-        --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
-        --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-        --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
-        --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-        --workdir /work \
-        "$build_image_id" "$@"
-    fi
-    run_container --rm \
-      --platform "$platform" \
-      --network none \
-      --ulimit core=0:0 \
-      --user "$host_uid:$host_gid" \
-      --volume "$repo_root:/work" \
-      --volume "$output_volume:/target-image-output" \
-      --volume "$native_runtime_source:/runtime-source:ro" \
-      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
-      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-      --workdir /work \
-      "$build_image_id" "$@"
-  fi
-  if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-    run_container --rm \
-      --platform "$platform" \
-      --network none \
-      --ulimit core=0:0 \
-      --user "$host_uid:$host_gid" \
-      --volume "$repo_root:/work" \
-      --volume "$output_volume:/target-image-output" \
-      --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
-      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-      --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
-      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-      --workdir /work \
-      "$build_image_id" "$@"
-  fi
-  if [ -n "$native_megadrive_source" ]; then
-    run_container --rm \
-      --platform "$platform" \
-      --network none \
-      --ulimit core=0:0 \
-      --user "$host_uid:$host_gid" \
-      --volume "$repo_root:/work" \
-      --volume "$output_volume:/target-image-output" \
-      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-      --workdir /work \
-      "$build_image_id" "$@"
-  fi
   run_container --rm \
     --platform "$platform" \
     --network none \
@@ -479,36 +358,6 @@ if [ "$mode" = run ]; then
 fi
 
 if [ -n "$native_runtime_source" ]; then
-  if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-    run_container --rm \
-      --platform "$platform" \
-      --ulimit core=0:0 \
-      --user "$host_uid:$host_gid" \
-      --volume "$repo_root:/work" \
-      --volume "$output_volume:/target-image-output" \
-      --volume "$native_runtime_source:/runtime-source:ro" \
-      --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
-      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
-      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-      --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
-      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-      --workdir /work \
-      "$build_image_id" "$@"
-  fi
-  if [ -n "$native_megadrive_source" ]; then
-    run_container --rm \
-      --platform "$platform" \
-      --ulimit core=0:0 \
-      --user "$host_uid:$host_gid" \
-      --volume "$repo_root:/work" \
-      --volume "$output_volume:/target-image-output" \
-      --volume "$native_runtime_source:/runtime-source:ro" \
-      --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
-      --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-      --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-      --workdir /work \
-      "$build_image_id" "$@"
-  fi
   run_container --rm \
     --platform "$platform" \
     --ulimit core=0:0 \
@@ -517,39 +366,18 @@ if [ -n "$native_runtime_source" ]; then
     --volume "$output_volume:/target-image-output" \
     --volume "$native_runtime_source:/runtime-source:ro" \
     --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
-    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
     --workdir /work \
     "$build_image_id" "$@"
 fi
 
-if [ -n "$native_megadrive_source" ] && [ -n "$native_megadrive_bundle" ]; then
-  run_container --rm \
-    --platform "$platform" \
-    --ulimit core=0:0 \
-    --user "$host_uid:$host_gid" \
-    --volume "$repo_root:/work" \
-    --volume "$output_volume:/target-image-output" \
-    --volume "$native_megadrive_bundle:/megadrive-rbf-bundle:ro" \
-    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-    --env 'MEGADRIVE_RBF_BUNDLE=/megadrive-rbf-bundle' \
-    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-    --workdir /work \
-    "$build_image_id" "$@"
-fi
-
-if [ -n "$native_megadrive_source" ]; then
-  run_container --rm \
-    --platform "$platform" \
-    --ulimit core=0:0 \
-    --user "$host_uid:$host_gid" \
-    --volume "$repo_root:/work" \
-    --volume "$output_volume:/target-image-output" \
-    --env "MEGADRIVE_RBF_SOURCE=$native_megadrive_source" \
-    --env 'NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE=/work/build/cache/target-image/native/megadrive.selection.toml' \
-    --workdir /work \
-    "$build_image_id" "$@"
-fi
+run_container --rm \
+  --platform "$platform" \
+  --ulimit core=0:0 \
+  --user "$host_uid:$host_gid" \
+  --volume "$repo_root:/work" \
+  --volume "$output_volume:/target-image-output" \
+  --workdir /work \
+  "$build_image_id" "$@"
 
 run_container --rm \
   --platform "$platform" \

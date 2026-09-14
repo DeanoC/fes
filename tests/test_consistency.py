@@ -197,7 +197,7 @@ class ConsistencyTest(unittest.TestCase):
             'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
             '/media/fat/fogcast/agent.toml',
             'installed rootfs, agent, runtime, kernel, idle artifact',
-            'megadrive.rbf', 'pong.rbf', 'snes.rbf', 'nes.rbf',
+            'core-packages', 'fes.pong', 'fes.zx81', 'fes.coleco',
         )
         for needle in required:
             self.assertIn(needle, guide, needle)
