@@ -335,6 +335,130 @@ class CoreBuildTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'duplicate'):
                 build.verify_package_outputs(output, (packages[0], packages[0]))
 
+    def test_package_publication_rolls_back_after_a_selection_replacement_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+
+            def make_generation(label, package_ids):
+                packages = []
+                built_selections = {}
+                for index, (core_id, selection_name, package_id) in enumerate(zip(
+                        ('fes.pong', 'fes.zx81'),
+                        ('fes-pong.package-selection.toml', 'fes-zx81.package-selection.toml'),
+                        package_ids)):
+                    source = root / f'{label}-{core_id}'
+                    source.mkdir()
+                    (source / 'manifest.toml').write_bytes(f'{label}-manifest-{index}'.encode())
+                    (source / 'core.rbf').write_bytes(f'{label}-payload-{index}'.encode())
+                    selection = root / f'{label}-{selection_name}'
+                    selection.write_bytes(f'format = 2\nlabel = "{label}"\n'.encode())
+                    built = root / 'built' / label / selection_name
+                    built.parent.mkdir(parents=True, exist_ok=True)
+                    built.write_bytes(selection.read_bytes())
+                    packages.append({
+                        'directory': source,
+                        'selection_path': selection,
+                        'inputs': {
+                            'selection': {'package_id': package_id, 'core_id': core_id},
+                            'selection_sha256': build.digest(selection),
+                            'manifest_sha256': build.digest(source / 'manifest.toml'),
+                            'core_rbf_sha256': build.digest(source / 'core.rbf'),
+                        },
+                    })
+                    built_selections[selection_name] = built
+                return tuple(packages), built_selections
+
+            old_packages, old_built = make_generation('old', ('a' * 64, 'b' * 64))
+            build.publish_package_outputs(old_packages, old_built, output)
+            old_root = {
+                path.relative_to(output).as_posix(): path.read_bytes()
+                for path in (output / 'core-packages').rglob('*') if path.is_file()
+            }
+            old_selections = {
+                name: (output / name).read_bytes()
+                for name in ('fes-pong.package-selection.toml',
+                             'fes-zx81.package-selection.toml')
+            }
+            new_packages, new_built = make_generation('new', ('c' * 64, 'd' * 64))
+            original_replace = Path.replace
+            replacements = 0
+
+            def fail_after_first_selection(self, target):
+                nonlocal replacements
+                result = original_replace(self, target)
+                target = Path(target)
+                if (target.parent == output and
+                        target.name.endswith('.package-selection.toml')):
+                    replacements += 1
+                    if replacements == 1:
+                        raise RuntimeError('injected after first selection replacement')
+                return result
+
+            with patch.object(Path, 'replace', new=fail_after_first_selection), \
+                 self.assertRaisesRegex(RuntimeError, 'injected'):
+                build.publish_package_outputs(new_packages, new_built, output)
+
+            self.assertEqual({
+                path.relative_to(output).as_posix(): path.read_bytes()
+                for path in (output / 'core-packages').rglob('*') if path.is_file()
+            }, old_root)
+            self.assertEqual({
+                name: (output / name).read_bytes() for name in old_selections
+            }, old_selections)
+            self.assertFalse((output / '.core-packages.new').exists())
+            self.assertFalse((output / '.package-selections.new').exists())
+            self.assertFalse((output / '.package-generation.new').exists())
+            self.assertFalse((output / '.package-generation.previous').exists())
+
+    def test_package_publication_cleans_sealed_interrupted_staging(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / 'output'
+            output.mkdir()
+            source = root / 'source'
+            source.mkdir()
+            (source / 'manifest.toml').write_bytes(b'manifest')
+            (source / 'core.rbf').write_bytes(b'payload')
+            selection = root / 'selection.toml'
+            selection.write_bytes(b'format = 2\n')
+            built = root / 'built.toml'
+            built.write_bytes(selection.read_bytes())
+            identity = 'a' * 64
+            package = {
+                'directory': source,
+                'selection_path': selection,
+                'inputs': {
+                    'selection': {'package_id': identity, 'core_id': 'fes.pong'},
+                    'selection_sha256': build.digest(selection),
+                    'manifest_sha256': build.digest(source / 'manifest.toml'),
+                    'core_rbf_sha256': build.digest(source / 'core.rbf'),
+                },
+            }
+            old_stage_root = output / '.core-packages.new' / identity
+            old_stage_root.mkdir(parents=True)
+            (old_stage_root / 'core.rbf').write_bytes(b'interrupted')
+            (output / '.core-packages.new' / identity / 'core.rbf').chmod(0o444)
+            (output / '.core-packages.new' / identity).chmod(0o555)
+            (output / '.core-packages.new').chmod(0o555)
+            old_stage_selections = output / '.package-selections.new'
+            old_stage_selections.mkdir()
+            (old_stage_selections / 'stale.package-selection.toml').write_bytes(b'interrupted')
+            (old_stage_selections / 'stale.package-selection.toml').chmod(0o444)
+            old_stage_selections.chmod(0o555)
+
+            build.publish_package_outputs(package, built, output)
+
+            self.assertEqual(build.verify_package_outputs(output, package), [
+                'fes-pong.package-selection.toml',
+                f'core-packages/{identity}/manifest.toml',
+                f'core-packages/{identity}/core.rbf'])
+            self.assertFalse((output / '.core-packages.new').exists())
+            self.assertFalse((output / '.package-selections.new').exists())
+            self.assertFalse((output / '.package-generation.new').exists())
+            self.assertFalse((output / '.package-generation.previous').exists())
+
     def test_host_build_fingerprint_ignores_package_recipe_selection(self):
         revisions = {'FogCast': 'a' * 40}
         plain, plain_info = build.build_fingerprint(revisions, {'version': '1'}, 'go test')

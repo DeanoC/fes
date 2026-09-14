@@ -379,8 +379,13 @@ def published_packages(output, configuration, profile):
 
 
 def published_package(output, configuration, profile):
-    """Compatibility name for the ordered published package-set lookup."""
-    return published_packages(output, configuration, profile)
+    """Return the legacy singular package value for compatibility callers."""
+    packages = published_packages(output, configuration, profile)
+    if not packages:
+        return None
+    if len(packages) != 1:
+        raise ValueError('singular published package lookup requires one package')
+    return packages[0]
 
 
 def provenance_for(root, fogcast, cold):

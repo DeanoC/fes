@@ -102,7 +102,6 @@ class MediaTests(unittest.TestCase):
         (self.output / 'qemu-smoke.log').write_text('smoke')
         sha = cold_build.digest(self.output / 'linux.img')
         (self.output / 'reproducibility.txt').write_text(f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
-        cold_build.write_receipt(self.output, 'image', 'cold-fp', ['linux.img', 'manifest.tsv'])
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
         self.package_id = 'a' * 64
         package = self.output / 'core-packages' / self.package_id
@@ -122,7 +121,16 @@ class MediaTests(unittest.TestCase):
             'manifest_sha256': hashlib.sha256((package / 'manifest.toml').read_bytes()).hexdigest(),
             'core_rbf_sha256': hashlib.sha256((package / 'core.rbf').read_bytes()).hexdigest(),
         }
-        (self.output / 'inputs.json').write_text(json.dumps({'fpga_packages': [package_inputs]}))
+        self.package = {
+            'directory': package,
+            'selection_path': selection,
+            'inputs': package_inputs,
+        }
+        image_fingerprint, image_inputs = cold_build.image_fingerprint(
+            'cold-fp', {'sources': {}}, (self.package,))
+        (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
+        cold_build.write_receipt(self.output, 'image', image_fingerprint,
+                                 ['linux.img', 'manifest.tsv', 'inputs.json'])
         shutil.copyfile(ROOT / 'boot-media.lock.toml', self.root / 'boot-media.lock.toml')
         (self.root / 'kernel').write_bytes(b'kernel')
         (self.root / 'uboot').write_bytes(b'uboot')
@@ -142,6 +150,17 @@ class MediaTests(unittest.TestCase):
 
     def build(self, config=None):
         return media.build(self.root, 'native-integration-dev', config, self.runner)
+
+    def test_singular_published_package_preserves_legacy_shape(self):
+        self.assertIsNone(media.published_package(
+            self.output, {}, 'native-integration-dev'))
+        package = media.published_package(
+            self.output, {'fpga_packages': [{'core_id': 'fes.pong'}]},
+            'native-integration-dev')
+        self.assertIsInstance(package, dict)
+        self.assertEqual(package['directory'], self.output / 'core-packages' / self.package_id)
+        self.assertEqual(package['selection_path'],
+                         self.output / 'fes-pong.package-selection.toml')
 
     def test_refreshed_qemu_and_recipe_evidence_preserve_identical_disk_history(self):
         for change in ('qemu', 'recipe'):
@@ -513,9 +532,16 @@ class MediaTests(unittest.TestCase):
             'manifest_sha256': cold_build.digest(second / 'manifest.toml'),
             'core_rbf_sha256': cold_build.digest(second / 'core.rbf'),
         }
-        inputs = json.loads((self.output / 'inputs.json').read_text())
-        inputs['fpga_packages'].append(second_inputs)
-        (self.output / 'inputs.json').write_text(json.dumps(inputs))
+        second_package = {
+            'directory': second,
+            'selection_path': second_selection,
+            'inputs': second_inputs,
+        }
+        image_fingerprint, image_inputs = cold_build.image_fingerprint(
+            'cold-fp', {'sources': {}}, (self.package, second_package))
+        (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
+        cold_build.write_receipt(self.output, 'image', image_fingerprint,
+                                 ['linux.img', 'manifest.tsv', 'inputs.json'])
         (self.root / 'profiles/native-integration-dev.toml').write_text(
             'host_os = "linux"\nhost_arch = "amd64"\nimage_variant = "native-dev"\n'
             'version = "0.1.0"\nnative_image_mode = "package-only"\ncheck_packages = true\n\n'
@@ -529,6 +555,17 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(self.runner.asserted_env['TARGET_IMAGE_OUTPUT_VOLUME'], cold_build.output_volume(self.root, 'native-integration-dev'))
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
         self.assertFalse((self.image / 'build/output/target-image/media-verify').exists())
+
+        inputs = json.loads((self.output / 'inputs.json').read_text())
+        inputs['fpga_packages'].reverse()
+        (self.output / 'inputs.json').write_text(json.dumps(inputs))
+        (self.root / 'profiles/native-integration-dev.toml').write_text(
+            'host_os = "linux"\nhost_arch = "amd64"\nimage_variant = "native-dev"\n'
+            'version = "0.1.0"\nnative_image_mode = "package-only"\ncheck_packages = true\n\n'
+            '[[fpga_packages]]\ncore_id = "fes.zx81"\n\n'
+            '[[fpga_packages]]\ncore_id = "fes.pong"\n')
+        with self.assertRaisesRegex(ValueError, 'cold image receipt is missing or stale'):
+            self.build()
 
     def test_private_snapshot_survives_original_mutation(self):
         config = self.root / 'config'

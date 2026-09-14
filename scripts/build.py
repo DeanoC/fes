@@ -554,6 +554,134 @@ def verify_package_outputs(output, packages):
     return names
 
 
+def _remove_sealed_tree(path):
+    """Remove a package-owned sealed tree without following links."""
+    path = Path(path)
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package staging path must be a non-symlink directory")
+    for current, directories, files in os.walk(path, topdown=False, followlinks=False):
+        current_path = Path(current)
+        current_path.chmod(0o755)
+        for name in files + directories:
+            child = current_path / name
+            metadata = child.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raise ValueError("package staging path must not contain symlinks")
+            if stat.S_ISDIR(metadata.st_mode):
+                child.chmod(0o755)
+            elif stat.S_ISREG(metadata.st_mode):
+                child.chmod(0o644)
+            else:
+                raise ValueError("package staging path must contain only regular files and directories")
+    path.chmod(0o755)
+    shutil.rmtree(path)
+
+
+def _set_package_tree_modes(path, directory_mode, file_mode):
+    """Set package-tree modes without traversing symlinks or special files."""
+    path = Path(path)
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package output tree must be a non-symlink directory")
+    for current, directories, files in os.walk(path, topdown=False, followlinks=False):
+        current_path = Path(current)
+        current_path.chmod(directory_mode)
+        for name in files + directories:
+            child = current_path / name
+            metadata = child.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raise ValueError("package output tree must not contain symlinks")
+            if stat.S_ISDIR(metadata.st_mode):
+                child.chmod(directory_mode)
+            elif stat.S_ISREG(metadata.st_mode):
+                child.chmod(file_mode)
+            else:
+                raise ValueError("package output tree must contain only regular files and directories")
+    path.chmod(directory_mode)
+
+
+def _make_package_tree_writable(path):
+    _set_package_tree_modes(path, 0o755, 0o644)
+
+
+def _seal_package_tree(path):
+    _set_package_tree_modes(path, 0o555, 0o444)
+
+
+def _validate_package_output_destinations(output):
+    """Validate existing package destinations before a transactional publish."""
+    output = Path(output)
+    for stale in _format2_selection_paths(output):
+        metadata = stale.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("package selection destination must be a non-symlink regular file")
+    root = output / "core-packages"
+    try:
+        metadata = root.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package output destination must be a non-symlink directory")
+
+
+def _clean_package_staging(output):
+    """Clean sealed staging left by an interrupted current or prior publisher."""
+    output = Path(output)
+    for name in (".package-generation.new", ".core-packages.new", ".package-selections.new"):
+        path = output / name
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+            raise ValueError("package staging destination must be a non-symlink directory")
+        _remove_sealed_tree(path)
+
+
+def _restore_package_backup(output, backup, clear_current=True):
+    """Restore the prior package generation from a publish backup directory."""
+    output = Path(output)
+    backup = Path(backup)
+    _validate_package_output_destinations(backup)
+    if clear_current:
+        _remove_package_outputs(output)
+    backup_root = backup / "core-packages"
+    try:
+        backup_root.lstat()
+    except FileNotFoundError:
+        pass
+    else:
+        _make_package_tree_writable(backup_root)
+        backup_root.replace(output / "core-packages")
+        _seal_package_tree(output / "core-packages")
+    for selection in _format2_selection_paths(backup):
+        selection.replace(output / selection.name)
+
+
+def _recover_package_backup(output, packages):
+    """Recover an interrupted package replacement before starting a publish."""
+    output = Path(output)
+    backup = output / ".package-generation.previous"
+    try:
+        metadata = backup.lstat()
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError("package backup path must be a non-symlink directory")
+    try:
+        verify_package_outputs(output, packages)
+    except (OSError, KeyError, TypeError, ValueError):
+        _restore_package_backup(output, backup)
+    _remove_sealed_tree(backup)
+
+
 def _remove_package_outputs(output):
     """Remove a previous package pair without following output symlinks."""
     output = Path(output)
@@ -572,14 +700,7 @@ def _remove_package_outputs(output):
         if path in present:
             path.unlink()
     if root in present:
-        for current, directories, files in os.walk(root, topdown=False, followlinks=False):
-            for name in files + directories:
-                path = Path(current) / name
-                metadata = path.lstat()
-                if not stat.S_ISLNK(metadata.st_mode):
-                    path.chmod(0o755 if stat.S_ISDIR(metadata.st_mode) else 0o644)
-        root.chmod(0o755)
-        shutil.rmtree(root)
+        _remove_sealed_tree(root)
 
 
 def publish_package_state(packages, built_selections, output):
@@ -630,18 +751,16 @@ def publish_package_outputs(packages, built_selections, output):
                     raise ValueError
     except (OSError, KeyError, TypeError, ValueError):
         raise ValueError("child FES package selection differs from selected inputs") from None
-    staged_root = output / ".core-packages.new"
-    staged_selections = output / ".package-selections.new"
-    if staged_root.exists() or staged_root.is_symlink():
-        if staged_root.is_symlink() or not staged_root.is_dir():
-            raise ValueError("package staging destination must be a non-symlink directory")
-        shutil.rmtree(staged_root)
-    if staged_selections.exists() or staged_selections.is_symlink():
-        if staged_selections.is_symlink() or not staged_selections.is_dir():
-            raise ValueError("package selection staging destination must be a non-symlink directory")
-        shutil.rmtree(staged_selections)
+    _recover_package_backup(output, normalized)
+    _clean_package_staging(output)
+    staged_generation = output / ".package-generation.new"
+    staged_root = staged_generation / "core-packages"
+    staged_selections = staged_generation
+    staged_generation.mkdir()
     staged_root.mkdir()
-    staged_selections.mkdir()
+    backup_created = False
+    backup_complete = False
+    backup = output / ".package-generation.previous"
     try:
         for package, recipe, identity in details:
             staged = staged_root / identity
@@ -654,25 +773,27 @@ def publish_package_outputs(packages, built_selections, output):
             shutil.copy2(selections[recipe.selection_filename], selection_stage)
             selection_stage.chmod(0o444)
         staged_root.chmod(0o555)
-        staged_selections.chmod(0o755)
-        for stale in _format2_selection_paths(output):
-            metadata = stale.lstat()
-            if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-                raise ValueError("package selection destination must be a non-symlink regular file")
+        staged_generation.chmod(0o755)
+        verify_package_outputs(staged_generation, normalized)
+        _validate_package_output_destinations(output)
+        backup.mkdir()
+        backup_created = True
+        backup.chmod(0o755)
         old_root = output / "core-packages"
-        if old_root.exists() or old_root.is_symlink():
-            if old_root.is_symlink() or not old_root.is_dir():
-                raise ValueError("package output destination must be a non-symlink directory")
-            for path in old_root.rglob("*"):
-                if not path.is_symlink():
-                    path.chmod(0o755 if path.is_dir() else 0o644)
-            old_root.chmod(0o755)
-            shutil.rmtree(old_root)
-        staged_root.replace(old_root)
-        expected = set(expected_selection_names)
+        try:
+            old_root.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            _make_package_tree_writable(old_root)
+            old_root.replace(backup / "core-packages")
         for stale in _format2_selection_paths(output):
-            if stale.name not in expected:
-                stale.unlink()
+            stale.replace(backup / stale.name)
+        backup_complete = True
+        staged_root.chmod(0o755)
+        staged_root.replace(old_root)
+        old_root.chmod(0o555)
+        expected = set(expected_selection_names)
         for selection_name in expected_selection_names:
             (staged_selections / selection_name).replace(output / selection_name)
         names = []
@@ -681,20 +802,19 @@ def publish_package_outputs(packages, built_selections, output):
                           f"core-packages/{identity}/manifest.toml",
                           f"core-packages/{identity}/core.rbf"])
         verify_package_outputs(output, normalized)
+        _remove_sealed_tree(backup)
         return names
+    except BaseException:
+        if backup_created:
+            try:
+                _restore_package_backup(output, backup, clear_current=backup_complete)
+                if not backup_complete:
+                    _seal_package_tree(output / "core-packages")
+            finally:
+                _remove_sealed_tree(backup)
+        raise
     finally:
-        if staged_root.exists():
-            for path in staged_root.rglob("*"):
-                if not path.is_symlink():
-                    path.chmod(0o755 if path.is_dir() else 0o644)
-            staged_root.chmod(0o755)
-            shutil.rmtree(staged_root)
-        if staged_selections.exists():
-            for path in staged_selections.iterdir():
-                if not path.is_symlink():
-                    path.chmod(0o644)
-            staged_selections.chmod(0o755)
-            shutil.rmtree(staged_selections)
+        _remove_sealed_tree(staged_generation)
 
 
 def bundle_arguments(cores, bundles):
