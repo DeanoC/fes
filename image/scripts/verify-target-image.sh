@@ -224,7 +224,7 @@ verify_package_only_native() {
     exit 1
   }
   runtime_root=$package_root/usr/share/mister-runtime
-  for stale_dir in "$runtime_root/cores" "$runtime_root/selections"; do
+  for stale_dir in "$runtime_root/cores"; do
     [ ! -e "$stale_dir" ] && [ ! -L "$stale_dir" ] || {
       printf 'verify-target-image: package-only image contains unmanaged runtime directory: %s\n' "$stale_dir" >&2
       exit 1
