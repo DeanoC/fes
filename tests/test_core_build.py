@@ -43,6 +43,15 @@ class CoreBuildTest(unittest.TestCase):
             self.assertEqual(
                 build.build_bundles_for_profile(profile, {}, {}, ()), {})
 
+    def test_legacy_source_image_environment_preserves_selected_native_mode(self):
+        environment = build.legacy_source_image_environment(
+            {'BASE': '1'}, Path('/runtime'), 'format1')
+        self.assertEqual(environment, {
+            'BASE': '1',
+            'LIBMISTER_RUNTIME_DIR': '/runtime',
+            'NATIVE_RUNTIME_MODE': 'format1',
+        })
+
     def test_historical_default_and_explicit_set(self):
         self.assertEqual(build.selected_cores({'fpga_core': 'megadrive'}), ('megadrive',))
         self.assertEqual(build.selected_cores({'fpga_cores': ['megadrive', 'pong', 'snes', 'nes']}),

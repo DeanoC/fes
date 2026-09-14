@@ -82,6 +82,9 @@ class MediaTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.addCleanup(patch.stopall)
         patch.object(cold_build, 'git', return_value='f' * 40).start()
+        (self.root / 'profiles').mkdir()
+        shutil.copyfile(ROOT / 'profiles/native-integration-dev.toml',
+                        self.root / 'profiles/native-integration-dev.toml')
         self.output = self.root / 'out/native-integration-dev'
         self.output.mkdir(parents=True)
         self.fogcast = self.root / 'fogcast'
@@ -101,12 +104,31 @@ class MediaTests(unittest.TestCase):
         (self.output / 'reproducibility.txt').write_text(f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
         cold_build.write_receipt(self.output, 'image', 'cold-fp', ['linux.img', 'manifest.tsv'])
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
+        self.package_id = 'a' * 64
+        package = self.output / 'core-packages' / self.package_id
+        package.mkdir(parents=True)
+        (package / 'manifest.toml').write_bytes(b'package manifest')
+        (package / 'core.rbf').write_bytes(b'package payload')
+        selection = self.output / 'fes-pong.package-selection.toml'
+        selection.write_bytes(b'format = 2\n')
+        package_inputs = {
+            'selection': {
+                'format': 2,
+                'kind': 'core-package',
+                'core_id': 'fes.pong',
+                'package_id': self.package_id,
+            },
+            'selection_sha256': hashlib.sha256(selection.read_bytes()).hexdigest(),
+            'manifest_sha256': hashlib.sha256((package / 'manifest.toml').read_bytes()).hexdigest(),
+            'core_rbf_sha256': hashlib.sha256((package / 'core.rbf').read_bytes()).hexdigest(),
+        }
+        (self.output / 'inputs.json').write_text(json.dumps({'fpga_packages': [package_inputs]}))
         shutil.copyfile(ROOT / 'boot-media.lock.toml', self.root / 'boot-media.lock.toml')
         (self.root / 'kernel').write_bytes(b'kernel')
         (self.root / 'uboot').write_bytes(b'uboot')
         self.runner = FakeRunner()
         self.addCleanup(patch.stopall)
-        patch.object(media, 'select', return_value=('cold-fp', 'host-fp', self.fogcast, ('megadrive', 'pong', 'snes', 'nes'), {})).start()
+        patch.object(media, 'select', return_value=('cold-fp', 'host-fp', self.fogcast, (), {})).start()
         patch.object(media, 'resolve_payloads', return_value=Payloads(self.root / 'uboot', self.root / 'kernel')).start()
         patch.object(media, 'recipe_fingerprint', return_value={'scripts/media.py': 'recipe'}).start()
         # The pinned idle cache is separate from cold output publication.
@@ -465,7 +487,12 @@ class MediaTests(unittest.TestCase):
         self.assertIn('reproducibility_sha256', receipt['inputs']['cold'])
         self.assertEqual(media.verify(self.root, 'native-integration-dev', self.runner).generation, result.generation)
         self.assertEqual(self.log.read_text(), 'original smoke')
-        self.assertEqual(self.runner.asserted_env['NATIVE_RUNTIME_SYSTEMS'], 'megadrive pong snes nes')
+        self.assertEqual(self.runner.asserted_env['NATIVE_RUNTIME_MODE'], 'package-only')
+        self.assertNotIn('NATIVE_RUNTIME_SYSTEMS', self.runner.asserted_env)
+        self.assertEqual(self.runner.asserted_env['FES_PONG_PACKAGE_DIR'],
+                         str(self.output / 'core-packages' / self.package_id))
+        self.assertEqual(self.runner.asserted_env['FES_PONG_PACKAGE_SELECTION'],
+                         str(self.output / 'fes-pong.package-selection.toml'))
         self.assertEqual(self.runner.asserted_env['TARGET_IMAGE_OUTPUT_VOLUME'], cold_build.output_volume(self.root, 'native-integration-dev'))
         self.assertEqual(stat.S_IMODE(self.log.stat().st_mode), 0o640)
         self.assertFalse((self.image / 'build/output/target-image/media-verify').exists())

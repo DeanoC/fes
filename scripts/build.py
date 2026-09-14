@@ -879,6 +879,11 @@ def build_bundles_for_profile(profile, revisions, env, cores, force=False, diagn
     return build_bundles(revisions, env, cores, force, diagnostics=diagnostics)
 
 
+def legacy_source_image_environment(env, runtime, mode):
+    """Bind the selected native lane when invoking the legacy image scripts."""
+    return dict(env, LIBMISTER_RUNTIME_DIR=str(runtime), NATIVE_RUNTIME_MODE=mode)
+
+
 @contextmanager
 def locked_diagnostics(root, output, action):
     """Acquire the parent lock before creating or updating diagnostics."""
@@ -1046,9 +1051,9 @@ def main():
                              "/work/scripts/fetch-native-runtime-inputs.sh"], env=env)
                         core_bundle.prepare(fogcast, bundle_dir, recipe_sha, cache_root=IMAGE)
                         run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "--fetch", "native-dev"],
-                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                            env=legacy_source_image_environment(env, runtime, mode))
                         run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/build-target-image.sh", "native-dev"],
-                            env=dict(env, LIBMISTER_RUNTIME_DIR=str(runtime)))
+                            env=legacy_source_image_environment(env, runtime, mode))
                 else:
                     manifest = None
                     run_stage(diagnostics, "image subprocess",

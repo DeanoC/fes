@@ -334,6 +334,10 @@ def resolve_launcher_config(agent_config, scratch, *, auto=False):
 def select(root, profile):
     configuration = tomllib.loads((root / 'profiles' / (profile + '.toml')).read_text())
     revisions = cold_build.validate(root, configuration)
+    mode = cold_build.native_image_mode(configuration)
+    packages = cold_build.selected_packages(configuration, profile)
+    if mode == 'package-only' and not packages:
+        raise ValueError('package-only native image requires one selected format-2 package')
     env = build_environment()
     with tempfile.TemporaryDirectory(prefix='fes-media-go-') as temporary:
         (Path(temporary) / 'go.mod').write_text(cold_build.git(root / 'sources/FogCast', 'show',
@@ -342,8 +346,34 @@ def select(root, profile):
     image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
     host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
-    return image_fingerprint, host_fingerprint, fogcast, cold_build.selected_cores(configuration), env
+    cores = cold_build.selected_cores(configuration) if mode == 'format1' else ()
+    return image_fingerprint, host_fingerprint, fogcast, cores, env
 
+
+def published_package(output, configuration, profile):
+    """Return the selected package bound to the verified parent output."""
+    selected = cold_build.selected_packages(configuration, profile)
+    if not selected:
+        return None
+    try:
+        inputs = json.loads((Path(output) / 'inputs.json').read_text())
+        package_inputs = inputs['fpga_packages']
+        if type(package_inputs) is not list or len(package_inputs) != 1:
+            raise ValueError
+        package_inputs = package_inputs[0]
+        selection = package_inputs['selection']
+        if selection['core_id'] != selected[0]:
+            raise ValueError
+        recipe = cold_build.recipe_for(selected[0])
+        package = {
+            'directory': Path(output) / 'core-packages' / selection['package_id'],
+            'selection_path': Path(output) / recipe.selection_filename,
+            'inputs': package_inputs,
+        }
+        cold_build.verify_package_only_outputs(output, package)
+        return package
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+        raise ValueError('published FES package output is missing or stale; run make build and make verify') from None
 
 
 def provenance_for(root, fogcast, cold):
@@ -362,8 +392,13 @@ def provenance_for(root, fogcast, cold):
 def prepare(root, profile):
     image_fingerprint, host_fingerprint, fogcast, cores, env = select(root, profile)
     output = root / 'out' / profile
+    configuration = tomllib.loads((root / 'profiles' / (profile + '.toml')).read_text())
+    mode = cold_build.native_image_mode(configuration)
     cold = cold_build.load_verified_image(output, image_fingerprint)
     host = cold_build.load_verified_host(output, host_fingerprint)
+    package = published_package(output, configuration, profile)
+    if mode == 'package-only' and package is None:
+        raise ValueError('package-only native image requires one selected format-2 package')
     # Host and image receipts have independent input keys. Preserve both
     # provenance revisions instead of relabelling a reused host artifact or
     # requiring an unrelated image/runtime change to rebuild it. The nested
@@ -390,10 +425,18 @@ def prepare(root, profile):
     inputs = ImageInputs(output / 'linux.img', image / 'build/cache/target-image/native/idle.rbf',
                          payloads.kernel, payloads.uboot, provenance=provenance_for(root, fogcast, cold))
     verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
-    env = dict(env, NATIVE_RUNTIME_SYSTEMS=' '.join(cores),
+    env = dict(env, NATIVE_RUNTIME_MODE=mode,
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
                FOGCAST_DIR=str(fogcast))
+    env.pop('NATIVE_RUNTIME_SYSTEMS', None)
+    for recipe in cold_build.FORMAT2_RECIPES.values():
+        env.pop(recipe.package_dir_env, None)
+        env.pop(recipe.package_selection_env, None)
+    if mode == 'format1':
+        env['NATIVE_RUNTIME_SYSTEMS'] = ' '.join(cores)
+    else:
+        env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(package)))
     return cold, fogcast, image, env, inputs, lock
 
 
