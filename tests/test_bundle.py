@@ -146,7 +146,7 @@ class BundleTest(unittest.TestCase):
         staged = subprocess.check_output(
             ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
             text=True)
-        self.assertIn('e1e6b6c36835b1c2ebb88fce356f44c2fed84b1e', staged)
+        self.assertIn('1308f94d62061d308a756d5f197d14e81cb4cf5c', staged)
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
