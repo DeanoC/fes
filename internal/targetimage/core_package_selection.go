@@ -157,10 +157,9 @@ func PrepareCorePackageSelectionForCore(directory, record, cache, output, expect
 	if _, _, err := InspectCorePackageSelectionForCore(temporary, recordTemporaryPath, expectedCoreID); err != nil {
 		return CorePackageSelection{}, fmt.Errorf("verify staged package selection: %w", err)
 	}
-	if err := replacePackagePair(temporaryRoot, recordTemporaryPath, packageParent, output); err != nil {
+	if err := replacePackagePair(temporary, recordTemporaryPath, packageParent, output, expectedCoreID); err != nil {
 		return CorePackageSelection{}, err
 	}
-	removeTemporary = false
 	removeRecordTemporary = false
 	return selection, nil
 }
@@ -302,58 +301,179 @@ func copyClosedPackage(source, destination string) error {
 	return nil
 }
 
-func replacePackagePair(packageTemporary, recordTemporary, packageDestination, recordDestination string) error {
-	packageBackup := packageDestination + ".previous"
-	recordBackup := recordDestination + ".previous"
-	if err := removePath(packageBackup); err != nil {
-		return fmt.Errorf("remove stale package backup: %w", err)
+func replacePackagePair(packageTemporary, recordTemporary, packageDestination, recordDestination, expectedCoreID string) error {
+	packageID := filepath.Base(filepath.Clean(packageTemporary))
+	if !validSHA256(packageID) {
+		return fmt.Errorf("temporary package path has an invalid package ID")
 	}
-	if err := removePath(recordBackup); err != nil {
-		return fmt.Errorf("remove stale selection backup: %w", err)
-	}
-	packageExisted := false
-	if _, err := os.Lstat(packageDestination); err == nil {
-		if err := os.Rename(packageDestination, packageBackup); err != nil {
-			return fmt.Errorf("retain previous package: %w", err)
+
+	packageParentCreated := false
+	packageInfo, err := os.Lstat(packageDestination)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(packageDestination, 0o700); err != nil {
+			return fmt.Errorf("create package cache root: %w", err)
 		}
-		packageExisted = true
-	} else if !errors.Is(err, os.ErrNotExist) {
+		packageParentCreated = true
+	} else if err != nil {
 		return err
+	} else if !packageInfo.IsDir() || packageInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("package cache root must be a non-symlink directory")
 	}
-	rollbackPackage := func() {
-		_ = removePath(packageDestination)
-		if packageExisted {
-			_ = os.Rename(packageBackup, packageDestination)
-		}
-	}
-	if err := os.Rename(packageTemporary, packageDestination); err != nil {
-		rollbackPackage()
-		return fmt.Errorf("publish package: %w", err)
-	}
+
+	previousPackageID := ""
 	recordExisted := false
-	if _, err := os.Lstat(recordDestination); err == nil {
-		if err := os.Rename(recordDestination, recordBackup); err != nil {
-			rollbackPackage()
-			return fmt.Errorf("retain previous selection: %w", err)
+	if recordInfo, err := os.Lstat(recordDestination); err == nil {
+		if !recordInfo.Mode().IsRegular() || recordInfo.Mode()&os.ModeSymlink != 0 {
+			if packageParentCreated {
+				_ = os.Remove(packageDestination)
+			}
+			return fmt.Errorf("previous package selection must be a regular non-symlink file")
 		}
+		_, previous, err := readCorePackageSelection(recordDestination, true, expectedCoreID)
+		if err != nil {
+			if packageParentCreated {
+				_ = os.Remove(packageDestination)
+			}
+			return fmt.Errorf("inspect previous package selection: %w", err)
+		}
+		previousPackageID = previous.PackageID
 		recordExisted = true
 	} else if !errors.Is(err, os.ErrNotExist) {
-		rollbackPackage()
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
 		return err
 	}
-	if err := os.Rename(recordTemporary, recordDestination); err != nil {
-		if recordExisted {
+
+	currentPackage := filepath.Join(packageDestination, packageID)
+	currentInfo, err := os.Lstat(currentPackage)
+	currentExisted := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
+		return err
+	}
+	if currentExisted && previousPackageID != packageID {
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
+		return fmt.Errorf("package ID already exists without a matching selection")
+	}
+	if currentExisted && (!currentInfo.IsDir() || currentInfo.Mode()&os.ModeSymlink != 0) {
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
+		return fmt.Errorf("current package must be a non-symlink entry")
+	}
+
+	previousPackage := ""
+	if previousPackageID != "" && previousPackageID != packageID {
+		previousPackage = filepath.Join(packageDestination, previousPackageID)
+		previousInfo, err := os.Lstat(previousPackage)
+		if err == nil && (!previousInfo.IsDir() || previousInfo.Mode()&os.ModeSymlink != 0) {
+			if packageParentCreated {
+				_ = os.Remove(packageDestination)
+			}
+			return fmt.Errorf("superseded package must be a non-symlink directory")
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			if packageParentCreated {
+				_ = os.Remove(packageDestination)
+			}
+			return err
+		}
+	}
+
+	backupRoot := filepath.Join(filepath.Dir(packageTemporary), ".previous")
+	if err := os.Mkdir(backupRoot, 0o700); err != nil {
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
+		return fmt.Errorf("create package replacement backup: %w", err)
+	}
+	packageBackup := filepath.Join(backupRoot, "current-package")
+	previousBackup := filepath.Join(backupRoot, "previous-package")
+	recordBackup := filepath.Join(backupRoot, "selection")
+	currentMoved, previousMoved, recordMoved, packagePublished, recordPublished := false, false, false, false, false
+	rollback := func() {
+		if recordPublished {
+			_ = removePath(recordDestination)
+		}
+		if recordMoved {
 			_ = os.Rename(recordBackup, recordDestination)
 		}
-		rollbackPackage()
+		if packagePublished {
+			_ = removePath(currentPackage)
+		}
+		if currentMoved {
+			_ = os.Rename(packageBackup, currentPackage)
+			_ = os.Chmod(currentPackage, 0o555)
+		}
+		if previousMoved {
+			_ = os.Rename(previousBackup, previousPackage)
+			_ = os.Chmod(previousPackage, 0o555)
+		}
+		_ = removePath(backupRoot)
+		if packageParentCreated {
+			_ = os.Remove(packageDestination)
+		}
+	}
+
+	if err := os.Chmod(packageTemporary, 0o700); err != nil {
+		rollback()
+		return fmt.Errorf("prepare package for publication: %w", err)
+	}
+	if currentExisted {
+		if err := os.Chmod(currentPackage, 0o700); err != nil {
+			rollback()
+			return fmt.Errorf("prepare previous package: %w", err)
+		}
+		if err := os.Rename(currentPackage, packageBackup); err != nil {
+			rollback()
+			return fmt.Errorf("retain previous package: %w", err)
+		}
+		currentMoved = true
+	}
+	if previousPackage != "" {
+		if _, err := os.Lstat(previousPackage); err == nil {
+			if err := os.Chmod(previousPackage, 0o700); err != nil {
+				rollback()
+				return fmt.Errorf("prepare superseded package: %w", err)
+			}
+			if err := os.Rename(previousPackage, previousBackup); err != nil {
+				rollback()
+				return fmt.Errorf("retain superseded package: %w", err)
+			}
+			previousMoved = true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			rollback()
+			return err
+		}
+	}
+	if err := os.Rename(packageTemporary, currentPackage); err != nil {
+		rollback()
+		return fmt.Errorf("publish package: %w", err)
+	}
+	packagePublished = true
+	if err := os.Chmod(currentPackage, 0o555); err != nil {
+		rollback()
+		return fmt.Errorf("seal published package: %w", err)
+	}
+
+	if recordExisted {
+		if err := os.Rename(recordDestination, recordBackup); err != nil {
+			rollback()
+			return fmt.Errorf("retain previous selection: %w", err)
+		}
+		recordMoved = true
+	}
+	if err := os.Rename(recordTemporary, recordDestination); err != nil {
+		rollback()
 		return fmt.Errorf("publish package selection: %w", err)
 	}
-	if packageExisted {
-		_ = removePath(packageBackup)
-	}
-	if recordExisted {
-		_ = removePath(recordBackup)
-	}
+	recordPublished = true
+	_ = removePath(backupRoot)
 	return nil
 }
 

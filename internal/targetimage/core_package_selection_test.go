@@ -103,6 +103,38 @@ func TestCorePackageSelectionRejectsExpectedCoreMismatch(t *testing.T) {
 	}
 }
 
+func TestCorePackageSelectionPreservesOtherCorePackages(t *testing.T) {
+	pongDirectory, pongRecord, pong := packageSelectionFixtureForCore(t, "fes.pong")
+	zx81Directory, zx81Record, zx81 := packageSelectionFixtureForCore(t, "fes.zx81")
+	cache := t.TempDir()
+	t.Cleanup(func() {
+		_ = filepath.Walk(cache, func(path string, _ os.FileInfo, _ error) error { _ = os.Chmod(path, 0o755); return nil })
+	})
+
+	pongOutput := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.pong"))
+	if _, err := PrepareCorePackageSelectionForCore(pongDirectory, pongRecord, cache, pongOutput, "fes.pong"); err != nil {
+		t.Fatal(err)
+	}
+	zx81Output := filepath.Join(cache, corePackageSelectionRecordNameForTest("fes.zx81"))
+	if _, err := PrepareCorePackageSelectionForCore(zx81Directory, zx81Record, cache, zx81Output, "fes.zx81"); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := os.ReadDir(filepath.Join(cache, "core-packages"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("package cache entries=%v", entries)
+	}
+	if err := VerifyCorePackageSelectionForCore(filepath.Join(cache, "core-packages", pong.PackageID), pongOutput, "fes.pong"); err != nil {
+		t.Fatalf("Pong package was not preserved: %v", err)
+	}
+	if err := VerifyCorePackageSelectionForCore(filepath.Join(cache, "core-packages", zx81.PackageID), zx81Output, "fes.zx81"); err != nil {
+		t.Fatalf("ZX81 package was not published: %v", err)
+	}
+}
+
 func TestCorePackageSelectionPublishesAndVerifiesExactClosedPair(t *testing.T) {
 	directory, record, selection := packageSelectionFixture(t)
 	cache := t.TempDir()
