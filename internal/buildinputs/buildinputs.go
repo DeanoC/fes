@@ -151,13 +151,19 @@ func applyRecord(artifacts *protocol.Artifacts, fields map[string]string) {
 		artifacts.ABI = abi
 	}
 	// PackageID is the legacy scalar health field. Keep Pong as the stable
-	// primary identity when a package set contains multiple FES records, while
-	// still reporting a package-only image that selects ZX81 or Coleco alone.
+	// primary identity when present. A non-Pong identity is reported only when
+	// it is the sole valid FES package identity; several non-Pong records cannot
+	// be represented by this scalar without misleading health consumers.
+	packageIDs := make([]string, 0, len(fesPackageIDKeys))
 	for _, key := range fesPackageIDKeys {
 		if packageID := digestIf(sha256Value, fields[key]); packageID != "" {
-			artifacts.PackageID = packageID
-			break
+			packageIDs = append(packageIDs, packageID)
 		}
+	}
+	if pongID := digestIf(sha256Value, fields["fes_pong_package_id"]); pongID != "" {
+		artifacts.PackageID = pongID
+	} else if len(packageIDs) == 1 {
+		artifacts.PackageID = packageIDs[0]
 	}
 	for key, system := range coreSHAKeys {
 		if value := digestIf(sha256Value, fields[key]); value != "" {

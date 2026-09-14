@@ -113,6 +113,27 @@ func TestSnapshotPrefersPongPackageIDForFESPackageSet(t *testing.T) {
 	}
 }
 
+func TestSnapshotOmitsAmbiguousNonPongPackageSet(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(root, "build-inputs")
+	record := "format=1\n" +
+		"fes_zx81_package_id=" + strings.Repeat("f", 64) + "\n" +
+		"fes_coleco_package_id=" + strings.Repeat("1", 64) + "\n"
+	if err := os.WriteFile(path, []byte(record), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	got := Snapshot(Paths{
+		BuildInputs: path,
+		Selections:  filepath.Join(root, "missing"),
+		BootJSON:    filepath.Join(root, "missing"),
+		BootIDFile:  filepath.Join(root, "missing"),
+	}, "")
+	if got == nil || got.PackageID != "" {
+		t.Fatalf("package ID = %v, want no scalar identity", got)
+	}
+}
+
 func TestSnapshotKeepsBuildInputsOverSelection(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
