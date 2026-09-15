@@ -1,4 +1,4 @@
-package host
+package targetclient
 
 import (
 	"context"
@@ -68,7 +68,7 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 	return ownership, nil
 }
 
-func (c *Client) HasKitGrant() bool { return c.kitLease.currentToken() != "" }
+func (c *Client) HasKitGrant() bool { return c.kitLease.CurrentToken() != "" }
 
 // Peer uses the configured transport and bearer for read-only validation of a
 // DNS-SD candidate, without sharing mutation authority.

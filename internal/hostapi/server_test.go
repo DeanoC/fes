@@ -21,6 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type fakeService struct {
@@ -943,7 +944,7 @@ func TestSessionDevelopmentRBFAfterExplicitNativeStopDoesNotStopAgain(t *testing
 	baseService.stopHook = func(context.Context) (protocol.Status, error) {
 		stopCalls++
 		if stopCalls > 1 {
-			return protocol.Status{}, host.ErrKitLeaseLost
+			return protocol.Status{}, targetclient.ErrKitLeaseLost
 		}
 		return protocol.Status{State: protocol.StateIdle}, nil
 	}

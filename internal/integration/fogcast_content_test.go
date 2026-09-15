@@ -19,7 +19,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
@@ -28,6 +27,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestFogCastContentEndToEnd(t *testing.T) {
@@ -218,9 +218,9 @@ func TestFogCastContentEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A different application must not replace the current owner.
-	v1Lease := host.NewKitLease(baseURL, "test-token", secondServer.Client(), "integration-v1", "legacy launch")
+	v1Lease := targetclient.NewKitLease(baseURL, "test-token", secondServer.Client(), "integration-v1", "legacy launch")
 	defer v1Lease.Close(context.Background())
-	v1Client := host.NewClient(baseURL, "test-token", secondServer.Client()).WithKitLease(v1Lease)
+	v1Client := targetclient.NewClient(baseURL, "test-token", secondServer.Client()).WithKitLease(v1Lease)
 	commandsBeforeForeignLaunch := writer.count()
 	if _, err := v1Client.Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-legacy", System: protocol.SystemSNES, ROMPath: v1ROM}); err == nil {
 		t.Fatal("foreign application replaced the current kit owner")

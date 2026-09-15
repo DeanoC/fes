@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestHTTPBridgeStarterUsesAuthenticatedTargetLease(t *testing.T) {
@@ -129,8 +131,8 @@ func TestHTTPBridgeStarterUsesKitLeaseSourceOnStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lease := NewKitLease(currentURL, "current-token", current.Client(), "host", "test")
-	starter.WithKitLeaseSource(func() *KitLease { return lease })
+	lease := targetclient.NewKitLease(currentURL, "current-token", current.Client(), "host", "test")
+	starter.WithKitLeaseSource(func() *targetclient.KitLease { return lease })
 	if _, err := starter.Start(context.Background(), BridgeSpec{Session: 9, Token: []byte("0123456789abcdef"), Core: "SNES"}); err != nil {
 		t.Fatal(err)
 	}

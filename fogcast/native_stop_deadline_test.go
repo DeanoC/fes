@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
@@ -25,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestNativeStopCompletingAfterTwoSecondTargetDeadlineReconcilesWithoutReplayAndRelaunches(t *testing.T) {
@@ -78,7 +78,7 @@ func TestNativeStopCompletingAfterTwoSecondTargetDeadlineReconcilesWithoutReplay
 	if err != nil {
 		t.Fatal(err)
 	}
-	targetClient := host.NewClient(baseURL, "test-token", targetServer.Client())
+	targetClient := targetclient.NewClient(baseURL, "test-token", targetServer.Client())
 	service := newService(
 		Config{Libraries: []catalog.Root{root}, RequestTimeout: requestTimeout, UploadTimeout: 2 * requestTimeout},
 		Paths{Staging: t.TempDir()}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetClient,

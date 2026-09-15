@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/hostexec"
@@ -26,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/romsource"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type Progress struct {
@@ -84,13 +84,13 @@ type developmentRecoveryClient interface {
 }
 
 type castClient interface {
-	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
-	CastStop(context.Context, string, uint64) (host.CastStatus, error)
+	CastStart(context.Context, string, string, uint64) (targetclient.CastStatus, error)
+	CastStop(context.Context, string, uint64) (targetclient.CastStatus, error)
 }
 
 type mediaCastClient interface {
 	castClient
-	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (host.CastStatus, error)
+	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (targetclient.CastStatus, error)
 }
 
 const (
@@ -192,7 +192,7 @@ type Service struct {
 	nextLookup     time.Time
 	lookupFailures uint
 
-	stoppedKitLease         *host.KitLease
+	stoppedKitLease         *targetclient.KitLease
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
 	activePackageID         string
@@ -316,7 +316,7 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 	operationClient := *httpClient
 	operationClient.Timeout = 0
 	var leaseMu sync.Mutex
-	var leases []*host.KitLease
+	var leases []*targetclient.KitLease
 	targetClientFactory := func(target TargetConfig) (serviceClient, error) {
 		if !target.Enabled {
 			return nil, nil
@@ -326,11 +326,11 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 			return nil, err
 		}
 		owner, _ := os.Hostname()
-		lease := host.NewKitLease(baseURL, target.Agent, &operationClient, "fogcast@"+owner, "interactive game/development session")
+		lease := targetclient.NewKitLease(baseURL, target.Agent, &operationClient, "fogcast@"+owner, "interactive game/development session")
 		leaseMu.Lock()
 		leases = append(leases, lease)
 		leaseMu.Unlock()
-		return host.NewClient(baseURL, target.Agent, &operationClient).WithKitLease(lease), nil
+		return targetclient.NewClient(baseURL, target.Agent, &operationClient).WithKitLease(lease), nil
 	}
 	selectedTarget := targetByName(config.Targets, config.SelectedTarget)
 	client, err := targetClientFactory(selectedTarget)
@@ -876,29 +876,29 @@ func (s *Service) waitForCatalogScan() bool {
 	}
 }
 
-func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
+func (s *Service) CastStart(ctx context.Context, session, token string, generation uint64) (targetclient.CastStatus, error) {
 	target, available := s.selectedClientSnapshot()
 	client, ok := target.(castClient)
 	if !available || !ok {
-		return host.CastStatus{}, errors.New("target cast control is unavailable")
+		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStart(ctx, session, token, generation)
 }
 
-func (s *Service) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (host.CastStatus, error) {
+func (s *Service) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (targetclient.CastStatus, error) {
 	target, available := s.selectedClientSnapshot()
 	client, ok := target.(mediaCastClient)
 	if !available || !ok {
-		return host.CastStatus{}, errors.New("target cast control is unavailable")
+		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStartWithMedia(ctx, session, token, generation, media)
 }
 
-func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
+func (s *Service) CastStop(ctx context.Context, session string, generation uint64) (targetclient.CastStatus, error) {
 	target, available := s.selectedClientSnapshot()
 	client, ok := target.(castClient)
 	if !available || !ok {
-		return host.CastStatus{}, errors.New("target cast control is unavailable")
+		return targetclient.CastStatus{}, errors.New("target cast control is unavailable")
 	}
 	return client.CastStop(ctx, session, generation)
 }
@@ -1753,7 +1753,7 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	// is lost and the public session layer later reconciles idle via Status.
 	s.executionMu.Lock()
 	s.stoppedKitLease = nil
-	if leased, ok := client.(interface{ KitLease() *host.KitLease }); ok {
+	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
 		s.stoppedKitLease = leased.KitLease()
 	}
 	s.executionMu.Unlock()
@@ -2720,14 +2720,14 @@ func (s *Service) SelectedTargetConfig() TargetConfig {
 }
 
 // KitLease returns the application-owned lease for the selected session target.
-func (s *Service) KitLease() *host.KitLease {
+func (s *Service) KitLease() *targetclient.KitLease {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	client, ok := s.selectedClientLocked()
 	if !ok {
 		return nil
 	}
-	if leased, ok := client.(interface{ KitLease() *host.KitLease }); ok {
+	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
 		return leased.KitLease()
 	}
 	return nil

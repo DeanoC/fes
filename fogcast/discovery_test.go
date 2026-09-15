@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
@@ -41,14 +41,14 @@ func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
 				case "/v1/health":
 					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: tc.id, BootID: "new", Ready: true})
 				case "/v1/kit/lease":
-					json.NewEncoder(w).Encode(host.KitOwnership{State: "free"})
+					json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
 				case "/v1/status":
 					json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 				}
 			}))
 			defer srv.Close()
 			base, _ := url.Parse("http://127.0.0.1:1")
-			client := host.NewClient(base, "secret", srv.Client()).WithKitLease(host.NewKitLease(base, "secret", srv.Client(), "host", "test"))
+			client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test"))
 			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: base.String(), Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 			s.resolveTarget = func(context.Context, string) ([]string, error) {
 				if tc.duplicate {
@@ -89,7 +89,7 @@ func TestReconnectBootChangeClearsLocalSessionBeforeNewLaunch(t *testing.T) {
 			if held {
 				leaseState = "held"
 			}
-			json.NewEncoder(w).Encode(host.KitOwnership{State: leaseState, Generation: generation, Owner: "test"})
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: leaseState, Generation: generation, Owner: "test"})
 		case "/v1/kit/claim":
 			claims++
 			held = true
@@ -107,8 +107,8 @@ func TestReconnectBootChangeClearsLocalSessionBeforeNewLaunch(t *testing.T) {
 	}))
 	defer server.Close()
 	base, _ := url.Parse(server.URL)
-	lease := host.NewKitLease(base, "secret", server.Client(), "test", "test")
-	client := host.NewClient(base, "secret", server.Client()).WithKitLease(lease)
+	lease := targetclient.NewKitLease(base, "secret", server.Client(), "test", "test")
+	client := targetclient.NewClient(base, "secret", server.Client()).WithKitLease(lease)
 	game := catalog.Game{ID: "pong", System: "pong", LibraryID: "builtin-pong", Kind: "builtin", State: catalog.SourceStateAvailable, RootOnline: true}
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", TargetID: id, Address: server.URL, Agent: "secret", Enabled: true}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	defer func() {
@@ -162,7 +162,7 @@ func TestReconnectBootChangeClearsLocalSessionBeforeNewLaunch(t *testing.T) {
 
 func TestReconnectCancellationBackoffAndDuplicateConcurrentLookup(t *testing.T) {
 	base, _ := url.Parse("http://127.0.0.1:1")
-	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa", Address: base.String(), Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", nil))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa", Address: base.String(), Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", nil))
 	var calls atomic.Int32
 	entered := make(chan struct{})
 	s.resolveTarget = func(ctx context.Context, _ string) ([]string, error) {
@@ -216,14 +216,14 @@ func TestDevelopmentRecoveryResolvesChangedAddressWithoutReplayingMutation(t *te
 		case "/v1/health":
 			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "new", Ready: true})
 		case "/v1/kit/lease":
-			json.NewEncoder(w).Encode(host.KitOwnership{State: "free"})
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
 		case "/v1/status":
 			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 		}
 	}))
 	defer server.Close()
 	old, _ := url.Parse("http://127.0.0.1:1")
-	client := host.NewClient(old, "secret", server.Client()).WithKitLease(host.NewKitLease(old, "secret", server.Client(), "test", "test"))
+	client := targetclient.NewClient(old, "secret", server.Client()).WithKitLease(targetclient.NewKitLease(old, "secret", server.Client(), "test", "test"))
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", TargetID: id, Address: old.String(), Agent: "secret", Enabled: true}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.resolveTarget = func(context.Context, string) ([]string, error) { return []string{server.URL}, nil }
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -240,7 +240,7 @@ func TestDevelopmentRecoveryResolvesChangedAddressWithoutReplayingMutation(t *te
 func TestDisableCancelsLookupAndLeavesUnownedOfflineTargetDisabled(t *testing.T) {
 	base, _ := url.Parse("http://127.0.0.1:1")
 	target := TargetConfig{Name: "kit", Enabled: true, Address: base.String(), Agent: "secret", TargetID: "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"}
-	s := newService(Config{Targets: []TargetConfig{target}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", nil))
+	s := newService(Config{Targets: []TargetConfig{target}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", nil))
 	entered := make(chan struct{})
 	done := make(chan struct{})
 	s.resolveTarget = func(ctx context.Context, _ string) ([]string, error) {
@@ -275,7 +275,7 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 			case "/v1/health":
 				json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same", Ready: true})
 			case "/v1/kit/lease":
-				json.NewEncoder(w).Encode(host.KitOwnership{State: "free"})
+				json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
 			case "/v1/status":
 				json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 			}
@@ -285,7 +285,7 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 	next := peer()
 	defer next.Close()
 	base, _ := url.Parse(old.URL)
-	client := host.NewClient(base, "secret", old.Client()).WithKitLease(host.NewKitLease(base, "secret", old.Client(), "host", "test"))
+	client := targetclient.NewClient(base, "secret", old.Client()).WithKitLease(targetclient.NewKitLease(base, "secret", old.Client(), "host", "test"))
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", TargetID: id, Enabled: true, Address: old.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	if _, err := s.Health(context.Background()); err != nil {
 		t.Fatal(err)
@@ -319,7 +319,7 @@ func TestVersionMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
 				Artifacts: &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40)},
 			})
 		case "/v1/kit/lease":
-			json.NewEncoder(w).Encode(host.KitOwnership{State: "free"})
+			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
 		case "/v1/status":
 			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 		case "/v1/launch":
@@ -331,7 +331,7 @@ func TestVersionMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
 	}))
 	defer srv.Close()
 	base, _ := url.Parse(srv.URL)
-	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{{ID: "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", System: protocol.SystemMegaDrive}}}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", srv.Client()))
+	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{{ID: "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", System: protocol.SystemMegaDrive}}}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", srv.Client()))
 	if _, err := s.Health(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -369,7 +369,7 @@ func TestLegacyPeerReportsReadinessAndActivityWithoutLeaseExtension(t *testing.T
 			}))
 			defer srv.Close()
 			base, _ := url.Parse(srv.URL)
-			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", srv.Client()))
+			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", srv.Client()))
 			if _, err := s.Health(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -384,7 +384,7 @@ func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
 		t.Run(execution, func(t *testing.T) {
 			base, _ := url.Parse("http://127.0.0.1:8182")
-			client := host.NewClient(base, "test", nil)
+			client := targetclient.NewClient(base, "test", nil)
 			s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
 			s.activeExecution = execution
 			s.activeGameID = "prior"

@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func serveComposition(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -425,7 +426,7 @@ type compositionTargetCast struct {
 	statusErr        error
 }
 
-func (c *compositionTargetCast) CastStart(_ context.Context, session, _ string, generation uint64) (host.CastStatus, error) {
+func (c *compositionTargetCast) CastStart(_ context.Context, session, _ string, generation uint64) (targetclient.CastStatus, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.started++
@@ -433,7 +434,7 @@ func (c *compositionTargetCast) CastStart(_ context.Context, session, _ string, 
 	c.session = session
 	c.generation = generation
 	if c.startErr != nil {
-		return host.CastStatus{}, c.startErr
+		return targetclient.CastStatus{}, c.startErr
 	}
 	reportSession, reportGeneration := session, generation
 	if c.reportSession != "" {
@@ -442,21 +443,21 @@ func (c *compositionTargetCast) CastStart(_ context.Context, session, _ string, 
 	if c.reportGeneration != 0 {
 		reportGeneration = c.reportGeneration
 	}
-	return host.CastStatus{State: "active", Session: reportSession, Generation: reportGeneration}, nil
+	return targetclient.CastStatus{State: "active", Session: reportSession, Generation: reportGeneration}, nil
 }
 
-func (c *compositionTargetCast) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (host.CastStatus, error) {
+func (c *compositionTargetCast) CastStartWithMedia(ctx context.Context, session, token string, generation uint64, media protocol.CastMediaSet) (targetclient.CastStatus, error) {
 	status, err := c.CastStart(ctx, session, token, generation)
 	if err == nil {
 		status.Media = &protocol.CastStatusMedia{Version: media.Version, Video: media.Video, Audio: media.Audio, Ready: true, Capabilities: protocol.CastMediaCapabilities{Version: protocol.CastMediaSetVersion, Video: true, Audio: true}}
 	}
 	return status, err
 }
-func (c *compositionTargetCast) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
+func (c *compositionTargetCast) CastStop(ctx context.Context, session string, generation uint64) (targetclient.CastStatus, error) {
 	c.mu.Lock()
 	if c.state == "active" && (c.session != session || c.generation != generation) {
 		c.mu.Unlock()
-		return host.CastStatus{}, errors.New("stale cast identity")
+		return targetclient.CastStatus{}, errors.New("stale cast identity")
 	}
 	c.stopped++
 	block := c.blockStop
@@ -467,20 +468,20 @@ func (c *compositionTargetCast) CastStop(ctx context.Context, session string, ge
 	c.mu.Unlock()
 	if block {
 		<-ctx.Done()
-		return host.CastStatus{}, ctx.Err()
+		return targetclient.CastStatus{}, ctx.Err()
 	}
 	if err != nil {
-		return host.CastStatus{}, err
+		return targetclient.CastStatus{}, err
 	}
-	return host.CastStatus{State: "idle"}, nil
+	return targetclient.CastStatus{State: "idle"}, nil
 }
-func (c *compositionTargetCast) CastStatus(context.Context) (host.CastStatus, error) {
+func (c *compositionTargetCast) CastStatus(context.Context) (targetclient.CastStatus, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.statusErr != nil {
-		return host.CastStatus{}, c.statusErr
+		return targetclient.CastStatus{}, c.statusErr
 	}
-	return host.CastStatus{State: c.state, Session: c.session, Generation: c.generation}, nil
+	return targetclient.CastStatus{State: c.state, Session: c.session, Generation: c.generation}, nil
 }
 func (c *compositionTargetCast) counts() (int, int) {
 	c.mu.Lock()
@@ -930,13 +931,13 @@ func TestMediaSourcesCleanupClosesCaptureWhileAudioCloseBlocks(t *testing.T) {
 
 type legacyCompositionTarget struct{ target compositionTargetCast }
 
-func (t *legacyCompositionTarget) CastStart(ctx context.Context, session, token string, generation uint64) (host.CastStatus, error) {
+func (t *legacyCompositionTarget) CastStart(ctx context.Context, session, token string, generation uint64) (targetclient.CastStatus, error) {
 	return t.target.CastStart(ctx, session, token, generation)
 }
-func (t *legacyCompositionTarget) CastStop(ctx context.Context, session string, generation uint64) (host.CastStatus, error) {
+func (t *legacyCompositionTarget) CastStop(ctx context.Context, session string, generation uint64) (targetclient.CastStatus, error) {
 	return t.target.CastStop(ctx, session, generation)
 }
-func (t *legacyCompositionTarget) CastStatus(ctx context.Context) (host.CastStatus, error) {
+func (t *legacyCompositionTarget) CastStatus(ctx context.Context) (targetclient.CastStatus, error) {
 	return t.target.CastStatus(ctx)
 }
 

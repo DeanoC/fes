@@ -21,11 +21,11 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/romsource"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 const serviceDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -640,7 +640,7 @@ func TestServiceLaunchSynchronizesDelayedFailedUploadReadWithCleanup(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := host.NewClient(baseURL, "private-token", &http.Client{Transport: transport})
+	client := targetclient.NewClient(baseURL, "private-token", &http.Client{Transport: transport})
 	root := catalog.Root{ID: game.LibraryID, System: game.System, Path: "/private/library"}
 	service := newService(
 		Config{Libraries: []catalog.Root{root}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
@@ -1480,7 +1480,7 @@ func TestServiceFPGANativeClientUsesAgentLaunchAndEmptyStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := host.NewClient(baseURL, "test-token", server.Client())
+	client := targetclient.NewClient(baseURL, "test-token", server.Client())
 	service := newService(
 		Config{
 			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
@@ -2636,7 +2636,7 @@ func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := host.NewClient(baseURL, "target-token", server.Client())
+	client := targetclient.NewClient(baseURL, "target-token", server.Client())
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
 	service.activeExecution = ExecutionFPGADevelopment
 
@@ -2735,7 +2735,7 @@ func TestServiceDevelopmentRBFLostResponseUsesStatusOnlyOnce(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			client := host.NewClient(baseURL, "test-token", server.Client())
+			client := targetclient.NewClient(baseURL, "test-token", server.Client())
 			service := newService(
 				Config{RequestTimeout: 20 * time.Millisecond, UploadTimeout: 30 * time.Millisecond},
 				Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
@@ -2791,7 +2791,7 @@ func TestServiceDevelopmentRBFLostResponseBoundsEachStatusCall(t *testing.T) {
 	baseURL, _ := url.Parse(server.URL)
 	service := newService(
 		Config{RequestTimeout: 25 * time.Millisecond, UploadTimeout: 30 * time.Millisecond},
-		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(baseURL, "test-token", server.Client()),
+		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(baseURL, "test-token", server.Client()),
 	)
 	parent, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()

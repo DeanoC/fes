@@ -22,6 +22,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type commandWriter struct {
@@ -138,11 +139,11 @@ func TestRemoteControlEndToEnd(t *testing.T) {
 		t.Fatalf("SNES launch = %#v, %v", status, err)
 	}
 	baseURL, _ := url.Parse(server.URL)
-	badTokenClient := host.NewClient(baseURL, "wrong-token", server.Client())
+	badTokenClient := targetclient.NewClient(baseURL, "wrong-token", server.Client())
 	if _, err := badTokenClient.Status(ctx); apiErrorCode(err) != protocol.CodeUnauthorized {
 		t.Fatalf("wrong-token error = %#v", err)
 	}
-	client := host.NewClient(baseURL, "test-token", server.Client())
+	client := targetclient.NewClient(baseURL, "test-token", server.Client())
 	outsideROM := filepath.Join(dir, "outside.sfc")
 	if err := os.WriteFile(outsideROM, []byte("outside"), 0o600); err != nil {
 		t.Fatal(err)

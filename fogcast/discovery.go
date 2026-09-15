@@ -6,11 +6,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type TargetConnection struct {
@@ -53,7 +53,7 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	s.executionMu.Unlock()
 	selected := targetByName(s.targets, name)
 	client, ok := s.selectedClientLocked()
-	concrete, realClient := client.(*host.Client)
+	concrete, realClient := client.(*targetclient.Client)
 	if !ok {
 		s.publishConnection(TargetConnection{State: "disconnected", Message: "Enable and configure a target address."})
 		return protocol.Health{}, errors.New("target unavailable")
@@ -186,7 +186,7 @@ func (s *Service) startTargetMonitor() {
 func (s *Service) discoveryEnabled() bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	_, real := s.targetClients[s.selectedTarget].(*host.Client)
+	_, real := s.targetClients[s.selectedTarget].(*targetclient.Client)
 	return real && targetByName(s.targets, s.selectedTarget).TargetID != ""
 }
 
@@ -217,7 +217,7 @@ func (s *Service) SetTargetReset(reset func()) {
 	s.targetMu.Unlock()
 }
 
-func (s *Service) probeTarget(ctx context.Context, client *host.Client, selected TargetConfig) (protocol.Health, string, error) {
+func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, selected TargetConfig) (protocol.Health, string, error) {
 	healthCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	health, err := client.Health(healthCtx)
 	cancel()
@@ -263,7 +263,7 @@ func (s *Service) probeTarget(ctx context.Context, client *host.Client, selected
 // The explicit development reboot already holds lifecycle admission and the
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
-	concrete, ok := client.(*host.Client)
+	concrete, ok := client.(*targetclient.Client)
 	selected := targetByName(s.targets, s.selectedTarget)
 	if !ok || selected.TargetID == "" {
 		return client.Health
@@ -298,7 +298,7 @@ func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string
 	}
 }
 
-func (s *Service) invalidateTargetSession(client *host.Client) {
+func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	client.InvalidateKitSession()
 	if s.targetReset != nil {
 		s.targetReset()
@@ -314,7 +314,7 @@ func (s *Service) invalidateTargetSession(client *host.Client) {
 	s.selectedTargetReconciled = false
 }
 
-func connectionFromStatus(health protocol.Health, status protocol.Status, ownership host.KitOwnership, address, id string) TargetConnection {
+func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {
 	connection := TargetConnection{State: "ready", Address: address, TargetID: id, BootID: health.BootID}
 	if field, _, _ := buildinputs.Check(version.Revision, buildinputs.ExpectedRuntimeCommit(), health.Artifacts); field != "" {
 		connection.State = "version_mismatch"

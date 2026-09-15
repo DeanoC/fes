@@ -75,11 +75,13 @@ they are not a distributed ownership, failover, or recovery protocol.
 FogCast keeps the host applications, host services, and target agent in one Go
 module, but the source tree names their ownership explicitly. The ten-foot UI
 and kit launcher live under `ui/tenfoot` and `ui/kitlauncher`; their Go package
-names remain `tenfoot` and `kitlauncher` for compatibility. `internal/hostapi`,
-`internal/mediasession`, and related host packages own host-facing services,
-while `internal/agent` owns target HTTP/cache coordination and
-`internal/mister` owns local MiSTer integration. UI packages may consume host
-contracts, input, and protocol types, but do not own target handlers, runtime
+names remain `tenfoot` and `kitlauncher` for compatibility. `host` and
+`internal/hostapi` own host catalog/config/library services and host-owned
+remote-input bridges. `targetclient` owns the authenticated host-to-target
+HTTP/cache/core/development transport, endpoint reconciliation, and kit leases.
+`internal/agent` owns target-side HTTP/cache coordination and `internal/mister`
+owns local MiSTer integration. UI packages may consume host, target-client,
+input, and protocol contracts, but do not own target handlers, runtime
 lifecycle, image assembly, or FPGA builds. The FES parent selects the FogCast
 revision and owns image integration and release evidence.
 
@@ -776,7 +778,7 @@ handshake:
 Normal game Stop is unchanged and continues to load `menu.rbf` through
 `/dev/MiSTer_cmd` without rebooting. The relevant source entry points are
 `internal/hostapi/session.go`, `fogcast/service.go`,
-`host/development_client.go`, `internal/httpapi/development.go`,
+`targetclient/development_client.go`, `internal/httpapi/development.go`,
 `internal/agent/coordinator.go`, and `internal/mister/runtime.go`.
 
 The exact reproducible native image passed the designated two-cycle
@@ -1124,7 +1126,7 @@ Host code consumes the runtime's `persistence_layout` metadata without a second
 ABI registry. Selection rejects persistent-to-missing/different-layout changes,
 including when no record has yet been written, and checks durable target data.
 
-`host/core_data_client.go` sends bounded archives and expected package IDs to
+`targetclient/core_data_client.go` sends bounded archives and expected package IDs to
 `internal/httpapi/core_data.go`; writes and library loads use the existing kit
 lease. Read-only data inspection does not claim hardware. The target coordinator
 serializes these calls against lifecycle operations. `internal/misterruntime/core_data.go`

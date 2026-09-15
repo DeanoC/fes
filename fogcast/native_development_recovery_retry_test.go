@@ -17,13 +17,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
@@ -61,7 +61,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := host.NewClient(baseURL, "test-token", targetServer.Client())
+	client := targetclient.NewClient(baseURL, "test-token", targetServer.Client())
 	service := newService(
 		Config{
 			Targets:        []TargetConfig{{Name: "dev", Enabled: true, Address: targetServer.URL, Agent: "test-token"}},

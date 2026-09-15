@@ -1,10 +1,8 @@
-package host
+package targetclient
 
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,7 +30,7 @@ func TestAdoptEndpointDiscardsOldGrantWithoutCleanup(t *testing.T) {
 	if err != nil || ownership.State != "free" {
 		t.Fatalf("%+v %v", ownership, err)
 	}
-	if lease.currentToken() != "" || lease.Endpoint().String() != srv.URL {
+	if lease.CurrentToken() != "" || lease.Endpoint().String() != srv.URL {
 		t.Fatal("stale lease or endpoint")
 	}
 	if err := lease.Close(context.Background()); err != nil {
@@ -71,10 +69,6 @@ func TestSameBootEndpointAdoptionValidatesGrantAndMovesInputAndRenewal(t *testin
 			lease.grant = kitLeaseGrant{Token: "token", Status: kitLeaseStatus{State: "held", Generation: "same", ExpiresInMS: 60000}}
 			lease.localExpiry = time.Now().Add(time.Minute)
 			c := NewClient(old, "secret", srv.Client()).WithKitLease(lease)
-			starter, err := NewHTTPBridgeStarter(HTTPBridgeStarterConfig{BaseURL: old, Token: "secret", KitLease: lease})
-			if err != nil {
-				t.Fatal(err)
-			}
 			ownership, err := c.AdoptEndpoint(context.Background(), next, false)
 			if err != nil {
 				t.Fatal(err)
@@ -82,8 +76,8 @@ func TestSameBootEndpointAdoptionValidatesGrantAndMovesInputAndRenewal(t *testin
 			if ownership.Owned != (generation == "same") {
 				t.Fatal("incorrect local ownership")
 			}
-			if starter.endpoint("/v1/input/attach").Host != next.Host {
-				t.Fatal("input endpoint stale")
+			if lease.Endpoint().Host != next.Host {
+				t.Fatal("lease endpoint stale")
 			}
 			lease.renew(context.Background())
 			want := int32(0)
@@ -96,28 +90,6 @@ func TestSameBootEndpointAdoptionValidatesGrantAndMovesInputAndRenewal(t *testin
 		})
 	}
 }
-
-func TestRemoteInputInvalidationDoesNotStopPreviousBridge(t *testing.T) {
-	stopped := false
-	bridge := &discoveryBridge{stopped: &stopped}
-	conn, peer := net.Pipe()
-	defer peer.Close()
-	remote := &RemoteInput{bridge: bridge, conn: conn, state: RemoteInputAttached, ready: true, session: 7}
-	remote.Invalidate()
-	peer.SetReadDeadline(time.Now().Add(time.Second))
-	if _, err := peer.Read(make([]byte, 1)); err != io.EOF {
-		t.Fatalf("old input stream not closed: %v", err)
-	}
-	if stopped || remote.bridge != nil || remote.Status().State != RemoteInputDetached {
-		t.Fatal("invalidation sent cleanup or retained stale input")
-	}
-}
-
-type discoveryBridge struct{ stopped *bool }
-
-func (b *discoveryBridge) Ready() <-chan struct{}     { ch := make(chan struct{}); close(ch); return ch }
-func (b *discoveryBridge) Endpoint() string           { return "127.0.0.1:1" }
-func (b *discoveryBridge) Stop(context.Context) error { *b.stopped = true; return nil }
 
 func TestIdentityProbeDoesNotFollowRedirect(t *testing.T) {
 	var redirected atomic.Int32

@@ -1,4 +1,4 @@
-package host_test
+package targetclient_test
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestDevelopmentMediaClientRequiresExistingLeaseAndSendsBinding(t *testing.T) {
@@ -31,16 +31,16 @@ func TestDevelopmentMediaClientRequiresExistingLeaseAndSendsBinding(t *testing.T
 		}
 		calls++
 		data, _ := io.ReadAll(r.Body)
-		if r.URL.Path != "/v1/development/media" || r.Header.Get(host.KitLeaseHeader) != "secret" || r.Header.Get("X-FogCast-Package-ID") != strings.Repeat("a", 64) || r.Header.Get("X-FogCast-Core-Generation") != "9" || string(data) != "raw" {
+		if r.URL.Path != "/v1/development/media" || r.Header.Get(targetclient.KitLeaseHeader) != "secret" || r.Header.Get("X-FogCast-Package-ID") != strings.Repeat("a", 64) || r.Header.Get("X-FogCast-Core-Generation") != "9" || string(data) != "raw" {
 			t.Errorf("invalid upload: %s headers=%v data=%q", r.URL.Path, r.Header, data)
 		}
 		json.NewEncoder(w).Encode(status)
 	}))
 	defer server.Close()
 	base, _ := url.Parse(server.URL)
-	lease := host.NewKitLease(base, "bearer", server.Client(), "test", "test")
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "test", "test")
 	defer lease.Close(context.Background())
-	client := host.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
 	b := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
 	if _, err := client.LoadDevelopmentMedia(context.Background(), 3, strings.NewReader("raw"), b); err == nil || claims != 0 || calls != 0 {
 		t.Fatal("media acquired a new lease or dispatched unowned")
