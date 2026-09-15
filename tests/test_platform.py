@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,7 +14,7 @@ from scripts.environment import build_environment
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FOGCAST = ROOT.parent / 'FogCast'
+FOGCAST = ROOT / 'sources' / 'FogCast'
 
 
 def write_tree(root, files):
@@ -118,7 +119,7 @@ class PlatformWorkspaceTests(unittest.TestCase):
 
 class PlatformBuildTests(unittest.TestCase):
     def test_build_static_arm_consumes_selected_module_without_copying(self):
-        if not FOGCAST.is_dir():
+        if not (FOGCAST / 'appliance' / 'go.mod').is_file():
             self.skipTest('selected FogCast checkout is absent')
         env = build_environment()
         with tempfile.TemporaryDirectory(prefix='fes-platform-arm-') as temporary:
@@ -137,3 +138,27 @@ class PlatformBuildTests(unittest.TestCase):
             self.assertNotRegex(encoded, r'/home/deano/')
             self.assertFalse((ROOT / 'platform' / 'go.work').exists())
             self.assertNotIn('replace github.com/DeanoC/FogCast/appliance', (ROOT / 'platform' / 'go.mod').read_text())
+
+    def test_build_rejects_platform_source_change_after_compile(self):
+        if not (FOGCAST / 'appliance' / 'go.mod').is_file():
+            self.skipTest('selected FogCast checkout is absent')
+        with tempfile.TemporaryDirectory(prefix='fes-platform-mutation-') as temporary:
+            root = Path(temporary)
+            shutil.copytree(ROOT / 'platform', root / 'platform')
+            output = root / 'fes-boot'
+            env = build_environment()
+
+            def compile_then_mutate(command, **kwargs):
+                if len(command) > 1 and command[1] == 'build':
+                    path = root / 'platform' / 'go.mod'
+                    path.write_bytes(path.read_bytes() + b'\n')
+                    return subprocess.CompletedProcess(command, 0)
+                return real_run(command, **kwargs)
+
+            real_run = fes_platform.subprocess.run
+            with (
+                    mock.patch.object(fes_platform.subprocess, 'run', side_effect=compile_then_mutate),
+                    mock.patch.object(appliance, 'validate_static_arm', return_value='a' * 64),
+            ):
+                with self.assertRaisesRegex(ValueError, 'platform source changed'):
+                    fes_platform.build_static_arm(root, FOGCAST, output, env)

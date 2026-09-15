@@ -256,6 +256,16 @@ def build_static_arm(root, fogcast, output, env):
         build_env['GOWORK'] = str(workspace)
         command = [str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output), PACKAGE]
         subprocess.run(command, cwd=platform_dir, env=build_env, check=True)
+        if git_revision(fogcast_root) != revision:
+            raise ValueError('selected FogCast revision changed during build')
+        if tree_identity(platform_dir) != platform_sha:
+            raise ValueError('FES platform source changed during build')
+        if tree_identity(appliance_dir) != appliance_sha:
+            raise ValueError('FogCast appliance-module source changed during build')
+        if subprocess.check_output([str(go_bin), 'env', 'GOVERSION'], cwd=platform_dir, env=build_env, text=True).strip() != go_version:
+            raise ValueError('Go toolchain version changed during build')
+        if _digest(go_bin) != go_sha:
+            raise ValueError('Go toolchain changed during build')
     binary_sha = _appliance_module().validate_static_arm(output)
     return binary_sha, validate_platform_build(
         platform_build_record(platform_sha, appliance_sha, revision, go_version, go_sha)
