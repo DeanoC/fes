@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/internal/coremedia"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -250,11 +251,13 @@ func mapCoreEntryError(err error) error {
 }
 
 func (s *Service) launchCoreEntry(ctx context.Context, gameID string) (protocol.CachedLaunchResponse, error) {
+	var entry catalog.CoreEntry
 	status, err := s.loadCore(ctx, func(ctx context.Context) (coreLoadSource, error) {
-		entry, err := s.CoreEntry(ctx, gameID)
+		selected, err := s.CoreEntry(ctx, gameID)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		entry = selected
 		inspection, data, err := s.readInstalledCore(ctx, entry.PackageID)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -264,7 +267,66 @@ func (s *Service) launchCoreEntry(ctx context.Context, gameID string) (protocol.
 		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
-	return protocol.CachedLaunchResponse{Status: status}, err
+	response := protocol.CachedLaunchResponse{Status: status}
+	if err != nil {
+		return response, err
+	}
+	media, ok := coremedia.Lookup(entry.CoreID)
+	if !ok {
+		return response, nil
+	}
+	if status.CorePackage == nil {
+		return response, canonicalError(protocol.CodeInternal, nil)
+	}
+	binding := s.defaultDevelopmentMediaBinding(*status.CorePackage)
+	mediaStatus, mediaErr := s.LoadDevelopmentMedia(ctx, int64(len(media)), bytes.NewReader(media), binding)
+	if mediaErr != nil {
+		stopStatus, stopErr := s.Stop(ctx)
+		if stopErr != nil {
+			recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "default core media cleanup is not confirmed", Phase: "recovery"}
+			s.executionMu.Lock()
+			s.packageRejection = recoveryErr
+			s.activeGameID, s.activeSystem = "", ""
+			s.activePackageID, s.activePackageGeneration = "", 0
+			s.executionMu.Unlock()
+			if stopStatus.State != "" {
+				mediaStatus = stopStatus
+			}
+			mediaStatus.LastError = recoveryErr
+			mediaStatus.GameID, mediaStatus.System = nil, nil
+			return protocol.CachedLaunchResponse{Status: mediaStatus}, errors.Join(recoveryErr, mediaErr, stopErr)
+		}
+		return protocol.CachedLaunchResponse{Status: stopStatus}, postMutationCoreMediaError(mediaErr)
+	}
+	return protocol.CachedLaunchResponse{Status: mediaStatus}, nil
+}
+
+func postMutationCoreMediaError(err error) error {
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	classified := *apiErr
+	classified.Phase = "recovery"
+	return &classified
+}
+
+func (s *Service) defaultDevelopmentMediaBinding(packageStatus protocol.CorePackageStatus) protocol.DevelopmentMediaBinding {
+	s.executionMu.Lock()
+	target := s.activeTarget
+	if target == "" {
+		target = s.selectedTarget
+	}
+	s.executionMu.Unlock()
+	s.targetMu.RLock()
+	targetID := targetByName(s.targets, target).TargetID
+	s.targetMu.RUnlock()
+	return protocol.DevelopmentMediaBinding{
+		PackageID:  packageStatus.PackageID,
+		Generation: packageStatus.Generation,
+		Target:     target,
+		TargetID:   targetID,
+	}
 }
 
 type coreLoadSource struct {

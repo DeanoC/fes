@@ -1118,6 +1118,18 @@ Changing the selection affects future launches. Runtime status stays truthful;
 the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
 
+Some FES library entries have a validated development-media default registered
+by exact core ID in `internal/coremedia`. After package activation, the host
+delivers that asset through the existing development-media service with the
+active package ID, generation, target and target ID; a delivery failure invokes
+the existing Stop/recovery path and is not reported as a usable launch. The
+current registered asset is the 989-byte BIOS-free Coleco Graphics I diagnostic
+(`fes.coleco`), whose expected green/orange pattern is documented in the FES
+validation record. This is a development diagnostic, not a retail cartridge
+compatibility claim. `fes.pong` remains media-free, and `fes.zx81` remains an
+explicit-media launch until a tape asset is separately validated. The explicit
+`core-media` operation remains available for alternate media.
+
 A confirmed package activation commits its host-side ownership only after the
 previous host executor stops successfully. If that cleanup fails, the service
 retains the host owner and a package recovery marker, reports the observed

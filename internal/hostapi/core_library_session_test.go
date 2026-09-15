@@ -53,6 +53,29 @@ func TestLibraryPackageLaunchPreservesInputUntilAdmission(t *testing.T) {
 	}
 }
 
+func TestLibraryPackageDefaultMediaFailureRetiresPriorOwnership(t *testing.T) {
+	gameID, system, core := "prior-game", protocol.SystemSNES, "SNES"
+	service := &fakeService{
+		launch: protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ObservedCore: &core}},
+		status: protocol.Status{State: protocol.StateIdle},
+	}
+	input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}
+	media := &fakeMediaSession{}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input), hostapi.WithMediaSession(media))
+	if launched := launchSession(t, handler, gameID); launched.Code != http.StatusOK || len(input.attach) != 1 || len(media.start) != 1 {
+		t.Fatalf("prior launch=%d %s attach=%v media=%v", launched.Code, launched.Body.String(), input.attach, media.start)
+	}
+
+	service.execution = fogcast.ExecutionFPGADevelopment
+	service.launch = protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateIdle}}
+	service.launchErr = &protocol.APIError{Code: protocol.CodeBusy, Message: "diagnostic media rejected", Phase: "recovery"}
+	service.status = protocol.Status{State: protocol.StateIdle}
+	result := launchSession(t, handler, "core-coleco")
+	if result.Code == http.StatusOK || len(input.detach) != 1 || len(media.stop) != 1 || input.status.State != host.RemoteInputDetached {
+		t.Fatalf("stale ownership survived media failure: status=%d %s detach=%v media.stop=%v input=%+v", result.Code, result.Body.String(), input.detach, media.stop, input.status)
+	}
+}
+
 func TestLibraryPackageIdentityFailureNeverAttachesInput(t *testing.T) {
 	core := "unexpected.core"
 	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("b", 64), Generation: 3, ABI: protocol.RuntimeContract{ID: "fes.simple-game", Major: 1}, BuildID: strings.Repeat("c", 32), Gamepad: true}}

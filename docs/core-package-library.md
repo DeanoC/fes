@@ -6,8 +6,11 @@ does not program the FPGA. A library entry selects an exact installed package
 ID; importing another version leaves that selection unchanged.
 
 This path supports ROM-less cores. It does not infer cartridge transport from
-a package's optional descriptive system field. Original catalog Pong and
-standalone FES Pong remain separate products.
+a package's optional descriptive system field. A separate exact-core-ID
+registry may provide a validated development-media default after package
+activation; this is not arbitrary package metadata or a retail-media
+compatibility claim. Original catalog Pong and standalone FES Pong remain
+separate products.
 
 ## Native launcher status
 
@@ -50,6 +53,14 @@ target agent posts the 40-bit matrix through runtime `set_keyboard`. A
 library launch starts BASIC (empty `LOAD ""` reports `0/0`). A `.p` blob is
 still delivered with runtime `load_media`, not the host session API.
 `core-load` remains the development loader and does not create this entry.
+
+Standalone FES ColecoVision is also a ROM-less `fes.simple-computer` package
+(`fes.coleco`). Its normal library launch uses the registered 989-byte
+Coleco Graphics I diagnostic through the existing development-media path, so
+the BIOS-free core reaches its expected diagnostic pattern without a separate
+manual upload. The explicit `core-media` operation remains available for
+alternate media. No default ZX81 tape is registered until its source asset and
+target behavior have been validated.
 
 To select another installed version or return to a retained version:
 

@@ -1505,6 +1505,9 @@ func corePackagePreMutationFailure(err error) bool {
 	if !errors.As(err, &apiErr) {
 		return false
 	}
+	if apiErr.Phase == "recovery" {
+		return false
+	}
 	if apiErr.Code == protocol.CodeBusy {
 		return true
 	}
