@@ -30,7 +30,7 @@ endif
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
-test: build-agent test-ui
+test: build-agent test-ui test-target-boundary
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-megadrive-support-truth_test.sh
