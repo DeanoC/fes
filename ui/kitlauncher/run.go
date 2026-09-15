@@ -2,7 +2,6 @@ package kitlauncher
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +41,65 @@ type observation struct {
 	mutation       bool
 	message        string
 	hostAbsent     bool
+}
+
+const hostUnavailableMessage = "Host unavailable"
+
+func sessionOperationMessage(result tenfoot.SessionResult, err error) string {
+	code := boundedSessionCode(result.ErrorCode)
+	message := boundedSessionText(result.ErrorMessage, 120)
+	if code != "" {
+		if message != "" {
+			return code + ": " + message
+		}
+		return code
+	}
+	if err != nil && result.HTTPStatus == 0 {
+		return hostUnavailableMessage
+	}
+	if err != nil || result.HTTPStatus >= 400 {
+		return "Operation failed"
+	}
+	return ""
+}
+
+func boundedSessionCode(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var out strings.Builder
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.' {
+			out.WriteRune(r)
+		}
+		if out.Len() >= 64 {
+			break
+		}
+	}
+	return out.String()
+}
+
+func boundedSessionText(value string, limit int) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var out strings.Builder
+	for _, r := range value {
+		switch r {
+		case '\n', '\r', '\t':
+			out.WriteByte(' ')
+		default:
+			if r >= 0x20 && r != 0x7f {
+				out.WriteRune(r)
+			}
+		}
+		if out.Len() >= limit {
+			break
+		}
+	}
+	return strings.TrimSpace(out.String())
 }
 
 // Run keeps device/UI work on one loop. Slow host requests run outside that loop;
@@ -112,11 +170,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err != nil {
 				o.hostAbsent = true
 				o.err = nil
-				if c.hostlessHeld() {
-					if st, stErr := c.hostless.status(ctx); stErr == nil {
-						o.session = sessionFromStatus(st)
-					}
-				}
 			}
 			if o.err == nil && !o.hostAbsent {
 				o.health, o.err = c.Library.Health(ctx)
@@ -192,54 +245,21 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.Message = "Stopping game"
 			present(m)
 		}
-		game, _ := m.lookupGame(id)
-		hostless := !m.Connected
 		go func() {
 			o := observation{epoch: e, mutation: true}
 			var r tenfoot.SessionResult
 			var err error
 			if action == "launch" {
-				if hostless {
-					o.hostAbsent = true
-					resp, launchErr := c.hostless.launch(ctx, game)
-					err = launchErr
-					if err == nil {
-						o.session = sessionFromStatus(resp.Status)
-					}
-				} else {
-					r, err = c.Library.Launch(ctx, id)
-				}
-			} else if action == "hostless-yield" {
-				sess, yieldErr := c.hostless.stopAndRelease(ctx)
-				err = yieldErr
-				if c.hostlessHeld() {
-					o.hostAbsent = true
-					if sess.State != "" {
-						o.session = sess
-					}
-				}
-			} else if c.hostlessHeld() {
-				o.hostAbsent = true
-				sess, stopErr := c.hostless.stopAndRelease(ctx)
-				err = stopErr
-				if sess.State != "" {
-					o.session = sess
-				}
+				r, err = c.Library.Launch(ctx, id)
 			} else {
 				r, err = c.Library.Stop(ctx)
 			}
 			if err != nil {
-				var refuse hostlessRefuse
-				if errors.As(err, &refuse) {
-					o.message = refuse.reason
-				} else if r.HTTPStatus >= 400 {
-					o.message = "Operation failed; retry Stop with Select + Start"
-				} else {
-					o.message = "Operation failed; retry Stop with Select + Start"
-				}
-			} else if r.HTTPStatus >= 400 {
-				o.message = "Operation failed; retry Stop with Select + Start"
-			} else if !o.hostAbsent && (action != "launch" || !hostless) {
+				o.message = sessionOperationMessage(r, err)
+				o.hostAbsent = r.HTTPStatus == 0
+			} else if r.ErrorCode != "" || r.HTTPStatus >= 400 {
+				o.message = sessionOperationMessage(r, nil)
+			} else {
 				o.session, o.err = c.Session(ctx)
 			}
 			send(o)
@@ -280,19 +300,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Session = o.session
 				}
 				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
-					if m.Message != RefuseNeedsHost && m.Message != RefuseKitInUse {
+					if m.Message != hostUnavailableMessage {
 						m.Message = OfflineMessage
 					}
 				}
-				// Keep the Select+Start chord across offline polls so a
-				// hostless game can still be stopped.
 				if stream != nil {
 					closeInput()
 				}
-				continue
-			}
-			if c.hostlessHeld() && !o.mutation {
-				mutate("hostless-yield")
 				continue
 			}
 			m.Connected = true

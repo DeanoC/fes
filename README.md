@@ -199,13 +199,10 @@ Host games may include `rom_cached` when that inventory is reachable.
 Power-on paints that shelf and visible covers
 from disk before host games HTTP; an absent host shows `Offline - local library`.
 Replacing the system image does not wipe this tree. D-pad and A still browse
-that local shelf. When the host is absent, A may launch a title whose ROM is
-already verified under `/media/fat/fogcast/cache` by claiming the existing
-target lease as owner `kit-hostless` / purpose `offline-cache-hit-launch`.
-Foreign leases, unverified or `.part` bytes, ROM-less cores, and packages are
-refused with a clear reason and no FPGA mutation. Host return releases that
-hostless grant before the host claims. Package/ABI offline launch remains
-hold. D-pad browse does not take a lease. Its live catalog opens as a living-room platform wheel
+that local shelf. Launch and Stop remain bound to the persistent host session
+API and wait for host reconnect; the kit UI does not claim a target lease or
+send direct target mutations while offline. D-pad browse does not take a lease.
+Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
 a catalog browse view through `ui/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
@@ -418,7 +415,10 @@ session response. Input is enabled only when the active verified package
 provides `fes.gamepad`; raw development RBF input stays disabled. The command
 line provides `fogcast core-inspect PATH` for local inspection without a kit
 connection and `fogcast core-load PATH` for a mutation owned by the running
-host session. `core-load` calls the host API selected by `--api`, then
+host session. Ordinary `fogcast launch`, `status`, and `stop` use the same
+persistent `/api/v1/session/*` API and origin precedence; they no longer open a
+short-lived service or emit the old `{status,content}` launch envelope.
+`core-load` calls the host API selected by `--api`, then
 `FOGCAST_API`, then `http://127.0.0.1:8787`; it does not open an independent
 target service. The archive inspection and upload use the same bounded byte
 snapshot. Success requires the returned package ID, ABI, build ID, positive

@@ -9,7 +9,7 @@ import (
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
-func TestOfflineLocalCatalogBrowsesAndLaunchableTitlesRequestLaunch(t *testing.T) {
+func TestOfflineLocalCatalogBrowsesWithoutLaunch(t *testing.T) {
 	m := Model{Connected: false, TargetReady: false, WheelOpen: true}
 	m.SetCatalog(mixedCatalog())
 	now := time.Unix(1, 0)
@@ -35,7 +35,7 @@ func TestOfflineLocalCatalogBrowsesAndLaunchableTitlesRequestLaunch(t *testing.T
 	if m.Focus != 1 || m.Games[m.Focus].ID != "streets" {
 		t.Fatalf("offline grid focus=%d games=%v", m.Focus, ids(m.Games))
 	}
-	if action := pressNamed(&m, "a", now); action != "launch" {
+	if action := pressNamed(&m, "a", now); action != "" {
 		t.Fatalf("offline grid A %q", action)
 	}
 	m.fromWheel = false
@@ -45,7 +45,7 @@ func TestOfflineLocalCatalogBrowsesAndLaunchableTitlesRequestLaunch(t *testing.T
 	if !m.DetailOpen {
 		t.Fatal("offline B did not open detail")
 	}
-	if action := pressNamed(&m, "a", now); action != "launch" {
+	if action := pressNamed(&m, "a", now); action != "" {
 		t.Fatalf("offline detail A %q", action)
 	}
 }

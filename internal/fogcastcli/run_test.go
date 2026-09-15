@@ -24,15 +24,11 @@ type fakeService struct {
 	scanReport   catalog.ScanReport
 	games        []catalog.Game
 	health       protocol.Health
-	status       protocol.Status
-	launch       protocol.CachedLaunchResponse
 	err          error
 	closeErr     error
 	searchQuery  string
-	launchID     string
 	closeCalls   int
 	operationCtx context.Context
-	progress     []fogcast.Progress
 	operation    func(context.Context)
 }
 
@@ -55,28 +51,9 @@ func (f *fakeService) Search(ctx context.Context, query string) ([]catalog.Game,
 	return f.games, f.err
 }
 
-func (f *fakeService) Launch(ctx context.Context, id string, progress fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	f.operationCtx = ctx
-	f.launchID = id
-	for _, update := range f.progress {
-		progress(update)
-	}
-	return f.launch, f.err
-}
-
 func (f *fakeService) Health(ctx context.Context) (protocol.Health, error) {
 	f.operationCtx = ctx
 	return f.health, f.err
-}
-
-func (f *fakeService) Status(ctx context.Context) (protocol.Status, error) {
-	f.operationCtx = ctx
-	return f.status, f.err
-}
-
-func (f *fakeService) Stop(ctx context.Context) (protocol.Status, error) {
-	f.operationCtx = ctx
-	return f.status, f.err
 }
 
 func (f *fakeService) Close() error {
@@ -91,12 +68,12 @@ func (f *fakeService) SyncFacets(ctx context.Context) (int, error) {
 
 func TestRunAcceptsEveryCommandAndRejectsEveryWrongArityBeforeOpen(t *testing.T) {
 	valid := [][]string{
-		{"scan"}, {"games"}, {"search", "literal"}, {"launch", "snes-game-123456789abc"},
-		{"health"}, {"status"}, {"stop"}, {"facets-sync"},
+		{"scan"}, {"games"}, {"search", "literal"},
+		{"health"}, {"facets-sync"},
 	}
 	for _, args := range valid {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
-			service := &fakeService{health: protocol.Health{Ready: true}, status: protocol.Status{State: protocol.StateIdle}}
+			service := &fakeService{health: protocol.Health{Ready: true}}
 			exit := Run(context.Background(), args, io.Discard, io.Discard, func(context.Context, fogcast.Paths) (Service, error) {
 				return service, nil
 			})
@@ -488,23 +465,16 @@ func TestRunGamesAndSearchUseDeterministicCuratedResults(t *testing.T) {
 }
 
 func TestRunControlCommandsAndHealthExitStatus(t *testing.T) {
-	gameID := "snes-game-123456789abc"
-	system := protocol.SystemSNES
-	core := "SNES"
-	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}
 	tests := []struct {
-		name       string
-		args       []string
-		service    *fakeService
-		wantExit   int
-		wantHuman  string
-		wantJSON   string
-		wantLaunch string
+		name      string
+		args      []string
+		service   *fakeService
+		wantExit  int
+		wantHuman string
+		wantJSON  string
 	}{
 		{name: "health ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{APIVersion: "v2", AgentVersion: "test", Ready: true, MiSTerProcess: true, CommandPipe: true}}, wantHuman: "ready\n", wantJSON: "{\"api_version\":\"v2\",\"agent_version\":\"test\",\"ready\":true,\"mister_process\":true,\"command_pipe\":true}\n"},
 		{name: "health not ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{Ready: false}}, wantExit: 1, wantHuman: "not ready\n", wantJSON: "{\"api_version\":\"\",\"agent_version\":\"\",\"ready\":false,\"mister_process\":false,\"command_pipe\":false}\n"},
-		{name: "status", args: []string{"status"}, service: &fakeService{status: active}, wantHuman: "active: snes-game-123456789abc (SNES)\n", wantJSON: "{\"state\":\"active\",\"game_id\":\"snes-game-123456789abc\",\"system\":\"snes\",\"core\":\"SNES\"}\n"},
-		{name: "stop", args: []string{"stop"}, service: &fakeService{status: protocol.Status{State: protocol.StateIdle}}, wantHuman: "idle\n", wantJSON: "{\"state\":\"idle\"}\n"},
 	}
 	for _, test := range tests {
 		t.Run(test.name+" human", func(t *testing.T) {
@@ -519,15 +489,7 @@ func TestRunControlCommandsAndHealthExitStatus(t *testing.T) {
 			copyService.closeCalls = 0
 			var stdout, stderr bytes.Buffer
 			exit := Run(context.Background(), append([]string{"--json"}, test.args...), &stdout, &stderr, openFake(&copyService))
-			want := test.wantJSON
-			if want == "" {
-				encoded, err := json.Marshal(copyService.status)
-				if err != nil {
-					t.Fatal(err)
-				}
-				want = string(encoded) + "\n"
-			}
-			if exit != test.wantExit || stdout.String() != want || stderr.Len() != 0 || copyService.closeCalls != 1 {
+			if exit != test.wantExit || stdout.String() != test.wantJSON || stderr.Len() != 0 || copyService.closeCalls != 1 {
 				t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), copyService.closeCalls)
 			}
 			assertOneJSONValue(t, stdout.Bytes())
@@ -535,119 +497,9 @@ func TestRunControlCommandsAndHealthExitStatus(t *testing.T) {
 	}
 }
 
-func TestRunSanitizesSuccessfulStatusAndStopOutput(t *testing.T) {
-	private := "/Volumes/private/token-secret"
-	oversizedGameID := strings.Repeat("a", 4096)
-	privateSystem := protocol.System(private)
-	privateCore := private + strings.Repeat("x", 4096)
-	privateCode := protocol.ErrorCode(private)
-	hostile := protocol.Status{
-		State:        protocol.StateActive,
-		GameID:       &oversizedGameID,
-		System:       &privateSystem,
-		ExpectedCore: &privateCore,
-		ObservedCore: &privateCore,
-		LastError:    &protocol.APIError{Code: privateCode, Message: private},
-	}
-	gameID := "snes-game-123456789abc"
-	system := protocol.SystemSNES
-	expected, observed := "SNES", "MENU"
-	failed := protocol.Status{
-		State: protocol.StateFailed, GameID: &gameID, System: &system,
-		ExpectedCore: &expected, ObservedCore: &observed,
-		LastError: &protocol.APIError{Code: protocol.CodeCoreTimeout, Message: private},
-	}
-
-	for _, command := range []string{"status", "stop"} {
-		for _, test := range []struct {
-			name      string
-			status    protocol.Status
-			wantHuman string
-			wantJSON  string
-		}{
-			{name: "hostile optional fields", status: hostile, wantHuman: "active\n", wantJSON: "{\"state\":\"active\"}\n"},
-			{name: "canonical failed fields", status: failed, wantHuman: "failed: snes-game-123456789abc (MENU) error=CORE_TIMEOUT\n", wantJSON: "{\"state\":\"failed\",\"game_id\":\"snes-game-123456789abc\",\"system\":\"snes\",\"core\":\"MENU\",\"error\":{\"code\":\"CORE_TIMEOUT\",\"message\":\"core transition timed out\"}}\n"},
-		} {
-			t.Run(command+"_"+test.name+"_human", func(t *testing.T) {
-				service := &fakeService{status: test.status}
-				var stdout, stderr bytes.Buffer
-				exit := Run(context.Background(), []string{command}, &stdout, &stderr, openFake(service))
-				if exit != 0 || stdout.String() != test.wantHuman || stderr.Len() != 0 || service.closeCalls != 1 {
-					t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
-				}
-				if strings.Contains(stdout.String()+stderr.String(), private) || strings.Contains(stdout.String(), oversizedGameID) {
-					t.Fatalf("output leaked hostile status: stdout=%q stderr=%q", stdout.String(), stderr.String())
-				}
-			})
-			t.Run(command+"_"+test.name+"_JSON", func(t *testing.T) {
-				service := &fakeService{status: test.status}
-				var stdout, stderr bytes.Buffer
-				exit := Run(context.Background(), []string{"--json", command}, &stdout, &stderr, openFake(service))
-				if exit != 0 || stdout.String() != test.wantJSON || stderr.Len() != 0 || service.closeCalls != 1 {
-					t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
-				}
-				assertOneJSONValue(t, stdout.Bytes())
-				if strings.Contains(stdout.String()+stderr.String(), private) || strings.Contains(stdout.String(), oversizedGameID) {
-					t.Fatalf("output leaked hostile status: stdout=%q stderr=%q", stdout.String(), stderr.String())
-				}
-			})
-		}
-	}
-}
-
-func TestRunRejectsUnknownSuccessfulStatusStateWithoutReflection(t *testing.T) {
-	private := protocol.State("/Volumes/private/token-secret")
-	for _, command := range []string{"status", "stop"} {
-		service := &fakeService{status: protocol.Status{State: private}}
-		var stdout, stderr bytes.Buffer
-		exit := Run(context.Background(), []string{command}, &stdout, &stderr, openFake(service))
-		if exit != 1 || stdout.Len() != 0 || stderr.String() != "INTERNAL: FogCast operation failed internally\n" || service.closeCalls != 1 {
-			t.Fatalf("command=%s exit=%d stdout=%q stderr=%q close=%d", command, exit, stdout.String(), stderr.String(), service.closeCalls)
-		}
-		assertPrivateAbsent(t, stdout.String()+stderr.String())
-	}
-}
-
-func TestRunLaunchSeparatesHumanAndJSONProgress(t *testing.T) {
-	gameID := "snes-game-123456789abc"
-	system := protocol.SystemSNES
-	core := "SNES"
-	response := protocol.CachedLaunchResponse{
-		Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core},
-		Content: protocol.ContentIdentity{SHA256: strings.Repeat("a", 64), Size: 1024, Extension: "sfc"},
-	}
-	progress := []fogcast.Progress{{Stage: "cache", Message: "checking target cache"}, {Stage: "launch", Message: "launching cached content"}}
-
-	var humanOut, humanErr bytes.Buffer
-	humanService := &fakeService{launch: response, progress: progress}
-	if exit := Run(context.Background(), []string{"launch", gameID}, &humanOut, &humanErr, openFake(humanService)); exit != 0 {
-		t.Fatalf("human exit=%d stderr=%q", exit, humanErr.String())
-	}
-	wantHuman := "cache: checking target cache\nlaunch: launching cached content\nactive: snes-game-123456789abc (SNES)\n"
-	if humanOut.String() != wantHuman || humanErr.Len() != 0 || humanService.launchID != gameID {
-		t.Fatalf("stdout=%q stderr=%q launch=%q", humanOut.String(), humanErr.String(), humanService.launchID)
-	}
-
-	var jsonOut, jsonErr bytes.Buffer
-	jsonService := &fakeService{launch: response, progress: progress}
-	if exit := Run(context.Background(), []string{"--json", "launch", gameID}, &jsonOut, &jsonErr, openFake(jsonService)); exit != 0 {
-		t.Fatalf("JSON exit=%d stderr=%q", exit, jsonErr.String())
-	}
-	wantProgress := "{\"stage\":\"cache\",\"message\":\"checking target cache\"}\n{\"stage\":\"launch\",\"message\":\"launching cached content\"}\n"
-	if jsonErr.String() != wantProgress {
-		t.Fatalf("progress=%q", jsonErr.String())
-	}
-	assertOneJSONValue(t, jsonOut.Bytes())
-	var decoded protocol.CachedLaunchResponse
-	if err := json.Unmarshal(jsonOut.Bytes(), &decoded); err != nil || decoded.Content != response.Content || decoded.Status.State != protocol.StateActive {
-		t.Fatalf("JSON=%q decoded=%+v error=%v", jsonOut.String(), decoded, err)
-	}
-}
-
 func TestRunEveryCommandFailureIsTypedPrivateAndClosed(t *testing.T) {
 	private := "/Volumes/private/token-secret"
 	operationErr := errors.Join(&protocol.APIError{Code: protocol.CodeSourceUnavailable, Message: private}, errors.New(private))
-	progress := []fogcast.Progress{{Stage: "cache", Message: "checking target cache"}}
 	commands := []struct {
 		name string
 		args []string
@@ -655,41 +507,27 @@ func TestRunEveryCommandFailureIsTypedPrivateAndClosed(t *testing.T) {
 		{name: "scan", args: []string{"scan"}},
 		{name: "games", args: []string{"games"}},
 		{name: "search", args: []string{"search", "literal"}},
-		{name: "launch", args: []string{"launch", "snes-game-123456789abc"}},
 		{name: "health", args: []string{"health"}},
-		{name: "status", args: []string{"status"}},
-		{name: "stop", args: []string{"stop"}},
 	}
 	for _, command := range commands {
 		t.Run(command.name+" human", func(t *testing.T) {
-			service := &fakeService{err: operationErr, progress: progress}
+			service := &fakeService{err: operationErr}
 			var stdout, stderr bytes.Buffer
 			exit := Run(context.Background(), command.args, &stdout, &stderr, openFake(service))
-			wantStdout := ""
-			if command.name == "launch" {
-				wantStdout = "cache: checking target cache\n"
-			}
-			if exit != 1 || stdout.String() != wantStdout || stderr.String() != "SOURCE_UNAVAILABLE: game source is unavailable\n" || service.closeCalls != 1 {
+			if exit != 1 || stdout.Len() != 0 || stderr.String() != "SOURCE_UNAVAILABLE: game source is unavailable\n" || service.closeCalls != 1 {
 				t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
 			}
 			assertPrivateAbsent(t, stdout.String()+stderr.String())
 		})
 		t.Run(command.name+" JSON", func(t *testing.T) {
-			service := &fakeService{err: operationErr, progress: progress}
+			service := &fakeService{err: operationErr}
 			var stdout, stderr bytes.Buffer
 			exit := Run(context.Background(), append([]string{"--json"}, command.args...), &stdout, &stderr, openFake(service))
-			wantStderr := ""
-			if command.name == "launch" {
-				wantStderr = "{\"stage\":\"cache\",\"message\":\"checking target cache\"}\n"
-			}
 			wantStdout := "{\"error\":{\"code\":\"SOURCE_UNAVAILABLE\",\"message\":\"game source is unavailable\"}}\n"
-			if exit != 1 || stdout.String() != wantStdout || stderr.String() != wantStderr || service.closeCalls != 1 {
+			if exit != 1 || stdout.String() != wantStdout || stderr.Len() != 0 || service.closeCalls != 1 {
 				t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
 			}
 			assertOneJSONValue(t, stdout.Bytes())
-			if command.name == "launch" {
-				assertOneJSONValue(t, stderr.Bytes())
-			}
 			assertPrivateAbsent(t, stdout.String()+stderr.String())
 		})
 	}
@@ -712,7 +550,7 @@ func TestRunReturnsConciseTypedErrorsWithoutPrivateDetailsAndStillCloses(t *test
 		t.Run(test.name+" human", func(t *testing.T) {
 			service := &fakeService{err: test.err}
 			var stdout, stderr bytes.Buffer
-			exit := Run(context.Background(), []string{"status"}, &stdout, &stderr, openFake(service))
+			exit := Run(context.Background(), []string{"games"}, &stdout, &stderr, openFake(service))
 			if exit != 1 || stdout.Len() != 0 || stderr.String() != test.wantHuman || service.closeCalls != 1 {
 				t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
 			}
@@ -721,7 +559,7 @@ func TestRunReturnsConciseTypedErrorsWithoutPrivateDetailsAndStillCloses(t *test
 		t.Run(test.name+" JSON", func(t *testing.T) {
 			service := &fakeService{err: test.err}
 			var stdout, stderr bytes.Buffer
-			exit := Run(context.Background(), []string{"--json", "status"}, &stdout, &stderr, openFake(service))
+			exit := Run(context.Background(), []string{"--json", "games"}, &stdout, &stderr, openFake(service))
 			if exit != 1 || stdout.String() != test.wantJSON || stderr.Len() != 0 || service.closeCalls != 1 {
 				t.Fatalf("exit=%d stdout=%q stderr=%q close=%d", exit, stdout.String(), stderr.String(), service.closeCalls)
 			}
@@ -735,9 +573,8 @@ func TestRunContextCausesWinOverJoinedAPIErrors(t *testing.T) {
 	private := "/Volumes/private/token-secret"
 	commands := [][]string{
 		{"health"},
-		{"status"},
-		{"stop"},
-		{"launch", "snes-game-123456789abc"},
+		{"games"},
+		{"scan"},
 	}
 	causes := []struct {
 		name string
@@ -840,17 +677,6 @@ func TestRunTreatsFinalAndProgressWriterFailuresAsOperationsAndCloses(t *testing
 			t.Fatalf("exit=%d stderr=%q close=%d", exit, stderr.String(), service.closeCalls)
 		}
 		assertPrivateAbsent(t, stderr.String())
-	})
-	t.Run("JSON progress", func(t *testing.T) {
-		gameID := "snes-game-123456789abc"
-		service := &fakeService{progress: []fogcast.Progress{{Stage: "cache", Message: "checking target cache"}}}
-		var stdout bytes.Buffer
-		exit := Run(context.Background(), []string{"--json", "launch", gameID}, &stdout, failWriter{privateErr}, openFake(service))
-		want := "{\"error\":{\"code\":\"INTERNAL\",\"message\":\"FogCast operation failed internally\"}}\n"
-		if exit != 1 || stdout.String() != want || service.closeCalls != 1 {
-			t.Fatalf("exit=%d stdout=%q close=%d", exit, stdout.String(), service.closeCalls)
-		}
-		assertPrivateAbsent(t, stdout.String())
 	})
 }
 

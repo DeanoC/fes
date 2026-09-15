@@ -30,12 +30,11 @@ probe of that inventory while the host is up — not a hostless launch grant.
 Boot paints the last-good shelf from
 disk before host games HTTP and decodes visible covers from disk first. An absent
 host shows `Offline - local library` rather than an endless reconnect. Local D-pad
-and A still browse that snapshot. Offline A launches only a verified ROM cache
-hit by claiming the on-kit agent lease as `kit-hostless` / `offline-cache-hit-launch`;
-cache misses, packages, ROM-less titles, and a foreign lease stay on the shelf
-with `Needs host` or `Kit in use`. See [the host connection contract](launcher-host.md) for listener
-configuration and exact HTTP/input-stream schemas. Host endpoint configuration is
-explicit; target discovery is separate.
+and A still browse that snapshot. Launch and Stop remain disabled or unavailable
+until the configured host API reconnects; the launcher never claims a target
+lease or sends a direct target launch while offline. See [the host connection
+contract](launcher-host.md) for listener configuration and exact HTTP/input-stream
+schemas. Host endpoint configuration is explicit; target discovery is separate.
 
 ## Physical controls
 

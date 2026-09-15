@@ -229,24 +229,10 @@ func (m *Model) axisStep(hold *int, value int32) int {
 	return move
 }
 
-// canLaunch admits host session launch, or a hostless cache-hit attempt when
-// the host is absent. Fail-closed checks run at mutate time.
+// canLaunch admits a launch only when the configured host API and target are
+// currently ready. Cached catalog rows remain browseable while disconnected.
 func (m Model) canLaunch() bool {
-	if m.Connected {
-		return m.TargetReady
-	}
-	return true
-}
-
-func (m Model) lookupGame(id string) (tenfoot.Game, bool) {
-	for _, pool := range [][]tenfoot.Game{m.Catalog, m.Games, m.Strip} {
-		for _, game := range pool {
-			if game.ID == id {
-				return game, true
-			}
-		}
-	}
-	return tenfoot.Game{}, false
+	return m.Connected && m.TargetReady
 }
 
 func (m *Model) Tick(now time.Time) string {

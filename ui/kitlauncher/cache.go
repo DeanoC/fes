@@ -22,9 +22,8 @@ const (
 	// Replacing the system image does not wipe it.
 	DefaultCacheRoot = "/media/fat/fogcast/launcher-cache"
 
-	// OfflineMessage is the kit footer when the host is absent. Verified ROM
-	// cache hits may launch through the kit-hostless lease; other titles stay
-	// on local browse with a clear refuse reason.
+	// OfflineMessage is the kit footer when the host is absent. Cached catalog
+	// rows remain browseable; lifecycle mutations wait for the host API.
 	OfflineMessage = "Offline - local library"
 
 	connectingMessage = "Connecting to FogCast"
@@ -477,7 +476,7 @@ func mergeCacheStatus(store *DiskStore, host tenfoot.LibraryCache, haveHost bool
 
 func isTransientStatus(message string) bool {
 	switch message {
-	case connectingMessage, OfflineMessage, "Kit in use", "Kit unavailable", "Kit not ready":
+	case connectingMessage, OfflineMessage, hostUnavailableMessage, "Kit in use", "Kit unavailable", "Kit not ready":
 		return true
 	default:
 		return false

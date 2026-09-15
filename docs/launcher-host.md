@@ -35,10 +35,9 @@ serialized so an address/selection edit cannot redirect an in-flight launch.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
 `Offline - local library`. Local D-pad/A still browse that snapshot. Offline
-play is limited to verified ROM cache hits: the kit process claims the target
-agent lease as `kit-hostless` / `offline-cache-hit-launch` and calls the
-existing cached-launch API. It does not SSH, write `/dev/MiSTer_cmd`, or take
-a foreign lease. Package and ROM-less titles still need the host.
+launch and Stop are disabled or unavailable until the configured host API
+reconnects. The kit process never claims a target lease or calls a direct target
+launch path; all lifecycle mutations go through the persistent host session API.
 
 Allowed operations are:
 

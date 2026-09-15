@@ -5,8 +5,8 @@ This is the canonical description of the working system.
 ## Normal FPGA game launch
 
 ```text
-Browser UI
-  -> POST /api/v1/session/launch
+Browser UI, kit launcher, or `fogcast launch|status|stop`
+  -> GET /api/v1/session, POST /api/v1/session/launch, POST /api/v1/session/stop
   -> host session service
   -> target /v2/cache and /v2/launch
   -> mister-agent
@@ -28,7 +28,8 @@ The important source entry points are:
 - `internal/mister/runtime.go`: MGL creation, command dispatch, core
   observation, and stop.
 
-The browser sends a game ID. The host resolves it through the catalog and
+The browser, kit launcher, and ordinary CLI send a game ID to the same
+persistent host session. The host resolves it through the catalog and
 system table, uploads a cache miss, and calls the target agent. The agent
 writes the MGL atomically and sends `load_core <mgl>` to `/dev/MiSTer_cmd`.
 FogCast waits for the expected value in `/tmp/CORENAME`. Stop uses the same
@@ -334,6 +335,19 @@ archive snapshot, and the command never opens or closes a target-owning
 `Service`. It accepts success only when the returned active package has the
 same package, ABI, and build identities, a positive generation, and a valid
 descriptor-consistent active-interface set.
+
+`fogcast launch <game-id>`, `fogcast status`, and `fogcast stop` use that same
+running host session API rather than constructing a short-lived `Service`.
+Launch is `POST /api/v1/session/launch` with `{"game_id":"..."}`; status is
+`GET /api/v1/session`; stop is `POST /api/v1/session/stop`. Origin precedence
+matches `core-load`. JSON output is the public host session object (`id`,
+`game_id`, `state`, `execution`, `core_package`, `input`, and the other public
+session fields). That replaces the earlier CLI launch `{status,content}`
+cached-launch envelope. A failed request does not open a new service or repeat
+the mutation. `fogcast health` and catalog commands (`scan`, `games`, `search`,
+and the other local library commands) still open the injected host service;
+agent health is not session readiness. The host service continues to call
+target `POST /v2/launch` through `targetclient.LaunchContent`.
 
 ### Development media upload
 
@@ -806,10 +820,8 @@ CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
 retries reuse the same ID. Cache transfer, status inspection, and
 `GET /v2/hostless/identity/{game_id}` do not reserve the kit. A Stop
 ends the current runtime session but retains ownership for another launch.
-When the host is absent, `fogcast-kit` claims owner `kit-hostless` with
-purpose `offline-cache-hit-launch` for verified ROM cache hits only. That
-owner cannot cast, attach input, load development images, or reboot; it
-releases before a returning host claims.
+The host session service owns lifecycle mutations; the kit launcher never
+creates a second hostless owner when the configured host is unavailable.
 
 Renew and release use empty POST bodies at `/v1/kit/renew` and
 `/v1/kit/release`. The production lease lasts 90 seconds; active clients renew
@@ -922,17 +934,11 @@ catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
 when the target inventory is reachable; ROM-less rows omit it. Boot paints that
 shelf from disk before host games HTTP, decodes
 visible covers from disk first, and labels an absent host `Offline - local library`.
-Local D-pad/A still browse that snapshot. When the host is unreachable, A
-may launch a verified ROM cache hit through the target agent lease as owner
-`kit-hostless` / purpose `offline-cache-hit-launch`. That path uses the same
-`/v2/launch` mutation as the host, after a lease-free identity lookup at
-`GET /v2/hostless/identity/{game_id}` and a probe+hash as `targetcache` does
-today. Foreign leases, packages, ROM-less cores, and unverified bytes refuse
-without programming the FPGA. Cache GET/PUT stay lease-free. The hostless
-owner may `/v2/launch`, `/v1/stop`, and local `/v1/input/attach|stream|detach`
-so a pad on the kit does not hairpin through the host. Cast, development,
-and reboot stay denied. When the host returns, the kit releases hostless
-ownership before a host claim.
+Local D-pad/A still browse that snapshot. When the host is unreachable, launch
+and Stop remain unavailable until the configured host API reconnects. The kit
+launcher does not claim a target lease or call `/v2/launch` directly; lifecycle
+mutations continue through the persistent host session API. Cache and artwork
+browse state remains local and lease-free.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,

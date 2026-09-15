@@ -14,7 +14,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -30,15 +29,13 @@ const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|
 
 const maxPublicGameIDBytes = 128
 
-// Service is the host operation surface used by the command line.
+// Service is the catalog and agent-health surface used by local CLI commands.
+// Launch, status and stop use the persistent host session API instead.
 type Service interface {
 	Scan(context.Context) (catalog.ScanReport, error)
 	Games(context.Context) ([]catalog.Game, error)
 	Search(context.Context, string) ([]catalog.Game, error)
-	Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error)
 	Health(context.Context) (protocol.Health, error)
-	Status(context.Context) (protocol.Status, error)
-	Stop(context.Context) (protocol.Status, error)
 	Close() error
 }
 
@@ -179,6 +176,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 		}
 		return writeResult(*jsonOutput, stdout, stderr, runCoreLibraryCommand(ctx, origin, commandArgs))
 	}
+	if commandArgs[0] == "launch" || commandArgs[0] == "status" || commandArgs[0] == "stop" {
+		origin, err := coreAPIOrigin(*apiOrigin)
+		if err != nil {
+			return writeFailure(*jsonOutput, stdout, stderr, err)
+		}
+		return writeResult(*jsonOutput, stdout, stderr, runHostSessionCommand(ctx, origin, commandArgs))
+	}
 	paths, err := fogcast.DefaultPaths()
 	if err != nil {
 		return writeFailure(*jsonOutput, stdout, stderr, err)
@@ -201,15 +205,9 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 		return writeFailure(*jsonOutput, stdout, stderr, err)
 	}
 
-	operationCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	progress := newProgressWriter(*jsonOutput, stdout, stderr, cancel)
-	result := execute(operationCtx, commandArgs, service, progress.Write)
-	if operationCtx.Err() != nil {
-		result = commandResult{err: operationCtx.Err(), exit: 1}
-	}
-	if err := progress.Err(); err != nil {
-		result = commandResult{err: err, exit: 1}
+	result := execute(ctx, commandArgs, service)
+	if ctx.Err() != nil {
+		result = commandResult{err: ctx.Err(), exit: 1}
 	}
 	if closeErr := service.Close(); result.err == nil && closeErr != nil {
 		result = commandResult{err: closeErr, exit: 1}
@@ -255,7 +253,7 @@ func validCommand(args []string) bool {
 	}
 }
 
-func execute(ctx context.Context, args []string, service Service, progress fogcast.ProgressFunc) commandResult {
+func execute(ctx context.Context, args []string, service Service) commandResult {
 	switch args[0] {
 	case "scan":
 		report, err := service.Scan(ctx)
@@ -278,12 +276,6 @@ func execute(ctx context.Context, args []string, service Service, progress fogca
 		}
 		result := makeGamesResult(games)
 		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanGames(output, result) }}
-	case "launch":
-		response, err := service.Launch(ctx, args[1], progress)
-		if err != nil {
-			return commandResult{err: err, exit: 1}
-		}
-		return commandResult{jsonValue: response, human: func(output io.Writer) error { return writeHumanStatus(output, response.Status, args[1]) }}
 	case "favorite", "unfavorite":
 		fav, ok := service.(interface {
 			SetFavorite(context.Context, string, bool) error
@@ -351,26 +343,6 @@ func execute(ctx context.Context, args []string, service Service, progress fogca
 			_, err := io.WriteString(output, "not ready\n")
 			return err
 		}}
-	case "status":
-		status, err := service.Status(ctx)
-		if err != nil {
-			return commandResult{err: err, exit: 1}
-		}
-		result, err := makeStatusResult(status)
-		if err != nil {
-			return commandResult{err: err, exit: 1}
-		}
-		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanStatusResult(output, result) }}
-	case "stop":
-		status, err := service.Stop(ctx)
-		if err != nil {
-			return commandResult{err: err, exit: 1}
-		}
-		result, err := makeStatusResult(status)
-		if err != nil {
-			return commandResult{err: err, exit: 1}
-		}
-		return commandResult{jsonValue: result, human: func(output io.Writer) error { return writeHumanStatusResult(output, result) }}
 	default:
 		return commandResult{err: errors.New("invalid command"), exit: 2}
 	}
@@ -618,79 +590,6 @@ func systemLabel(system protocol.System) string {
 	return string(system)
 }
 
-func writeHumanStatus(output io.Writer, status protocol.Status, fallbackGameID string) error {
-	switch status.State {
-	case protocol.StateIdle:
-		_, err := io.WriteString(output, "idle\n")
-		return err
-	case protocol.StateActive:
-		gameID := fallbackGameID
-		if status.GameID != nil {
-			gameID = *status.GameID
-		}
-		core := statusCore(status)
-		switch {
-		case gameID != "" && core != "":
-			_, err := fmt.Fprintf(output, "active: %s (%s)\n", gameID, core)
-			return err
-		case core != "":
-			_, err := fmt.Fprintf(output, "active core=%s\n", core)
-			return err
-		default:
-			_, err := io.WriteString(output, "active\n")
-			return err
-		}
-	case protocol.StateFailed:
-		if _, err := io.WriteString(output, "failed"); err != nil {
-			return err
-		}
-		if core := statusCore(status); core != "" {
-			if _, err := fmt.Fprintf(output, " core=%s", core); err != nil {
-				return err
-			}
-		}
-		if status.LastError != nil {
-			if _, err := fmt.Fprintf(output, " error=%s", status.LastError.Code); err != nil {
-				return err
-			}
-		}
-		_, err := io.WriteString(output, "\n")
-		return err
-	default:
-		_, err := fmt.Fprintln(output, status.State)
-		return err
-	}
-}
-
-func makeStatusResult(status protocol.Status) (statusResult, error) {
-	result := statusResult{State: status.State, CorePackage: status.CorePackage}
-	switch status.State {
-	case protocol.StateIdle:
-		return result, nil
-	case protocol.StateLaunching, protocol.StateActive, protocol.StateStopping, protocol.StateFailed:
-	default:
-		return statusResult{}, errors.New("target returned an invalid status state")
-	}
-	if status.GameID != nil && len(*status.GameID) <= maxPublicGameIDBytes && protocol.ValidateGameID(*status.GameID) == nil {
-		gameID := *status.GameID
-		result.GameID = &gameID
-	}
-	if status.System != nil && protocol.ValidateSystem(*status.System) == nil {
-		system := *status.System
-		result.System = &system
-	}
-	if coreName := publicCore(status.ObservedCore); coreName != nil {
-		result.Core = coreName
-	} else {
-		result.Core = publicCore(status.ExpectedCore)
-	}
-	if status.State == protocol.StateFailed && status.LastError != nil {
-		publicError := publicAPIError(status.LastError.Code)
-		result.Error = &publicError
-	}
-	return result, nil
-}
-
 func publicCore(value *string) *string {
 	if value == nil {
 		return nil
@@ -739,54 +638,6 @@ func writeHumanStatusResult(output io.Writer, status statusResult) error {
 	}
 	_, err := io.WriteString(output, "\n")
 	return err
-}
-
-func statusCore(status protocol.Status) string {
-	if status.ObservedCore != nil {
-		return *status.ObservedCore
-	}
-	if status.ExpectedCore != nil {
-		return *status.ExpectedCore
-	}
-	return ""
-}
-
-type progressWriter struct {
-	mu       sync.Mutex
-	json     bool
-	output   io.Writer
-	cancel   context.CancelFunc
-	writeErr error
-}
-
-func newProgressWriter(jsonOutput bool, stdout, stderr io.Writer, cancel context.CancelFunc) *progressWriter {
-	output := stdout
-	if jsonOutput {
-		output = stderr
-	}
-	return &progressWriter{json: jsonOutput, output: output, cancel: cancel}
-}
-
-func (w *progressWriter) Write(progress fogcast.Progress) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.writeErr != nil {
-		return
-	}
-	if w.json {
-		w.writeErr = json.NewEncoder(w.output).Encode(progress)
-	} else {
-		_, w.writeErr = fmt.Fprintf(w.output, "%s: %s\n", progress.Stage, progress.Message)
-	}
-	if w.writeErr != nil {
-		w.cancel()
-	}
-}
-
-func (w *progressWriter) Err() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.writeErr
 }
 
 func writeFailure(jsonOutput bool, stdout, stderr io.Writer, err error) int {

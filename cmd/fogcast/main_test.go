@@ -22,17 +22,8 @@ func (*mainFakeService) Games(context.Context) ([]catalog.Game, error) { return 
 func (*mainFakeService) Search(context.Context, string) ([]catalog.Game, error) {
 	return nil, nil
 }
-func (*mainFakeService) Launch(context.Context, string, fogcast.ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	return protocol.CachedLaunchResponse{}, nil
-}
 func (*mainFakeService) Health(context.Context) (protocol.Health, error) {
 	return protocol.Health{}, nil
-}
-func (*mainFakeService) Status(context.Context) (protocol.Status, error) {
-	return protocol.Status{}, nil
-}
-func (*mainFakeService) Stop(context.Context) (protocol.Status, error) {
-	return protocol.Status{}, nil
 }
 func (f *mainFakeService) Close() error { f.closed = true; return nil }
 
