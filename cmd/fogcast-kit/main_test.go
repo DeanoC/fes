@@ -263,6 +263,25 @@ func TestModelFooterReportsConnectionBeforeController(t *testing.T) {
 	}
 }
 
+func TestModelFooterReportsCoreStatusAvailability(t *testing.T) {
+	m := kitlauncher.Model{
+		Connected:             true,
+		TargetReady:           true,
+		ControllerConnected:   true,
+		CoreStatusUnavailable: true,
+		Games: []tenfoot.Game{
+			{ID: "fpga-pong", System: "fpga"},
+		},
+	}
+	if got := modelFooter(m); got != "Core package status unavailable" {
+		t.Fatalf("core status footer %q", got)
+	}
+	m.Connected = false
+	if got := modelFooter(m); got != kitlauncher.OfflineMessage {
+		t.Fatalf("offline footer %q", got)
+	}
+}
+
 func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
 	m.SetCatalog([]tenfoot.Game{
@@ -330,6 +349,51 @@ func TestGameTileMetaJoinsCatalogFacts(t *testing.T) {
 	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
 	if plain.Meta != "PONG" {
 		t.Fatalf("plain meta %q", plain.Meta)
+	}
+}
+
+func TestGameTileAndDetailExposeCoreStatus(t *testing.T) {
+	status := tenfoot.CoreAvailability{
+		GameID:         "fpga-pong",
+		CoreID:         "fes.pong",
+		PackageID:      strings.Repeat("a", 64),
+		PackageVersion: "1.0.0",
+		Compatibility:  "unknown",
+		State:          "installed",
+	}
+	tile := gameTileWithCoreStatus(tenfoot.Game{ID: "fpga-pong", Title: "Pong", System: "fpga"}, nil, tenfoot.Presentation{}, theme.Default(), 18, &status)
+	if !strings.Contains(tile.Meta, "fes.pong") || !strings.Contains(tile.Meta, "installed") {
+		t.Fatalf("tile meta %q", tile.Meta)
+	}
+	m := kitlauncher.Model{
+		Games:        []tenfoot.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga", Launchable: true}},
+		Focus:        0,
+		CoreStatuses: []tenfoot.CoreAvailability{status},
+		Connected:    true,
+		TargetReady:  true,
+	}
+	frame := modelDetailFrame(m, nil, nil, theme.Default(), 640, 480)
+	if !strings.Contains(frame.Meta, "fes.pong") || !strings.Contains(frame.Meta, "installed") {
+		t.Fatalf("detail meta %q", frame.Meta)
+	}
+	status.State = "missing"
+	m.CoreStatuses = []tenfoot.CoreAvailability{status}
+	frame = modelDetailFrame(m, nil, nil, theme.Default(), 640, 480)
+	if !strings.Contains(frame.Meta, "missing") {
+		t.Fatalf("missing detail meta %q", frame.Meta)
+	}
+}
+
+func TestModelRenderKeyChangesForCoreStatusRevision(t *testing.T) {
+	m := kitlauncher.Model{
+		Games:              []tenfoot.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga"}},
+		CoreStatusRevision: 1,
+	}
+	first := modelRenderKey(m, 0, 0)
+	m.CoreStatusRevision = 2
+	second := modelRenderKey(m, 0, 0)
+	if first == second {
+		t.Fatal("core status revision did not invalidate render key")
 	}
 }
 

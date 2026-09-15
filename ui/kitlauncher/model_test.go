@@ -406,6 +406,40 @@ func TestApplyCatalogSkipsIdenticalAndUpdatesRomCachedInPlace(t *testing.T) {
 	}
 }
 
+func TestCoreStatusApplyLookupAndClear(t *testing.T) {
+	m := Model{}
+	statuses := []tenfoot.CoreAvailability{
+		{GameID: "fpga-pong", CoreID: "fes.pong", State: "installed"},
+		{GameID: "fpga-zx81", CoreID: "fes.zx81", State: "missing"},
+		{GameID: "fpga-coleco", CoreID: "fes.coleco", State: "incompatible"},
+	}
+	m.ApplyCoreStatuses(statuses)
+	if m.CoreStatusRevision == 0 || len(m.CoreStatuses) != 3 || m.CoreStatusUnavailable {
+		t.Fatalf("applied status = %+v revision=%d unavailable=%v", m.CoreStatuses, m.CoreStatusRevision, m.CoreStatusUnavailable)
+	}
+	for _, want := range statuses {
+		got, ok := m.CoreStatusForGame(want.GameID)
+		if !ok || got.CoreID != want.CoreID || got.State != want.State {
+			t.Errorf("%s = %#v, ok=%v", want.GameID, got, ok)
+		}
+	}
+	if _, ok := m.CoreStatusForGame("ordinary-game"); ok {
+		t.Fatal("ordinary game unexpectedly has core status")
+	}
+	previousRevision := m.CoreStatusRevision
+	m.ApplyCoreStatuses(statuses)
+	if m.CoreStatusRevision != previousRevision {
+		t.Fatalf("identical status changed revision from %d to %d", previousRevision, m.CoreStatusRevision)
+	}
+	m.ClearCoreStatuses(true)
+	if len(m.CoreStatuses) != 0 || !m.CoreStatusUnavailable || m.CoreStatusRevision == previousRevision {
+		t.Fatalf("cleared status = %+v revision=%d unavailable=%v", m.CoreStatuses, m.CoreStatusRevision, m.CoreStatusUnavailable)
+	}
+	if _, ok := m.CoreStatusForGame("fpga-pong"); ok {
+		t.Fatal("cleared status still visible")
+	}
+}
+
 func TestSetCatalogKeepsShelfAndFocus(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

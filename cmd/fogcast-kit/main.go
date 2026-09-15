@@ -441,7 +441,7 @@ type renderKey struct {
 	SessionState, Execution, GameID, Query, OSKFocus                           string
 	Busy, Connected, TargetReady, ControllerConnected                          bool
 	Attract, Detail, Wheel, Video, Strip, Series, Search                       bool
-	Covers, Stills, Presentations                                              uint64
+	Covers, Stills, Presentations, CoreStatusRevision                          uint64
 	Browse                                                                     fbgrid.BrowseKind
 	Pack                                                                       string
 	Audio                                                                      int
@@ -470,7 +470,7 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 		Preview: m.ShotHandle(), Video: m.HasVideoPreview(),
 		Strip: m.StripActive, StripFocus: m.StripFocus, StripID: stripID,
 		Series: m.SeriesActive, SeriesFocus: m.SeriesFocus, SeriesID: seriesID,
-		Covers: covers, Presentations: presentations, Browse: m.Browse,
+		Covers: covers, Presentations: presentations, CoreStatusRevision: m.CoreStatusRevision, Browse: m.Browse,
 		Pack: m.Pack, Search: m.SearchOpen, Query: m.SearchQuery,
 		OSKFocus: m.SearchSnapshot().FocusID,
 	}
@@ -621,7 +621,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		if presentations != nil {
 			pres = presentations.Get(game.ID)
 		}
-		tiles = append(tiles, gameTile(game, covers, pres, th, nameMax))
+		tiles = append(tiles, gameTileWithCoreStatus(game, covers, pres, th, nameMax, coreStatusPointer(m, game.ID)))
 	}
 	g := fbgrid.NewWithTiles(width, height, tiles)
 	g.Kind = m.Browse
@@ -641,7 +641,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
-			strip = append(strip, gameTile(game, covers, pres, th, 18))
+			strip = append(strip, gameTileWithCoreStatus(game, covers, pres, th, 18, coreStatusPointer(m, game.ID)))
 		}
 		g.SetStrip(strip, asciiLabel(m.StripLabel), m.StripFocus, m.StripActive)
 	}
@@ -652,7 +652,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
-			series = append(series, gameTile(game, covers, pres, th, 18))
+			series = append(series, gameTileWithCoreStatus(game, covers, pres, th, 18, coreStatusPointer(m, game.ID)))
 		}
 		g.Series = series
 		g.SeriesLabel = asciiLabel(m.SeriesLabel)
@@ -680,12 +680,23 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	if title == "" {
 		title = "UNTITLED"
 	}
+	meta := kitMetaLine(detail.MetaFacts())
+	if game, ok := m.FocusedGame(); ok {
+		if status := coreStatusPointer(m, game.ID); status != nil {
+			if label := asciiLabel(status.Label()); label != "" {
+				if meta != "" {
+					meta += " | "
+				}
+				meta += label
+			}
+		}
+	}
 	frame := fbgrid.DetailFrame{
 		Width:        width,
 		Height:       height,
 		Header:       truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax),
 		Title:        title,
-		Meta:         kitMetaLine(detail.MetaFacts()),
+		Meta:         meta,
 		Description:  asciiLabel(detail.Summary),
 		Hint:         asciiLabel(detailFooter(m)),
 		Theme:        th,
@@ -702,7 +713,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
-			frame.Series = append(frame.Series, gameTile(game, covers, pres, th, 18))
+			frame.Series = append(frame.Series, gameTileWithCoreStatus(game, covers, pres, th, 18, coreStatusPointer(m, game.ID)))
 		}
 	}
 	if game, ok := m.FocusedGame(); ok {
@@ -843,6 +854,10 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 }
 
 func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme, nameMax int) fbgrid.Tile {
+	return gameTileWithCoreStatus(game, covers, pres, th, nameMax, nil)
+}
+
+func gameTileWithCoreStatus(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme, nameMax int, status *tenfoot.CoreAvailability) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -858,7 +873,7 @@ func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presen
 		Color:     th.SystemColor(game.System),
 		CoverKind: fbgrid.CoverMissing,
 		Badges:    kitlauncher.TitleBadges(game, pres),
-		Meta:      tileMeta(game, pres),
+		Meta:      tileMetaWithCoreStatus(game, pres, status),
 	}
 	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
 		if covers != nil {
@@ -892,6 +907,8 @@ func modelFooter(m kitlauncher.Model) string {
 			status = kitlauncher.OfflineMessage
 		case !m.TargetReady:
 			status = "Kit not ready"
+		case m.CoreStatusUnavailable && modelHasCore(m):
+			status = "Core package status unavailable"
 		case !m.ControllerConnected:
 			status = "Connect USB gamepad"
 		case m.Session.State == "active":
@@ -959,11 +976,46 @@ func kitMetaLine(facts string) string {
 }
 
 func tileMeta(game tenfoot.Game, pres tenfoot.Presentation) string {
+	return tileMetaWithCoreStatus(game, pres, nil)
+}
+
+func tileMetaWithCoreStatus(game tenfoot.Game, pres tenfoot.Presentation, status *tenfoot.CoreAvailability) string {
 	d := tenfoot.GameDetail(game, pres)
 	if d.Platform != "" {
 		d.Platform = strings.ToUpper(d.Platform)
 	}
-	return kitMetaLine(d.MetaFacts())
+	meta := kitMetaLine(d.MetaFacts())
+	if status != nil {
+		if label := asciiLabel(status.Label()); label != "" {
+			if meta != "" {
+				meta += " | "
+			}
+			meta += label
+		}
+	}
+	return meta
+}
+
+func coreStatusPointer(m kitlauncher.Model, gameID string) *tenfoot.CoreAvailability {
+	status, ok := m.CoreStatusForGame(gameID)
+	if !ok {
+		return nil
+	}
+	return &status
+}
+
+func modelHasCore(m kitlauncher.Model) bool {
+	for _, game := range m.Games {
+		if strings.EqualFold(strings.TrimSpace(game.System), "fpga") {
+			return true
+		}
+	}
+	for _, game := range m.Catalog {
+		if strings.EqualFold(strings.TrimSpace(game.System), "fpga") {
+			return true
+		}
+	}
+	return false
 }
 
 func asciiLabel(s string) string {

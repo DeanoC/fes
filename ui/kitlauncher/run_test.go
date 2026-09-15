@@ -338,6 +338,7 @@ func TestRunEmptyCacheStaysOfflineWithoutHang(t *testing.T) {
 }
 
 func TestRunPersistsHostCatalogForNextBoot(t *testing.T) {
+	packageIDs := []string{strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -348,6 +349,18 @@ func TestRunPersistsHostCatalogForNextBoot(t *testing.T) {
 			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
 		case "/api/v1/games":
 			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","cover":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","launchable":true}]}`))
+		case "/api/v1/library/core-entries":
+			_ = json.NewEncoder(w).Encode(map[string]any{"entries": []map[string]string{
+				{"game_id": "fpga-pong", "title": "Pong", "core_id": "fes.pong", "package_id": packageIDs[0]},
+				{"game_id": "fpga-zx81", "title": "ZX81", "core_id": "fes.zx81", "package_id": packageIDs[1]},
+				{"game_id": "fpga-coleco", "title": "Coleco", "core_id": "fes.coleco", "package_id": packageIDs[2]},
+			}})
+		case "/api/v1/core-packages":
+			_ = json.NewEncoder(w).Encode(map[string]any{"packages": []map[string]any{
+				{"package_id": packageIDs[0], "descriptor": map[string]any{"core": map[string]string{"id": "fes.pong", "name": "FES Pong", "version": "1.0.0"}}, "compatibility": "unknown"},
+				{"package_id": packageIDs[1], "descriptor": map[string]any{"core": map[string]string{"id": "fes.zx81", "name": "FES ZX81", "version": "1.0.0"}}, "compatibility": "unknown"},
+				{"package_id": packageIDs[2], "descriptor": map[string]any{"core": map[string]string{"id": "fes.coleco", "name": "FES Coleco", "version": "1.0.0"}}, "compatibility": "unknown"},
+			}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -357,8 +370,10 @@ func TestRunPersistsHostCatalogForNextBoot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(cfg)
+	var coreReady atomic.Bool
 	err := Run(ctx, client, func(m Model) {
-		if m.Connected && len(m.Catalog) == 1 && m.Catalog[0].ID == "sonic" {
+		if m.Connected && len(m.Catalog) == 1 && m.Catalog[0].ID == "sonic" && len(m.CoreStatuses) == 3 {
+			coreReady.Store(true)
 			cancel()
 		}
 	}, func() (Pad, error) { return nil, errors.New("no pad") })
@@ -368,6 +383,44 @@ func TestRunPersistsHostCatalogForNextBoot(t *testing.T) {
 	snap, ok := client.Cache.LoadCatalog()
 	if !ok || len(snap.Games) != 1 || snap.Games[0].ID != "sonic" || snap.Games[0].Cover == "" {
 		t.Fatalf("persisted snapshot %#v ok=%v", snap, ok)
+	}
+	if !coreReady.Load() {
+		t.Fatal("core status was not applied with catalog refresh")
+	}
+}
+
+func TestRunKeepsCatalogWhenCoreStatusUnavailable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/core-entries", "/api/v1/core-packages":
+			http.Error(w, "core inventory unavailable", http.StatusServiceUnavailable)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var observed atomic.Bool
+	err := Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+		if m.Connected && len(m.Catalog) == 1 && m.CoreStatusUnavailable {
+			observed.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errors.New("no pad") })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observed.Load() {
+		t.Fatal("core status failure discarded ordinary catalog")
 	}
 }
 

@@ -30,6 +30,9 @@ type observation struct {
 	attract        tenfoot.AttractPlaylist
 	haveAttract    bool
 	hydrateAttract bool
+	coreStatuses   []tenfoot.CoreAvailability
+	haveCoreStatus bool
+	coreStatusErr  bool
 	detailID       string
 	presentation   tenfoot.Presentation
 	haveDetail     bool
@@ -121,6 +124,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err == nil && !o.hostAbsent && load {
 				o.games, o.err = loadCatalog(ctx, c)
 				if o.err == nil {
+					if library, coreErr := c.Library.CoreLibrary(ctx); coreErr == nil {
+						o.coreStatuses = library.Availability()
+						o.haveCoreStatus = true
+					} else {
+						o.coreStatusErr = true
+					}
 					o.strip, o.stripLabel, o.recents = loadStrip(ctx, c)
 					o.haveStrip = true
 					persistSnapshot(c, CatalogSnapshot{
@@ -257,6 +266,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.err != nil {
 				m.Connected = false
+				m.ClearCoreStatuses(true)
 				if !m.Busy {
 					m.Message = OfflineMessage
 				}
@@ -265,6 +275,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if o.hostAbsent {
 				m.Connected = false
+				m.ClearCoreStatuses(true)
 				if o.session.State != "" {
 					m.Session = o.session
 				}
@@ -311,6 +322,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.ApplyCatalog(o.games)
 					catalogLoaded = true
 					lastCatalog = time.Now()
+				}
+				if o.haveCoreStatus {
+					m.ApplyCoreStatuses(o.coreStatuses)
+				} else if o.coreStatusErr {
+					m.ClearCoreStatuses(true)
 				}
 				if o.haveStrip {
 					m.ApplyStrip(o.strip, o.stripLabel)

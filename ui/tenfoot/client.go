@@ -57,6 +57,129 @@ type Game struct {
 	Variants     []Game   `json:"variants,omitempty"`
 }
 
+// CoreEntry is the stable library mapping for one FPGA-core game.
+type CoreEntry struct {
+	GameID    string `json:"game_id"`
+	Title     string `json:"title"`
+	CoreID    string `json:"core_id"`
+	PackageID string `json:"package_id"`
+}
+
+// CorePackage is the public identity projection of one installed FPGA package.
+// Compatibility is the host's latest target observation and may be unknown.
+type CorePackage struct {
+	PackageID     string
+	CoreID        string
+	Name          string
+	Version       string
+	Compatibility string
+}
+
+// CoreLibrary is the read-only core-entry and installed-package inventory.
+type CoreLibrary struct {
+	Entries  []CoreEntry
+	Packages []CorePackage
+}
+
+// CoreAvailability is the deterministic join between a selected entry and
+// the installed package inventory.
+type CoreAvailability struct {
+	GameID         string
+	Title          string
+	CoreID         string
+	PackageID      string
+	PackageCoreID  string
+	PackageName    string
+	PackageVersion string
+	Compatibility  string
+	State          string
+}
+
+type corePackageWire struct {
+	PackageID  string `json:"package_id"`
+	Descriptor struct {
+		Core struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"core"`
+	} `json:"descriptor"`
+	Compatibility string `json:"compatibility"`
+}
+
+// Availability joins each selected core entry with its exact installed
+// package. An installed package with compatibility "unknown" remains
+// installed/unknown, never ready.
+func (l CoreLibrary) Availability() []CoreAvailability {
+	packages := make(map[string]CorePackage, len(l.Packages))
+	for _, packageInfo := range l.Packages {
+		packageInfo.PackageID = strings.TrimSpace(packageInfo.PackageID)
+		packages[packageInfo.PackageID] = packageInfo
+	}
+	out := make([]CoreAvailability, 0, len(l.Entries))
+	for _, entry := range l.Entries {
+		status := CoreAvailability{
+			GameID:    strings.TrimSpace(entry.GameID),
+			Title:     strings.TrimSpace(entry.Title),
+			CoreID:    strings.TrimSpace(entry.CoreID),
+			PackageID: strings.TrimSpace(entry.PackageID),
+		}
+		packageInfo, ok := packages[status.PackageID]
+		if !ok || status.PackageID == "" {
+			status.State = "missing"
+			out = append(out, status)
+			continue
+		}
+		status.PackageCoreID = strings.TrimSpace(packageInfo.CoreID)
+		status.PackageName = strings.TrimSpace(packageInfo.Name)
+		status.PackageVersion = strings.TrimSpace(packageInfo.Version)
+		status.Compatibility = strings.TrimSpace(packageInfo.Compatibility)
+		switch {
+		case status.PackageCoreID != status.CoreID:
+			status.State = "mismatch"
+		case strings.EqualFold(status.Compatibility, "incompatible"):
+			status.State = "incompatible"
+		default:
+			status.State = "installed"
+		}
+		out = append(out, status)
+	}
+	return out
+}
+
+// Label is compact enough for tile/detail metadata while retaining the core
+// identity and selected package prefix.
+func (s CoreAvailability) Label() string {
+	parts := []string{strings.TrimSpace(s.CoreID), strings.TrimSpace(s.State)}
+	if parts[0] == "" {
+		parts[0] = "core"
+	}
+	if parts[1] == "" {
+		parts[1] = "unknown"
+	}
+	if version := strings.TrimSpace(s.PackageVersion); version != "" {
+		parts = append(parts, version)
+	}
+	if packageID := shortPackageID(s.PackageID); packageID != "" {
+		parts = append(parts, "pkg "+packageID)
+	}
+	if compatibility := strings.TrimSpace(s.Compatibility); compatibility != "" {
+		parts = append(parts, "compat "+compatibility)
+	}
+	if packageCoreID := strings.TrimSpace(s.PackageCoreID); packageCoreID != "" && packageCoreID != strings.TrimSpace(s.CoreID) {
+		parts = append(parts, "declares "+packageCoreID)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func shortPackageID(id string) string {
+	id = strings.TrimSpace(id)
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
 // Presentation is GET /api/v1/presentation/games/{id}.
 type Presentation struct {
 	GameID       string                   `json:"game_id"`
@@ -492,6 +615,40 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 		page.Games[i] = preferLaunchable(game)
 	}
 	return page.Games, page.NextCursor, nil
+}
+
+// CoreLibrary loads the selected core entries and the installed package
+// inventory. Both reads are required for a truthful selected-package status.
+func (c *Client) CoreLibrary(ctx context.Context) (CoreLibrary, error) {
+	var entries struct {
+		Entries []CoreEntry `json:"entries"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/library/core-entries", &entries); err != nil {
+		return CoreLibrary{}, err
+	}
+	var packages struct {
+		Packages []corePackageWire `json:"packages"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/core-packages", &packages); err != nil {
+		return CoreLibrary{}, err
+	}
+	result := CoreLibrary{
+		Entries:  entries.Entries,
+		Packages: make([]CorePackage, 0, len(packages.Packages)),
+	}
+	if result.Entries == nil {
+		result.Entries = []CoreEntry{}
+	}
+	for _, packageInfo := range packages.Packages {
+		result.Packages = append(result.Packages, CorePackage{
+			PackageID:     strings.TrimSpace(packageInfo.PackageID),
+			CoreID:        strings.TrimSpace(packageInfo.Descriptor.Core.ID),
+			Name:          strings.TrimSpace(packageInfo.Descriptor.Core.Name),
+			Version:       strings.TrimSpace(packageInfo.Descriptor.Core.Version),
+			Compatibility: strings.TrimSpace(packageInfo.Compatibility),
+		})
+	}
+	return result, nil
 }
 
 func catalogSortParam(sort string) string {

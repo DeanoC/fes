@@ -9,6 +9,21 @@ This path supports ROM-less cores. It does not infer cartridge transport from
 a package's optional descriptive system field. Original catalog Pong and
 standalone FES Pong remain separate products.
 
+## Native launcher status
+
+The native fogcast-kit launcher performs a read-only join of the library
+entries and installed package inventory. For the selected fes.pong,
+fes.zx81, and fes.coleco packages it shows the core ID, selected package
+version and a compact state (installed, missing, mismatch, or
+incompatible) in the catalog and detail metadata. A failed read clears the
+previous status and leaves ordinary catalog browsing available.
+
+This UI status does not claim target compatibility when inventory reports
+compatibility:"unknown"; hardware acceptance still requires the explicit
+target inspection path described below. The native launcher does not install
+packages or change the selected package. Package replacement remains the
+explicit core-select/API operation and is outside this read-only UI slice.
+
 ## Operator commands
 
 Run the host normally, then use its existing API origin:

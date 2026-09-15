@@ -38,6 +38,82 @@ func TestClientDecodesGameRegion(t *testing.T) {
 	}
 }
 
+func TestClientCoreLibraryAndAvailability(t *testing.T) {
+	t.Parallel()
+	packageIDs := map[string]string{
+		"pong":   strings.Repeat("a", 64),
+		"zx81":   strings.Repeat("b", 64),
+		"coleco": strings.Repeat("c", 64),
+		"bad":    strings.Repeat("d", 64),
+	}
+	paths := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method = %s", r.Method)
+		}
+		paths[r.URL.Path]++
+		switch r.URL.Path {
+		case "/api/v1/library/core-entries":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"entries": []map[string]string{
+					{"game_id": "fpga-pong", "title": "Pong", "core_id": "fes.pong", "package_id": packageIDs["pong"]},
+					{"game_id": "fpga-zx81", "title": "ZX81", "core_id": "fes.zx81", "package_id": packageIDs["zx81"]},
+					{"game_id": "fpga-coleco", "title": "Coleco", "core_id": "fes.coleco", "package_id": packageIDs["coleco"]},
+					{"game_id": "fpga-bad", "title": "Bad", "core_id": "fes.bad", "package_id": packageIDs["bad"]},
+				},
+			})
+		case "/api/v1/core-packages":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"packages": []map[string]any{
+					{"package_id": packageIDs["pong"], "descriptor": map[string]any{"core": map[string]string{"id": "fes.pong", "name": "FES Pong", "version": "1.0.0"}}, "compatibility": "unknown"},
+					{"package_id": packageIDs["coleco"], "descriptor": map[string]any{"core": map[string]string{"id": "different.core", "name": "Wrong", "version": "2.0.0"}}, "compatibility": "compatible"},
+					{"package_id": packageIDs["bad"], "descriptor": map[string]any{"core": map[string]string{"id": "fes.bad", "name": "Bad", "version": "3.0.0"}}, "compatibility": "incompatible"},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	library, err := NewClient(server.URL, server.Client()).CoreLibrary(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths["/api/v1/library/core-entries"] != 1 || paths["/api/v1/core-packages"] != 1 {
+		t.Fatalf("paths = %#v", paths)
+	}
+	if len(library.Entries) != 4 || len(library.Packages) != 3 {
+		t.Fatalf("library = %#v", library)
+	}
+
+	got := library.Availability()
+	byGame := make(map[string]CoreAvailability, len(got))
+	for _, status := range got {
+		byGame[status.GameID] = status
+	}
+	tests := []struct {
+		game, state, packageCore, compatibility string
+	}{
+		{"fpga-pong", "installed", "fes.pong", "unknown"},
+		{"fpga-zx81", "missing", "", ""},
+		{"fpga-coleco", "mismatch", "different.core", "compatible"},
+		{"fpga-bad", "incompatible", "fes.bad", "incompatible"},
+	}
+	for _, test := range tests {
+		status, ok := byGame[test.game]
+		if !ok {
+			t.Fatalf("%s missing from %#v", test.game, got)
+		}
+		if status.State != test.state || status.PackageCoreID != test.packageCore || status.Compatibility != test.compatibility {
+			t.Errorf("%s = %#v", test.game, status)
+		}
+	}
+	if label := byGame["fpga-pong"].Label(); !strings.Contains(label, "fes.pong") || !strings.Contains(label, "unknown") {
+		t.Fatalf("installed label = %q", label)
+	}
+}
+
 func TestClientDecodesPlayStatsAndOptionalBadgeFields(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,9 @@ type Model struct {
 	searchRestoreID                                                 string
 	searchPool                                                      []tenfoot.Game
 	Cache                                                           CacheStatus
+	CoreStatuses                                                    []tenfoot.CoreAvailability
+	CoreStatusUnavailable                                           bool
+	CoreStatusRevision                                              uint64
 }
 
 // CacheStatus is visible ROM/cover used-free plus last catalog sync.
