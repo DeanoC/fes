@@ -141,6 +141,16 @@ class RealCardTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'paths'):
                 appliance_media_inside.verify(image,inputs,self.lock)
 
+class ProvenanceTests(unittest.TestCase):
+    def test_retained_bootstrap_rejects_missing_platform_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);bootstrap=root/'bootstrap';bootstrap.mkdir()
+            (bootstrap/'linux.img').write_bytes(b'image')
+            (bootstrap/'evidence.json').write_bytes(appliance.canonical({'format':1,'assembly_revision':'a'*40}))
+            with self.assertRaisesRegex(ValueError,'platform build provenance'):
+                appliance_media.retained_assembly_revision(ROOT,bootstrap,ROOT/'sources'/'FogCast')
+
+
 class PublicationTests(unittest.TestCase):
     def test_changed_recipe_during_reconstruction_preserves_existing_artifact(self):
         with tempfile.TemporaryDirectory() as temporary:

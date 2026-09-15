@@ -22,9 +22,9 @@ FogCast contains several logical areas that agents can work on separately:
 - Target agent: `cmd/mister-agent`, `internal/agent` and `internal/httpapi`.
 - Native runtime adapter: `internal/misterruntime`.
 - Appliance updates: `cmd/fes-update`, `internal/applianceupdate`, and the
-  immutable image store in `internal/appliance`.
-- Stable boot selection and watchdog: `cmd/fes-boot`, `internal/applianceboot`,
-  and the Linux mechanisms in `internal/bootlinux`.
+  public `appliance` schema/store module consumed by FES boot and the target agent.
+- Stable boot selection and watchdog: FES `platform/cmd/fes-boot`,
+  `platform/internal/applianceboot`, and `platform/internal/bootlinux`.
 
 These are routing starting points, not permission to change every directory in
 an area. Trace the relevant call path and choose a bounded scope first.
@@ -69,7 +69,8 @@ the agent, runtime, libraries and ordered package set. FogCast remains an input
 | `scripts/consistency.py` | Package generation and source-pin checks | Parent implementation |
 | `image/` | Native Buildroot, container and SD/rootfs assembly | Parent image recipe |
 | `scripts/build.py`, `scripts/native_dev.py` | Clean and incremental orchestration | Parent implementation |
-| `scripts/appliance.py`, `scripts/appliance_media.py` | Versioned releases, bootstrap and provisioned appliance card files | Parent assembly; see [the release guide](appliance-releases.md) |
+| `platform/` | FES-owned appliance boot selector (`fes-boot`) and Linux boot helpers | Parent boot source; built against the selected FogCast `appliance` module |
+| `scripts/appliance.py`, `scripts/appliance_media.py`, `scripts/platform.py` | Versioned releases, bootstrap and provisioned appliance card files | Parent assembly; see [the release guide](appliance-releases.md) |
 | `scripts/bundle.py`, `scripts/environment.py` | Bundle validation and build environment | Parent implementation |
 | `tests/` | Parent regression tests | With relevant parent behavior changes |
 | `sources/` | Clean submodule checkouts at integration pins | Move pins only through the integrator |

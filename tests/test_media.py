@@ -1145,7 +1145,7 @@ class InterfaceTests(unittest.TestCase):
     def test_recipe_split(self):
         cold = set(cold_build.BUILD_RECIPE_FILES)
         media_files = set(cold_build.MEDIA_RECIPE_FILES)
-        for name in ('media.py', 'media_inputs.py', 'media_container.py', 'media_inside.py'):
+        for name in ('media.py', 'media_inputs.py', 'media_container.py', 'media_inside.py', 'platform.py'):
             self.assertNotIn(ROOT / 'scripts' / name, cold)
             self.assertIn(ROOT / 'scripts' / name, media_files)
         self.assertIn(ROOT / 'boot-media.lock.toml', media_files)

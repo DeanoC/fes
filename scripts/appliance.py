@@ -16,8 +16,10 @@ import tempfile
 import unicodedata
 
 try:
+    from . import platform as fes_platform
     from .media_inputs import digest
 except ImportError:
+    import platform as fes_platform
     from media_inputs import digest
 
 FORMAT = 1
@@ -27,7 +29,7 @@ MAX_IMAGE_SIZE = (4 << 30) - 1
 MAX_MANIFEST_SIZE = 8192
 MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_sha256','image_size','fes_revision','fogcast_revision','runtime_revision'}
 BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
-                          'scripts/media_container.py','scripts/media_inputs.py')
+                          'scripts/media_container.py','scripts/media_inputs.py','scripts/platform.py')
 
 
 def canonical(data):
@@ -208,9 +210,12 @@ def bootstrap_recipe(root):
     return {name:digest(regular(Path(root)/name)) for name in BOOTSTRAP_RECIPE_FILES}
 
 
-def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe):
-    return hashlib.sha256(canonical({'binary':binary_sha,'factory':factory,'container_identity':container,
-        'assembly_revision':assembly_revision,'assembly_recipe':recipe})).hexdigest()
+def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,platform_build=None):
+    payload={'binary':binary_sha,'factory':factory,'container_identity':container,
+        'assembly_revision':assembly_revision,'assembly_recipe':recipe}
+    if platform_build is not None:
+        payload['platform_build']=fes_platform.validate_platform_build(platform_build)
+    return hashlib.sha256(canonical(payload)).hexdigest()
 
 
 def release_manifest(rootfs,*,version,provenance):
@@ -284,7 +289,7 @@ def cached_media_container(root,runtime,lock):
     return image
 
 
-def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None):
+def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,binary_source_revision=None,assembly_revision=None,platform_build=None):
     """Build two independent bootstrap files using a supplied pinned media Runner.
 
     binary_source_revision is supplied only by an integrator that built this
@@ -299,6 +304,12 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
         raise ValueError('bootstrap source revision differs from factory FogCast revision')
     if assembly_revision is not None and not re.fullmatch('[0-9a-f]{40}',assembly_revision):
         raise ValueError('invalid bootstrap assembly revision')
+    if platform_build is not None:
+        platform_build=fes_platform.validate_platform_build(platform_build)
+        if binary_source_revision is not None and platform_build['fogcast_revision']!=binary_source_revision:
+            raise ValueError('platform build FogCast revision differs from bootstrap source revision')
+    elif binary_source_revision is not None or assembly_revision is not None:
+        raise ValueError('source-bound bootstrap requires platform build provenance')
     recipe=bootstrap_recipe(runner.root)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.bootstrap-',dir=output.parent) as temporary:
@@ -321,10 +332,12 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
             'bootstrap_binary_sha256':binary_sha,'binary_source_revision':binary_source_revision,
             'binary_source_proven':binary_source_revision is not None,
             'assembly_revision':assembly_revision,'assembly_recipe':recipe,'assembly_source_proven':assembly_revision is not None,
-            'classification':'source-bound-host-artifact' if binary_source_revision and assembly_revision else 'diagnostic-unproven-source',
+            'classification':'source-bound-host-artifact' if binary_source_revision and assembly_revision and platform_build else 'diagnostic-unproven-source',
             'kernel_sha256':factory['kernel_sha256'],
             'factory_image_sha256':factory['image_sha256'],'factory_manifest_sha256':digest(factory_path),
             'container_identity':runner.container,'tool_evidence':first,'two_pass_reproducibility':'pass','hardware':'not-run'}
+        if platform_build is not None:
+            evidence['platform_build']=platform_build
         result=BootstrapResult(output)
         if output.exists() or output.is_symlink():
             require_sealed_bundle(output,('linux.img','evidence.json'))
@@ -391,16 +404,12 @@ def main():
                     binary=Path(temporary)/'fes-boot'
                     factory_snapshot=Path(temporary)/'factory.json'
                     factory_snapshot.write_bytes(canonical(factory))
-                    # Resolve the already-cached selected Go toolchain first;
-                    # then invoke it directly with all dependency fetches off.
-                    goroot=subprocess.check_output(['go','env','GOROOT'],cwd=fogcast,env=dict(env,GOPROXY='off'),text=True).strip()
-                    build_env=dict(env,GOOS='linux',GOARCH='arm',GOARM='7',CGO_ENABLED='0',GOPROXY='off',GOSUMDB='off',GOTOOLCHAIN='local')
-                    subprocess.run([str(Path(goroot)/'bin/go'),'build','-trimpath','-buildvcs=false','-ldflags=-s -w -buildid=','-o',str(binary),'./cmd/fes-boot'],cwd=fogcast,env=build_env,check=True)
+                    binary_sha,platform_build=fes_platform.build_static_arm(root,fogcast,binary,env)
                     assembly_revision=media.cold_build.git(root,'rev-parse','HEAD')
-                    identity=bootstrap_identity(digest(binary),factory,container,assembly_revision,bootstrap_recipe(root))
+                    identity=bootstrap_identity(binary_sha,factory,container,assembly_revision,bootstrap_recipe(root),platform_build)
                     output=args.output or root/'out'/args.profile/'appliance/bootstrap'/identity
                     result=assemble_bootstrap(output,binary,factory_snapshot,kernel,runner=runner,
-                        binary_source_revision=p.fogcast_revision,assembly_revision=assembly_revision)
+                        binary_source_revision=p.fogcast_revision,assembly_revision=assembly_revision,platform_build=platform_build)
         print(result.directory)
         print('Host-only artifact; hardware acceptance not run.')
     except (OSError,ValueError,subprocess.CalledProcessError) as error:
