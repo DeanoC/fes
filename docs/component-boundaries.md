@@ -88,10 +88,10 @@ Do not equate a process boundary with a mandatory repository split.
 
 The target agent is a candidate for later extraction if other host clients
 need an independently released target service. UI extraction is useful only
-if clients need independent development or release cycles. First remove
-whole-system image ownership from the FogCast product boundary through the
-separate migration below. Splitting repos before resolving that ownership
-would distribute the existing coupling across more locations.
+if clients need independent development or release cycles. Whole-system image
+ownership has already moved to FES `image/`. The next proposed boundary is a
+shared appliance module followed by FES ownership of the boot executable;
+see the [structure proposal](fes-structure.md).
 
 ## Integrated source set
 
@@ -162,17 +162,19 @@ assembled-image video and session-lifecycle acceptance remains tied to its dated
 historical artifact; later image or core revisions need their own evidence.
 Exact assembled-artifact results must remain distinct from the earlier hardware
 diagnostics.
-The following assembly milestones remain separate future work:
+Current development and assembly capabilities:
 
 1. Use the incremental native development path for component integration; retain
    clean reproducibility checks at stabilized milestones. Extend its cache
    granularity only when measurements justify it.
-2. Produce a bootable native FES media layout without Main as a production input.
+2. Bootable native FES media and versioned appliance assembly are implemented;
+   use the [media guide](bootable-media.md) and
+   [appliance guide](appliance-releases.md) for their distinct validation gates.
 3. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
    The selected FES ZX81 package uses `fes.simple-computer`; remaining
    Quartus bring-up, nextpnr/mistral and physical acceptance evidence are
    separate from the package-only assembly. See [FES ZX81](fes-zx81.md).
 
-Current checks and limitations are recorded in
-[integration validation](integration-validation.md). Original image and hardware
-records remain in the dated historical validation documents.
+The next ownership migration is described in [FES structure](fes-structure.md).
+Earlier checks and limitations remain in the dated validation documents;
+they describe their selected artifacts rather than the current profile.
