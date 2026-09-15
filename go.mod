@@ -1,10 +1,9 @@
 module github.com/DeanoC/FogCast
 
-go 1.26.0
-
-toolchain go1.26.5
+go 1.26.5
 
 require (
+	github.com/DeanoC/FogCast/appliance v0.0.0
 	github.com/brutella/dnssd v1.2.14
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/mdns v1.0.6
@@ -15,6 +14,8 @@ require (
 	gosqlite.org v0.14.0
 	modernc.org/sqlite v1.55.0
 )
+
+replace github.com/DeanoC/FogCast/appliance => ./appliance
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

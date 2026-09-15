@@ -120,6 +120,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		return net.ErrClosed
 	}
 	s.ln = ln
+	// Keep the accept loop counted before Close can wait. It may register
+	// a handler after Accept returns concurrently with listener shutdown.
+	s.wg.Add(1)
+	defer s.wg.Done()
 	s.listenerMu.Unlock()
 	s.reportStartup(nil)
 	go func() { <-ctx.Done(); s.Close() }()

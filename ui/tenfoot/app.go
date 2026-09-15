@@ -3059,9 +3059,9 @@ func (a *App) evictCoversLocked() {
 		if _, ok := keep[id]; ok {
 			continue
 		}
-		if _, busy := a.inflight[id]; busy {
-			continue
-		}
+		// Drop the slot even when its request is still running. A later result
+		// is discarded by applyResult if the game remains outside the window;
+		// retaining the slot would expose stale artwork until that request ends.
 		delete(a.covers, id)
 	}
 }

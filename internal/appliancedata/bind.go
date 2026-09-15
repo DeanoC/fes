@@ -17,7 +17,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 )
 
 const (

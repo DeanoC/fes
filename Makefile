@@ -31,6 +31,7 @@ fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
 test: build-agent test-ui test-target-boundary
+	cd appliance && $(NATIVE_GO_ENV) go test -race ./...
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-megadrive-support-truth_test.sh
@@ -58,6 +59,7 @@ test-ui-browser-required:
 	FOGCAST_BROWSER_REQUIRED=1 node --test internal/hostapi/ui_browser_test.js
 
 vet:
+	cd appliance && $(NATIVE_GO_ENV) go vet ./...
 	$(NATIVE_GO_ENV) go vet ./...
 
 check: fmt test vet

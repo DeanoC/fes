@@ -12,7 +12,7 @@ import (
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/protocol"
 )

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	store "github.com/DeanoC/FogCast/internal/appliance"
+	store "github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceboot"
 	"github.com/DeanoC/FogCast/internal/bootlinux"
 	"golang.org/x/sys/unix"

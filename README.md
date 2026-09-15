@@ -488,6 +488,12 @@ Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
 
 ## Build and test
 
+The independent `appliance/` Go module owns release manifests and image storage.
+The root module uses its local source through `go.mod`; no extra checkout is
+required. Use `make test` and `make vet` to check both modules. Direct root
+`go test ./...` excludes the nested module; check it with
+`(cd appliance && go test -race ./...)` when running Go commands manually.
+
 ```sh
 make build
 make test

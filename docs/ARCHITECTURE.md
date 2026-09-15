@@ -72,6 +72,16 @@ they are not a distributed ownership, failover, or recovery protocol.
 
 ### Source ownership
 
+Appliance release manifests and immutable image storage form the independent
+Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
+in `appliance/store`; both boot selection and target update handling consume
+that single implementation. The module uses the standard library and the
+existing `golang.org/x/sys/unix` dependency for filesystem operations.
+The root module selects it through a checked-in relative replacement.
+`make test` and `make vet` explicitly check both modules because root
+`go test ./...` and `go vet ./...` do not traverse nested modules.
+The boot executable and network update admission remain in the root module.
+
 FogCast keeps the host applications, host services, and target agent in one Go
 module, but the source tree names their ownership explicitly. The ten-foot UI
 and kit launcher live under `ui/tenfoot` and `ui/kitlauncher`; their Go package
@@ -612,7 +622,7 @@ is 180 seconds. Only a durably synced confirmation matching the actual boot ID
 and selected image permits magic-close. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
-`internal/appliance` owns bounded raw-image admission, immutable publication,
+`appliance/store` owns bounded raw-image admission, immutable publication,
 cross-process locking, checksummed state, and consumed-trial selection.
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 `internal/applianceboot` owns fallback ordering; `internal/bootlinux` owns the

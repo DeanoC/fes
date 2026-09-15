@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/pelletier/go-toml/v2"

@@ -9,7 +9,7 @@ import (
 
 	release "github.com/DeanoC/FogCast/appliance"
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 )
 
 var ErrBlocked = errors.New("appliance update or unconfirmed trial blocks this operation")

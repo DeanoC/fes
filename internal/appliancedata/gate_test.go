@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 )
 
 func testManifest(image []byte) release.Manifest {

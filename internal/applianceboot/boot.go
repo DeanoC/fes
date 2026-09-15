@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	release "github.com/DeanoC/FogCast/appliance"
-	store "github.com/DeanoC/FogCast/internal/appliance"
+	store "github.com/DeanoC/FogCast/appliance/store"
 )
 
 type Store interface {

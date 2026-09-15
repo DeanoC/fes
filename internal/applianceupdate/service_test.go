@@ -14,7 +14,7 @@ import (
 
 	release "github.com/DeanoC/FogCast/appliance"
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/appliance"
+	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/misterruntime"

@@ -36,12 +36,12 @@ func openFFmpeg(path string) (Player, error) {
 	if path == "" {
 		return nil, errors.New("video path is empty")
 	}
-	if _, err := os.Stat(path); err != nil {
-		return nil, err
-	}
 	ffmpeg, err := lookPath("ffmpeg")
 	if err != nil {
 		return nil, ErrUnavailable
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
 	}
 	w, h, err := probeVideoSize(path)
 	if err != nil {
