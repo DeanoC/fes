@@ -184,4 +184,3 @@ Push the branch and open a FogCast PR against \`main\` with the design document,
 the boundary rationale, and exact verification output. Ask the reviewer to
 focus on unchanged target wire behavior, lease behavior, and forbidden import
 direction.
-

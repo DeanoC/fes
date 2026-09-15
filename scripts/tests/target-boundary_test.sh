@@ -22,4 +22,3 @@ if rg -n 'host\.(Client|KitLease|NewClient|NewKitLease|CastStatus|KitOwnership|A
   echo 'removed host target-client symbol remains' >&2
   exit 1
 fi
-
