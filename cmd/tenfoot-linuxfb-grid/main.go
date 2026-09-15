@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast/host/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/host/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/host/tenfoot/linuxinput"
-	"github.com/DeanoC/FogCast/host/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
+	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/ui/tenfoot/linuxinput"
+	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
 )
 
 func main() {

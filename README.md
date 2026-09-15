@@ -121,6 +121,18 @@ The normal FPGA launch path is:
 5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
    `load_core <menu.rbf>` through the same command path.
 
+## Source boundaries
+
+FogCast keeps its host applications and target agent in one Go module, with
+the ownership visible in the source tree. The ten-foot UI is under
+`ui/tenfoot` and the kit launcher is under `ui/kitlauncher`; their Go package
+names remain `tenfoot` and `kitlauncher`. Host services live in `host` and
+`internal/hostapi`, target HTTP/cache coordination lives in `internal/agent`,
+and local MiSTer integration lives in `internal/mister`. The UI consumes host
+contracts but does not own target handlers, runtime lifecycle, image assembly,
+or FPGA builds. The FES parent selects this component revision and owns image
+integration and release evidence.
+
 ## Target diagnostic evidence
 
 The target agent keeps a bounded, in-memory diagnostic ring in the same process
@@ -192,7 +204,7 @@ refused with a clear reason and no FPGA mutation. Host return releases that
 hostless grant before the host claims. Package/ABI offline launch remains
 hold. D-pad browse does not take a lease. Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
-a catalog browse view through `host/tenfoot/fbgrid`. The default is a small
+a catalog browse view through `ui/tenfoot/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
 Wall (6×3 mosaic) → Split (vertical clear-logo list plus hero) → Grid
 without stealing D-pad browse or the X theme cycle. X (West) cycles
@@ -211,7 +223,7 @@ when a query is filtering the shelf, plus `FLOW`,
 wheel enters that system's browse view; East/B on the browse view returns to the wheel
 and closes search. Start opens living-room search on the current shelf (from the
 wheel it enters that system's browse first) and reuses the existing gamepad OSK
-(`host/tenfoot` TextField): D-pad moves keys, A types, L/R page letters/symbols, B
+(`ui/tenfoot` TextField): D-pad moves keys, A types, L/R page letters/symbols, B
 clears a non-empty query or closes, and Start/Done commits. The query is a
 case-insensitive substring of the title, or of the clear-logo wordmark fallback
 (system id) when the title is empty. An empty query restores the full shelf; no
@@ -280,7 +292,7 @@ Opening the pane, showing or hiding attract, entering or leaving the
 platform wheel, switching layout or theme pack, and opening or closing
 search play a short
 theme-driven overlay: Classic a curtain, Neon a glitch/static burst,
-Sofa Dim a wipe (`host/tenfoot/anim`, under 400ms). `transition` `none`
+Sofa Dim a wipe (`ui/tenfoot/anim`, under 400ms). `transition` `none`
 in a theme file, `-no-transition`, or `FOGCAST_NO_TRANSITION=1` is an
 honest no-op. Pad input is not held while the overlay paints. Attract does not arm
 while the pane or search OSK is open. Missing description copy is omitted rather than
@@ -326,7 +338,7 @@ paint title and chrome header with Go Bold (`title_bold`, default true);
 body, caption, and status stay Go Regular unless a matching `*_bold` token
 is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
-come from `host/tenfoot/theme`: built-in `default` / pack **Classic** match
+come from `ui/tenfoot/theme`: built-in `default` / pack **Classic** match
 today's kit look, and **Neon** (`arcade`) / **Sofa Dim** (`night`) (or a
 JSON/TOML file) swap colours, type roles, chrome accents, and scene
 transitions without forking UI code. Select with `-theme`, `theme` in
@@ -336,7 +348,7 @@ The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
 their polls, and applies a JSON remap profile from
-`host/tenfoot/inputmap` (default **identity** preserves A=launch and
+`ui/tenfoot/inputmap` (default **identity** preserves A=launch and
 Select+Start=stop). The FogCast virtual pad, virtual-bus devices, and
 `/dev/input/js*` duplicates stay excluded. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
 evidence belong to FES.
