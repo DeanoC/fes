@@ -25,12 +25,9 @@ jobs:
       - name: Test changed root packages
         run: >-
           go test -race
-          ./cmd/fes-boot
           ./cmd/mister-agent
-          ./internal/applianceboot
           ./internal/appliancedata
           ./internal/applianceupdate
-          ./internal/bootlinux
           ./internal/bridge
           ./internal/buildinputs
           ./internal/httpapi

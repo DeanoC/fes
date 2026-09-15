@@ -81,7 +81,8 @@ existing `golang.org/x/sys/unix` dependency for filesystem operations.
 The root module selects it through a checked-in relative replacement.
 `make test` and `make vet` explicitly check both modules because root
 `go test ./...` and `go vet ./...` do not traverse nested modules.
-The boot executable and network update admission remain in the root module.
+Target update admission remains in the root module; the fixed bootstrap and its
+Linux boot implementation are owned by the FES appliance.
 
 FogCast keeps the host applications, host services, and target agent in one Go
 module, but the source tree names their ownership explicitly. The ten-foot UI
@@ -599,8 +600,9 @@ playable game session. Stop uses the ordinary session Stop-to-idle path.
 
 ## FES appliance releases
 
-FES owns compatible source selection and release/media assembly. FogCast supplies
-`cmd/fes-boot`, the target update API, and `cmd/fes-update`. Online releases replace
+FES owns compatible source selection, release/media assembly, and the fixed
+bootstrap. FogCast supplies the public appliance module, target update API, and
+`cmd/fes-update`. Online releases replace
 only a content-addressed read-only ext4 system image. The locked kernel, U-Boot,
 and fixed `/linux/linux.img` bootstrap stay outside that operation. Configurations,
 target identity, ROM cache, launcher catalog/cover cache, and SNES saves remain
@@ -613,7 +615,7 @@ label `FESDATA3`, agent startup bind-mounts that ext4 volume over
 files are copied onto p3 first and never overwritten there. Releases,
 `agent.toml`, `launcher.json`, `target-id`, and known-good images stay on the
 1 GiB FAT. The helper does not create, grow, or format partitions and does not
-run from `fes-boot`. Bind is refused while `GET /v1/update` shows trial,
+run from the fixed bootstrap. Bind is refused while `GET /v1/update` shows trial,
 pending, or corrupt; the agent still starts and keeps those trees on FAT.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
@@ -639,8 +641,8 @@ leaves reset armed. Known-good boots do not require the host to be online.
 `appliance/store` owns bounded raw-image admission, immutable publication,
 cross-process locking, checksummed state, and consumed-trial selection.
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
-`internal/applianceboot` owns fallback ordering; `internal/bootlinux` owns the
-Linux mounts, loops and watchdog. The bootstrap records its selected image in
+The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
+watchdog. The bootstrap records its selected image in
 `/media/fat/fogcast/releases/boot.json`; the native agent accepts that ticket only
 for the current kernel boot ID and retained factory manifest.
 
