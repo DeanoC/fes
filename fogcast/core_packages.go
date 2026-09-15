@@ -241,7 +241,7 @@ func mapCoreEntryError(err error) error {
 	case errors.Is(err, catalog.ErrCoreEntryNotFound):
 		return canonicalError(protocol.CodeROMNotFound, nil)
 	case errors.Is(err, catalog.ErrCoreEntryConflict):
-		return &protocol.APIError{Code: protocol.CodeBusy, Message: "core entry selection changed; refresh and retry"}
+		return &protocol.APIError{Code: protocol.CodeStaleRevision, Message: "core entry selection changed; refresh and retry"}
 	case errors.Is(err, catalog.ErrInvalidCoreEntry), errors.Is(err, catalog.ErrCoreEntryCoreMismatch):
 		return canonicalError(protocol.CodeBadRequest, nil)
 	default:

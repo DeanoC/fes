@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestCoreSelectionCommandUsesHostCAS(t *testing.T) {
@@ -37,6 +38,16 @@ func TestCoreSelectionCommandUsesHostCAS(t *testing.T) {
 	result := runCoreLibraryCommand(context.Background(), server.URL, []string{"core-select", "core-pong", old, next})
 	if result.err != nil || result.exit != 0 {
 		t.Fatalf("result %+v", result)
+	}
+}
+
+func TestCoreSelectionConflictHasRefreshablePublicError(t *testing.T) {
+	result := publicAPIError(protocol.CodeStaleRevision)
+	if result.Code != protocol.CodeStaleRevision {
+		t.Fatalf("code = %q", result.Code)
+	}
+	if result.Message != "core package selection changed; refresh before retrying" {
+		t.Fatalf("message = %q", result.Message)
 	}
 }
 

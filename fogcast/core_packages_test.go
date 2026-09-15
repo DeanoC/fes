@@ -79,6 +79,20 @@ func libraryPackageFixture(t *testing.T, version string, extras ...string) []byt
 	return out.Bytes()
 }
 
+func TestCoreEntryConflictMapsToStaleRevision(t *testing.T) {
+	err := mapCoreEntryError(catalog.ErrCoreEntryConflict)
+	var apiErr *protocol.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T %v, want API error", err, err)
+	}
+	if apiErr.Code != protocol.CodeStaleRevision {
+		t.Fatalf("code = %q, want %q", apiErr.Code, protocol.CodeStaleRevision)
+	}
+	if apiErr.Message != "core entry selection changed; refresh and retry" {
+		t.Fatalf("message = %q", apiErr.Message)
+	}
+}
+
 func TestInstalledPackageSelectionAndLibraryLaunch(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()
