@@ -149,6 +149,40 @@ checkouts. Integrate reviewed component commits using the commands above before
 running the parent build. Workers can still use their component's artifact-only
 diagnostic loop.
 
+## Three-system target acceptance
+
+The package-only build checks image structure and package identity without
+mutating a target. After deploying the exact development image to the
+designated kit, run the FES-owned acceptance lane:
+
+```sh
+make target-acceptance
+```
+
+It checks host and direct-target health, verifies that the selected Pong,
+ZX81 and Coleco package IDs are installed and selected in the host library,
+launches each entry through the persistent session API, attaches input,
+sends a small core-appropriate press/release sequence through the launch-owned
+input bridge, and stops back to idle.
+The runner always stops an active session during cleanup. It does not infer
+video correctness from a successful API response.
+
+For the full physical evidence lane, provide the exact media fixtures and an
+HDMI capture directory explicitly:
+
+```sh
+make target-acceptance TARGET_ACCEPTANCE_ARGS='\\
+  --media fes.zx81=/absolute/path/fes-zx81-load.p \\
+  --media fes.coleco=/absolute/path/fes-coleco-diagnostic.rom \\
+  --capture-dir out/native-integration-dev/target-acceptance'
+```
+
+Each capture is written as a JPEG and `acceptance.json` records the exact
+package, input count, media digest and capture digest. Capture digests prove
+which bytes were recorded; visual interpretation remains a human HDMI review.
+The lane is intentionally not part of ordinary CI because it requires the
+designated physical kit and `/dev/video0`.
+
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those
 commands' release receipts. `make rebuild` still forces the full cold build.
