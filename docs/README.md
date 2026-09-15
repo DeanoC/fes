@@ -10,6 +10,7 @@ host software and target root filesystem.
 | --- | --- |
 | Set up a checkout, build outputs and run the host | [Getting started](getting-started.md) |
 | Understand the parts, directories and terminology | [Project map](project-map.md) |
+| Review the next FES ownership migration | [Structure proposal and sequence](fes-structure.md) |
 | See which binaries, images and cores are versioned artifacts | [Artifact identities](artifacts.md) |
 | See who owns native image assembly | [Image assembly ownership](image-assembly.md) |
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
