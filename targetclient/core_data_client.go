@@ -1,4 +1,4 @@
-package host
+package targetclient
 
 import (
 	"bytes"
@@ -40,7 +40,7 @@ func (c *Client) coreData(ctx context.Context, size int64, body io.Reader, id st
 	request.Header.Set("Authorization", "Bearer "+c.token)
 	request.Header.Set("Content-Type", "application/octet-stream")
 	request.Header.Set("X-FogCast-Package-ID", id)
-	hadLease := c.kitLease.currentToken() != ""
+	hadLease := c.kitLease.CurrentToken() != ""
 	if u != nil {
 		request.Header.Set("X-FogCast-Expected-Revision", u.ExpectedRevision)
 		request.Header.Set("X-FogCast-Paddle-Speed", strconv.Itoa(int(u.PaddleSpeed)))

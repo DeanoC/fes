@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/remotemedia"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type service interface {
@@ -43,14 +44,14 @@ type metadataOpener func(context.Context, metadata.RuntimeConfig) (metadata.Runt
 type compositionOption func(*compositionDeps)
 
 type targetCast interface {
-	CastStart(context.Context, string, string, uint64) (host.CastStatus, error)
-	CastStop(context.Context, string, uint64) (host.CastStatus, error)
-	CastStatus(context.Context) (host.CastStatus, error)
+	CastStart(context.Context, string, string, uint64) (targetclient.CastStatus, error)
+	CastStop(context.Context, string, uint64) (targetclient.CastStatus, error)
+	CastStatus(context.Context) (targetclient.CastStatus, error)
 }
 
 type targetMediaCast interface {
 	targetCast
-	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (host.CastStatus, error)
+	CastStartWithMedia(context.Context, string, string, uint64, protocol.CastMediaSet) (targetclient.CastStatus, error)
 }
 
 const (
@@ -241,7 +242,7 @@ func newTargetCast(config fogcast.Config) (targetCast, error) {
 	if err != nil {
 		return nil, err
 	}
-	return host.NewClient(baseURL, config.Token, nil), nil
+	return targetclient.NewClient(baseURL, config.Token, nil), nil
 }
 
 func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarterFactory, options ...compositionOption) (http.Handler, func() error, error) {
@@ -372,7 +373,7 @@ func composeAPI(service service, config fogcast.Config, makeStarter bridgeStarte
 	var targetStarter *host.HTTPBridgeStarter
 	if typed, ok := starter.(*host.HTTPBridgeStarter); ok {
 		targetStarter = typed
-		if provider, ok := service.(interface{ KitLease() *host.KitLease }); ok {
+		if provider, ok := service.(interface{ KitLease() *targetclient.KitLease }); ok {
 			targetStarter.WithKitLease(provider.KitLease())
 			targetStarter.WithKitLeaseSource(provider.KitLease)
 		}
@@ -613,13 +614,13 @@ func (s *compositionMediaSession) SetCastTarget(target fogcast.TargetConfig) {
 	if err != nil {
 		return
 	}
-	s.target = host.NewClient(parsed, target.Agent, nil)
+	s.target = targetclient.NewClient(parsed, target.Agent, nil)
 	s.token = target.Agent
 }
 
 func (s *compositionMediaSession) Start(ctx context.Context, gameID string) (hostapi.MediaHandle, error) {
 	if s.target != nil {
-		var status host.CastStatus
+		var status targetclient.CastStatus
 		var err error
 		if s.mediaSet == nil {
 			status, err = s.target.CastStart(ctx, s.session, s.token, s.generation)

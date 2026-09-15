@@ -1,4 +1,4 @@
-package host_test
+package targetclient_test
 
 import (
 	"bytes"
@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 const idleStatusJSON = `{"state":"idle","game_id":null,"system":null,"expected_core":null,"observed_core":null,"last_error":null}`
@@ -36,7 +36,7 @@ func TestClientAddsBearerAndDecodesStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).Status(context.Background())
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Status(context.Background())
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("status = %#v, %v", status, err)
 	}
@@ -52,7 +52,7 @@ func TestClientHealthAuthenticatesIdentity(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	health, err := host.NewClient(baseURL, "test-token", server.Client()).Health(context.Background())
+	health, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Health(context.Background())
 	if err != nil || !health.Ready {
 		t.Fatalf("health = %#v, %v", health, err)
 	}
@@ -76,7 +76,7 @@ func TestClientLaunchSendsJSON(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), want)
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), want)
 	if err != nil || status.State != protocol.StateActive {
 		t.Fatalf("status = %#v, %v", status, err)
 	}
@@ -107,7 +107,7 @@ func TestClientDevelopmentRBFStreamsAuthenticatedBody(t *testing.T) {
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
 
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload))
 	if err != nil || status.State != protocol.StateActive || !status.Development || status.ObservedCore == nil || *status.ObservedCore != "DEVCORE" {
 		t.Fatalf("status = %#v, err = %v", status, err)
 	}
@@ -153,7 +153,7 @@ func TestClientDevelopmentCoreStreamsLeasedPackageAndRequiresCustomStatus(t *tes
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload))
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).LoadCore(context.Background(), int64(len(payload)), bytes.NewReader(payload))
 	if err != nil || status.CorePackage == nil || status.CorePackage.Generation != 7 || !status.CorePackage.Gamepad {
 		t.Fatalf("status=%#v error=%v", status, err)
 	}
@@ -179,7 +179,7 @@ func TestClientDevelopmentCoreInspectionStreamsWithoutKitLease(t *testing.T) {
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
 
-	got, err := host.NewClient(baseURL, "test-token", server.Client()).InspectCore(
+	got, err := targetclient.NewClient(baseURL, "test-token", server.Client()).InspectCore(
 		context.Background(), int64(len(payload)), bytes.NewReader(payload))
 	if err != nil || got.PackageID != want.PackageID || !got.Compatible || got.CompatibilityError != nil ||
 		got.Descriptor.Core.ID != want.Descriptor.Core.ID {
@@ -217,7 +217,7 @@ func TestClientDevelopmentCoreInspectionRejectsInvalidInputAndResponse(t *testin
 		{name: "incompatible without error", size: 3, reader: strings.NewReader("pkg"), response: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Descriptor: validCoreInspectionDescriptor()}, wantRequest: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			var client *host.Client
+			var client *targetclient.Client
 			counter := &countingResponseTransport{}
 			if test.wantRequest {
 				client = contentClientWithTransport(&staticResponseTransport{body: string(mustJSON(t, test.response))})
@@ -321,7 +321,7 @@ func TestClientDevelopmentRebootUsesAuthenticatedEmptyPost(t *testing.T) {
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
 
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).RebootDevelopment(context.Background())
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).RebootDevelopment(context.Background())
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("development reboot = %#v, %v", status, err)
 	}
@@ -335,7 +335,7 @@ func TestClientDecodesAPIError(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	_, err := host.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/test.sfc"})
+	_, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/test.sfc"})
 	var apiErr *protocol.APIError
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeROMNotFound {
 		t.Fatalf("error = %#v", err)
@@ -349,7 +349,7 @@ func TestClientRejectsOversizedResponse(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	if _, err := host.NewClient(baseURL, "test-token", server.Client()).Status(context.Background()); err == nil {
+	if _, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Status(context.Background()); err == nil {
 		t.Fatal("oversized response accepted")
 	}
 }
@@ -361,7 +361,7 @@ func TestClientRejectsMultipleJSONResponses(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	if _, err := host.NewClient(baseURL, "test-token", server.Client()).Status(context.Background()); err == nil {
+	if _, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Status(context.Background()); err == nil {
 		t.Fatal("multiple JSON responses accepted")
 	}
 }
@@ -380,7 +380,7 @@ func TestClientStopSendsEmptyPOST(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	if _, err := host.NewClient(baseURL, "test-token", server.Client()).Stop(context.Background()); err != nil {
+	if _, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -415,7 +415,7 @@ func TestClientCastLifecycleUsesAuthenticatedEndpoints(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	client := host.NewClient(baseURL, "test-token", server.Client())
+	client := targetclient.NewClient(baseURL, "test-token", server.Client())
 	if status, err := client.CastStart(context.Background(), "session", "bridge-token", 9); err != nil || status.State != "active" {
 		t.Fatalf("cast start = %#v, %v", status, err)
 	}
@@ -440,7 +440,7 @@ func TestClientCastStartWithMediaSendsCanonicalDescriptor(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	status, err := host.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
+	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
 	if err != nil || status.Media == nil || !status.Media.Audio || !status.Media.Ready {
 		t.Fatalf("status = %#v, err = %v", status, err)
 	}
@@ -462,7 +462,7 @@ func TestClientCastStartWithMediaStopsUnacknowledgedTarget(t *testing.T) {
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
-	_, err := host.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
+	_, err := targetclient.NewClient(baseURL, "test-token", server.Client()).CastStartWithMedia(context.Background(), "session", "bridge-token", 9, protocol.CastMediaSet{Version: protocol.CastMediaSetVersion, Video: true, Audio: true})
 	if err == nil || stops != 1 {
 		t.Fatalf("err=%v stops=%d", err, stops)
 	}

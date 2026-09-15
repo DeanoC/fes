@@ -1,4 +1,4 @@
-package host_test
+package targetclient_test
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 const contentDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -37,7 +37,7 @@ func TestCacheIndexRequestContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index, err := host.NewClient(baseURL, "test-token", server.Client()).CacheIndex(context.Background())
+	index, err := targetclient.NewClient(baseURL, "test-token", server.Client()).CacheIndex(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestProbeContentRequestContractAndAbsentResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := host.NewClient(baseURL, "test-token", server.Client()).ProbeContent(context.Background(), protocol.SystemSNES, content)
+	response, err := targetclient.NewClient(baseURL, "test-token", server.Client()).ProbeContent(context.Background(), protocol.SystemSNES, content)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestUploadContentRequestContract(t *testing.T) {
 	defer server.Close()
 
 	baseURL, _ := url.Parse(server.URL)
-	response, err := host.NewClient(baseURL, "test-token", server.Client()).UploadContent(context.Background(), protocol.SystemMegaDrive, content, strings.NewReader("rom"))
+	response, err := targetclient.NewClient(baseURL, "test-token", server.Client()).UploadContent(context.Background(), protocol.SystemMegaDrive, content, strings.NewReader("rom"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestLaunchContentRequestContract(t *testing.T) {
 	defer server.Close()
 
 	baseURL, _ := url.Parse(server.URL)
-	response, err := host.NewClient(baseURL, "test-token", server.Client()).LaunchContent(context.Background(), want)
+	response, err := targetclient.NewClient(baseURL, "test-token", server.Client()).LaunchContent(context.Background(), want)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,12 +228,12 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 	tests := []struct {
 		name     string
 		response string
-		call     func(*host.Client) error
+		call     func(*targetclient.Client) error
 	}{
 		{
 			name:     "probe system",
 			response: `{"present":true,"system":"megadrive","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.ProbeContent(context.Background(), protocol.SystemSNES, valid)
 				return err
 			},
@@ -241,7 +241,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "probe content",
 			response: `{"present":true,"system":"snes","content":{"sha256":"` + otherDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.ProbeContent(context.Background(), protocol.SystemSNES, valid)
 				return err
 			},
@@ -249,7 +249,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "absent probe with identity",
 			response: `{"present":false,"system":"snes","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.ProbeContent(context.Background(), protocol.SystemSNES, valid)
 				return err
 			},
@@ -257,7 +257,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "upload system",
 			response: `{"result":"created","system":"megadrive","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
 				return err
 			},
@@ -265,7 +265,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "upload content",
 			response: `{"result":"created","system":"snes","content":{"sha256":"` + otherDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
 				return err
 			},
@@ -273,7 +273,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "upload missing result",
 			response: `{"system":"snes","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
 				return err
 			},
@@ -281,7 +281,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "upload unknown result",
 			response: `{"result":"replaced","system":"snes","content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.UploadContent(context.Background(), protocol.SystemSNES, valid, strings.NewReader("rom"))
 				return err
 			},
@@ -289,7 +289,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch content",
 			response: `{"status":{"state":"active","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + otherDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -297,7 +297,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch status system",
 			response: `{"status":{"state":"active","game_id":"snes-synthetic","system":"megadrive","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -305,7 +305,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch missing state",
 			response: `{"status":{"game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -313,7 +313,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch unknown state",
 			response: `{"status":{"state":"ready","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -321,7 +321,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch non-active state",
 			response: `{"status":{"state":"idle","game_id":"snes-synthetic","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -329,7 +329,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch missing game ID",
 			response: `{"status":{"state":"active","game_id":null,"system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -337,7 +337,7 @@ func TestContentClientRejectsMismatchedResponses(t *testing.T) {
 		{
 			name:     "launch mismatched game ID",
 			response: `{"status":{"state":"active","game_id":"snes-other","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null},"content":{"sha256":"` + contentDigest + `","size":3,"extension":"sfc"}}`,
-			call: func(client *host.Client) error {
+			call: func(client *targetclient.Client) error {
 				_, err := client.LaunchContent(context.Background(), protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: valid})
 				return err
 			},
@@ -507,9 +507,9 @@ func TestContentMethodsUseCallerContextsIndependently(t *testing.T) {
 	}
 }
 
-func contentClientWithTransport(transport http.RoundTripper) *host.Client {
+func contentClientWithTransport(transport http.RoundTripper) *targetclient.Client {
 	baseURL, _ := url.Parse("http://fogcast.invalid/discarded?private=1#discarded")
-	return host.NewClient(baseURL, "test-token", &http.Client{Transport: transport})
+	return targetclient.NewClient(baseURL, "test-token", &http.Client{Transport: transport})
 }
 
 type countingResponseTransport struct {

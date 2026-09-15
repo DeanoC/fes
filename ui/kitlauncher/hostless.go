@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -25,8 +25,8 @@ const (
 )
 
 type hostlessRuntime struct {
-	agent *host.Client
-	lease *host.KitLease
+	agent *targetclient.Client
+	lease *targetclient.KitLease
 }
 
 type hostlessRefuse struct{ reason string }
@@ -58,8 +58,8 @@ func openHostless(configPath string) (*hostlessRuntime, error) {
 		return nil, err
 	}
 	httpClient := &http.Client{Timeout: hostlessLaunchTimeout}
-	lease := host.NewKitLease(u, cfg.Token, httpClient, kitlease.HostlessOwner, kitlease.HostlessPurpose)
-	agent := host.NewClient(u, cfg.Token, httpClient).WithKitLease(lease)
+	lease := targetclient.NewKitLease(u, cfg.Token, httpClient, kitlease.HostlessOwner, kitlease.HostlessPurpose)
+	agent := targetclient.NewClient(u, cfg.Token, httpClient).WithKitLease(lease)
 	return &hostlessRuntime{agent: agent, lease: lease}, nil
 }
 
@@ -82,7 +82,7 @@ func mapHostlessError(err error) error {
 	if errors.As(err, &refuse) {
 		return err
 	}
-	if errors.Is(err, host.ErrKitLeaseLost) {
+	if errors.Is(err, targetclient.ErrKitLeaseLost) {
 		return hostlessRefuse{RefuseKitInUse}
 	}
 	var api *protocol.APIError

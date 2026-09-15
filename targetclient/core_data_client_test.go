@@ -1,4 +1,4 @@
-package host_test
+package targetclient_test
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func TestCoreDataClientBindsPackageAndDoesNotReplayMutation(t *testing.T) {
@@ -45,7 +45,7 @@ func TestCoreDataClientBindsPackageAndDoesNotReplayMutation(t *testing.T) {
 			}))
 			defer server.Close()
 			base, _ := url.Parse(server.URL)
-			client := host.NewClient(base, "secret", server.Client())
+			client := targetclient.NewClient(base, "secret", server.Client())
 			if kind == "write" || kind == "lost reply" {
 				_, err = client.UpdateCoreSettings(context.Background(), 7, strings.NewReader("package"), protocol.CoreSettingsUpdate{ExpectedPackageID: id, ExpectedRevision: "absent", PaddleSpeed: 2})
 			} else {
@@ -86,7 +86,7 @@ func TestSettingsWriteReleasesOnlyItsNewSuccessfulLease(t *testing.T) {
 						http.Error(w, `{"error":{"code":"STALE_REVISION","message":"stale","phase":"core_data"}}`, 409)
 						return
 					}
-					if r.Header.Get(host.KitLeaseHeader) != "settings-token" {
+					if r.Header.Get(targetclient.KitLeaseHeader) != "settings-token" {
 						t.Error("missing owner")
 					}
 					if kind == "lost response" {
@@ -99,9 +99,9 @@ func TestSettingsWriteReleasesOnlyItsNewSuccessfulLease(t *testing.T) {
 			}))
 			defer server.Close()
 			base, _ := url.Parse(server.URL)
-			lease := host.NewKitLease(base, "bearer", server.Client(), "test", "settings")
+			lease := targetclient.NewKitLease(base, "bearer", server.Client(), "test", "settings")
 			defer lease.Close(context.Background())
-			client := host.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+			client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
 			if kind == "existing lease" {
 				req, _ := http.NewRequest("POST", server.URL+"/v1/launch", nil)
 				if err := lease.Authorize(req, true); err != nil {
@@ -144,7 +144,7 @@ func TestCoreDataClientRejectsMissingDurableFields(t *testing.T) {
 			}))
 			defer server.Close()
 			base, _ := url.Parse(server.URL)
-			_, err := host.NewClient(base, "secret", server.Client()).InspectCoreData(context.Background(), 7, strings.NewReader("package"), data.PackageID)
+			_, err := targetclient.NewClient(base, "secret", server.Client()).InspectCoreData(context.Background(), 7, strings.NewReader("package"), data.PackageID)
 			if err == nil {
 				t.Fatal("accepted incomplete data")
 			}

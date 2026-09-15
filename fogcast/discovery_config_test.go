@@ -3,9 +3,9 @@ package fogcast
 import (
 	"context"
 	"errors"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 	"github.com/pelletier/go-toml/v2"
 	"net/url"
 	"os"
@@ -106,7 +106,7 @@ func TestConsecutiveOfflineTargetEditsWithoutReconciliation(t *testing.T) {
 		t.Run("state="+initialState, func(t *testing.T) {
 			target := TargetConfig{Name: "kit", Enabled: true, Address: "http://127.0.0.1:1", Agent: "secret"}
 			base, _ := url.Parse(target.Address)
-			s := newService(Config{Targets: []TargetConfig{target}, SelectedTarget: "kit"}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, host.NewClient(base, "secret", nil))
+			s := newService(Config{Targets: []TargetConfig{target}, SelectedTarget: "kit"}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", nil))
 			s.connection.State = initialState
 			for _, address := range []string{"http://127.0.0.1:2", "http://127.0.0.1:3"} {
 				target.Address = address

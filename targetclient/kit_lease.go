@@ -1,4 +1,4 @@
-package host
+package targetclient
 
 import (
 	"context"
@@ -200,7 +200,7 @@ func (c *Client) KitLeaseStatus(ctx context.Context) (kitlease.Status, error) {
 	return status, err
 }
 
-func (l *KitLease) Held() bool { return l.currentToken() != "" }
+func (l *KitLease) Held() bool { return l.CurrentToken() != "" }
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
 	case "/v1/library/core/load", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":
@@ -211,7 +211,7 @@ func (c *Client) authorizeMutation(r *http.Request) error {
 	return nil
 }
 
-func (l *KitLease) currentToken() string {
+func (l *KitLease) CurrentToken() string {
 	if l == nil {
 		return ""
 	}
@@ -219,7 +219,7 @@ func (l *KitLease) currentToken() string {
 	defer l.mu.Unlock()
 	return l.grant.Token
 }
-func (l *KitLease) authorizeExisting(r *http.Request, token string) error {
+func (l *KitLease) AuthorizeExisting(r *http.Request, token string) error {
 	if l == nil {
 		return nil
 	}

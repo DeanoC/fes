@@ -126,12 +126,15 @@ The normal FPGA launch path is:
 FogCast keeps its host applications and target agent in one Go module, with
 the ownership visible in the source tree. The ten-foot UI is under
 `ui/tenfoot` and the kit launcher is under `ui/kitlauncher`; their Go package
-names remain `tenfoot` and `kitlauncher`. Host services live in `host` and
-`internal/hostapi`, target HTTP/cache coordination lives in `internal/agent`,
-and local MiSTer integration lives in `internal/mister`. The UI consumes host
-contracts but does not own target handlers, runtime lifecycle, image assembly,
-or FPGA builds. The FES parent selects this component revision and owns image
-integration and release evidence.
+names remain `tenfoot` and `kitlauncher`. Host catalog/config/library and
+host-owned input bridges live in `host` and `internal/hostapi`;
+`targetclient` owns host-to-target HTTP/cache/core/development transport,
+endpoint reconciliation, and kit leases; target-side HTTP/cache coordination
+lives in `internal/agent`; and local MiSTer integration lives in
+`internal/mister`. The UI consumes host and target-client contracts but does
+not own target handlers, runtime lifecycle, image assembly, or FPGA builds. The
+FES parent selects this component revision and owns image integration and
+release evidence.
 
 ## Target diagnostic evidence
 

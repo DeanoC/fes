@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -55,7 +55,7 @@ func TestHostlessLaunchVerifiedHitAndFailClosed(t *testing.T) {
 		case r.URL.Path == "/v2/hostless/identity/"+gameID:
 			_ = json.NewEncoder(w).Encode(protocol.CachedIdentityResponse{Present: true, GameID: gameID, System: &system, Content: &content})
 		case r.URL.Path == "/v2/launch":
-			if r.Header.Get(host.KitLeaseHeader) != "lease-secret" {
+			if r.Header.Get(targetclient.KitLeaseHeader) != "lease-secret" {
 				t.Error("launch missing lease")
 			}
 			_ = json.NewEncoder(w).Encode(protocol.CachedLaunchResponse{
@@ -135,7 +135,7 @@ func TestHostlessStopReturnsIdleAndFailedReleaseStaysHeld(t *testing.T) {
 				Content: content,
 			})
 		case r.URL.Path == "/v1/stop":
-			if r.Header.Get(host.KitLeaseHeader) != "lease-secret" {
+			if r.Header.Get(targetclient.KitLeaseHeader) != "lease-secret" {
 				t.Error("stop missing lease")
 			}
 			agentState = "idle"
@@ -176,7 +176,7 @@ func testHostless(t *testing.T, server *httptest.Server) *hostlessRuntime {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lease := host.NewKitLease(u, "token", server.Client(), kitlease.HostlessOwner, kitlease.HostlessPurpose)
-	agent := host.NewClient(u, "token", server.Client()).WithKitLease(lease)
+	lease := targetclient.NewKitLease(u, "token", server.Client(), kitlease.HostlessOwner, kitlease.HostlessPurpose)
+	agent := targetclient.NewClient(u, "token", server.Client()).WithKitLease(lease)
 	return &hostlessRuntime{agent: agent, lease: lease}
 }

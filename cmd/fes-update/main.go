@@ -18,8 +18,8 @@ import (
 
 	"github.com/DeanoC/FogCast/appliance"
 	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/discovery"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 func main() {
@@ -72,8 +72,8 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 		return errors.New("invalid target address")
 	}
 	transport := &http.Client{Timeout: 5 * time.Minute}
-	lease := host.NewKitLease(base, target.Agent, transport, "fes-update", "appliance "+*action)
-	client := host.NewClient(base, target.Agent, transport).WithKitLease(lease)
+	lease := targetclient.NewKitLease(base, target.Agent, transport, "fes-update", "appliance "+*action)
+	client := targetclient.NewClient(base, target.Agent, transport).WithKitLease(lease)
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -81,7 +81,7 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	}()
 	ctx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
-	var result host.ApplianceStatus
+	var result targetclient.ApplianceStatus
 	switch *action {
 	case "status":
 		result, err = client.InspectAppliance(ctx, target.TargetID, discovery.Resolve)

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 const (
@@ -25,7 +27,7 @@ const (
 // authenticated MiSTer agent API. The target agent owns the uinput device and
 // bridge process; the host only owns the session lease and data connection.
 type HTTPBridgeStarterConfig struct {
-	KitLease     *KitLease
+	KitLease     *targetclient.KitLease
 	BaseURL      *url.URL
 	Token        string
 	HTTPClient   *http.Client
@@ -35,8 +37,8 @@ type HTTPBridgeStarterConfig struct {
 
 type HTTPBridgeStarter struct {
 	mu             sync.Mutex
-	kitLease       *KitLease
-	kitLeaseSource func() *KitLease
+	kitLease       *targetclient.KitLease
+	kitLeaseSource func() *targetclient.KitLease
 	baseURL        url.URL
 	token          string
 	httpClient     *http.Client
@@ -119,7 +121,7 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	if kitToken != "" {
-		if err := lease.authorizeExisting(request, kitToken); err != nil {
+		if err := lease.AuthorizeExisting(request, kitToken); err != nil {
 			return err
 		}
 	} else if err := lease.Authorize(request, path == "/v1/input/attach"); err != nil {
@@ -128,7 +130,7 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	// Bind an input handle to the exact grant used for dispatch, even when
 	// another session replaces ownership while the response is in flight.
 	if sentKitToken != nil {
-		*sentKitToken = request.Header.Get(KitLeaseHeader)
+		*sentKitToken = request.Header.Get(targetclient.KitLeaseHeader)
 	}
 	response, err := s.httpClient.Do(request)
 	if err != nil {
@@ -148,7 +150,7 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	return nil
 }
 
-func (s *HTTPBridgeStarter) currentOrigin() (url.URL, string, *KitLease) {
+func (s *HTTPBridgeStarter) currentOrigin() (url.URL, string, *targetclient.KitLease) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	lease := s.kitLease
@@ -213,7 +215,7 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 	_, token, lease := h.starter.currentOrigin()
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("X-FogCast-Input-Session", strconv.FormatUint(h.session, 10))
-	if err := lease.authorizeExisting(request, h.kitToken); err != nil {
+	if err := lease.AuthorizeExisting(request, h.kitToken); err != nil {
 		_ = conn.Close()
 		return nil, err
 	}
@@ -244,8 +246,8 @@ func (h *httpBridgeHandle) Stop(ctx context.Context) error {
 	h.stopped = true
 	h.mu.Unlock()
 	_, _, lease := h.starter.currentOrigin()
-	if lease != nil && lease.currentToken() != h.kitToken {
-		return ErrKitLeaseLost
+	if lease != nil && lease.CurrentToken() != h.kitToken {
+		return targetclient.ErrKitLeaseLost
 	}
 	requestBody := struct {
 		Session uint64 `json:"session"`
@@ -277,14 +279,14 @@ var _ BridgeHandle = (*httpBridgeHandle)(nil)
 var _ BridgeDialer = (*httpBridgeHandle)(nil)
 
 // WithKitLease must be called at composition time before starting input.
-func (s *HTTPBridgeStarter) WithKitLease(lease *KitLease) {
+func (s *HTTPBridgeStarter) WithKitLease(lease *targetclient.KitLease) {
 	s.mu.Lock()
 	s.kitLease = lease
 	s.mu.Unlock()
 }
 
 // WithKitLeaseSource resolves the current session target's lease at attach time.
-func (s *HTTPBridgeStarter) WithKitLeaseSource(source func() *KitLease) {
+func (s *HTTPBridgeStarter) WithKitLeaseSource(source func() *targetclient.KitLease) {
 	s.mu.Lock()
 	s.kitLeaseSource = source
 	s.mu.Unlock()

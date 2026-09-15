@@ -7,12 +7,13 @@ import (
 	"slices"
 
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/targetclient"
 )
 
 type Library struct {
 	games  []Game
 	byID   map[string]Game
-	client *Client
+	client *targetclient.Client
 }
 
 func Open(configPath string, httpClient *http.Client) (*Library, error) {
@@ -32,7 +33,7 @@ func Open(configPath string, httpClient *http.Client) (*Library, error) {
 	for _, game := range games {
 		byID[game.ID] = game
 	}
-	return &Library{games: games, byID: byID, client: NewClient(connection.BaseURL, connection.Token, httpClient)}, nil
+	return &Library{games: games, byID: byID, client: targetclient.NewClient(connection.BaseURL, connection.Token, httpClient)}, nil
 }
 
 func (l *Library) Games() []Game {
