@@ -823,6 +823,7 @@ func publicAPIError(code protocol.ErrorCode) commandError {
 		protocol.CodeUnauthorized:         "target authentication failed",
 		protocol.CodeROMNotFound:          "catalog game was not found",
 		protocol.CodeBusy:                 "another launch or stop transition is running",
+		protocol.CodeStaleRevision:        "core package selection changed; refresh before retrying",
 		protocol.CodeUnsupportedSystem:    "game system is unsupported",
 		protocol.CodeUnsupportedOperation: "requested operation is unsupported",
 		protocol.CodeInvalidROMPath:       "target ROM path is invalid",
