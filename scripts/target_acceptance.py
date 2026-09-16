@@ -34,10 +34,52 @@ SELECTION_NAMES = {
     "fes.coleco": "fes-coleco.package-selection.toml",
 }
 PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
+HTTP_ERROR_BODY_LIMIT = 16 * 1024
+HTTP_ERROR_FIELD_LIMIT = 256
+CLI_NOTE_LIMIT = 1024
 
 
 class AcceptanceError(RuntimeError):
     pass
+
+
+def _safe_error_field(value: Any, limit: int = HTTP_ERROR_FIELD_LIMIT) -> str:
+    if not isinstance(value, str):
+        return ""
+    value = " ".join(value.split())
+    if len(value) > limit:
+        return value[:limit] + "..."
+    return value
+
+
+def _http_error_detail(error: urllib.error.HTTPError) -> str:
+    status = error.code
+    try:
+        body = error.read(HTTP_ERROR_BODY_LIMIT + 1)
+    except Exception:
+        body = b""
+    finally:
+        error.close()
+
+    try:
+        value = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        value = None
+    details = value.get("error") if isinstance(value, dict) else None
+    if isinstance(details, dict):
+        code = _safe_error_field(details.get("code"))
+        phase = _safe_error_field(details.get("phase"))
+        message = _safe_error_field(details.get("message"))
+        if code:
+            result = f"HTTP {status} {code}"
+            if phase:
+                result += f" phase={phase}"
+            if message:
+                result += f": {message}"
+            return result
+
+    reason = _safe_error_field(error.reason)
+    return f"HTTP {status}" + (f": {reason}" if reason else "")
 
 
 class Api:
@@ -61,7 +103,10 @@ class Api:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 raw = response.read()
-        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
+        except urllib.error.HTTPError as exc:
+            detail = _http_error_detail(exc)
+            raise AcceptanceError(f"{method} {path}: {detail}") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
             detail = getattr(exc, "reason", exc)
             raise AcceptanceError(f"{method} {path}: {detail}") from exc
         if not raw:
@@ -325,6 +370,15 @@ class Runner:
         digest = hashlib.sha256(output.read_bytes()).hexdigest()
         return {"path": str(output), "sha256": digest, "bytes": output.stat().st_size}
 
+    def _cleanup_core(self, spec: CoreSpec, package_id: str, game_id: str) -> None:
+        try:
+            self.host.post_empty("/api/v1/session/stop")
+            self.wait_session("idle")
+        except Exception as exc:
+            raise AcceptanceError(
+                f"{spec.core_id}: cleanup failed for package={package_id} game={game_id}: {exc}"
+            ) from exc
+
     def run_core(self, spec: CoreSpec, package_id: str, game_id: str) -> None:
         baseline_frames = 0
         try:
@@ -345,7 +399,7 @@ class Runner:
                 self.host.post_json("/api/v1/session/input/event", input_event)
             input_status = self.wait_input(True, baseline_frames + len(spec.events))
             capture = self.capture(spec.core_id)
-            record = {
+            record: dict[str, Any] = {
                 "core": spec.core_id,
                 "game_id": game_id,
                 "package_id": package_id,
@@ -357,15 +411,23 @@ class Runner:
                 record["media_sha256"] = media_sha
             if capture:
                 record["capture"] = capture
-            self.records.append(record)
-            print(f"passed {spec.core_id}: package={package_id} game={game_id}")
-        finally:
+        except BaseException as operation_error:
             if self.active:
                 try:
-                    self.host.post_empty("/api/v1/session/stop")
-                    self.wait_session("idle")
+                    self._cleanup_core(spec, package_id, game_id)
+                except BaseException as cleanup_error:
+                    operation_error.add_note(f"cleanup also failed: {cleanup_error}")
                 finally:
                     self.active = False
+            raise
+        else:
+            if self.active:
+                try:
+                    self._cleanup_core(spec, package_id, game_id)
+                finally:
+                    self.active = False
+            self.records.append(record)
+            print(f"passed {spec.core_id}: package={package_id} game={game_id}")
 
     def run(self) -> None:
         expected = self.selection_ids()
@@ -416,6 +478,10 @@ def main(argv: list[str] | None = None) -> int:
         Runner(args).run()
     except AcceptanceError as exc:
         print(f"target acceptance: {exc}", file=sys.stderr)
+        for note in getattr(exc, "__notes__", ()):
+            detail = _safe_error_field(note, CLI_NOTE_LIMIT)
+            if detail:
+                print(f"target acceptance: {detail}", file=sys.stderr)
         return 1
     return 0
 
