@@ -51,7 +51,7 @@ rollback-media:
 .PHONY: release bootstrap appliance-media verify-appliance-media
 release:
 	$(PYTHON) scripts/appliance.py release --profile "$(PROFILE)" --version "$(RELEASE_VERSION)"
-bootstrap:
+bootstrap: platform-provision
 	$(if $(strip $(RELEASE)),,$(error bootstrap requires RELEASE=/absolute/path/to/release-directory))
 	$(PYTHON) scripts/appliance.py bootstrap --profile "$(PROFILE)" --release "$(RELEASE)"
 
