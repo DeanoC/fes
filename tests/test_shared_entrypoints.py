@@ -225,6 +225,7 @@ class SharedEntrypointTests(unittest.TestCase):
             ("build-fes-pong", "scripts/build_fes_pong.py"),
             ("build-fes-zx81", "scripts/build_fes_zx81_oss.py"),
             ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
+            ("build-fes-sg1000", "scripts/build_fes_sg1000_oss.py"),
         ):
             with self.subTest(target=target):
                 shell = self.fixture / f"make-shell-{target}"

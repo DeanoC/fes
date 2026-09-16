@@ -432,6 +432,30 @@ their NMI handler at 8066; see [VDP interfaces](cores/fes-coleco/README.md#vdp-r
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 See the core guide for prerequisites and reproducible before/after probes.
 
+`make sim-fes-sg1000` tests the next `fes.simple-computer` Coleco sibling: a
+reduced SG-1000 machine with the cartridge at `0x0000`, 1 KiB RAM at `0xc000`,
+the shared TMS9918-style VDP, and SG-1000 8255 joystick ports `0xdc`/`0xdd`.
+It is simulation, not a Quartus RBF or kit evidence.
+`make sim-fes-sg1000-oss` compiles the same machine with
+`-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` (registered media plus the Coleco
+M10K/VDP OSS shapes). The default sim target stays on combinational RAM.
+
+`make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
+for package `fes.sg1000` 1.0.0. It reuses Coleco TV80, VDP, video, GP and PLL
+modules and is not a nextpnr fallback. Set
+`QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. The recipe
+requires a clean committed tree to seal a format-2 package; `--compile-only`
+produces the RBF and timing evidence without sealing. This does not program
+hardware.
+
+`make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral recipe. It copies the
+Coleco lock (Yosys `da6373c0`, nextpnr `2d3c216`) and the Coleco OSS
+constraint subset. Yosys must define both `FES_SG1000_OSS=1` and
+`FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
+not seal. The producer uses `--router gpu` and seed 4 with a live HIP
+backend required. HIP format-2 seal, FES parent pin and kit HIL remain later
+jobs.
+
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`
 is the authenticated HIP nextpnr/Mistral production recipe for `5CSEBA6U23I7`.
@@ -523,6 +547,11 @@ build/fes-zx81-oss/build-summary.json                   # timing/resource/tool e
 build/fes-zx81-oss/manifest.toml                        # generated format-2 manifest
 build/fes-coleco-quartus/core.rbf                       # Quartus bring-up FES ColecoVision RBF
 build/fes-coleco-oss/core.rbf                            # OSS nextpnr/Mistral FES ColecoVision RBF
+build/fes-sg1000-quartus/core.rbf                       # Quartus bring-up FES SG-1000 RBF
+build/fes-sg1000-quartus/build-inputs.json              # pre-compile canonical inputs
+build/fes-sg1000-quartus/manifest.toml                  # generated format-2 manifest when sealed
+build/fes-sg1000-oss/synth.json                          # OSS Yosys evidence (synth-only or full)
+build/fes-sg1000-oss/core.rbf                            # OSS nextpnr/Mistral FES SG-1000 RBF when sealed
 build/fes-coleco-oss/build-summary.json                  # timing/resource/tool evidence
 build/fes-coleco-oss/manifest.toml                       # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest

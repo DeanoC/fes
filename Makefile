@@ -61,6 +61,12 @@ help:
 		"  build-fes-zx81  Seal FES ZX81 with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
 		"  build-fes-coleco  Seal FES ColecoVision with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
+		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
+		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
+		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
+		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
+		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
+		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
 		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
@@ -76,7 +82,7 @@ help:
 		"  clean      Remove generated output for an experiment" \
 		"" \
 		"Variables: EXP=010_blinky BUILD=oss CORE=megadrive ARTIFACT=rebuild PYTHON=python3" \
-		"  CACHE_ROOT= optional shared toolchain cache root for build-fes-pong/zx81/coleco" \
+		"  CACHE_ROOT= optional shared toolchain cache root for build-fes-pong/zx81/coleco/sg1000" \
 		"  PACKAGE_MANIFEST/PACKAGE_RBF required for export-core-package; PACKAGE_OUTPUT defaults to build/packages" \
 		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
 		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
@@ -111,13 +117,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-coleco toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-coleco toolchain-fes-sg1000 toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -398,6 +404,67 @@ build-fes-coleco-quartus:
 build-fes-coleco:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
+.PHONY: sg1000-diagnostic
+sg1000-diagnostic:
+	@mkdir -p build/diagnostics/fes-sg1000
+	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py \
+		--output build/diagnostics/fes-sg1000/graphics-i.rom \
+		--preview build/diagnostics/fes-sg1000/graphics-i.ppm
+	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --pad-to 16384 \
+		--output build/diagnostics/fes-sg1000/graphics-i-16k.rom
+
+sim-fes-sg1000: sg1000-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-machine
+	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+		-DTV80_REFRESH=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
+	@build/sim/fes-sg1000-machine/Vsg1000_machine \
+		build/diagnostics/fes-sg1000/graphics-i.rom
+
+sim-fes-sg1000-oss: sg1000-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-machine-oss
+	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-PROCASSINIT \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
+		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
+		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
+	@build/sim/fes-sg1000-machine-oss/Vsg1000_machine \
+		build/diagnostics/fes-sg1000/graphics-i.rom
+
+.PHONY: sim-fes-sg1000-quartus
+sim-fes-sg1000-quartus:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_sg1000_quartus.py
+
+build-fes-sg1000-quartus:
+	$(PYTHON) scripts/build_fes_sg1000.py --root "$(CURDIR)"
+
+build-fes-sg1000:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_sg1000_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
+
 build-fes-pong:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_pong.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
@@ -410,6 +477,11 @@ toolchain-fes:
 
 toolchain-fes-coleco:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+toolchain-fes-sg1000:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-sg1000/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 

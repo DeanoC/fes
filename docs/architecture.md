@@ -37,28 +37,32 @@ and successful artifact production.
 
 ## Shared compiler installation
 
-FES Python Pong, ZX81, and Coleco recipes select a shared compiler only through
-an explicit `--cache-root` argument or the Make `CACHE_ROOT=` variable on
-`build-fes-pong`, `build-fes-zx81`, and `build-fes-coleco`. Ambient
-`FES_TOOLCHAIN_CACHE_ROOT` is not a policy selector for those producers. HIP
-(`gpu-router=HIP`, `hip-architectures=gfx1100;gfx1201`) is the standard FES
-nextpnr lane: nextpnr commands include `--router gpu`, build records store that
-HIP configuration, and route evidence must name a live HIP backend rather than
-a CPU-reference fallback. Pong and ZX81 use the repository-wide
-`toolchain.lock` HIP slot; Coleco keeps `cores/fes-coleco/toolchain.lock` and
-does not share that slot. Local HIP tools come from `make toolchain-fes` for
-Pong/ZX81 and `make toolchain-fes-coleco` for Coleco. `make toolchain` remains
-GPU-router OFF for generic OSS experiments. `make toolchain` and
-`make toolchain-fes` share `build/toolchain`; the last one run wins.
-`CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid shared-cache
-forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer recipes.
-Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP install.
-Quartus ZX81/Coleco recipes are oracle-only and are not a nextpnr fallback.
-For a shared cache, the same CACHE_ROOT=/absolute/cache spelling selects
-the FES HIP toolchain for both toolchain-fes and toolchain-fes-coleco;
-doctor and doctor-strict use that same selection. An explicit
-FES_TOOLCHAIN_CACHE_ROOT remains accepted and wins when it agrees with
-CACHE_ROOT.
+FES Python Pong, ZX81, Coleco, and SG-1000 recipes select a shared compiler
+only through an explicit `--cache-root` argument or the Make `CACHE_ROOT=`
+variable on `build-fes-pong`, `build-fes-zx81`, `build-fes-coleco`, and
+`build-fes-sg1000`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
+selector for those producers. HIP (`gpu-router=HIP`,
+`hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane:
+nextpnr commands include `--router gpu`, build records store that HIP
+configuration, and route evidence must name a live HIP backend rather than a
+CPU-reference fallback. Pong and ZX81 use the repository-wide
+`toolchain.lock` HIP slot. Coleco keeps `cores/fes-coleco/toolchain.lock`.
+SG-1000 keeps `cores/fes-sg1000/toolchain.lock` as a byte copy of the Coleco
+lock (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) so a shared
+cache hits that Coleco HIP slot rather than the repository-wide mainline
+slot. Local HIP tools come from `make toolchain-fes` for Pong/ZX81,
+`make toolchain-fes-coleco` for Coleco, and `make toolchain-fes-sg1000` for
+SG-1000. `make toolchain` remains GPU-router OFF for generic OSS experiments.
+`make toolchain` and `make toolchain-fes` share `build/toolchain`; the last
+one run wins. `CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid
+shared-cache forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer
+recipes. Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP
+install. Quartus ZX81/Coleco/SG-1000 recipes are oracle-only and are not a
+nextpnr fallback. For a shared cache, the same CACHE_ROOT=/absolute/cache
+spelling selects the FES HIP toolchain for toolchain-fes,
+toolchain-fes-coleco, and toolchain-fes-sg1000; doctor and doctor-strict use
+that same selection. An explicit FES_TOOLCHAIN_CACHE_ROOT remains accepted
+and wins when it agrees with CACHE_ROOT.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler
@@ -1914,6 +1918,36 @@ The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2
 packages and never program hardware. Exact-artifact kit acceptance remains a
 separate FES integration step.
+
+## FES SG-1000 Quartus oracle and OSS recipe
+
+`cores/fes-sg1000` is the Coleco sibling bring-up for package `fes.sg1000`.
+It reuses Coleco TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers,
+the `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell.
+The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 KiB
+RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
+shim.
+
+`make sim-fes-sg1000` is the default Verilator machine check
+(`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
+machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,
+`coleco_dpram` M10K TDP, and the registered four-copy VDP are the shapes
+Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.
+
+`make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
+It requires a clean committed tree to seal a format-2 package and never
+programs hardware. `--compile-only` writes `build/fes-sg1000-quartus/core.rbf`
+and timing evidence without sealing.
+
+`make build-fes-sg1000` is the OSS producer
+(`scripts/build_fes_sg1000_oss.py`). It uses `cores/fes-sg1000/toolchain.lock`
+(Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
+Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
+`--synth-only` runs Yosys without a clean tree and does not seal. HIP
+`--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
+the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. Format-2
+seal still requires a clean tree; a sealed BUILD_ID changes the placement
+search space. FES parent pin and kit HIL remain later jobs.
 
 ## Standalone Pong game
 
