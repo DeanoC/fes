@@ -117,9 +117,10 @@ class CoreBuildTest(unittest.TestCase):
             {'core_id': 'fes.pong'},
             {'core_id': 'fes.zx81'},
             {'core_id': 'fes.coleco'},
+            {'core_id': 'fes.sg1000'},
         ]}
         self.assertEqual(build.selected_packages(selection, 'native-integration-dev'),
-                         ('fes.pong', 'fes.zx81', 'fes.coleco'))
+                         ('fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000'))
         self.assertEqual(build.selected_packages(
             {'fpga_packages': [{'core_id': 'fes.zx81'}]}, 'native-integration-dev'),
                          ('fes.zx81',))
@@ -138,9 +139,9 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(repository_profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in repository_profile['fpga_packages']],
-            ['fes.pong', 'fes.zx81', 'fes.coleco'])
+            ['fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
-                         ('fes.pong', 'fes.zx81', 'fes.coleco'))
+                         ('fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000'))
 
     def test_selection_overrides_do_not_leak_from_shell(self):
         with patch.dict('os.environ', {'NATIVE_RUNTIME_SYSTEMS': 'pong',
@@ -150,6 +151,8 @@ class CoreBuildTest(unittest.TestCase):
                                       'FES_ZX81_PACKAGE_SELECTION': '/untrusted-zx81-selection',
                                       'FES_COLECO_PACKAGE_DIR': '/untrusted-coleco-package',
                                       'FES_COLECO_PACKAGE_SELECTION': '/untrusted-coleco-selection',
+                                      'FES_SG1000_PACKAGE_DIR': '/untrusted-sg1000-package',
+                                      'FES_SG1000_PACKAGE_SELECTION': '/untrusted-sg1000-selection',
                                       'FES_PACKAGE_IDS': 'fes.pong,fes.zx81',
                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
             env = build_environment()
@@ -160,6 +163,8 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_ZX81_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_COLECO_PACKAGE_DIR' in env)
         self.assertFalse('FES_COLECO_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_SG1000_PACKAGE_DIR' in env)
+        self.assertFalse('FES_SG1000_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_PACKAGE_IDS' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
@@ -291,15 +296,24 @@ class CoreBuildTest(unittest.TestCase):
                            'selection_sha256': '7' * 64, 'manifest_sha256': '8' * 64,
                            'core_rbf_sha256': '9' * 64},
             },
+            {
+                'directory': Path('/packages/sg1000'),
+                'selection_path': Path('/records/fes-sg1000.package-selection.toml'),
+                'inputs': {'selection': {'core_id': 'fes.sg1000', 'package_id': 'd' * 64},
+                           'selection_sha256': '0' * 64, 'manifest_sha256': 'a' * 64,
+                           'core_rbf_sha256': 'b' * 64},
+            },
         )
         self.assertEqual(build.package_arguments(packages), [
-            'FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco',
+            'FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco,fes.sg1000',
             'FES_PONG_PACKAGE_DIR=/packages/pong',
             'FES_PONG_PACKAGE_SELECTION=/records/fes-pong.package-selection.toml',
             'FES_ZX81_PACKAGE_DIR=/packages/zx81',
             'FES_ZX81_PACKAGE_SELECTION=/records/fes-zx81.package-selection.toml',
             'FES_COLECO_PACKAGE_DIR=/packages/coleco',
             'FES_COLECO_PACKAGE_SELECTION=/records/fes-coleco.package-selection.toml',
+            'FES_SG1000_PACKAGE_DIR=/packages/sg1000',
+            'FES_SG1000_PACKAGE_SELECTION=/records/fes-sg1000.package-selection.toml',
         ])
         first, first_info = build.image_fingerprint('base', {'sources': {}}, packages)
         reversed_fingerprint, _ = build.image_fingerprint(
@@ -322,6 +336,7 @@ class CoreBuildTest(unittest.TestCase):
             ('fes.pong', 'a' * 64),
             ('fes.zx81', 'b' * 64),
             ('fes.coleco', 'c' * 64),
+            ('fes.sg1000', 'd' * 64),
         ))
         captured = {}
 
@@ -380,6 +395,8 @@ class CoreBuildTest(unittest.TestCase):
                     'FES_ZX81_PACKAGE_SELECTION': '/ambient/zx81-selection',
                     'FES_COLECO_PACKAGE_DIR': '/ambient/coleco',
                     'FES_COLECO_PACKAGE_SELECTION': '/ambient/coleco-selection',
+                    'FES_SG1000_PACKAGE_DIR': '/ambient/sg1000',
+                    'FES_SG1000_PACKAGE_SELECTION': '/ambient/sg1000-selection',
                 }), \
                     patch.object(build.sys, 'argv',
                                  ['build.py', 'image', '--profile', 'native-integration-dev']), \
@@ -412,8 +429,8 @@ class CoreBuildTest(unittest.TestCase):
                     build.main()
 
         self.assertEqual(captured['env']['FES_PACKAGE_IDS'],
-                         'fes.pong,fes.zx81,fes.coleco')
-        for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco'):
+                         'fes.pong,fes.zx81,fes.coleco,fes.sg1000')
+        for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000'):
             prefix = core_id.upper().replace('.', '_')
             self.assertEqual(captured['env'][prefix + '_PACKAGE_DIR'],
                              str(Path('/packages') / core_id))
@@ -867,7 +884,8 @@ class CoreBuildTest(unittest.TestCase):
             built = root / 'built.toml'
             built.write_bytes(selection.read_bytes())
             for stale_name in ('fes-zx81.package-selection.toml',
-                               'fes-coleco.package-selection.toml'):
+                               'fes-coleco.package-selection.toml',
+                               'fes-sg1000.package-selection.toml'):
                 stale_selection = output / stale_name
                 stale_selection.write_bytes(b'stale selection')
                 stale_selection.chmod(0o444)
@@ -891,6 +909,7 @@ class CoreBuildTest(unittest.TestCase):
                 f'core-packages/{identity}/core.rbf'])
             self.assertFalse((output / 'fes-zx81.package-selection.toml').exists())
             self.assertFalse((output / 'fes-coleco.package-selection.toml').exists())
+            self.assertFalse((output / 'fes-sg1000.package-selection.toml').exists())
             build.verify_package_outputs(output, package)
             (output / 'megadrive.rbf').write_bytes(b'legacy')
             with self.assertRaisesRegex(ValueError, 'stale top-level'):

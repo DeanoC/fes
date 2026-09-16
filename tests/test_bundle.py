@@ -146,7 +146,9 @@ class BundleTest(unittest.TestCase):
         staged = subprocess.check_output(
             ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
             text=True)
-        self.assertIn('1308f94d62061d308a756d5f197d14e81cb4cf5c', staged)
+        self.assertIn('bbbcef4c05b6e863dd89cf3ce65dfa0b8d085de8', staged)
+        self.assertTrue((root / 'sources/misteross/scripts/build_fes_sg1000_oss.py').is_file())
+        self.assertTrue((root / 'sources/misteross/cores/fes-sg1000/toolchain.lock').is_file())
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
@@ -154,6 +156,8 @@ class BundleTest(unittest.TestCase):
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+        self.assertIn(
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-sg1000/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

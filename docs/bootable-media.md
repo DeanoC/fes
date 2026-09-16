@@ -212,7 +212,7 @@ card, verify all of the following before releasing the lease:
   that generation's `image.json`. Do not use a manifest from a different
   source revision, recipe or cold receipt.
 - `/media/fat` is writable and the loop-mounted root is read-only.
-- The selected `fes.pong`, `fes.zx81` and `fes.coleco` packages each launch
+- The selected `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.sg1000` packages each launch
   through the normal host API, report the expected package identity, and Stop
   returns the system to idle. Use the package-runtime smoke target for this
   check; it does not substitute for separate input, video, audio or persistence

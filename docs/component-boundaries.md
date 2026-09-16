@@ -98,7 +98,7 @@ see the [structure proposal](fes-structure.md).
 The gitlinks select matching merged implementations of the FES host, runtime,
 package and target-agent contracts. Exact revisions are recorded by git; the
 current profile is package-only and installs the ordered closed
-`fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr route.
+`fes.pong`, `fes.zx81`, `fes.coleco` and `fes.sg1000` set through the HIP/nextpnr route.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
 lock, package YAML, fourteen generated consumer files and eleven shared fixture
@@ -114,7 +114,7 @@ The pinned mister-packages README still says “FogCast is not patched”; that
 sentence is stale relative to the selected consumers and the regeneration check.
 
 `native-integration-dev` uses FES's package-only interface and publishes the
-ordered per-core selection records for `fes.pong`, `fes.zx81` and `fes.coleco`
+ordered per-core selection records for `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.sg1000`
 plus its sealed `core-packages/` directory. Systems whose nextpnr route is not
 implemented yet are checked explicitly with Quartus; that check is not an image
 production route.

@@ -77,7 +77,7 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 submodule gitlinks, retains the locked idle RBF, and installs the ordered,
-closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
+closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sg1000`. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. The FES image has no legacy bundle
@@ -119,7 +119,7 @@ Run the host with an explicit local configuration:
 out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --listen 127.0.0.1:8787
 ```
 
-The native image supports the ordered FES Pong, ZX81 and Coleco package set
+The native image supports the ordered FES Pong, ZX81, Coleco and SG-1000 package set
 through the package/library lifecycle. It does not promise generalized/custom
 RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
@@ -148,7 +148,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set |
+| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sg1000` package set |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe

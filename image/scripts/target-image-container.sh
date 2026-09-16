@@ -45,7 +45,8 @@ esac
 if [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_PONG_PACKAGE_DIR:-}" ] || [ -n "${FES_PONG_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_ZX81_PACKAGE_DIR:-}" ] || [ -n "${FES_ZX81_PACKAGE_SELECTION:-}" ] ||
-  [ -n "${FES_COLECO_PACKAGE_DIR:-}" ] || [ -n "${FES_COLECO_PACKAGE_SELECTION:-}" ]; then
+  [ -n "${FES_COLECO_PACKAGE_DIR:-}" ] || [ -n "${FES_COLECO_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_SG1000_PACKAGE_DIR:-}" ] || [ -n "${FES_SG1000_PACKAGE_SELECTION:-}" ]; then
   "$repo_root/scripts/native-extra-cores.sh" validate
 fi
 package_ids_reverse=
@@ -60,6 +61,7 @@ load_package_mount_order() {
       fes.pong) package_core=pong ;;
       fes.zx81) package_core=zx81 ;;
       fes.coleco) package_core=coleco ;;
+      fes.sg1000) package_core=sg1000 ;;
       *) exit 2 ;;
     esac
     package_ids_reverse="$package_core $package_ids_reverse"
@@ -105,6 +107,12 @@ docker_run() {
         package_selection=$FES_COLECO_PACKAGE_SELECTION
         package_dir_env=FES_COLECO_PACKAGE_DIR
         package_selection_env=FES_COLECO_PACKAGE_SELECTION
+        ;;
+      sg1000)
+        package_dir=$FES_SG1000_PACKAGE_DIR
+        package_selection=$FES_SG1000_PACKAGE_SELECTION
+        package_dir_env=FES_SG1000_PACKAGE_DIR
+        package_selection_env=FES_SG1000_PACKAGE_SELECTION
         ;;
       *) exit 2 ;;
     esac

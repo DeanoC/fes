@@ -2,14 +2,14 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
-The recipe registry supports the described `fes.pong`, `fes.zx81` and
-`fes.coleco` packages. The default target-image selector installs the ordered
-closed package set, while focused profiles may select a smaller package set.
-See [FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up
-notes.
+The recipe registry supports the described `fes.pong`, `fes.zx81`,
+`fes.coleco` and `fes.sg1000` packages. The default target-image selector
+installs the ordered closed package set, while focused profiles may select a
+smaller package set. See [FES ZX81](fes-zx81.md) and the Coleco validation
+records for bring-up notes.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
-the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
+the ordered `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.sg1000` package set. The FES
 image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.
@@ -55,13 +55,21 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict
+# Seed the SG-1000 slot when SG-1000 packages are selected:
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  make -C "$work" toolchain-fes-sg1000
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  FES_TOOLCHAIN_LOCKFILE=cores/fes-sg1000/toolchain.lock \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP \
+  FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  make -C "$work" doctor-strict
 make dev
 ```
 
 `FES_TOOLCHAIN_CACHE_ROOT` selects the parent shared-cache root; `CACHE_ROOT`
-is not a substitute for it. The `toolchain-fes` and
-`toolchain-fes-coleco` targets compile the authenticated HIP/nextpnr tools into
-their respective slots. `make toolchain` may compile the pinned tools into
+is not a substitute for it. The `toolchain-fes`,
+`toolchain-fes-coleco` and `toolchain-fes-sg1000` targets compile the
+authenticated HIP/nextpnr tools into their respective slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
 `make check` validates
@@ -74,6 +82,7 @@ The parent publishes and receipts these external image inputs:
 fes-pong.package-selection.toml
 fes-zx81.package-selection.toml
 fes-coleco.package-selection.toml
+fes-sg1000.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
 ```
@@ -117,7 +126,7 @@ system-selection variables; it installs only the selected sealed packages.
 The producer writes an installable archive at
 `out/work/misteross-<selected-revision>/build/packages/<package-id>.fcore`.
 Use the package ID in `fes-pong.package-selection.toml` to select the matching
-archive; the ZX81 and Coleco records follow the same per-core naming pattern.
+archive; the ZX81, Coleco and SG-1000 records follow the same per-core naming pattern.
 The image directory and the host archive store have separate roles:
 installation on the host retains the archive used for future library launches.
 

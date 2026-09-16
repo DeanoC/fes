@@ -69,7 +69,7 @@ component remote; a local-only commit will break recursive clones elsewhere.
 The default and only FES integration profile is `native-integration-dev`.
 Build and verify do not deploy. The profile authenticates the pinned open-source
 misteross HIP/nextpnr tools before selecting the ordered
-`fes.pong`, `fes.zx81`, `fes.coleco` package set. See [described FPGA core
+`fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sg1000` package set. See [described FPGA core
 packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
 workflow. Host-only builds do not require those tools.
 The clean, development, verification and media paths are package-only and all
@@ -94,7 +94,7 @@ Run `make dev` for the selected `native-integration-dev` revisions. It publishes
 receipt after structural validation. It uses the same pinned package set,
 FES `image/` overlay and image recipes as the clean build. The native image
 contains the locked idle RBF and the same closed `fes.pong`, `fes.zx81`,
-`fes.coleco` package set. It does not deploy, run QEMU,
+`fes.coleco`, `fes.sg1000` package set. It does not deploy, run QEMU,
 produce two-pass evidence, or replace the clean image and receipts.
 
 The development Buildroot volume retains the compiler, libraries and package
@@ -174,6 +174,7 @@ HDMI capture directory explicitly:
 make target-acceptance TARGET_ACCEPTANCE_ARGS='\\
   --media fes.zx81=/absolute/path/fes-zx81-load.p \\
   --media fes.coleco=/absolute/path/fes-coleco-diagnostic.rom \\
+  --media fes.sg1000=/absolute/path/fes-sg1000-diagnostic.rom \\
   --capture-dir out/native-integration-dev/target-acceptance'
 ```
 

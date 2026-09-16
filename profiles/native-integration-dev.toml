@@ -15,3 +15,6 @@ core_id = "fes.zx81"
 
 [[fpga_packages]]
 core_id = "fes.coleco"
+
+[[fpga_packages]]
+core_id = "fes.sg1000"

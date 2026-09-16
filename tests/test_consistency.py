@@ -205,7 +205,7 @@ class ConsistencyTest(unittest.TestCase):
             'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
             '/media/fat/fogcast/agent.toml',
             'installed rootfs, agent, runtime, kernel, idle artifact',
-            'core-packages', 'fes.pong', 'fes.zx81', 'fes.coleco',
+            'core-packages', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000',
         )
         for needle in required:
             self.assertIn(needle, guide, needle)

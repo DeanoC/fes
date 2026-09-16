@@ -79,6 +79,19 @@ FORMAT2_RECIPES = {
         package_selection_env="FES_COLECO_PACKAGE_SELECTION",
         quartus_role="bring-up/check oracle",
     ),
+    "fes.sg1000": Format2Recipe(
+        core_id="fes.sg1000",
+        producer_script="scripts/build_fes_sg1000_oss.py",
+        producer_module="scripts.build_fes_sg1000_oss",
+        authenticate="_authenticate_sg1000_tools",
+        lock_path="cores/fes-sg1000/toolchain.lock",
+        gpu_router=HIP_ROUTER,
+        hip_architectures=HIP_ARCHITECTURES,
+        selection_filename="fes-sg1000.package-selection.toml",
+        package_dir_env="FES_SG1000_PACKAGE_DIR",
+        package_selection_env="FES_SG1000_PACKAGE_SELECTION",
+        quartus_role="bring-up/check oracle",
+    ),
 }
 
 

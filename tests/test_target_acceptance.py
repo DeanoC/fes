@@ -243,6 +243,7 @@ class TargetAcceptanceTests(unittest.TestCase):
             "fes.pong": "a" * 64,
             "fes.zx81": "b" * 64,
             "fes.coleco": "c" * 64,
+            "fes.sg1000": "d" * 64,
         }
         state = {
             "active": False,
@@ -329,11 +330,12 @@ class TargetAcceptanceTests(unittest.TestCase):
         self.assertIn(r"select=eq(n\,4)", command)
         self.assertEqual(command[command.index("-frames:v") + 1], "1")
 
-    def test_runs_exact_three_package_launch_input_stop_lanes(self):
+    def test_runs_exact_closed_package_launch_input_stop_lanes(self):
         ids = {
             "fes.pong": "a" * 64,
             "fes.zx81": "b" * 64,
             "fes.coleco": "c" * 64,
+            "fes.sg1000": "d" * 64,
         }
         state = {"active": False, "attached": False, "frames": 0, "session_failures": 0}
         state["packages"] = [
@@ -385,8 +387,12 @@ class TargetAcceptanceTests(unittest.TestCase):
                 )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("target acceptance passed", result.stdout)
-            self.assertEqual(server.stops, 3)
-            self.assertEqual(len(server.events), 12)
+            self.assertEqual(
+                target_acceptance.CORE_ORDER,
+                ("fes.pong", "fes.zx81", "fes.coleco", "fes.sg1000"),
+            )
+            self.assertEqual(server.stops, 4)
+            self.assertEqual(len(server.events), 16)
             self.assertEqual(server.attach_bodies, [])
         finally:
             server.shutdown()

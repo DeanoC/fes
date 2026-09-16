@@ -30,7 +30,7 @@ specified otherwise. Commands inside a component use that component's Makefile
 and instructions; the same target name can mean different things there.
 
 The current integration profile is package-only and installs the ordered closed
-format-2 set `fes.pong`, `fes.zx81` and `fes.coleco` through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
+format-2 set `fes.pong`, `fes.zx81`, `fes.coleco` and `fes.sg1000` through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
 catalog, including exact NES video and native session lifecycle acceptance, is
 recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
 and is not current-profile acceptance.
@@ -52,6 +52,9 @@ and is not current-profile acceptance.
 - [Coleco current-pin integration](validation/2026-09-13-coleco-nextpnr-integration.md):
   parent pin selection, current OSS/Quartus package identities and exact-kit
   acceptance for the selected nextpnr recipe.
+- [SG-1000 closed-set pin](validation/2026-09-16-fes-sg1000-closed-set-pin.md):
+  parent pin of misteross `#64` adding `fes.sg1000` to the ordered closed
+  format-2 set. Host-only; not hardware acceptance.
 - [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
   host expander and tests landed; assembly stays the fixed 1 GiB image.
 - [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):

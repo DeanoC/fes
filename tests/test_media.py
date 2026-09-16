@@ -107,7 +107,8 @@ class MediaTests(unittest.TestCase):
         for index, (core_id, selection_name, package_id) in enumerate((
                 ('fes.pong', 'fes-pong.package-selection.toml', 'a' * 64),
                 ('fes.zx81', 'fes-zx81.package-selection.toml', 'b' * 64),
-                ('fes.coleco', 'fes-coleco.package-selection.toml', 'c' * 64))):
+                ('fes.coleco', 'fes-coleco.package-selection.toml', 'c' * 64),
+                ('fes.sg1000', 'fes-sg1000.package-selection.toml', 'd' * 64))):
             package = self.output / 'core-packages' / package_id
             package.mkdir(parents=True)
             (package / 'manifest.toml').write_bytes(f'package manifest {index}'.encode())
@@ -134,7 +135,8 @@ class MediaTests(unittest.TestCase):
         self.package = self.packages['fes.pong']
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
             'cold-fp', {'sources': {}}, tuple(
-                self.packages[core_id] for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco')))
+                self.packages[core_id] for core_id in (
+                    'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000')))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))
         cold_build.write_receipt(self.output, 'image', image_fingerprint,
                                  ['linux.img', 'manifest.tsv', 'inputs.json'])
@@ -537,6 +539,9 @@ class MediaTests(unittest.TestCase):
         coleco = self.packages['fes.coleco']
         shutil.rmtree(coleco['directory'])
         coleco['selection_path'].unlink()
+        sg1000 = self.packages['fes.sg1000']
+        shutil.rmtree(sg1000['directory'])
+        sg1000['selection_path'].unlink()
         image_fingerprint, image_inputs = cold_build.image_fingerprint(
             'cold-fp', {'sources': {}}, (self.package, second_package))
         (self.output / 'inputs.json').write_text(json.dumps(image_inputs))

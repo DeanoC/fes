@@ -21,6 +21,7 @@ grep -Fq 'for stale_dir in "$runtime_root/cores"; do' "$verify_script"
 grep -Fq 'fes.pong' "$container_script"
 grep -Fq 'fes.zx81' "$container_script"
 grep -Fq 'fes.coleco' "$container_script"
+grep -Fq 'fes.sg1000' "$container_script"
 ! grep -Eq 'NATIVE_RUNTIME_MEGADRIVE_FILE|NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE' \
   "$build_script" "$container_script" "$verify_script"
 
@@ -89,7 +90,7 @@ test "$(wc -l <"$build_log" | tr -d ' ')" -eq "$before"
 make_log=$fixture/make.log
 make -s -C "$repo" -n \
   NATIVE_RUNTIME_MODE=package-only \
-  FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco \
+  FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco,fes.sg1000 \
   FOGCAST_DIR="$repo/../sources/FogCast" \
   target-image-native-verify >"$make_log"
 if grep -Eq 'NATIVE_RUNTIME_SYSTEMS|MEGADRIVE_RBF_|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE|megadrive\.selection\.toml' "$make_log"; then

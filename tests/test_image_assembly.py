@@ -63,14 +63,14 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertEqual(profile['native_image_mode'], 'package-only')
         self.assertEqual(
             [entry['core_id'] for entry in profile['fpga_packages']],
-            ['fes.pong', 'fes.zx81', 'fes.coleco'])
+            ['fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000'])
 
         readme = (ROOT / 'README.md').read_text()
         packages = (ROOT / 'docs/core-packages.md').read_text()
         getting_started = (ROOT / 'docs/getting-started.md').read_text()
         development = (ROOT / 'docs/development.md').read_text()
         for text in (readme, packages, getting_started, development):
-            for needle in ('fes.pong', 'fes.zx81', 'fes.coleco', 'HIP/nextpnr'):
+            for needle in ('fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sg1000', 'HIP/nextpnr'):
                 self.assertIn(needle, text)
         self.assertIn('closed package set', readme)
         self.assertIn('closed package set', packages)
@@ -81,6 +81,7 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertIn('explicit', development)
         self.assertIn('fes-zx81.package-selection.toml', packages)
         self.assertIn('fes-coleco.package-selection.toml', packages)
+        self.assertIn('fes-sg1000.package-selection.toml', packages)
         for text in (readme, packages, getting_started, development):
             self.assertNotIn('single-package Pong-only', text)
             self.assertNotIn('currently installs only the described FES Pong package', text)
