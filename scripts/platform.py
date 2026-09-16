@@ -86,12 +86,22 @@ def tree_identity(root):
         raise ValueError('source tree must be a directory: ' + str(root))
     hasher = hashlib.sha256()
     for path in sorted(root.rglob('*')):
-        if path.is_symlink() or not path.is_file() or path.name in SKIP_TREE_NAMES:
+        if path.is_symlink():
+            raise ValueError('source tree may not contain symlink: ' + str(path))
+        if not path.is_file() or path.name in SKIP_TREE_NAMES:
             continue
         relative = path.relative_to(root).as_posix()
         data = path.read_bytes()
         hasher.update(relative.encode() + b'\0' + len(data).to_bytes(8, 'big') + data)
     return hasher.hexdigest()
+
+
+def _module_path(go_mod):
+    for line in Path(go_mod).read_text().splitlines():
+        fields = line.split()
+        if len(fields) == 2 and fields[0] == 'module':
+            return fields[1]
+    return None
 
 
 def git_revision(repo):
@@ -121,12 +131,11 @@ def selected_appliance(fogcast):
     fogcast = Path(fogcast)
     nested = fogcast / 'appliance'
     if (nested / 'go.mod').is_file() and not nested.is_symlink():
+        if _module_path(nested / 'go.mod') != APPLIANCE_MODULE:
+            raise ValueError('selected FogCast appliance module declares an unsupported module path')
         return fogcast, nested
     go_mod = fogcast / 'go.mod'
-    if go_mod.is_file() and any(
-            line.split(maxsplit=1)[1].strip() == APPLIANCE_MODULE
-            for line in go_mod.read_text().splitlines()
-            if line.startswith('module ') and len(line.split(maxsplit=1)) == 2):
+    if go_mod.is_file() and _module_path(go_mod) == APPLIANCE_MODULE:
         parent = fogcast.parent
         return parent, fogcast
     raise ValueError('selected FogCast appliance module is missing')
@@ -226,6 +235,24 @@ def verify_retained(fes_root, fogcast, record, assembly_revision=None):
     return record
 
 
+def test_platform(root, fogcast, env):
+    root = Path(root)
+    _, appliance_dir = selected_appliance(fogcast)
+    platform_dir = root / 'platform'
+    if not (platform_dir / 'go.mod').is_file() or platform_dir.is_symlink():
+        raise ValueError('FES platform module is missing')
+    probe_env = dict(env)
+    probe_env.update(GOPROXY='off', GOWORK='off')
+    with tempfile.TemporaryDirectory(prefix='fes-platform-test-') as temporary:
+        workspace = write_workspace(temporary, platform_dir, appliance_dir)
+        goroot = subprocess.check_output(
+            ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True
+        ).strip()
+        go_bin = Path(goroot) / 'bin' / 'go'
+        test_env = dict(probe_env, GOWORK=str(workspace), GOTOOLCHAIN='local', GOSUMDB='off')
+        subprocess.run([str(go_bin), 'test', './...'], cwd=platform_dir, env=test_env, check=True)
+
+
 def build_static_arm(root, fogcast, output, env):
     """Compile static ARM fes-boot from FES platform plus the selected appliance module.
 
@@ -270,3 +297,22 @@ def build_static_arm(root, fogcast, output, env):
     return binary_sha, validate_platform_build(
         platform_build_record(platform_sha, appliance_sha, revision, go_version, go_sha)
     )
+
+
+def main(argv=None):
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', choices=('test',))
+    parser.add_argument('--fogcast', required=True, type=Path)
+    args = parser.parse_args(argv)
+    try:
+        from .environment import build_environment
+    except ImportError:
+        from environment import build_environment
+    if args.command == 'test':
+        test_platform(Path(__file__).resolve().parent.parent, args.fogcast, build_environment())
+
+
+if __name__ == '__main__':
+    main()

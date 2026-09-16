@@ -85,6 +85,24 @@ class PlatformWorkspaceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'appliance module'):
                 fes_platform.selected_appliance(root)
 
+            nested = root / 'nested'
+            (nested / 'appliance').mkdir(parents=True)
+            (nested / 'appliance' / 'go.mod').write_text(
+                'module github.com/example/not-appliance\n\n'
+                'go 1.26.5\n'
+            )
+            with self.assertRaisesRegex(ValueError, 'appliance module'):
+                fes_platform.selected_appliance(nested)
+
+    def test_tree_identity_rejects_symlinked_source_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'target.go'
+            target.write_text('package appliance\n')
+            (root / 'link.go').symlink_to(target.name)
+            with self.assertRaisesRegex(ValueError, 'symlink'):
+                fes_platform.tree_identity(root)
+
     def test_build_record_binds_flags_toolchain_and_omits_paths(self):
         record = fes_platform.platform_build_record(
             platform_sha256='a' * 64,
