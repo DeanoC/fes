@@ -179,7 +179,7 @@ the newly assembled image remains a separate exact-artifact kit operation.
 | Shared schema, ABI and profiles | `sources/mister-packages/packages/` and `cmd/mister-packages` |
 | FPGA recipe and package export | `sources/misteross/scripts/build_fes_pong.py` and `scripts/export_core_package.py` |
 | Hardware admission and lifecycle | `sources/libmister-runtime/src/native/` and the runtime daemon protocol |
-| Host session, transfer and CLI | `sources/FogCast/internal/corepackage`, `internal/misterruntime`, and `internal/fogcastcli` |
+| Host session, transfer and CLI | `sources/FogCast/corepackage`, `internal/misterruntime`, and `internal/fogcastcli` |
 | Selection, receipts and assembly | `scripts/bundle.py`, `scripts/build.py`, and `scripts/native_dev.py` |
 
 ## Integration evidence

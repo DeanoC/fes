@@ -22,7 +22,7 @@ GENERATED = (
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
 )
 COPIED_TREES = (
-    ('testdata/core-bundle-v2', 'FogCast', 'internal/corepackage/testdata/core-bundle-v2'),
+    ('testdata/core-bundle-v2', 'FogCast', 'corepackage/testdata/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'libmister-runtime', 'tests/fixtures/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'misteross', 'tests/fixtures/core-bundle-v2'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
