@@ -232,10 +232,17 @@ Keep its current checks for `targetclient` and kit launcher. Add checks for the 
 Run:
 
 ```sh
-env GOWORK=off GOPROXY=off go list -deps -f "{{.ImportPath}}" ./cmd/mister-agent ./internal/httpapi ./targetclient ./ui/kitlauncher ./host
+for package in ./cmd/mister-agent ./internal/httpapi ./targetclient ./ui/kitlauncher ./host; do
+  printf '%-24s ' "$package"
+  env GOWORK=off GOPROXY=off go list -deps -f '{{.ImportPath}}' "$package" |
+    rg '^github.com/DeanoC/FogCast/' | sort -u | wc -l
+done
 ```
 
-Record the local package closure counts and confirm that target implementation packages do not import `host`, `ui/`, or `targetclient`.
+Record one local-package closure count for each entry point; do not use one
+combined `go list` invocation because that cannot attribute a closure to its
+root. Confirm that target implementation packages do not import `host`, `ui/`,
+or `targetclient`.
 
 - [ ] **Step 3: Update current architecture prose.**
 
@@ -266,11 +273,15 @@ git commit -m "docs: record target service contract boundary"
 
 **Files:**
 - Modify: FES `sources/FogCast` gitlink only
+- Modify: FES `scripts/consistency.py` and `tests/test_consistency.py` for the moved core-package fixture tree
+- Modify: FES `docs/core-packages.md` to point at the public FogCast package path
 - Test: FES `make check`, `make host`, focused parent tests, and nested-module checks
 
 **Interfaces:**
 - FES selects one reviewed FogCast commit; no uncommitted component tree is used by parent builds.
 - Parent build receipts continue to bind the selected FogCast revision and shared `appliance` module identity.
+- The parent fixture-consistency map follows the reviewed package move: `sources/mister-packages/testdata/core-bundle-v2` is copied to `sources/FogCast/corepackage/testdata/core-bundle-v2`.
+- The current core-package guide names `sources/FogCast/corepackage` rather than the deleted `sources/FogCast/internal/corepackage` path.
 
 - [ ] **Step 1: Complete the FogCast review first.**
 
@@ -278,7 +289,13 @@ Run the component tests, request Codex review, and resolve P1/P2 findings before
 
 - [ ] **Step 2: Select the merged FogCast commit in a fresh FES worktree.**
 
-Update only `sources/FogCast` to the reviewed commit. Confirm no generated outputs, source pins, or unrelated submodules move.
+Update only `sources/FogCast` to the reviewed commit. In the same parent
+change, update the `COPIED_TREES` destination in
+`scripts/consistency.py` and its test fixture expectations from
+`sources/FogCast/internal/corepackage/testdata/core-bundle-v2` to
+`sources/FogCast/corepackage/testdata/core-bundle-v2`. Update the
+component-entrypoint row in `docs/core-packages.md` to the public package path.
+Confirm no generated outputs, source pins, or unrelated submodules move.
 
 - [ ] **Step 3: Run the parent gates.**
 
@@ -293,15 +310,19 @@ make platform-test
 
 - [ ] **Step 4: Inspect provenance and dependency direction.**
 
-Confirm host receipts contain the selected FogCast revision, platform receipts remain path-free, and the parent source tree is clean.
+Confirm host receipts contain the selected FogCast revision, platform receipts
+remain path-free, the consistency test no longer references the deleted
+`internal/corepackage` fixture path, the guide has no stale component path, and
+the parent source tree is clean.
 
 - [ ] **Step 5: Open the FES integration PR with matched evidence.**
 
-Include the FogCast source commit, parent checks, nested-module checks, and the explicit statement that no hardware acceptance is claimed.
+Include the FogCast source commit, the fixture-map and guide updates, parent
+checks, nested-module checks, and the explicit statement that no hardware
+acceptance is claimed.
 
 ---
 
 ### Completion boundary
 
 This plan is complete when the shared contract packages are independent of FogCast `internal/`, target implementation packages remain free of host/UI imports, component and parent CI are green, and the reviewed FES pin is ready to merge. Only then should a separate design decide whether the target implementation becomes a nested module or a separate repository.
-
