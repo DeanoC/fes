@@ -115,4 +115,5 @@ a format-2 package when timing passes. It does not program hardware.
 It copies Coleco `constraints-oss.qsf`, `clocks-oss.sdc`, and
 `toolchain.lock`. Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
-seal. Full HIP route/seal, FES parent pin and kit HIL remain later jobs.
+seal. HIP `--router gpu` of the synth-only netlist is recorded in the gap
+ladder (R13). Format-2 seal, FES parent pin and kit HIL remain later jobs.

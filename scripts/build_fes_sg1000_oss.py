@@ -34,8 +34,9 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 4 is the Coleco production seed copied as the starting HIP recipe.
-# It is not proven on the SG-1000 netlist; R13 must re-select if route fails.
+# Seed 4 is the Coleco production seed. R13 HIP-routed the synth-only
+# BUILD_ID=0 netlist with this seed on a live HIP backend. A sealed
+# BUILD_ID changes the placement search space; re-check the seed at R14.
 SEED = 4
 SG1000_GPU_BACKEND = "hip"
 SG1000_GPU_ROUTER = "HIP"
@@ -228,12 +229,12 @@ def build_commands(
         "--qsf", QSF,
         "--sdc", SDC,
         "--freq", "74.25",
-        # Seed 4 is copied from the Coleco sealed HIP recipe. It is not yet
-        # proven on the SG-1000 netlist. The GPU router can report a
-        # provisional timing shortfall before its final repair/signoff pass;
-        # allow that intermediate result, then require the structured final
-        # timing evidence below to meet both clock constraints. Timing-driven
-        # rip-up is intentionally not enabled.
+        # Seed 4 HIP-routed the synth-only BUILD_ID=0 netlist (R13). The GPU
+        # router can report a provisional timing shortfall before its final
+        # repair/signoff pass; allow that intermediate result, then require
+        # the structured final timing evidence below to meet both clock
+        # constraints. Timing-driven rip-up is intentionally not enabled.
+        # A sealed BUILD_ID changes placement; re-check the seed at R14.
         "--seed", str(SEED),
         "--router", ROUTER,
         "--timing-allow-fail",

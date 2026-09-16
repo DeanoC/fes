@@ -452,7 +452,9 @@ hardware.
 Coleco lock (Yosys `da6373c0`, nextpnr `2d3c216`) and the Coleco OSS
 constraint subset. Yosys must define both `FES_SG1000_OSS=1` and
 `FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
-not seal. HIP format-2 seal, FES parent pin and kit HIL remain later jobs.
+not seal. The producer uses `--router gpu` and seed 4 with a live HIP
+backend required. HIP format-2 seal, FES parent pin and kit HIL remain later
+jobs.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`

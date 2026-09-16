@@ -44,9 +44,10 @@ not Yosys/nextpnr/Mistral limits are labelled as such.
 | `tests/test_build_fes_sg1000.py` | asserts both Quartus and OSS entrypoints, dual defines, and the Coleco pin |
 | Coleco sibling | unchanged |
 
-The producer path is scaffolded. Full HIP `--router gpu` route, format-2
-seal, FES parent pin and kit HIL are not claimed. Seed 4 is copied from
-Coleco and is not SG-1000 route evidence.
+The producer path is scaffolded. R13 HIP `--router gpu` of the R12
+synth-only netlist (BUILD_ID all zeros, seed 4) is recorded below. Format-2
+seal, FES parent pin and kit HIL are not claimed. A sealed BUILD_ID changes
+the placement search space, so seed 4 is not yet R14 production evidence.
 
 ### G2. No accepted OSS constraint subset for SG-1000
 
@@ -198,7 +199,7 @@ The SG-1000 OSS recipe uses the RTL BEL plus `constraints-oss.qsf` without
 This is an OSS language/frontend choice (Verilog TV80 vs any VHDL T80 path),
 not a missing nextpnr BEL. The future OSS recipe must pass `TV80_REFRESH=1`.
 
-### G8. Dual `altera_pll` 52 MHz + 74.25 MHz is already packed; the recipe is missing
+### G8. Dual `altera_pll` 52 MHz + 74.25 MHz is packed; HIP fmax rows exist for synth-only
 
 Shared wrappers:
 
@@ -210,8 +211,10 @@ Shared wrappers:
 Coleco OSS `build_fes_coleco_oss.py` requires route-log `50 MHz -> 52 MHz`
 and structured fmax rows at 52.0 / 74.25. misteross experiments `760_pll_52`
 and `610_pll_frac_7425`, plus nextpnr `mistral/tests/pll/`, already cover the
-profiles. SG-1000 does not lack a PLL BEL; it lacks the OSS recipe that
-asks nextpnr for those cells with `--freq 74.25`.
+profiles. SG-1000 does not lack a PLL BEL. The OSS recipe asks nextpnr for
+those cells with `--freq 74.25`. R13 printed `50 MHz -> 52 MHz` /
+`50 MHz -> 74.25 MHz` and passed both structured fmax rows on the synth-only
+netlist.
 
 ### G9. HIP GPU router, seed, and CPU-fallback reject
 
@@ -222,8 +225,9 @@ Coleco production (`scripts/build_fes_coleco_oss.py`):
 - `_require_gpu_backend` rejects `backend cpu-reference`
 
 SG-1000 now copies that recipe (`ROUTER = "gpu"`, `SEED = 4`, HIP
-`gfx1100;gfx1201`, CPU-fallback reject). Seed 4 is unproven on the SG-1000
-netlist; R13 has not run. Powerboat already has the two HIP cache slots:
+`gfx1100;gfx1201`, CPU-fallback reject). R13 HIP-routed the R12 synth-only
+netlist with seed 4 on live HIP (`backend hip:AMD Radeon RX 7900 XTX ready`).
+Powerboat already has the two HIP cache slots:
 
 | Slot | Yosys | nextpnr | Role |
 | --- | --- | --- | --- |
@@ -270,7 +274,8 @@ first slice.
 ### G13. Later jobs, not this ladder's finish line
 
 HIP format-2 seal for `fes.sg1000`, FES parent pin, and kit HIL remain
-later jobs. R12 synth-only does not replace R13/R14.
+later jobs. R13 HIP-routed the R12 synth-only netlist; it does not replace
+R14.
 
 ## Formic / nextpnr / Mistral map
 
@@ -283,11 +288,11 @@ tested today (none of these are SG-1000-owned tests yet):
 | Combo-read 16 KiB `ramstyle=M10K` | Yosys | fails closed | Confirmed (rung R5) |
 | 256×4 registered `ramstyle=M10K` sprite banks | Yosys pin split | Coleco lock vs mainline | Confirmed (rung R8); SG-1000 lock is a Coleco byte copy |
 | Four-copy VDP VRAM | RTL workaround, not a new BEL | `coleco_vdp.sv` `FES_COLECO_REGISTERED_VDP` | Needs `FES_COLECO_OSS`; producer/sim pass it |
-| 50→52 MHz integer PLL | nextpnr + Mistral | `sys_pll.v`; `mistral/tests/pll/`; exp `760_pll_52` | BEL present; Yosys emits 2 `altera_pll` (R12); HIP route not run |
-| 50→74.25 MHz fractional PLL | nextpnr + Mistral | `pixel_pll.v`; exp `610_pll_frac_7425` | BEL present; HIP route not run |
+| 50→52 MHz integer PLL | nextpnr + Mistral | `sys_pll.v`; `mistral/tests/pll/`; exp `760_pll_52` | BEL present; Yosys emits 2 `altera_pll` (R12); R13 `clk_sys` 52.88 MHz PASS at 52.00 |
+| 50→74.25 MHz fractional PLL | nextpnr + Mistral | `pixel_pll.v`; exp `610_pll_frac_7425` | BEL present; R13 `pixel_clk` 101.19 MHz PASS at 74.25 |
 | `MISTRAL_IO` HDMI I²C + I2C BEL 52.60.0 | nextpnr | `top.v` else branch; `mistral/tests/hps_i2c/` | RTL + OSS QSF present; 2 `MISTRAL_IO` in R12 synth |
 | Quartus SDC subset | nextpnr | `mistral/tests/quartus_constraints/` | Parser OK on Coleco pin (R9); recipe uses `clocks-oss.sdc` |
-| HIP `--router gpu` | nextpnr | `mistral/tests/gpurouter/`; Coleco recipe | Recipe present; R13 not run |
+| HIP `--router gpu` | nextpnr | `mistral/tests/gpurouter/`; Coleco recipe | R13 live HIP on RX 7900 XTX; seed 4 on synth-only BUILD_ID=0 |
 | Mistral bitstream tables | Mistral `b28e30a` | both locks | Unchanged; no SG-1000-specific table gap identified |
 | formic | n/a | **no tree** | G11 blocked |
 
@@ -314,13 +319,13 @@ not start until their dependencies pass.
 | R10 | `make sim-fes-sg1000-oss` with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` | machine checks pass on registered media + registered VDP/RAM | G3 Makefile/defines; R3 | **yes** |
 | R11 | Optional `make sim-fes-coleco-oss` | Coleco OSS sim still green (shared modules) | Coleco tree | **yes but long**; not required |
 | R12 | `scripts/build_fes_sg1000_oss.py --synth-only` Yosys of `top` | synth.json contains 2 `altera_pll`, `MISTRAL_IO`, `MISTRAL_M10K`/`_TDP`, no forbidden DSP/MLAB | G1–G7, R7, R10 | **yes** (synth-only; not sealed) |
-| R13 | nextpnr HIP route of that netlist (`--router gpu`, Coleco pin, seed TBD) | no unrouted nets; live HIP backend; 52 MHz and 74.25 MHz fmax rows pass | R12, G9 | **no** |
+| R13 | nextpnr HIP route of that netlist (`--router gpu`, Coleco pin, seed 4) | no unrouted nets; live HIP backend; 52 MHz and 74.25 MHz fmax rows pass | R12, G9 | **yes** (synth-only netlist; not sealed) |
 | R14 | Format-2 OSS seal | clean tree, `build-inputs.json`, manifest `fes.sg1000` | R13 | **no** — not this job |
 | R15 | formic execution of G4/G5/G8 | formic tree exists and names the failing shapes | G11 | **no** — no formic tree |
 | R16 | FES pin / kit HIL | out of scope | R14 | **no** — do not start |
 
-Schedule = this table. R10 and R12 synth-only are done. R13 HIP route and
-R14 format-2 seal are not claimed.
+Schedule = this table. R10, R12 synth-only, and R13 HIP route of that
+netlist are done. R14 format-2 seal is not claimed.
 
 ## Execution this session (2026-09-16)
 
@@ -347,17 +352,19 @@ as well. Probe logs: `/tmp/sg1000-gap-ladder/` on Powerboat.
 | R10 | **PASS** | `make sim-fes-sg1000-oss` Verilator 5.051; `FES SG-1000 machine checks passed`; both OSS defines |
 | R11 | **not run** | optional Coleco OSS sim |
 | R12 | **PASS** (synth-only) | Yosys `da6373c0`: 2 `altera_pll`, 2 `MISTRAL_IO`, 52 `MISTRAL_M10K`, 97 `MISTRAL_M10K_TDP`, zero forbidden DSP/MLAB; sealed=false |
-| R13–R16 | **not run** | no HIP route; no format-2 seal; no formic; no FES pin/HIL |
+| R13 | **PASS** (HIP route, not sealed) | nextpnr `2d3c216` `--router gpu` seed 4 of R12 `synth.json`; `backend hip:AMD Radeon RX 7900 XTX ready`; 0 unrouted; `clk_sys` 52.88 MHz PASS at 52.00; `pixel_clk` 101.19 MHz PASS at 74.25; `validate_build_evidence` OK; format-2 not sealed (dirty tree, BUILD_ID=0) |
+| R14–R16 | **not run** | no format-2 seal; no formic; no FES pin/HIL |
 
 `make sim-fes-sg1000-quartus` is **not runnable** on Powerboat (`iverilog`
 absent). That is a vendor-model probe, not an OSS gap.
 
 R12 wrote `build/fes-sg1000-oss/{synth.json,yosys.log,build-summary.json}`
-on Powerboat. It does **not** seal a format-2 OSS package, does not run
-nextpnr, and does not load a kit.
+on Powerboat. R13 HIP-routed that same `synth.json` (sha256 `5bb020ef…`)
+in place and wrote `nextpnr.log`, `routed.json`, `timing.json`, and
+`core.rbf`. It does **not** seal a format-2 OSS package and does not load a
+kit. `build-summary.json` remains the R12 synth-only record.
 
 ## Next rung after this GREEN
 
-R13: HIP `--router gpu` of the R12 netlist on the Coleco pin (seed 4 is the
-Coleco copy and is unproven on SG-1000). Do not FES-pin or kit-HIL until
-R13/R14 pass.
+R14: format-2 OSS seal on a clean tree. Re-check seed 4 after the sealed
+BUILD_ID is embedded. Do not FES-pin or kit-HIL until R14 passes.

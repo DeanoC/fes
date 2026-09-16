@@ -1943,10 +1943,11 @@ and timing evidence without sealing.
 (`scripts/build_fes_sg1000_oss.py`). It uses `cores/fes-sg1000/toolchain.lock`
 (Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
-`--synth-only` runs Yosys without a clean tree and does not seal. Full HIP
-route/seal still requires a clean tree, `--router gpu`, and a proven seed;
-seed 4 is copied from Coleco and is not SG-1000 route evidence. FES parent
-pin and kit HIL remain later jobs.
+`--synth-only` runs Yosys without a clean tree and does not seal. HIP
+`--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
+the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. Format-2
+seal still requires a clean tree; a sealed BUILD_ID changes the placement
+search space. FES parent pin and kit HIL remain later jobs.
 
 ## Standalone Pong game
 
