@@ -44,7 +44,7 @@ foreground session. Surfaces attaching by session id is later session work.
 | Catalog cores | FPGA bitstream | misteross bundles | `*_sha256` / selection records |
 | Format-2 package | manifest + RBF | misteross | package id + payload sha |
 | ABI snapshot | generated C++/Go | mister-packages | `make check` consumers |
-| Bootstrap / kernel | locked boot | FES media lock | `boot-media.lock.toml` |
+| Bootstrap / kernel | locked boot | FES `platform/` plus media lock | `boot-media.lock.toml`, bootstrap evidence |
 
 `make host` on Linux writes `host.json` with `os=linux` and `arch=amd64`. That
 receipt cannot be presented as Darwin. A Darwin sofa receipt uses the same JSON

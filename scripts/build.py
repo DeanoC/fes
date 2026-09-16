@@ -36,7 +36,7 @@ def is_diagnostic_recipe_file(path, root=ROOT):
 
 MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/media.py", "scripts/media_inputs.py", "scripts/media_container.py",
-    "scripts/media_inside.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
+    "scripts/media_inside.py", "scripts/platform.py", "scripts/prepare_launcher.py", "boot-media.lock.toml",
     "scripts/appliance.py", "scripts/appliance_inside.py",
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",

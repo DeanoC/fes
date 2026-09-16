@@ -14,16 +14,18 @@ import tomllib
 
 try:
     from . import appliance
+    from . import platform as fes_platform
     from .appliance_media_inside import Inputs
     from .media_inputs import digest, verify_file
 except ImportError:
     import appliance
+    import platform as fes_platform
     from appliance_media_inside import Inputs
     from media_inputs import digest, verify_file
 
 PROFILE='native-integration-dev'
 RECIPE_FILES=('scripts/appliance.py','scripts/appliance_inside.py','scripts/appliance_media.py','scripts/appliance_media_inside.py',
-    'scripts/media.py','scripts/media_inputs.py','scripts/media_inside.py','scripts/media_container.py','scripts/prepare_launcher.py',
+    'scripts/media.py','scripts/media_inputs.py','scripts/media_inside.py','scripts/media_container.py','scripts/platform.py','scripts/prepare_launcher.py',
     'boot-media.lock.toml','containers/boot-media/Dockerfile','containers/boot-media/create-builder-user.sh','containers/boot-media/packages.sha256')
 
 
@@ -64,15 +66,11 @@ def compare_bundle(actual,expected,names):
             raise ValueError('appliance bundle differs from independently verified inputs: '+name)
 
 
-def build_selected_binary(fogcast,output,env):
-    goroot=subprocess.check_output(['go','env','GOROOT'],cwd=fogcast,env=dict(env,GOPROXY='off'),text=True).strip()
-    build_env=dict(env,GOOS='linux',GOARCH='arm',GOARM='7',CGO_ENABLED='0',GOPROXY='off',GOSUMDB='off',GOTOOLCHAIN='local')
-    subprocess.run([str(Path(goroot)/'bin/go'),'build','-trimpath','-buildvcs=false','-ldflags=-s -w -buildid=',
-        '-o',str(output),'./cmd/fes-boot'],cwd=fogcast,env=build_env,check=True)
-    appliance.validate_static_arm(output)
+def build_selected_binary(root,fogcast,output,env):
+    return fes_platform.build_static_arm(root,fogcast,output,env)
 
 
-def retained_assembly_revision(root,bootstrap_directory):
+def retained_assembly_revision(root,bootstrap_directory,fogcast):
     evidence_path=appliance.regular(Path(bootstrap_directory)/'evidence.json')
     with evidence_path.open('rb') as stream:raw=stream.read(65537)
     if len(raw)>65536:raise ValueError('bootstrap evidence is too large')
@@ -81,12 +79,16 @@ def retained_assembly_revision(root,bootstrap_directory):
     import re
     if not isinstance(revision,str) or not re.fullmatch('[0-9a-f]{40}',revision):
         raise ValueError('bootstrap lacks source-proven assembly revision')
+    record=evidence.get('platform_build')
+    if not isinstance(record,dict):
+        raise ValueError('bootstrap lacks platform build provenance')
     # Bind the retained provenance selector to real repository source bytes.
     # Exact reconstructed evidence below checks the remaining fields and schema.
     for name,expected in appliance.bootstrap_recipe(root).items():
         source=subprocess.check_output(['git','-C',str(root),'show',f'{revision}:{name}'],stderr=subprocess.DEVNULL)
         if hashlib.sha256(source).hexdigest()!=expected:
             raise ValueError('bootstrap assembly revision differs from current recipe')
+    fes_platform.verify_retained(root,fogcast,record,assembly_revision=revision)
     return revision
 
 
@@ -115,10 +117,11 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     runtime=os.environ.get('CONTAINER_RUNTIME','docker')
     runner=object.__new__(media.Runner);runner.root=root;runner.runtime=runtime
     runner.container=appliance.cached_media_container(root,runtime,lock)
-    assembly_revision=retained_assembly_revision(root,bootstrap_directory)
-    binary=scratch/'fes-boot';build_selected_binary(fogcast,binary,env)
+    assembly_revision=retained_assembly_revision(root,bootstrap_directory,fogcast)
+    binary=scratch/'fes-boot'
+    binary_sha,platform_build=build_selected_binary(root,fogcast,binary,env)
     expected_bootstrap=appliance.assemble_bootstrap(scratch/'expected-bootstrap',binary,expected_release.manifest,kernel,
-        runner=runner,binary_source_revision=provenance.fogcast_revision,assembly_revision=assembly_revision)
+        runner=runner,binary_source_revision=provenance.fogcast_revision,assembly_revision=assembly_revision,platform_build=platform_build)
     compare_bundle(bootstrap_directory,expected_bootstrap.directory,('linux.img','evidence.json'))
     # Extract and compare the factory's idle bytes to the selected native lock.
     idle=scratch/'idle.rbf'

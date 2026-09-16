@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from scripts import appliance, appliance_inside
+from scripts import appliance, appliance_inside, platform as fes_platform
 
 ROOT = Path(__file__).resolve().parents[1]
 INSIDE = os.environ.get('FES_APPLIANCE_TEST_INSIDE') == '1'
@@ -95,20 +95,21 @@ class ReleaseTests(unittest.TestCase):
         original=result.manifest.read_bytes()
         mutated=json.loads(original);mutated['image_sha256']='9'*64
         p=provenance(self.rootfs,self.kernel)
-        def build(command,**kwargs):
-            Path(command[command.index('-o')+1]).write_bytes(arm_elf())
+        def build_arm(root,fogcast,output,env):
+            Path(output).write_bytes(arm_elf())
             result.manifest.chmod(0o644);result.manifest.write_bytes(appliance.canonical(mutated))
+            return appliance.digest(output),fes_platform.platform_build_record('1'*64,'2'*64,p.fogcast_revision,'go1.26.5','3'*64)
         def assemble(output,binary,factory,kernel,**kwargs):
             self.assertEqual(Path(factory).read_bytes(),original,'CLI reopened mutable factory after verification')
             self.assertTrue(Path(output).is_absolute())
+            self.assertIn('platform_build',kwargs)
             return appliance.BootstrapResult(Path(output))
         with mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(result.directory),'--output','out/test-bootstrap']), \
              mock.patch.object(media,'operation',return_value=contextlib.nullcontext()), \
              mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)), \
              mock.patch.object(appliance,'cached_media_container',return_value='sha256:'+'8'*64), \
              mock.patch.object(media.cold_build,'git',return_value='7'*40), \
-             mock.patch.object(appliance.subprocess,'check_output',return_value='/cached/go\n'), \
-             mock.patch.object(appliance.subprocess,'run',side_effect=build), \
+             mock.patch.object(appliance.fes_platform,'build_static_arm',side_effect=build_arm), \
              mock.patch.object(appliance,'assemble_bootstrap',side_effect=assemble), \
              mock.patch('builtins.print'):
             appliance.main()
@@ -129,6 +130,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotEqual(identity,appliance.bootstrap_identity('2'*64,factory,'sha256:'+'5'*64,'4'*40,recipe))
         self.assertNotEqual(identity,appliance.bootstrap_identity('2'*64,factory,'sha256:'+'3'*64,'4'*40,{'scripts/appliance_inside.py':'6'*64}))
         self.assertNotEqual(identity,appliance.bootstrap_identity('2'*64,factory,'sha256:'+'3'*64,'7'*40,recipe))
+        platform_build=fes_platform.platform_build_record('8'*64,'9'*64,'a'*40,'go1.26.5','b'*64)
+        self.assertNotEqual(identity,appliance.bootstrap_identity('2'*64,factory,'sha256:'+'3'*64,'4'*40,recipe,platform_build))
 
 
 @unittest.skipIf(INSIDE,'host container driver')
@@ -190,18 +193,20 @@ class RealBootstrapTests(unittest.TestCase):
                         path=root/'scripts/appliance_inside.py';path.write_bytes(path.read_bytes()+b'\n')
                     return result
             runner=LocalRunner()
+            platform_build=fes_platform.platform_build_record('1'*64,'2'*64,'d'*40,'go1.26.5','3'*64)
             result=appliance.assemble_bootstrap(root/'bound',binary,factory,kernel,runner=runner,
-                binary_source_revision='d'*40,assembly_revision='c'*40)
+                binary_source_revision='d'*40,assembly_revision='c'*40,platform_build=platform_build)
             evidence=json.loads(result.evidence.read_bytes())
             self.assertEqual(evidence['assembly_revision'],'c'*40)
             self.assertEqual(evidence['assembly_recipe']['scripts/appliance_inside.py'],appliance.digest(ROOT/'scripts/appliance_inside.py'))
             self.assertEqual(evidence['classification'],'source-bound-host-artifact')
+            self.assertEqual(evidence['platform_build'],platform_build)
             self.assertEqual(result.directory.stat().st_mode&0o777,0o555)
             self.assertEqual(result.image.stat().st_mode&0o777,0o444)
             result.image.chmod(0o644)
             with self.assertRaisesRegex(ValueError,'sealed'):
                 appliance.assemble_bootstrap(root/'bound',binary,factory,kernel,runner=runner,
-                    binary_source_revision='d'*40,assembly_revision='c'*40)
+                    binary_source_revision='d'*40,assembly_revision='c'*40,platform_build=platform_build)
             diagnostic=appliance.assemble_bootstrap(root/'diagnostic',binary,factory,kernel,runner=runner)
             evidence=json.loads(diagnostic.evidence.read_bytes())
             self.assertFalse(evidence['binary_source_proven'])

@@ -99,10 +99,10 @@ boot copies into FES would let boot selection and network installation diverge.
   selected FogCast tree. No developer worktree path belongs in published inputs.
 - Run nested-module tests explicitly: root `go test ./...` skips them.
 - After boot migration, image assembly builds boot from FES `platform/`.
-  `scripts/appliance.py` and `scripts/appliance_media.py` currently build
-  `./cmd/fes-boot` from FogCast and bind `binary_source_revision` to the factory
-  manifest's `fogcast_revision`. Update both builders and evidence checks
-  together; never relabel FES boot source as FogCast source.
+  `scripts/appliance.py` and `scripts/appliance_media.py` build `./cmd/fes-boot`
+  from FES `platform/` against the selected FogCast `appliance` module and bind
+  additive platform/module provenance in bootstrap evidence. Never relabel FES
+  boot source as FogCast source.
 - Boot receipts must cover FES platform source, selected shared-module content,
   Go toolchain and build flags. A module/lock change must invalidate boot output.
 - Preserve release manifests as identities of the selected system components.

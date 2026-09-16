@@ -49,5 +49,10 @@ The selected FogCast gitlink still owns:
 - `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
 - `cmd/target-image-lock` (extra-core selector / lock verifier)
 - `build/native-runtime.inputs.lock.toml` (runtime and idle policy)
+- public `appliance` schema/store module consumed by FES `platform/`
+
+FES `platform/` owns `fes-boot`. Appliance bootstrap assembly builds that
+module against the selected FogCast `appliance` checkout through a temporary
+Go workspace; it does not build FogCast `cmd/fes-boot`.
 
 FPGA cores enter as sealed bundles / packages, not as a second image builder.

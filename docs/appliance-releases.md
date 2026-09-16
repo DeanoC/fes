@@ -57,6 +57,13 @@ make verify-appliance-media RELEASE=/absolute/path/to/release-directory \
   OUTPUT=/absolute/path/to/new-card-directory
 ```
 
+`make bootstrap` builds the static ARM `fes-boot` binary from FES `platform/`
+against the selected FogCast `appliance` module. Bootstrap evidence records the
+platform tree identity, appliance-module content identity, selected FogCast
+revision, Go toolchain identity and exact build flags. Retained bootstrap
+verification rejects a stale platform or appliance-module identity. Absolute
+checkout paths are not stored in receipts or manifests.
+
 `card.img` is a file, never an automatic block-device write. The directory also
 contains external evidence. Both commands use the existing exclusive media lease;
 verification reconstructs the complete card bytes using the same source-bound
