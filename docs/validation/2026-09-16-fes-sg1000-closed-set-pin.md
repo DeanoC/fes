@@ -15,11 +15,21 @@ fes.sg1000
 Worktree: `/Users/clawzai/Developer/fes-wt-sg1000-fes-pin` on
 `chore/fes-sg1000-closed-set-pin` from `origin/main`.
 misteross gitlink: `bbbcef4c05b6e863dd89cf3ce65dfa0b8d085de8`.
-Sealed `fes.sg1000` package_id from R14:
-`da9b5039425ac4780e39d236265aa3f5e9d0978c15ff17c3fd473737ac599d1b`.
-BUILD_ID `5c17f297712b6f57b63e4f400a79a2bb`.
+Sealed `fes.sg1000` package identity from the tip rebuild at that
+misteross revision:
 
-FogCast, libmister-runtime and mister-packages gitlinks are unchanged.
+- package_id `41b7250266b8284b43a34a42f55c8b6d150627078daddd76d8eb4218cd5182a7`
+- BUILD_ID `e37c39bb57c788c905eca12ab746a8c3`
+- payload_sha256 `5d985b4c43e015b8d9a14cebdb393f4e6593b7a7546e39478f4a9d4b38193d5f`
+
+R14 `da9b5039425ac4780e39d236265aa3f5e9d0978c15ff17c3fd473737ac599d1b` /
+BUILD_ID `5c17f297712b6f57b63e4f400a79a2bb` was sealed at misteross
+`17b69db41e689ccc83c60767d41fb9f6b64d63d7` (pre-merge), not `bbbcef4`.
+Do not pin that identity.
+
+FogCast gitlink: `54f6cf5baf27efcd00759b1ae630b2a54693da6b`
+(DeanoC/FogCast#248, unmerged format-2 selector). libmister-runtime and
+mister-packages gitlinks are unchanged.
 This record is parent closed-set/recipe evidence only. Quartus was not run.
 No kit HIL, media write, or physical acceptance is claimed.
 

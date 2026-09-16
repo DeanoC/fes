@@ -54,7 +54,12 @@ and is not current-profile acceptance.
   acceptance for the selected nextpnr recipe.
 - [SG-1000 closed-set pin](validation/2026-09-16-fes-sg1000-closed-set-pin.md):
   parent pin of misteross `#64` adding `fes.sg1000` to the ordered closed
-  format-2 set. Host-only; not hardware acceptance.
+  format-2 set. Expected sealed package is the tip rebuild
+  `41b72502…` / BUILD_ID `e37c39bb…` at misteross `bbbcef4`, not R14
+  `da9b5039…`. Host-only; not hardware acceptance.
+- [SG-1000 tip HIL](validation/2026-09-16-fes-sg1000-tip-hil.md):
+  exact-tip package-only image stopped at FogCast `target-image-native-fetch`
+  (`unsupported format-2 package core "fes.sg1000"`). HARD_NEED; no deploy.
 - [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
   host expander and tests landed; assembly stays the fixed 1 GiB image.
 - [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
