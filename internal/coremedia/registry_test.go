@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-func TestLookupColecoGraphicsDiagnostic(t *testing.T) {
+func TestLookupColecoControllersDiagnostic(t *testing.T) {
 	data, ok := Lookup("fes.coleco")
 	if !ok {
 		t.Fatal("Lookup(fes.coleco) reported no default media")
 	}
-	if len(data) != 989 {
-		t.Fatalf("len(data) = %d, want 989", len(data))
+	if len(data) != 2299 {
+		t.Fatalf("len(data) = %d, want 2299", len(data))
 	}
 	digest := sha256.Sum256(data)
-	if got := hex.EncodeToString(digest[:]); got != "9f9fa280b141e0538a571bb66f1e2447f691eecb853ae05547720f2ccc20783c" {
+	if got := hex.EncodeToString(digest[:]); got != "ef9443c2787cd02b6d78d233d015b0bbf3fb21d53d1a5890497cdbb7897f053c" {
 		t.Fatalf("sha256 = %s", got)
 	}
 

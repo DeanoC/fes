@@ -540,7 +540,7 @@ func (c *Coordinator) Stop(parent context.Context) (protocol.Status, *protocol.A
 
 func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *protocol.APIError) {
 	current := c.Status()
-	if current.State == protocol.StateIdle {
+	if current.State == protocol.StateIdle && current.LastError == nil && current.Recovery == "" {
 		return current, nil
 	}
 	if current.State == protocol.StateStopping && current.Development && current.Recovery == protocol.RecoveryRebootRequired {

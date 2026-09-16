@@ -117,6 +117,11 @@ type sessionInputBinding struct {
 	core       string
 	packageID  string
 	generation uint64
+	keyboard   bool
+}
+
+type remoteInputCapabilityAttacher interface {
+	AttachWithCapabilities(context.Context, string, bool) error
 }
 
 func newSessionCoordinator(service sessionService, remoteInput host.RemoteInputController, media MediaSession) *sessionCoordinator {
@@ -1259,7 +1264,7 @@ func corePackageHasKeyboard(status protocol.Status) bool {
 }
 
 func inputBindingForStatus(status protocol.Status) sessionInputBinding {
-	binding := sessionInputBinding{core: sessionCore(status)}
+	binding := sessionInputBinding{core: sessionCore(status), keyboard: corePackageHasKeyboard(status)}
 	if status.CorePackage != nil {
 		binding.packageID = status.CorePackage.PackageID
 		binding.generation = status.CorePackage.Generation
@@ -1268,7 +1273,14 @@ func inputBindingForStatus(status protocol.Status) sessionInputBinding {
 }
 
 func (s *sessionCoordinator) attachInputForStatus(ctx context.Context, status protocol.Status) error {
-	if err := s.remoteInput.Attach(ctx, sessionCore(status)); err != nil {
+	core := sessionCore(status)
+	var err error
+	if attacher, ok := s.remoteInput.(remoteInputCapabilityAttacher); ok {
+		err = attacher.AttachWithCapabilities(ctx, core, corePackageHasKeyboard(status))
+	} else {
+		err = s.remoteInput.Attach(ctx, core)
+	}
+	if err != nil {
 		return err
 	}
 	s.mu.Lock()

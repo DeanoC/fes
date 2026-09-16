@@ -6,11 +6,11 @@ import (
 	"strings"
 )
 
-//go:embed assets/coleco-graphics-i.hex
-var colecoGraphicsIHex string
+//go:embed assets/coleco-controllers.hex
+var colecoControllersHex string
 
 var defaultMediaHex = map[string]string{
-	"fes.coleco": colecoGraphicsIHex,
+	"fes.coleco": colecoControllersHex,
 }
 
 // Lookup returns a defensive copy of the registered default media for coreID.

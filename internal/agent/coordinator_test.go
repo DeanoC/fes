@@ -1151,15 +1151,20 @@ type nativeIdleControl struct {
 	stopCalls   int
 	launch      misterruntime.Response
 	request     misterruntime.LaunchRequest
+	statusError *misterruntime.RemoteError
+	stopResult  *misterruntime.Response
 }
 
 func (c *nativeIdleControl) Status(context.Context) (misterruntime.Response, error) {
 	c.statusCalls++
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Error: c.statusError, Version: "test"}, nil
 }
 
 func (c *nativeIdleControl) Stop(context.Context) (misterruntime.Response, error) {
 	c.stopCalls++
+	if c.stopResult != nil {
+		return *c.stopResult, nil
+	}
 	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 
@@ -1519,6 +1524,52 @@ func TestCoordinatorStopWhileNativeIdleDoesNotCallRuntimeStop(t *testing.T) {
 	}
 	if control.statusCalls != 1 || control.stopCalls != 0 {
 		t.Fatalf("control calls = status:%d stop:%d", control.statusCalls, control.stopCalls)
+	}
+}
+
+func TestCoordinatorStopRetriesIdleRuntimeError(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name          string
+		stopResult    misterruntime.Response
+		wantError     bool
+		wantState     protocol.State
+		wantLastError bool
+	}{
+		{
+			name:       "confirmed stop clears retained error",
+			stopResult: misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"},
+			wantState:  protocol.StateIdle,
+		},
+		{
+			name: "failed stop retains recovery error",
+			stopResult: misterruntime.Response{
+				Protocol: 1, OK: false, State: "idle", Execution: "none", Version: "test",
+				Error: &misterruntime.RemoteError{Code: "io_failed", Message: "missing native core"},
+			},
+			wantError:     true,
+			wantState:     protocol.StateFailed,
+			wantLastError: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			control := &nativeIdleControl{
+				statusError: &misterruntime.RemoteError{Code: "io_failed", Message: "missing native core"},
+				stopResult:  &test.stopResult,
+			}
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			coordinator := agent.New(runtime, core.NewRegistry(), time.Second, time.Second)
+			coordinator.Initialize(context.Background())
+
+			status, apiErr := coordinator.Stop(context.Background())
+			if (apiErr != nil) != test.wantError || status.State != test.wantState || (status.LastError != nil) != test.wantLastError {
+				t.Fatalf("stop = %#v, %#v", status, apiErr)
+			}
+			if control.stopCalls != 1 {
+				t.Fatalf("runtime Stop calls = %d, want one", control.stopCalls)
+			}
+		})
 	}
 }
 

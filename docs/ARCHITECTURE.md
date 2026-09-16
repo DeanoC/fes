@@ -176,7 +176,10 @@ Development Stop uses the ordinary native Stop-to-idle path; reboot recovery
 is reserved for an actual native cleanup failure. A `fes.simple-computer`
 package with `fes.keyboard` attaches remote input without `fes.gamepad`.
 Host keyboard events map through the agent onto the runtime 40-bit ZX81
-matrix (`set_keyboard`); Select+Start remains the software Stop chord.
+matrix (`set_keyboard`); Select+Start remains the software Stop chord. The
+exact `fes.coleco` package with `fes.keyboard` 1.0 maps D-pad/left-stick
+Up/Right/Down/Left to keyboard bits 0..3 and A/B to P1 Fire1 bit 4/Fire2
+bit 10.
 A host library entry for `fes.zx81` uses `load_library_core` like other
 ROM-less FPGA cores; development `core-load` stays a separate volatile
 activation and does not create that entry.
@@ -344,9 +347,11 @@ leaves the prior media and input session intact. After confirmed activation,
 the coordinator retires prior input and publishes the package ID, ABI, build
 ID, active interfaces, generation, and derived gamepad capability in
 `GET /api/v1/session`. Status reconstruction after a host restart attaches
-input only for native games or active custom packages with `fes.gamepad`; raw
-development RBF sessions remain input-disabled. Manual input attachment uses
-the same predicate.
+input only for native games or active custom packages with `fes.gamepad` or
+the exact `fes.keyboard` 1.0 interface; raw development RBF sessions remain
+input-disabled. Manual input attachment uses the same predicate. Coleco's
+gamepad-to-keyboard mapping is selected only for the exact `fes.coleco` core
+together with that keyboard interface.
 
 The kit launcher opens a stream only for a nonempty input session that is ready
 or reconnecting and is native or a capable custom development package. A
@@ -575,7 +580,10 @@ an attached play session is live (`ForwardsPlayHID`), USB keyboard events go to
 `POST /api/v1/session/input/event` instead of the sofa focus graph and do not
 steal browse or ZX81/session affinity; pointer browse stays off that session.
 Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
-A `fes.keyboard` core maps those keys onto the ZX81 matrix. Native SNES/MD
+A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
+`fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
+keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
+Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes
 as axes. Foreign kit leases and `recovery-required` connections fail closed
@@ -1157,12 +1165,14 @@ by exact core ID in `internal/coremedia`. After package activation, the host
 delivers that asset through the existing development-media service with the
 active package ID, generation, target and target ID; a delivery failure invokes
 the existing Stop/recovery path and is not reported as a usable launch. The
-current registered asset is the 989-byte BIOS-free Coleco Graphics I diagnostic
-(`fes.coleco`), whose expected green/orange pattern is documented in the FES
-validation record. This is a development diagnostic, not a retail cartridge
-compatibility claim. `fes.pong` remains media-free, and `fes.zx81` remains an
-explicit-media launch until a tape asset is separately validated. The explicit
-`core-media` operation remains available for alternate media.
+current registered asset is the 2299-byte BIOS-free Coleco controller
+diagnostic (`fes.coleco`), whose controller/graphics output is documented in
+the FES validation record. With the exact `fes.keyboard` 1.0 interface, its
+controls use the shared host mapping described above. This is a development
+diagnostic, not a retail cartridge compatibility claim. `fes.pong` remains
+media-free, and `fes.zx81` remains an explicit-media launch until a tape
+asset is separately validated. The explicit `core-media` operation remains
+available for alternate media.
 
 A confirmed package activation commits its host-side ownership only after the
 previous host executor stops successfully. If that cleanup fails, the service
@@ -1170,6 +1180,11 @@ retains the host owner and a package recovery marker, reports the observed
 FPGA package with the recovery error, and blocks input attachment. Stop or a
 subsequent package launch retries target recovery and host cleanup before
 clearing either pending owner.
+
+Runtime reconciliation may report `State=idle` with a retained runtime error,
+such as a failed native core load. Coordinator Stop fast-paths only clean idle;
+it retries runtime Stop for idle-with-error and clears the error only after a
+confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
 
 ## Described-core persistent data

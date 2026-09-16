@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
@@ -27,6 +28,8 @@ const (
 	maxBridgeAddressBytes    = 256
 	maxHandshakeBytes        = 4096
 	maxLatencySamples        = 256
+	colecoCoreID             = "fes.coleco"
+	colecoAxisDeadzone       = int16(8000)
 )
 
 var (
@@ -138,6 +141,8 @@ type RemoteInput struct {
 	core             string
 	sequence         uint32
 	inputState       remoteinput.State
+	keyboard         bool
+	colecoOutput     map[remoteinput.Code]bool
 	source           string
 	sourceGeneration uint64
 	metrics          remoteInputCounters
@@ -196,6 +201,17 @@ func (r *RemoteInput) Status() RemoteInputStatus {
 }
 
 func (r *RemoteInput) Attach(ctx context.Context, core string) error {
+	return r.attach(ctx, core, false)
+}
+
+// AttachWithCapabilities attaches one session with the exact capabilities
+// established by the host session coordinator. keyboard is true only for the
+// fes.keyboard 1.0 interface.
+func (r *RemoteInput) AttachWithCapabilities(ctx context.Context, core string, keyboard bool) error {
+	return r.attach(ctx, core, keyboard)
+}
+
+func (r *RemoteInput) attach(ctx context.Context, core string, keyboard bool) error {
 	if err := validateBridgeCore(core); err != nil {
 		return ErrRemoteInputInvalid
 	}
@@ -222,9 +238,11 @@ func (r *RemoteInput) Attach(ctx context.Context, core string) error {
 	r.metrics = remoteInputCounters{}
 	r.sequence = 0
 	r.inputState = remoteinput.State{}
+	r.colecoOutput = nil
 	r.session = session
 	r.token = token
 	r.core = core
+	r.keyboard = keyboard
 
 	bridge, err := r.starter.Start(ctx, BridgeSpec{Session: session, Token: append([]byte(nil), token...), Core: core})
 	if err != nil || bridge == nil {
@@ -321,8 +339,14 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 	if err := r.ensureConnectionLocked(ctx); err != nil {
 		return err
 	}
-	frame := r.frameForEventLocked(event, capturedAt)
-	if err := r.writeFrameLocked(ctx, frame, capturedAt); err == nil {
+	var sendErr error
+	if r.colecoInputEnabledLocked() {
+		sendErr = r.sendColecoDiffLocked(ctx, capturedAt)
+	} else {
+		frame := r.frameForEventLocked(event, capturedAt)
+		sendErr = r.writeFrameLocked(ctx, frame, capturedAt)
+	}
+	if sendErr == nil {
 		r.state = RemoteInputAttached
 		r.ready = true
 		return nil
@@ -565,6 +589,14 @@ func (r *RemoteInput) reconnectLocked(ctx context.Context) error {
 }
 
 func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
+	if r.colecoInputEnabledLocked() {
+		desired := r.colecoDesiredStateLocked()
+		if err := r.writeColecoSnapshotLocked(ctx, desired); err != nil {
+			return err
+		}
+		r.colecoOutput = desired
+		return nil
+	}
 	snapshot := r.inputState.Snapshot()
 	pressed := append([]remoteinput.Code(nil), snapshot.Pressed...)
 	sort.Slice(pressed, func(i, j int) bool { return pressed[i] < pressed[j] })
@@ -587,6 +619,117 @@ func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (r *RemoteInput) colecoInputEnabledLocked() bool {
+	return r.core == colecoCoreID && r.keyboard
+}
+
+func (r *RemoteInput) colecoDesiredStateLocked() map[remoteinput.Code]bool {
+	snapshot := r.inputState.Snapshot()
+	desired := make(map[remoteinput.Code]bool)
+	for _, code := range snapshot.Pressed {
+		if mapped, ok := colecoButtonKey(code); ok {
+			desired[mapped] = true
+		} else {
+			desired[code] = true
+		}
+	}
+	for code, value := range snapshot.Axes {
+		if mapped, ok := colecoAxisKey(code, value); ok {
+			desired[mapped] = true
+		}
+	}
+	return desired
+}
+
+func (r *RemoteInput) sendColecoDiffLocked(ctx context.Context, capturedAt time.Time) error {
+	desired := r.colecoDesiredStateLocked()
+	removed := make([]remoteinput.Code, 0)
+	for code := range r.colecoOutput {
+		if !desired[code] {
+			removed = append(removed, code)
+		}
+	}
+	sort.Slice(removed, func(i, j int) bool { return removed[i] < removed[j] })
+	for _, code := range removed {
+		if err := r.writeColecoTransitionLocked(ctx, capturedAt, code, remoteinput.ActionRelease); err != nil {
+			return err
+		}
+	}
+
+	added := make([]remoteinput.Code, 0)
+	for code := range desired {
+		if !r.colecoOutput[code] {
+			added = append(added, code)
+		}
+	}
+	sort.Slice(added, func(i, j int) bool { return added[i] < added[j] })
+	for _, code := range added {
+		if err := r.writeColecoTransitionLocked(ctx, capturedAt, code, remoteinput.ActionPress); err != nil {
+			return err
+		}
+	}
+	r.colecoOutput = desired
+	return nil
+}
+
+func (r *RemoteInput) writeColecoSnapshotLocked(ctx context.Context, desired map[remoteinput.Code]bool) error {
+	codes := make([]remoteinput.Code, 0, len(desired))
+	for code := range desired {
+		codes = append(codes, code)
+	}
+	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
+	for _, code := range codes {
+		if err := r.writeColecoTransitionLocked(ctx, time.Time{}, code, remoteinput.ActionPress); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *RemoteInput) writeColecoTransitionLocked(ctx context.Context, capturedAt time.Time, code remoteinput.Code, action remoteinput.Action) error {
+	event := eventForCode(code, action)
+	return r.writeFrameLocked(ctx, r.frameForEventLocked(event, capturedAt), capturedAt)
+}
+
+func colecoButtonKey(code remoteinput.Code) (remoteinput.Code, bool) {
+	switch code {
+	case remoteinput.ButtonDPadUp:
+		return zx81keys.KeyShift, true
+	case remoteinput.ButtonDPadRight:
+		return zx81keys.Letter('Z'), true
+	case remoteinput.ButtonDPadDown:
+		return zx81keys.Letter('X'), true
+	case remoteinput.ButtonDPadLeft:
+		return zx81keys.Letter('C'), true
+	case remoteinput.ButtonA:
+		return zx81keys.Letter('V'), true
+	case remoteinput.ButtonB:
+		return zx81keys.Letter('Q'), true
+	default:
+		return 0, false
+	}
+}
+
+func colecoAxisKey(code remoteinput.Code, value int16) (remoteinput.Code, bool) {
+	switch code {
+	case remoteinput.AxisLeftX:
+		switch {
+		case value < -colecoAxisDeadzone:
+			return zx81keys.Letter('C'), true
+		case value > colecoAxisDeadzone:
+			return zx81keys.Letter('Z'), true
+		}
+	case remoteinput.AxisLeftY:
+		switch {
+		case value < -colecoAxisDeadzone:
+			return zx81keys.KeyShift, true
+		case value > colecoAxisDeadzone:
+			return zx81keys.Letter('X'), true
+		}
+	}
+	return 0, false
 }
 
 func (r *RemoteInput) frameForEventLocked(event remoteinput.Event, capturedAt time.Time) protocol.InputFrame {
@@ -716,11 +859,13 @@ func (r *RemoteInput) detachLocked(ctx context.Context, reason string) {
 	r.closeConnLocked()
 	r.stopBridgeLocked(ctx)
 	r.inputState.ReleaseAll()
+	r.colecoOutput = nil
 	r.source = ""
 	r.sourceGeneration++
 	r.session = 0
 	r.token = nil
 	r.core = ""
+	r.keyboard = false
 	r.sequence = 0
 	r.ready = false
 	r.state = RemoteInputDetached
@@ -820,11 +965,13 @@ func (r *RemoteInput) Invalidate() {
 	r.bridge = nil
 	r.closeConnLocked()
 	r.inputState.ReleaseAll()
+	r.colecoOutput = nil
 	r.source = ""
 	r.sourceGeneration++
 	r.session = 0
 	r.token = nil
 	r.core = ""
+	r.keyboard = false
 	r.sequence = 0
 	r.ready = false
 	r.state = RemoteInputDetached
@@ -915,6 +1062,7 @@ func (s *RemoteInputSource) Close() error {
 	}
 	r.closeConnLocked()
 	r.inputState.ReleaseAll()
+	r.colecoOutput = nil
 	r.source = ""
 	r.sourceGeneration++
 	r.state = RemoteInputReconnecting
