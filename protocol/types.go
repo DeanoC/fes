@@ -1,6 +1,6 @@
 package protocol
 
-import "github.com/DeanoC/FogCast/internal/corepackage"
+import "github.com/DeanoC/FogCast/corepackage"
 
 const MaxDevelopmentRBFBytes int64 = 32 << 20
 

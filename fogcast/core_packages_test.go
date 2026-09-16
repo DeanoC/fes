@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -37,7 +37,7 @@ func (c *packageLibraryClient) InspectCore(ctx context.Context, n int64, r io.Re
 
 func libraryPackageFixture(t *testing.T, version string, extras ...string) []byte {
 	t.Helper()
-	base := "../internal/corepackage/testdata/core-bundle-v2/"
+	base := "../corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
 	if err != nil {
 		t.Fatal(err)

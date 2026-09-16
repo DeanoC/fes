@@ -10,7 +10,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
-	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/google/uuid"

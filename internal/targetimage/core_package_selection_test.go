@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 )
 
 func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection) {
@@ -22,7 +22,7 @@ func packageSelectionFixtureForCore(t *testing.T, coreID string) (string, string
 		t.Fatal(err)
 	}
 	for _, name := range []string{"manifest.toml", "core.rbf"} {
-		data, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "core-bundle-v2",
+		data, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2",
 			map[string]string{"manifest.toml": "manifests/valid-basic.toml", "core.rbf": "payloads/fes-fixture.rbf"}[name]))
 		if err != nil {
 			t.Fatal(err)

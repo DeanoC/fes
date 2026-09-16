@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/targetimage"
 )
 
@@ -188,8 +188,8 @@ func TestVerifyPackagePrintsCanonicalBuildInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for source, destination := range map[string]string{
-		filepath.Join("..", "..", "internal", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"): filepath.Join(directory, "manifest.toml"),
-		filepath.Join("..", "..", "internal", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"):   filepath.Join(directory, "core.rbf"),
+		filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"): filepath.Join(directory, "manifest.toml"),
+		filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"):   filepath.Join(directory, "core.rbf"),
 	} {
 		data, err := os.ReadFile(source)
 		if err != nil {

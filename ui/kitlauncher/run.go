@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/playhid"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"github.com/DeanoC/FogCast/ui/tenfoot/theme"

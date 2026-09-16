@@ -15,8 +15,8 @@ import (
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -285,11 +285,11 @@ func TestOpenedCoreArchiveSnapshotSurvivesPathReplacement(t *testing.T) {
 
 func writeCLIPackage(t *testing.T, archive bool) string {
 	t.Helper()
-	manifest, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"))
+	manifest, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	payload, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"))
+	payload, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "payloads", "fes-fixture.rbf"))
 	if err != nil {
 		t.Fatal(err)
 	}

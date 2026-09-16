@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )

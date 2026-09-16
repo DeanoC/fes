@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/playhid"
+	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
 	"github.com/DeanoC/FogCast/ui/tenfoot/theme"

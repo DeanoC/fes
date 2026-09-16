@@ -10,25 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/kitlease"
 )
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
 
 var ErrKitLeaseLost = errors.New("kit lease unavailable; inspect target ownership before starting a new session")
 
-type kitLeaseStatus struct {
-	State       string    `json:"state"`
-	Generation  string    `json:"generation"`
-	Owner       string    `json:"owner,omitempty"`
-	Purpose     string    `json:"purpose,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	ExpiresInMS int64     `json:"expires_in_ms"`
-}
-type kitLeaseGrant struct {
-	Status kitLeaseStatus `json:"status"`
-	Token  string         `json:"token"`
-}
+type kitLeaseStatus = kitlease.Status
+type kitLeaseGrant = kitlease.Grant
 
 // KitLease is owned by one application and shared explicitly with its target
 // and input clients. It never takes over another owner or retries mutations.

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -884,7 +884,7 @@ func alternateCoreArchive(t *testing.T) []byte {
 
 func misterCoreArchive(t *testing.T) []byte {
 	t.Helper()
-	base := filepath.Join("..", "corepackage", "testdata", "core-bundle-v2")
+	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
 	manifest, err := os.ReadFile(filepath.Join(base, "manifests", "valid-basic.toml"))
 	if err != nil {
 		t.Fatal(err)
@@ -908,7 +908,7 @@ func misterCoreArchive(t *testing.T) []byte {
 
 func coreArchive(t *testing.T, alternate bool, extras ...string) []byte {
 	t.Helper()
-	base := filepath.Join("..", "corepackage", "testdata", "core-bundle-v2")
+	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
 	manifest, err := os.ReadFile(filepath.Join(base, "manifests", "valid-basic.toml"))
 	if err != nil {
 		t.Fatal(err)

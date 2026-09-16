@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 

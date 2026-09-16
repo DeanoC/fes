@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/core"
-	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 )

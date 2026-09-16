@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/DeanoC/FogCast/internal/flightdiag"
+	contract "github.com/DeanoC/FogCast/kitlease"
 )
 
 var (
@@ -24,29 +25,10 @@ var (
 	ErrBlocked = errors.New("kit cleanup failed or agent is shutting down")
 )
 
-type Status struct {
-	ExpiresInMS int64     `json:"expires_in_ms"`
-	State       string    `json:"state"`
-	Generation  string    `json:"generation"`
-	Owner       string    `json:"owner,omitempty"`
-	Purpose     string    `json:"purpose,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at,omitempty"`
-	Reason      string    `json:"reason,omitempty"`
-}
-type ClaimRequest struct {
-	RequestID string `json:"request_id"`
-	Owner     string `json:"owner"`
-	Purpose   string `json:"purpose"`
-}
-type TakeoverRequest struct {
-	ClaimRequest
-	ExpectedGeneration string `json:"expected_generation"`
-	Reason             string `json:"reason"`
-}
-type Grant struct {
-	Status Status `json:"status"`
-	Token  string `json:"token"`
-}
+type Status = contract.Status
+type ClaimRequest = contract.ClaimRequest
+type TakeoverRequest = contract.TakeoverRequest
+type Grant = contract.Grant
 
 type Manager struct {
 	mu           sync.Mutex
@@ -167,7 +149,7 @@ func (m *Manager) Claim(r ClaimRequest) (Grant, error) {
 		return Grant{}, ErrInvalid
 	}
 	if m.status.State == "held" && m.claim == r {
-		return Grant{m.snapshotLocked(), m.token}, nil
+		return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
 	}
 	if m.status.State == "blocked" {
 		return Grant{}, ErrBlocked
@@ -195,7 +177,7 @@ func (m *Manager) Renew(token string) (Grant, error) {
 	}
 	m.renewLocked()
 	m.recordLocked(flightdiag.KindLeaseRenew, "ok", map[string]any{"owner": m.claim.Owner})
-	return Grant{m.snapshotLocked(), m.token}, nil
+	return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
 }
 
 // Begin retains admission until done, which is idempotent. Its context is
@@ -256,7 +238,7 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 			return Grant{}, ErrInvalid
 		}
 		if m.status.State == "held" {
-			return Grant{m.snapshotLocked(), m.token}, nil
+			return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
 		}
 	}
 	if m.pending != nil && m.pending.RequestID == r.RequestID {

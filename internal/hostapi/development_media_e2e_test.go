@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/core"
-	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/fogcastcli"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/httpapi"
@@ -49,8 +49,8 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 	transform := func(s string) string {
 		return strings.ReplaceAll(strings.ReplaceAll(s, "fes.simple-game", "fes.simple-computer"), "fes.gamepad", "fes.media.blob")
 	}
-	manifest := []byte(transform(string(read("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml"))))
-	payload := read("../corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf")
+	manifest := []byte(transform(string(read("../../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml"))))
+	payload := read("../../corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf")
 	var archive bytes.Buffer
 	for _, entry := range []struct {
 		name string

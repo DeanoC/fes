@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/bridge"
-	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -784,7 +784,7 @@ func waitForSink(t *testing.T, sink *persistentTestSink, ready func(*persistentT
 
 func barrierCoreArchive(t *testing.T) []byte {
 	t.Helper()
-	base := filepath.Join("..", "corepackage", "testdata", "core-bundle-v2")
+	base := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
 	manifest, err := os.ReadFile(filepath.Join(base, "manifests", "valid-basic.toml"))
 	if err != nil {
 		t.Fatal(err)

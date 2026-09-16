@@ -8,29 +8,30 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/kitlease"
+	internallease "github.com/DeanoC/FogCast/internal/kitlease"
+	contractlease "github.com/DeanoC/FogCast/kitlease"
 )
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
 
-func WithKitLease(manager *kitlease.Manager) Option {
+func WithKitLease(manager *internallease.Manager) Option {
 	return func(options *serverOptions) { options.kitLease = manager }
 }
 
 func leaseError(w http.ResponseWriter, err error) {
 	status, code := http.StatusConflict, "KIT_LEASE_BUSY"
 	switch {
-	case errors.Is(err, kitlease.ErrInvalid):
+	case errors.Is(err, internallease.ErrInvalid):
 		status, code = http.StatusBadRequest, "KIT_LEASE_INVALID"
-	case errors.Is(err, kitlease.ErrLease):
+	case errors.Is(err, internallease.ErrLease):
 		status, code = http.StatusForbidden, "KIT_LEASE_REQUIRED"
-	case errors.Is(err, kitlease.ErrBlocked):
+	case errors.Is(err, internallease.ErrBlocked):
 		status, code = http.StatusServiceUnavailable, "KIT_LEASE_BLOCKED"
 	}
 	writeError(w, status, code, code)
 }
 
-func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *kitlease.Manager) {
+func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *internallease.Manager) {
 	mux.Handle("GET /v1/kit/lease", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, manager.Status()) })))
 	for _, action := range []string{"claim", "renew", "release", "takeover"} {
 		mux.Handle("POST /v1/kit/"+action, authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,23 +42,23 @@ func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *kitlease.
 			var err error
 			switch action {
 			case "claim":
-				var request kitlease.ClaimRequest
+				var request contractlease.ClaimRequest
 				if decoder.Decode(&request) != nil || decoder.Decode(&struct{}{}) != io.EOF {
-					leaseError(w, kitlease.ErrInvalid)
+					leaseError(w, internallease.ErrInvalid)
 					return
 				}
 				result, err = manager.Claim(request)
 			case "takeover":
-				var request kitlease.TakeoverRequest
+				var request contractlease.TakeoverRequest
 				if decoder.Decode(&request) != nil || decoder.Decode(&struct{}{}) != io.EOF {
-					leaseError(w, kitlease.ErrInvalid)
+					leaseError(w, internallease.ErrInvalid)
 					return
 				}
 				result, err = manager.Takeover(request)
 			default:
 				body, readErr := io.ReadAll(r.Body)
 				if readErr != nil || len(body) != 0 {
-					leaseError(w, kitlease.ErrInvalid)
+					leaseError(w, internallease.ErrInvalid)
 					return
 				}
 				if action == "renew" {
@@ -75,11 +76,11 @@ func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *kitlease.
 	}
 }
 
-func hostlessMutationDenied(status kitlease.Status, path string) bool {
-	if status.Owner != kitlease.HostlessOwner {
+func hostlessMutationDenied(status contractlease.Status, path string) bool {
+	if status.Owner != contractlease.HostlessOwner {
 		return false
 	}
-	if !kitlease.HostlessSession(status) {
+	if !contractlease.HostlessSession(status) {
 		return true
 	}
 	switch path {
@@ -90,7 +91,7 @@ func hostlessMutationDenied(status kitlease.Status, path string) bool {
 	}
 }
 
-func guardKitLease(next http.Handler, token string, manager *kitlease.Manager) http.Handler {
+func guardKitLease(next http.Handler, token string, manager *internallease.Manager) http.Handler {
 	guarded := authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		leaseContext, done, err := manager.Begin(r.Header.Get(KitLeaseHeader))
 		if err != nil {

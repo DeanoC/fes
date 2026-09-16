@@ -3,7 +3,7 @@ package protocol
 import (
 	"regexp"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 )
 
 const (

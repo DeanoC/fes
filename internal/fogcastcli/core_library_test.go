@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/internal/corepackage"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -85,7 +85,7 @@ func TestCoreInstallRequiresExactInspectionResponse(t *testing.T) {
 
 func cliCoreArchive(t *testing.T) (string, []byte, corepackage.Inspection) {
 	t.Helper()
-	base := "../corepackage/testdata/core-bundle-v2/"
+	base := "../../corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
 	if err != nil {
 		t.Fatal(err)

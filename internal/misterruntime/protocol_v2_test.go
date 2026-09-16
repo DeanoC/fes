@@ -340,7 +340,7 @@ func TestProtocol2DescriptorUsesSharedPayloadIndependentValidation(t *testing.T)
 }
 
 func TestProtocol2DescriptorRepositoryMatchesSharedSixteenCasePolicy(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "corepackage", "testdata", "repository-uri-cases.json"))
+	data, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "repository-uri-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

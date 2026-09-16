@@ -90,12 +90,24 @@ and kit launcher live under `ui/tenfoot` and `ui/kitlauncher`; their Go package
 names remain `tenfoot` and `kitlauncher` for compatibility. `host` and
 `internal/hostapi` own host catalog/config/library services and host-owned
 remote-input bridges. `targetclient` owns the authenticated host-to-target
-HTTP/cache/core/development transport, endpoint reconciliation, and kit leases.
-`internal/agent` owns target-side HTTP/cache coordination and `internal/mister`
-owns local MiSTer integration. UI packages may consume host, target-client,
-input, and protocol contracts, but do not own target handlers, runtime
-lifecycle, image assembly, or FPGA builds. The FES parent selects the FogCast
-revision and owns image integration and release evidence.
+HTTP/cache/core/development transport and endpoint reconciliation. UI packages
+may consume host, target-client, and public protocol contracts, but do not own
+target handlers, runtime lifecycle, image assembly, or FPGA builds. The FES
+parent selects the FogCast revision and owns image integration and release
+evidence.
+
+The dependency direction is host/UI/`catalog`/`internal/hostapi` -> public
+contracts and `targetclient`; the target executable -> target implementation
+plus those same public contracts; the runtime remains the physical owner.
+`protocol` is the wire schema. `corepackage` owns core-package descriptors.
+`kitlease` owns kit-lease wire types. Those public contract packages do not
+import FogCast `internal/` packages. `internal/agent`, `internal/httpapi`,
+`internal/mister`, `internal/misterruntime`, `internal/input`,
+`internal/targetcache`, `internal/applianceupdate`, and `internal/flightdiag`
+remain target-owned implementation. Host, UI, `targetclient`, `catalog`, and
+`internal/hostapi` must not import those packages. A later target module or
+repository split is deferred until the measured target closure excludes
+host/UI-only packages.
 
 Target `GET /v1/health` may include an `artifacts` object: the SHA-256 of the
 installed `/usr/share/mister-runtime/build-inputs` record, the runtime commit,
@@ -268,7 +280,7 @@ establish that a selected target image contains the required Pong RBF.
 
 ## Format-2 core package inspection and staging
 
-`internal/corepackage` is the shared, hardware-independent format-2 reader. It
+`corepackage` is the shared, hardware-independent format-2 reader. It
 inspects exact two-file directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs

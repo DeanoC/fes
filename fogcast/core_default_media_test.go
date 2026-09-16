@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/coremedia"
-	"github.com/DeanoC/FogCast/internal/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -34,7 +34,7 @@ func (c *defaultMediaPackageClient) LoadDevelopmentMedia(_ context.Context, _ in
 
 func colecoLibraryPackageFixture(t *testing.T) []byte {
 	t.Helper()
-	base := "../internal/corepackage/testdata/core-bundle-v2/"
+	base := "../corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
 	if err != nil {
 		t.Fatal(err)
