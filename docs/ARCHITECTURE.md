@@ -29,7 +29,13 @@ The important source entry points are:
   observation, and stop.
 
 The browser, kit launcher, and ordinary CLI send a game ID to the same
-persistent host session. The host resolves it through the catalog and
+persistent host session. `hostclient` owns the UI-independent GET
+`/api/v1/session` response model and decoder. Tenfoot and the kit launcher
+consume that package for session polling; the browser keeps its own
+`parseSession` and shares the common success/rejection matrix in
+`hostclient/testdata/session-contract.json`. That fixture is not a claim of
+full decoder equivalence. Launch, stop, and input attach/detach stay on their
+existing endpoints. The host resolves it through the catalog and
 system table, uploads a cache miss, and calls the target agent. The agent
 writes the MGL atomically and sends `load_core <mgl>` to `/dev/MiSTer_cmd`.
 FogCast waits for the expected value in `/tmp/CORENAME`. Stop uses the same

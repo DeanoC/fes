@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -346,18 +347,8 @@ type FacetValues struct {
 	Years  []string `json:"years"`
 }
 
-// SessionProgress is the optional progress object on sessionResult.
-type SessionProgress struct {
-	Stage   string `json:"stage"`
-	Message string `json:"message"`
-}
-
-// SessionInput is the read-only remote-input object on sessionResult
-// and GET /api/v1/session/input.
-type SessionInput struct {
-	State string `json:"state"`
-	Ready bool   `json:"ready"`
-}
+type SessionProgress = hostclient.SessionProgress
+type SessionInput = hostclient.SessionInput
 
 // HealthResult is GET /api/v1/health. HTTP 200 while the host process is up.
 type HealthResult struct {
@@ -393,22 +384,7 @@ type TargetStatus struct {
 
 // SessionResult is sessionResult from GET /api/v1/session, POST launch, POST stop,
 // and POST /api/v1/session/development-rbf.
-type SessionResult struct {
-	HTTPStatus              int
-	State                   string
-	GameID                  string
-	System                  string
-	Execution               string
-	Media                   string
-	Progress                *SessionProgress
-	Input                   *SessionInput
-	Development             bool
-	DevelopmentSessionState string
-	CoreKeyboard            bool
-	ErrorCode               string
-	ErrorMessage            string
-	FlightID                string
-}
+type SessionResult = hostclient.SessionResult
 
 // SessionEvent is one row from GET /api/v1/session/events.
 type SessionEvent struct {
@@ -1327,9 +1303,9 @@ func (c *Client) LaunchStamped(ctx context.Context, gameID string, stamp ClientS
 		return LaunchResult{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
 	if err != nil {
-		return LaunchResult{}, err
+		return LaunchResult{HTTPStatus: resp.StatusCode}, err
 	}
 	result, err := decodeSessionBody(resp.StatusCode, body)
 	if err != nil {
@@ -1573,31 +1549,7 @@ func (c *Client) OpenSessionPreview(ctx context.Context) (*MJPEGStream, error) {
 
 // Session loads GET /api/v1/session.
 func (c *Client) Session(ctx context.Context) (SessionResult, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/session", http.NoBody)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
-	if err != nil {
-		return SessionResult{}, err
-	}
-	result, err := decodeSessionBody(resp.StatusCode, body)
-	if err != nil {
-		return result, fmt.Errorf("session response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		if result.ErrorCode != "" {
-			return result, fmt.Errorf("host API %d %s: %s", resp.StatusCode, result.ErrorCode, result.ErrorMessage)
-		}
-		return result, apiStatusError(resp.StatusCode, body)
-	}
-	return result, nil
+	return hostclient.GetSession(ctx, c.httpClient, c.baseURL, maxAPIResponse)
 }
 
 // LoadDevelopmentRBF posts a bounded application/octet-stream body to
@@ -1623,9 +1575,9 @@ func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.
 		return SessionResult{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
 	if err != nil {
-		return SessionResult{}, err
+		return SessionResult{HTTPStatus: resp.StatusCode}, err
 	}
 	result, err := decodeSessionBody(resp.StatusCode, body)
 	if err != nil {
@@ -1658,9 +1610,9 @@ func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionRes
 		return SessionResult{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
 	if err != nil {
-		return SessionResult{}, err
+		return SessionResult{HTTPStatus: resp.StatusCode}, err
 	}
 	result, err := decodeSessionBody(resp.StatusCode, body)
 	if err != nil {
@@ -1849,9 +1801,9 @@ func (c *Client) postSessionInput(ctx context.Context, path string) (SessionResu
 		return SessionResult{}, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
 	if err != nil {
-		return SessionResult{}, err
+		return SessionResult{HTTPStatus: resp.StatusCode}, err
 	}
 	result, err := decodeSessionBody(resp.StatusCode, body)
 	if err != nil {
@@ -1897,81 +1849,7 @@ func validSessionState(state string) bool {
 }
 
 func decodeSessionBody(status int, body []byte) (SessionResult, error) {
-	result := SessionResult{HTTPStatus: status}
-	if len(bytes.TrimSpace(body)) == 0 {
-		return result, fmt.Errorf("empty body")
-	}
-	var wire struct {
-		State                   string           `json:"state"`
-		GameID                  *string          `json:"game_id"`
-		System                  *string          `json:"system"`
-		Execution               string           `json:"execution"`
-		Media                   string           `json:"media"`
-		Progress                *SessionProgress `json:"progress"`
-		Input                   *SessionInput    `json:"input"`
-		FlightID                string           `json:"flight_id"`
-		Development             *bool            `json:"development"`
-		DevelopmentActive       *bool            `json:"development_active"`
-		DevelopmentSessionState string           `json:"development_session_state"`
-		CorePackage             *struct {
-			ActiveInterfaces []struct {
-				ID    string `json:"id"`
-				Major uint16 `json:"major"`
-				Minor uint16 `json:"minor"`
-			} `json:"active_interfaces"`
-		} `json:"core_package"`
-		Error *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(body, &wire); err != nil {
-		return result, err
-	}
-	result.State = wire.State
-	if wire.GameID != nil {
-		result.GameID = strings.TrimSpace(*wire.GameID)
-	}
-	if wire.System != nil {
-		result.System = strings.TrimSpace(*wire.System)
-	}
-	result.Execution = strings.TrimSpace(wire.Execution)
-	result.Media = strings.TrimSpace(wire.Media)
-	result.FlightID = strings.TrimSpace(wire.FlightID)
-	result.Progress = wire.Progress
-	result.Input = wire.Input
-	result.DevelopmentSessionState = strings.TrimSpace(wire.DevelopmentSessionState)
-	switch {
-	case wire.DevelopmentActive != nil:
-		result.Development = *wire.DevelopmentActive
-	case wire.Development != nil:
-		result.Development = *wire.Development
-	default:
-		result.Development = result.Execution == "fpga_development"
-	}
-	if wire.CorePackage != nil {
-		for _, contract := range wire.CorePackage.ActiveInterfaces {
-			if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
-				result.CoreKeyboard = true
-				break
-			}
-		}
-	}
-	if result.Development && result.Execution == "" {
-		switch result.State {
-		case "active", "launching":
-			result.Execution = "fpga_development"
-		}
-	}
-	if wire.Error != nil {
-		result.ErrorCode = wire.Error.Code
-		result.ErrorMessage = wire.Error.Message
-		return result, nil
-	}
-	if !validSessionState(wire.State) {
-		return result, fmt.Errorf("invalid session state %q", wire.State)
-	}
-	return result, nil
+	return hostclient.DecodeSession(status, body)
 }
 
 func (c *Client) getJSON(ctx context.Context, path string, dest any) error {

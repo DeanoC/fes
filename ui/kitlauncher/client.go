@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +13,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 type Config struct {
@@ -171,25 +173,45 @@ func (p *CorePackageSession) HasKeyboard() bool {
 }
 
 func (c *Client) Session(ctx context.Context) (Session, error) {
-	var s Session
-	err := c.get(ctx, "/api/v1/session", &s)
-	return s, err
+	result, err := hostclient.GetSession(ctx, c.HTTP, c.config.API, 1<<20)
+	session := adaptSession(result)
+	if err == nil {
+		return session, nil
+	}
+	switch {
+	case result.HTTPStatus == 0:
+		return session, errors.New("host unreachable")
+	case result.HTTPStatus == http.StatusOK:
+		return session, errors.New("invalid host response")
+	default:
+		return session, fmt.Errorf("host response %d", result.HTTPStatus)
+	}
 }
-func (c *Client) get(ctx context.Context, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.API+path, nil)
-	if err != nil {
-		return errors.New("invalid host request")
+
+func adaptSession(result hostclient.SessionResult) Session {
+	session := Session{State: result.State, GameID: result.GameID, Execution: result.Execution}
+	if result.Input != nil {
+		session.Input.State = result.Input.State
+		session.Input.Ready = result.Input.Ready
+		session.Input.SessionID = result.Input.SessionID
 	}
-	res, err := c.HTTP.Do(req)
-	if err != nil {
-		return errors.New("host unreachable")
+	if result.CorePackage == nil {
+		return session
 	}
-	defer res.Body.Close()
-	if res.StatusCode != 200 {
-		return fmt.Errorf("host response %d", res.StatusCode)
+	packageSession := &CorePackageSession{
+		Generation: result.CorePackage.Generation,
+		Gamepad:    result.CorePackage.Gamepad,
 	}
-	if json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(out) != nil {
-		return errors.New("invalid host response")
+	packageSession.ActiveInterfaces = make([]struct {
+		ID    string `json:"id"`
+		Major uint16 `json:"major"`
+		Minor uint16 `json:"minor"`
+	}, len(result.CorePackage.ActiveInterfaces))
+	for i, contract := range result.CorePackage.ActiveInterfaces {
+		packageSession.ActiveInterfaces[i].ID = contract.ID
+		packageSession.ActiveInterfaces[i].Major = contract.Major
+		packageSession.ActiveInterfaces[i].Minor = contract.Minor
 	}
-	return nil
+	session.CorePackage = packageSession
+	return session
 }

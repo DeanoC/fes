@@ -14,7 +14,7 @@ chmod +x "$tmp/bin/rg"
 
 root=$tmp/tree
 for dir in \
-  protocol corepackage kitlease \
+  protocol corepackage kitlease hostclient \
   targetclient host ui/kitlauncher catalog internal/hostapi \
   internal/agent internal/httpapi internal/mister internal/misterruntime \
   internal/input internal/targetcache internal/applianceupdate internal/flightdiag

@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "endpoint": "GET /api/v1/session",
+  "path": "hostclient/testdata/session-contract.json",
+  "notes": [
+    "Common projection is the agreed session semantics every consumer must share. Browser extra presentation validation stays in parseSession and is not weakened.",
+    "This matrix does not claim full decoder equivalence. Go clients may keep additive fields the browser ignores.",
+    "core_package.generation is a JSON number on the wire. expect.kit.generation is a decimal string so Go can decode uint64 without using IEEE-754. Values in body.generation fit Number.isSafeInteger so Node can load this file.",
+    "Browser parseSession ignores input.session_id and core_package. Kit requires them. Extra ignored fields must not make the browser reject an otherwise valid body.",
+    "input.metrics is browser-only. Go session models expose input.state and input.ready, not metrics.",
+    "malformed_shape_idle_identity is a split case: browser parse=reject, go.accept=true. Do not treat it as a common rejection."
+  ],
+  "common_fields": [
+    "state",
+    "game_id",
+    "system",
+    "execution",
+    "media",
+    "progress.stage",
+    "progress.message",
+    "input.state",
+    "input.ready"
+  ],
+  "browser_input_metrics": [
+    "frames_sent",
+    "state_resyncs",
+    "sequence_gaps",
+    "releases",
+    "capture_to_bridge_p95_ms",
+    "bridge_to_uinput_p95_ms",
+    "rtt_ms",
+    "bridge_to_uinput_measurable"
+  ],
+  "kit_fields": [
+    "input.session_id",
+    "core_package.generation",
+    "core_package.gamepad",
+    "core_package.active_interfaces"
+  ],
+  "cases": [
+    {
+      "id": "idle",
+      "http_status": 200,
+      "body": {
+        "state": "idle"
+      },
+      "expect": {
+        "common": {
+          "accept": true,
+          "state": "idle"
+        },
+        "browser": {
+          "parse": "accept",
+          "view_state": "idle",
+          "omits": ["game_id", "system", "input", "core_package"]
+        }
+      }
+    },
+    {
+      "id": "active",
+      "http_status": 200,
+      "body": {
+        "state": "active",
+        "game_id": "megadrive-sonic-test",
+        "system": "megadrive",
+        "execution": "fpga_native",
+        "media": "active",
+        "progress": {
+          "stage": "ready",
+          "message": "session is ready"
+        },
+        "input": {
+          "state": "attached",
+          "ready": true,
+          "session_id": "custom-input",
+          "metrics": {
+            "frames_sent": 4,
+            "state_resyncs": 1,
+            "sequence_gaps": 0,
+            "releases": 2,
+            "capture_to_bridge_p95_ms": 1.25,
+            "bridge_to_uinput_p95_ms": 2.5,
+            "rtt_ms": 3.75,
+            "bridge_to_uinput_measurable": false,
+            "shutdown_reason": "operator_stop"
+          }
+        },
+        "core_package": {
+          "generation": 9,
+          "gamepad": true,
+          "active_interfaces": [
+            {
+              "id": "fes.keyboard",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.gamepad",
+              "major": 1,
+              "minor": 0
+            }
+          ]
+        },
+        "flight_id": "de305d54-75b4-431b-adb2-eb6b9e546014"
+      },
+      "expect": {
+        "common": {
+          "accept": true,
+          "state": "active",
+          "game_id": "megadrive-sonic-test",
+          "system": "megadrive",
+          "execution": "fpga_native",
+          "media": "active"
+        },
+        "browser": {
+          "parse": "accept",
+          "view_state": "active",
+          "projects": ["state", "game_id", "system", "execution", "media", "progress", "input.state", "input.ready", "input.metrics", "flight_id"],
+          "ignores": ["input.session_id", "core_package"]
+        },
+        "kit": {
+          "session_id": "custom-input",
+          "generation": "9",
+          "gamepad": true,
+          "has_keyboard": true
+        }
+      }
+    },
+    {
+      "id": "failed",
+      "http_status": 200,
+      "body": {
+        "state": "failed",
+        "execution": "fpga_native",
+        "media": "failed",
+        "progress": {
+          "stage": "failed",
+          "message": "the session could not be reconciled"
+        }
+      },
+      "expect": {
+        "common": {
+          "accept": true,
+          "state": "failed"
+        },
+        "browser": {
+          "parse": "accept",
+          "view_state": "error",
+          "omits": ["game_id", "system"]
+        }
+      }
+    },
+    {
+      "id": "stopping",
+      "http_status": 200,
+      "body": {
+        "state": "stopping",
+        "execution": "fpga_native",
+        "media": "active",
+        "progress": {
+          "stage": "stopping",
+          "message": "releasing the active session"
+        }
+      },
+      "expect": {
+        "common": {
+          "accept": true,
+          "state": "stopping"
+        },
+        "browser": {
+          "parse": "accept",
+          "view_state": "stopping",
+          "omits": ["game_id", "system"]
+        }
+      }
+    },
+    {
+      "id": "malformed_state",
+      "http_status": 200,
+      "body": {
+        "state": "unknown"
+      },
+      "expect": {
+        "common": {
+          "accept": false,
+          "reason": "invalid session state"
+        },
+        "browser": {
+          "parse": "reject",
+          "code": "MALFORMED_RESPONSE"
+        }
+      }
+    },
+    {
+      "id": "malformed_shape_idle_identity",
+      "http_status": 200,
+      "body": {
+        "state": "idle",
+        "game_id": "must-not-be-public-on-idle"
+      },
+      "expect": {
+        "common": {
+          "split": true,
+          "reason": "browser-only rejection; Go decoder accepts idle plus identity"
+        },
+        "browser": {
+          "parse": "reject",
+          "code": "MALFORMED_RESPONSE"
+        },
+        "go": {
+          "accept": true,
+          "state": "idle",
+          "game_id": "must-not-be-public-on-idle"
+        }
+      }
+    },
+    {
+      "id": "malformed_shape_not_object",
+      "http_status": 200,
+      "body": [],
+      "expect": {
+        "common": {
+          "accept": false,
+          "reason": "session body is not a JSON object"
+        },
+        "browser": {
+          "parse": "reject",
+          "code": "MALFORMED_RESPONSE"
+        }
+      }
+    },
+    {
+      "id": "target_unavailable",
+      "http_status": 503,
+      "body": {
+        "error": {
+          "code": "TARGET_UNAVAILABLE",
+          "message": "target status is unavailable"
+        },
+        "connection": {
+          "state": "disconnected",
+          "address": "http://127.0.0.1:1"
+        }
+      },
+      "expect": {
+        "common": {
+          "accept": false,
+          "http_status": 503,
+          "error_code": "TARGET_UNAVAILABLE"
+        },
+        "browser": {
+          "parse": "http_error",
+          "code": "TARGET_UNAVAILABLE"
+        }
+      }
+    }
+  ]
+}

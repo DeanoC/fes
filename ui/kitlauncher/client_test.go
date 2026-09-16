@@ -31,6 +31,18 @@ func TestClientAuthenticatesAndRefusesRedirect(t *testing.T) {
 		t.Fatal("credentials redirected")
 	}
 }
+
+func TestClientSessionRejectsOversizeTrailingResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"state":"idle"}` + strings.Repeat("x", 1<<20)))
+	}))
+	defer server.Close()
+
+	if _, err := NewClient(Config{API: server.URL, Token: strings.Repeat("x", 32), TargetID: "id"}).Session(context.Background()); err == nil {
+		t.Fatal("accepted oversized session response")
+	}
+}
+
 func TestLoadConfigRejectsInvalidEndpoint(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "launcher.json")
 	for _, api := range []string{"file:///etc/passwd", "http://user:pass@localhost", "http://localhost/path"} {

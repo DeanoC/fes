@@ -2,7 +2,7 @@
 set -eu
 
 # Structural guard for the host/UI <-> target contract seam.
-# Public protocol, corepackage, and kitlease directories are required.
+# Public protocol, corepackage, kitlease, and hostclient directories are required.
 # Missing public dirs are RED, never a passing defer. Public contracts must
 # not import FogCast internal/. Host, UI, targetclient, catalog, and
 # internal/hostapi must not import target implementation packages or the
@@ -68,7 +68,7 @@ check() {
   fi
 }
 
-for dir in protocol corepackage kitlease; do
+for dir in protocol corepackage kitlease hostclient; do
   if [ ! -d "$root/$dir" ]; then
     fail "required public contract directory is missing: $dir"
     continue

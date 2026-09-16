@@ -35,12 +35,12 @@ if [ ! -d "$root/targetclient" ]; then
   exit 1
 fi
 
-if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/host' "$root/ui/kitlauncher"; then
+if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/host(/|")' "$root/ui/kitlauncher"; then
   echo 'kit launcher still depends on host package' >&2
   exit 1
 fi
 
-if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/(host|ui/|internal/agent)' "$root/targetclient"; then
+if rg_check --glob '*.go' 'github.com/DeanoC/FogCast/(host(/|")|ui/|internal/agent)' "$root/targetclient"; then
   echo 'targetclient has a forbidden dependency' >&2
   exit 1
 fi
@@ -51,12 +51,12 @@ if rg_check --glob '*.go' --glob '!vendor/**' 'host\.(Client|KitLease|NewClient|
 fi
 
 # Public contract packages are required and must not import internal/ or host/UI.
-for dir in protocol corepackage kitlease; do
+for dir in protocol corepackage kitlease hostclient; do
   if [ ! -d "$root/$dir" ]; then
     echo "required public contract directory is missing: $dir" >&2
     exit 1
   fi
-  if rg_check --glob '*.go' --glob '!*_test.go' 'github.com/DeanoC/FogCast/(internal/|host|ui/)' "$root/$dir"; then
+  if rg_check --glob '*.go' --glob '!*_test.go' 'github.com/DeanoC/FogCast/(internal/|host(/|")|ui/)' "$root/$dir"; then
     echo "public $dir/ has a forbidden host, UI, or internal dependency" >&2
     exit 1
   fi
@@ -67,7 +67,7 @@ for dir in internal/agent internal/httpapi internal/mister internal/misterruntim
   if [ ! -d "$root/$dir" ]; then
     continue
   fi
-  if rg_check --glob '*.go' --glob '!*_test.go' 'github.com/DeanoC/FogCast/(host|ui/|targetclient)' "$root/$dir"; then
+  if rg_check --glob '*.go' --glob '!*_test.go' 'github.com/DeanoC/FogCast/(host(/|")|ui/|targetclient)' "$root/$dir"; then
     echo "$dir imports host, UI, or targetclient" >&2
     exit 1
   fi

@@ -11825,6 +11825,72 @@ test('parseSession keeps an additive flight_id', () => {
   assert.equal(session.flight_id, 'de305d54-75b4-431b-adb2-eb6b9e546014');
 });
 
+test('browser session consumer matches hostclient session-contract fixture', () => {
+  const contractPath = path.join(__dirname, '..', '..', 'hostclient', 'testdata', 'session-contract.json');
+  const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+  assert.equal(contract.endpoint, 'GET /api/v1/session');
+  assert.ok(Array.isArray(contract.cases));
+  assert.equal(contract.common_fields.includes('input.metrics'), false);
+  assert.ok(contract.common_fields.includes('input.state'));
+  assert.ok(contract.common_fields.includes('input.ready'));
+  assert.ok(Array.isArray(contract.browser_input_metrics));
+  const seen = new Set();
+  for (const entry of contract.cases) {
+    assert.equal(typeof entry.id, 'string');
+    assert.equal(seen.has(entry.id), false, `duplicate fixture id ${entry.id}`);
+    seen.add(entry.id);
+    const browser = entry.expect && entry.expect.browser;
+    assert.ok(browser && browser.parse, `case ${entry.id} missing expect.browser.parse`);
+    if (browser.parse === 'http_error') {
+      assert.notEqual(entry.http_status, 200);
+      assert.equal(entry.body.error.code, browser.code);
+      assert.equal(entry.expect.common.accept, false);
+      assert.equal(entry.expect.common.error_code, 'TARGET_UNAVAILABLE');
+      continue;
+    }
+    if (browser.parse === 'reject') {
+      assert.equal(entry.http_status, 200);
+      assert.throws(() => parseSession(entry.body), error => error.code === browser.code);
+      if (entry.expect.common && entry.expect.common.split) {
+        assert.equal(entry.expect.go.accept, true);
+        assert.notEqual(entry.expect.common.accept, false);
+      } else {
+        assert.equal(entry.expect.common.accept, false);
+      }
+      continue;
+    }
+    assert.equal(browser.parse, 'accept');
+    assert.equal(entry.http_status, 200);
+    const session = parseSession(entry.body);
+    assert.equal(session.state, entry.expect.common.state);
+    assert.equal(sessionViewState(session), browser.view_state);
+    if (entry.expect.common.game_id) assert.equal(session.game_id, entry.expect.common.game_id);
+    if (entry.expect.common.system) assert.equal(session.system, entry.expect.common.system);
+    if (entry.expect.common.execution) assert.equal(session.execution, entry.expect.common.execution);
+    if (entry.expect.common.media) assert.equal(session.media, entry.expect.common.media);
+    for (const field of browser.omits || []) {
+      assert.equal(Object.prototype.hasOwnProperty.call(session, field), false, `${entry.id} should omit ${field}`);
+    }
+    if (Array.isArray(browser.ignores)) {
+      assert.equal(Object.prototype.hasOwnProperty.call(session, 'core_package'), false);
+      if (session.input) assert.equal(Object.prototype.hasOwnProperty.call(session.input, 'session_id'), false);
+    }
+    if (session.input && session.input.metrics) {
+      for (const metric of contract.browser_input_metrics) {
+        assert.equal(Object.prototype.hasOwnProperty.call(session.input.metrics, metric), true, `${entry.id} missing input.metrics.${metric}`);
+      }
+    }
+    if (entry.expect.kit) {
+      assert.equal(Number.isSafeInteger(entry.body.core_package.generation), true);
+      assert.equal(String(entry.body.core_package.generation), entry.expect.kit.generation);
+      assert.equal(entry.body.input.session_id, entry.expect.kit.session_id);
+    }
+  }
+  for (const required of ['idle', 'active', 'failed', 'stopping', 'malformed_state', 'malformed_shape_idle_identity', 'malformed_shape_not_object', 'target_unavailable']) {
+    assert.equal(seen.has(required), true, `missing required contract case ${required}`);
+  }
+});
+
 test('controller launch and stop send client stamp headers', async () => {
   const flight = 'de305d54-75b4-431b-adb2-eb6b9e546014';
   const { calls, fetchImpl } = routedFetch({

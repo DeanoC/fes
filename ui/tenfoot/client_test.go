@@ -13,6 +13,98 @@ import (
 	"testing"
 )
 
+func TestClientSessionPreservesKitFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"state":"active","game_id":"pong","execution":"fpga_development","input":{"state":"attached","ready":true,"session_id":"kit-session"},"core_package":{"generation":18446744073709551614,"gamepad":true,"active_interfaces":[{"id":"fes.keyboard","major":1,"minor":0}]}}`)
+	}))
+	defer server.Close()
+
+	result, err := NewClient(server.URL, server.Client()).Session(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Input == nil || result.Input.SessionID != "kit-session" {
+		t.Fatalf("input = %+v", result.Input)
+	}
+	if result.CorePackage == nil || result.CorePackage.Generation != ^uint64(0)-1 || !result.CorePackage.Gamepad || len(result.CorePackage.ActiveInterfaces) != 1 {
+		t.Fatalf("core package = %+v", result.CorePackage)
+	}
+}
+
+func TestClientLaunchRejectsOversizeSessionResponse(t *testing.T) {
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader(`{"state":"active"}` + strings.Repeat("x", 16<<20))),
+			ContentLength: -1,
+			Request:       req,
+		}, nil
+	})
+	client := NewClient("http://host", &http.Client{Transport: transport})
+	if _, err := client.Launch(context.Background(), "pong"); err == nil {
+		t.Fatal("accepted oversized mutation response")
+	}
+}
+
+func TestSessionMutationReadFailureRetainsHTTPStatus(t *testing.T) {
+	const status = http.StatusBadGateway
+
+	failures := []struct {
+		name          string
+		contentLength int64
+	}{
+		{name: "oversize", contentLength: maxAPIResponse + 1},
+		{name: "truncated", contentLength: 8},
+	}
+	operations := []struct {
+		name string
+		call func(*Client) (SessionResult, error)
+	}{
+		{name: "launch", call: func(c *Client) (SessionResult, error) {
+			return c.LaunchStamped(context.Background(), "pong", ClientStamp{})
+		}},
+		{name: "stop", call: func(c *Client) (SessionResult, error) {
+			return c.StopStamped(context.Background(), ClientStamp{})
+		}},
+		{name: "development-rbf", call: func(c *Client) (SessionResult, error) {
+			return c.LoadDevelopmentRBF(context.Background(), 1, strings.NewReader("x"))
+		}},
+		{name: "input-attach", call: func(c *Client) (SessionResult, error) {
+			return c.AttachInput(context.Background())
+		}},
+	}
+
+	for _, failure := range failures {
+		for _, operation := range operations {
+			t.Run(failure.name+"/"+operation.name, func(t *testing.T) {
+				client := NewClient("http://host", &http.Client{
+					Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+						return &http.Response{
+							StatusCode:    status,
+							Header:        make(http.Header),
+							Body:          io.NopCloser(strings.NewReader("{}")),
+							ContentLength: failure.contentLength,
+							Request:       req,
+						}, nil
+					}),
+				})
+				result, err := operation.call(client)
+				if err == nil {
+					t.Fatal("accepted session response read failure")
+				}
+				if result.HTTPStatus != status {
+					t.Fatalf("HTTPStatus = %d, want %d (err %v)", result.HTTPStatus, status, err)
+				}
+			})
+		}
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
 func TestClientDecodesGameRegion(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
