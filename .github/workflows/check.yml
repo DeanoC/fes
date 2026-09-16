@@ -26,7 +26,9 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: sources/FogCast/go.mod
-          cache-dependency-path: sources/FogCast/go.sum
+          cache-dependency-path: |
+            sources/FogCast/go.sum
+            platform/go.sum
       - name: Provision pinned boot-media test container
         run: |
           python3 - <<'PY'
@@ -37,6 +39,7 @@ jobs:
 
           ensure_media_container(Path('.'), 'docker', MediaLock.load(Path('boot-media.lock.toml')))
           PY
+      - run: make platform-provision
       - run: make test
   components:
     runs-on: ubuntu-24.04
@@ -58,6 +61,8 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: sources/FogCast/go.mod
-          cache-dependency-path: sources/FogCast/go.sum
+          cache-dependency-path: |
+            sources/FogCast/go.sum
+            platform/go.sum
       - run: make check
       - run: make host

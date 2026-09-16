@@ -235,6 +235,25 @@ def verify_retained(fes_root, fogcast, record, assembly_revision=None):
     return record
 
 
+def provision_platform(root, fogcast, env):
+    root = Path(root)
+    _, appliance_dir = selected_appliance(fogcast)
+    platform_dir = root / 'platform'
+    if not (platform_dir / 'go.mod').is_file() or platform_dir.is_symlink():
+        raise ValueError('FES platform module is missing')
+    probe_env = dict(env, GOWORK='off')
+    with tempfile.TemporaryDirectory(prefix='fes-platform-provision-') as temporary:
+        workspace = write_workspace(temporary, platform_dir, appliance_dir)
+        goroot = subprocess.check_output(
+            ['go', 'env', 'GOROOT'], cwd=platform_dir, env=probe_env, text=True
+        ).strip()
+        go_bin = Path(goroot) / 'bin' / 'go'
+        download_env = dict(env, GOWORK=str(workspace), GOTOOLCHAIN='local')
+        if download_env.get('GOPROXY') == 'off':
+            download_env.pop('GOPROXY')
+        subprocess.run([str(go_bin), 'mod', 'download'], cwd=platform_dir, env=download_env, check=True)
+
+
 def test_platform(root, fogcast, env):
     root = Path(root)
     _, appliance_dir = selected_appliance(fogcast)
@@ -303,14 +322,16 @@ def main(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('test',))
+    parser.add_argument('command', choices=('provision', 'test'))
     parser.add_argument('--fogcast', required=True, type=Path)
     args = parser.parse_args(argv)
     try:
         from .environment import build_environment
     except ImportError:
         from environment import build_environment
-    if args.command == 'test':
+    if args.command == 'provision':
+        provision_platform(Path(__file__).resolve().parent.parent, args.fogcast, build_environment())
+    elif args.command == 'test':
         test_platform(Path(__file__).resolve().parent.parent, args.fogcast, build_environment())
 
 
