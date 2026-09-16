@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "da6373c0d7565f36036051efc7895fb0d9ac13c3"
+order = 10
+rationale = "Coleco-specific CMake build; the registered packed 4-bit sprite line banks rely on the established M10K SDP inference from merged PR #12 da6373c0 (zero-valued asynchronous read-output reset onto ACLR1). The later PR #13 ec34fcf3 flow-through mapper reclassifies this registered ramstyle=M10K shape as CFG_ASYNC_READ with an unused constant CLK2, which nextpnr correctly rejects. Pair with nextpnr 2d3c216a and unchanged Mistral b28e30a; this is a core-local compatibility pin, not the repository-wide default."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+order = 20
+rationale = "DeanoC fork for the Coleco OSS lane: nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses; fixed commit."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "2d3c216afb7051d2e2070cbf678a50f274b3f786"
+order = 30
+rationale = "Coleco-specific route/pack compatibility: accepts equal-width 8192x1, 4096x2 and 2048x5 true-dual-port M10Ks (merged PR #67 2d3c216a: bank-replicated narrow data, 13th address bit on 8192x1, scalar A1DATA/A1Q), paired with Yosys da6373c0 and Mistral b28e30a. The GPU device backend is enabled separately for this core-local build."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."
