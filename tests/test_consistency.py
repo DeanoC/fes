@@ -74,6 +74,14 @@ class ConsistencyTest(unittest.TestCase):
         self.mock.start()
         self.addCleanup(self.mock.stop)
 
+    def test_fogcast_core_bundle_fixture_uses_public_package_path(self):
+        self.assertIn(
+            ('testdata/core-bundle-v2', 'FogCast', 'corepackage/testdata/core-bundle-v2'),
+            self.module.COPIED_TREES)
+        self.assertNotIn(
+            ('testdata/core-bundle-v2', 'FogCast', 'internal/corepackage/testdata/core-bundle-v2'),
+            self.module.COPIED_TREES)
+
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
             'generated_files': 14, 'source_pin_copies': 4, 'fixture_copies': 11})
