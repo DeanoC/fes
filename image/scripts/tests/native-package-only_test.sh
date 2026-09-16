@@ -63,6 +63,8 @@ case "$command" in
     grep -Fqx "package_id = '$package_id'" "$selection"
     if [ "$print_inputs" -eq 1 ]; then
       printf '%s_package_id=%s\n' "$core_id" "$package_id"
+    else
+      printf 'verify-package %s verified\n' "$core_id"
     fi
     ;;
   *)
@@ -150,6 +152,13 @@ build_inputs=$fixture/build-inputs
 test "$(awk -F= 'NR == 1 { print $1 }' "$build_inputs")" = fes.pong_package_id
 test "$(awk -F= 'NR == 2 { print $1 }' "$build_inputs")" = fes.zx81_package_id
 test "$(awk -F= 'NR == 3 { print $1 }' "$build_inputs")" = fes.coleco_package_id
+expected_build_inputs=$fixture/build-inputs.expected
+cat >"$expected_build_inputs" <<EOF
+fes.pong_package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+fes.zx81_package_id=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+fes.coleco_package_id=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+EOF
+cmp "$expected_build_inputs" "$build_inputs"
 
 records=$fixture/records
 "$repo/scripts/native-extra-cores.sh" copy-records "$cache" "$records"

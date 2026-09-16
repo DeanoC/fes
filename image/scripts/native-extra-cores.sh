@@ -464,8 +464,8 @@ if [ "$native_mode" = package-only ]; then
       validate_installed_package_set
       ;;
     build-inputs)
-      verify_cached_packages
-      validate_installed_package_set
+      verify_cached_packages >&2
+      validate_installed_package_set >&2
       for selected_id in $selected_packages; do
         package_record_path_for "$selected_id"
         package_id=$(package_value_from_file "$package_record" package_id)

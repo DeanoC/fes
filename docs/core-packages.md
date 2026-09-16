@@ -114,6 +114,11 @@ system-selection variables; it installs only the selected sealed packages.
 
 ## Install and select a library package
 
+For a single sealed package on an already-compatible platform, the
+[package-only acceptance runner](package-acceptance.md) automates explicit host
+import, compatibility, selection and launch/Stop without rebuilding the image.
+The image's closed package set is not the host library's admission allowlist.
+
 The producer writes an installable archive at
 `out/work/misteross-<selected-revision>/build/packages/<package-id>.fcore`.
 Use the package ID in `fes-pong.package-selection.toml` to select the matching

@@ -149,6 +149,16 @@ checkouts. Integrate reviewed component commits using the commands above before
 running the parent build. Workers can still use their component's artifact-only
 diagnostic loop.
 
+## Package-only development acceptance
+
+For a sealed core package using an existing ABI, use the separate
+[package-only acceptance workflow](package-acceptance.md). It imports one
+archive into the host library and uses the existing compatibility, selection
+and session APIs; no image selection files or rootfs rebuild are required.
+The operator command is `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'`.
+Running it against a kit requires explicit operator opt-in and exclusive use;
+ordinary `make test` exercises only host-side fixtures.
+
 ## Three-system target acceptance
 
 The package-only build checks image structure and package identity without

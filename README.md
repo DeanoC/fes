@@ -139,6 +139,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make doctor` | Selected pins/lock, Linux architecture, Go and container availability |
 | `make host` | Linux API server and CLI |
 | `make dev` | Incremental diagnostic native image with retained compiler/base |
+| `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'` | Explicit opt-in single-package lifecycle diagnostic; no image rebuild ([guide](docs/package-acceptance.md)) |
 | `make build` | Host and two-pass native image, reusing matching checked outputs |
 | `make image` | Image only with structural checks |
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |
