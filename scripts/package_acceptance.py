@@ -152,6 +152,7 @@ class Api:
 @dataclass(frozen=True)
 class SessionIdentity:
     session_id: str
+    target_id: str
     flight_id: str
     game_id: str
     package_id: str
@@ -212,6 +213,18 @@ def _require_clean_idle(value: Any, context: str) -> dict[str, Any]:
     return value
 
 
+def _require_session_target(
+    value: Any, expected_target_id: str, context: str
+) -> dict[str, Any]:
+    observed_target_id = value.get("target_id") if isinstance(value, dict) else None
+    if observed_target_id != expected_target_id:
+        raise AcceptanceError(
+            f"{context}: target_id does not match expected target "
+            f"{expected_target_id!r}; observed {observed_target_id!r}"
+        )
+    return value
+
+
 def _session_identity(value: Any, context: str) -> SessionIdentity:
     if not isinstance(value, dict) or value.get("state") != "active":
         raise AcceptanceError(f"{context}: session is not an identifiable active session")
@@ -225,6 +238,7 @@ def _session_identity(value: Any, context: str) -> SessionIdentity:
         raise AcceptanceError(f"{context}: active session has no valid package generation")
     return SessionIdentity(
         session_id=_require_string(value.get("id"), f"{context} session ID"),
+        target_id=_require_string(value.get("target_id"), f"{context} target_id"),
         flight_id=_require_string(value.get("flight_id"), f"{context} flight ID"),
         game_id=_require_game_id(value.get("game_id"), f"{context} game ID"),
         package_id=_require_package_id(package.get("package_id"), f"{context} package ID"),
@@ -262,6 +276,7 @@ class Runner:
         self.archive_path = Path(args.archive)
         self.receipt_path = Path(args.receipt)
         self.core_id = args.expected_core_id
+        self.target_id = args.expected_target_id
         self.package_id = args.expected_package_id
         self.expected_selected_package = args.expected_selected_package
         self.archive: bytes = b""
@@ -290,6 +305,13 @@ class Runner:
         target = value.get("target")
         if not isinstance(target, dict) or target.get("reachable") is not True or target.get("ready") is not True:
             raise AcceptanceError("target is not ready through the host")
+        connection = target.get("connection")
+        observed_target_id = connection.get("target_id") if isinstance(connection, dict) else None
+        if observed_target_id != self.target_id:
+            raise AcceptanceError(
+                f"target_id does not match expected target {self.target_id!r}; "
+                f"observed {observed_target_id!r}"
+            )
         artifacts = target.get("artifacts")
         if not isinstance(artifacts, dict):
             raise AcceptanceError("target health has no sealed artifact identity")
@@ -317,8 +339,19 @@ class Runner:
             raise AcceptanceError("session response is not an object")
         return value
 
+    def session_identity(self, value: Any, context: str) -> SessionIdentity:
+        identity = _session_identity(value, context)
+        if identity.target_id != self.target_id:
+            raise AcceptanceError(
+                f"{context}: target_id does not match expected target "
+                f"{self.target_id!r}; observed {identity.target_id!r}"
+            )
+        return identity
+
     def require_idle(self, context: str) -> dict[str, Any]:
-        return _require_clean_idle(self.session(), context)
+        return _require_session_target(
+            _require_clean_idle(self.session(), context), self.target_id, context
+        )
 
     def guard_mutation(self, context: str) -> None:
         self.check_health()
@@ -352,6 +385,11 @@ class Runner:
     def validate_compatibility(self, value: Any) -> dict[str, Any]:
         if not isinstance(value, dict) or value.get("package_id") != self.package_id:
             raise AcceptanceError("compatibility response package identity does not match the requested package")
+        if value.get("target_id") != self.target_id:
+            raise AcceptanceError(
+                f"compatibility target_id does not match expected target {self.target_id!r}; "
+                f"observed {value.get('target_id')!r}"
+            )
         if _descriptor_core_id(value, "compatibility") != self.core_id:
             raise AcceptanceError("compatibility descriptor core ID does not match the requested core")
         if value.get("compatible") is not True or value.get("state") != "compatible":
@@ -365,7 +403,7 @@ class Runner:
         for attempt in range(self.args.poll_attempts):
             try:
                 value = self.session()
-                observed = _session_identity(value, "launch confirmation")
+                observed = self.session_identity(value, "launch confirmation")
                 if not _same_identity(observed, expected):
                     raise AcceptanceError("launch session identity changed before cleanup")
                 return value
@@ -379,7 +417,9 @@ class Runner:
         last_error = ""
         for attempt in range(self.args.poll_attempts):
             try:
-                return _require_clean_idle(self.session(), context)
+                return _require_session_target(
+                    _require_clean_idle(self.session(), context), self.target_id, context
+                )
             except AcceptanceError as exc:
                 last_error = str(exc)
             if attempt + 1 < self.args.poll_attempts:
@@ -390,13 +430,14 @@ class Runner:
         if self.stop_attempted:
             raise AcceptanceError("Stop was already attempted")
         self.stop_attempted = True
-        current = _session_identity(self.session(), "pre-Stop")
+        current = self.session_identity(self.session(), "pre-Stop")
         if not _same_identity(current, expected):
             raise AcceptanceError(
                 "owned session identity changed before Stop; refusing the unconditional Stop operation"
             )
         response = self.api.post_empty("/api/v1/session/stop")
         _require_clean_idle(response, "Stop response")
+        _require_session_target(response, expected.target_id, "Stop response")
         response_id = response.get("id") if isinstance(response, dict) else None
         if response_id != expected.session_id:
             raise AcceptanceError("Stop response session ID does not match the owned host session")
@@ -474,7 +515,7 @@ class Runner:
         selected_now = self.validate_entry(self.read_entry(game_id), game_id, "pre-launch selection")
         try:
             launch = self.api.post_json("/api/v1/session/launch", {"game_id": game_id})
-            expected = _session_identity(launch, "launch response")
+            expected = self.session_identity(launch, "launch response")
             if expected.package_id != self.package_id:
                 raise AcceptanceError("launch response selected a different package")
             if expected.game_id != game_id:
@@ -507,6 +548,7 @@ class Runner:
             "archive_sha256": self.archive_sha256,
             "package_id": self.package_id,
             "core_id": self.core_id,
+            "target_id": self.target_id,
             "revisions": dict(self.last_revisions),
             "selection": {
                 "game_id": game_id,
@@ -520,6 +562,7 @@ class Runner:
             },
             "session": {
                 "id": expected.session_id,
+                "target_id": expected.target_id,
                 "flight_id": expected.flight_id,
                 "game_id": expected.game_id,
                 "package_id": expected.package_id,
@@ -542,6 +585,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-archive-sha256", required=True)
     result.add_argument("--expected-package-id", required=True)
     result.add_argument("--expected-core-id", required=True)
+    result.add_argument("--expected-target-id", required=True)
     result.add_argument("--expected-host-revision", required=True)
     result.add_argument("--expected-agent-revision", required=True)
     result.add_argument(
@@ -571,6 +615,7 @@ def validate_args(args: argparse.Namespace) -> None:
     _require_package_id(args.expected_package_id, "expected package ID")
     _require_core_id(args.expected_core_id)
     for name, value in (
+        ("expected target ID", args.expected_target_id),
         ("expected host revision", args.expected_host_revision),
         ("expected agent revision", args.expected_agent_revision),
         ("expected runtime revision", args.expected_runtime_revision),

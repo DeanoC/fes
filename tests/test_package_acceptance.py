@@ -35,6 +35,7 @@ HOST_REVISION = "host-revision-1"
 AGENT_REVISION = "agent-revision-1"
 RUNTIME_REVISION = "runtime-revision-1"
 SERVER_ID = "server-instance-1"
+TARGET_ID = "target-1"
 FLIGHT_ID = "launch-flight-1"
 GAME_ID = "sg1000-game"
 NEW_GAME_ID = "sg1000-new-game"
@@ -53,10 +54,12 @@ def _active_identity(
     flight_id=FLIGHT_ID,
     game_id=GAME_ID,
     generation=7,
+    target_id=TARGET_ID,
     execution="fpga_development",
 ):
     return {
         "id": SERVER_ID,
+        "target_id": target_id,
         "flight_id": flight_id,
         "game_id": game_id,
         "package_id": package_id,
@@ -68,6 +71,12 @@ def _active_identity(
 def _state():
     return {
         "health_calls": 0,
+        "health_target_id": TARGET_ID,
+        "session_target_id": TARGET_ID,
+        "compatibility_target_id": TARGET_ID,
+        "launch_target_id": TARGET_ID,
+        "stop_response_target_id": TARGET_ID,
+        "stop_confirmation_target_id": TARGET_ID,
         "session_state": "idle",
         "server_id": SERVER_ID,
         "flight_id": FLIGHT_ID,
@@ -127,12 +136,16 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             runtime_revision = "runtime-revision-changed"
         if self.state.get("flip_revision_after_stop") and self.state["stops"]:
             runtime_revision = "runtime-revision-after-stop"
+        connection = {}
+        if self.state["health_target_id"] is not None:
+            connection["target_id"] = self.state["health_target_id"]
         self._write({
             "ready": True,
             "host": {"revision": HOST_REVISION},
             "target": {
                 "reachable": True,
                 "ready": True,
+                "connection": connection,
                 "artifacts": {
                     "agent_revision": AGENT_REVISION,
                     "runtime_commit": runtime_revision,
@@ -149,6 +162,13 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
         if self.state["session_state"] == "idle":
             payload = {"id": self.state["server_id"], "state": "idle"}
+            target_id = (
+                self.state["stop_confirmation_target_id"]
+                if self.state["stops"]
+                else self.state["session_target_id"]
+            )
+            if target_id is not None:
+                payload["target_id"] = target_id
             if self.state["stops"] and self.state["omit_stop_confirmation_id"]:
                 payload.pop("id")
             payload.update(self.state.get("idle_fields", {}))
@@ -162,7 +182,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self.state["cleanup_probe_seen"] = True
             identity.update(self.state.get("changed_identity", {}))
         self.state["active_reads"] += 1
-        self._write({
+        response = {
             "id": identity["id"],
             "flight_id": identity["flight_id"],
             "state": "active",
@@ -172,7 +192,10 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 "package_id": identity["package_id"],
                 "generation": identity["generation"],
             },
-        })
+        }
+        if identity.get("target_id") is not None:
+            response["target_id"] = identity["target_id"]
+        self._write(response)
 
     def do_GET(self):
         path = urlsplit(self.path).path
@@ -219,15 +242,18 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self.state["compatibility_bodies"].append(self._body())
             if self.state.get("stale_on_compatibility"):
                 self.state["entries"][GAME_ID] = _entry(package_id=STALE_PACKAGE_ID)
-            response = self.state.get("compatibility_response", {
-                "package_id": PACKAGE_ID,
-                "descriptor": {"core": {"id": CORE_ID}},
-                "compatible": True,
-                "compatibility_error": None,
-                "target": "dev",
-                "target_id": "target-1",
-                "state": "compatible",
-            })
+            response = self.state.get("compatibility_response")
+            if response is None:
+                response = {
+                    "package_id": PACKAGE_ID,
+                    "descriptor": {"core": {"id": CORE_ID}},
+                    "compatible": True,
+                    "compatibility_error": None,
+                    "target": "dev",
+                    "state": "compatible",
+                }
+                if self.state["compatibility_target_id"] is not None:
+                    response["target_id"] = self.state["compatibility_target_id"]
             self._write(response)
         elif path == "/api/v1/library/core-entries":
             body = json.loads(self._body())
@@ -250,12 +276,13 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             identity = _active_identity(
                 package_id=entry["package_id"],
                 game_id=body["game_id"],
+                target_id=self.state["launch_target_id"],
                 execution=self.state["launch_execution"],
             )
             self.state["active_identity"] = identity
             self.state["session_state"] = "active"
             self.state["active_reads"] = 0
-            self._write({
+            response = {
                 "id": identity["id"],
                 "flight_id": identity["flight_id"],
                 "state": "active",
@@ -265,7 +292,10 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                     "package_id": identity["package_id"],
                     "generation": identity["generation"],
                 },
-            })
+            }
+            if identity.get("target_id") is not None:
+                response["target_id"] = identity["target_id"]
+            self._write(response)
         elif path == "/api/v1/session/stop":
             self.state["stops"] += 1
             if self.state.get("stop_status", 200) != 200:
@@ -273,6 +303,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
             self.state["session_state"] = "idle"
             response = {"id": self.state["server_id"], "state": "idle"}
+            if self.state["stop_response_target_id"] is not None:
+                response["target_id"] = self.state["stop_response_target_id"]
             if self.state["omit_stop_response_id"]:
                 response.pop("id")
             self._write(response)
@@ -337,6 +369,8 @@ def _command(server, archive, receipt, *extra):
         PACKAGE_ID,
         "--expected-core-id",
         CORE_ID,
+        "--expected-target-id",
+        TARGET_ID,
         "--expected-host-revision",
         HOST_REVISION,
         "--expected-agent-revision",
@@ -354,6 +388,27 @@ def _command(server, archive, receipt, *extra):
         "--execute",
         *extra,
     ]
+
+
+def _run_command(server, directory, *extra):
+    archive = _write_archive(directory)
+    receipt = Path(directory) / "receipt.json"
+    result = subprocess.run(
+        _command(
+            server,
+            archive,
+            receipt,
+            "--game-id",
+            GAME_ID,
+            "--expected-selected-package",
+            OLD_PACKAGE_ID,
+            *extra,
+        ),
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    return result, receipt
 
 
 class PackageAcceptanceTests(unittest.TestCase):
@@ -377,6 +432,7 @@ class PackageAcceptanceTests(unittest.TestCase):
             self.assertEqual(value["archive_sha256"], ARCHIVE_SHA256)
             self.assertEqual(value["package_id"], PACKAGE_ID)
             self.assertEqual(value["core_id"], CORE_ID)
+            self.assertEqual(value["target_id"], TARGET_ID)
             self.assertEqual(value["revisions"], {
                 "host": HOST_REVISION,
                 "agent": AGENT_REVISION,
@@ -397,6 +453,133 @@ class PackageAcceptanceTests(unittest.TestCase):
             self.assertEqual(state["launch_bodies"], [{"game_id": NEW_GAME_ID}])
             self.assertEqual(state["stops"], 1)
             self.assertEqual(state["session_state"], "idle")
+
+    def test_expected_target_id_is_required(self):
+        state = _state()
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            archive = _write_archive(directory)
+            receipt = Path(directory) / "receipt.json"
+            command = _command(
+                server,
+                archive,
+                receipt,
+                "--game-id",
+                GAME_ID,
+                "--expected-selected-package",
+                OLD_PACKAGE_ID,
+            )
+            target_index = command.index("--expected-target-id")
+            del command[target_index:target_index + 2]
+            result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("expected-target-id", result.stderr)
+        self.assertFalse(receipt.exists())
+        self.assertEqual(state["health_calls"], 0)
+
+    def test_health_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["health_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("target_id", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["health_calls"], 1)
+                    self.assertEqual(state["upload_bodies"], [])
+                    self.assertEqual(state["selection_puts"], [])
+                    self.assertEqual(state["launch_bodies"], [])
+                    self.assertEqual(state["stops"], 0)
+
+    def test_preflight_session_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["session_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("target", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["upload_bodies"], [])
+                    self.assertEqual(state["selection_puts"], [])
+                    self.assertEqual(state["launch_bodies"], [])
+                    self.assertEqual(state["stops"], 0)
+
+    def test_compatibility_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["compatibility_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("target", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["upload_bodies"], [ARCHIVE])
+                    self.assertEqual(state["compatibility_calls"], 1)
+                    self.assertEqual(state["selection_puts"], [])
+                    self.assertEqual(state["launch_bodies"], [])
+                    self.assertEqual(state["stops"], 0)
+
+    def test_launch_acknowledgement_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["launch_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("target", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["launch_bodies"], [{"game_id": GAME_ID}])
+                    self.assertEqual(state["stops"], 0)
+                    self.assertEqual(state["session_state"], "active")
+
+    def test_pre_stop_target_id_change_refuses_stop(self):
+        state = _state()
+        state["change_identity_before_stop"] = True
+        state["changed_identity"] = {"target_id": "target-2"}
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("target", result.stderr.lower())
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 0)
+            self.assertEqual(state["session_state"], "active")
+
+    def test_stop_response_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["stop_response_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("target", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["stops"], 1)
+
+    def test_stop_confirmation_target_id_is_required_and_exact(self):
+        for target_id in (None, "target-2"):
+            with self.subTest(target_id=target_id):
+                state = _state()
+                state["stop_confirmation_target_id"] = target_id
+                with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                    result, receipt = _run_command(server, directory)
+
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("target", result.stderr.lower())
+                    self.assertFalse(receipt.exists())
+                    self.assertEqual(state["stops"], 1)
 
     def test_updates_existing_selection_with_compare_and_swap(self):
         state = _state()
@@ -572,6 +755,7 @@ class PackageAcceptanceTests(unittest.TestCase):
             "compatible": False,
             "compatibility_error": {"code": "INCOMPATIBLE_DATA", "message": "ABI rejected"},
             "state": "incompatible",
+            "target_id": TARGET_ID,
         }
         with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
             archive = _write_archive(directory)
@@ -604,6 +788,7 @@ class PackageAcceptanceTests(unittest.TestCase):
             "descriptor": {"core": {"id": CORE_ID}},
             "compatible": True,
             "compatibility_error": None,
+            "target_id": TARGET_ID,
         }
         with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
             archive = _write_archive(directory)

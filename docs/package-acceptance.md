@@ -29,6 +29,7 @@ python3 scripts/package_acceptance.py \
   --expected-archive-sha256 ARCHIVE_SHA256 \
   --expected-package-id PACKAGE_ID \
   --expected-core-id fes.sg1000 \
+  --expected-target-id AUTHORIZED_TARGET_ID \
   --expected-host-revision HOST_COMMIT \
   --expected-agent-revision AGENT_COMMIT \
   --expected-runtime-revision RUNTIME_COMMIT \
@@ -37,8 +38,9 @@ python3 scripts/package_acceptance.py \
   --execute
 ```
 
-Replace the uppercase identity values with exact approved digests/commits;
-this is not a command to run against an unknown or version-confused kit.
+Replace the uppercase identity values with the authorized kit ID and exact
+approved digests/commits; this is not a command to run against an unknown or
+version-confused kit.
 For an existing core entry, replace `--new-entry-title` with
 `--game-id GAME_ID --expected-selected-package CURRENT_PACKAGE_ID`.
 The archive digest binds the transfer bytes; the package ID is the separate
@@ -53,6 +55,14 @@ Use an existing sealed archive and freeze its package ID, core ID and the
 host/agent/runtime revisions for a run. Do not rebuild or reseal the candidate
 to follow a moving integration branch. A package's ID is derived from its exact
 manifest and payload, not its filename or human-readable version.
+
+Provide the designated kit's independently established target ID, not a value
+blindly copied from whichever kit the host currently discovers. The runner checks
+health, compatibility and session target IDs, including cleanup, and records the
+authorized ID in its receipt. Missing or mismatched IDs fail closed even when
+software revisions match. These checks do not authenticate physical hardware or
+distinguish two devices provisioned with the same target ID; exclusive operator
+use and correct kit provisioning remain required.
 
 The workflow is import, compatibility inspection, explicit library selection,
 launch and Stop. Import is host storage only; compatibility inspection stages
@@ -125,3 +135,15 @@ This is lifecycle-only diagnostic evidence, not HDMI/controller/gameplay,
 three-core regression, durable target installation or reproducible image
 qualification. The tested platform revision is explicit above; this change
 does not update parent component pins.
+
+The target-binding review fix was subsequently retested against independently
+established kit ID `73dc9f5f-1a12-4a95-a820-a9b4e600769a`. A deliberately wrong
+expected ID was rejected at health preflight with no receipt and an unchanged
+session snapshot. Two authorized-ID runs then passed at generations 3 and 4,
+with the expected ID in both receipts, launch sessions and Stop confirmations.
+Boot ID remained `8f54c918-7e9f-4672-a647-926d73938fcb`; no image/package changed.
+Evidence is retained beside the original run in
+`/home/deano/fes/out/dev/library-client/ledger/target-bound-acceptance-UbY8j4/`.
+The updated suite passed 304 parent tests (36 outer delegated-container skips),
+delegated/image tests and consistency checks; the reviewer independently passed
+all 33 focused package tests. Physical display/controller checks remain pending.
