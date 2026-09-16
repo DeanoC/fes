@@ -1,11 +1,11 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 const untitledSearchLabel = "UNTITLED"
@@ -21,20 +21,20 @@ func (m Model) SearchTag() string {
 
 // SearchSnapshot is the renderer-facing keyboard overlay. Closed when the
 // OSK is not open; a committed query can still filter the shelf.
-func (m Model) SearchSnapshot() tenfoot.OSKSnapshot {
+func (m Model) SearchSnapshot() shared.OSKSnapshot {
 	if !m.SearchOpen {
-		return tenfoot.OSKSnapshot{}
+		return shared.OSKSnapshot{}
 	}
 	snap := m.searchField.Snapshot()
 	snap.Open = true
 	snap.Prompt = "Search"
-	snap.Hint = tenfoot.OSKKitHint(snap.Page)
+	snap.Hint = shared.OSKKitHint(snap.Page)
 	return snap
 }
 
 // SearchHaystack is the living-room name used for substring matching: the
 // title, else the clear-logo wordmark fallback (system id), else UNTITLED.
-func SearchHaystack(game tenfoot.Game) string {
+func SearchHaystack(game hostclient.Game) string {
 	if title := strings.TrimSpace(game.Title); title != "" {
 		return title
 	}
@@ -48,19 +48,19 @@ func foldSearch(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-func matchSearch(game tenfoot.Game, foldedQuery string) bool {
+func matchSearch(game hostclient.Game, foldedQuery string) bool {
 	if foldedQuery == "" {
 		return true
 	}
 	return strings.Contains(foldSearch(SearchHaystack(game)), foldedQuery)
 }
 
-func filterSearch(games []tenfoot.Game, query string) []tenfoot.Game {
+func filterSearch(games []hostclient.Game, query string) []hostclient.Game {
 	folded := foldSearch(query)
 	if folded == "" {
 		return games
 	}
-	out := make([]tenfoot.Game, 0, len(games))
+	out := make([]hostclient.Game, 0, len(games))
 	for _, game := range games {
 		if matchSearch(game, folded) {
 			out = append(out, game)
@@ -69,7 +69,7 @@ func filterSearch(games []tenfoot.Game, query string) []tenfoot.Game {
 	return out
 }
 
-func (m *Model) baseGames() []tenfoot.Game {
+func (m *Model) baseGames() []hostclient.Game {
 	if m == nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ func (m *Model) baseGames() []tenfoot.Game {
 		return filterGames(m.Catalog, m.Shelf)
 	}
 	if m.searchPool != nil {
-		return append([]tenfoot.Game(nil), m.searchPool...)
+		return append([]hostclient.Game(nil), m.searchPool...)
 	}
 	return m.Games
 }
@@ -109,7 +109,7 @@ func (m *Model) openSearch(now time.Time) {
 			m.searchRestoreID = focusedID(m.Games, m.Focus)
 		}
 		if m.Shelves == nil && m.searchPool == nil {
-			m.searchPool = append([]tenfoot.Game(nil), m.Games...)
+			m.searchPool = append([]hostclient.Game(nil), m.Games...)
 		}
 		m.searchField.Buffer = m.SearchQuery
 		m.searchField.OSK.Reset()

@@ -1,12 +1,11 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func pressNamed(m *Model, name string, now time.Time) string {
@@ -109,7 +108,7 @@ func TestAttractDoesNotArmWhileDetailOpen(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(10 * time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	now := time.Unix(1, 0)
 	pressNamed(&m, "b", now)
 	if !m.DetailOpen {
@@ -132,7 +131,7 @@ func TestOpeningDetailNotesActivity(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(50 * time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(1, 0)
 	m.Tick(t0)
 	pressNamed(&m, "b", t0.Add(40*time.Millisecond))
@@ -152,10 +151,10 @@ func TestDetailShouldersCycleScreenshots(t *testing.T) {
 	m.SetCatalog(mixedCatalog())
 	now := time.Unix(1, 0)
 	pressNamed(&m, "b", now)
-	m.ApplyPresentation("pong", tenfoot.Presentation{
+	m.ApplyPresentation("pong", hostclient.Presentation{
 		GameID: "pong",
 		State:  "ready",
-		Presentation: &tenfoot.PresentationInfo{
+		Presentation: &hostclient.PresentationInfo{
 			Studio:        "Atari",
 			Year:          "1972",
 			ScreenshotIDs: []string{aa, bb},
@@ -195,8 +194,8 @@ func TestFocusLogoHandleAndDetailPrefetchIncludesLogo(t *testing.T) {
 	if m.Games[m.Focus].ID != "sonic" {
 		t.Fatalf("focus %s", m.Games[m.Focus].ID)
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{LogoID: logo, CoverArtworkID: cover},
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{LogoID: logo, CoverArtworkID: cover},
 	})
 	if got := m.FocusLogoHandle(); got != logo {
 		t.Fatalf("logo %q", got)
@@ -226,8 +225,8 @@ func TestFocusMarqueeHandleAndDetailPrefetchIncludesMarquee(t *testing.T) {
 	if m.Games[m.Focus].ID != "sonic" {
 		t.Fatalf("focus %s", m.Games[m.Focus].ID)
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{MarqueeID: marquee, CoverArtworkID: cover},
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{MarqueeID: marquee, CoverArtworkID: cover},
 	})
 	if got := m.FocusMarqueeHandle(); got != marquee {
 		t.Fatalf("marquee %q", got)
@@ -245,8 +244,8 @@ func TestFocusMarqueeHandleAndDetailPrefetchIncludesMarquee(t *testing.T) {
 	if !foundMarquee || !foundCover {
 		t.Fatalf("prefetch %#v", handles)
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{CoverArtworkID: cover},
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{CoverArtworkID: cover},
 	})
 	if got := m.FocusMarqueeHandle(); got != "" {
 		t.Fatalf("absent marquee %q", got)
@@ -263,8 +262,8 @@ func TestFocusBox3DHandleAndDetailPrefetchIncludesBox3D(t *testing.T) {
 	if m.Games[m.Focus].ID != "sonic" {
 		t.Fatalf("focus %s", m.Games[m.Focus].ID)
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Box3DID: box, CoverArtworkID: cover},
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Box3DID: box, CoverArtworkID: cover},
 	})
 	if got := m.FocusBox3DHandle(); got != box {
 		t.Fatalf("box3d %q", got)
@@ -282,8 +281,8 @@ func TestFocusBox3DHandleAndDetailPrefetchIncludesBox3D(t *testing.T) {
 	if !foundBox || !foundCover {
 		t.Fatalf("prefetch %#v", handles)
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{CoverArtworkID: cover},
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{CoverArtworkID: cover},
 	})
 	if got := m.FocusBox3DHandle(); got != "" {
 		t.Fatalf("absent box3d %q", got)
@@ -309,8 +308,8 @@ func TestFocusDetailSurfacesRegionPlayersAndSummary(t *testing.T) {
 	if !strings.Contains(d.MetaFacts(), "USA") || strings.Contains(d.MetaFacts(), "1-2") {
 		t.Fatalf("catalog facts %q", d.MetaFacts())
 	}
-	m.ApplyPresentation("sonic", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{
+	m.ApplyPresentation("sonic", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			Year:    "1991",
 			Genre:   "Platform",
 			Studio:  "SEGA",
@@ -339,8 +338,8 @@ func TestDetailHintMentionsShotsWhenPresent(t *testing.T) {
 	if !strings.Contains(m.DetailHint(), "B back") || strings.Contains(m.DetailHint(), "shots") {
 		t.Fatalf("empty hint %q", m.DetailHint())
 	}
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{handleAA(), handleBB()}},
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{ScreenshotIDs: []string{handleAA(), handleBB()}},
 	})
 	if !strings.Contains(m.DetailHint(), "L/R shots") {
 		t.Fatalf("shot hint %q", m.DetailHint())
@@ -363,8 +362,8 @@ func TestDetailVideoPreviewCyclesStillsAndFallsBackToPoster(t *testing.T) {
 		t.Fatal("expected detail")
 	}
 
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{aa, bb}},
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{ScreenshotIDs: []string{aa, bb}},
 	})
 	if m.HasVideoPreview() || m.ShotHandle() != aa {
 		t.Fatalf("still-only video=%v shot=%q", m.HasVideoPreview(), m.ShotHandle())
@@ -377,8 +376,8 @@ func TestDetailVideoPreviewCyclesStillsAndFallsBackToPoster(t *testing.T) {
 		t.Fatalf("still-only hint %q", m.DetailHint())
 	}
 
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			VideoID:           video,
 			ScreenshotIDs:     []string{aa, bb},
 			BackdropArtworkID: backdrop,
@@ -411,8 +410,8 @@ func TestDetailVideoPreviewCyclesStillsAndFallsBackToPoster(t *testing.T) {
 		t.Fatalf("manual step was overwritten %q", m.ShotHandle())
 	}
 
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{VideoID: video, CoverArtworkID: cover},
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{VideoID: video, CoverArtworkID: cover},
 	})
 	if m.ShotHandle() != cover {
 		t.Fatalf("poster %q", m.ShotHandle())
@@ -442,7 +441,7 @@ func TestSetCatalogClosesDetailWhenFocusLeaves(t *testing.T) {
 	if !m.DetailOpen {
 		t.Fatal("expected detail")
 	}
-	m.SetCatalog([]tenfoot.Game{{ID: "other", Title: "Other", System: "snes", Launchable: true}})
+	m.SetCatalog([]hostclient.Game{{ID: "other", Title: "Other", System: "snes", Launchable: true}})
 	if m.DetailOpen {
 		t.Fatal("reload kept detail for missing title")
 	}

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 // Open discovers every eligible USB gamepad and returns a multiplexing Hub

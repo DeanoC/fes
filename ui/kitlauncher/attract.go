@@ -2,12 +2,12 @@ package kitlauncher
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/anim"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/anim"
 )
 
 const (
@@ -42,8 +42,8 @@ type AttractView struct {
 	Marquee    string
 }
 
-func playableStillItems(items []tenfoot.AttractItem) []tenfoot.AttractItem {
-	out := make([]tenfoot.AttractItem, 0, len(items))
+func playableStillItems(items []hostclient.AttractItem) []hostclient.AttractItem {
+	out := make([]hostclient.AttractItem, 0, len(items))
 	for _, item := range items {
 		if item.StillHandle() != "" {
 			out = append(out, item)
@@ -69,7 +69,7 @@ func (m *Model) cycleHold() time.Duration {
 // SetAttractPlaylist stores host attract rows and idle_seconds. Video-only
 // rows are dropped because the CGO-free kit path does not decode H.264;
 // video plus stills keep the row for a kit-safe motion preview.
-func (m *Model) SetAttractPlaylist(p tenfoot.AttractPlaylist) {
+func (m *Model) SetAttractPlaylist(p hostclient.AttractPlaylist) {
 	if p.IdleSeconds > 0 {
 		m.attractIdle = time.Duration(p.IdleSeconds) * time.Second
 	}
@@ -184,9 +184,9 @@ func (m *Model) tickAttract(now time.Time) {
 	m.tickAttractPreview(now)
 }
 
-func (m *Model) currentAttractItem() (tenfoot.AttractItem, bool) {
+func (m *Model) currentAttractItem() (hostclient.AttractItem, bool) {
 	if !m.AttractActive || len(m.attractItems) == 0 {
-		return tenfoot.AttractItem{}, false
+		return hostclient.AttractItem{}, false
 	}
 	if m.attractIndex < 0 {
 		m.attractIndex = 0
@@ -194,27 +194,27 @@ func (m *Model) currentAttractItem() (tenfoot.AttractItem, bool) {
 	return m.attractItems[m.attractIndex%len(m.attractItems)], true
 }
 
-func (m Model) attractPresentationFor(id string) tenfoot.Presentation {
+func (m Model) attractPresentationFor(id string) hostclient.Presentation {
 	if m.attractPresentationID == id {
 		return m.attractPresentation
 	}
-	return tenfoot.Presentation{}
+	return hostclient.Presentation{}
 }
 
-func (m Model) attractPreviewHandles(item tenfoot.AttractItem) []string {
-	return tenfoot.AttractPreviewHandles(item, m.attractPresentationFor(item.GameID))
+func (m Model) attractPreviewHandles(item hostclient.AttractItem) []string {
+	return shared.AttractPreviewHandles(item, m.attractPresentationFor(item.GameID))
 }
 
-func (m Model) attractHasMotion(item tenfoot.AttractItem) bool {
+func (m Model) attractHasMotion(item hostclient.AttractItem) bool {
 	p := m.attractPresentationFor(item.GameID)
 	video := item.VideoHandle()
 	if video == "" {
-		video = tenfoot.VideoHandle(p)
+		video = shared.VideoHandle(p)
 	}
 	if video == "" {
 		return false
 	}
-	return len(tenfoot.AttractPreviewHandles(item, p)) > 0
+	return len(shared.AttractPreviewHandles(item, p)) > 0
 }
 
 func (m Model) attractWallEnabled() bool {
@@ -291,7 +291,7 @@ func (m Model) attractFading(now time.Time) bool {
 }
 
 // ApplyAttractPresentation stores host presentation for the staged attract title.
-func (m *Model) ApplyAttractPresentation(id string, p tenfoot.Presentation) {
+func (m *Model) ApplyAttractPresentation(id string, p hostclient.Presentation) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return
@@ -318,8 +318,8 @@ func attractPreviewCaption(index, count int) string {
 	return fmt.Sprintf("preview %d / %d", index+1, count)
 }
 
-func (m Model) attractMarqueeHandle(item tenfoot.AttractItem) string {
-	handle := tenfoot.AttractMarqueeHandle(item, m.attractPresentationFor(item.GameID))
+func (m Model) attractMarqueeHandle(item hostclient.AttractItem) string {
+	handle := shared.AttractMarqueeHandle(item, m.attractPresentationFor(item.GameID))
 	if handle == "" {
 		return ""
 	}
@@ -329,7 +329,7 @@ func (m Model) attractMarqueeHandle(item tenfoot.AttractItem) string {
 	return handle
 }
 
-func (m Model) attractShotHandle(item tenfoot.AttractItem) string {
+func (m Model) attractShotHandle(item hostclient.AttractItem) string {
 	if !m.attractHasMotion(item) {
 		return item.StillHandle()
 	}

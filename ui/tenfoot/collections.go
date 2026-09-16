@@ -2,6 +2,8 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"unicode/utf8"
 )
@@ -26,7 +28,7 @@ type CollectionMenuSnapshot struct {
 
 func (a *App) pickerRowsLocked() []LibraryView {
 	views := a.viewChoicesLocked()
-	var focused Game
+	var focused hostclient.Game
 	hasFocus := a.grid.Focus >= 0 && a.grid.Focus < len(a.games)
 	if hasFocus {
 		focused = a.games[a.grid.Focus]
@@ -152,7 +154,7 @@ func (a *App) setGameCollectionLocked(gameID, collectionID string, member bool) 
 	if idx < 0 {
 		return
 	}
-	games := append([]Game{}, a.games...)
+	games := append([]hostclient.Game{}, a.games...)
 	games[idx] = setGameCollections(games[idx], collectionID, member)
 	a.games = games
 }
@@ -257,7 +259,7 @@ func (a *App) existingCollectionIDsLocked() []string {
 func (a *App) openNameEntryLocked(kind nameEntryKind, id, name string) {
 	a.nameEntry = kind
 	a.nameEntryID = id
-	a.nameField = TextField{Buffer: name}
+	a.nameField = shared.TextField{Buffer: name}
 	a.nameField.OSK.Reset()
 	a.closeCollectionManageLocked()
 }
@@ -265,7 +267,7 @@ func (a *App) openNameEntryLocked(kind nameEntryKind, id, name string) {
 func (a *App) closeNameEntryLocked() {
 	a.nameEntry = nameEntryNone
 	a.nameEntryID = ""
-	a.nameField = TextField{}
+	a.nameField = shared.TextField{}
 }
 
 func (a *App) nameEntryOpenLocked() bool {
@@ -405,12 +407,12 @@ func (a *App) doDeleteCollection(ctx context.Context, id string) {
 	a.status = a.libraryStatusLocked()
 }
 
-func (a *App) applyCollectionLocked(collection Collection) {
+func (a *App) applyCollectionLocked(collection hostclient.Collection) {
 	id := strings.TrimSpace(collection.ID)
 	if id == "" {
 		return
 	}
-	next := append([]Collection{}, a.collections...)
+	next := append([]hostclient.Collection{}, a.collections...)
 	for i, existing := range next {
 		if existing.ID == id {
 			next[i] = collection
@@ -422,7 +424,7 @@ func (a *App) applyCollectionLocked(collection Collection) {
 }
 
 func (a *App) dropCollectionLocked(id string) {
-	next := make([]Collection, 0, len(a.collections))
+	next := make([]hostclient.Collection, 0, len(a.collections))
 	for _, collection := range a.collections {
 		if collection.ID == id {
 			continue

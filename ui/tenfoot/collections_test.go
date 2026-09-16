@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,27 +23,27 @@ func TestAppCyclesLibraryViewsAgainstHostAPI(t *testing.T) {
 			collections++
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		case r.URL.Path == "/api/v1/games":
 			mu.Lock()
 			gameQueries = append(gameQueries, r.URL.RawQuery)
 			mu.Unlock()
 			collection := r.URL.Query().Get("collection")
-			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			games := []hostclient.Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			switch collection {
 			case "continue":
-				games = []Game{availableGame("snes-mario", "Mario", "snes")}
+				games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 			case "favorites", "recents", "unplayed":
 				games = nil
 			case "recently_added":
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			case "weekend-queue":
-				games = []Game{availableGame("snes-mario", "Mario", "snes")}
+				games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.URL.Path == "/api/v1/platforms":
-			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []Platform{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -107,11 +108,11 @@ func TestAppViewPickerSelectsCollection(t *testing.T) {
 			mu.Lock()
 			queries = append(queries, r.URL.RawQuery)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 			return
 		}
 		if r.URL.Path == "/api/v1/library/collections" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 			return
 		}
 		http.NotFound(w, r)
@@ -161,9 +162,9 @@ func TestAppFavoriteToggleAndErrorRevert(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
 			game.Favorite = false
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/library/favorites/"):
 			mu.Lock()
 			methods = append(methods, r.Method)
@@ -223,15 +224,15 @@ func TestAppUnfavoriteReloadsFavoritesView(t *testing.T) {
 			gameQueries = append(gameQueries, r.URL.RawQuery)
 			starred := favorited
 			mu.Unlock()
-			var games []Game
+			var games []hostclient.Game
 			if r.URL.Query().Get("collection") != "favorites" || starred {
 				game := availableGame("snes-mario", "Mario", "snes")
 				game.Favorite = starred
-				games = []Game{game}
+				games = []hostclient.Game{game}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v1/library/favorites/"):
 			mu.Lock()
 			favorited = false
@@ -293,23 +294,23 @@ func TestAppFavoriteAddReloadsFavoritesView(t *testing.T) {
 			starred := favorited
 			mu.Unlock()
 			collection := r.URL.Query().Get("collection")
-			var games []Game
+			var games []hostclient.Game
 			switch collection {
 			case "favorites":
 				if starred {
 					game := availableGame("snes-mario", "Mario", "snes")
 					game.Favorite = true
-					games = []Game{game}
+					games = []hostclient.Game{game}
 				}
 			case "continue", "recents", "unplayed", "recently_added":
 			default:
 				game := availableGame("snes-mario", "Mario", "snes")
 				game.Favorite = starred
-				games = []Game{game}
+				games = []hostclient.Game{game}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/library/favorites/"):
 			select {
 			case <-putStarted:
@@ -372,15 +373,15 @@ func TestAppKeepsFiltersInsideCollection(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"platforms": []Platform{{ID: "snes", Label: "Super NES"}},
+				"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}},
 			})
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.URL.Path == "/api/v1/games":
 			mu.Lock()
 			queries = append(queries, r.URL.RawQuery)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -450,12 +451,12 @@ func TestAppRecentsDefaultsToLastPlayedOrder(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.URL.Path == "/api/v1/games":
 			mu.Lock()
 			queries = append(queries, r.URL.RawQuery)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -524,12 +525,12 @@ func TestAppRecentlyAddedDefaultsToAddedSort(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		case r.URL.Path == "/api/v1/games":
 			mu.Lock()
 			queries = append(queries, r.URL.RawQuery)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -574,7 +575,7 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 	snap := Snapshot{
 		ViewLabel:  "Favorites",
 		PlatformID: "snes",
-		Platforms:  []Platform{{ID: "snes", Label: "Super NES"}},
+		Platforms:  []hostclient.Platform{{ID: "snes", Label: "Super NES"}},
 		Sort:       "title",
 		Status:     "1 titles · Favorites · Super NES · Title",
 	}
@@ -648,10 +649,10 @@ func TestAppCollectionMembershipToggleAndErrorRevert(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
 			mu.Lock()
@@ -714,18 +715,18 @@ func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
 			gameQueries = append(gameQueries, r.URL.RawQuery)
 			in := member
 			mu.Unlock()
-			var games []Game
+			var games []hostclient.Game
 			if r.URL.Query().Get("collection") != "weekend-queue" || in {
 				game := availableGame("snes-mario", "Mario", "snes")
 				if in {
 					game.Collections = []string{"weekend-queue"}
 				}
-				games = []Game{game}
+				games = []hostclient.Game{game}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
 			mu.Lock()
@@ -789,23 +790,23 @@ func TestAppAddToCustomCollectionReloadsView(t *testing.T) {
 			gameQueries = append(gameQueries, r.URL.RawQuery)
 			in := member
 			mu.Unlock()
-			var games []Game
+			var games []hostclient.Game
 			collection := r.URL.Query().Get("collection")
 			if collection == "" {
 				game := availableGame("snes-mario", "Mario", "snes")
 				if in {
 					game.Collections = []string{"weekend-queue"}
 				}
-				games = []Game{game}
+				games = []hostclient.Game{game}
 			} else if collection == "weekend-queue" && in {
 				game := availableGame("snes-mario", "Mario", "snes")
 				game.Collections = []string{"weekend-queue"}
-				games = []Game{game}
+				games = []hostclient.Game{game}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/weekend-queue/"):
 			close(putStarted)
@@ -870,11 +871,11 @@ func TestAppHidesCreateUntilCollectionsLoad(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.URL.Path == "/api/v1/library/collections":
 			<-release
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		default:
 			http.NotFound(w, r)
@@ -914,7 +915,7 @@ func TestAppHidesCreateWhenCollectionListFails(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.URL.Path == "/api/v1/library/collections":
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = io.WriteString(w, `{"error":{"code":"INTERNAL","message":"nope"}}`)
@@ -943,15 +944,15 @@ func TestAppHidesCreateWhenCollectionListFails(t *testing.T) {
 
 func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 	var mu sync.Mutex
-	collections := []Collection{}
+	collections := []hostclient.Collection{}
 	var methods []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.URL.Path == "/api/v1/library/collections" && r.Method == http.MethodGet:
 			mu.Lock()
-			list := append([]Collection{}, collections...)
+			list := append([]hostclient.Collection{}, collections...)
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{"collections": list})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/library/collections/"):
@@ -980,7 +981,7 @@ func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 					}
 				}
 				if !found {
-					collections = append(collections, Collection{ID: id, Name: name})
+					collections = append(collections, hostclient.Collection{ID: id, Name: name})
 				}
 				mu.Unlock()
 				_ = json.NewEncoder(w).Encode(map[string]any{"id": id, "name": name})
@@ -992,7 +993,7 @@ func TestAppCreateRenameDeleteCollectionWithOSK(t *testing.T) {
 						next = append(next, collection)
 					}
 				}
-				collections = append([]Collection{}, next...)
+				collections = append([]hostclient.Collection{}, next...)
 				mu.Unlock()
 				_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
 				return
@@ -1078,9 +1079,9 @@ func TestAppNameOSKCancelKeepsPicker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.URL.Path == "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -1117,7 +1118,7 @@ func TestAppDeleteWhileBusyKeepsConfirm(t *testing.T) {
 	app.collectionConfirmOpen = true
 	app.collectionManageID = "weekend-queue"
 	app.collectionManageName = "Weekend"
-	app.collections = []Collection{{ID: "weekend-queue", Name: "Weekend"}}
+	app.collections = []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend"}}
 	app.collectionBusy = true
 	app.handleCollectionConfirmLocked(CmdSelect)
 	if !app.collectionConfirmOpen || !app.viewPickerOpen {

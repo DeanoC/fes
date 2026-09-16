@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"regexp"
 	"strconv"
 	"strings"
@@ -132,7 +133,7 @@ func uniqueCollectionID(name string, existing []string) string {
 	return id + suffix
 }
 
-func gameHasCollection(game Game, collectionID string) bool {
+func gameHasCollection(game hostclient.Game, collectionID string) bool {
 	for _, id := range game.Collections {
 		if id == collectionID {
 			return true
@@ -141,7 +142,7 @@ func gameHasCollection(game Game, collectionID string) bool {
 	return false
 }
 
-func setGameCollections(game Game, collectionID string, member bool) Game {
+func setGameCollections(game hostclient.Game, collectionID string, member bool) hostclient.Game {
 	has := gameHasCollection(game, collectionID)
 	if member && has {
 		return game

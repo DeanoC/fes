@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,9 +17,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestRunOfflineInputDoesNotUseHostlessTarget(t *testing.T) {
@@ -33,7 +32,7 @@ func TestRunOfflineInputDoesNotUseHostlessTarget(t *testing.T) {
 	}))
 	defer host.Close()
 
-	game := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
 	client := newSessionTestClient(t, host.URL, target.URL, game)
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Millisecond)
 	defer cancel()
@@ -60,7 +59,7 @@ func TestRunReconnectsBeforeAllowingLaunch(t *testing.T) {
 	state.Store("idle")
 	var launchCalls atomic.Int64
 	var targetRequests atomic.Int64
-	game := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
 
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		targetRequests.Add(1)
@@ -80,7 +79,7 @@ func TestRunReconnectsBeforeAllowingLaunch(t *testing.T) {
 		case "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
 		case "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []tenfoot.Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case "/api/v1/library/attract":
 			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
 		case "/api/v1/session/launch":
@@ -129,7 +128,7 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 	var state atomic.Value
 	state.Store("idle")
 	var launchCalls, stopCalls atomic.Int64
-	game := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -139,7 +138,7 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 		case "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
 		case "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []tenfoot.Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case "/api/v1/library/attract":
 			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
 		case "/api/v1/session/launch":
@@ -195,7 +194,7 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 	var prematureLaunch atomic.Bool
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	game := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -205,7 +204,7 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 		case "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
 		case "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []tenfoot.Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{"idle_seconds": 60, "items": []any{}})
 		case "/api/v1/session/launch":
@@ -262,7 +261,7 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 }
 
 func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
-	game := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -272,7 +271,7 @@ func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
 		case "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
 		case "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []tenfoot.Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case "/api/v1/library/attract":
 			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
 		case "/api/v1/session/launch":
@@ -310,7 +309,7 @@ func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
 	}
 }
 
-func newSessionTestClient(t *testing.T, hostURL, agentURL string, game tenfoot.Game) *Client {
+func newSessionTestClient(t *testing.T, hostURL, agentURL string, game hostclient.Game) *Client {
 	t.Helper()
 	dir := t.TempDir()
 	cfg := writeKitConfig(t, dir, hostURL)
@@ -321,7 +320,7 @@ func newSessionTestClient(t *testing.T, hostURL, agentURL string, game tenfoot.G
 	if client.Cache == nil {
 		t.Fatal("session fixture cache unavailable")
 	}
-	if err := client.Cache.SaveCatalog(CatalogSnapshot{Games: []tenfoot.Game{game}}); err != nil {
+	if err := client.Cache.SaveCatalog(CatalogSnapshot{Games: []hostclient.Game{game}}); err != nil {
 		t.Fatal(err)
 	}
 	return client

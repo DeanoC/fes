@@ -1,28 +1,28 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
-func (m *Model) focusedGame() (tenfoot.Game, bool) {
+func (m *Model) focusedGame() (hostclient.Game, bool) {
 	if m == nil {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	if (m.StripActive || m.detailFromStrip) && m.StripFocus >= 0 && m.StripFocus < len(m.Strip) {
 		return m.Strip[m.StripFocus], true
 	}
 	if m.Focus < 0 || m.Focus >= len(m.Games) {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	return m.Games[m.Focus], true
 }
 
 // FocusedGame is the strip title when that row is active, otherwise the grid cell.
-func (m Model) FocusedGame() (tenfoot.Game, bool) {
+func (m Model) FocusedGame() (hostclient.Game, bool) {
 	return m.focusedGame()
 }
 
@@ -125,16 +125,16 @@ func (m *Model) inputDetail(e remoteinput.Event, dx, dy int, now time.Time) stri
 
 // FocusDetail is catalog metadata plus any presentation fetched for the
 // focused title. Platform is the catalog system in living-room case.
-func (m Model) FocusDetail() tenfoot.FocusDetail {
+func (m Model) FocusDetail() shared.FocusDetail {
 	game, ok := m.focusedGame()
 	if !ok {
-		return tenfoot.FocusDetail{}
+		return shared.FocusDetail{}
 	}
-	p := tenfoot.Presentation{}
+	p := hostclient.Presentation{}
 	if m.presentationID == game.ID {
 		p = m.presentation
 	}
-	d := tenfoot.GameDetail(game, p)
+	d := shared.GameDetail(game, p)
 	if d.Platform != "" {
 		d.Platform = strings.ToUpper(d.Platform)
 	}
@@ -142,7 +142,7 @@ func (m Model) FocusDetail() tenfoot.FocusDetail {
 }
 
 // ApplyPresentation stores host presentation for the currently focused title.
-func (m *Model) ApplyPresentation(id string, p tenfoot.Presentation) {
+func (m *Model) ApplyPresentation(id string, p hostclient.Presentation) {
 	id = strings.TrimSpace(id)
 	game, ok := m.seriesSubject()
 	if id == "" || !ok || game.ID != id {
@@ -212,7 +212,7 @@ func (m Model) previewHandles() []string {
 		return nil
 	}
 	p := m.presentationFor(game.ID)
-	return tenfoot.DetailPreviewHandles(p, tenfoot.CoverHandle(game, p))
+	return shared.DetailPreviewHandles(p, shared.CoverHandle(game, p))
 }
 
 // PreviewHandles is the current title's screenshot/poster stills.
@@ -250,7 +250,7 @@ func (m Model) FocusVideoHandle() string {
 	if !ok {
 		return ""
 	}
-	return tenfoot.VideoHandle(m.presentationFor(game.ID))
+	return shared.VideoHandle(m.presentationFor(game.ID))
 }
 
 // HasVideoPreview reports a video handle that the pane previews with stills.
@@ -287,7 +287,7 @@ func (m Model) FocusCoverHandle() string {
 	if !ok {
 		return ""
 	}
-	return tenfoot.CoverHandle(game, m.presentationFor(game.ID))
+	return shared.CoverHandle(game, m.presentationFor(game.ID))
 }
 
 // FocusLogoHandle is the presentation clear-logo for the focused title.
@@ -296,7 +296,7 @@ func (m Model) FocusLogoHandle() string {
 	if !ok {
 		return ""
 	}
-	return tenfoot.LogoHandle(m.presentationFor(game.ID))
+	return shared.LogoHandle(m.presentationFor(game.ID))
 }
 
 // FocusMarqueeHandle is the presentation banner/marquee for the focused title.
@@ -305,7 +305,7 @@ func (m Model) FocusMarqueeHandle() string {
 	if !ok {
 		return ""
 	}
-	return tenfoot.MarqueeHandle(m.presentationFor(game.ID))
+	return shared.MarqueeHandle(m.presentationFor(game.ID))
 }
 
 // FocusBox3DHandle is the presentation 3D box/cart/spine art for the focused title.
@@ -314,7 +314,7 @@ func (m Model) FocusBox3DHandle() string {
 	if !ok {
 		return ""
 	}
-	return tenfoot.Box3DHandle(m.presentationFor(game.ID))
+	return shared.Box3DHandle(m.presentationFor(game.ID))
 }
 
 // DetailPrefetchHandles is the focused cover, logo, and current screenshot.
@@ -340,23 +340,23 @@ func (m Model) DetailPrefetchHandles() []string {
 		add(handle)
 	}
 	for _, game := range m.Series {
-		add(tenfoot.CoverHandle(game, tenfoot.Presentation{}))
+		add(shared.CoverHandle(game, hostclient.Presentation{}))
 	}
 	return out
 }
 
-func (m Model) presentationFor(id string) tenfoot.Presentation {
+func (m Model) presentationFor(id string) hostclient.Presentation {
 	if m.presentationID == id {
 		return m.presentation
 	}
-	return tenfoot.Presentation{}
+	return hostclient.Presentation{}
 }
 
 // FocusPresentation is the host payload stored for the focused title, if any.
-func (m Model) FocusPresentation() tenfoot.Presentation {
+func (m Model) FocusPresentation() hostclient.Presentation {
 	game, ok := m.focusedGame()
 	if !ok {
-		return tenfoot.Presentation{}
+		return hostclient.Presentation{}
 	}
 	return m.presentationFor(game.ID)
 }

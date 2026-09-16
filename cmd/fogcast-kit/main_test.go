@@ -11,14 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/anim"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/kitlauncher"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/anim"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/shared"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 func TestPadsSelftestReportsIdentityBeforeOpen(t *testing.T) {
@@ -57,9 +58,9 @@ func TestLoadKitRemapperFlagBeatsConfig(t *testing.T) {
 }
 
 func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
-	games := make([]tenfoot.Game, 13)
+	games := make([]hostclient.Game, 13)
 	for i := range games {
-		games[i] = tenfoot.Game{ID: "game-" + string(rune('a'+i)), Title: "Title " + string(rune('A'+i)), System: "snes", Launchable: true}
+		games[i] = hostclient.Game{ID: "game-" + string(rune('a'+i)), Title: "Title " + string(rune('A'+i)), System: "snes", Launchable: true}
 	}
 	m := kitlauncher.Model{Games: games, Focus: 12, Connected: true, TargetReady: true, ControllerConnected: true}
 	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
@@ -75,9 +76,9 @@ func TestModelGridUsesLiveGamesAndPages(t *testing.T) {
 }
 
 func TestModelGridFollowsTwoDimensionalFocus(t *testing.T) {
-	games := make([]tenfoot.Game, 25)
+	games := make([]hostclient.Game, 25)
 	for i := range games {
-		games[i] = tenfoot.Game{ID: "g", Title: "T", System: "snes", Launchable: true}
+		games[i] = hostclient.Game{ID: "g", Title: "T", System: "snes", Launchable: true}
 	}
 	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true}
 	right, _ := remoteinput.NormalizeGamepad("dpad-right", true)
@@ -147,16 +148,16 @@ func TestCatalogPageAndPrefetchWindow(t *testing.T) {
 
 func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	cache := tenfoot.NewCoverCache()
-	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{LogoID: handle}}
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default(), 18)
+	cache := shared.NewCoverCache()
+	pres := hostclient.Presentation{Presentation: &hostclient.PresentationInfo{LogoID: handle}}
+	tile := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive"}, cache, pres, theme.Default(), 18)
 	if tile.Logo != nil {
 		t.Fatal("uncached logo should keep text fallback")
 	}
 	if tile.Name != "Sonic" {
 		t.Fatalf("name %q", tile.Name)
 	}
-	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, cache, tenfoot.Presentation{}, theme.Default(), 18)
+	plain := gameTile(hostclient.Game{Title: "Pong", System: "pong"}, cache, hostclient.Presentation{}, theme.Default(), 18)
 	if plain.Logo != nil {
 		t.Fatal("text-fallback tile gained a logo")
 	}
@@ -167,16 +168,16 @@ func TestGameTileLeavesLogoEmptyUntilReady(t *testing.T) {
 
 func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
 	th := theme.Default()
-	plain := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, tenfoot.Presentation{}, th, 18)
+	plain := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive"}, nil, hostclient.Presentation{}, th, 18)
 	if len(plain.Badges) != 0 {
 		t.Fatalf("empty badges %+v", plain.Badges)
 	}
-	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{Players: "2", Rating: "4.5"}}
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th, 18)
+	pres := hostclient.Presentation{Presentation: &hostclient.PresentationInfo{Players: "2", Rating: "4.5"}}
+	tile := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive"}, nil, pres, th, 18)
 	if len(tile.Badges) != 2 || tile.Badges[0].Label != "2P" || tile.Badges[1].Label != "4.5" {
 		t.Fatalf("badges %+v", tile.Badges)
 	}
-	gb := gameTile(tenfoot.Game{Title: "Zelda", System: "gb"}, nil, tenfoot.Presentation{}, th, 18)
+	gb := gameTile(hostclient.Game{Title: "Zelda", System: "gb"}, nil, hostclient.Presentation{}, th, 18)
 	if len(gb.Badges) != 1 || gb.Badges[0].Label != "PORT" {
 		t.Fatalf("gb badges %+v", gb.Badges)
 	}
@@ -184,22 +185,22 @@ func TestGameTileBadgesFromPresentationAndHidesEmpty(t *testing.T) {
 
 func TestGameTileLeavesCoverEmptyUntilCached(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
+	tile := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive", Cover: handle}, shared.NewCoverCache(), hostclient.Presentation{}, theme.Default(), 18)
 	if tile.Cover != nil {
 		t.Fatal("uncached cover should stay fallback")
 	}
 	if tile.CoverKind != fbgrid.CoverMissing {
 		t.Fatalf("uncached kind %d", tile.CoverKind)
 	}
-	flat := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, tenfoot.NewCoverCache(), tenfoot.Presentation{}, theme.Default(), 18)
+	flat := gameTile(hostclient.Game{Title: "Pong", System: "pong"}, shared.NewCoverCache(), hostclient.Presentation{}, theme.Default(), 18)
 	if flat.Cover != nil {
 		t.Fatal("missing handle should stay fallback")
 	}
 	if flat.CoverKind != fbgrid.CoverMissing {
 		t.Fatalf("missing kind %d", flat.CoverKind)
 	}
-	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{CoverArtworkID: handle}}
-	fromMeta := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive"}, tenfoot.NewCoverCache(), pres, theme.Default(), 18)
+	pres := hostclient.Presentation{Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle}}
+	fromMeta := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive"}, shared.NewCoverCache(), pres, theme.Default(), 18)
 	if fromMeta.Cover != nil {
 		t.Fatal("uncached presentation cover should stay fallback")
 	}
@@ -227,7 +228,7 @@ func TestGameTilePaintsDiskCoverWithoutHost(t *testing.T) {
 	if err := store.SaveArtwork(handle, buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
-	covers := tenfoot.NewCoverCache()
+	covers := shared.NewCoverCache()
 	covers.SetStore(store)
 	covers.Keep([]string{handle})
 	covers.Request(context.Background(), nil, []string{handle})
@@ -238,7 +239,7 @@ func TestGameTilePaintsDiskCoverWithoutHost(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Cover: handle}, covers, tenfoot.Presentation{}, theme.Default(), 18)
+	tile := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive", Cover: handle}, covers, hostclient.Presentation{}, theme.Default(), 18)
 	if tile.Cover == nil || tile.CoverKind != fbgrid.CoverPresent {
 		t.Fatalf("disk cover kind=%d cover=%v", tile.CoverKind, tile.Cover != nil)
 	}
@@ -269,7 +270,7 @@ func TestModelFooterReportsCoreStatusAvailability(t *testing.T) {
 		TargetReady:           true,
 		ControllerConnected:   true,
 		CoreStatusUnavailable: true,
-		Games: []tenfoot.Game{
+		Games: []hostclient.Game{
 			{ID: "fpga-pong", System: "fpga"},
 		},
 	}
@@ -284,7 +285,7 @@ func TestModelFooterReportsCoreStatusAvailability(t *testing.T) {
 
 func TestModelGridShowsActiveShelfChrome(t *testing.T) {
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	m.SetCatalog([]tenfoot.Game{
+	m.SetCatalog([]hostclient.Game{
 		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
@@ -325,14 +326,14 @@ func TestExerciseShelfGridCyclesVisibleSet(t *testing.T) {
 }
 
 func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	tile := gameTile(hostclient.Game{Title: "Márío", System: "snes"}, nil, hostclient.Presentation{}, theme.Default(), 18)
 	if tile.Name != "M?r?o" {
 		t.Fatalf("label %q", tile.Name)
 	}
 	if tile.Color != gfx.RGB(156, 52, 60) {
 		t.Fatalf("color %+v", tile.Color)
 	}
-	arcade := gameTile(tenfoot.Game{Title: "Márío", System: "snes"}, nil, tenfoot.Presentation{}, theme.Arcade(), 18)
+	arcade := gameTile(hostclient.Game{Title: "Márío", System: "snes"}, nil, hostclient.Presentation{}, theme.Arcade(), 18)
 	if arcade.Color != theme.Arcade().SystemColor("snes") {
 		t.Fatalf("arcade color %+v", arcade.Color)
 	}
@@ -342,18 +343,18 @@ func TestGameTileUsesSystemPaletteAndASCIILabel(t *testing.T) {
 }
 
 func TestGameTileMetaJoinsCatalogFacts(t *testing.T) {
-	tile := gameTile(tenfoot.Game{Title: "Sonic", System: "megadrive", Year: "1991", Genre: "Action", Region: "usa"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	tile := gameTile(hostclient.Game{Title: "Sonic", System: "megadrive", Year: "1991", Genre: "Action", Region: "usa"}, nil, hostclient.Presentation{}, theme.Default(), 18)
 	if tile.Meta != "MEGADRIVE | 1991 | Action | USA" {
 		t.Fatalf("meta %q", tile.Meta)
 	}
-	plain := gameTile(tenfoot.Game{Title: "Pong", System: "pong"}, nil, tenfoot.Presentation{}, theme.Default(), 18)
+	plain := gameTile(hostclient.Game{Title: "Pong", System: "pong"}, nil, hostclient.Presentation{}, theme.Default(), 18)
 	if plain.Meta != "PONG" {
 		t.Fatalf("plain meta %q", plain.Meta)
 	}
 }
 
 func TestGameTileAndDetailExposeCoreStatus(t *testing.T) {
-	status := tenfoot.CoreAvailability{
+	status := hostclient.CoreAvailability{
 		GameID:         "fpga-pong",
 		CoreID:         "fes.pong",
 		PackageID:      strings.Repeat("a", 64),
@@ -361,14 +362,14 @@ func TestGameTileAndDetailExposeCoreStatus(t *testing.T) {
 		Compatibility:  "unknown",
 		State:          "installed",
 	}
-	tile := gameTileWithCoreStatus(tenfoot.Game{ID: "fpga-pong", Title: "Pong", System: "fpga"}, nil, tenfoot.Presentation{}, theme.Default(), 18, &status)
+	tile := gameTileWithCoreStatus(hostclient.Game{ID: "fpga-pong", Title: "Pong", System: "fpga"}, nil, hostclient.Presentation{}, theme.Default(), 18, &status)
 	if !strings.Contains(tile.Meta, "fes.pong") || !strings.Contains(tile.Meta, "installed") {
 		t.Fatalf("tile meta %q", tile.Meta)
 	}
 	m := kitlauncher.Model{
-		Games:        []tenfoot.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga", Launchable: true}},
+		Games:        []hostclient.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga", Launchable: true}},
 		Focus:        0,
-		CoreStatuses: []tenfoot.CoreAvailability{status},
+		CoreStatuses: []hostclient.CoreAvailability{status},
 		Connected:    true,
 		TargetReady:  true,
 	}
@@ -377,7 +378,7 @@ func TestGameTileAndDetailExposeCoreStatus(t *testing.T) {
 		t.Fatalf("detail meta %q", frame.Meta)
 	}
 	status.State = "missing"
-	m.CoreStatuses = []tenfoot.CoreAvailability{status}
+	m.CoreStatuses = []hostclient.CoreAvailability{status}
 	frame = modelDetailFrame(m, nil, nil, theme.Default(), 640, 480)
 	if !strings.Contains(frame.Meta, "missing") {
 		t.Fatalf("missing detail meta %q", frame.Meta)
@@ -386,7 +387,7 @@ func TestGameTileAndDetailExposeCoreStatus(t *testing.T) {
 
 func TestModelRenderKeyChangesForCoreStatusRevision(t *testing.T) {
 	m := kitlauncher.Model{
-		Games:              []tenfoot.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga"}},
+		Games:              []hostclient.Game{{ID: "fpga-pong", Title: "Pong", System: "fpga"}},
 		CoreStatusRevision: 1,
 	}
 	first := modelRenderKey(m, 0, 0)
@@ -453,7 +454,7 @@ func TestKitLookPrefersPackOverFallback(t *testing.T) {
 
 func TestPackHeaderTagsNonClassic(t *testing.T) {
 	m := kitlauncher.Model{Pack: theme.PackNeon, Browse: fbgrid.BrowseCoverflow}
-	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	m.SetCatalog([]hostclient.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
 	got := packHeader(m)
 	if !strings.Contains(got, "FLOW") || !strings.Contains(got, "NEON") {
 		t.Fatalf("header %q", got)
@@ -507,7 +508,7 @@ func TestExerciseBadgesGridPaintsChipsWheelStatsAndNestsPacks(t *testing.T) {
 func TestSceneFXStartsOnMeaningfulCutsAndHonorsNone(t *testing.T) {
 	now := time.Unix(50, 0)
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Pack: theme.PackClassic}
-	m.SetCatalog([]tenfoot.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
+	m.SetCatalog([]hostclient.Game{{ID: "g", Title: "G", System: "snes", Launchable: true}})
 	var fx sceneFX
 	fx.observe(modelScene(m), anim.StyleCurtain, now)
 	if fx.active(now) {
@@ -588,11 +589,11 @@ func TestExerciseMarqueeGridPaintsStripAndNestsTransition(t *testing.T) {
 
 func TestModelGridSearchMissHidesStripAndEmptyLabel(t *testing.T) {
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	m.SetCatalog([]tenfoot.Game{
+	m.SetCatalog([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
 	})
-	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
 	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
 	if len(g.Strip) != 1 || g.EmptyLabel != "" {
 		t.Fatalf("browse strip=%d label=%q", len(g.Strip), g.EmptyLabel)
@@ -620,7 +621,7 @@ func TestModelGridSearchMissHidesStripAndEmptyLabel(t *testing.T) {
 
 func TestModelGridWiresSessionChrome(t *testing.T) {
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	m.SetCatalog([]tenfoot.Game{
+	m.SetCatalog([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic 2", System: "megadrive", Launchable: true},
 	})
 	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
@@ -1020,7 +1021,7 @@ func TestExerciseThemeGridSamplesBothLooks(t *testing.T) {
 func TestModelDetailFrameVideoPreviewVersusStillOnly(t *testing.T) {
 	th := theme.Default()
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	m.SetCatalog([]tenfoot.Game{
+	m.SetCatalog([]hostclient.Game{
 		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
 	})
 	now := time.Unix(1, 0)
@@ -1029,8 +1030,8 @@ func TestModelDetailFrameVideoPreviewVersusStillOnly(t *testing.T) {
 	if !m.DetailOpen {
 		t.Fatal("expected detail")
 	}
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)}},
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)}},
 	})
 	still := modelDetailFrame(m, nil, nil, th, 640, 480)
 	if still.VideoBadge || strings.Contains(still.ShotCaption, "preview") {
@@ -1040,8 +1041,8 @@ func TestModelDetailFrameVideoPreviewVersusStillOnly(t *testing.T) {
 		t.Fatalf("still caption %q", still.ShotCaption)
 	}
 
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			VideoID:       strings.Repeat("ee", 32),
 			ScreenshotIDs: []string{strings.Repeat("aa", 32), strings.Repeat("bb", 32)},
 		},

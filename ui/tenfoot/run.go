@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/hostclient"
 	"os"
 	"strings"
 	"time"
@@ -54,7 +55,7 @@ func (o Options) prefsPath() string {
 
 func (o Options) normalized() Options {
 	if strings.TrimSpace(o.APIBase) == "" {
-		o.APIBase = DefaultAPIBase
+		o.APIBase = hostclient.DefaultAPIBase
 	}
 	if o.Width <= 0 {
 		o.Width = 1280

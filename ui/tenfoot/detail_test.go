@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image/color"
 	"io"
 	"net/http"
@@ -13,7 +14,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/ui/shared"
 )
+
+const screenshotHandleLimit = 8
 
 func TestScreenshotHandlesClampSkipAndDedupe(t *testing.T) {
 	t.Parallel()
@@ -36,17 +41,17 @@ func TestScreenshotHandlesClampSkipAndDedupe(t *testing.T) {
 		strings.Repeat("22", 32),
 		strings.Repeat("33", 32),
 	}
-	got := screenshotHandles(ids)
-	if len(got) != maxScreenshotHandles {
-		t.Fatalf("len = %d want %d (%#v)", len(got), maxScreenshotHandles, got)
+	got := shared.ScreenshotHandles(ids)
+	if len(got) != screenshotHandleLimit {
+		t.Fatalf("len = %d want %d (%#v)", len(got), screenshotHandleLimit, got)
 	}
 	if got[0] != valid[0] || got[1] != valid[1] {
 		t.Fatalf("got = %#v", got)
 	}
-	if screenshotHandles(nil) != nil {
+	if shared.ScreenshotHandles(nil) != nil {
 		t.Fatal("empty should omit")
 	}
-	if screenshotHandles([]string{"nope", ""}) != nil {
+	if shared.ScreenshotHandles([]string{"nope", ""}) != nil {
 		t.Fatal("invalid-only should omit")
 	}
 }
@@ -55,9 +60,9 @@ func TestCloseDetailDropsScreenshotInflight(t *testing.T) {
 	t.Parallel()
 	handle := strings.Repeat("ab", 32)
 	app := NewApp(nil, 800, 600, 10)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
-	app.details["snes-mario"] = FocusDetail{ScreenshotIDs: []string{handle}}
+	app.details["snes-mario"] = shared.FocusDetail{ScreenshotIDs: []string{handle}}
 	app.detailOpen = true
 	shotCtx, shotCancel := context.WithCancel(context.Background())
 	app.shotCtx = shotCtx
@@ -84,13 +89,13 @@ func TestCloseDetailDropsScreenshotInflight(t *testing.T) {
 }
 
 func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
-	marioShots := make([]string, maxScreenshotHandles)
+	marioShots := make([]string, screenshotHandleLimit)
 	for i := range marioShots {
 		marioShots[i] = strings.Repeat(fmt.Sprintf("%02x", i+1), 32)
 	}
 	sonicCover := strings.Repeat("aa", 32)
 	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 20, G: 80, B: 200, A: 255})
-	coverImg, err := DecodeCover(pngBytes)
+	coverImg, err := shared.DecodeCover(pngBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,17 +109,17 @@ func TestCloseDetailCancelsScreenshotHTTPAndUnblocksCoverWork(t *testing.T) {
 			mario := availableGame("snes-mario", "Mario", "snes")
 			sonic := availableGame("snes-sonic", "Sonic", "snes")
 			sonic.Cover = sonicCover
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{mario, sonic}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{mario, sonic}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
-			pres := Presentation{
+			pres := hostclient.Presentation{
 				GameID: id,
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					Summary: id,
 					Studio:  "Nintendo",
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			}
 			if id == "snes-mario" {
 				pres.Presentation.ScreenshotIDs = append([]string(nil), marioShots...)
@@ -221,7 +226,7 @@ func TestWorkerRejectsStaleScreenshotJobBeforeIO(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
 			shotGets.Add(1)
 			http.NotFound(w, r)
@@ -260,7 +265,7 @@ func TestPresentationResultClearsEmptyShotIDs(t *testing.T) {
 	t.Parallel()
 	handle := strings.Repeat("ab", 32)
 	app := NewApp(nil, 800, 600, 10)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
 	app.applyResult(workResult{
 		kind:          workPresentation,
@@ -302,9 +307,9 @@ func TestScreenshotDeadlineIsTerminalButCancelIsNot(t *testing.T) {
 	t.Parallel()
 	handle := strings.Repeat("ab", 32)
 	app := NewApp(nil, 800, 600, 10)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
-	app.details["snes-mario"] = FocusDetail{ScreenshotIDs: []string{handle}}
+	app.details["snes-mario"] = shared.FocusDetail{ScreenshotIDs: []string{handle}}
 	app.detailOpen = true
 	app.applyResult(workResult{
 		kind:   workScreenshot,
@@ -366,8 +371,8 @@ func TestCarouselIndexClampAndFailedSkip(t *testing.T) {
 
 func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
 	t.Parallel()
-	game := Game{ID: "snes-mario", Title: "Mario", System: "snes", Year: "1990", Genre: "Action", Favorite: true}
-	d := GameDetail(game, Presentation{})
+	game := hostclient.Game{ID: "snes-mario", Title: "Mario", System: "snes", Year: "1990", Genre: "Action", Favorite: true}
+	d := shared.GameDetail(game, hostclient.Presentation{})
 	if d.Title != "Mario" || d.Platform != "snes" || d.Year != "1990" || d.Genre != "Action" || !d.Favorite {
 		t.Fatalf("catalog %+v", d)
 	}
@@ -375,8 +380,8 @@ func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
 		t.Fatalf("empty presentation leaked %+v", d)
 	}
 	shot := strings.Repeat("ab", 32)
-	d = GameDetail(game, Presentation{
-		Presentation: &PresentationInfo{
+	d = shared.GameDetail(game, hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			Year:          "1985",
 			Genre:         "Platform",
 			Studio:        "Nintendo",
@@ -384,7 +389,7 @@ func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
 			Summary:       "Jump.",
 			ScreenshotIDs: []string{shot, "nope", shot},
 		},
-		Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+		Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 	})
 	if d.Year != "1985" || d.Genre != "Platform" || d.Studio != "Nintendo" || d.Players != "1-2" || d.Summary != "Jump." {
 		t.Fatalf("merged %+v", d)
@@ -396,12 +401,12 @@ func TestGameDetailMergesCatalogAndPresentation(t *testing.T) {
 
 func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	t.Parallel()
-	d := FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}
+	d := shared.FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}
 	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform" {
 		t.Fatalf("facts = %q", d.MetaFacts())
 	}
-	if d.studioLine() != "" || d.playersLine() != "" {
-		t.Fatalf("empty lines studio=%q players=%q", d.studioLine(), d.playersLine())
+	if d.Studio != "" || d.Players != "" {
+		t.Fatalf("empty lines studio=%q players=%q", d.Studio, d.Players)
 	}
 	d.Studio = "Nintendo"
 	d.Players = "1-2"
@@ -409,36 +414,36 @@ func TestFocusDetailOmitsEmptyStudioPlayersAndScreenshots(t *testing.T) {
 	if d.MetaFacts() != "Super NES  ·  1985  ·  Platform  ·  Nintendo  ·  1-2  ·  USA" {
 		t.Fatalf("rich facts = %q", d.MetaFacts())
 	}
-	if d.studioLine() != "Nintendo" || d.playersLine() != "1-2" {
-		t.Fatalf("lines studio=%q players=%q", d.studioLine(), d.playersLine())
+	if d.Studio != "Nintendo" || d.Players != "1-2" {
+		t.Fatalf("lines studio=%q players=%q", d.Studio, d.Players)
 	}
 }
 
 func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
 	t.Parallel()
-	d := GameDetail(Game{Title: "Sonic", System: "megadrive", Year: "1990", Genre: "Action", Region: "usa"}, Presentation{})
+	d := shared.GameDetail(hostclient.Game{Title: "Sonic", System: "megadrive", Year: "1990", Genre: "Action", Region: "usa"}, hostclient.Presentation{})
 	if d.Year != "1990" || d.Genre != "Action" || d.Region != "USA" || d.Summary != "" || d.Players != "" {
 		t.Fatalf("catalog-only %+v", d)
 	}
 	if d.MetaFacts() != "megadrive  ·  1990  ·  Action  ·  USA" {
 		t.Fatalf("facts = %q", d.MetaFacts())
 	}
-	empty := GameDetail(Game{Title: "Pong", System: "pong"}, Presentation{})
+	empty := shared.GameDetail(hostclient.Game{Title: "Pong", System: "pong"}, hostclient.Presentation{})
 	if empty.Region != "" || empty.Summary != "" || empty.Players != "" || empty.MetaFacts() != "pong" {
 		t.Fatalf("empty %+v facts=%q", empty, empty.MetaFacts())
 	}
 	cached := true
-	onKit := GameDetail(Game{Title: "Sonic", System: "megadrive", ROMCached: &cached}, Presentation{})
+	onKit := shared.GameDetail(hostclient.Game{Title: "Sonic", System: "megadrive", ROMCached: &cached}, hostclient.Presentation{})
 	if onKit.Cached != "ON KIT" || !strings.Contains(onKit.MetaFacts(), "ON KIT") {
 		t.Fatalf("cached %+v facts=%q", onKit, onKit.MetaFacts())
 	}
 	missing := false
-	needs := GameDetail(Game{Title: "Sonic", System: "megadrive", ROMCached: &missing}, Presentation{})
+	needs := shared.GameDetail(hostclient.Game{Title: "Sonic", System: "megadrive", ROMCached: &missing}, hostclient.Presentation{})
 	if needs.Cached != "NEEDS ROM" {
 		t.Fatalf("missing %#v", needs)
 	}
-	ready := GameDetail(Game{Title: "Sonic", System: "megadrive", Region: "japan"}, Presentation{
-		Presentation: &PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump.", VideoID: strings.Repeat("ab", 32)},
+	ready := shared.GameDetail(hostclient.Game{Title: "Sonic", System: "megadrive", Region: "japan"}, hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Year: "1991", Genre: "Platform", Studio: "SEGA", Players: "1-2", Summary: "Jump.", VideoID: strings.Repeat("ab", 32)},
 	})
 	if ready.Year != "1991" || ready.Genre != "Platform" || ready.Studio != "SEGA" || ready.Players != "1-2" || ready.Region != "Japan" || ready.Summary != "Jump." {
 		t.Fatalf("presentation %+v", ready)
@@ -446,7 +451,7 @@ func TestGameDetailCopiesCatalogRegionAndOmitsMissingCopy(t *testing.T) {
 	if ready.VideoID != strings.Repeat("ab", 32) {
 		t.Fatalf("video %q", ready.VideoID)
 	}
-	plain := GameDetail(Game{Title: "Pong"}, Presentation{Presentation: &PresentationInfo{Summary: "Ball."}})
+	plain := shared.GameDetail(hostclient.Game{Title: "Pong"}, hostclient.Presentation{Presentation: &hostclient.PresentationInfo{Summary: "Ball."}})
 	if plain.VideoID != "" {
 		t.Fatalf("still-only grew video %q", plain.VideoID)
 	}
@@ -462,14 +467,14 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.URL.Path == "/api/v1/platforms":
-			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []Platform{{ID: "snes", Label: "Super NES"}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "snes-mario",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					CoverArtworkID: cover,
 					Summary:        "Jump on turtles.",
 					Year:           "1985",
@@ -478,7 +483,7 @@ func TestAppFocusDetailDecodesStudioPlayersAndScreenshots(t *testing.T) {
 					Players:        "1-2",
 					ScreenshotIDs:  []string{shotOK, "nope", shotBad, shotOK, shotMiss},
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+cover:
 			w.Header().Set("Content-Type", "image/png")
@@ -551,7 +556,7 @@ func TestAppDetailFocusEnterLeaveDoesNotStealBindings(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}})
@@ -657,18 +662,18 @@ func TestAppOfflinePresentationOmitsIncompleteDetail(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
 			ok := ready
 			mu.Unlock()
-			pres := Presentation{GameID: "snes-mario", State: "offline"}
+			pres := hostclient.Presentation{GameID: "snes-mario", State: "offline"}
 			if ok {
 				pres.State = "ready"
-				pres.Presentation = &PresentationInfo{Summary: "Jump on turtles.", Studio: "Nintendo", Players: "1"}
-				pres.Attribution = &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
+				pres.Presentation = &hostclient.PresentationInfo{Summary: "Jump on turtles.", Studio: "Nintendo", Players: "1"}
+				pres.Attribution = &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
 			} else {
-				pres.Presentation = &PresentationInfo{
+				pres.Presentation = &hostclient.PresentationInfo{
 					Summary:       "stale",
 					Studio:        "hidden",
 					Players:       "9",
@@ -723,17 +728,17 @@ func TestAppDetailOpensBeforeScreenshotsArrive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "snes-mario",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					Summary:       "Jump on turtles.",
 					Studio:        "Nintendo",
 					ScreenshotIDs: []string{strings.Repeat("cd", 32)},
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
 			http.NotFound(w, r)

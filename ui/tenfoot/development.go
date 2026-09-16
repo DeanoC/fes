@@ -3,6 +3,8 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"os"
 	"strings"
 
@@ -53,14 +55,14 @@ func openDevelopmentRBFFile(path string) (*os.File, int64, error) {
 	return file, info.Size(), nil
 }
 
-func sessionDevelopmentActive(session SessionResult) bool {
+func sessionDevelopmentActive(session hostclient.SessionResult) bool {
 	if session.Development {
 		return true
 	}
 	return strings.TrimSpace(session.Execution) == "fpga_development"
 }
 
-func sessionDevelopmentState(session SessionResult) string {
+func sessionDevelopmentState(session hostclient.SessionResult) string {
 	if state := strings.TrimSpace(session.DevelopmentSessionState); state != "" {
 		return state
 	}
@@ -174,7 +176,7 @@ func (a *App) openDevelopmentPathOSKLocked() {
 	a.settingsOSKKind = settingsOSKDevelopmentPath
 	a.settingsOSKIndex = 0
 	a.settingsOSKIsAdd = false
-	a.settingsOSKField = TextField{Buffer: a.developmentRBFPath}
+	a.settingsOSKField = shared.TextField{Buffer: a.developmentRBFPath}
 	a.settingsOSKField.OSK.Reset()
 	a.settingsOSKField.OSK.CyclePage(1)
 }
@@ -233,7 +235,7 @@ func (a *App) startDevelopmentLoadLocked(path string, size int64) {
 
 func (a *App) doDevelopmentLoad(ctx context.Context, path string) {
 	file, size, err := openDevelopmentRBFFile(path)
-	var result SessionResult
+	var result hostclient.SessionResult
 	if err == nil {
 		result, err = a.client.LoadDevelopmentRBF(ctx, size, file)
 		_ = file.Close()

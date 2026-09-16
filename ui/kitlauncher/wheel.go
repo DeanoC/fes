@@ -2,12 +2,12 @@ package kitlauncher
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/shared"
+	"github.com/DeanoC/FogCast/ui/theme"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
 )
 
 // WheelItem is one platform on the living-room wheel.
@@ -141,8 +141,8 @@ func (m Model) WheelPlayCount() int64 {
 
 // WheelLastPlayed is the shelf title with the newest last_played_at, else the
 // first recents row on that shelf. Empty when the host has not admitted either.
-func (m Model) WheelLastPlayed() (tenfoot.Game, bool) {
-	var best tenfoot.Game
+func (m Model) WheelLastPlayed() (hostclient.Game, bool) {
+	var best hostclient.Game
 	var at int64
 	found := false
 	for _, game := range filterGames(m.Catalog, m.activeShelf()) {
@@ -165,7 +165,7 @@ func (m Model) WheelLastPlayed() (tenfoot.Game, bool) {
 		}
 		return game, true
 	}
-	return tenfoot.Game{}, false
+	return hostclient.Game{}, false
 }
 
 // WheelFeaturedTitle prefers last-played when the host admitted it, else a
@@ -182,7 +182,7 @@ func (m Model) WheelFeaturedTitle() string {
 }
 
 // WheelGame is the first launchable title on shelf, else the first row.
-func (m Model) WheelGame(shelf string) (tenfoot.Game, bool) {
+func (m Model) WheelGame(shelf string) (hostclient.Game, bool) {
 	games := filterGames(m.Catalog, shelf)
 	for _, game := range games {
 		if game.Launchable {
@@ -192,7 +192,7 @@ func (m Model) WheelGame(shelf string) (tenfoot.Game, bool) {
 	if len(games) > 0 {
 		return games[0], true
 	}
-	return tenfoot.Game{}, false
+	return hostclient.Game{}, false
 }
 
 // WheelPrefetchIDs is one representative game per shelf, focused first.
@@ -223,22 +223,22 @@ func (m Model) WheelPrefetchIDs() []string {
 
 // WheelHeroHandle prefers an attract still for the focused platform, then a
 // presentation backdrop, then the representative cover. Empty means placeholder.
-func (m Model) WheelHeroHandle(pres tenfoot.Presentation) string {
+func (m Model) WheelHeroHandle(pres hostclient.Presentation) string {
 	if handle := m.wheelAttractHandle(); handle != "" {
 		return handle
 	}
-	if handle := tenfoot.BackdropHandle(pres); handle != "" {
+	if handle := shared.BackdropHandle(pres); handle != "" {
 		return handle
 	}
 	if game, ok := m.WheelGame(m.activeShelf()); ok {
-		return tenfoot.CoverHandle(game, pres)
+		return shared.CoverHandle(game, pres)
 	}
 	return ""
 }
 
 // WheelLogoHandle is a representative-title clear logo when presentation has one.
-func (m Model) WheelLogoHandle(pres tenfoot.Presentation) string {
-	return tenfoot.LogoHandle(pres)
+func (m Model) WheelLogoHandle(pres hostclient.Presentation) string {
+	return shared.LogoHandle(pres)
 }
 
 func (m Model) wheelAttractHandle() string {
@@ -266,7 +266,7 @@ func (m Model) WheelHint() string {
 // GridHint is the idle footer on the filtered game grid.
 func (m Model) GridHint() string {
 	if m.SearchOpen {
-		return tenfoot.OSKKitHint(m.searchField.Snapshot().Page)
+		return shared.OSKKitHint(m.searchField.Snapshot().Page)
 	}
 	if m.StripActive {
 		return m.stripHint()

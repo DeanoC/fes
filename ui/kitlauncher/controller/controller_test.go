@@ -6,7 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 func TestFixtureUnsignedAxisAndButtons(t *testing.T) {

@@ -2,15 +2,14 @@ package kitlauncher
 
 import (
 	"context"
-	"strconv"
-	"strings"
-	"time"
-
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/theme"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type Pad interface {
@@ -20,22 +19,22 @@ type Pad interface {
 type observation struct {
 	epoch          uint64
 	session        Session
-	health         tenfoot.HealthResult
-	games          []tenfoot.Game
-	strip          []tenfoot.Game
+	health         hostclient.HealthResult
+	games          []hostclient.Game
+	strip          []hostclient.Game
 	stripLabel     string
-	recents        []tenfoot.Game
+	recents        []hostclient.Game
 	haveStrip      bool
-	attract        tenfoot.AttractPlaylist
+	attract        hostclient.AttractPlaylist
 	haveAttract    bool
 	hydrateAttract bool
-	coreStatuses   []tenfoot.CoreAvailability
+	coreStatuses   []hostclient.CoreAvailability
 	haveCoreStatus bool
 	coreStatusErr  bool
 	detailID       string
-	presentation   tenfoot.Presentation
+	presentation   hostclient.Presentation
 	haveDetail     bool
-	cache          tenfoot.LibraryCache
+	cache          hostclient.LibraryCache
 	haveCache      bool
 	err            error
 	mutation       bool
@@ -45,7 +44,7 @@ type observation struct {
 
 const hostUnavailableMessage = "Host unavailable"
 
-func sessionOperationMessage(result tenfoot.SessionResult, err error) string {
+func sessionOperationMessage(result hostclient.SessionResult, err error) string {
 	code := boundedSessionCode(result.ErrorCode)
 	message := boundedSessionText(result.ErrorMessage, 120)
 	if code != "" {
@@ -136,7 +135,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		catalogLoaded = true
 		m.Message = OfflineMessage
 	}
-	m.Cache = mergeCacheStatus(c.Cache, tenfoot.LibraryCache{}, false)
+	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
 	if present != nil {
 		present(m)
 	}
@@ -247,7 +246,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}
 		go func() {
 			o := observation{epoch: e, mutation: true}
-			var r tenfoot.SessionResult
+			var r hostclient.SessionResult
 			var err error
 			if action == "launch" {
 				r, err = c.Library.Launch(ctx, id)
@@ -344,7 +343,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.haveStrip {
 					m.ApplyStrip(o.strip, o.stripLabel)
-					m.Recents = append([]tenfoot.Game(nil), o.recents...)
+					m.Recents = append([]hostclient.Game(nil), o.recents...)
 				}
 				if o.haveCache || c.Cache != nil {
 					m.Cache = mergeCacheStatus(c.Cache, o.cache, o.haveCache)
@@ -469,17 +468,17 @@ func inputStreamKey(session Session) string {
 	}
 }
 
-func loadCatalog(ctx context.Context, c *Client) ([]tenfoot.Game, error) {
-	var games []tenfoot.Game
+func loadCatalog(ctx context.Context, c *Client) ([]hostclient.Game, error) {
+	var games []hostclient.Game
 	for _, system := range catalogSystems(ctx, c) {
-		page, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Platform: system}, 10000)
+		page, err := c.Library.FetchLibrary(ctx, hostclient.GameListQuery{Platform: system}, 10000)
 		if err != nil {
 			return nil, err
 		}
 		games = append(games, page...)
 	}
 	if games == nil {
-		games = []tenfoot.Game{}
+		games = []hostclient.Game{}
 	}
 	return games, nil
 }
@@ -508,15 +507,15 @@ func catalogSystems(ctx context.Context, c *Client) []string {
 	return ids
 }
 
-func loadStrip(ctx context.Context, c *Client) ([]tenfoot.Game, string, []tenfoot.Game) {
+func loadStrip(ctx context.Context, c *Client) ([]hostclient.Game, string, []hostclient.Game) {
 	if c == nil || c.Library == nil {
 		return nil, "", nil
 	}
-	recents, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Collection: "recents", Limit: stripMax}, stripMax)
+	recents, err := c.Library.FetchLibrary(ctx, hostclient.GameListQuery{Collection: "recents", Limit: stripMax}, stripMax)
 	if err != nil {
 		recents = nil
 	}
-	favorites, err := c.Library.FetchLibrary(ctx, tenfoot.GameListQuery{Collection: "favorites", Limit: stripMax}, stripMax)
+	favorites, err := c.Library.FetchLibrary(ctx, hostclient.GameListQuery{Collection: "favorites", Limit: stripMax}, stripMax)
 	if err != nil {
 		favorites = nil
 	}

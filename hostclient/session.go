@@ -127,7 +127,7 @@ func GetSession(ctx context.Context, client *http.Client, baseURL string, maxByt
 		if result.ErrorCode != "" {
 			return result, fmt.Errorf("host API %d %s: %s", response.StatusCode, result.ErrorCode, result.ErrorMessage)
 		}
-		return result, apiStatusError(response.StatusCode, body)
+		return result, APIStatusError(response.StatusCode, body)
 	}
 	return result, nil
 }
@@ -216,7 +216,8 @@ func validSessionState(state string) bool {
 	}
 }
 
-func apiStatusError(status int, body []byte) error {
+// APIStatusError formats a structured or plain host API error response.
+func APIStatusError(status int, body []byte) error {
 	var wire struct {
 		Error struct {
 			Code    string `json:"code"`

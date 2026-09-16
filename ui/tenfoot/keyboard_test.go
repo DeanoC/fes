@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,12 +56,12 @@ func TestUSBKeyboardBrowseDetailSearchAndLaunch(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			q := r.URL.Query().Get("q")
-			games := []Game{
+			games := []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}
 			if q == "sonic" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
@@ -128,10 +129,10 @@ func TestUSBKeyboardRepeatDoesNotSurviveZX81Forward(t *testing.T) {
 	if app.repeat.held != CmdRight {
 		t.Fatalf("held = %s", app.repeat.held)
 	}
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:        "active",
 		CoreKeyboard: true,
-		Input:        &SessionInput{State: "attached", Ready: true},
+		Input:        &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	if !app.ForwardsCoreKeyboard() {
 		t.Fatal("expected fes.keyboard forward")
@@ -142,7 +143,7 @@ func TestUSBKeyboardRepeatDoesNotSurviveZX81Forward(t *testing.T) {
 	if app.repeat.held != CmdNone {
 		t.Fatalf("held after forward = %s", app.repeat.held)
 	}
-	app.session = SessionResult{State: "idle"}
+	app.session = hostclient.SessionResult{State: "idle"}
 	if got := app.Tick(now.Add(2 * (repeatDelay + repeatEvery))); isHoldable(got) {
 		t.Fatalf("ghost walk after zx81 stop: %s", got)
 	}

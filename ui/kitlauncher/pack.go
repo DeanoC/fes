@@ -1,6 +1,8 @@
 package kitlauncher
 
-import "github.com/DeanoC/FogCast/ui/tenfoot/theme"
+import (
+	"github.com/DeanoC/FogCast/ui/theme"
+)
 
 // CyclePack advances the living-room look. X is ignored during attract and
 // the search OSK so it cannot steal dismiss or search; wheel, browse, strip,

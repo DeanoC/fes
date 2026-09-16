@@ -124,9 +124,12 @@ The normal FPGA launch path is:
 ## Source boundaries
 
 FogCast keeps its host applications and target agent in one Go module, with
-the ownership visible in the source tree. The ten-foot UI is under
+the ownership visible in the source tree. The ten-foot sofa app is under
 `ui/tenfoot` and the kit launcher is under `ui/kitlauncher`; their Go package
-names remain `tenfoot` and `kitlauncher`. Host catalog/config/library and
+names remain `tenfoot` and `kitlauncher`. Shared drawing, input, theme, and
+library helpers live under `ui/shared`, `ui/anim`, `ui/audioreact`,
+`ui/fbgrid`, `ui/gfx`, `ui/inputmap`, `ui/linuxinput`, and `ui/theme`.
+`ui/kitlauncher` does not import `ui/tenfoot`. Host catalog/config/library and
 host-owned input bridges live in `host` and `internal/hostapi`;
 `targetclient` owns host-to-target HTTP/cache/core/development transport,
 endpoint reconciliation, and kit leases; target-side HTTP/cache coordination
@@ -204,7 +207,7 @@ API and wait for host reconnect; the kit UI does not claim a target lease or
 send direct target mutations while offline. D-pad browse does not take a lease.
 Its live catalog opens as a living-room platform wheel
 (horizontal clear-logo / wordmark strip plus a platform hero) and drops into
-a catalog browse view through `ui/tenfoot/fbgrid`. The default is a small
+a catalog browse view through `ui/fbgrid`. The default is a small
 4×3 cover grid; Y (North) cycles Grid → Coverflow (scaled focus row) →
 Wall (6×3 mosaic) → Split (vertical clear-logo list plus hero) → Grid
 without stealing D-pad browse or the X theme cycle. X (West) cycles
@@ -223,7 +226,7 @@ when a query is filtering the shelf, plus `FLOW`,
 wheel enters that system's browse view; East/B on the browse view returns to the wheel
 and closes search. Start opens living-room search on the current shelf (from the
 wheel it enters that system's browse first) and reuses the existing gamepad OSK
-(`ui/tenfoot` TextField): D-pad moves keys, A types, L/R page letters/symbols, B
+(`ui/shared` OSK): D-pad moves keys, A types, L/R page letters/symbols, B
 clears a non-empty query or closes, and Start/Done commits. The query is a
 case-insensitive substring of the title, or of the clear-logo wordmark fallback
 (system id) when the title is empty. An empty query restores the full shelf; no
@@ -292,7 +295,7 @@ Opening the pane, showing or hiding attract, entering or leaving the
 platform wheel, switching layout or theme pack, and opening or closing
 search play a short
 theme-driven overlay: Classic a curtain, Neon a glitch/static burst,
-Sofa Dim a wipe (`ui/tenfoot/anim`, under 400ms). `transition` `none`
+Sofa Dim a wipe (`ui/anim`, under 400ms). `transition` `none`
 in a theme file, `-no-transition`, or `FOGCAST_NO_TRANSITION=1` is an
 honest no-op. Pad input is not held while the overlay paints. Attract does not arm
 while the pane or search OSK is open. Missing description copy is omitted rather than
@@ -338,7 +341,7 @@ paint title and chrome header with Go Bold (`title_bold`, default true);
 body, caption, and status stay Go Regular unless a matching `*_bold` token
 is set. Paint
 tokens (background, highlight, flash, system palette, header/footer chrome)
-come from `ui/tenfoot/theme`: built-in `default` / pack **Classic** match
+come from `ui/theme`: built-in `default` / pack **Classic** match
 today's kit look, and **Neon** (`arcade`) / **Sofa Dim** (`night`) (or a
 JSON/TOML file) swap colours, type roles, chrome accents, and scene
 transitions without forking UI code. Select with `-theme`, `theme` in
@@ -348,7 +351,7 @@ The
 grid is a view of `kitlauncher.Model` and does not own host requests, input
 leases, or FPGA transitions. Kit input opens every eligible USB pad, merges
 their polls, and applies a JSON remap profile from
-`ui/tenfoot/inputmap` (default **identity** preserves A=launch and
+`ui/inputmap` (default **identity** preserves A=launch and
 Select+Start=stop). The FogCast virtual pad, virtual-bus devices, and
 `/dev/input/js*` duplicates stay excluded. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
 evidence belong to FES.

@@ -3,8 +3,8 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image"
-	"strings"
 )
 
 const (
@@ -95,62 +95,6 @@ func skipFailedCarousel(ids []string, failed func(string) bool, index int) int {
 		return index
 	}
 	return stepCarousel(ids, failed, index, 1)
-}
-
-// GameDetail builds focused-title metadata from a catalog row and an optional
-// presentation payload. Catalog title/system/year/genre/region/favorite come
-// from the games row; studio, players, summary, attribution, video_id, and
-// screenshot_ids come from presentation when that object is present. Play-count
-// and last-played stay off this pane; kit chrome rolls them up on the platform
-// wheel when the games payload carries those fields.
-func GameDetail(game Game, p Presentation) FocusDetail {
-	d := FocusDetail{
-		Title:    strings.TrimSpace(game.Title),
-		Platform: strings.TrimSpace(game.System),
-		Year:     strings.TrimSpace(game.Year),
-		Genre:    strings.TrimSpace(game.Genre),
-		Favorite: game.Favorite,
-	}
-	if region := strings.TrimSpace(game.Region); region != "" {
-		d.Region = dumpRegionLabel(region)
-	}
-	if p.Presentation != nil {
-		info := p.Presentation
-		if year := strings.TrimSpace(info.Year); year != "" {
-			d.Year = year
-		}
-		if genre := strings.TrimSpace(info.Genre); genre != "" {
-			d.Genre = genre
-		}
-		d.Studio = strings.TrimSpace(info.Studio)
-		d.Players = strings.TrimSpace(info.Players)
-		d.Summary = strings.TrimSpace(info.Summary)
-		d.VideoID = normalizeHandle(info.VideoID)
-		d.ScreenshotIDs = screenshotHandles(info.ScreenshotIDs)
-		d.Series = strings.TrimSpace(info.Series)
-		d.RelatedIDs = RelatedIDs(p)
-		d.Collection = strings.TrimSpace(info.Collection)
-	}
-	if d.Series == "" {
-		d.Series = strings.TrimSpace(game.Series)
-	}
-	if game.ROMCached != nil {
-		if *game.ROMCached {
-			d.Cached = "ON KIT"
-		} else {
-			d.Cached = "NEEDS ROM"
-		}
-	}
-	d.Attribution = strings.TrimSpace(p.AttributionLabel())
-	return d
-}
-
-func (d FocusDetail) studioLine() string {
-	return strings.TrimSpace(d.Studio)
-}
-
-func (d FocusDetail) playersLine() string {
-	return strings.TrimSpace(d.Players)
 }
 
 func detailHint(count int) string {
@@ -320,7 +264,7 @@ func (a *App) clampCarouselLocked() {
 }
 
 func (a *App) applyScreenshotResultLocked(result workResult) {
-	handle := normalizeHandle(result.handle)
+	handle := hostclient.NormalizeHandle(result.handle)
 	if handle == "" {
 		return
 	}

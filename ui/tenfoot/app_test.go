@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -27,17 +29,17 @@ func TestAppNavigatesAndLaunchesThroughHostAPI(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),
 					availableGame("megadrive-sonic", "Sonic", "megadrive"),
 				},
 			})
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       id,
 				State:        "ready",
-				Presentation: &PresentationInfo{CoverArtworkID: handle},
+				Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
@@ -115,7 +117,7 @@ func TestAppRecordsHostLaunchErrorWithoutTransportFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/games" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("gba-bond", "Bond", "gba")},
+				"games": []hostclient.Game{availableGame("gba-bond", "Bond", "gba")},
 			})
 			return
 		}
@@ -163,7 +165,7 @@ func TestSnapshotSharesCatalogSlice(t *testing.T) {
 	if &snap.Games[0] != &again.Games[0] {
 		t.Fatal("Snapshot cloned the catalog")
 	}
-	app.games = []Game{availableGame("snes-only", "Only", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-only", "Only", "snes")}
 	app.grid.SetCount(1)
 	replaced := app.Snapshot()
 	if len(replaced.Games) != 1 || replaced.Games[0].ID != "snes-only" {
@@ -179,15 +181,15 @@ func TestLaunchBlockReasonMirrorsWebUI(t *testing.T) {
 	ready := availableGame("snes-mario", "Mario", "snes")
 	cases := []struct {
 		name string
-		game Game
+		game hostclient.Game
 		want string
 	}{
 		{name: "ready", game: ready, want: ""},
-		{name: "browse-only", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: true, Launchable: false}, want: "This platform is browse-only on this host."},
-		{name: "missing", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
-		{name: "offline", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
-		{name: "invalid", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "invalid", RootOnline: true, Launchable: true}, want: "This ROM can't be read."},
-		{name: "not-ready", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "scanning", RootOnline: true, Launchable: true}, want: "This game isn't ready to launch."},
+		{name: "browse-only", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: true, Launchable: false}, want: "This platform is browse-only on this host."},
+		{name: "missing", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
+		{name: "offline", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
+		{name: "invalid", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "invalid", RootOnline: true, Launchable: true}, want: "This ROM can't be read."},
+		{name: "not-ready", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "scanning", RootOnline: true, Launchable: true}, want: "This game isn't ready to launch."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -202,20 +204,20 @@ func TestLaunchBlockReasonMirrorsWebUI(t *testing.T) {
 func TestAppRejectsUnavailableTitlesWithoutHostLaunch(t *testing.T) {
 	cases := []struct {
 		name string
-		game Game
+		game hostclient.Game
 		want string
 	}{
-		{name: "browse-only", game: Game{ID: "ps1-browse", Title: "Browse", System: "psx", State: "available", RootOnline: true, Launchable: false}, want: "This platform is browse-only on this host."},
-		{name: "offline", game: Game{ID: "snes-offline", Title: "Offline", System: "snes", State: "available", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
-		{name: "missing", game: Game{ID: "snes-missing", Title: "Missing", System: "snes", State: "missing", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
-		{name: "invalid", game: Game{ID: "snes-bad", Title: "Bad", System: "snes", State: "invalid", RootOnline: true, Launchable: true}, want: "This ROM can't be read."},
+		{name: "browse-only", game: hostclient.Game{ID: "ps1-browse", Title: "Browse", System: "psx", State: "available", RootOnline: true, Launchable: false}, want: "This platform is browse-only on this host."},
+		{name: "offline", game: hostclient.Game{ID: "snes-offline", Title: "Offline", System: "snes", State: "available", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
+		{name: "missing", game: hostclient.Game{ID: "snes-missing", Title: "Missing", System: "snes", State: "missing", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
+		{name: "invalid", game: hostclient.Game{ID: "snes-bad", Title: "Bad", System: "snes", State: "invalid", RootOnline: true, Launchable: true}, want: "This ROM can't be read."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var launches int
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/v1/games" {
-					_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{tc.game}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{tc.game}})
 					return
 				}
 				if r.URL.Path == "/api/v1/session/launch" {
@@ -254,7 +256,7 @@ func TestAppRejectsUnavailableTitlesWithoutHostLaunch(t *testing.T) {
 func TestAppEvictsDecodedCoversOutsidePrefetchWindow(t *testing.T) {
 	handle := strings.Repeat("cd", 32)
 	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 20, G: 80, B: 200, A: 255})
-	games := make([]Game, 80)
+	games := make([]hostclient.Game, 80)
 	for i := range games {
 		games[i] = availableGame("snes-"+strconv.Itoa(i), "Game "+strconv.Itoa(i), "snes")
 		games[i].Cover = handle
@@ -330,7 +332,7 @@ func TestAppLoadsCatalogCoverWithoutPresentationRoundTrip(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			games := []Game{
+			games := []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("snes-sonic", "Sonic", "snes"),
 				availableGame("snes-zelda", "Zelda", "snes"),
@@ -345,7 +347,7 @@ func TestAppLoadsCatalogCoverWithoutPresentationRoundTrip(t *testing.T) {
 			presentationByID[id]++
 			mu.Unlock()
 			<-holdPresentation
-			_ = json.NewEncoder(w).Encode(Presentation{GameID: id, State: "offline"})
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: id, State: "offline"})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
 			_, _ = w.Write(pngBytes)
@@ -378,7 +380,7 @@ func TestAppCyclesPlatformAndSortAgainstHostAPI(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"platforms": []Platform{
+				"platforms": []hostclient.Platform{
 					{ID: "snes", Label: "Super NES"},
 					{ID: "megadrive", Label: "Mega Drive"},
 				},
@@ -388,15 +390,15 @@ func TestAppCyclesPlatformAndSortAgainstHostAPI(t *testing.T) {
 			paths = append(paths, r.URL.RequestURI())
 			mu.Unlock()
 			platform := r.URL.Query().Get("platform")
-			games := []Game{
+			games := []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}
 			if platform == "snes" {
-				games = []Game{availableGame("snes-mario", "Mario", "snes")}
+				games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 			}
 			if platform == "megadrive" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		default:
@@ -443,9 +445,9 @@ func TestAppSearchQueriesHost(t *testing.T) {
 			paths = append(paths, r.URL.RequestURI())
 			mu.Unlock()
 			q := r.URL.Query().Get("q")
-			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			games := []hostclient.Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			if q == "sonic" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			if q != "" && q != "sonic" {
 				games = nil
@@ -518,9 +520,9 @@ func TestAppOSKTypesSearchQueryAndDoneCloses(t *testing.T) {
 			paths = append(paths, r.URL.RequestURI())
 			mu.Unlock()
 			q := r.URL.Query().Get("q")
-			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			games := []hostclient.Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			if q == "sonic" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			if q != "" && q != "sonic" {
 				games = nil
@@ -592,7 +594,7 @@ func TestAppOSKIgnoresLayoutAndPagesCharset(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/games" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 			return
 		}
@@ -622,7 +624,7 @@ func TestAppOSKIgnoresLayoutAndPagesCharset(t *testing.T) {
 	if snap.PlatformID != "" {
 		t.Fatalf("shoulder cycled platform: %q", snap.PlatformID)
 	}
-	if snap.OSK.Page != oskPageSymbols {
+	if snap.OSK.Page != shared.OSKPageSymbols {
 		t.Fatalf("shoulder should page OSK, page=%d", snap.OSK.Page)
 	}
 	app.Press(CmdBack, now)
@@ -642,9 +644,9 @@ func TestAppReloadClearsPendingSearch(t *testing.T) {
 			paths = append(paths, r.URL.RequestURI())
 			mu.Unlock()
 			q := r.URL.Query().Get("q")
-			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			games := []hostclient.Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			if q == "sonic" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			if q != "" && q != "sonic" {
 				games = nil
@@ -710,17 +712,17 @@ func TestAppFocusDetailUsesPresentation(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
 			game.Year = "1990"
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case r.URL.Path == "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"platforms": []Platform{{ID: "snes", Label: "Super NES"}},
+				"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       "snes-mario",
 				State:        "ready",
-				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Presentation: &hostclient.PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
+				Attribution:  &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -774,13 +776,13 @@ func TestAppBacksOffFailedPresentationRetries(t *testing.T) {
 					if tc.withCover {
 						game.Cover = handle
 					}
-					_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 					mu.Lock()
 					presentationGets++
 					mu.Unlock()
 					if tc.offline {
-						_ = json.NewEncoder(w).Encode(Presentation{GameID: "snes-mario", State: "offline"})
+						_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: "snes-mario", State: "offline"})
 						return
 					}
 					http.Error(w, "temporary", http.StatusInternalServerError)
@@ -851,13 +853,13 @@ func TestAppDoesNotRequeueFailedArtwork(t *testing.T) {
 				switch {
 				case r.URL.Path == "/api/v1/games":
 					_ = json.NewEncoder(w).Encode(map[string]any{
-						"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+						"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 					})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
-					_ = json.NewEncoder(w).Encode(Presentation{
+					_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 						GameID:       "snes-mario",
 						State:        "ready",
-						Presentation: &PresentationInfo{CoverArtworkID: handle, Summary: "Jump on turtles."},
+						Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle, Summary: "Jump on turtles."},
 					})
 				case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 					mu.Lock()
@@ -908,15 +910,15 @@ func TestAppDoesNotRequeueFailedArtworkDuringOfflineDetailRetry(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
 			game.Cover = handle
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
 			presentationGets++
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       "snes-mario",
 				State:        "offline",
-				Presentation: &PresentationInfo{CoverArtworkID: handle},
+				Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle},
 			})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			mu.Lock()
@@ -988,7 +990,7 @@ func TestAppAdoptsChangedPresentationCoverWhenReady(t *testing.T) {
 				case r.URL.Path == "/api/v1/games":
 					game := availableGame("snes-mario", "Mario", "snes")
 					game.Cover = oldHandle
-					_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 					mu.Lock()
 					presentationGets++
@@ -999,14 +1001,14 @@ func TestAppAdoptsChangedPresentationCoverWhenReady(t *testing.T) {
 					}
 					mu.Unlock()
 					if !done {
-						_ = json.NewEncoder(w).Encode(Presentation{GameID: "snes-mario", State: "offline"})
+						_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: "snes-mario", State: "offline"})
 						return
 					}
-					pres := Presentation{
+					pres := hostclient.Presentation{
 						GameID:       "snes-mario",
 						State:        "ready",
-						Presentation: &PresentationInfo{CoverArtworkID: cover, Summary: "Jump on turtles."},
-						Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+						Presentation: &hostclient.PresentationInfo{CoverArtworkID: cover, Summary: "Jump on turtles."},
+						Attribution:  &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 					}
 					_ = json.NewEncoder(w).Encode(pres)
 				case r.URL.Path == "/api/v1/presentation/artwork/"+oldHandle:
@@ -1098,7 +1100,7 @@ func TestAppAdoptsChangedPresentationCoverOnRetry(t *testing.T) {
 				case r.URL.Path == "/api/v1/games":
 					game := availableGame("snes-mario", "Mario", "snes")
 					game.Cover = oldHandle
-					_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 					mu.Lock()
 					presentationGets++
@@ -1108,14 +1110,14 @@ func TestAppAdoptsChangedPresentationCoverOnRetry(t *testing.T) {
 						cover = tc.nextCover
 					}
 					mu.Unlock()
-					pres := Presentation{
+					pres := hostclient.Presentation{
 						GameID:       "snes-mario",
 						State:        "ready",
-						Presentation: &PresentationInfo{CoverArtworkID: cover},
+						Presentation: &hostclient.PresentationInfo{CoverArtworkID: cover},
 					}
 					if done {
 						pres.Presentation.Summary = "Jump on turtles."
-						pres.Attribution = &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
+						pres.Attribution = &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
 					}
 					_ = json.NewEncoder(w).Encode(pres)
 				case r.URL.Path == "/api/v1/presentation/artwork/"+oldHandle:
@@ -1190,7 +1192,7 @@ func TestAppRetriesPresentationDetailsAfterFailedFetch(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
@@ -1201,11 +1203,11 @@ func TestAppRetriesPresentationDetailsAfterFailedFetch(t *testing.T) {
 				http.Error(w, "temporary", http.StatusInternalServerError)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       "snes-mario",
 				State:        "ready",
-				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Presentation: &hostclient.PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
+				Attribution:  &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -1238,7 +1240,7 @@ func TestAppRetriesPresentationDetailsAfterOfflineState(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
@@ -1246,14 +1248,14 @@ func TestAppRetriesPresentationDetailsAfterOfflineState(t *testing.T) {
 			stillOffline := offline
 			mu.Unlock()
 			if stillOffline {
-				_ = json.NewEncoder(w).Encode(Presentation{GameID: "snes-mario", State: "offline"})
+				_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: "snes-mario", State: "offline"})
 				return
 			}
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       "snes-mario",
 				State:        "ready",
-				Presentation: &PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
-				Attribution:  &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Presentation: &hostclient.PresentationInfo{Summary: "Jump on turtles.", Year: "1985", Genre: "Platform"},
+				Attribution:  &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		default:
 			http.NotFound(w, r)
@@ -1289,22 +1291,22 @@ func TestAppRetriesReadyPresentationWithoutAttribution(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
 			game.Cover = handle
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
 			presentationGets++
 			fallback := readyOffline
 			mu.Unlock()
-			pres := Presentation{
+			pres := hostclient.Presentation{
 				GameID:       "snes-mario",
 				State:        "ready",
-				Presentation: &PresentationInfo{CoverArtworkID: handle},
+				Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle},
 			}
 			if !fallback {
 				pres.Presentation.Summary = "Jump on turtles."
 				pres.Presentation.Year = "1985"
 				pres.Presentation.Genre = "Platform"
-				pres.Attribution = &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
+				pres.Attribution = &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}
 			}
 			_ = json.NewEncoder(w).Encode(pres)
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
@@ -1354,13 +1356,13 @@ func TestAppCachesDisabledPresentationWithoutRetry(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			mu.Lock()
 			presentationGets++
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(Presentation{GameID: "snes-mario", State: "disabled"})
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: "snes-mario", State: "disabled"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -1403,15 +1405,15 @@ func TestAppCachesTerminalPresentationWithLocalMediaWithoutRetry(t *testing.T) {
 				case r.URL.Path == "/api/v1/games":
 					game := availableGame("snes-mario", "Mario", "snes")
 					game.Cover = handle
-					_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+					_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 				case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 					mu.Lock()
 					presentationGets++
 					mu.Unlock()
-					_ = json.NewEncoder(w).Encode(Presentation{
+					_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 						GameID:       "snes-mario",
 						State:        state,
-						Presentation: &PresentationInfo{CoverArtworkID: handle},
+						Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle},
 					})
 				case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 					w.Header().Set("Content-Type", "image/png")
@@ -1471,9 +1473,9 @@ func TestPresentationCompleteTreatsReadyWithoutAttributionAsOffline(t *testing.T
 
 func TestRestoreCatalogFocusKeepsIDThenClamps(t *testing.T) {
 	t.Parallel()
-	page1 := []Game{availableGame("a", "A", "snes")}
-	page2 := append(append([]Game{}, page1...), availableGame("b", "B", "snes"))
-	all := append(append([]Game{}, page2...), availableGame("c", "C", "snes"))
+	page1 := []hostclient.Game{availableGame("a", "A", "snes")}
+	page2 := append(append([]hostclient.Game{}, page1...), availableGame("b", "B", "snes"))
+	all := append(append([]hostclient.Game{}, page2...), availableGame("c", "C", "snes"))
 	if got := restoreCatalogFocus(page1, "c", 2); got != 0 {
 		t.Fatalf("page1 clamp = %d", got)
 	}
@@ -1494,8 +1496,8 @@ func TestRestoreCatalogFocusKeepsIDThenClamps(t *testing.T) {
 func TestApplyCatalogPageRetainsNavDirtyAfterReturnToRestoredIndex(t *testing.T) {
 	t.Parallel()
 	app := NewApp(nil, 1280, 720, 10)
-	page1 := []Game{availableGame("a", "A", "snes")}
-	page2 := []Game{availableGame("a", "A", "snes"), availableGame("b", "B", "snes")}
+	page1 := []hostclient.Game{availableGame("a", "A", "snes")}
+	page2 := []hostclient.Game{availableGame("a", "A", "snes"), availableGame("b", "B", "snes")}
 	app.loading = true
 	app.keepFocusID = "c"
 	app.keepFocusIndex = 2
@@ -1531,7 +1533,7 @@ func TestAppKeepsFocusAcrossPaginatedReload(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -1542,7 +1544,7 @@ func TestAppKeepsFocusAcrossPaginatedReload(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		next := ""
@@ -1550,7 +1552,7 @@ func TestAppKeepsFocusAcrossPaginatedReload(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -1605,11 +1607,11 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 		mu.Unlock()
 		if q == "sonic" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")},
+				"games": []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")},
 			})
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -1619,7 +1621,7 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		if idx == 1 {
@@ -1630,7 +1632,7 @@ func TestAppPaginationKeepsQueryWhileSearchPending(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -1701,7 +1703,7 @@ func TestAppKeepsUserNavDuringInitialPagination(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -1712,7 +1714,7 @@ func TestAppKeepsUserNavDuringInitialPagination(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		switch idx {
@@ -1726,7 +1728,7 @@ func TestAppKeepsUserNavDuringInitialPagination(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -1775,7 +1777,7 @@ func TestAppKeepsUserNavDuringPaginatedReload(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -1786,7 +1788,7 @@ func TestAppKeepsUserNavDuringPaginatedReload(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		mu.Lock()
@@ -1806,7 +1808,7 @@ func TestAppKeepsUserNavDuringPaginatedReload(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -1861,7 +1863,7 @@ func TestAppBlocksLaunchWhileCatalogReloading(t *testing.T) {
 				<-holdReload
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-alpha", "Alpha", "snes"),
 					availableGame("snes-bravo", "Bravo", "snes"),
 				},
@@ -1919,11 +1921,11 @@ func TestAppClampsFocusWhenReloadedIDMissing(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/platforms":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"platforms": []Platform{{ID: "snes", Label: "Super NES"}, {ID: "megadrive", Label: "Mega Drive"}},
+				"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}, {ID: "megadrive", Label: "Mega Drive"}},
 			})
 		case r.URL.Path == "/api/v1/games":
 			platform := r.URL.Query().Get("platform")
-			games := []Game{
+			games := []hostclient.Game{
 				availableGame("snes-alpha", "Alpha", "snes"),
 				availableGame("snes-bravo", "Bravo", "snes"),
 				availableGame("megadrive-charlie", "Charlie", "megadrive"),
@@ -1937,7 +1939,7 @@ func TestAppClampsFocusWhenReloadedIDMissing(t *testing.T) {
 				idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 			}
 			if idx < 0 || idx >= len(games) {
-				_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+				_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 				return
 			}
 			next := ""
@@ -1945,7 +1947,7 @@ func TestAppClampsFocusWhenReloadedIDMissing(t *testing.T) {
 				next = "p" + strconv.Itoa(idx+1)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games":       []Game{games[idx]},
+				"games":       []hostclient.Game{games[idx]},
 				"next_cursor": next,
 			})
 		default:
@@ -1987,9 +1989,9 @@ func TestAppSelectClosesSearchFlushesBeforeLaunch(t *testing.T) {
 			if q != "" {
 				<-holdSearch
 			}
-			games := []Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
+			games := []hostclient.Game{availableGame("snes-mario", "Mario", "snes"), availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			if q == "sonic" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			if q != "" && q != "sonic" {
 				games = nil
@@ -2077,7 +2079,7 @@ func TestAppCancelsSupersededCatalogRequest(t *testing.T) {
 			}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{availableGame("snes-alpha", "Alpha", "snes")},
+			"games": []hostclient.Game{availableGame("snes-alpha", "Alpha", "snes")},
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -2114,7 +2116,7 @@ func TestAppCancelsSupersededCoverWork(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-alpha", "Alpha", "snes")
 			game.Cover = handle
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			select {
 			case <-blocked:
@@ -2175,7 +2177,7 @@ func TestAppCancelsSupersededPresentationWork(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-alpha", "Alpha", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-alpha", "Alpha", "snes")}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			select {
 			case <-blocked:
@@ -2193,14 +2195,14 @@ func TestAppCancelsSupersededPresentationWork(t *testing.T) {
 					return
 				}
 			}
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "snes-alpha",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					CoverArtworkID: handle,
 					Summary:        "Alpha",
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
@@ -2246,7 +2248,7 @@ func TestGPUParkCancelsInFlightPresentationWork(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-alpha", "Alpha", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-alpha", "Alpha", "snes")}})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			select {
 			case <-blocked:
@@ -2264,14 +2266,14 @@ func TestGPUParkCancelsInFlightPresentationWork(t *testing.T) {
 					return
 				}
 			}
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "snes-alpha",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					CoverArtworkID: handle,
 					Summary:        "Alpha",
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
@@ -2374,13 +2376,13 @@ func TestWorkerRejectsStaleMediaJobBeforeIO(t *testing.T) {
 		case r.URL.Path == "/api/v1/games":
 			game := availableGame("snes-mario", "Mario", "snes")
 			game.Cover = handle
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{game}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
 		case r.URL.Path == "/api/v1/presentation/games/"+stalePresID:
 			stalePresentationGets.Add(1)
 			http.NotFound(w, r)
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
-			_ = json.NewEncoder(w).Encode(Presentation{GameID: id, State: "offline"})
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: id, State: "offline"})
 		case r.URL.Path == "/api/v1/presentation/artwork/"+staleHandle:
 			staleArtworkGets.Add(1)
 			http.NotFound(w, r)
@@ -2445,7 +2447,7 @@ func TestAppOverlappingReloadKeepsPreClearFocus(t *testing.T) {
 			<-holdReload
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{
+			"games": []hostclient.Game{
 				availableGame("snes-alpha", "Alpha", "snes"),
 				availableGame("snes-bravo", "Bravo", "snes"),
 				availableGame("snes-charlie", "Charlie", "snes"),
@@ -2495,7 +2497,7 @@ func TestAppKeepsFocusWhenCyclingDuringPartialReload(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -2506,7 +2508,7 @@ func TestAppKeepsFocusWhenCyclingDuringPartialReload(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		mu.Lock()
@@ -2526,7 +2528,7 @@ func TestAppKeepsFocusWhenCyclingDuringPartialReload(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -2578,7 +2580,7 @@ func TestAppRecapturesFocusWhenUserMovesDuringPartialReload(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -2589,7 +2591,7 @@ func TestAppRecapturesFocusWhenUserMovesDuringPartialReload(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		mu.Lock()
@@ -2609,7 +2611,7 @@ func TestAppRecapturesFocusWhenUserMovesDuringPartialReload(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -2664,7 +2666,7 @@ func TestAppRecapturesFocusWhenUserReturnsToRestoredIndex(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -2675,7 +2677,7 @@ func TestAppRecapturesFocusWhenUserReturnsToRestoredIndex(t *testing.T) {
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		mu.Lock()
@@ -2695,7 +2697,7 @@ func TestAppRecapturesFocusWhenUserReturnsToRestoredIndex(t *testing.T) {
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -2755,7 +2757,7 @@ func TestAppKeepsUserNavWhenReturningToClampedIndexDuringPagination(t *testing.T
 			http.NotFound(w, r)
 			return
 		}
-		games := []Game{
+		games := []hostclient.Game{
 			availableGame("snes-alpha", "Alpha", "snes"),
 			availableGame("snes-bravo", "Bravo", "snes"),
 			availableGame("snes-charlie", "Charlie", "snes"),
@@ -2766,7 +2768,7 @@ func TestAppKeepsUserNavWhenReturningToClampedIndexDuringPagination(t *testing.T
 			idx, _ = strconv.Atoi(strings.TrimPrefix(cursor, "p"))
 		}
 		if idx < 0 || idx >= len(games) {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 			return
 		}
 		mu.Lock()
@@ -2786,7 +2788,7 @@ func TestAppKeepsUserNavWhenReturningToClampedIndexDuringPagination(t *testing.T
 			next = "p" + strconv.Itoa(idx+1)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games":       []Game{games[idx]},
+			"games":       []hostclient.Game{games[idx]},
 			"next_cursor": next,
 		})
 	}))
@@ -2843,11 +2845,11 @@ func TestAppRetriesFailedPlatformListAndSurfacesStatus(t *testing.T) {
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"platforms": []Platform{{ID: "snes", Label: "Super NES"}, {ID: "megadrive", Label: "Mega Drive"}},
+				"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}, {ID: "megadrive", Label: "Mega Drive"}},
 			})
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		default:
 			http.NotFound(w, r)
@@ -2888,7 +2890,7 @@ func TestAppBacksOffFailedPlatformListRetriesUntilShoulderKick(t *testing.T) {
 			http.Error(w, "temporary", http.StatusInternalServerError)
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		default:
 			http.NotFound(w, r)
@@ -2929,15 +2931,15 @@ func TestAppBacksOffFailedPlatformListRetriesUntilShoulderKick(t *testing.T) {
 
 func TestFocusDetailMetaLineAndWrap(t *testing.T) {
 	t.Parallel()
-	got := FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}.MetaLine()
+	got := shared.FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform"}.MetaLine()
 	if got != "Super NES  ·  1985  ·  Platform" {
 		t.Fatalf("meta = %q", got)
 	}
-	got = FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform", Attribution: "Data from IGDB.com"}.MetaLine()
+	got = shared.FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform", Attribution: "Data from IGDB.com"}.MetaLine()
 	if got != "Super NES  ·  1985  ·  Platform  ·  Data from IGDB.com" {
 		t.Fatalf("attributed meta = %q", got)
 	}
-	facts := FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform", Attribution: "Data from IGDB.com"}.MetaFacts()
+	facts := shared.FocusDetail{Platform: "Super NES", Year: "1985", Genre: "Platform", Attribution: "Data from IGDB.com"}.MetaFacts()
 	if facts != "Super NES  ·  1985  ·  Platform" {
 		t.Fatalf("facts = %q", facts)
 	}
@@ -2949,7 +2951,7 @@ func TestFocusDetailMetaLineAndWrap(t *testing.T) {
 
 func TestLayoutDetailMetaReservesAttribution(t *testing.T) {
 	t.Parallel()
-	d := FocusDetail{
+	d := shared.FocusDetail{
 		Platform:    "Super Nintendo Entertainment System",
 		Year:        "1985",
 		Genre:       "Platform",
@@ -2994,11 +2996,11 @@ func waitSnapshot(t *testing.T, app *App, d time.Duration, ok func(Snapshot) boo
 	t.Fatalf("timeout status=%q err=%q games=%d platform=%q sort=%q query=%q collection=%q view=%q detail=%#v", snap.Status, snap.LoadErr, len(snap.Games), snap.PlatformID, snap.Sort, snap.Query, snap.Collection, snap.ViewLabel, snap.FocusDetail)
 }
 
-func availableGame(id, title, system string) Game {
-	return Game{ID: id, Title: title, System: system, Launchable: true, State: "available", RootOnline: true}
+func availableGame(id, title, system string) hostclient.Game {
+	return hostclient.Game{ID: id, Title: title, System: system, Launchable: true, State: "available", RootOnline: true}
 }
 
-func gameIDInRange(games []Game, start, end int, id string) bool {
+func gameIDInRange(games []hostclient.Game, start, end int, id string) bool {
 	if start < 0 {
 		start = 0
 	}

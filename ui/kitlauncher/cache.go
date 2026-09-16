@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,8 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 const (
@@ -28,13 +27,11 @@ const (
 
 	connectingMessage = "Connecting to FogCast"
 
-	catalogFileName  = "catalog.json"
-	coversDirName    = "covers"
-	catalogFormat    = 1
-	maxCatalogBytes  = 32 << 20
-	maxCoverBytes    = 8 << 20
-	artworkHandleLen = 64
-
+	catalogFileName = "catalog.json"
+	coversDirName   = "covers"
+	catalogFormat   = 1
+	maxCatalogBytes = 32 << 20
+	maxCoverBytes   = 8 << 20
 	// DefaultCoverMaxBytes is the FAT cover budget under launcher-cache.
 	// It is separate from ROM cache_max_bytes (2GiB) and never uses targetcache.
 	DefaultCoverMaxBytes int64 = 512 << 20
@@ -43,20 +40,20 @@ const (
 // CatalogSnapshot is the last-good kit browse list written after a successful
 // host catalog fetch.
 type CatalogSnapshot struct {
-	Games      []tenfoot.Game
-	Strip      []tenfoot.Game
+	Games      []hostclient.Game
+	Strip      []hostclient.Game
 	StripLabel string
-	Recents    []tenfoot.Game
+	Recents    []hostclient.Game
 	SavedUnix  int64
 }
 
 type catalogFile struct {
-	Format     int            `json:"format"`
-	SavedUnix  int64          `json:"saved_unix,omitempty"`
-	Games      []tenfoot.Game `json:"games"`
-	Strip      []tenfoot.Game `json:"strip,omitempty"`
-	StripLabel string         `json:"strip_label,omitempty"`
-	Recents    []tenfoot.Game `json:"recents,omitempty"`
+	Format     int               `json:"format"`
+	SavedUnix  int64             `json:"saved_unix,omitempty"`
+	Games      []hostclient.Game `json:"games"`
+	Strip      []hostclient.Game `json:"strip,omitempty"`
+	StripLabel string            `json:"strip_label,omitempty"`
+	Recents    []hostclient.Game `json:"recents,omitempty"`
 }
 
 // DiskStore is the durable launcher-cache under FAT. Catalog replace is
@@ -135,7 +132,7 @@ func (s *DiskStore) LoadCatalog() (CatalogSnapshot, bool) {
 		return CatalogSnapshot{}, false
 	}
 	if file.Games == nil {
-		file.Games = []tenfoot.Game{}
+		file.Games = []hostclient.Game{}
 	}
 	snap := CatalogSnapshot{
 		Games:      file.Games,
@@ -161,7 +158,7 @@ func (s *DiskStore) SaveCatalog(snap CatalogSnapshot) error {
 		return errors.New("launcher cache unavailable")
 	}
 	if snap.Games == nil {
-		snap.Games = []tenfoot.Game{}
+		snap.Games = []hostclient.Game{}
 	}
 	key := snapshotKey(snap)
 	path := filepath.Join(s.root, catalogFileName)
@@ -309,7 +306,7 @@ func (s *DiskStore) recountCoversLocked() {
 		if !ent.Type().IsRegular() {
 			continue
 		}
-		if normalizeArtworkHandle(ent.Name()) == "" {
+		if hostclient.NormalizeHandle(ent.Name()) == "" {
 			continue
 		}
 		info, err := ent.Info()
@@ -335,7 +332,7 @@ func (s *DiskStore) evictCoversLocked() {
 			continue
 		}
 		handle := ent.Name()
-		if normalizeArtworkHandle(handle) == "" {
+		if hostclient.NormalizeHandle(handle) == "" {
 			continue
 		}
 		info, err := ent.Info()
@@ -375,7 +372,7 @@ func (s *DiskStore) evictCoversLocked() {
 }
 
 func (s *DiskStore) coverPath(handle string) (string, error) {
-	handle = normalizeArtworkHandle(handle)
+	handle = hostclient.NormalizeHandle(handle)
 	if handle == "" {
 		return "", errors.New("artwork handle is invalid")
 	}
@@ -389,10 +386,10 @@ func (s *DiskStore) coverPath(handle string) (string, error) {
 
 func snapshotKey(snap CatalogSnapshot) string {
 	type key struct {
-		Games      []tenfoot.Game `json:"games"`
-		Strip      []tenfoot.Game `json:"strip"`
-		StripLabel string         `json:"strip_label"`
-		Recents    []tenfoot.Game `json:"recents"`
+		Games      []hostclient.Game `json:"games"`
+		Strip      []hostclient.Game `json:"strip"`
+		StripLabel string            `json:"strip_label"`
+		Recents    []hostclient.Game `json:"recents"`
 	}
 	data, err := json.Marshal(key{
 		Games:      snap.Games,
@@ -419,19 +416,6 @@ func writeAtomic(path string, data []byte) error {
 	return nil
 }
 
-func normalizeArtworkHandle(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if len(value) != artworkHandleLen {
-		return ""
-	}
-	for _, r := range value {
-		if r < '0' || r > '9' && (r < 'a' || r > 'f') {
-			return ""
-		}
-	}
-	return value
-}
-
 func applyLocalSnapshot(m *Model, c *Client) bool {
 	if m == nil || c == nil || c.Cache == nil {
 		return false
@@ -442,7 +426,7 @@ func applyLocalSnapshot(m *Model, c *Client) bool {
 	}
 	m.SetCatalog(snap.Games)
 	m.SetStrip(snap.Strip, snap.StripLabel)
-	m.Recents = append([]tenfoot.Game(nil), snap.Recents...)
+	m.Recents = append([]hostclient.Game(nil), snap.Recents...)
 	return true
 }
 
@@ -453,7 +437,7 @@ func persistSnapshot(c *Client, snap CatalogSnapshot) {
 	_ = c.Cache.SaveCatalog(snap)
 }
 
-func mergeCacheStatus(store *DiskStore, host tenfoot.LibraryCache, haveHost bool) CacheStatus {
+func mergeCacheStatus(store *DiskStore, host hostclient.LibraryCache, haveHost bool) CacheStatus {
 	out := CacheStatus{}
 	if store != nil {
 		local := store.Status()

@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 )
 
@@ -109,14 +110,14 @@ func oskHintFor(kind InputKind, page int) string {
 	switch kind {
 	case InputKeyboard:
 		charset := "Tab symbols"
-		if page == oskPageSymbols {
+		if page == shared.OSKPageSymbols {
 			charset = "Tab letters"
 		}
 		return "type  Enter done  Esc close  " + charset
 	case InputMouse:
 		return "click type  click empty close"
 	default:
-		return oskHint(page)
+		return shared.OSKHint(page)
 	}
 }
 

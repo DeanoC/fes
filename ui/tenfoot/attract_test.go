@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"image/color"
 	"io"
@@ -23,7 +24,7 @@ func TestAppEntersAttractAndDismissesOnInput(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),
 					availableGame("megadrive-sonic", "Sonic", "megadrive"),
 				},
@@ -83,7 +84,7 @@ func TestAppSkipsAttractWhileSessionActive(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			attractCalls.Add(1)
@@ -124,7 +125,7 @@ func TestAppSkipsAttractWhenDisabledOrModal(t *testing.T) {
 		}
 		if r.URL.Path == "/api/v1/games" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 			return
 		}
@@ -167,7 +168,7 @@ func TestAppAttractSelectLaunchesLaunchableItem(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -287,7 +288,7 @@ func TestAppHydratesHostIdleBeforeEnteringAttract(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -341,7 +342,7 @@ func TestAppPlaysVideoOnlyAttractEntries(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -385,7 +386,7 @@ func TestAppFallsBackToStillWhenAttractVideoFails(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -433,7 +434,7 @@ func TestAppFallsBackToStillWhenAttractVideoEndsBeforeFirstFrame(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -481,7 +482,7 @@ func TestAppDismissTearsDownAttractVideo(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -532,7 +533,7 @@ func TestAppCancelsInFlightAttractVideoFetchOnDismiss(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -618,7 +619,7 @@ func TestAppDoesNotRestartAttractVideoFetchBeforeFirstFrame(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -712,7 +713,7 @@ func TestAppShowsStillRowAfterFailedVideoOnly(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),
 					availableGame("megadrive-sonic", "Sonic", "megadrive"),
 				},
@@ -769,7 +770,7 @@ func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -817,7 +818,7 @@ func TestPendingSouthHoldDoesNotLaunchAttractItem(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),
 					availableGame("megadrive-sonic", "Sonic", "megadrive"),
 				},
@@ -897,7 +898,7 @@ func TestAppSkipsAttractWhileLaunchInFlight(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -970,7 +971,7 @@ func TestAppAllowsAttractAfterRejectedHostLaunch(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1019,7 +1020,7 @@ func TestAppRefreshesDecreasedHostIdleBeforeCachedDeadline(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1067,7 +1068,7 @@ func TestAppFallsBackWhenAttractArtworkFails(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1113,7 +1114,7 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			attractCalls.Add(1)
@@ -1199,7 +1200,7 @@ func TestTickAttractSkipsCatchUpVideoAfterPlaybackCap(t *testing.T) {
 	app.attractVideo = true
 	app.attractPlayer = player
 	app.attractHandle = strings.Repeat("aa", 32)
-	app.attractItems = []AttractItem{
+	app.attractItems = []hostclient.AttractItem{
 		{GameID: "a", Title: "A", Video: strings.Repeat("aa", 32), Launchable: true},
 		{GameID: "b", Title: "B", Video: strings.Repeat("bb", 32), Launchable: true},
 	}
@@ -1263,7 +1264,7 @@ func TestAppRestartsAttractVideoFromCachedFile(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1346,7 +1347,7 @@ func TestAppRestartsSingleAttractVideoWhenClipEnds(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/attract":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1387,7 +1388,7 @@ func TestPlayableAttractItemsKeepsVideoOnly(t *testing.T) {
 	t.Parallel()
 	cover := strings.Repeat("ab", 32)
 	video := strings.Repeat("cd", 32)
-	items := playableAttractItems([]AttractItem{
+	items := playableAttractItems([]hostclient.AttractItem{
 		{Title: "video", Video: video},
 		{Title: "still", Cover: cover},
 		{Title: "empty"},

@@ -5,7 +5,7 @@
 The callback receives `kitlauncher.Model`: the loaded catalog, the active system
 shelf, the filtered games list, selected index, connection and
 session status, controller presence and a readable message. This boundary lets
-the renderer use the shared `ui/tenfoot/fbgrid` primitive without owning
+the renderer use the shared `ui/fbgrid` primitive without owning
 network, input leases, or FPGA transitions. The kit view pages the live catalog
 as a 4×3 grid, a coverflow focus row, a 6×3 cover wall, or a split list plus
 hero; the standalone `tenfoot-linuxfb-grid` command remains a hardcoded
@@ -51,7 +51,7 @@ pad and keeps any remaining pads; a one-second rescan from the 16ms loop picks
 up a newly plugged pad without blocking present. When the last pad disconnects,
 the launcher reopens as before.
 
-Remapping lives in `ui/tenfoot/inputmap`. The default **identity** profile
+Remapping lives in `ui/inputmap`. The default **identity** profile
 leaves codes unchanged, so A still launches and Select+Start still stops.
 `-input-profile` (then optional `input_profile` in `launcher.json`, then
 `FOGCAST_INPUT_PROFILE`) selects a built-in name (`identity`, `swap-ab`) or a
@@ -70,7 +70,7 @@ Bindings are a single lookup of logical names (`a`, `b`, `start`, `select`,
 names. The same remapper is what linuxinput-derived paths and the tenfoot
 `CommandFromLogical` adapter apply. There is no on-screen editor in this slice.
 
-Look tokens live in `ui/tenfoot/theme`. Built-in **default** / pack **Classic**
+Look tokens live in `ui/theme`. Built-in **default** / pack **Classic**
 keep the current kit pixels (highlight BGRX 0,220,255,0, flash white, system
 palette). **Neon** (`arcade`) and **Sofa Dim** (`night`) are named living-room
 packs: colours, type roles, chrome accents, and a scene `transition`
@@ -111,7 +111,7 @@ and a hero for the focused system. D-pad, left stick, Shoulder L/R, and Select
 cycle platforms; A/South enters the filtered catalog browse (default 4×3 grid).
 East/B on browse returns to the wheel and closes search. Start is the search
 chord on browse (and from the wheel or title pane): it opens the existing
-gamepad OSK from `ui/tenfoot` and filters the current shelf by a
+gamepad OSK from `ui/shared` and filters the current shelf by a
 case-insensitive substring of the title, or of the clear-logo wordmark fallback
 (system id) when the title is empty. D-pad moves keys while the OSK is open; A
 types; L/R page letters and symbols; B clears a non-empty query or closes; Start
@@ -294,7 +294,7 @@ stills-backed rows with a video handle paint a 2×2 wall. Empty playlists
 paint a themed idle panel instead of hanging on the grid. Video bytes are not
 fetched on kit.
 
-Run `go test -race ./ui/kitlauncher/... ./ui/tenfoot/inputmap ./ui/tenfoot/theme ./ui/tenfoot/fbgrid ./ui/tenfoot/gfx ./ui/tenfoot/anim ./cmd/fogcast-kit` for adapter tests. They
+Run `go test -race ./ui/kitlauncher/... ./ui/shared ./ui/inputmap ./ui/theme ./ui/fbgrid ./ui/gfx ./ui/anim ./cmd/fogcast-kit` for adapter tests. They
 exercise real HTTP transports with isolated servers and never open real input or
 framebuffer devices. On the kit, `fogcast-kit -selftest-boxes` paints a focused 3D box over a 2D
 cover, a cover perspective when the 3D handle is missing, hides both when no

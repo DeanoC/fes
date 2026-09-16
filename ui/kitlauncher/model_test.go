@@ -1,17 +1,16 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
 )
 
 func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
-	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}, {ID: "sonic", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}, {ID: "sonic", Launchable: true}}, Connected: true, TargetReady: true}
 	right, _ := remoteinput.NormalizeAxis("left-x", 32767)
 	m.Input(right, time.Now())
 	if m.Focus != 1 {
@@ -39,8 +38,8 @@ func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
 
 func TestSessionChromeDoesNotStealEastOrStart(t *testing.T) {
 	m := Model{
-		Games:     []tenfoot.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
-		Catalog:   []tenfoot.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
+		Games:     []hostclient.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
+		Catalog:   []hostclient.Game{{ID: "sonic", Title: "Sonic 2", Launchable: true}},
 		Connected: true, TargetReady: true,
 	}
 	m.Session.State = "active"
@@ -69,7 +68,7 @@ func TestSessionChromeDoesNotStealEastOrStart(t *testing.T) {
 
 func TestPlaySessionKeyboardDoesNotStealBrowse(t *testing.T) {
 	m := Model{
-		Games:     []tenfoot.Game{{ID: "sonic", Launchable: true}, {ID: "pong", Launchable: true}},
+		Games:     []hostclient.Game{{ID: "sonic", Launchable: true}, {ID: "pong", Launchable: true}},
 		Connected: true, TargetReady: true,
 	}
 	m.Session.State = "active"
@@ -173,17 +172,17 @@ func TestAnalogStickRisingEdgeDoesNotSpam(t *testing.T) {
 	}
 }
 
-func makeGames(n int) []tenfoot.Game {
-	games := make([]tenfoot.Game, n)
+func makeGames(n int) []hostclient.Game {
+	games := make([]hostclient.Game, n)
 	for i := range games {
-		games[i] = tenfoot.Game{ID: "g" + string(rune('a'+i%26)), Launchable: true}
+		games[i] = hostclient.Game{ID: "g" + string(rune('a'+i%26)), Launchable: true}
 	}
 	return games
 }
 
 func TestIdentityRemapStillLaunchesOnA(t *testing.T) {
 	r := mustRemapper(t, "")
-	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if action := m.Input(r.Apply(a), time.Now()); action != "launch" {
 		t.Fatalf("identity launch %q", action)
@@ -192,7 +191,7 @@ func TestIdentityRemapStillLaunchesOnA(t *testing.T) {
 
 func TestSwapABRemapLaunchesOnB(t *testing.T) {
 	r := mustRemapper(t, "swap-ab")
-	m := Model{Games: []tenfoot.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if action := m.Input(r.Apply(a), time.Now()); action != "" {
 		t.Fatalf("A launched under swap-ab: %q", action)
@@ -216,8 +215,8 @@ func mustRemapper(t *testing.T, spec string) *inputmap.Remapper {
 	return r
 }
 
-func mixedCatalog() []tenfoot.Game {
-	return []tenfoot.Game{
+func mixedCatalog() []hostclient.Game {
+	return []hostclient.Game{
 		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 		{ID: "streets", Title: "Streets", System: "megadrive", Launchable: true},
@@ -320,12 +319,12 @@ func TestCycleShelfResetsWhenFocusLeaves(t *testing.T) {
 }
 
 func TestCycleShelfLandsOnFirstLaunchable(t *testing.T) {
-	games := []tenfoot.Game{
+	games := []hostclient.Game{
 		{ID: "locked", System: "snes", Launchable: false},
 		{ID: "mario", System: "snes", Launchable: true},
 	}
 	m := Model{Connected: true, TargetReady: true}
-	m.SetCatalog(append([]tenfoot.Game{{ID: "pong", System: "pong", Launchable: true}}, games...))
+	m.SetCatalog(append([]hostclient.Game{{ID: "pong", System: "pong", Launchable: true}}, games...))
 	now := time.Now()
 	r, _ := remoteinput.NormalizeGamepad("r", true)
 	m.Input(r, now)
@@ -400,7 +399,7 @@ func TestApplyCatalogSkipsIdenticalAndUpdatesRomCachedInPlace(t *testing.T) {
 	if m.Games[m.Focus].ID != keepID {
 		t.Fatal("identical apply moved focus")
 	}
-	m.ApplyCatalog([]tenfoot.Game{{ID: "only", Title: "Only", System: "snes", Launchable: true}})
+	m.ApplyCatalog([]hostclient.Game{{ID: "only", Title: "Only", System: "snes", Launchable: true}})
 	if len(m.Catalog) != 1 || m.Catalog[0].ID != "only" {
 		t.Fatalf("structural replace %#v", m.Catalog)
 	}
@@ -408,7 +407,7 @@ func TestApplyCatalogSkipsIdenticalAndUpdatesRomCachedInPlace(t *testing.T) {
 
 func TestCoreStatusApplyLookupAndClear(t *testing.T) {
 	m := Model{}
-	statuses := []tenfoot.CoreAvailability{
+	statuses := []hostclient.CoreAvailability{
 		{GameID: "fpga-pong", CoreID: "fes.pong", State: "installed"},
 		{GameID: "fpga-zx81", CoreID: "fes.zx81", State: "missing"},
 		{GameID: "fpga-coleco", CoreID: "fes.coleco", State: "incompatible"},
@@ -478,7 +477,7 @@ func TestHeaderChromeEmptyCatalog(t *testing.T) {
 	}
 }
 
-func ids(games []tenfoot.Game) []string {
+func ids(games []hostclient.Game) []string {
 	out := make([]string, len(games))
 	for i, game := range games {
 		out[i] = game.ID

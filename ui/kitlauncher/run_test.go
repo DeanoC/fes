@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,10 +15,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/internal/zx81keys"
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestCatalogSystemsUsesPlatformsThenFallback(t *testing.T) {
@@ -235,7 +234,7 @@ func TestRunPaintsLocalCatalogBeforeHostHTTP(t *testing.T) {
 		t.Fatal("expected launcher cache beside config")
 	}
 	if err := client.Cache.SaveCatalog(CatalogSnapshot{
-		Games: []tenfoot.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Cover: handle, Launchable: true}},
+		Games: []hostclient.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Cover: handle, Launchable: true}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +276,7 @@ func TestRunOfflineFooterUsesLocalLibraryCopy(t *testing.T) {
 	cfg := writeKitConfig(t, t.TempDir(), server.URL)
 	client := NewClient(cfg)
 	if err := client.Cache.SaveCatalog(CatalogSnapshot{
-		Games: []tenfoot.Game{{ID: "mario", Title: "Mario", System: "snes", Launchable: true}},
+		Games: []hostclient.Game{{ID: "mario", Title: "Mario", System: "snes", Launchable: true}},
 	}); err != nil {
 		t.Fatal(err)
 	}

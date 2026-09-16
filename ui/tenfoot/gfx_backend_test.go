@@ -3,7 +3,7 @@ package tenfoot
 import (
 	"testing"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
 func TestNormalizedGFXDefaultsToSDL(t *testing.T) {

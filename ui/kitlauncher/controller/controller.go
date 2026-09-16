@@ -6,7 +6,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 type Range struct{ Min, Max int32 }

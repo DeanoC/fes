@@ -1,15 +1,14 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/theme"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
 )
 
 func TestXCyclesPacksWithoutStealingDpadOrY(t *testing.T) {
@@ -80,7 +79,7 @@ func TestXDismissesAttractWithoutCycling(t *testing.T) {
 }
 
 func TestXDoesNotLaunchOrStop(t *testing.T) {
-	m := Model{Connected: true, TargetReady: true, Games: []tenfoot.Game{{ID: "pong", Launchable: true}}}
+	m := Model{Connected: true, TargetReady: true, Games: []hostclient.Game{{ID: "pong", Launchable: true}}}
 	now := time.Unix(1, 0)
 	x, _ := remoteinput.NormalizeGamepad("x", true)
 	if action := m.Input(x, now); action != "" {

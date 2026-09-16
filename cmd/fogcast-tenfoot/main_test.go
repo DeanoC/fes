@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot"
+	"github.com/DeanoC/FogCast/hostclient"
 )
 
 func TestParseArgsDefaultsToLoopbackHostAPI(t *testing.T) {
@@ -14,7 +14,7 @@ func TestParseArgsDefaultsToLoopbackHostAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.APIBase != tenfoot.DefaultAPIBase || opts.Width != 1280 || opts.Height != 720 || opts.Fullscreen || opts.Smoke {
+	if opts.APIBase != hostclient.DefaultAPIBase || opts.Width != 1280 || opts.Height != 720 || opts.Fullscreen || opts.Smoke {
 		t.Fatalf("opts = %#v", opts)
 	}
 	if opts.SafeAreaSet || opts.NoAttract {

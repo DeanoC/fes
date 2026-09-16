@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/hostclient"
 	"strings"
 )
 
@@ -248,7 +249,7 @@ func (a *App) fetchFacets(ctx context.Context, gen int) {
 	}
 	a.filtersLoading = false
 	if err != nil {
-		a.facets = FacetValues{Genres: []string{}, Years: []string{}}
+		a.facets = hostclient.FacetValues{Genres: []string{}, Years: []string{}}
 		a.filterStatus = "facet list failed"
 		return
 	}

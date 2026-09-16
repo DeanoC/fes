@@ -5,7 +5,7 @@ package controller
 import (
 	"errors"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 func Open() (*Hub, error) {

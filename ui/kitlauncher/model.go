@@ -2,13 +2,13 @@ package kitlauncher
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
 )
 
 const axisDeadzone int32 = 8000
@@ -16,8 +16,8 @@ const axisDeadzone int32 = 8000
 // Model is the kit/UI boundary. A renderer consumes it without owning network,
 // framebuffer enablement, controller capture, or the target session lease.
 type Model struct {
-	Catalog                                                         []tenfoot.Game
-	Games                                                           []tenfoot.Game
+	Catalog                                                         []hostclient.Game
+	Games                                                           []hostclient.Game
 	Shelves                                                         []string
 	Shelf                                                           string
 	Focus                                                           int
@@ -30,7 +30,7 @@ type Model struct {
 	fromWheel                                                       bool
 	chord                                                           controller.Chord
 	presentationID                                                  string
-	presentation                                                    tenfoot.Presentation
+	presentation                                                    hostclient.Presentation
 	shotIndex                                                       int
 	previewAt                                                       time.Time
 	axisX, axisY                                                    int
@@ -38,22 +38,22 @@ type Model struct {
 	attractIdle                                                     time.Duration
 	attractCycle                                                    time.Duration
 	attractIdleReady                                                bool
-	attractItems                                                    []tenfoot.AttractItem
+	attractItems                                                    []hostclient.AttractItem
 	attractIndex                                                    int
 	attractShownAt                                                  time.Time
 	attractCycleAt                                                  time.Time
 	attractPresentationID                                           string
-	attractPresentation                                             tenfoot.Presentation
+	attractPresentation                                             hostclient.Presentation
 	attractShotIndex                                                int
 	attractPreviewAt                                                time.Time
 	launchID                                                        string
-	Strip                                                           []tenfoot.Game
+	Strip                                                           []hostclient.Game
 	StripLabel                                                      string
 	StripFocus                                                      int
 	StripActive                                                     bool
-	Recents                                                         []tenfoot.Game
+	Recents                                                         []hostclient.Game
 	detailFromStrip                                                 bool
-	Series                                                          []tenfoot.Game
+	Series                                                          []hostclient.Game
 	SeriesLabel                                                     string
 	SeriesFocus                                                     int
 	SeriesActive                                                    bool
@@ -61,11 +61,11 @@ type Model struct {
 	Pack                                                            string
 	SearchOpen                                                      bool
 	SearchQuery                                                     string
-	searchField                                                     tenfoot.TextField
+	searchField                                                     shared.TextField
 	searchRestoreID                                                 string
-	searchPool                                                      []tenfoot.Game
+	searchPool                                                      []hostclient.Game
 	Cache                                                           CacheStatus
-	CoreStatuses                                                    []tenfoot.CoreAvailability
+	CoreStatuses                                                    []hostclient.CoreAvailability
 	CoreStatusUnavailable                                           bool
 	CoreStatusRevision                                              uint64
 }
@@ -279,7 +279,7 @@ func (m Model) SessionTitle() string {
 	if id == "" {
 		return ""
 	}
-	for _, pool := range [][]tenfoot.Game{m.Catalog, m.Games, m.Strip} {
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip} {
 		for _, game := range pool {
 			if game.ID != id {
 				continue

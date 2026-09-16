@@ -2,6 +2,8 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +15,7 @@ import (
 
 func pointerCatalog(n int) *App {
 	app := NewApp(nil, 1280, 720, n)
-	app.games = make([]Game, n)
+	app.games = make([]hostclient.Game, n)
 	for i := 0; i < n; i++ {
 		app.games[i] = availableGame("g"+strconv.Itoa(i), "Game "+strconv.Itoa(i), "snes")
 	}
@@ -52,7 +54,7 @@ func TestPointerClickLaunchesWithoutController(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}})
@@ -127,7 +129,7 @@ func TestPointerClickDetailLaunches(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 			}})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
@@ -172,12 +174,12 @@ func TestPointerSearchHoverClickConfirms(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			q := r.URL.Query().Get("q")
 			queries = append(queries, q)
-			games := []Game{
+			games := []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("megadrive-sonic", "Sonic", "megadrive"),
 			}
 			if q == "s" {
-				games = []Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
+				games = []hostclient.Game{availableGame("megadrive-sonic", "Sonic", "megadrive")}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"games": games})
 		default:
@@ -246,7 +248,7 @@ func TestPointerOSKPageClickReturnsToLetters(t *testing.T) {
 		t.Fatal("tab should open search")
 	}
 	clickOSKKey(t, app, "page", now)
-	if app.Snapshot().OSK.Page != oskPageSymbols {
+	if app.Snapshot().OSK.Page != shared.OSKPageSymbols {
 		t.Fatalf("123 click page = %d", app.Snapshot().OSK.Page)
 	}
 	_, keys, ok := oskLayout(app.Snapshot())
@@ -264,11 +266,11 @@ func TestPointerOSKPageClickReturnsToLetters(t *testing.T) {
 		t.Fatal("symbols done")
 	}
 	app.PointerMove(doneKey.X+doneKey.W/2, doneKey.Y+doneKey.H/2, now)
-	if app.Snapshot().OSK.Page != oskPageSymbols {
+	if app.Snapshot().OSK.Page != shared.OSKPageSymbols {
 		t.Fatalf("hover done jumped to page %d", app.Snapshot().OSK.Page)
 	}
 	clickOSKKey(t, app, "page", now)
-	if app.Snapshot().OSK.Page != oskPageLetters {
+	if app.Snapshot().OSK.Page != shared.OSKPageLetters {
 		t.Fatalf("ABC click page = %d", app.Snapshot().OSK.Page)
 	}
 }
@@ -292,10 +294,10 @@ func TestPointerDoesNotWalkGridDuringPlaySession(t *testing.T) {
 	t.Parallel()
 	app := pointerCatalog(6)
 	now := time.Now()
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:        "active",
 		CoreKeyboard: true,
-		Input:        &SessionInput{State: "attached", Ready: true},
+		Input:        &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	if !app.ForwardsCoreKeyboard() {
 		t.Fatal("expected fes.keyboard forward")

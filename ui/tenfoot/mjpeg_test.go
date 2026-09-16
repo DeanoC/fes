@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"image/color"
 	"io"
 	"net/http"
@@ -88,7 +89,7 @@ func TestClientOpenSessionPreviewConsumesMJPEG(t *testing.T) {
 	if len(accepts) != 1 || accepts[0] != previewContentType {
 		t.Fatalf("accept = %#v", accepts)
 	}
-	img, err := DecodeStill(got)
+	img, err := shared.DecodeStill(got)
 	if err != nil || img == nil {
 		t.Fatalf("cpu jpeg decode: %v", err)
 	}

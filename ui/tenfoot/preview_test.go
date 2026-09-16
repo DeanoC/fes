@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image/color"
 	"io"
 	"net/http"
@@ -23,7 +24,7 @@ func TestAppSessionPreviewStartsAndTearsDown(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -108,7 +109,7 @@ func TestAppPreviewUnavailableDoesNotBlockLaunchOrStop(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -172,7 +173,7 @@ func TestAppPreviewMissingRouteIsGraceful(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()

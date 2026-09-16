@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,11 +25,11 @@ func TestFilterOverlaySelectionRefreshAndClearKeepsBrowseState(t *testing.T) {
 			mu.Lock()
 			queries = append(queries, r.URL.RawQuery)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case "/api/v1/platforms":
-			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []Platform{{ID: "snes", Label: "Super NES"}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES"}}})
 		case "/api/v1/library/collections":
-			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []Collection{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -140,7 +141,7 @@ func TestEmptyFacetsStillAllowClearAndAny(t *testing.T) {
 		case "/api/v1/library/facets":
 			_, _ = w.Write([]byte(`{"genres":null,"years":null}`))
 		case "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		default:
 			http.NotFound(w, r)
 		}
@@ -311,10 +312,10 @@ func TestHoldWestReleaseAfterSessionStartDoesNotAttach(t *testing.T) {
 		t.Fatal("quit")
 	}
 	app.mu.Lock()
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:     "active",
 		Execution: "fpga_native",
-		Input:     &SessionInput{State: "detached"},
+		Input:     &hostclient.SessionInput{State: "detached"},
 	}
 	app.syncGPUParkLocked()
 	app.mu.Unlock()
@@ -354,7 +355,7 @@ func TestHoldWestDoesNotOpenFiltersWhileViewPickerOpen(t *testing.T) {
 
 func TestShouldersStayPlatformsWhileFiltersClosed(t *testing.T) {
 	app := catalogApp(3)
-	app.platforms = []Platform{{ID: "snes", Label: "Super NES"}, {ID: "nes", Label: "NES"}}
+	app.platforms = []hostclient.Platform{{ID: "snes", Label: "Super NES"}, {ID: "nes", Label: "NES"}}
 	app.Press(CmdFilterNext, time.Now())
 	if app.Snapshot().PlatformID != "snes" {
 		t.Fatalf("platform = %q", app.Snapshot().PlatformID)

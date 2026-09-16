@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"image/color"
 	"io"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/ui/shared"
 )
 
 func TestAppPollsSessionParksAndStops(t *testing.T) {
@@ -29,7 +32,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{mario, sonic},
+				"games": []hostclient.Game{mario, sonic},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -57,10 +60,10 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 			_, _ = w.Write(pngBytes)
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID:       id,
 				State:        "ready",
-				Presentation: &PresentationInfo{CoverArtworkID: handle},
+				Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle},
 			})
 		default:
 			http.NotFound(w, r)
@@ -138,7 +141,7 @@ func TestAppSessionPollObservesExternalStopAndPark(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -190,7 +193,7 @@ func TestGPUParkRejectsPreParkCoverResults(t *testing.T) {
 	app.ctx = parent
 	jobCtx := app.replaceLoadContextLocked()
 	mario := availableGame("snes-mario", "Mario", "snes")
-	app.games = []Game{mario}
+	app.games = []hostclient.Game{mario}
 	app.grid.SetCount(1)
 	app.covers[mario.ID] = &coverSlot{phase: coverArtwork, handle: staleHandle}
 	staleGen := app.loadGen
@@ -218,7 +221,7 @@ func TestGPUParkRejectsPreParkCoverResults(t *testing.T) {
 	}
 
 	app.covers[mario.ID] = &coverSlot{phase: coverReady, handle: freshHandle, image: freshImg}
-	app.details[mario.ID] = FocusDetail{Summary: "fresh"}
+	app.details[mario.ID] = shared.FocusDetail{Summary: "fresh"}
 	app.applyResult(workResult{
 		kind:        workPresentation,
 		gameID:      mario.ID,
@@ -244,7 +247,7 @@ func TestGPUParkRejectsPreParkCoverResults(t *testing.T) {
 	}
 
 	app.covers = map[string]*coverSlot{}
-	app.details = map[string]FocusDetail{}
+	app.details = map[string]shared.FocusDetail{}
 	app.queueVisibleWork(time.Now())
 	select {
 	case item := <-app.jobs:
@@ -267,7 +270,7 @@ func TestAppStopKeyboardBindingAndBlockedLaunch(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -465,7 +468,7 @@ func startSessionApp(t *testing.T, mu *sync.Mutex, sessionJSON *string, sessionG
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -505,7 +508,7 @@ func TestAppDoesNotInventGameIDForGameLessActiveSession(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -565,7 +568,7 @@ func TestAppDoesNotKeepLaunchGameIDWhenPollOmitsIt(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -609,7 +612,7 @@ func TestAppFillsGameIDFromLaunchResponseOnly(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
 			w.WriteHeader(http.StatusOK)
@@ -638,7 +641,7 @@ func TestAppStatusPrefersStopErrorAndProgressOverLaunchOK(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{availableGame("snes-mario", "Mario", "snes")},
+				"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
@@ -722,7 +725,7 @@ func TestSessionChromeStateFixtures(t *testing.T) {
 
 func TestFormatSessionEventAndLeaseLine(t *testing.T) {
 	t.Parallel()
-	line := formatSessionEvent(SessionEvent{Event: "session.launch", State: "active", GameID: "snes-mario", System: "snes"})
+	line := formatSessionEvent(hostclient.SessionEvent{Event: "session.launch", State: "active", GameID: "snes-mario", System: "snes"})
 	if !strings.Contains(line, "launch") || !strings.Contains(line, "active") || !strings.Contains(line, "snes-mario") || !strings.Contains(line, "snes") {
 		t.Fatalf("event line = %q", line)
 	}
@@ -743,15 +746,15 @@ func TestFormatSessionEventAndLeaseLine(t *testing.T) {
 
 func TestEventsRetainRetryStopIgnoresResolvedHistory(t *testing.T) {
 	t.Parallel()
-	if retain, _ := eventsRetainRetryStop([]SessionEvent{
+	if retain, _ := eventsRetainRetryStop([]hostclient.SessionEvent{
 		{Sequence: 1, Event: "save_failed", State: "active"},
 		{Sequence: 2, Event: "session.stop", State: "idle"},
 	}); retain {
 		t.Fatal("idle stop should clear historical save_failed")
 	}
-	if retain, ev := eventsRetainRetryStop([]SessionEvent{
+	if retain, ev := eventsRetainRetryStop([]hostclient.SessionEvent{
 		{Sequence: 1, Event: "session.launch", State: "active"},
-		{Sequence: 2, Event: "save_failed", State: "active", Progress: &SessionProgress{Message: retryStopHint}},
+		{Sequence: 2, Event: "save_failed", State: "active", Progress: &hostclient.SessionProgress{Message: retryStopHint}},
 	}); !retain || ev.Event != "save_failed" {
 		t.Fatalf("unresolved save_failed retain=%v ev=%#v", retain, ev)
 	}
@@ -759,20 +762,20 @@ func TestEventsRetainRetryStopIgnoresResolvedHistory(t *testing.T) {
 
 func TestMergeSessionEventsAdvancesCursor(t *testing.T) {
 	t.Parallel()
-	rows, after := mergeSessionEvents(nil, []SessionEvent{
+	rows, after := mergeSessionEvents(nil, []hostclient.SessionEvent{
 		{Sequence: 1, Event: "session.launch", State: "active"},
 		{Sequence: 2, Event: "session.stop", State: "idle"},
 	}, 0)
 	if after != 2 || len(rows) != 2 {
 		t.Fatalf("first merge rows=%d after=%d", len(rows), after)
 	}
-	rows, after = mergeSessionEvents(rows, []SessionEvent{
+	rows, after = mergeSessionEvents(rows, []hostclient.SessionEvent{
 		{Sequence: 3, Event: "session.launch", State: "active", GameID: "pong"},
 	}, after)
 	if after != 3 || len(rows) != 3 || rows[2].GameID != "pong" {
 		t.Fatalf("second merge rows=%#v after=%d", rows, after)
 	}
-	same, sameAfter := mergeSessionEvents(rows, []SessionEvent{{Sequence: 3, Event: "session.launch", State: "active"}}, after)
+	same, sameAfter := mergeSessionEvents(rows, []hostclient.SessionEvent{{Sequence: 3, Event: "session.launch", State: "active"}}, after)
 	if sameAfter != 3 || len(same) != 3 {
 		t.Fatalf("duplicate advanced cursor rows=%d after=%d", len(same), sameAfter)
 	}
@@ -786,7 +789,7 @@ func TestAppPollsSessionEventsIntoSofaList(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON
@@ -842,7 +845,7 @@ func TestAppKitLeaseStripFromSelectedTarget(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
@@ -893,7 +896,7 @@ func TestAppSaveFailedStopLockoutRetryAndClear(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{
+				"games": []hostclient.Game{
 					availableGame("snes-mario", "Mario", "snes"),
 					availableGame("megadrive-sonic", "Sonic", "megadrive"),
 				},
@@ -978,7 +981,7 @@ func TestAppHistoricalSaveFailedDoesNotLockIdleSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session/events":
@@ -1015,7 +1018,7 @@ func TestAppSaveFailedEventLocksLaunchUntilStop(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON

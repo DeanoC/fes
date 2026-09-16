@@ -3,6 +3,7 @@ package tenfoot
 import (
 	"context"
 	"errors"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"io"
 	"time"
@@ -122,7 +123,7 @@ func (a *App) runPreview(ctx context.Context, gen int) {
 			a.notePreviewError(gen, err)
 			return
 		}
-		img, err := DecodeStill(jpeg)
+		img, err := shared.DecodeStill(jpeg)
 		if err != nil {
 			continue
 		}

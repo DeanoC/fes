@@ -2,13 +2,12 @@ package kitlauncher
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestDiskStoreCatalogRoundTrip(t *testing.T) {
@@ -16,15 +15,15 @@ func TestDiskStoreCatalogRoundTrip(t *testing.T) {
 	store := mustOpenStore(t)
 	handle := strings.Repeat("ab", 32)
 	snap := CatalogSnapshot{
-		Games: []tenfoot.Game{
+		Games: []hostclient.Game{
 			{ID: "sonic", Title: "Sonic 2", System: "megadrive", Cover: handle, Launchable: true},
 			{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
 		},
-		Strip: []tenfoot.Game{
+		Strip: []hostclient.Game{
 			{ID: "sonic", Title: "Sonic 2", System: "megadrive", Cover: handle, Launchable: true},
 		},
 		StripLabel: "Recent",
-		Recents: []tenfoot.Game{
+		Recents: []hostclient.Game{
 			{ID: "sonic", Title: "Sonic 2", System: "megadrive", Cover: handle, Launchable: true},
 		},
 	}
@@ -49,7 +48,7 @@ func TestDiskStoreCatalogRoundTrip(t *testing.T) {
 func TestDiskStoreCatalogSkipsUnchangedRewrite(t *testing.T) {
 	t.Parallel()
 	store := mustOpenStore(t)
-	snap := CatalogSnapshot{Games: []tenfoot.Game{{ID: "pong", Title: "Pong", System: "pong", Launchable: true}}}
+	snap := CatalogSnapshot{Games: []hostclient.Game{{ID: "pong", Title: "Pong", System: "pong", Launchable: true}}}
 	if err := store.SaveCatalog(snap); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +138,7 @@ func TestDiskStoreIgnoresMissingAndCorruptCatalog(t *testing.T) {
 func TestDiskStoreLoadCatalogIgnoresTornReplace(t *testing.T) {
 	t.Parallel()
 	store := mustOpenStore(t)
-	snap := CatalogSnapshot{Games: []tenfoot.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}}
+	snap := CatalogSnapshot{Games: []hostclient.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}}
 	if err := store.SaveCatalog(snap); err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +236,7 @@ func TestDiskStoreCoverLRUTouchesOnLoad(t *testing.T) {
 func TestCatalogFileUsesFormat1(t *testing.T) {
 	t.Parallel()
 	store := mustOpenStore(t)
-	if err := store.SaveCatalog(CatalogSnapshot{Games: []tenfoot.Game{{ID: "pong", Launchable: true}}}); err != nil {
+	if err := store.SaveCatalog(CatalogSnapshot{Games: []hostclient.Game{{ID: "pong", Launchable: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(store.root, catalogFileName))

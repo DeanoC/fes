@@ -10,15 +10,16 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/anim"
+	"github.com/DeanoC/FogCast/ui/audioreact"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"github.com/DeanoC/FogCast/ui/kitlauncher"
 	"github.com/DeanoC/FogCast/ui/kitlauncher/controller"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/anim"
-	"github.com/DeanoC/FogCast/ui/tenfoot/audioreact"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/shared"
+	"github.com/DeanoC/FogCast/ui/theme"
 	"os"
 	"os/signal"
 	"syscall"
@@ -190,9 +191,9 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
-	covers := tenfoot.NewCoverCache()
-	stills := tenfoot.NewStillCache()
-	presentations := tenfoot.NewPresentationCache()
+	covers := shared.NewCoverCache()
+	stills := shared.NewStillCache()
+	presentations := shared.NewPresentationCache()
 	if client.Cache != nil {
 		covers.SetStore(client.Cache)
 		stills.SetStore(client.Cache)
@@ -263,7 +264,7 @@ func run() error {
 			presentations.Keep(ids)
 			presentations.Request(ctx, client.Library, ids)
 			heroHandles := make([]string, 0, 2)
-			focusedPres := tenfoot.Presentation{}
+			focusedPres := hostclient.Presentation{}
 			if game, ok := m.WheelGame(m.Shelf); ok {
 				focusedPres = presentations.Get(game.ID)
 			}
@@ -323,7 +324,7 @@ func run() error {
 			extra = append(extra, m.DetailPrefetchHandles()...)
 			if game, ok := m.FocusedGame(); ok {
 				pres := presentations.Get(game.ID)
-				if handle := tenfoot.MarqueeHandle(pres); handle != "" {
+				if handle := shared.MarqueeHandle(pres); handle != "" {
 					backdropHandles = append(backdropHandles, handle)
 				}
 			}
@@ -361,7 +362,7 @@ func run() error {
 			mq := m.FocusMarqueeHandle()
 			if mq == "" {
 				if game, ok := m.FocusedGame(); ok {
-					mq = tenfoot.MarqueeHandle(presentations.Get(game.ID))
+					mq = shared.MarqueeHandle(presentations.Get(game.ID))
 				}
 			}
 			frame.Marquee = stillImage(stills, mq)
@@ -476,8 +477,8 @@ func modelRenderKey(m kitlauncher.Model, covers, presentations uint64) renderKey
 	}
 }
 
-func atmosphereHandle(m kitlauncher.Model, presentations *tenfoot.PresentationCache) string {
-	pres := tenfoot.Presentation{}
+func atmosphereHandle(m kitlauncher.Model, presentations *shared.PresentationCache) string {
+	pres := hostclient.Presentation{}
 	if presentations != nil {
 		if game, ok := m.FocusedGame(); ok {
 			pres = presentations.Get(game.ID)
@@ -488,13 +489,13 @@ func atmosphereHandle(m kitlauncher.Model, presentations *tenfoot.PresentationCa
 	return m.AtmosphereHandle(pres)
 }
 
-func atmospherePrefetchHandles(m kitlauncher.Model, presentations *tenfoot.PresentationCache, start, prefetch int) []string {
-	lookup := func(string) tenfoot.Presentation { return tenfoot.Presentation{} }
+func atmospherePrefetchHandles(m kitlauncher.Model, presentations *shared.PresentationCache, start, prefetch int) []string {
+	lookup := func(string) hostclient.Presentation { return hostclient.Presentation{} }
 	if presentations != nil {
 		lookup = presentations.Get
 	}
-	handles := tenfoot.CollectBackdropHandles(m.Games, start, prefetch, lookup)
-	handles = append(handles, tenfoot.CollectBackdropHandles(m.Strip, 0, len(m.Strip), lookup)...)
+	handles := shared.CollectBackdropHandles(m.Games, start, prefetch, lookup)
+	handles = append(handles, shared.CollectBackdropHandles(m.Strip, 0, len(m.Strip), lookup)...)
 	if handle := atmosphereHandle(m, presentations); handle != "" {
 		out := make([]string, 0, len(handles)+1)
 		out = append(out, handle)
@@ -511,11 +512,11 @@ func atmospherePrefetchHandles(m kitlauncher.Model, presentations *tenfoot.Prese
 	return handles
 }
 
-func stillImage(stills *tenfoot.CoverCache, handle string) *image.RGBA {
+func stillImage(stills *shared.CoverCache, handle string) *image.RGBA {
 	if stills == nil || handle == "" {
 		return nil
 	}
-	if stills.Status(handle) != tenfoot.CoverReady {
+	if stills.Status(handle) != shared.CoverReady {
 		return nil
 	}
 	return stills.Image(handle)
@@ -609,7 +610,7 @@ func paintSceneFX(d gfx.Device, w, h int, fx sceneFX, now time.Time, th theme.Th
 
 // modelGrid maps the live catalog to one visible page. Model.Focus remains
 // an index into the complete catalog; the grid focus is page-local.
-func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme) fbgrid.Grid {
+func modelGrid(m kitlauncher.Model, width, height int, covers *shared.CoverCache, presentations *shared.PresentationCache, th theme.Theme) fbgrid.Grid {
 	start, end := catalogPage(m.Focus, len(m.Games), m.Browse)
 	tiles := make([]fbgrid.Tile, 0, end-start)
 	nameMax := 18
@@ -617,7 +618,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 		nameMax = 28
 	}
 	for _, game := range m.Games[start:end] {
-		pres := tenfoot.Presentation{}
+		pres := hostclient.Presentation{}
 		if presentations != nil {
 			pres = presentations.Get(game.ID)
 		}
@@ -637,7 +638,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	if len(m.Strip) > 0 && m.SearchTag() == "" {
 		strip := make([]fbgrid.Tile, 0, len(m.Strip))
 		for _, game := range m.Strip {
-			pres := tenfoot.Presentation{}
+			pres := hostclient.Presentation{}
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
@@ -648,7 +649,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *tenfoot.CoverCach
 	if len(m.Series) > 0 {
 		series := make([]fbgrid.Tile, 0, len(m.Series))
 		for _, game := range m.Series {
-			pres := tenfoot.Presentation{}
+			pres := hostclient.Presentation{}
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
@@ -674,7 +675,7 @@ func modelOSKFrame(m kitlauncher.Model, width, height int, th theme.Theme, g fbg
 	}
 }
 
-func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.DetailFrame {
+func modelDetailFrame(m kitlauncher.Model, covers *shared.CoverCache, presentations *shared.PresentationCache, th theme.Theme, width, height int) fbgrid.DetailFrame {
 	detail := m.FocusDetail()
 	title := asciiLabel(detail.Title)
 	if title == "" {
@@ -709,7 +710,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	if len(m.Series) > 0 {
 		frame.Series = make([]fbgrid.Tile, 0, len(m.Series))
 		for _, game := range m.Series {
-			pres := tenfoot.Presentation{}
+			pres := hostclient.Presentation{}
 			if presentations != nil {
 				pres = presentations.Get(game.ID)
 			}
@@ -718,7 +719,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 	}
 	if game, ok := m.FocusedGame(); ok {
 		frame.Color = th.SystemColor(game.System)
-		pres := tenfoot.Presentation{}
+		pres := hostclient.Presentation{}
 		if presentations != nil {
 			pres = presentations.Get(game.ID)
 		}
@@ -728,14 +729,14 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		frame.Badges = kitlauncher.TitleBadges(game, pres)
 		handle := m.FocusCoverHandle()
 		if handle == "" {
-			handle = tenfoot.CoverHandle(game, pres)
+			handle = shared.CoverHandle(game, pres)
 		}
 		if handle != "" && covers != nil {
 			frame.Cover = covers.Image(handle)
 			switch covers.Status(handle) {
-			case tenfoot.CoverReady:
+			case shared.CoverReady:
 				frame.CoverKind = fbgrid.CoverPresent
-			case tenfoot.CoverLoading:
+			case shared.CoverLoading:
 				frame.CoverKind = fbgrid.CoverLoading
 			default:
 				frame.CoverKind = fbgrid.CoverMissing
@@ -745,16 +746,16 @@ func modelDetailFrame(m kitlauncher.Model, covers *tenfoot.CoverCache, presentat
 		}
 		logo := m.FocusLogoHandle()
 		if logo == "" {
-			logo = tenfoot.LogoHandle(pres)
+			logo = shared.LogoHandle(pres)
 		}
-		if logo != "" && covers != nil && covers.Status(logo) == tenfoot.CoverReady {
+		if logo != "" && covers != nil && covers.Status(logo) == shared.CoverReady {
 			frame.Logo = covers.Image(logo)
 		}
 		box := m.FocusBox3DHandle()
 		if box == "" {
-			box = tenfoot.Box3DHandle(pres)
+			box = shared.Box3DHandle(pres)
 		}
-		if box != "" && covers != nil && covers.Status(box) == tenfoot.CoverReady {
+		if box != "" && covers != nil && covers.Status(box) == shared.CoverReady {
 			frame.Box = covers.Image(box)
 		}
 	}
@@ -801,7 +802,7 @@ func previewCaption(index, count int) string {
 	return "preview " + shotCaption(index, count)
 }
 
-func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {
+func attractFrame(view kitlauncher.AttractView, stills *shared.CoverCache, th theme.Theme, width, height int) fbgrid.AttractFrame {
 	frame := fbgrid.AttractFrame{
 		Width:      width,
 		Height:     height,
@@ -853,11 +854,11 @@ func attractFrame(view kitlauncher.AttractView, stills *tenfoot.CoverCache, th t
 	return frame
 }
 
-func gameTile(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme, nameMax int) fbgrid.Tile {
+func gameTile(game hostclient.Game, covers *shared.CoverCache, pres hostclient.Presentation, th theme.Theme, nameMax int) fbgrid.Tile {
 	return gameTileWithCoreStatus(game, covers, pres, th, nameMax, nil)
 }
 
-func gameTileWithCoreStatus(game tenfoot.Game, covers *tenfoot.CoverCache, pres tenfoot.Presentation, th theme.Theme, nameMax int, status *tenfoot.CoreAvailability) fbgrid.Tile {
+func gameTileWithCoreStatus(game hostclient.Game, covers *shared.CoverCache, pres hostclient.Presentation, th theme.Theme, nameMax int, status *hostclient.CoreAvailability) fbgrid.Tile {
 	name := asciiLabel(game.Title)
 	if name == "" {
 		name = asciiLabel(game.System)
@@ -875,23 +876,23 @@ func gameTileWithCoreStatus(game tenfoot.Game, covers *tenfoot.CoverCache, pres 
 		Badges:    kitlauncher.TitleBadges(game, pres),
 		Meta:      tileMetaWithCoreStatus(game, pres, status),
 	}
-	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
+	if handle := shared.CoverHandle(game, pres); handle != "" {
 		if covers != nil {
 			tile.Cover = covers.Image(handle)
 			switch covers.Status(handle) {
-			case tenfoot.CoverReady:
+			case shared.CoverReady:
 				tile.CoverKind = fbgrid.CoverPresent
-			case tenfoot.CoverLoading:
+			case shared.CoverLoading:
 				tile.CoverKind = fbgrid.CoverLoading
 			default:
 				tile.CoverKind = fbgrid.CoverMissing
 			}
 		}
 	}
-	if handle := tenfoot.LogoHandle(pres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+	if handle := shared.LogoHandle(pres); handle != "" && covers != nil && covers.Status(handle) == shared.CoverReady {
 		tile.Logo = covers.Image(handle)
 	}
-	if handle := tenfoot.Box3DHandle(pres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+	if handle := shared.Box3DHandle(pres); handle != "" && covers != nil && covers.Status(handle) == shared.CoverReady {
 		tile.Box = covers.Image(handle)
 	}
 	return tile
@@ -922,7 +923,7 @@ func modelFooter(m kitlauncher.Model) string {
 	return truncateLabel(asciiLabel(status), chromeLabelMax)
 }
 
-func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, presentations *tenfoot.PresentationCache, th theme.Theme, width, height int) fbgrid.WheelFrame {
+func modelWheelFrame(m kitlauncher.Model, covers, stills *shared.CoverCache, presentations *shared.PresentationCache, th theme.Theme, width, height int) fbgrid.WheelFrame {
 	th = th.Complete()
 	items := m.WheelItems()
 	frame := fbgrid.WheelFrame{
@@ -942,22 +943,22 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 	for _, item := range items {
 		cell := fbgrid.WheelItem{ID: item.ID, Label: asciiLabel(item.Label), Color: th.SystemColor(item.ID)}
 		if game, ok := m.WheelGame(item.ID); ok && presentations != nil && covers != nil {
-			if handle := tenfoot.LogoHandle(presentations.Get(game.ID)); handle != "" && covers.Status(handle) == tenfoot.CoverReady {
+			if handle := shared.LogoHandle(presentations.Get(game.ID)); handle != "" && covers.Status(handle) == shared.CoverReady {
 				cell.Logo = covers.Image(handle)
 			}
 		}
 		frame.Items = append(frame.Items, cell)
 	}
-	focusedPres := tenfoot.Presentation{}
+	focusedPres := hostclient.Presentation{}
 	if game, ok := m.WheelGame(m.Shelf); ok && presentations != nil {
 		focusedPres = presentations.Get(game.ID)
 	}
 	if handle := m.WheelHeroHandle(focusedPres); handle != "" && stills != nil {
 		frame.Hero = stills.Image(handle)
 		switch stills.Status(handle) {
-		case tenfoot.CoverReady:
+		case shared.CoverReady:
 			frame.HeroKind = fbgrid.CoverPresent
-		case tenfoot.CoverLoading:
+		case shared.CoverLoading:
 			frame.HeroKind = fbgrid.CoverLoading
 		default:
 			frame.HeroKind = fbgrid.CoverMissing
@@ -965,7 +966,7 @@ func modelWheelFrame(m kitlauncher.Model, covers, stills *tenfoot.CoverCache, pr
 	} else {
 		frame.HeroKind = fbgrid.CoverMissing
 	}
-	if handle := m.WheelLogoHandle(focusedPres); handle != "" && covers != nil && covers.Status(handle) == tenfoot.CoverReady {
+	if handle := m.WheelLogoHandle(focusedPres); handle != "" && covers != nil && covers.Status(handle) == shared.CoverReady {
 		frame.Logo = covers.Image(handle)
 	}
 	return frame
@@ -975,12 +976,12 @@ func kitMetaLine(facts string) string {
 	return asciiLabel(strings.ReplaceAll(facts, "  \u00b7  ", " | "))
 }
 
-func tileMeta(game tenfoot.Game, pres tenfoot.Presentation) string {
+func tileMeta(game hostclient.Game, pres hostclient.Presentation) string {
 	return tileMetaWithCoreStatus(game, pres, nil)
 }
 
-func tileMetaWithCoreStatus(game tenfoot.Game, pres tenfoot.Presentation, status *tenfoot.CoreAvailability) string {
-	d := tenfoot.GameDetail(game, pres)
+func tileMetaWithCoreStatus(game hostclient.Game, pres hostclient.Presentation, status *hostclient.CoreAvailability) string {
+	d := shared.GameDetail(game, pres)
 	if d.Platform != "" {
 		d.Platform = strings.ToUpper(d.Platform)
 	}
@@ -996,7 +997,7 @@ func tileMetaWithCoreStatus(game tenfoot.Game, pres tenfoot.Presentation, status
 	return meta
 }
 
-func coreStatusPointer(m kitlauncher.Model, gameID string) *tenfoot.CoreAvailability {
+func coreStatusPointer(m kitlauncher.Model, gameID string) *hostclient.CoreAvailability {
 	status, ok := m.CoreStatusForGame(gameID)
 	if !ok {
 		return nil

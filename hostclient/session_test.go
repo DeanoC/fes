@@ -32,6 +32,71 @@ func TestReadResponseBodyRejectsTruncatedBody(t *testing.T) {
 	}
 }
 
+func TestContentTypeMainCanonicalizesMediaTypes(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "parameters", input: " Image/PNG; charset=utf-8 ", want: "image/png"},
+		{name: "empty", input: "", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ContentTypeMain(tc.input); got != tc.want {
+				t.Fatalf("ContentTypeMain() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAPIStatusErrorPreservesStructuredAndPlainErrors(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		want   string
+	}{
+		{name: "structured", status: http.StatusNotFound, body: `{"error":{"code":"NOT_FOUND","message":"missing"}}`, want: "host API 404 NOT_FOUND: missing"},
+		{name: "plain", status: http.StatusBadGateway, body: "not-json", want: "host API status 502"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := APIStatusError(tc.status, []byte(tc.body)).Error(); got != tc.want {
+				t.Fatalf("APIStatusError() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeHandleCanonicalizesAndRejectsHandles(t *testing.T) {
+	t.Parallel()
+	valid := strings.Repeat("aB", 32)
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "canonical", input: strings.Repeat("ab", 32), want: strings.Repeat("ab", 32)},
+		{name: "trim-and-lower", input: " \t" + valid + "\n", want: strings.Repeat("ab", 32)},
+		{name: "empty", input: "", want: ""},
+		{name: "short", input: strings.Repeat("a", 63), want: ""},
+		{name: "non-hex", input: strings.Repeat("g", 64), want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := NormalizeHandle(tc.input); got != tc.want {
+				t.Fatalf("NormalizeHandle() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDecodeSessionPreservesKitFieldsAndUint64Precision(t *testing.T) {
 	body := []byte(`{"state":"active","game_id":"pong","execution":"fpga_development","input":{"state":"attached","ready":true,"session_id":"kit-session"},"core_package":{"generation":18446744073709551614,"gamepad":true,"active_interfaces":[{"id":"fes.keyboard","major":1,"minor":0},{"id":"fes.gamepad","major":1,"minor":0}]}}`)
 

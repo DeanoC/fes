@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,9 +19,9 @@ func TestConsumePlayHIDDoesNotStealAffinity(t *testing.T) {
 	t.Parallel()
 	app := pointerCatalog(6)
 	app.NoteInput(InputGamepad, 3)
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State: "active",
-		Input: &SessionInput{State: "attached", Ready: true},
+		Input: &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	if !app.ForwardsPlayHID() {
 		t.Fatal("expected play HID handoff")
@@ -61,9 +62,9 @@ func TestConsumePlayHIDEscStopsWithoutStealingAffinity(t *testing.T) {
 	app := pointerCatalog(6)
 	app.client = NewClient(server.URL, server.Client())
 	app.NoteInput(InputGamepad, 3)
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State: "active",
-		Input: &SessionInput{State: "attached", Ready: true},
+		Input: &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	now := time.Now()
 	if !app.HandlePlayHIDKey("escape", true, now) {
@@ -102,10 +103,10 @@ func TestConsumePlayHIDLetterSStaysZX81NotStop(t *testing.T) {
 	app := pointerCatalog(4)
 	app.client = NewClient(server.URL, server.Client())
 	app.NoteInput(InputGamepad, 1)
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:        "active",
 		CoreKeyboard: true,
-		Input:        &SessionInput{State: "attached", Ready: true},
+		Input:        &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	if !app.HandlePlayHIDKey("s", true, time.Now()) {
 		t.Fatal("letter s must stay on the play HID path")
@@ -146,9 +147,9 @@ func TestHandlePlayHIDKeyNativeEncodesGamepadNotZX81(t *testing.T) {
 
 	app := pointerCatalog(4)
 	app.client = NewClient(server.URL, server.Client())
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State: "active",
-		Input: &SessionInput{State: "attached", Ready: true},
+		Input: &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	if app.ForwardsCoreKeyboard() {
 		t.Fatal("native play is not fes.keyboard")
@@ -193,10 +194,10 @@ func TestSendPlayHIDFailClosedOnForeignLease(t *testing.T) {
 
 	app := pointerCatalog(4)
 	app.client = NewClient(server.URL, server.Client())
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:        "active",
 		CoreKeyboard: true,
-		Input:        &SessionInput{State: "attached", Ready: true},
+		Input:        &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	event := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.Letter('J')}
 	if !app.SendPlayHID(event) {
@@ -215,7 +216,7 @@ func TestSendPlayHIDFailClosedOnForeignLease(t *testing.T) {
 	}
 	app.kitLeaseHave = false
 	app.healthHave = true
-	app.health = HealthResult{Connection: TargetConnection{State: "recovery-required"}}
+	app.health = hostclient.HealthResult{Connection: hostclient.TargetConnection{State: "recovery-required"}}
 	if app.SendPlayHID(event) {
 		t.Fatal("recovery-required connection must fail closed")
 	}
@@ -229,9 +230,9 @@ func TestPlaySessionMouseDoesNotStealNativeAffinity(t *testing.T) {
 	app := pointerCatalog(6)
 	now := time.Now()
 	app.NoteInput(InputGamepad, 9)
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State: "active",
-		Input: &SessionInput{State: "attached", Ready: true},
+		Input: &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	x, y := cellCenter(t, app, 2)
 	app.PointerMoveFrom(7, x, y, now)

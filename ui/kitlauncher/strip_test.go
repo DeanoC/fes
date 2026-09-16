@@ -1,28 +1,27 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestComposeStripLabelsAndDedupes(t *testing.T) {
-	sonic := tenfoot.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
-	mario := tenfoot.Game{ID: "mario", Title: "Mario", System: "snes", Launchable: true, Favorite: true}
-	pong := tenfoot.Game{ID: "pong", Title: "Pong", System: "pong", Launchable: true, Favorite: true}
-	games, label := ComposeStrip([]tenfoot.Game{sonic, mario}, []tenfoot.Game{mario, pong})
+	sonic := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	mario := hostclient.Game{ID: "mario", Title: "Mario", System: "snes", Launchable: true, Favorite: true}
+	pong := hostclient.Game{ID: "pong", Title: "Pong", System: "pong", Launchable: true, Favorite: true}
+	games, label := ComposeStrip([]hostclient.Game{sonic, mario}, []hostclient.Game{mario, pong})
 	if label != "Recent / Favorites" || len(games) != 3 {
 		t.Fatalf("mixed %q n=%d", label, len(games))
 	}
 	if games[0].ID != "sonic" || games[1].ID != "mario" || games[2].ID != "pong" {
 		t.Fatalf("order %v", ids(games))
 	}
-	games, label = ComposeStrip([]tenfoot.Game{sonic}, nil)
+	games, label = ComposeStrip([]hostclient.Game{sonic}, nil)
 	if label != "Recent" || len(games) != 1 {
 		t.Fatalf("recent %q n=%d", label, len(games))
 	}
-	games, label = ComposeStrip(nil, []tenfoot.Game{mario})
+	games, label = ComposeStrip(nil, []hostclient.Game{mario})
 	if label != "Favorites" || len(games) != 1 {
 		t.Fatalf("favorites %q n=%d", label, len(games))
 	}
@@ -30,9 +29,9 @@ func TestComposeStripLabelsAndDedupes(t *testing.T) {
 	if label != "" || len(games) != 0 {
 		t.Fatalf("empty %q n=%d", label, len(games))
 	}
-	many := make([]tenfoot.Game, stripMax+3)
+	many := make([]hostclient.Game, stripMax+3)
 	for i := range many {
-		many[i] = tenfoot.Game{ID: "g" + string(rune('a'+i))}
+		many[i] = hostclient.Game{ID: "g" + string(rune('a'+i))}
 	}
 	games, _ = ComposeStrip(many, many)
 	if len(games) != stripMax {
@@ -43,7 +42,7 @@ func TestComposeStripLabelsAndDedupes(t *testing.T) {
 func TestDownEntersStripInsteadOfDetail(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, Games: makeGames(25)}
 	now := time.Unix(1, 0)
-	m.SetStrip([]tenfoot.Game{
+	m.SetStrip([]hostclient.Game{
 		{ID: "recent-1", Title: "Recent 1", System: "snes", Launchable: true},
 		{ID: "recent-2", Title: "Recent 2", System: "megadrive", Launchable: true},
 	}, "Recent")
@@ -80,7 +79,7 @@ func TestStripUpReturnsToGridAndEmptyHides(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	now := time.Unix(1, 0)
-	m.SetStrip([]tenfoot.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}}, "Recent")
 	m.Focus = len(m.Games) - 1
 	pressNamed(&m, "dpad-down", now)
 	if !m.StripActive {
@@ -103,7 +102,7 @@ func TestStripUpReturnsToGridAndEmptyHides(t *testing.T) {
 func TestGridAStillLaunchesWhenStripVisible(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", System: "snes", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", System: "snes", Launchable: true}}, "Recent")
 	now := time.Unix(1, 0)
 	pressNamed(&m, "dpad-right", now)
 	if action := pressNamed(&m, "a", now); action != "launch" || m.StripActive || m.DetailOpen {
@@ -114,7 +113,7 @@ func TestGridAStillLaunchesWhenStripVisible(t *testing.T) {
 func TestWheelBLeavesStrip(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, WheelOpen: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", System: "snes", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", System: "snes", Launchable: true}}, "Recent")
 	now := time.Unix(1, 0)
 	pressNamed(&m, "a", now)
 	if m.WheelOpen {

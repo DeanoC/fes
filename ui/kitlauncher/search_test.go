@@ -1,12 +1,12 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+	"github.com/DeanoC/FogCast/ui/shared"
+	"github.com/DeanoC/FogCast/ui/theme"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
 )
 
 func TestStartOpensSearchWithoutStealingYLayoutXPackSelectShelf(t *testing.T) {
@@ -44,7 +44,7 @@ func TestStartOpensSearchWithoutStealingYLayoutXPackSelectShelf(t *testing.T) {
 
 func TestSearchFiltersNameAndClearLogoFallback(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
-	m.SetCatalog(append(mixedCatalog(), tenfoot.Game{ID: "logo-md", Title: "", System: "megadrive", Launchable: true}))
+	m.SetCatalog(append(mixedCatalog(), hostclient.Game{ID: "logo-md", Title: "", System: "megadrive", Launchable: true}))
 	now := time.Unix(1, 0)
 	pressNamed(&m, "start", now)
 	typeOSK(&m, "sonic", now)
@@ -191,7 +191,7 @@ func TestCommittedSearchHidesStripAndLastRowOpensDetail(t *testing.T) {
 	now := time.Unix(1, 0)
 	miss := Model{Connected: true, TargetReady: true}
 	miss.SetCatalog(mixedCatalog())
-	miss.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	miss.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
 	pressNamed(&miss, "start", now)
 	typeOSK(&miss, "zzzz", now)
 	if !miss.FocusSearchKey("done") {
@@ -208,7 +208,7 @@ func TestCommittedSearchHidesStripAndLastRowOpensDetail(t *testing.T) {
 
 	hit := Model{Connected: true, TargetReady: true}
 	hit.SetCatalog(mixedCatalog())
-	hit.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	hit.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
 	pressNamed(&hit, "start", now)
 	typeOSK(&hit, "s", now)
 	if !hit.FocusSearchKey("done") {
@@ -277,13 +277,13 @@ func TestYAndXWorkAfterSearchCloses(t *testing.T) {
 }
 
 func TestSearchHaystackUsesTitleThenSystem(t *testing.T) {
-	if got := SearchHaystack(tenfoot.Game{Title: "Sonic", System: "megadrive"}); got != "Sonic" {
+	if got := SearchHaystack(hostclient.Game{Title: "Sonic", System: "megadrive"}); got != "Sonic" {
 		t.Fatalf("title %q", got)
 	}
-	if got := SearchHaystack(tenfoot.Game{Title: "  ", System: "snes"}); got != "snes" {
+	if got := SearchHaystack(hostclient.Game{Title: "  ", System: "snes"}); got != "snes" {
 		t.Fatalf("system %q", got)
 	}
-	if got := SearchHaystack(tenfoot.Game{}); got != untitledSearchLabel {
+	if got := SearchHaystack(hostclient.Game{}); got != untitledSearchLabel {
 		t.Fatalf("untitled %q", got)
 	}
 }
@@ -296,7 +296,7 @@ func TestGridHintUsesKitOSKWhileSearchOpen(t *testing.T) {
 		t.Fatalf("browse %q", got)
 	}
 	pressNamed(&m, "start", now)
-	if got := m.GridHint(); got != tenfoot.OSKKitHint(0) {
+	if got := m.GridHint(); got != shared.OSKKitHint(0) {
 		t.Fatalf("osk %q", got)
 	}
 }

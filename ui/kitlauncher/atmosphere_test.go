@@ -1,10 +1,9 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"strings"
 	"testing"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestAtmosphereHandlePrefersBackdropThenAttract(t *testing.T) {
@@ -12,29 +11,29 @@ func TestAtmosphereHandlePrefersBackdropThenAttract(t *testing.T) {
 	backdrop := strings.Repeat("22", 32)
 	still := strings.Repeat("33", 32)
 	m := Model{Connected: true, TargetReady: true}
-	m.SetCatalog([]tenfoot.Game{
+	m.SetCatalog([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Cover: cover, Launchable: true},
 	})
-	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{
+	pres := hostclient.Presentation{Presentation: &hostclient.PresentationInfo{
 		CoverArtworkID:    cover,
 		BackdropArtworkID: backdrop,
 	}}
 	if got := m.AtmosphereHandle(pres); got != backdrop {
 		t.Fatalf("presentation backdrop %q", got)
 	}
-	if got := m.AtmosphereHandle(tenfoot.Presentation{}); got != "" {
+	if got := m.AtmosphereHandle(hostclient.Presentation{}); got != "" {
 		t.Fatalf("cover-only %q", got)
 	}
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{{
 		GameID: "sonic", Title: "Sonic", Platform: "megadrive", Backdrop: still, Cover: cover, Launchable: true,
 	}}})
-	if got := m.AtmosphereHandle(tenfoot.Presentation{}); got != still {
+	if got := m.AtmosphereHandle(hostclient.Presentation{}); got != still {
 		t.Fatalf("attract backdrop %q", got)
 	}
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{{
 		GameID: "sonic", Title: "Sonic", Platform: "megadrive", Cover: cover, Launchable: true,
 	}}})
-	if got := m.AtmosphereHandle(tenfoot.Presentation{}); got != "" {
+	if got := m.AtmosphereHandle(hostclient.Presentation{}); got != "" {
 		t.Fatalf("cover-only attract %q", got)
 	}
 }

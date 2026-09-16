@@ -1,12 +1,11 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestOfflineLocalCatalogBrowsesWithoutLaunch(t *testing.T) {
@@ -173,7 +172,7 @@ func TestWheelHeroPrefersAttractThenBackdropThenCover(t *testing.T) {
 	cover := strings.Repeat("11", 32)
 	backdrop := strings.Repeat("22", 32)
 	still := strings.Repeat("33", 32)
-	pres := tenfoot.Presentation{Presentation: &tenfoot.PresentationInfo{
+	pres := hostclient.Presentation{Presentation: &hostclient.PresentationInfo{
 		CoverArtworkID:    cover,
 		BackdropArtworkID: backdrop,
 		LogoID:            strings.Repeat("44", 32),
@@ -184,7 +183,7 @@ func TestWheelHeroPrefersAttractThenBackdropThenCover(t *testing.T) {
 	if got := m.WheelLogoHandle(pres); got != strings.Repeat("44", 32) {
 		t.Fatalf("logo %q", got)
 	}
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{{
 		GameID: "sonic", Title: "Sonic", Platform: "megadrive", Backdrop: still, Launchable: true,
 	}}})
 	if got := m.WheelHeroHandle(pres); got != still {
@@ -192,7 +191,7 @@ func TestWheelHeroPrefersAttractThenBackdropThenCover(t *testing.T) {
 	}
 	m.Shelf = "snes"
 	m.applyFilter("")
-	if got := m.WheelHeroHandle(tenfoot.Presentation{}); got != "" {
+	if got := m.WheelHeroHandle(hostclient.Presentation{}); got != "" {
 		t.Fatalf("other shelf used md still %q", got)
 	}
 }
@@ -235,7 +234,7 @@ func TestWheelStatsRollsUpPlayCountAndLastPlayed(t *testing.T) {
 	if m.WheelStats() != "2 games" || m.WheelFeaturedTitle() != "Mario" {
 		t.Fatalf("snes stats=%q featured=%q", m.WheelStats(), m.WheelFeaturedTitle())
 	}
-	m.Recents = []tenfoot.Game{{ID: "zelda", Title: "Zelda", System: "snes"}}
+	m.Recents = []hostclient.Game{{ID: "zelda", Title: "Zelda", System: "snes"}}
 	if m.WheelFeaturedTitle() != "Zelda" {
 		t.Fatalf("recents featured %q", m.WheelFeaturedTitle())
 	}

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 type fakePad struct {

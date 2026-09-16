@@ -127,7 +127,7 @@ type sharedSessionSummary struct {
 	Interfaces   []hostclient.SessionCoreInterface
 }
 
-func summarizeTenfoot(result tenfoot.SessionResult) sharedSessionSummary {
+func summarizeTenfoot(result hostclient.SessionResult) sharedSessionSummary {
 	summary := sharedSessionSummary{
 		State:     result.State,
 		GameID:    result.GameID,

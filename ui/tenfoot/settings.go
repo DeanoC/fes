@@ -3,6 +3,8 @@ package tenfoot
 import (
 	"context"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"slices"
 	"strings"
 	"time"
@@ -314,7 +316,7 @@ func (a *App) discardSettingsDraftsLocked() {
 	a.settingsDraftTargets = cloneSettingsTargetsFromHost(a.hostSettings.Targets)
 }
 
-func (a *App) revertSettingsPatchDraftsLocked(patch LibrarySettingsPatch) {
+func (a *App) revertSettingsPatchDraftsLocked(patch hostclient.LibrarySettingsPatch) {
 	if !a.settingsHydrated {
 		return
 	}
@@ -414,7 +416,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		case CmdRight:
 			a.settingsDraftIdle = clampSettingsIdle(a.settingsDraftIdle + settingsIdleStep)
 		case CmdSelect:
-			a.patchSettingsLocked(LibrarySettingsPatch{AttractIdleSeconds: intPtr(a.settingsDraftIdle)})
+			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{AttractIdleSeconds: intPtr(a.settingsDraftIdle)})
 		}
 	case settingsRowRegions:
 		if !a.settingsHydrated {
@@ -435,7 +437,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			}
 			a.settingsDraftRegions = next
 			regions := append([]string(nil), next...)
-			a.patchSettingsLocked(LibrarySettingsPatch{PreferredRegions: &regions})
+			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{PreferredRegions: &regions})
 		}
 	case settingsRowTarget:
 		if !a.settingsHydrated {
@@ -474,7 +476,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 				a.saveSettingsTargetsLocked()
 				return
 			}
-			a.patchSettingsLocked(LibrarySettingsPatch{SelectedTarget: strPtr(name)})
+			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{SelectedTarget: strPtr(name)})
 		}
 	case settingsRowPrepareTarget:
 		if !a.settingsHydrated {
@@ -492,7 +494,7 @@ func (a *App) handleSettingsLocked(cmd Command) {
 				a.status = a.settingsStatus
 				return
 			}
-			a.patchSettingsLocked(LibrarySettingsPatch{PrepareTarget: strPtr(name)})
+			a.patchSettingsLocked(hostclient.LibrarySettingsPatch{PrepareTarget: strPtr(name)})
 		}
 	default:
 		if a.settingsIndex < a.settingsLibraryStartLocked() {
@@ -684,11 +686,11 @@ func (a *App) saveSettingsTargetsLocked() {
 		a.status = a.settingsStatus
 		return
 	}
-	writes := make([]LibraryTargetWrite, 0, len(a.settingsDraftTargets))
+	writes := make([]hostclient.LibraryTargetWrite, 0, len(a.settingsDraftTargets))
 	for _, draft := range a.settingsDraftTargets {
 		writes = append(writes, draft.write())
 	}
-	patch := LibrarySettingsPatch{Targets: &writes}
+	patch := hostclient.LibrarySettingsPatch{Targets: &writes}
 	if a.settingsNeedSelectedPatchLocked() {
 		name := strings.TrimSpace(a.settingsDraftTarget)
 		patch.SelectedTarget = strPtr(name)
@@ -696,8 +698,8 @@ func (a *App) saveSettingsTargetsLocked() {
 	a.patchSettingsLocked(patch)
 }
 
-func (d settingsTargetDraft) write() LibraryTargetWrite {
-	out := LibraryTargetWrite{
+func (d settingsTargetDraft) write() hostclient.LibraryTargetWrite {
+	out := hostclient.LibraryTargetWrite{
 		Name:    strings.TrimSpace(d.Name),
 		Address: strings.TrimSpace(d.Address),
 		Enabled: d.Enabled,
@@ -835,7 +837,7 @@ func (a *App) settingsSelectedIdentityDirtyLocked() bool {
 	if want == "" {
 		want = hostSelected
 	}
-	var host LibraryTarget
+	var host hostclient.LibraryTarget
 	for _, target := range a.hostSettings.Targets {
 		if strings.TrimSpace(target.Name) == hostSelected {
 			host = target
@@ -940,7 +942,7 @@ func (a *App) addSettingsLibraryLocked() {
 		a.status = a.settingsStatus
 		return
 	}
-	a.settingsDraftLibraries = append(a.settingsDraftLibraries, LibraryRoot{System: ids[0]})
+	a.settingsDraftLibraries = append(a.settingsDraftLibraries, hostclient.LibraryRoot{System: ids[0]})
 	a.settingsIndex = a.settingsLibraryStartLocked() + len(a.settingsDraftLibraries) - 1
 	a.openLibraryPathOSKLocked(len(a.settingsDraftLibraries)-1, true)
 }
@@ -966,7 +968,7 @@ func (a *App) saveSettingsLibrariesLocked() {
 		}
 	}
 	libraries := cloneLibraryRoots(a.settingsDraftLibraries)
-	a.patchSettingsLocked(LibrarySettingsPatch{Libraries: &libraries})
+	a.patchSettingsLocked(hostclient.LibrarySettingsPatch{Libraries: &libraries})
 }
 
 func (a *App) settingsOSKOpenLocked() bool {
@@ -980,7 +982,7 @@ func (a *App) openLibraryPathOSKLocked(index int, isAdd bool) {
 	a.settingsOSKKind = settingsOSKLibraryPath
 	a.settingsOSKIndex = index
 	a.settingsOSKIsAdd = isAdd
-	a.settingsOSKField = TextField{Buffer: a.settingsDraftLibraries[index].Root}
+	a.settingsOSKField = shared.TextField{Buffer: a.settingsDraftLibraries[index].Root}
 	a.settingsOSKField.OSK.Reset()
 	a.settingsOSKField.OSK.CyclePage(1)
 }
@@ -1008,7 +1010,7 @@ func (a *App) openTargetOSKLocked(index int, kind settingsOSKKind, isAdd bool) {
 	a.settingsOSKKind = kind
 	a.settingsOSKIndex = index
 	a.settingsOSKIsAdd = isAdd
-	a.settingsOSKField = TextField{Buffer: buffer}
+	a.settingsOSKField = shared.TextField{Buffer: buffer}
 	a.settingsOSKField.OSK.Reset()
 	if kind == settingsOSKTargetAddress {
 		a.settingsOSKField.OSK.CyclePage(1)
@@ -1019,7 +1021,7 @@ func (a *App) closeSettingsOSKLocked() {
 	a.settingsOSKKind = settingsOSKNone
 	a.settingsOSKIndex = 0
 	a.settingsOSKIsAdd = false
-	a.settingsOSKField = TextField{}
+	a.settingsOSKField = shared.TextField{}
 }
 
 func (a *App) handleSettingsOSKLocked(cmd Command) {
@@ -1319,7 +1321,7 @@ func (a *App) hydrateSettingsFromAppliedLocked() {
 	a.settingsStatus = ""
 }
 
-func (a *App) refreshSettingsDraftsFromAppliedLocked(prev LibrarySettings, seq int) {
+func (a *App) refreshSettingsDraftsFromAppliedLocked(prev hostclient.LibrarySettings, seq int) {
 	if !a.settingsOpen {
 		return
 	}
@@ -1333,7 +1335,7 @@ func (a *App) refreshSettingsDraftsFromAppliedLocked(prev LibrarySettings, seq i
 	a.settingsStatus = ""
 }
 
-func (a *App) settingsDraftsMatchLocked(settings LibrarySettings) bool {
+func (a *App) settingsDraftsMatchLocked(settings hostclient.LibrarySettings) bool {
 	idle := settings.AttractIdleSeconds
 	if idle <= 0 {
 		idle = defaultAttractIdleSeconds
@@ -1353,7 +1355,7 @@ func (a *App) settingsDraftsMatchLocked(settings LibrarySettings) bool {
 	return slices.Equal(a.settingsDraftRegions, settings.PreferredRegions)
 }
 
-func (a *App) applyHostSettingsLocked(settings LibrarySettings) {
+func (a *App) applyHostSettingsLocked(settings hostclient.LibrarySettings) {
 	a.hostSettings = settings
 	a.settingsDraftIdle = settings.AttractIdleSeconds
 	if a.settingsDraftIdle <= 0 {
@@ -1370,11 +1372,8 @@ func (a *App) applyHostSettingsLocked(settings LibrarySettings) {
 	a.settingsHydrated = true
 }
 
-func (a *App) patchSettingsLocked(patch LibrarySettingsPatch) {
+func (a *App) patchSettingsLocked(patch hostclient.LibrarySettingsPatch) {
 	if a.settingsBusy {
-		return
-	}
-	if _, err := patch.payload(); err != nil {
 		return
 	}
 	a.settingsBusy = true
@@ -1390,7 +1389,7 @@ func (a *App) patchSettingsLocked(patch LibrarySettingsPatch) {
 	go a.commitLibrarySettings(ctx, gen, seq, patch)
 }
 
-func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch LibrarySettingsPatch) {
+func (a *App) commitLibrarySettings(ctx context.Context, gen, seq int, patch hostclient.LibrarySettingsPatch) {
 	settings, err := a.client.PatchLibrarySettings(ctx, patch)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1453,7 +1452,7 @@ func (a *App) applyAttractIdleFromSettingsLocked(seconds int) {
 	a.attractLoading = false
 }
 
-func (a *App) settingsSavedStatusLocked(patch LibrarySettingsPatch) string {
+func (a *App) settingsSavedStatusLocked(patch hostclient.LibrarySettingsPatch) string {
 	switch {
 	case patch.AttractIdleSeconds != nil:
 		return fmt.Sprintf("idle %ds", a.hostSettings.AttractIdleSeconds)
@@ -1555,14 +1554,14 @@ func (a *App) settingsSystemLabelLocked(id string) string {
 	return id
 }
 
-func cloneLibraryRoots(in []LibraryRoot) []LibraryRoot {
+func cloneLibraryRoots(in []hostclient.LibraryRoot) []hostclient.LibraryRoot {
 	if len(in) == 0 {
-		return []LibraryRoot{}
+		return []hostclient.LibraryRoot{}
 	}
-	return append([]LibraryRoot(nil), in...)
+	return append([]hostclient.LibraryRoot(nil), in...)
 }
 
-func cloneSettingsTargetsFromHost(in []LibraryTarget) []settingsTargetDraft {
+func cloneSettingsTargetsFromHost(in []hostclient.LibraryTarget) []settingsTargetDraft {
 	out := make([]settingsTargetDraft, 0, len(in))
 	for _, target := range in {
 		name := strings.TrimSpace(target.Name)
@@ -1577,7 +1576,7 @@ func cloneSettingsTargetsFromHost(in []LibraryTarget) []settingsTargetDraft {
 	return out
 }
 
-func settingsTargetsMatchHost(drafts []settingsTargetDraft, host []LibraryTarget) bool {
+func settingsTargetsMatchHost(drafts []settingsTargetDraft, host []hostclient.LibraryTarget) bool {
 	if len(drafts) != len(host) {
 		return false
 	}

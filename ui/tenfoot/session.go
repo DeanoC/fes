@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
 	"strconv"
 	"strings"
 )
@@ -45,7 +46,7 @@ func sessionChromeState(state, execution string, stopping, retryLock bool) strin
 	}
 }
 
-func formatSessionEvent(ev SessionEvent) string {
+func formatSessionEvent(ev hostclient.SessionEvent) string {
 	parts := make([]string, 0, 6)
 	if event := readableSessionEventName(ev.Event); event != "" {
 		parts = append(parts, event)
@@ -164,7 +165,7 @@ func saveFailedOrLeaseRetained(code, message string) bool {
 		strings.Contains(blob, "kit_lease")
 }
 
-func sessionEventRequestsRetryStop(ev SessionEvent) bool {
+func sessionEventRequestsRetryStop(ev hostclient.SessionEvent) bool {
 	if saveFailedOrLeaseRetained(ev.Event, "") {
 		return true
 	}
@@ -177,13 +178,13 @@ func sessionEventRequestsRetryStop(ev SessionEvent) bool {
 // eventsRetainRetryStop is true when a save_failed / lease-retained event is
 // still the latest unresolved event. A later successful session.stop to idle
 // clears it so historical rows from after=0 cannot lock a live idle sofa.
-func eventsRetainRetryStop(rows []SessionEvent) (bool, SessionEvent) {
+func eventsRetainRetryStop(rows []hostclient.SessionEvent) (bool, hostclient.SessionEvent) {
 	lock := false
-	var hit SessionEvent
+	var hit hostclient.SessionEvent
 	for _, ev := range rows {
 		if strings.TrimSpace(ev.Event) == "session.stop" && strings.TrimSpace(ev.State) == sessionChromeIdle {
 			lock = false
-			hit = SessionEvent{}
+			hit = hostclient.SessionEvent{}
 			continue
 		}
 		if sessionEventRequestsRetryStop(ev) {
@@ -208,8 +209,8 @@ func retryStopStatus(code, message string) string {
 	return fmt.Sprintf("retry Stop  ·  %s", msg)
 }
 
-func mergeSessionEvents(existing []SessionEvent, incoming []SessionEvent, after uint64) (rows []SessionEvent, next uint64) {
-	rows = append([]SessionEvent(nil), existing...)
+func mergeSessionEvents(existing []hostclient.SessionEvent, incoming []hostclient.SessionEvent, after uint64) (rows []hostclient.SessionEvent, next uint64) {
+	rows = append([]hostclient.SessionEvent(nil), existing...)
 	next = after
 	seen := make(map[uint64]bool, len(rows))
 	for _, ev := range rows {
@@ -232,7 +233,7 @@ func mergeSessionEvents(existing []SessionEvent, incoming []SessionEvent, after 
 		}
 	}
 	if len(rows) > maxSessionEventRows {
-		rows = append([]SessionEvent(nil), rows[len(rows)-maxSessionEventRows:]...)
+		rows = append([]hostclient.SessionEvent(nil), rows[len(rows)-maxSessionEventRows:]...)
 	}
 	return rows, next
 }

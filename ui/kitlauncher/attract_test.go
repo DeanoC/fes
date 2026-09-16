@@ -1,15 +1,14 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
-func stillItem(id, title, handle string) tenfoot.AttractItem {
-	return tenfoot.AttractItem{
+func stillItem(id, title, handle string) hostclient.AttractItem {
+	return hostclient.AttractItem{
 		GameID:     id,
 		Title:      title,
 		Platform:   "snes",
@@ -24,9 +23,9 @@ func handleBB() string { return "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 func TestAttractArmsAfterIdle(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{
 		IdleSeconds: 1,
-		Items:       []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())},
+		Items:       []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())},
 	})
 	m.SetAttractIdle(20 * time.Millisecond)
 	t0 := time.Unix(0, 0)
@@ -53,7 +52,7 @@ func TestAttractDoesNotArmWhileBusyOrSession(t *testing.T) {
 	for _, state := range []string{"active", "launching", "stopping", "failed"} {
 		m := Model{Connected: true, TargetReady: true, Session: Session{State: state}}
 		m.SetAttractIdle(time.Millisecond)
-		m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+		m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 		m.Tick(t0)
 		m.Tick(t0.Add(time.Second))
 		if m.AttractActive {
@@ -62,7 +61,7 @@ func TestAttractDoesNotArmWhileBusyOrSession(t *testing.T) {
 	}
 	m := Model{Connected: true, TargetReady: true, Busy: true}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	m.Tick(t0)
 	m.Tick(t0.Add(time.Second))
 	if m.AttractActive {
@@ -70,7 +69,7 @@ func TestAttractDoesNotArmWhileBusyOrSession(t *testing.T) {
 	}
 	m = Model{Connected: false, TargetReady: true}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	m.Tick(t0)
 	m.Tick(t0.Add(time.Second))
 	if m.AttractActive {
@@ -91,7 +90,7 @@ func TestAttractDismissPreservesFocusAndShelf(t *testing.T) {
 		t.Fatalf("setup shelf=%q focus=%d", m.Shelf, m.Focus)
 	}
 	m.SetAttractIdle(10 * time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	m.Tick(t0)
 	m.Tick(t0.Add(20 * time.Millisecond))
 	if !m.AttractActive {
@@ -113,7 +112,7 @@ func TestAttractDismissPreservesFocusAndShelf(t *testing.T) {
 func TestAttractEmptyPlaylistShowsIdlePanel(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: nil})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: nil})
 	m.SetAttractIdle(10 * time.Millisecond)
 	t0 := time.Unix(0, 0)
 	m.Tick(t0)
@@ -136,8 +135,8 @@ func TestAttractSkipsVideoOnlyRows(t *testing.T) {
 	video := handleAA()
 	cover := handleBB()
 	m := Model{Connected: true, TargetReady: true}
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{
-		Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{
+		Items: []hostclient.AttractItem{
 			{GameID: "clip", Title: "Clip", Video: video, Launchable: true},
 			stillItem("mario", "Mario", cover),
 		},
@@ -157,7 +156,7 @@ func TestAttractALaunchesCurrentItem(t *testing.T) {
 	m.SetCatalog(mixedCatalog())
 	m.Focus = 0
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(0, 0)
 	m.Tick(t0)
 	m.Tick(t0.Add(5 * time.Millisecond))
@@ -179,7 +178,7 @@ func TestAttractALaunchesCurrentItem(t *testing.T) {
 func TestAttractAFromStripLaunchesAttractGame(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetStrip([]tenfoot.Game{
+	m.SetStrip([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 	}, "Recent")
 	m.Focus = len(m.Games) - 1
@@ -188,7 +187,7 @@ func TestAttractAFromStripLaunchesAttractGame(t *testing.T) {
 		t.Fatalf("enter strip action=%q strip=%v", action, m.StripActive)
 	}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(2, 0)
 	m.lastInput = t0
 	m.Tick(t0)
@@ -214,7 +213,7 @@ func TestAttractAFromStripLaunchesAttractGame(t *testing.T) {
 func TestAttractBFromStripReturnsToStrip(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetStrip([]tenfoot.Game{
+	m.SetStrip([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 	}, "Recent")
 	m.Focus = len(m.Games) - 1
@@ -224,7 +223,7 @@ func TestAttractBFromStripReturnsToStrip(t *testing.T) {
 		t.Fatal("expected strip")
 	}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(2, 0)
 	m.lastInput = t0
 	m.Tick(t0.Add(5 * time.Millisecond))
@@ -243,7 +242,7 @@ func TestAttractALaunchesUnknownGameID(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("missing", "Ghost", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("missing", "Ghost", handleAA())}})
 	t0 := time.Unix(0, 0)
 	m.Tick(t0)
 	m.Tick(t0.Add(5 * time.Millisecond))
@@ -263,7 +262,7 @@ func TestAttractBDismissesWithoutLaunch(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(0, 0)
 	m.Tick(t0)
 	m.Tick(t0.Add(5 * time.Millisecond))
@@ -283,7 +282,7 @@ func TestAttractCycleAdvancesIndex(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetAttractIdle(time.Millisecond)
 	m.SetAttractCycle(20 * time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{
 		stillItem("mario", "Mario", handleAA()),
 		stillItem("sonic", "Sonic", handleBB()),
 	}})
@@ -309,7 +308,7 @@ func TestAttractShoulderDoesNotCycleShelfWhileActive(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
 	t0 := time.Unix(0, 0)
 	m.Tick(t0)
 	m.Tick(t0.Add(5 * time.Millisecond))
@@ -343,7 +342,7 @@ func TestAttractDoesNotBreakSelectStartStop(t *testing.T) {
 
 func TestAttractPrefetchCurrentAndNext(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, AttractActive: true}
-	m.attractItems = []tenfoot.AttractItem{stillItem("a", "A", handleAA()), stillItem("b", "B", handleBB())}
+	m.attractItems = []hostclient.AttractItem{stillItem("a", "A", handleAA()), stillItem("b", "B", handleBB())}
 	got := m.AttractPrefetchHandles()
 	if len(got) != 2 || got[0] != handleAA() || got[1] != handleBB() {
 		t.Fatalf("handles %v", got)
@@ -354,8 +353,8 @@ func handleCC() string { return "ccccccccccccccccccccccccccccccccccccccccccccccc
 func handleDD() string { return "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
 func handleEE() string { return "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" }
 
-func videoItem(id, title, video, backdrop, cover string) tenfoot.AttractItem {
-	return tenfoot.AttractItem{
+func videoItem(id, title, video, backdrop, cover string) hostclient.AttractItem {
+	return hostclient.AttractItem{
 		GameID:     id,
 		Title:      title,
 		Platform:   "snes",
@@ -370,7 +369,7 @@ func TestAttractMotionCyclesStillsWhenVideoPresent(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetAttractIdle(time.Millisecond)
 	m.SetAttractCycle(10 * time.Second)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{
 		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
 	}})
 	t0 := time.Unix(0, 0)
@@ -394,7 +393,7 @@ func TestAttractMotionCyclesStillsWhenVideoPresent(t *testing.T) {
 func TestAttractStillsFallbackHidesMotionChrome(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{
 		stillItem("mario", "Mario", handleAA()),
 	}})
 	t0 := time.Unix(0, 0)
@@ -408,7 +407,7 @@ func TestAttractStillsFallbackHidesMotionChrome(t *testing.T) {
 
 func TestAttractMarqueeStripWhenDistinctAndHidesWhenSame(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, AttractActive: true}
-	m.attractItems = []tenfoot.AttractItem{{
+	m.attractItems = []hostclient.AttractItem{{
 		GameID: "mario", Title: "Mario", Platform: "snes",
 		Backdrop: handleAA(), Marquee: handleBB(), Launchable: true,
 	}}
@@ -434,8 +433,8 @@ func TestAttractMarqueeStripWhenDistinctAndHidesWhenSame(t *testing.T) {
 	}
 
 	m.attractItems[0].Marquee = ""
-	m.ApplyAttractPresentation("mario", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{MarqueeID: handleCC()},
+	m.ApplyAttractPresentation("mario", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{MarqueeID: handleCC()},
 	})
 	view = m.AttractView(time.Unix(1, 0))
 	if view.Marquee != handleCC() {
@@ -443,7 +442,7 @@ func TestAttractMarqueeStripWhenDistinctAndHidesWhenSame(t *testing.T) {
 	}
 
 	only := Model{Connected: true, TargetReady: true, AttractActive: true}
-	only.attractItems = []tenfoot.AttractItem{{
+	only.attractItems = []hostclient.AttractItem{{
 		GameID: "pong", Title: "Pong", Marquee: handleDD(), Launchable: true,
 	}}
 	view = only.AttractView(time.Unix(1, 0))
@@ -454,10 +453,10 @@ func TestAttractMarqueeStripWhenDistinctAndHidesWhenSame(t *testing.T) {
 
 func TestAttractMotionUsesPresentationScreenshots(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, AttractActive: true}
-	m.attractItems = []tenfoot.AttractItem{videoItem("mario", "Mario", handleEE(), handleAA(), "")}
+	m.attractItems = []hostclient.AttractItem{videoItem("mario", "Mario", handleEE(), handleAA(), "")}
 	shot := handleCC()
-	m.ApplyAttractPresentation("mario", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{
+	m.ApplyAttractPresentation("mario", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			VideoID:       handleEE(),
 			ScreenshotIDs: []string{shot, handleBB()},
 		},
@@ -476,7 +475,7 @@ func TestAttractWallWhenFourTitlesIncludeVideo(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetAttractIdle(time.Millisecond)
 	m.SetAttractCycle(10 * time.Second)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{
 		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
 		stillItem("sonic", "Sonic", handleCC()),
 		stillItem("zelda", "Zelda", handleDD()),
@@ -509,7 +508,7 @@ func TestAttractWallWhenFourTitlesIncludeVideo(t *testing.T) {
 func TestAttractMotionALaunchesStagedGameFromStrip(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
-	m.SetStrip([]tenfoot.Game{
+	m.SetStrip([]hostclient.Game{
 		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
 	}, "Recent")
 	m.Focus = len(m.Games) - 1
@@ -518,7 +517,7 @@ func TestAttractMotionALaunchesStagedGameFromStrip(t *testing.T) {
 		t.Fatalf("enter strip action=%q strip=%v", action, m.StripActive)
 	}
 	m.SetAttractIdle(time.Millisecond)
-	m.SetAttractPlaylist(tenfoot.AttractPlaylist{Items: []tenfoot.AttractItem{
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{
 		videoItem("mario", "Mario", handleEE(), handleAA(), handleBB()),
 	}})
 	t0 := time.Unix(2, 0)

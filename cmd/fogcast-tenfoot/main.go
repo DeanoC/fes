@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
@@ -46,7 +47,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 func parseArgs(args []string) (tenfoot.Options, error) {
 	fs := flag.NewFlagSet("fogcast-tenfoot", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	api := fs.String("api", envOr("FOGCAST_API", tenfoot.DefaultAPIBase), "FogCast host API base URL")
+	api := fs.String("api", envOr("FOGCAST_API", hostclient.DefaultAPIBase), "FogCast host API base URL")
 	apiHost := fs.String("api-host", envOr("FOGCAST_API_HOST", ""), "optional HTTP Host header (loopback allowlist; -smoke defaults this when the API URL is not loopback)")
 	width := fs.Int("width", 1280, "window width")
 	height := fs.Int("height", 720, "window height")

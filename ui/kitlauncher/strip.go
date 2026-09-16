@@ -1,19 +1,18 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"strings"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 const stripMax = 6
 
 // ComposeStrip builds a single living-room row from host recents and
 // favorites. Recents win on duplicates. Empty inputs yield a hidden row.
-func ComposeStrip(recents, favorites []tenfoot.Game) (games []tenfoot.Game, label string) {
-	games = make([]tenfoot.Game, 0, stripMax)
+func ComposeStrip(recents, favorites []hostclient.Game) (games []hostclient.Game, label string) {
+	games = make([]hostclient.Game, 0, stripMax)
 	seen := map[string]struct{}{}
-	add := func(list []tenfoot.Game) int {
+	add := func(list []hostclient.Game) int {
 		added := 0
 		for _, game := range list {
 			if len(games) >= stripMax {
@@ -47,7 +46,7 @@ func ComposeStrip(recents, favorites []tenfoot.Game) (games []tenfoot.Game, labe
 
 // SetStrip replaces the recent/favorites row. An empty row hides and leaves
 // strip focus.
-func (m *Model) SetStrip(games []tenfoot.Game, label string) {
+func (m *Model) SetStrip(games []hostclient.Game, label string) {
 	if m == nil {
 		return
 	}
@@ -55,7 +54,7 @@ func (m *Model) SetStrip(games []tenfoot.Game, label string) {
 	if m.StripFocus >= 0 && m.StripFocus < len(m.Strip) {
 		keep = m.Strip[m.StripFocus].ID
 	}
-	m.Strip = append([]tenfoot.Game(nil), games...)
+	m.Strip = append([]hostclient.Game(nil), games...)
 	m.StripLabel = strings.TrimSpace(label)
 	if len(m.Strip) == 0 {
 		if m.detailFromStrip {
@@ -79,7 +78,7 @@ func (m *Model) SetStrip(games []tenfoot.Game, label string) {
 
 // ApplyStrip updates the recent/favorites row without resetting focus when
 // the membership is unchanged.
-func (m *Model) ApplyStrip(games []tenfoot.Game, label string) {
+func (m *Model) ApplyStrip(games []hostclient.Game, label string) {
 	if m == nil {
 		return
 	}
@@ -90,9 +89,9 @@ func (m *Model) ApplyStrip(games []tenfoot.Game, label string) {
 	m.SetStrip(games, label)
 }
 
-func (m *Model) stripGame() (tenfoot.Game, bool) {
+func (m *Model) stripGame() (hostclient.Game, bool) {
 	if m == nil || m.StripFocus < 0 || m.StripFocus >= len(m.Strip) {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	return m.Strip[m.StripFocus], true
 }

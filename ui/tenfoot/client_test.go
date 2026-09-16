@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,18 +61,18 @@ func TestSessionMutationReadFailureRetainsHTTPStatus(t *testing.T) {
 	}
 	operations := []struct {
 		name string
-		call func(*Client) (SessionResult, error)
+		call func(*Client) (hostclient.SessionResult, error)
 	}{
-		{name: "launch", call: func(c *Client) (SessionResult, error) {
+		{name: "launch", call: func(c *Client) (hostclient.SessionResult, error) {
 			return c.LaunchStamped(context.Background(), "pong", ClientStamp{})
 		}},
-		{name: "stop", call: func(c *Client) (SessionResult, error) {
+		{name: "stop", call: func(c *Client) (hostclient.SessionResult, error) {
 			return c.StopStamped(context.Background(), ClientStamp{})
 		}},
-		{name: "development-rbf", call: func(c *Client) (SessionResult, error) {
+		{name: "development-rbf", call: func(c *Client) (hostclient.SessionResult, error) {
 			return c.LoadDevelopmentRBF(context.Background(), 1, strings.NewReader("x"))
 		}},
-		{name: "input-attach", call: func(c *Client) (SessionResult, error) {
+		{name: "input-attach", call: func(c *Client) (hostclient.SessionResult, error) {
 			return c.AttachInput(context.Background())
 		}},
 	}
@@ -109,7 +111,7 @@ func TestClientDecodesGameRegion(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{{
+			"games": []hostclient.Game{{
 				ID:         "megadrive-sonic",
 				Title:      "Sonic",
 				System:     "megadrive",
@@ -121,7 +123,7 @@ func TestClientDecodesGameRegion(t *testing.T) {
 		})
 	}))
 	t.Cleanup(server.Close)
-	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +182,7 @@ func TestClientCoreLibraryAndAvailability(t *testing.T) {
 	}
 
 	got := library.Availability()
-	byGame := make(map[string]CoreAvailability, len(got))
+	byGame := make(map[string]hostclient.CoreAvailability, len(got))
 	for _, status := range got {
 		byGame[status.GameID] = status
 	}
@@ -212,16 +214,16 @@ func TestClientDecodesPlayStatsAndOptionalBadgeFields(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{{
+				"games": []hostclient.Game{{
 					ID: "megadrive-sonic", Title: "Sonic", System: "megadrive",
 					Launchable: true, PlayCount: 4, LastPlayedAt: 99,
 				}},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "megadrive-sonic",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					Players: "2", Rating: "4.5", Completion: "100%", Portable: true,
 				},
 			})
@@ -231,7 +233,7 @@ func TestClientDecodesPlayStatsAndOptionalBadgeFields(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
-	games, _, err := client.ListGames(context.Background(), GameListQuery{Limit: 10})
+	games, _, err := client.ListGames(context.Background(), hostclient.GameListQuery{Limit: 10})
 	if err != nil || len(games) != 1 || games[0].PlayCount != 4 || games[0].LastPlayedAt != 99 {
 		t.Fatalf("games = %#v err=%v", games, err)
 	}
@@ -248,18 +250,18 @@ func TestClientListsGamesAndFollowsCursor(t *testing.T) {
 		paths = append(paths, r.URL.RequestURI())
 		if r.URL.Query().Get("cursor") == "" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games":       []Game{{ID: "snes-mario", Title: "Mario", System: "snes", Launchable: true}},
+				"games":       []hostclient.Game{{ID: "snes-mario", Title: "Mario", System: "snes", Launchable: true}},
 				"next_cursor": "page-2",
 			})
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{{ID: "megadrive-sonic", Title: "Sonic", System: "megadrive", Launchable: true}},
+			"games": []hostclient.Game{{ID: "megadrive-sonic", Title: "Sonic", System: "megadrive", Launchable: true}},
 		})
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
-	games, err := client.FetchLibrary(context.Background(), GameListQuery{Limit: 200, Sort: "title"}, 10)
+	games, err := client.FetchLibrary(context.Background(), hostclient.GameListQuery{Limit: 200, Sort: "title"}, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,14 +277,14 @@ func TestListGamesPrefersLaunchableVariant(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{{
+			"games": []hostclient.Game{{
 				ID:         "snes-sonic-usa",
 				Title:      "Sonic",
 				System:     "snes",
 				State:      "available",
 				RootOnline: false,
 				Launchable: true,
-				Variants: []Game{
+				Variants: []hostclient.Game{
 					{ID: "snes-sonic-usa", Title: "Sonic", System: "snes", State: "available", RootOnline: false, Launchable: true},
 					{ID: "snes-sonic-japan", Title: "Sonic", System: "snes", State: "available", RootOnline: true, Launchable: true},
 				},
@@ -290,7 +292,7 @@ func TestListGamesPrefersLaunchableVariant(t *testing.T) {
 		})
 	}))
 	t.Cleanup(server.Close)
-	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,10 +311,10 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/games/snes-mario":
-			_ = json.NewEncoder(w).Encode(Presentation{
+			_ = json.NewEncoder(w).Encode(hostclient.Presentation{
 				GameID: "snes-mario",
 				State:  "ready",
-				Presentation: &PresentationInfo{
+				Presentation: &hostclient.PresentationInfo{
 					CoverArtworkID: handle,
 					VideoID:        strings.Repeat("ef", 32),
 					Summary:        "jump",
@@ -322,7 +324,7 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 					Players:        "1-2",
 					ScreenshotIDs:  []string{handle, "bad", handle, strings.Repeat("cd", 32)},
 				},
-				Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
+				Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/presentation/artwork/"+handle:
 			w.Header().Set("Content-Type", "image/png")
@@ -340,7 +342,7 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
 	pres, err := client.GamePresentation(context.Background(), "snes-mario")
-	if err != nil || CoverHandle(Game{}, pres) != handle {
+	if err != nil || shared.CoverHandle(hostclient.Game{}, pres) != handle {
 		t.Fatalf("presentation = %#v, %v", pres, err)
 	}
 	if got := pres.AttributionLabel(); got != "Data from IGDB.com" {
@@ -349,13 +351,13 @@ func TestClientPresentationArtworkAndLaunch(t *testing.T) {
 	if pres.Presentation == nil || pres.Presentation.Studio != "Nintendo" || pres.Presentation.Players != "1-2" {
 		t.Fatalf("studio/players = %#v", pres.Presentation)
 	}
-	if got := screenshotHandles(pres.Presentation.ScreenshotIDs); len(got) != 2 || got[0] != handle {
+	if got := shared.ScreenshotHandles(pres.Presentation.ScreenshotIDs); len(got) != 2 || got[0] != handle {
 		t.Fatalf("screenshots = %#v", pres.Presentation.ScreenshotIDs)
 	}
-	if got := VideoHandle(pres); got != strings.Repeat("ef", 32) {
+	if got := shared.VideoHandle(pres); got != strings.Repeat("ef", 32) {
 		t.Fatalf("video = %q", got)
 	}
-	if got := MarqueeHandle(pres); got != "" {
+	if got := shared.MarqueeHandle(pres); got != "" {
 		t.Fatalf("unexpected marquee %q", got)
 	}
 	data, ctype, err := client.Artwork(context.Background(), handle)
@@ -831,10 +833,10 @@ func TestClientListsGamesWithPlatformSortAndSearch(t *testing.T) {
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.RequestURI())
-		_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 	}))
 	t.Cleanup(server.Close)
-	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{
 		Limit:    50,
 		Platform: "snes",
 		Sort:     "system",
@@ -858,10 +860,10 @@ func TestListGamesEncodesFacetsAndHideFlags(t *testing.T) {
 	var raw string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw = r.URL.RawQuery
-		_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{}})
 	}))
 	t.Cleanup(server.Close)
-	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+	_, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{
 		Limit:          20,
 		Genre:          "Action",
 		Year:           "1991",
@@ -892,7 +894,7 @@ func TestListGamesEncodesFacetsAndHideFlags(t *testing.T) {
 	}
 
 	raw = ""
-	_, _, err = NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	_, _, err = NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -954,7 +956,7 @@ func TestClientListsPlatforms(t *testing.T) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"platforms": []Platform{{ID: "snes", Label: "Super NES", GameCount: 3, Launchable: true}},
+			"platforms": []hostclient.Platform{{ID: "snes", Label: "Super NES", GameCount: 3, Launchable: true}},
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -969,19 +971,19 @@ func TestClientListsPlatforms(t *testing.T) {
 
 func TestPresentationAttributionLabel(t *testing.T) {
 	t.Parallel()
-	igdb := Presentation{Attribution: &PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}}
+	igdb := hostclient.Presentation{Attribution: &hostclient.PresentationAttribution{Provider: "igdb", Label: "Data from IGDB.com"}}
 	if got := igdb.AttributionLabel(); got != "Data from IGDB.com" {
 		t.Fatalf("igdb = %q", got)
 	}
-	launchbox := Presentation{Attribution: &PresentationAttribution{Provider: "launchbox", Label: "Data from LaunchBox Games Database"}}
+	launchbox := hostclient.Presentation{Attribution: &hostclient.PresentationAttribution{Provider: "launchbox", Label: "Data from LaunchBox Games Database"}}
 	if got := launchbox.AttributionLabel(); got != "Data from LaunchBox Games Database" {
 		t.Fatalf("launchbox = %q", got)
 	}
-	unknown := Presentation{Attribution: &PresentationAttribution{Provider: "steam", Label: "Steam"}}
+	unknown := hostclient.Presentation{Attribution: &hostclient.PresentationAttribution{Provider: "steam", Label: "Steam"}}
 	if got := unknown.AttributionLabel(); got != "" {
 		t.Fatalf("unknown = %q", got)
 	}
-	if got := (Presentation{}).AttributionLabel(); got != "" {
+	if got := (hostclient.Presentation{}).AttributionLabel(); got != "" {
 		t.Fatalf("empty = %q", got)
 	}
 }
@@ -992,11 +994,11 @@ func TestClientListsGamesWithCollection(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.URL.RequestURI())
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"games": []Game{{ID: "snes-mario", Title: "Mario", Favorite: true, Collections: []string{"weekend-queue"}}},
+			"games": []hostclient.Game{{ID: "snes-mario", Title: "Mario", Favorite: true, Collections: []string{"weekend-queue"}}},
 		})
 	}))
 	t.Cleanup(server.Close)
-	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), hostclient.GameListQuery{
 		Limit:      50,
 		Collection: "favorites",
 		Sort:       "title",
@@ -1025,7 +1027,7 @@ func TestClientListsCollectionsAndSetFavorite(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"collections": []Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
+				"collections": []hostclient.Collection{{ID: "weekend-queue", Name: "Weekend queue"}},
 			})
 		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/favorites/snes-mario":
 			_ = json.NewEncoder(w).Encode(map[string]any{"id": "snes-mario", "favorite": true})
@@ -1097,26 +1099,6 @@ func TestClientCollectionMembershipAndCRUD(t *testing.T) {
 	want := "PUT /api/v1/library/collections/weekend-queue/snes-mario,DELETE /api/v1/library/collections/weekend-queue/snes-mario,PUT /api/v1/library/collections/weekend-queue,DELETE /api/v1/library/collections/weekend-queue,PUT /api/v1/library/collections/favorites"
 	if strings.Join(methods, ",") != want {
 		t.Fatalf("methods = %#v", methods)
-	}
-}
-
-func TestPreferLaunchableCopiesFavorite(t *testing.T) {
-	t.Parallel()
-	game := preferLaunchable(Game{
-		ID:          "snes-sonic-usa",
-		Title:       "Sonic",
-		System:      "snes",
-		State:       "available",
-		RootOnline:  false,
-		Launchable:  true,
-		Favorite:    true,
-		Collections: []string{"weekend-queue"},
-		Variants: []Game{
-			{ID: "snes-sonic-japan", Title: "Sonic", System: "snes", State: "available", RootOnline: true, Launchable: true},
-		},
-	})
-	if game.ID != "snes-sonic-japan" || !game.Favorite || len(game.Collections) != 1 {
-		t.Fatalf("game = %#v", game)
 	}
 }
 
@@ -1212,7 +1194,7 @@ func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
 	cover := strings.Repeat("bb", 32)
 	marquee := strings.Repeat("cc", 32)
 	video := strings.Repeat("dd", 32)
-	item := AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
+	item := hostclient.AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
 	if item.StillHandle() != backdrop {
 		t.Fatalf("got %q", item.StillHandle())
 	}
@@ -1228,7 +1210,7 @@ func TestAttractStillHandlePrefersBackdropThenCoverThenMarquee(t *testing.T) {
 	if item.StillHandle() != "" {
 		t.Fatalf("video must not be a still handle, got %q", item.StillHandle())
 	}
-	item = AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
+	item = hostclient.AttractItem{Video: video, Cover: cover, Backdrop: backdrop, Marquee: marquee}
 	handles := item.StillHandles()
 	if len(handles) != 3 || handles[0] != backdrop || handles[1] != cover || handles[2] != marquee {
 		t.Fatalf("still handles %v", handles)
@@ -1245,14 +1227,14 @@ func TestAttractPreviewHandlesMotionAndStillsFallback(t *testing.T) {
 	cover := strings.Repeat("cc", 32)
 	marquee := strings.Repeat("dd", 32)
 	video := strings.Repeat("ee", 32)
-	item := AttractItem{Video: video, Backdrop: backdrop, Cover: cover, Marquee: marquee}
-	got := AttractPreviewHandles(item, Presentation{})
+	item := hostclient.AttractItem{Video: video, Backdrop: backdrop, Cover: cover, Marquee: marquee}
+	got := shared.AttractPreviewHandles(item, hostclient.Presentation{})
 	if len(got) != 3 || got[0] != backdrop || got[1] != cover || got[2] != marquee {
 		t.Fatalf("item stills %#v", got)
 	}
 
-	preview := AttractPreviewHandles(item, Presentation{
-		Presentation: &PresentationInfo{
+	preview := shared.AttractPreviewHandles(item, hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			VideoID:           video,
 			ScreenshotIDs:     []string{shot, "bad"},
 			BackdropArtworkID: strings.Repeat("ff", 32),
@@ -1262,20 +1244,20 @@ func TestAttractPreviewHandlesMotionAndStillsFallback(t *testing.T) {
 		t.Fatalf("video preview %#v", preview)
 	}
 
-	stills := AttractPreviewHandles(AttractItem{Backdrop: backdrop, Cover: cover}, Presentation{
-		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot}, VideoID: ""},
+	stills := shared.AttractPreviewHandles(hostclient.AttractItem{Backdrop: backdrop, Cover: cover}, hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{ScreenshotIDs: []string{shot}, VideoID: ""},
 	})
 	if len(stills) != 2 || stills[0] != backdrop || stills[1] != cover {
 		t.Fatalf("stills fallback %#v", stills)
 	}
 
-	empty := AttractPreviewHandles(AttractItem{Video: video}, Presentation{})
+	empty := shared.AttractPreviewHandles(hostclient.AttractItem{Video: video}, hostclient.Presentation{})
 	if empty != nil {
 		t.Fatalf("video-only %#v", empty)
 	}
 
-	fromPres := AttractPreviewHandles(AttractItem{Video: video, Backdrop: backdrop}, Presentation{
-		Presentation: &PresentationInfo{VideoID: video, MarqueeID: marquee},
+	fromPres := shared.AttractPreviewHandles(hostclient.AttractItem{Video: video, Backdrop: backdrop}, hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{VideoID: video, MarqueeID: marquee},
 	})
 	if len(fromPres) != 2 || fromPres[0] != backdrop || fromPres[1] != marquee {
 		t.Fatalf("presentation marquee %#v", fromPres)
@@ -1286,30 +1268,30 @@ func TestAttractMarqueeHandlePrefersPresentationThenItem(t *testing.T) {
 	t.Parallel()
 	item := strings.Repeat("aa", 32)
 	pres := strings.Repeat("bb", 32)
-	row := AttractItem{Marquee: item, Backdrop: strings.Repeat("cc", 32)}
-	if got := AttractMarqueeHandle(row, Presentation{}); got != item {
+	row := hostclient.AttractItem{Marquee: item, Backdrop: strings.Repeat("cc", 32)}
+	if got := shared.AttractMarqueeHandle(row, hostclient.Presentation{}); got != item {
 		t.Fatalf("item = %q", got)
 	}
-	if got := AttractMarqueeHandle(row, Presentation{Presentation: &PresentationInfo{MarqueeID: pres}}); got != pres {
+	if got := shared.AttractMarqueeHandle(row, hostclient.Presentation{Presentation: &hostclient.PresentationInfo{MarqueeID: pres}}); got != pres {
 		t.Fatalf("presentation = %q", got)
 	}
-	if got := AttractMarqueeHandle(AttractItem{}, Presentation{}); got != "" {
+	if got := shared.AttractMarqueeHandle(hostclient.AttractItem{}, hostclient.Presentation{}); got != "" {
 		t.Fatalf("empty = %q", got)
 	}
-	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{MarqueeID: pres, LogoID: item}}); got != pres {
+	if got := shared.MarqueeHandle(hostclient.Presentation{Presentation: &hostclient.PresentationInfo{MarqueeID: pres, LogoID: item}}); got != pres {
 		t.Fatalf("presentation handle = %q", got)
 	}
-	if got := MarqueeHandle(Presentation{Presentation: &PresentationInfo{LogoID: item}}); got != "" {
+	if got := shared.MarqueeHandle(hostclient.Presentation{Presentation: &hostclient.PresentationInfo{LogoID: item}}); got != "" {
 		t.Fatalf("logo-only = %q", got)
 	}
 }
 
 func TestNormalizeHandleRejectsShortValues(t *testing.T) {
 	t.Parallel()
-	if got := normalizeHandle("abc"); got != "" {
+	if got := hostclient.NormalizeHandle("abc"); got != "" {
 		t.Fatalf("got %q", got)
 	}
-	if got := CoverHandle(Game{Cover: "not-a-handle"}, Presentation{}); got != "" {
+	if got := shared.CoverHandle(hostclient.Game{Cover: "not-a-handle"}, hostclient.Presentation{}); got != "" {
 		t.Fatalf("cover handle = %q", got)
 	}
 }
@@ -1323,15 +1305,15 @@ func TestDetailPreviewHandlesSelectsShotsThenPoster(t *testing.T) {
 	video := strings.Repeat("ee", 32)
 	dupShot := shot
 
-	stills := DetailPreviewHandles(Presentation{
-		Presentation: &PresentationInfo{ScreenshotIDs: []string{shot, shot2, "nope"}},
+	stills := shared.DetailPreviewHandles(hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{ScreenshotIDs: []string{shot, shot2, "nope"}},
 	}, cover)
 	if len(stills) != 2 || stills[0] != shot || stills[1] != shot2 {
 		t.Fatalf("stills-only %#v", stills)
 	}
 
-	preview := DetailPreviewHandles(Presentation{
-		Presentation: &PresentationInfo{
+	preview := shared.DetailPreviewHandles(hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			VideoID:           video,
 			ScreenshotIDs:     []string{shot, dupShot, "bad"},
 			BackdropArtworkID: backdrop,
@@ -1342,20 +1324,20 @@ func TestDetailPreviewHandlesSelectsShotsThenPoster(t *testing.T) {
 		t.Fatalf("video preview %#v", preview)
 	}
 
-	poster := DetailPreviewHandles(Presentation{
-		Presentation: &PresentationInfo{VideoID: video, CoverArtworkID: cover},
+	poster := shared.DetailPreviewHandles(hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{VideoID: video, CoverArtworkID: cover},
 	}, "")
 	if len(poster) != 1 || poster[0] != cover {
 		t.Fatalf("poster %#v", poster)
 	}
 
-	empty := DetailPreviewHandles(Presentation{
-		Presentation: &PresentationInfo{VideoID: video},
+	empty := shared.DetailPreviewHandles(hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{VideoID: video},
 	}, "")
 	if empty != nil {
 		t.Fatalf("video without stills %#v", empty)
 	}
-	if VideoHandle(Presentation{}) != "" {
+	if shared.VideoHandle(hostclient.Presentation{}) != "" {
 		t.Fatal("empty presentation grew a video handle")
 	}
 }
@@ -1455,7 +1437,7 @@ func TestClientLibrarySettingsGetAndPatch(t *testing.T) {
 	}
 
 	idle := 75
-	patched, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{AttractIdleSeconds: &idle})
+	patched, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{AttractIdleSeconds: &idle})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1463,11 +1445,11 @@ func TestClientLibrarySettingsGetAndPatch(t *testing.T) {
 		t.Fatalf("idle patch = %#v", patched)
 	}
 	regions := []string{"japan"}
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{PreferredRegions: &regions}); err != nil {
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{PreferredRegions: &regions}); err != nil {
 		t.Fatal(err)
 	}
 	target := "spare"
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{SelectedTarget: &target}); err != nil {
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{SelectedTarget: &target}); err != nil {
 		t.Fatal(err)
 	}
 	if len(patches) != 3 {
@@ -1489,139 +1471,8 @@ func TestClientLibrarySettingsGetAndPatch(t *testing.T) {
 
 func TestClientLibrarySettingsPatchEmptyRejected(t *testing.T) {
 	t.Parallel()
-	if _, err := NewClient("http://127.0.0.1:1", nil).PatchLibrarySettings(context.Background(), LibrarySettingsPatch{}); err == nil {
+	if _, err := NewClient("http://127.0.0.1:1", nil).PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{}); err == nil {
 		t.Fatal("empty patch accepted")
-	}
-}
-
-func TestLibrarySettingsPatchPayloadLibraries(t *testing.T) {
-	t.Parallel()
-	if _, err := (LibrarySettingsPatch{}).payload(); err == nil {
-		t.Fatal("empty patch accepted")
-	}
-	idle := 60
-	raw, err := (LibrarySettingsPatch{AttractIdleSeconds: &idle}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := raw["libraries"]; ok {
-		t.Fatalf("nil libraries included: %#v", raw)
-	}
-	libraries := []LibraryRoot{{ID: "snes", System: "snes", Root: "/library/snes"}}
-	raw, err = (LibrarySettingsPatch{Libraries: &libraries}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := raw["attract_idle_seconds"]; ok {
-		t.Fatalf("libraries patch included idle: %#v", raw)
-	}
-	if _, ok := raw["targets"]; ok {
-		t.Fatalf("libraries patch included targets: %#v", raw)
-	}
-	data, err := json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"libraries":[{"id":"snes","system":"snes","root":"/library/snes"}]}` {
-		t.Fatalf("full array = %s", data)
-	}
-	empty := []LibraryRoot{}
-	raw, err = (LibrarySettingsPatch{Libraries: &empty}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"libraries":[]}` {
-		t.Fatalf("empty array = %s", data)
-	}
-}
-
-func TestLibrarySettingsPatchPayloadTargets(t *testing.T) {
-	t.Parallel()
-	idle := 60
-	raw, err := (LibrarySettingsPatch{AttractIdleSeconds: &idle}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := raw["targets"]; ok {
-		t.Fatalf("nil targets included: %#v", raw)
-	}
-	untouched := []LibraryTargetWrite{{
-		Name:    "dev",
-		Address: "http://192.0.2.10:8182",
-		Enabled: true,
-	}}
-	raw, err = (LibrarySettingsPatch{Targets: &untouched}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := raw["libraries"]; ok {
-		t.Fatalf("targets patch included libraries: %#v", raw)
-	}
-	if _, ok := raw["selected_target"]; ok {
-		t.Fatalf("targets patch included selected_target: %#v", raw)
-	}
-	data, err := json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"targets":[{"name":"dev","address":"http://192.0.2.10:8182","enabled":true}]}` {
-		t.Fatalf("omit agent = %s", data)
-	}
-	if strings.Contains(string(data), `"agent"`) {
-		t.Fatalf("untouched agent included: %s", data)
-	}
-	cleared := ""
-	clear := []LibraryTargetWrite{{
-		Name:    "dev",
-		Address: "",
-		Enabled: false,
-		Agent:   &cleared,
-	}}
-	raw, err = (LibrarySettingsPatch{Targets: &clear}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"targets":[{"name":"dev","address":"","enabled":false,"agent":""}]}` {
-		t.Fatalf("clear agent = %s", data)
-	}
-	secret := "s3cret"
-	set := []LibraryTargetWrite{{
-		Name:         "den",
-		OriginalName: "dev",
-		Address:      "http://192.0.2.10:8182",
-		Enabled:      true,
-		Agent:        &secret,
-	}}
-	raw, err = (LibrarySettingsPatch{Targets: &set}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"targets":[{"name":"den","original_name":"dev","address":"http://192.0.2.10:8182","enabled":true,"agent":"s3cret"}]}` {
-		t.Fatalf("set agent = %s", data)
-	}
-	empty := []LibraryTargetWrite{}
-	raw, err = (LibrarySettingsPatch{Targets: &empty}).payload()
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err = json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != `{"targets":[]}` {
-		t.Fatalf("empty array = %s", data)
 	}
 }
 
@@ -1646,12 +1497,12 @@ func TestClientLibrarySettingsPatchLibraries(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
-	libraries := []LibraryRoot{{ID: "snes", System: "snes", Root: "/library/snes"}}
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Libraries: &libraries}); err != nil {
+	libraries := []hostclient.LibraryRoot{{ID: "snes", System: "snes", Root: "/library/snes"}}
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{Libraries: &libraries}); err != nil {
 		t.Fatal(err)
 	}
-	empty := []LibraryRoot{}
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Libraries: &empty}); err != nil {
+	empty := []hostclient.LibraryRoot{}
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{Libraries: &empty}); err != nil {
 		t.Fatal(err)
 	}
 	if len(patches) != 2 {
@@ -1693,13 +1544,13 @@ func TestClientLibrarySettingsPatchTargets(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	client := NewClient(server.URL, server.Client())
-	untouched := []LibraryTargetWrite{{Name: "dev", Address: "http://192.0.2.10:8182", Enabled: true}}
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Targets: &untouched}); err != nil {
+	untouched := []hostclient.LibraryTargetWrite{{Name: "dev", Address: "http://192.0.2.10:8182", Enabled: true}}
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{Targets: &untouched}); err != nil {
 		t.Fatal(err)
 	}
 	cleared := ""
-	clear := []LibraryTargetWrite{{Name: "dev", Address: "", Enabled: false, Agent: &cleared}}
-	if _, err := client.PatchLibrarySettings(context.Background(), LibrarySettingsPatch{Targets: &clear}); err != nil {
+	clear := []hostclient.LibraryTargetWrite{{Name: "dev", Address: "", Enabled: false, Agent: &cleared}}
+	if _, err := client.PatchLibrarySettings(context.Background(), hostclient.LibrarySettingsPatch{Targets: &clear}); err != nil {
 		t.Fatal(err)
 	}
 	if len(patches) != 2 {
@@ -1739,7 +1590,7 @@ func TestClientPatchLibrarySettingsPreparesNamedTargetWithoutCredentials(t *test
 	}))
 	defer server.Close()
 	name := "den"
-	settings, err := NewClient(server.URL, server.Client()).PatchLibrarySettings(t.Context(), LibrarySettingsPatch{PrepareTarget: &name})
+	settings, err := NewClient(server.URL, server.Client()).PatchLibrarySettings(t.Context(), hostclient.LibrarySettingsPatch{PrepareTarget: &name})
 	if err != nil {
 		t.Fatal(err)
 	}

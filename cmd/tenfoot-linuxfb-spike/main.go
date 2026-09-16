@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/linuxinput"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/linuxinput"
 )
 
 func main() {

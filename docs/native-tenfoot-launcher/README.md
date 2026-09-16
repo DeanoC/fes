@@ -37,7 +37,7 @@ Linux sysroot). Native-on-Linux is the supported path.
 ## 2D graphics device
 
 Cover grid, labels, attract, now-playing, and session preview draw through
-`ui/tenfoot/gfx.Device`, a small 2D bitmap API:
+`ui/gfx.Device`, a small 2D bitmap API:
 
 - frame lifecycle: `BeginFrame` / `Clear` / `Present`
 - textures: create/update/destroy from `*image.RGBA` (RGBA8), opaque handles
@@ -53,9 +53,9 @@ in `ui/tenfoot/sdl.go` until a later slice.
 | --- | --- | --- |
 | SDL3 | `gfx.WrapSDLRenderer` (`sdl3.go`, `-tags sdl3`) | Default production path. Wraps the process `SDL_Renderer` with `SDL_LOGICAL_PRESENTATION_LETTERBOX` and VSync. |
 | Software | `gfx.NewSoftware` (`software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest-neighbour blit; `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode, not in Draw. |
-| FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `ui/tenfoot/anim`. |
+| FPGA | `gfx.NewFPGA` (`fpga_device.go`) | Records the versioned FC2D command stream (`fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` stays true; this is not HDMI FPGA UI. Attract still/crossfade and sprite helpers: `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`fpga.go`) | Thin Software wrapper without a command stream (`fpga-stub`). `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `ui/tenfoot/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`linuxfb.go`) | Software rasterizer; `Present` blits onto a 32bpp Linux framebuffer (`/dev/fb0`) with stride and BGRX. Kit spike: `make build-tenfoot-linuxfb-spike` (`CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7`, no SDL3 tag). The spike reads `/dev/input/event*` and `js*` through `ui/linuxinput` (pure Go evdev/js) and moves a cursor; Start/ESC/Q (JS button 7/9) quits. Fake cover-grid: `make build-tenfoot-linuxfb-grid` (`cmd/tenfoot-linuxfb-grid`) on the same path with hardcoded tiles; d-pad/stick moves highlight, South/Enter/JS 0 confirms, Start/ESC/Q quits; `-theme` selects the shared look tokens. |
 
 `gfx.Recorder` is a call-order test double and does not draw pixels. Optional
 `TENFOOT_GFX=software|sdl|fpga|fpga-stub` (or `Options.GFX` / `-gfx`) selects a
@@ -104,7 +104,7 @@ theme's status/caption tokens. Launch, stop, focus, and nav actions send
 client wall + monotonic clocks on the existing host session path and to
 `POST /api/v1/debug/ui-events`.
 
-Look tokens (`ui/tenfoot/theme`) are shared with the kit grid. `-theme`
+Look tokens (`ui/theme`) are shared with the kit grid. `-theme`
 selects a built-in or pack name (`default`/`classic`, `arcade`/`neon`,
 `night`/`sofa-dim`) or a JSON/TOML file;
 `tenfoot.json` may store `theme`, and `FOGCAST_THEME` is the env fallback.
@@ -200,7 +200,7 @@ lease fails closed.
 Gamepad remains a supported control path (d-pad / left stick to move, South/A to
 launch, East/B to back, Start to quit, Select/View to cycle layout, Guide to
 open the sofa settings overlay). `-input-profile identity|swap-ab|/path.json`
-applies the shared `ui/tenfoot/inputmap` remapper after SDL button
+applies the shared `ui/inputmap` remapper after SDL button
 normalization (`CommandFromLogical`); empty is identity. Kit multi-device
 merge is the HIL proof; sofa still opens every SDL gamepad. Down from the last row (or last shelf/list
 page) opens the focused title's detail pane; Up or East/B returns to browse.

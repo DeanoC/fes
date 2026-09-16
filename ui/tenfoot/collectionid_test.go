@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"regexp"
 	"strconv"
 	"strings"
@@ -90,7 +91,7 @@ func TestIsCustomCollectionIDRejectsReserved(t *testing.T) {
 
 func TestSetGameCollectionsToggle(t *testing.T) {
 	t.Parallel()
-	game := Game{ID: "snes-mario", Collections: []string{"weekend-queue"}}
+	game := hostclient.Game{ID: "snes-mario", Collections: []string{"weekend-queue"}}
 	game = setGameCollections(game, "weekend-queue", false)
 	if gameHasCollection(game, "weekend-queue") {
 		t.Fatalf("removed = %#v", game.Collections)

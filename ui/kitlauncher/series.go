@@ -1,21 +1,21 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 // ComposeSeries builds in-catalog series/related mates for the focused title.
-func ComposeSeries(catalog []tenfoot.Game, focused tenfoot.Game, p tenfoot.Presentation) (games []tenfoot.Game, label string) {
-	return tenfoot.SeriesMates(catalog, focused, p)
+func ComposeSeries(catalog []hostclient.Game, focused hostclient.Game, p hostclient.Presentation) (games []hostclient.Game, label string) {
+	return shared.SeriesMates(catalog, focused, p)
 }
 
 // SetSeries replaces the series/related row. An empty row hides and leaves
 // series focus.
-func (m *Model) SetSeries(games []tenfoot.Game, label string) {
+func (m *Model) SetSeries(games []hostclient.Game, label string) {
 	if m == nil {
 		return
 	}
@@ -23,7 +23,7 @@ func (m *Model) SetSeries(games []tenfoot.Game, label string) {
 	if m.SeriesFocus >= 0 && m.SeriesFocus < len(m.Series) {
 		keep = m.Series[m.SeriesFocus].ID
 	}
-	m.Series = append([]tenfoot.Game(nil), games...)
+	m.Series = append([]hostclient.Game(nil), games...)
 	m.SeriesLabel = strings.TrimSpace(label)
 	if len(m.Series) == 0 {
 		m.leaveSeries()
@@ -45,15 +45,15 @@ func (m *Model) SetSeries(games []tenfoot.Game, label string) {
 	}
 }
 
-func (m *Model) seriesSubject() (tenfoot.Game, bool) {
+func (m *Model) seriesSubject() (hostclient.Game, bool) {
 	if m == nil {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	if m.DetailOpen {
 		return m.focusedGame()
 	}
 	if m.Focus < 0 || m.Focus >= len(m.Games) {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	return m.Games[m.Focus], true
 }
@@ -67,7 +67,7 @@ func (m *Model) refreshSeries() {
 		m.SetSeries(nil, "")
 		return
 	}
-	p := tenfoot.Presentation{}
+	p := hostclient.Presentation{}
 	if m.presentationID == game.ID {
 		p = m.presentation
 	}
@@ -75,9 +75,9 @@ func (m *Model) refreshSeries() {
 	m.SetSeries(mates, label)
 }
 
-func (m *Model) seriesGame() (tenfoot.Game, bool) {
+func (m *Model) seriesGame() (hostclient.Game, bool) {
 	if m == nil || m.SeriesFocus < 0 || m.SeriesFocus >= len(m.Series) {
-		return tenfoot.Game{}, false
+		return hostclient.Game{}, false
 	}
 	return m.Series[m.SeriesFocus], true
 }
@@ -125,7 +125,7 @@ func (m *Model) jumpToSeries(now time.Time) {
 	m.jumpTo(game, now)
 }
 
-func (m *Model) jumpTo(game tenfoot.Game, now time.Time) {
+func (m *Model) jumpTo(game hostclient.Game, now time.Time) {
 	id := strings.TrimSpace(game.ID)
 	if id == "" {
 		return
@@ -147,7 +147,7 @@ func (m *Model) jumpTo(game tenfoot.Game, now time.Time) {
 	m.leaveStrip()
 	m.detailFromStrip = false
 	m.presentationID = ""
-	m.presentation = tenfoot.Presentation{}
+	m.presentation = hostclient.Presentation{}
 	m.shotIndex = 0
 	m.previewAt = time.Time{}
 	shelf := normalizeShelf(system)

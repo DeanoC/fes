@@ -14,394 +14,20 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 const (
-	DefaultAPIBase     = "http://127.0.0.1:8787"
-	defaultPageLimit   = 200
-	defaultMaxGames    = 10000
-	maxAPIResponse     = 16 << 20
-	maxArtworkBytes    = 8 << 20
-	maxVideoBytes      = 128 << 20 // matches librarymedia.MaxVideoBytes
-	artworkHandleLen   = 64
-	defaultHTTPTimeout = 15 * time.Second
-	launchHTTPTimeout  = 60 * time.Second
-	stopHTTPTimeout    = 60 * time.Second
-	videoHTTPTimeout   = 120 * time.Second
-)
-
-// Game is one catalog row from GET /api/v1/games.
-type Game struct {
-	ID           string   `json:"id"`
-	Title        string   `json:"title"`
-	System       string   `json:"system"`
-	Cover        string   `json:"cover,omitempty"`
-	Genre        string   `json:"genre,omitempty"`
-	Year         string   `json:"year,omitempty"`
-	Region       string   `json:"region,omitempty"`
-	State        string   `json:"state"`
-	RootOnline   bool     `json:"root_online"`
-	Launchable   bool     `json:"launchable"`
-	ROMCached    *bool    `json:"rom_cached,omitempty"`
-	Favorite     bool     `json:"favorite,omitempty"`
-	PlayCount    int64    `json:"play_count,omitempty"`
-	LastPlayedAt int64    `json:"last_played_at,omitempty"`
-	Collections  []string `json:"collections,omitempty"`
-	Series       string   `json:"series,omitempty"`
-	Variants     []Game   `json:"variants,omitempty"`
-}
-
-// CoreEntry is the stable library mapping for one FPGA-core game.
-type CoreEntry struct {
-	GameID    string `json:"game_id"`
-	Title     string `json:"title"`
-	CoreID    string `json:"core_id"`
-	PackageID string `json:"package_id"`
-}
-
-// CorePackage is the public identity projection of one installed FPGA package.
-// Compatibility is the host's latest target observation and may be unknown.
-type CorePackage struct {
-	PackageID     string
-	CoreID        string
-	Name          string
-	Version       string
-	Compatibility string
-}
-
-// CoreLibrary is the read-only core-entry and installed-package inventory.
-type CoreLibrary struct {
-	Entries  []CoreEntry
-	Packages []CorePackage
-}
-
-// CoreAvailability is the deterministic join between a selected entry and
-// the installed package inventory.
-type CoreAvailability struct {
-	GameID         string
-	Title          string
-	CoreID         string
-	PackageID      string
-	PackageCoreID  string
-	PackageName    string
-	PackageVersion string
-	Compatibility  string
-	State          string
-}
-
-type corePackageWire struct {
-	PackageID  string `json:"package_id"`
-	Descriptor struct {
-		Core struct {
-			ID      string `json:"id"`
-			Name    string `json:"name"`
-			Version string `json:"version"`
-		} `json:"core"`
-	} `json:"descriptor"`
-	Compatibility string `json:"compatibility"`
-}
-
-// Availability joins each selected core entry with its exact installed
-// package. An installed package with compatibility "unknown" remains
-// installed/unknown, never ready.
-func (l CoreLibrary) Availability() []CoreAvailability {
-	packages := make(map[string]CorePackage, len(l.Packages))
-	for _, packageInfo := range l.Packages {
-		packageInfo.PackageID = strings.TrimSpace(packageInfo.PackageID)
-		packages[packageInfo.PackageID] = packageInfo
-	}
-	out := make([]CoreAvailability, 0, len(l.Entries))
-	for _, entry := range l.Entries {
-		status := CoreAvailability{
-			GameID:    strings.TrimSpace(entry.GameID),
-			Title:     strings.TrimSpace(entry.Title),
-			CoreID:    strings.TrimSpace(entry.CoreID),
-			PackageID: strings.TrimSpace(entry.PackageID),
-		}
-		packageInfo, ok := packages[status.PackageID]
-		if !ok || status.PackageID == "" {
-			status.State = "missing"
-			out = append(out, status)
-			continue
-		}
-		status.PackageCoreID = strings.TrimSpace(packageInfo.CoreID)
-		status.PackageName = strings.TrimSpace(packageInfo.Name)
-		status.PackageVersion = strings.TrimSpace(packageInfo.Version)
-		status.Compatibility = strings.TrimSpace(packageInfo.Compatibility)
-		switch {
-		case status.PackageCoreID != status.CoreID:
-			status.State = "mismatch"
-		case strings.EqualFold(status.Compatibility, "incompatible"):
-			status.State = "incompatible"
-		default:
-			status.State = "installed"
-		}
-		out = append(out, status)
-	}
-	return out
-}
-
-// Label is compact enough for tile/detail metadata while retaining the core
-// identity and selected package prefix.
-func (s CoreAvailability) Label() string {
-	parts := []string{strings.TrimSpace(s.CoreID), strings.TrimSpace(s.State)}
-	if parts[0] == "" {
-		parts[0] = "core"
-	}
-	if parts[1] == "" {
-		parts[1] = "unknown"
-	}
-	if version := strings.TrimSpace(s.PackageVersion); version != "" {
-		parts = append(parts, version)
-	}
-	if packageID := shortPackageID(s.PackageID); packageID != "" {
-		parts = append(parts, "pkg "+packageID)
-	}
-	if compatibility := strings.TrimSpace(s.Compatibility); compatibility != "" {
-		parts = append(parts, "compat "+compatibility)
-	}
-	if packageCoreID := strings.TrimSpace(s.PackageCoreID); packageCoreID != "" && packageCoreID != strings.TrimSpace(s.CoreID) {
-		parts = append(parts, "declares "+packageCoreID)
-	}
-	return strings.Join(parts, " | ")
-}
-
-func shortPackageID(id string) string {
-	id = strings.TrimSpace(id)
-	if len(id) > 12 {
-		return id[:12]
-	}
-	return id
-}
-
-// Presentation is GET /api/v1/presentation/games/{id}.
-type Presentation struct {
-	GameID       string                   `json:"game_id"`
-	State        string                   `json:"state"`
-	Presentation *PresentationInfo        `json:"presentation"`
-	Attribution  *PresentationAttribution `json:"attribution,omitempty"`
-}
-
-// PresentationInfo is the nested presentation object on a games/{id} payload.
-type PresentationInfo struct {
-	CoverArtworkID    string   `json:"cover_artwork_id"`
-	BackdropArtworkID string   `json:"backdrop_artwork_id,omitempty"`
-	LogoID            string   `json:"logo_id,omitempty"`
-	MarqueeID         string   `json:"marquee_id,omitempty"`
-	Box3DID           string   `json:"box3d_id,omitempty"`
-	VideoID           string   `json:"video_id,omitempty"`
-	Summary           string   `json:"summary"`
-	Year              string   `json:"year"`
-	Genre             string   `json:"genre"`
-	Studio            string   `json:"studio"`
-	Players           string   `json:"players"`
-	Rating            string   `json:"rating,omitempty"`
-	Completion        string   `json:"completion,omitempty"`
-	Portable          bool     `json:"portable,omitempty"`
-	ScreenshotIDs     []string `json:"screenshot_ids,omitempty"`
-	Series            string   `json:"series,omitempty"`
-	Related           []string `json:"related,omitempty"`
-	RelatedIDs        []string `json:"related_ids,omitempty"`
-	Collection        string   `json:"collection,omitempty"`
-}
-
-// PresentationAttribution is the provider label the public API returns with ready metadata.
-type PresentationAttribution struct {
-	Provider string `json:"provider"`
-	Label    string `json:"label"`
-}
-
-// AttributionLabel returns the validated IGDB or LaunchBox label, or empty.
-func (p Presentation) AttributionLabel() string {
-	if p.Attribution == nil {
-		return ""
-	}
-	provider := strings.TrimSpace(p.Attribution.Provider)
-	label := strings.TrimSpace(p.Attribution.Label)
-	switch {
-	case provider == "igdb" && label == "Data from IGDB.com":
-		return label
-	case provider == "launchbox" && label == "Data from LaunchBox Games Database":
-		return label
-	default:
-		return ""
-	}
-}
-
-// Platform is one row from GET /api/v1/platforms.
-type Platform struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	GameCount  int    `json:"game_count"`
-	Online     bool   `json:"online"`
-	Launchable bool   `json:"launchable"`
-}
-
-// Collection is one custom shelf from GET /api/v1/library/collections.
-type Collection struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	CreatedAt int64  `json:"created_at,omitempty"`
-}
-
-const (
+	defaultPageLimit          = 200
+	defaultMaxGames           = 10000
+	maxAPIResponse            = 16 << 20
 	defaultAttractLimit       = 24
 	defaultAttractIdleSeconds = 60
 )
-
-// AttractItem is one row from GET /api/v1/library/attract.
-type AttractItem struct {
-	GameID     string `json:"game_id"`
-	Title      string `json:"title"`
-	Platform   string `json:"platform"`
-	Video      string `json:"video,omitempty"`
-	Cover      string `json:"cover,omitempty"`
-	Backdrop   string `json:"backdrop,omitempty"`
-	Marquee    string `json:"marquee,omitempty"`
-	Launchable bool   `json:"launchable"`
-}
-
-// AttractPlaylist is the attract response, including host idle_seconds.
-type AttractPlaylist struct {
-	Items       []AttractItem `json:"items"`
-	IdleSeconds int           `json:"idle_seconds"`
-}
-
-// LibraryCache is GET /api/v1/library/cache. Cover used/free are kit-local.
-type LibraryCache struct {
-	ROM        ROMCacheStatus `json:"rom"`
-	SyncedUnix int64          `json:"synced_unix,omitempty"`
-}
-
-// ROMCacheStatus is the target ROM cache budget from a lease-free probe.
-type ROMCacheStatus struct {
-	UsedBytes int64 `json:"used_bytes"`
-	MaxBytes  int64 `json:"max_bytes"`
-	FreeBytes int64 `json:"free_bytes"`
-	Reachable bool  `json:"reachable"`
-}
-
-// BackdropHandle is the 64-hex fanart/backdrop handle, or empty.
-func (item AttractItem) BackdropHandle() string {
-	return normalizeHandle(item.Backdrop)
-}
-
-// VideoHandle is the 64-hex library_media / attract video handle, or empty.
-func (item AttractItem) VideoHandle() string {
-	return normalizeHandle(item.Video)
-}
-
-// StillHandle prefers backdrop, then cover, then marquee. Video is ignored.
-func (item AttractItem) StillHandle() string {
-	handles := item.StillHandles()
-	if len(handles) == 0 {
-		return ""
-	}
-	return handles[0]
-}
-
-// StillHandles is backdrop, then cover, then marquee, de-duplicated. Video is ignored.
-func (item AttractItem) StillHandles() []string {
-	return item.stillHandles()
-}
-
-func (item AttractItem) stillHandles() []string {
-	out := make([]string, 0, 3)
-	seen := map[string]bool{}
-	for _, handle := range []string{item.Backdrop, item.Cover, item.Marquee} {
-		got := normalizeHandle(handle)
-		if got == "" || seen[got] {
-			continue
-		}
-		seen[got] = true
-		out = append(out, got)
-	}
-	return out
-}
-
-// GameListQuery is GET /api/v1/games with the web UI's catalog params.
-type GameListQuery struct {
-	Cursor         string
-	Limit          int
-	Platform       string
-	Sort           string
-	Q              string
-	Collection     string
-	Genre          string
-	Year           string
-	Region         string
-	HidePrerelease bool
-	HideHacks      bool
-}
-
-// FacetValues is GET /api/v1/library/facets. The host does not return regions.
-type FacetValues struct {
-	Genres []string `json:"genres"`
-	Years  []string `json:"years"`
-}
-
-type SessionProgress = hostclient.SessionProgress
-type SessionInput = hostclient.SessionInput
-
-// HealthResult is GET /api/v1/health. HTTP 200 while the host process is up.
-type HealthResult struct {
-	Ready           bool
-	TargetReachable bool
-	TargetReady     bool
-	Connection      TargetConnection
-}
-
-// TargetConnection is discovery and reconciliation state, independent of game state.
-type TargetConnection struct {
-	State    string `json:"state"`
-	Message  string `json:"message,omitempty"`
-	Address  string `json:"address,omitempty"`
-	TargetID string `json:"target_id,omitempty"`
-	BootID   string `json:"boot_id,omitempty"`
-	Owner    string `json:"owner,omitempty"`
-}
-
-// TargetStatus is GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE means the kit
-// did not answer; that is not a host-process failure.
-type TargetStatus struct {
-	HTTPStatus   int
-	State        string
-	GameID       string
-	System       string
-	Core         string
-	ErrorCode    string
-	ErrorMessage string
-	Unavailable  bool
-	Connection   TargetConnection
-}
-
-// SessionResult is sessionResult from GET /api/v1/session, POST launch, POST stop,
-// and POST /api/v1/session/development-rbf.
-type SessionResult = hostclient.SessionResult
-
-// SessionEvent is one row from GET /api/v1/session/events.
-type SessionEvent struct {
-	Sequence     uint64           `json:"sequence"`
-	FlightID     string           `json:"flight_id,omitempty"`
-	TSUTC        string           `json:"ts_utc,omitempty"`
-	MonoMS       int64            `json:"mono_ms,omitempty"`
-	ClientTSUTC  string           `json:"client_ts_utc,omitempty"`
-	ClientMonoMS *int64           `json:"client_mono_ms,omitempty"`
-	Event        string           `json:"event"`
-	State        string           `json:"state"`
-	GameID       string           `json:"game_id,omitempty"`
-	System       string           `json:"system,omitempty"`
-	Media        string           `json:"media,omitempty"`
-	Progress     *SessionProgress `json:"progress,omitempty"`
-	Input        *SessionInput    `json:"input,omitempty"`
-}
 
 // KitLeaseStatus is GET /v1/kit/lease on the selected target (status-only).
 type KitLeaseStatus struct {
@@ -418,82 +44,24 @@ type KitLeaseStatus struct {
 	Unavailable  bool
 }
 
-// LaunchResult is the host response to POST /api/v1/session/launch.
-type LaunchResult = SessionResult
-
 // Client calls the FogCast public host API.
 type Client struct {
-	baseURL     string
-	httpClient  *http.Client
-	launchHTTP  *http.Client
-	stopHTTP    *http.Client
-	videoHTTP   *http.Client
-	previewHTTP *http.Client
+	*hostclient.Client
 }
 
-// NewClient builds a host API client. baseURL defaults to DefaultAPIBase.
+// NewClient builds the sofa adapter around a host API client. baseURL defaults
+// to hostclient.DefaultAPIBase.
 func NewClient(baseURL string, httpClient *http.Client) *Client {
-	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if baseURL == "" {
-		baseURL = DefaultAPIBase
-	}
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
-	}
-	launchHTTP := *httpClient
-	if launchHTTP.Timeout == 0 || launchHTTP.Timeout < launchHTTPTimeout {
-		launchHTTP.Timeout = launchHTTPTimeout
-	}
-	stopHTTP := *httpClient
-	if stopHTTP.Timeout == 0 || stopHTTP.Timeout < stopHTTPTimeout {
-		stopHTTP.Timeout = stopHTTPTimeout
-	}
-	videoHTTP := *httpClient
-	if videoHTTP.Timeout != 0 && videoHTTP.Timeout < videoHTTPTimeout {
-		videoHTTP.Timeout = videoHTTPTimeout
-	}
-	previewHTTP := *httpClient
-	previewHTTP.Timeout = 0
-	return &Client{baseURL: baseURL, httpClient: httpClient, launchHTTP: &launchHTTP, stopHTTP: &stopHTTP, videoHTTP: &videoHTTP, previewHTTP: &previewHTTP}
+	return &Client{Client: hostclient.NewClient(baseURL, httpClient)}
 }
 
 // withAPIHost returns a client that sends Host: host on every request.
 // The connection URL is unchanged. Empty host is a no-op.
 func (c *Client) withAPIHost(host string) *Client {
-	host = strings.TrimSpace(host)
-	if c == nil || host == "" {
+	if c == nil || c.Client == nil || strings.TrimSpace(host) == "" {
 		return c
 	}
-	wrap := func(src *http.Client) *http.Client {
-		if src == nil {
-			src = &http.Client{Timeout: defaultHTTPTimeout}
-		}
-		clone := *src
-		base := clone.Transport
-		if base == nil {
-			base = http.DefaultTransport
-		}
-		clone.Transport = apiHostTransport{base: base, host: host}
-		return &clone
-	}
-	out := *c
-	out.httpClient = wrap(c.httpClient)
-	out.launchHTTP = wrap(c.launchHTTP)
-	out.stopHTTP = wrap(c.stopHTTP)
-	out.videoHTTP = wrap(c.videoHTTP)
-	out.previewHTTP = wrap(c.previewHTTP)
-	return &out
-}
-
-type apiHostTransport struct {
-	base http.RoundTripper
-	host string
-}
-
-func (t apiHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	clone := req.Clone(req.Context())
-	clone.Host = t.host
-	return t.base.RoundTrip(clone)
+	return &Client{Client: c.Client.WithAPIHost(host)}
 }
 
 func apiURLIsLoopback(baseURL string) bool {
@@ -537,798 +105,37 @@ func smokeAPIHost(baseURL, explicit string) string {
 	return loopbackAPIHost(baseURL)
 }
 
-// ListGames fetches one catalog page. grouped=1 and availability=ready stay the default.
-func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, string, error) {
-	limit := query.Limit
-	if limit <= 0 {
-		limit = defaultPageLimit
-	}
-	values := url.Values{}
-	values.Set("grouped", "1")
-	values.Set("availability", "ready")
-	values.Set("limit", strconv.Itoa(limit))
-	if platform := strings.TrimSpace(query.Platform); platform != "" {
-		values.Set("platform", platform)
-	}
-	if sort := catalogSortParam(query.Sort); sort != "" {
-		values.Set("sort", sort)
-	}
-	if q := strings.TrimSpace(query.Q); q != "" {
-		values.Set("q", q)
-	}
-	if collection := strings.TrimSpace(query.Collection); collection != "" {
-		values.Set("collection", collection)
-	}
-	if genre := strings.TrimSpace(query.Genre); genre != "" {
-		values.Set("genre", genre)
-	}
-	if year := strings.TrimSpace(query.Year); year != "" {
-		values.Set("year", year)
-	}
-	if region := strings.TrimSpace(query.Region); region != "" {
-		values.Set("region", region)
-	}
-	if query.HidePrerelease {
-		values.Set("hide_prerelease", "1")
-	}
-	if query.HideHacks {
-		values.Set("hide_hacks", "1")
-	}
-	if strings.TrimSpace(query.Cursor) != "" {
-		values.Set("cursor", query.Cursor)
-	}
-	var page struct {
-		Games      []Game `json:"games"`
-		NextCursor string `json:"next_cursor"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/games?"+values.Encode(), &page); err != nil {
-		return nil, "", err
-	}
-	if page.Games == nil {
-		page.Games = []Game{}
-	}
-	for i, game := range page.Games {
-		page.Games[i] = preferLaunchable(game)
-	}
-	return page.Games, page.NextCursor, nil
+// Launch and Stop retain tenfoot's stamped API while delegating all HTTP and
+// response decoding to the UI-independent hostclient.
+func hostStamp(stamp ClientStamp) hostclient.ClientStamp {
+	return hostclient.ClientStamp{TsUTC: stamp.TsUTC, MonoMS: stamp.MonoMS, FlightID: stamp.FlightID}
 }
 
-// CoreLibrary loads the selected core entries and the installed package
-// inventory. Both reads are required for a truthful selected-package status.
-func (c *Client) CoreLibrary(ctx context.Context) (CoreLibrary, error) {
-	var entries struct {
-		Entries []CoreEntry `json:"entries"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/library/core-entries", &entries); err != nil {
-		return CoreLibrary{}, err
-	}
-	var packages struct {
-		Packages []corePackageWire `json:"packages"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/core-packages", &packages); err != nil {
-		return CoreLibrary{}, err
-	}
-	result := CoreLibrary{
-		Entries:  entries.Entries,
-		Packages: make([]CorePackage, 0, len(packages.Packages)),
-	}
-	if result.Entries == nil {
-		result.Entries = []CoreEntry{}
-	}
-	for _, packageInfo := range packages.Packages {
-		result.Packages = append(result.Packages, CorePackage{
-			PackageID:     strings.TrimSpace(packageInfo.PackageID),
-			CoreID:        strings.TrimSpace(packageInfo.Descriptor.Core.ID),
-			Name:          strings.TrimSpace(packageInfo.Descriptor.Core.Name),
-			Version:       strings.TrimSpace(packageInfo.Descriptor.Core.Version),
-			Compatibility: strings.TrimSpace(packageInfo.Compatibility),
-		})
-	}
-	return result, nil
-}
-
-func catalogSortParam(sort string) string {
-	switch strings.TrimSpace(sort) {
-	case "title":
-		return "title"
-	case "recently_added":
-		return "recently_added"
-	case "platform", "system":
-		return "platform"
-	default:
-		return ""
-	}
-}
-
-// preferLaunchable keeps a grouped row launchable when the region-picked
-// representative is offline or otherwise blocked but a sibling variant is not.
-func preferLaunchable(game Game) Game {
-	if launchBlockReason(game) == "" {
-		game.Variants = nil
-		return game
-	}
-	for _, variant := range game.Variants {
-		variant.Variants = nil
-		if launchBlockReason(variant) == "" {
-			if !variant.Favorite {
-				variant.Favorite = game.Favorite
-			}
-			if len(variant.Collections) == 0 {
-				variant.Collections = game.Collections
-			}
-			return variant
-		}
-	}
-	game.Variants = nil
-	return game
-}
-
-// Collections loads GET /api/v1/library/collections.
-func (c *Client) Collections(ctx context.Context) ([]Collection, error) {
-	var page struct {
-		Collections []Collection `json:"collections"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/library/collections", &page); err != nil {
-		return nil, err
-	}
-	if page.Collections == nil {
-		page.Collections = []Collection{}
-	}
-	return page.Collections, nil
-}
-
-// SetCollectionMember calls PUT or DELETE /api/v1/library/collections/{id}/{gameId}.
-func (c *Client) SetCollectionMember(ctx context.Context, collectionID, gameID string, member bool) error {
-	collectionID = strings.TrimSpace(collectionID)
-	gameID = strings.TrimSpace(gameID)
-	if collectionID == "" {
-		return fmt.Errorf("collection id is empty")
-	}
-	if gameID == "" {
-		return fmt.Errorf("game id is empty")
-	}
-	method := http.MethodPut
-	if !member {
-		method = http.MethodDelete
-	}
-	path := "/api/v1/library/collections/" + url.PathEscape(collectionID) + "/" + url.PathEscape(gameID)
-	var result struct {
-		ID         string `json:"id"`
-		Collection string `json:"collection"`
-		Member     bool   `json:"member"`
-	}
-	if err := c.mutateJSON(ctx, method, path, &result); err != nil {
-		return err
-	}
-	if result.Member != member {
-		return fmt.Errorf("host API member = %v, want %v", result.Member, member)
-	}
-	return nil
-}
-
-// UpsertCollection calls PUT /api/v1/library/collections/{id}?name=... with an empty body.
-func (c *Client) UpsertCollection(ctx context.Context, id, name string) (Collection, error) {
-	id = strings.TrimSpace(id)
-	name = strings.TrimSpace(name)
-	if id == "" {
-		return Collection{}, fmt.Errorf("collection id is empty")
-	}
-	if name == "" {
-		return Collection{}, fmt.Errorf("collection name is empty")
-	}
-	path := "/api/v1/library/collections/" + url.PathEscape(id) + "?name=" + url.QueryEscape(name)
-	var result Collection
-	if err := c.mutateJSON(ctx, http.MethodPut, path, &result); err != nil {
-		return Collection{}, err
-	}
-	if strings.TrimSpace(result.ID) == "" {
-		result.ID = id
-	}
-	if strings.TrimSpace(result.Name) == "" {
-		result.Name = name
-	}
-	return result, nil
-}
-
-// DeleteCollection calls DELETE /api/v1/library/collections/{id}.
-func (c *Client) DeleteCollection(ctx context.Context, id string) error {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return fmt.Errorf("collection id is empty")
-	}
-	var result struct {
-		ID string `json:"id"`
-	}
-	return c.mutateJSON(ctx, http.MethodDelete, "/api/v1/library/collections/"+url.PathEscape(id), &result)
-}
-
-// SetFavorite calls PUT or DELETE /api/v1/library/favorites/{id}.
-func (c *Client) SetFavorite(ctx context.Context, gameID string, favorite bool) error {
-	gameID = strings.TrimSpace(gameID)
-	if gameID == "" {
-		return fmt.Errorf("game id is empty")
-	}
-	method := http.MethodPut
-	if !favorite {
-		method = http.MethodDelete
-	}
-	path := "/api/v1/library/favorites/" + url.PathEscape(gameID)
-	var result struct {
-		ID       string `json:"id"`
-		Favorite bool   `json:"favorite"`
-	}
-	if err := c.mutateJSON(ctx, method, path, &result); err != nil {
-		return err
-	}
-	if result.Favorite != favorite {
-		return fmt.Errorf("host API favorite = %v, want %v", result.Favorite, favorite)
-	}
-	return nil
-}
-
-// Facets loads GET /api/v1/library/facets. Nil genre/year arrays become empty.
-func (c *Client) Facets(ctx context.Context) (FacetValues, error) {
-	var values FacetValues
-	if err := c.getJSON(ctx, "/api/v1/library/facets", &values); err != nil {
-		return FacetValues{Genres: []string{}, Years: []string{}}, err
-	}
-	return normalizeFacets(values), nil
-}
-
-func normalizeFacets(values FacetValues) FacetValues {
-	if values.Genres == nil {
-		values.Genres = []string{}
-	}
-	if values.Years == nil {
-		values.Years = []string{}
-	}
-	return values
-}
-
-// Platforms loads GET /api/v1/platforms.
-func (c *Client) Platforms(ctx context.Context) ([]Platform, error) {
-	var page struct {
-		Platforms []Platform `json:"platforms"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/platforms", &page); err != nil {
-		return nil, err
-	}
-	if page.Platforms == nil {
-		page.Platforms = []Platform{}
-	}
-	return page.Platforms, nil
-}
-
-// FetchLibrary walks catalog pages until maxGames or the cursor ends.
-func (c *Client) FetchLibrary(ctx context.Context, query GameListQuery, maxGames int) ([]Game, error) {
-	if query.Limit <= 0 {
-		query.Limit = defaultPageLimit
-	}
-	if maxGames <= 0 {
-		maxGames = defaultMaxGames
-	}
-	var (
-		all    []Game
-		cursor string
-	)
-	for {
-		if err := ctx.Err(); err != nil {
-			return all, err
-		}
-		query.Cursor = cursor
-		page, next, err := c.ListGames(ctx, query)
-		if err != nil {
-			return all, err
-		}
-		remain := maxGames - len(all)
-		if remain <= 0 {
-			break
-		}
-		if len(page) > remain {
-			page = page[:remain]
-		}
-		all = append(all, page...)
-		if next == "" || len(all) >= maxGames {
-			break
-		}
-		cursor = next
-	}
-	return all, nil
-}
-
-// LibraryCache loads GET /api/v1/library/cache (ROM used/free from the target).
-func (c *Client) LibraryCache(ctx context.Context) (LibraryCache, error) {
-	var result LibraryCache
-	err := c.getJSON(ctx, "/api/v1/library/cache", &result)
-	return result, err
-}
-
-// GamePresentation loads presentation metadata, including cover artwork IDs.
-func (c *Client) GamePresentation(ctx context.Context, gameID string) (Presentation, error) {
-	var result Presentation
-	path := "/api/v1/presentation/games/" + url.PathEscape(strings.TrimSpace(gameID))
-	err := c.getJSON(ctx, path, &result)
-	return result, err
-}
-
-// CoverHandle returns a 64-hex artwork handle from a list cover or presentation.
-func CoverHandle(game Game, presentation Presentation) string {
-	if handle := normalizeHandle(game.Cover); handle != "" {
-		return handle
-	}
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.CoverArtworkID)
-}
-
-// LogoHandle returns a 64-hex clear-logo handle from presentation.
-func LogoHandle(presentation Presentation) string {
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.LogoID)
-}
-
-// MarqueeHandle returns a 64-hex banner/marquee handle from presentation.
-func MarqueeHandle(presentation Presentation) string {
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.MarqueeID)
-}
-
-// Box3DHandle returns a 64-hex 3D box/cart/spine handle from presentation.
-func Box3DHandle(presentation Presentation) string {
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.Box3DID)
-}
-
-// AttractMarqueeHandle prefers presentation marquee_id, then the attract row.
-func AttractMarqueeHandle(item AttractItem, p Presentation) string {
-	if handle := MarqueeHandle(p); handle != "" {
-		return handle
-	}
-	return normalizeHandle(item.Marquee)
-}
-
-// BackdropHandle returns a 64-hex fanart/backdrop handle from presentation.
-func BackdropHandle(presentation Presentation) string {
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.BackdropArtworkID)
-}
-
-// VideoHandle returns a 64-hex library_media / presentation video handle.
-func VideoHandle(presentation Presentation) string {
-	if presentation.Presentation == nil {
-		return ""
-	}
-	return normalizeHandle(presentation.Presentation.VideoID)
-}
-
-// AttractPreviewHandles selects kit-safe stills for idle attract.
-// Without a video handle this is the item's backdrop/cover/marquee. With a
-// video handle it prefers presentation screenshot_ids then unique
-// backdrop/cover/marquee so attract can cycle a motion preview without
-// decoding H.264 on the CGO-free kit path.
-func AttractPreviewHandles(item AttractItem, p Presentation) []string {
-	video := item.VideoHandle()
-	if video == "" {
-		video = VideoHandle(p)
-	}
-	stills := item.StillHandles()
-	if video == "" {
-		return stills
-	}
-	var shots []string
-	cover := normalizeHandle(item.Cover)
-	backdrop := normalizeHandle(item.Backdrop)
-	marquee := AttractMarqueeHandle(item, p)
-	if p.Presentation != nil {
-		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
-		if cover == "" {
-			cover = normalizeHandle(p.Presentation.CoverArtworkID)
-		}
-		if backdrop == "" {
-			backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
-		}
-	}
-	return appendUniqueHandles(shots, backdrop, cover, marquee)
-}
-
-// DetailPreviewHandles selects kit-safe stills for the title pane.
-// Without a video handle this is screenshot_ids only. With video_id it
-// appends unique backdrop then cover as a poster so the pane can cycle a
-// motion preview without decoding H.264 on the CGO-free kit path.
-func DetailPreviewHandles(p Presentation, cover string) []string {
-	var shots []string
-	video := ""
-	backdrop := ""
-	if p.Presentation != nil {
-		shots = screenshotHandles(p.Presentation.ScreenshotIDs)
-		video = normalizeHandle(p.Presentation.VideoID)
-		backdrop = normalizeHandle(p.Presentation.BackdropArtworkID)
-		if cover == "" {
-			cover = normalizeHandle(p.Presentation.CoverArtworkID)
-		}
-	}
-	cover = normalizeHandle(cover)
-	if video == "" {
-		return shots
-	}
-	return appendUniqueHandles(shots, backdrop, cover)
-}
-
-func appendUniqueHandles(base []string, extra ...string) []string {
-	seen := make(map[string]bool, len(base)+len(extra))
-	out := make([]string, 0, len(base)+len(extra))
-	add := func(handle string) {
-		handle = normalizeHandle(handle)
-		if handle == "" || seen[handle] {
-			return
-		}
-		seen[handle] = true
-		out = append(out, handle)
-	}
-	for _, handle := range base {
-		add(handle)
-	}
-	for _, handle := range extra {
-		add(handle)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-// LibraryTarget is one target row from GET /api/v1/library/settings.
-// The host never returns the agent secret; AgentConfigured is the only
-// secret-related field the client stores.
-type LibraryTarget struct {
-	Name            string `json:"name"`
-	Address         string `json:"address"`
-	Enabled         bool   `json:"enabled"`
-	AgentConfigured bool   `json:"agent_configured"`
-	TargetID        string `json:"target_id,omitempty"`
-}
-
-// LibraryTargetWrite is one target in a PATCH /api/v1/library/settings body.
-// Agent is omitted when nil (untouched). A pointer to "" clears the stored agent.
-type LibraryTargetWrite struct {
-	Name         string  `json:"name"`
-	OriginalName string  `json:"original_name,omitempty"`
-	Address      string  `json:"address"`
-	Enabled      bool    `json:"enabled"`
-	Agent        *string `json:"agent,omitempty"`
-}
-
-// LibraryRoot is one library path row from GET /api/v1/library/settings.
-type LibraryRoot struct {
-	ID     string `json:"id"`
-	System string `json:"system"`
-	Root   string `json:"root"`
-}
-
-// LibrarySystem is one platform label from GET /api/v1/library/settings.
-type LibrarySystem struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-}
-
-// LibrarySettings is GET /api/v1/library/settings.
-type LibrarySettings struct {
-	AttractIdleSeconds int             `json:"attract_idle_seconds"`
-	PreferredRegions   []string        `json:"preferred_regions"`
-	SelectedTarget     string          `json:"selected_target"`
-	Targets            []LibraryTarget `json:"targets"`
-	Libraries          []LibraryRoot   `json:"libraries"`
-	Systems            []LibrarySystem `json:"systems"`
-}
-
-// LibrarySettingsPatch is a partial PATCH /api/v1/library/settings body.
-// Nil fields are omitted. Libraries and Targets are full-array replaces when
-// non-nil, including an empty list.
-type LibrarySettingsPatch struct {
-	AttractIdleSeconds *int                  `json:"attract_idle_seconds,omitempty"`
-	PreferredRegions   *[]string             `json:"preferred_regions,omitempty"`
-	SelectedTarget     *string               `json:"selected_target,omitempty"`
-	Targets            *[]LibraryTargetWrite `json:"targets,omitempty"`
-	Libraries          *[]LibraryRoot        `json:"libraries,omitempty"`
-	PrepareTarget      *string               `json:"prepare_target,omitempty"`
-}
-
-func (p LibrarySettingsPatch) payload() (map[string]any, error) {
-	raw := map[string]any{}
-	if p.AttractIdleSeconds != nil {
-		raw["attract_idle_seconds"] = *p.AttractIdleSeconds
-	}
-	if p.PreferredRegions != nil {
-		regions := append([]string(nil), *p.PreferredRegions...)
-		if regions == nil {
-			regions = []string{}
-		}
-		raw["preferred_regions"] = regions
-	}
-	if p.SelectedTarget != nil {
-		raw["selected_target"] = *p.SelectedTarget
-	}
-	if p.Targets != nil {
-		targets := append([]LibraryTargetWrite(nil), *p.Targets...)
-		if targets == nil {
-			targets = []LibraryTargetWrite{}
-		}
-		raw["targets"] = targets
-	}
-	if p.Libraries != nil {
-		libraries := append([]LibraryRoot(nil), *p.Libraries...)
-		if libraries == nil {
-			libraries = []LibraryRoot{}
-		}
-		raw["libraries"] = libraries
-	}
-	if p.PrepareTarget != nil {
-		raw["prepare_target"] = *p.PrepareTarget
-	}
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("settings patch is empty")
-	}
-	return raw, nil
-}
-
-// LibrarySettings loads GET /api/v1/library/settings.
-func (c *Client) LibrarySettings(ctx context.Context) (LibrarySettings, error) {
-	var result LibrarySettings
-	if err := c.getJSON(ctx, "/api/v1/library/settings", &result); err != nil {
-		return LibrarySettings{}, err
-	}
-	if result.PreferredRegions == nil {
-		result.PreferredRegions = []string{}
-	}
-	if result.Targets == nil {
-		result.Targets = []LibraryTarget{}
-	}
-	if result.Libraries == nil {
-		result.Libraries = []LibraryRoot{}
-	}
-	if result.Systems == nil {
-		result.Systems = []LibrarySystem{}
-	}
-	if result.AttractIdleSeconds <= 0 {
-		result.AttractIdleSeconds = defaultAttractIdleSeconds
-	}
-	return result, nil
-}
-
-// PatchLibrarySettings sends PATCH /api/v1/library/settings with only set fields.
-func (c *Client) PatchLibrarySettings(ctx context.Context, patch LibrarySettingsPatch) (LibrarySettings, error) {
-	payload, err := patch.payload()
-	if err != nil {
-		return LibrarySettings{}, err
-	}
-	var result LibrarySettings
-	if err := c.doJSON(ctx, http.MethodPatch, "/api/v1/library/settings", payload, &result); err != nil {
-		return LibrarySettings{}, err
-	}
-	if result.PreferredRegions == nil {
-		result.PreferredRegions = []string{}
-	}
-	if result.Targets == nil {
-		result.Targets = []LibraryTarget{}
-	}
-	if result.Libraries == nil {
-		result.Libraries = []LibraryRoot{}
-	}
-	if result.Systems == nil {
-		result.Systems = []LibrarySystem{}
-	}
-	if result.AttractIdleSeconds <= 0 {
-		result.AttractIdleSeconds = defaultAttractIdleSeconds
-	}
-	return result, nil
-}
-
-// Attract loads GET /api/v1/library/attract?limit=N.
-func (c *Client) Attract(ctx context.Context, limit int) (AttractPlaylist, error) {
-	if limit <= 0 {
-		limit = defaultAttractLimit
-	}
-	var page AttractPlaylist
-	if err := c.getJSON(ctx, "/api/v1/library/attract?limit="+strconv.Itoa(limit), &page); err != nil {
-		return AttractPlaylist{}, err
-	}
-	if page.Items == nil {
-		page.Items = []AttractItem{}
-	}
-	if page.IdleSeconds <= 0 {
-		page.IdleSeconds = defaultAttractIdleSeconds
-	}
-	return page, nil
-}
-
-// Artwork fetches raw cover bytes from GET /api/v1/presentation/artwork/{handle}.
-func (c *Client) Artwork(ctx context.Context, handle string) ([]byte, string, error) {
-	handle = normalizeHandle(handle)
-	if handle == "" {
-		return nil, "", fmt.Errorf("artwork handle is invalid")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/presentation/artwork/"+handle, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	req.Header.Set("Accept", "image/*")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxArtworkBytes+1))
-	if err != nil {
-		return nil, "", err
-	}
-	if len(body) > maxArtworkBytes {
-		return nil, "", fmt.Errorf("artwork exceeds %d bytes", maxArtworkBytes)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", apiStatusError(resp.StatusCode, body)
-	}
-	return body, resp.Header.Get("Content-Type"), nil
-}
-
-// FetchVideoFile streams GET /api/v1/presentation/artwork/{handle} to a temp file.
-// The caller must remove the file. Accept is video/*; the still Artwork path is unchanged.
-func (c *Client) FetchVideoFile(ctx context.Context, handle string) (string, error) {
-	handle = normalizeHandle(handle)
-	if handle == "" {
-		return "", fmt.Errorf("artwork handle is invalid")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/presentation/artwork/"+handle, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Accept", "video/*")
-	resp, err := c.videoHTTP.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		if readErr != nil && len(body) == 0 {
-			return "", readErr
-		}
-		return "", apiStatusError(resp.StatusCode, body)
-	}
-	ct := resp.Header.Get("Content-Type")
-	if imageContentType(ct) {
-		return "", fmt.Errorf("artwork is not video (%s)", ct)
-	}
-	file, err := os.CreateTemp("", "fogcast-attract-*.bin")
-	if err != nil {
-		return "", err
-	}
-	path := file.Name()
-	ok := false
-	defer func() {
-		_ = file.Close()
-		if !ok {
-			_ = os.Remove(path)
-		}
-	}()
-	n, err := io.Copy(file, io.LimitReader(resp.Body, maxVideoBytes+1))
-	if err != nil {
-		return "", err
-	}
-	if n > maxVideoBytes {
-		return "", fmt.Errorf("video exceeds %d bytes", maxVideoBytes)
-	}
-	if n < 16 {
-		return "", fmt.Errorf("video is too small")
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return "", err
-	}
-	var header [16]byte
-	if _, err := io.ReadFull(file, header[:]); err != nil {
-		return "", err
-	}
-	if !videoContentType(ct) && sniffVideoMIME(header[:]) == "" {
-		return "", fmt.Errorf("artwork is not video (%s)", ct)
-	}
-	ok = true
-	return path, nil
-}
-
-func imageContentType(value string) bool {
-	return strings.HasPrefix(contentTypeMain(value), "image/")
-}
-
-func videoContentType(value string) bool {
-	switch contentTypeMain(value) {
-	case "video/mp4", "video/webm", "video/x-m4v", "video/quicktime":
-		return true
-	default:
-		return false
-	}
-}
-
-func contentTypeMain(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if i := strings.Index(value, ";"); i >= 0 {
-		value = strings.TrimSpace(value[:i])
-	}
-	return value
-}
-
-func sniffVideoMIME(header []byte) string {
-	if len(header) >= 12 && string(header[4:8]) == "ftyp" {
-		return "video/mp4"
-	}
-	if len(header) >= 4 && header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3 {
-		return "video/webm"
-	}
-	return ""
-}
-
-// Launch posts {game_id} to POST /api/v1/session/launch with client clocks.
-func (c *Client) Launch(ctx context.Context, gameID string) (LaunchResult, error) {
+func (c *Client) Launch(ctx context.Context, gameID string) (hostclient.SessionResult, error) {
 	return c.LaunchStamped(ctx, gameID, ClientStampNow())
 }
 
-// LaunchStamped is Launch with an explicit sofa/tenfoot stamp.
-func (c *Client) LaunchStamped(ctx context.Context, gameID string, stamp ClientStamp) (LaunchResult, error) {
-	gameID = strings.TrimSpace(gameID)
-	if gameID == "" {
-		return LaunchResult{}, fmt.Errorf("game id is empty")
-	}
-	payload, err := json.Marshal(struct {
-		GameID string `json:"game_id"`
-	}{GameID: gameID})
-	if err != nil {
-		return LaunchResult{}, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/launch", bytes.NewReader(payload))
-	if err != nil {
-		return LaunchResult{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	applyClientStamp(req, stamp)
-	resp, err := c.launchHTTP.Do(req)
-	if err != nil {
-		return LaunchResult{}, err
-	}
-	defer resp.Body.Close()
-	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
-	if err != nil {
-		return LaunchResult{HTTPStatus: resp.StatusCode}, err
-	}
-	result, err := decodeSessionBody(resp.StatusCode, body)
-	if err != nil {
-		return result, fmt.Errorf("launch response: %w", err)
-	}
-	if result.ErrorCode != "" {
-		return result, nil
-	}
-	if result.State != "active" {
-		return result, fmt.Errorf("launch response: expected active session, got %q", result.State)
-	}
-	return result, nil
+func (c *Client) LaunchStamped(ctx context.Context, gameID string, stamp ClientStamp) (hostclient.SessionResult, error) {
+	return c.Client.LaunchStamped(ctx, gameID, hostStamp(stamp))
+}
+
+func (c *Client) Stop(ctx context.Context) (hostclient.SessionResult, error) {
+	return c.StopStamped(ctx, ClientStampNow())
+}
+
+func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	return c.Client.StopStamped(ctx, hostStamp(stamp))
 }
 
 // SessionEvents loads GET /api/v1/session/events?after=N (JSON poll, not SSE).
-func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]SessionEvent, error) {
+func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]hostclient.SessionEvent, error) {
 	path := "/api/v1/session/events?after=" + strconv.FormatUint(after, 10)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+path, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1338,31 +145,31 @@ func (c *Client) SessionEvents(ctx context.Context, after uint64) ([]SessionEven
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, apiStatusError(resp.StatusCode, body)
+		return nil, hostclient.APIStatusError(resp.StatusCode, body)
 	}
 	var wire struct {
 		Events []struct {
-			Sequence     uint64           `json:"sequence"`
-			FlightID     string           `json:"flight_id"`
-			TSUTC        string           `json:"ts_utc"`
-			MonoMS       int64            `json:"mono_ms"`
-			ClientTSUTC  string           `json:"client_ts_utc"`
-			ClientMonoMS *int64           `json:"client_mono_ms"`
-			Event        string           `json:"event"`
-			State        string           `json:"state"`
-			GameID       *string          `json:"game_id"`
-			System       *string          `json:"system"`
-			Media        string           `json:"media"`
-			Progress     *SessionProgress `json:"progress"`
-			Input        *SessionInput    `json:"input"`
+			Sequence     uint64                      `json:"sequence"`
+			FlightID     string                      `json:"flight_id"`
+			TSUTC        string                      `json:"ts_utc"`
+			MonoMS       int64                       `json:"mono_ms"`
+			ClientTSUTC  string                      `json:"client_ts_utc"`
+			ClientMonoMS *int64                      `json:"client_mono_ms"`
+			Event        string                      `json:"event"`
+			State        string                      `json:"state"`
+			GameID       *string                     `json:"game_id"`
+			System       *string                     `json:"system"`
+			Media        string                      `json:"media"`
+			Progress     *hostclient.SessionProgress `json:"progress"`
+			Input        *hostclient.SessionInput    `json:"input"`
 		} `json:"events"`
 	}
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, fmt.Errorf("session events: %w", err)
 	}
-	out := make([]SessionEvent, 0, len(wire.Events))
+	out := make([]hostclient.SessionEvent, 0, len(wire.Events))
 	for _, row := range wire.Events {
-		ev := SessionEvent{
+		ev := hostclient.SessionEvent{
 			Sequence:     row.Sequence,
 			FlightID:     strings.TrimSpace(row.FlightID),
 			TSUTC:        strings.TrimSpace(row.TSUTC),
@@ -1398,7 +205,7 @@ func (c *Client) KitLease(ctx context.Context, targetBase string) (KitLeaseStatu
 		return KitLeaseStatus{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		if isHostTransportError(err) {
 			return KitLeaseStatus{Unavailable: true, ErrorMessage: "kit unreachable"}, nil
@@ -1417,7 +224,7 @@ func (c *Client) KitLease(ctx context.Context, targetBase string) (KitLeaseStatu
 	if result.Unavailable || result.ErrorCode != "" {
 		return result, nil
 	}
-	return result, apiStatusError(resp.StatusCode, body)
+	return result, hostclient.APIStatusError(resp.StatusCode, body)
 }
 
 func decodeKitLeaseBody(status int, body []byte) KitLeaseStatus {
@@ -1508,14 +315,14 @@ func (c *Client) OpenSessionPreview(ctx context.Context) (*MJPEGStream, error) {
 	if c == nil {
 		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
 	}
-	httpClient := c.previewHTTP
+	httpClient := c.PreviewHTTPClient()
 	if httpClient == nil {
-		httpClient = c.httpClient
+		httpClient = c.HTTPClient()
 	}
 	if httpClient == nil {
 		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/session/preview", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+"/api/v1/session/preview", http.NoBody)
 	if err != nil {
 		return nil, PreviewUnavailable{Message: "session preview is unavailable"}
 	}
@@ -1547,86 +354,6 @@ func (c *Client) OpenSessionPreview(ctx context.Context) (*MJPEGStream, error) {
 	return stream, nil
 }
 
-// Session loads GET /api/v1/session.
-func (c *Client) Session(ctx context.Context) (SessionResult, error) {
-	return hostclient.GetSession(ctx, c.httpClient, c.baseURL, maxAPIResponse)
-}
-
-// LoadDevelopmentRBF posts a bounded application/octet-stream body to
-// POST /api/v1/session/development-rbf. Content-Length is required. Empty and
-// >32MiB payloads are rejected before the request.
-func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.Reader) (SessionResult, error) {
-	if err := developmentRBFSizeError(size); err != nil {
-		return SessionResult{}, err
-	}
-	if content == nil {
-		return SessionResult{}, fmt.Errorf("development RBF input is invalid")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/development-rbf", content)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	req.ContentLength = size
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("Accept", "application/json")
-	applyClientStamp(req, ClientStampNow())
-	resp, err := c.launchHTTP.Do(req)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	defer resp.Body.Close()
-	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
-	if err != nil {
-		return SessionResult{HTTPStatus: resp.StatusCode}, err
-	}
-	result, err := decodeSessionBody(resp.StatusCode, body)
-	if err != nil {
-		return result, fmt.Errorf("development RBF response: %w", err)
-	}
-	if result.ErrorCode != "" {
-		return result, nil
-	}
-	if result.State != "active" {
-		return result, fmt.Errorf("development RBF response: expected active session, got %q", result.State)
-	}
-	return result, nil
-}
-
-// Stop posts an empty body to POST /api/v1/session/stop with client clocks.
-func (c *Client) Stop(ctx context.Context) (SessionResult, error) {
-	return c.StopStamped(ctx, ClientStampNow())
-}
-
-// StopStamped is Stop with an explicit sofa/tenfoot stamp.
-func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/stop", http.NoBody)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	applyClientStamp(req, stamp)
-	resp, err := c.stopHTTP.Do(req)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	defer resp.Body.Close()
-	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
-	if err != nil {
-		return SessionResult{HTTPStatus: resp.StatusCode}, err
-	}
-	result, err := decodeSessionBody(resp.StatusCode, body)
-	if err != nil {
-		return result, fmt.Errorf("stop response: %w", err)
-	}
-	if result.ErrorCode != "" {
-		return result, nil
-	}
-	if result.State != "idle" {
-		return result, fmt.Errorf("stop response: expected idle session, got %q", result.State)
-	}
-	return result, nil
-}
-
 // PostUIEvent posts one sofa/tenfoot action to POST /api/v1/debug/ui-events.
 // Failures are returned to the caller; the sofa treats them as best-effort.
 func (c *Client) PostUIEvent(ctx context.Context, event UIEvent) error {
@@ -1650,13 +377,13 @@ func (c *Client) PostUIEvent(ctx context.Context, event UIEvent) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/debug/ui-events", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL()+"/api/v1/debug/ui-events", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		return err
 	}
@@ -1668,108 +395,19 @@ func (c *Client) PostUIEvent(ctx context.Context, event UIEvent) error {
 	return nil
 }
 
-// Health loads GET /api/v1/health. A transport failure means the host process
-// is unreachable; HTTP 200 with target.reachable=false is a kit-down signal.
-func (c *Client) Health(ctx context.Context) (HealthResult, error) {
-	var wire struct {
-		Ready  bool `json:"ready"`
-		Target struct {
-			Reachable  bool             `json:"reachable"`
-			Ready      bool             `json:"ready"`
-			Connection TargetConnection `json:"connection"`
-		} `json:"target"`
-	}
-	if err := c.getJSON(ctx, "/api/v1/health", &wire); err != nil {
-		return HealthResult{}, err
-	}
-	return HealthResult{
-		Ready:           wire.Ready,
-		TargetReachable: wire.Target.Reachable,
-		TargetReady:     wire.Target.Ready,
-		Connection:      wire.Target.Connection,
-	}, nil
-}
-
-// Status loads GET /api/v1/status. HTTP 503 TARGET_UNAVAILABLE is kit-down,
-// not a decode error.
-func (c *Client) Status(ctx context.Context) (TargetStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/status", http.NoBody)
-	if err != nil {
-		return TargetStatus{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return TargetStatus{}, err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
-	if err != nil {
-		return TargetStatus{}, err
-	}
-	result := TargetStatus{HTTPStatus: resp.StatusCode}
-	var wire struct {
-		State  string  `json:"state"`
-		GameID *string `json:"game_id"`
-		System *string `json:"system"`
-		Core   *string `json:"core"`
-		Error  *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		Connection TargetConnection `json:"connection"`
-	}
-	_ = json.Unmarshal(body, &wire)
-	result.State = strings.TrimSpace(wire.State)
-	result.Connection = wire.Connection
-	if wire.GameID != nil {
-		result.GameID = strings.TrimSpace(*wire.GameID)
-	}
-	if wire.System != nil {
-		result.System = strings.TrimSpace(*wire.System)
-	}
-	if wire.Core != nil {
-		result.Core = strings.TrimSpace(*wire.Core)
-	}
-	if wire.Error != nil {
-		result.ErrorCode = strings.TrimSpace(wire.Error.Code)
-		result.ErrorMessage = strings.TrimSpace(wire.Error.Message)
-	}
-	if resp.StatusCode == http.StatusServiceUnavailable && result.ErrorCode == "TARGET_UNAVAILABLE" {
-		result.Unavailable = true
-		return result, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		if result.ErrorCode != "" {
-			return result, fmt.Errorf("host API %d %s: %s", resp.StatusCode, result.ErrorCode, result.ErrorMessage)
-		}
-		return result, apiStatusError(resp.StatusCode, body)
-	}
-	return result, nil
-}
-
-// SessionInput loads GET /api/v1/session/input.
-func (c *Client) SessionInput(ctx context.Context) (SessionInput, error) {
-	var result SessionInput
-	if err := c.getJSON(ctx, "/api/v1/session/input", &result); err != nil {
-		return SessionInput{}, err
-	}
-	return result, nil
-}
-
 // SendCoreKey posts one keyboard event to POST /api/v1/session/input/event.
 func (c *Client) SendCoreKey(ctx context.Context, event remoteinput.Event) error {
 	payload, err := json.Marshal(map[string]any{"event": event})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/session/input/event", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL()+"/api/v1/session/input/event", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.HTTPClient().Do(req)
 	if err != nil {
 		return err
 	}
@@ -1778,47 +416,6 @@ func (c *Client) SendCoreKey(ctx context.Context, event remoteinput.Event) error
 		return fmt.Errorf("input event: HTTP %d", resp.StatusCode)
 	}
 	return nil
-}
-
-// AttachInput posts an empty body to POST /api/v1/session/input/attach.
-func (c *Client) AttachInput(ctx context.Context) (SessionResult, error) {
-	return c.postSessionInput(ctx, "/api/v1/session/input/attach")
-}
-
-// DetachInput posts an empty body to POST /api/v1/session/input/detach.
-func (c *Client) DetachInput(ctx context.Context) (SessionResult, error) {
-	return c.postSessionInput(ctx, "/api/v1/session/input/detach")
-}
-
-func (c *Client) postSessionInput(ctx context.Context, path string) (SessionResult, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, http.NoBody)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return SessionResult{}, err
-	}
-	defer resp.Body.Close()
-	body, err := hostclient.ReadResponseBody(resp, maxAPIResponse)
-	if err != nil {
-		return SessionResult{HTTPStatus: resp.StatusCode}, err
-	}
-	result, err := decodeSessionBody(resp.StatusCode, body)
-	if err != nil {
-		return result, fmt.Errorf("input response: %w", err)
-	}
-	if result.ErrorCode != "" {
-		return result, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return result, apiStatusError(resp.StatusCode, body)
-	}
-	if !validSessionState(result.State) {
-		return result, fmt.Errorf("input response: invalid session state %q", result.State)
-	}
-	return result, nil
 }
 
 func isHostTransportError(err error) bool {
@@ -1837,119 +434,4 @@ func isHostTransportError(err error) bool {
 		return true
 	}
 	return errors.Is(err, context.DeadlineExceeded)
-}
-
-func validSessionState(state string) bool {
-	switch state {
-	case "idle", "launching", "active", "stopping", "failed":
-		return true
-	default:
-		return false
-	}
-}
-
-func decodeSessionBody(status int, body []byte) (SessionResult, error) {
-	return hostclient.DecodeSession(status, body)
-}
-
-func (c *Client) getJSON(ctx context.Context, path string, dest any) error {
-	return c.doJSON(ctx, http.MethodGet, path, nil, dest)
-}
-
-func (c *Client) mutateJSON(ctx context.Context, method, path string, dest any) error {
-	return c.doJSON(ctx, method, path, nil, dest)
-}
-
-func (c *Client) doJSON(ctx context.Context, method, path string, payload any, dest any) error {
-	var bodyReader io.Reader = http.NoBody
-	if payload != nil {
-		data, err := json.Marshal(payload)
-		if err != nil {
-			return err
-		}
-		bodyReader = bytes.NewReader(data)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return apiStatusError(resp.StatusCode, body)
-	}
-	if dest == nil {
-		return nil
-	}
-	if len(bytes.TrimSpace(body)) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(body, dest); err != nil {
-		return fmt.Errorf("decode %s: %w", path, err)
-	}
-	return nil
-}
-
-func apiStatusError(status int, body []byte) error {
-	var wire struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(body, &wire); err == nil && wire.Error.Code != "" {
-		return fmt.Errorf("host API %d %s: %s", status, wire.Error.Code, wire.Error.Message)
-	}
-	return fmt.Errorf("host API status %d", status)
-}
-
-func normalizeHandle(value string) string {
-	value = strings.TrimSpace(strings.ToLower(value))
-	if len(value) != artworkHandleLen {
-		return ""
-	}
-	for _, r := range value {
-		if r < '0' || r > '9' && (r < 'a' || r > 'f') {
-			return ""
-		}
-	}
-	return value
-}
-
-const maxScreenshotHandles = 8
-
-// screenshotHandles normalizes presentation screenshot_ids, drops invalid
-// entries, de-duplicates, and caps at the web limit of 8.
-func screenshotHandles(ids []string) []string {
-	if len(ids) == 0 {
-		return nil
-	}
-	out := make([]string, 0, maxScreenshotHandles)
-	seen := map[string]bool{}
-	for _, id := range ids {
-		handle := normalizeHandle(id)
-		if handle == "" || seen[handle] {
-			continue
-		}
-		seen[handle] = true
-		out = append(out, handle)
-		if len(out) >= maxScreenshotHandles {
-			break
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }

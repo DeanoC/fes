@@ -2,6 +2,8 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"os"
 	"strings"
@@ -200,10 +202,10 @@ func (a *App) releaseAttractVideoFileLocked() {
 	}
 }
 
-func playableAttractItems(items []AttractItem) []AttractItem {
-	out := make([]AttractItem, 0, len(items))
+func playableAttractItems(items []hostclient.AttractItem) []hostclient.AttractItem {
+	out := make([]hostclient.AttractItem, 0, len(items))
 	for _, item := range items {
-		if normalizeHandle(item.Video) != "" || item.StillHandle() != "" {
+		if hostclient.NormalizeHandle(item.Video) != "" || item.StillHandle() != "" {
 			out = append(out, item)
 		}
 	}
@@ -226,9 +228,9 @@ func (a *App) consumeAttractLocked(cmd Command, now time.Time) bool {
 	return true
 }
 
-func (a *App) currentAttractItemLocked() (AttractItem, bool) {
+func (a *App) currentAttractItemLocked() (hostclient.AttractItem, bool) {
 	if !a.attractActive || len(a.attractItems) == 0 {
-		return AttractItem{}, false
+		return hostclient.AttractItem{}, false
 	}
 	if a.attractIndex < 0 {
 		a.attractIndex = 0
@@ -323,7 +325,7 @@ func (a *App) hydrateAttractIdle(ctx context.Context) {
 	a.mu.Unlock()
 }
 
-func (a *App) applyAttractIdleLocked(playlist AttractPlaylist) {
+func (a *App) applyAttractIdleLocked(playlist hostclient.AttractPlaylist) {
 	if playlist.IdleSeconds > 0 {
 		a.attractIdle = attractIdleDuration(playlist.IdleSeconds)
 		a.attractIdleSeconds = playlist.IdleSeconds
@@ -370,14 +372,14 @@ func (a *App) fetchAttract(ctx context.Context, gen int, enter bool) {
 	a.showAttractItemLocked(now)
 }
 
-func (a *App) nextAttractMediaLocked(item AttractItem) (handle string, video bool) {
+func (a *App) nextAttractMediaLocked(item hostclient.AttractItem) (handle string, video bool) {
 	if a.attractTried == nil {
 		a.attractTried = map[string]bool{}
 	}
-	if videoHandle := normalizeHandle(item.Video); videoHandle != "" && !a.attractTried[videoHandle] {
+	if videoHandle := hostclient.NormalizeHandle(item.Video); videoHandle != "" && !a.attractTried[videoHandle] {
 		return videoHandle, true
 	}
-	for _, handle := range item.stillHandles() {
+	for _, handle := range item.StillHandles() {
 		if !a.attractTried[handle] {
 			return handle, false
 		}
@@ -465,7 +467,7 @@ func (a *App) fetchAttractArtwork(ctx context.Context, gen int, handle string) {
 	data, _, err := a.client.Artwork(ctx, handle)
 	result := attractResult{gen: gen, handle: handle, err: err}
 	if err == nil {
-		img, decodeErr := DecodeStill(data)
+		img, decodeErr := shared.DecodeStill(data)
 		result.image = img
 		result.err = decodeErr
 	}
@@ -633,7 +635,7 @@ func (a *App) attractSnapshotLocked() AttractSnapshot {
 	}
 }
 
-func (a *App) startLaunchAttractLocked(item AttractItem) {
+func (a *App) startLaunchAttractLocked(item hostclient.AttractItem) {
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() {
 		return
 	}
@@ -648,7 +650,7 @@ func (a *App) startLaunchAttractLocked(item AttractItem) {
 			return
 		}
 	}
-	game := Game{
+	game := hostclient.Game{
 		ID:         item.GameID,
 		Title:      item.Title,
 		System:     item.Platform,

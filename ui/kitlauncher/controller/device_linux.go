@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 	"golang.org/x/sys/unix"
 	"unsafe"
 )

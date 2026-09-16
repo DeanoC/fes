@@ -1,12 +1,15 @@
 package kitlauncher
 
-import "github.com/DeanoC/FogCast/ui/tenfoot"
+import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
+)
 
 // AtmosphereHandle prefers presentation fanart/backdrop, then an attract
 // backdrop for the focused (or wheel representative) title. Empty means the
 // painter may use a cover-wall of decoded covers, or no atmosphere.
-func (m Model) AtmosphereHandle(pres tenfoot.Presentation) string {
-	if handle := tenfoot.BackdropHandle(pres); handle != "" {
+func (m Model) AtmosphereHandle(pres hostclient.Presentation) string {
+	if handle := shared.BackdropHandle(pres); handle != "" {
 		return handle
 	}
 	game, ok := m.atmosphereGame()
@@ -24,12 +27,12 @@ func (m Model) AtmosphereHandle(pres tenfoot.Presentation) string {
 	return ""
 }
 
-func (m Model) atmosphereGame() (tenfoot.Game, bool) {
+func (m Model) atmosphereGame() (hostclient.Game, bool) {
 	if game, ok := m.FocusedGame(); ok {
 		return game, true
 	}
 	if m.WheelOpen {
 		return m.WheelGame(m.activeShelf())
 	}
-	return tenfoot.Game{}, false
+	return hostclient.Game{}, false
 }

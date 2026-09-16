@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -75,7 +76,7 @@ func TestAppDevelopmentPathOSKLoadsAndStops(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON
@@ -188,7 +189,7 @@ func TestAppDevelopmentPathOSKRejectsEmptyFileBeforeUpload(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
@@ -209,7 +210,7 @@ func TestAppDevelopmentPathOSKRejectsEmptyFileBeforeUpload(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -240,7 +241,7 @@ func TestAppDevelopmentLoadRespectsLeaseBlockedAndRetryStop(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
@@ -261,7 +262,7 @@ func TestAppDevelopmentLoadRespectsLeaseBlockedAndRetryStop(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -308,7 +309,7 @@ func TestAppPollDevelopmentSessionShowsDiagnosticChrome(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON
@@ -336,7 +337,7 @@ func TestAppPollDevelopmentSessionShowsDiagnosticChrome(t *testing.T) {
 
 func TestAppFailedDevelopmentLoadDoesNotMaskLaterGameSession(t *testing.T) {
 	app := NewApp(NewClient("http://127.0.0.1:1", nil), 800, 600, 4)
-	app.games = []Game{availableGame("snes-mario", "Mario", "snes")}
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
 	app.grid.SetCount(1)
 	app.mu.Lock()
 	app.devLoadPhase = "error"
@@ -347,7 +348,7 @@ func TestAppFailedDevelopmentLoadDoesNotMaskLaterGameSession(t *testing.T) {
 		t.Fatalf("idle should keep failure: %q", app.Snapshot().Status)
 	}
 	app.mu.Lock()
-	app.applySessionLocked(SessionResult{State: "active", GameID: "snes-mario", System: "snes", Execution: "fpga_native"})
+	app.applySessionLocked(hostclient.SessionResult{State: "active", GameID: "snes-mario", System: "snes", Execution: "fpga_native"})
 	app.mu.Unlock()
 	snap := app.Snapshot()
 	if strings.Contains(snap.Status, "diagnostic RBF failed") {
@@ -364,13 +365,13 @@ func TestAppSuccessfulDevelopmentLoadClearsOnIdle(t *testing.T) {
 	app.devLoadPhase = "ok"
 	app.devLoadMessage = "DIAGNOSTIC RBF loaded · not a game session"
 	app.status = app.devLoadMessage
-	app.session = SessionResult{State: "active", Execution: "fpga_development", Development: true}
+	app.session = hostclient.SessionResult{State: "active", Execution: "fpga_development", Development: true}
 	app.mu.Unlock()
 	if !strings.Contains(app.Snapshot().NowPlayingLine(), diagnosticLabel) {
 		t.Fatalf("missing diagnostic chrome: %q", app.Snapshot().NowPlayingLine())
 	}
 	app.mu.Lock()
-	app.applySessionLocked(SessionResult{State: "idle"})
+	app.applySessionLocked(hostclient.SessionResult{State: "idle"})
 	app.mu.Unlock()
 	snap := app.Snapshot()
 	if strings.Contains(snap.Status, "DIAGNOSTIC RBF loaded") {

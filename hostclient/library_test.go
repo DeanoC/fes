@@ -1,0 +1,225 @@
+package hostclient
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestClientLibraryOperationsPreservePublicHTTPContract(t *testing.T) {
+	handle := strings.Repeat("a", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer caller" || r.Header.Get("X-FogCast-Target-ID") != "target" {
+			t.Errorf("identity headers = %q/%q", r.Header.Get("Authorization"), r.Header.Get("X-FogCast-Target-ID"))
+		}
+		if r.Header.Get("Accept") == "" {
+			t.Error("missing Accept header")
+		}
+		switch r.URL.Path {
+		case "/api/v1/games":
+			query := r.URL.Query()
+			if query.Get("grouped") != "1" || query.Get("availability") != "ready" || query.Get("platform") != "megadrive" || query.Get("sort") != "platform" || query.Get("limit") != "2" {
+				t.Errorf("query = %s", r.URL.RawQuery)
+			}
+			_, _ = io.WriteString(w, `{"games":[{"id":"pong","title":"Pong","system":"pong","launchable":true}],"next_cursor":"next"}`)
+		case "/api/v1/platforms":
+			_, _ = io.WriteString(w, `{"platforms":[{"id":"pong","label":"Pong","game_count":1,"online":true,"launchable":true}]}`)
+		case "/api/v1/library/core-entries":
+			_, _ = io.WriteString(w, `{"entries":[{"game_id":"fpga-pong","title":"Pong","core_id":"fes.pong","package_id":"`+handle+`"}]}`)
+		case "/api/v1/core-packages":
+			_, _ = io.WriteString(w, `{"packages":[{"package_id":"`+handle+`","descriptor":{"core":{"id":"fes.pong","name":"FES Pong","version":"1.0.0"}},"compatibility":"unknown"}]}`)
+		case "/api/v1/library/cache":
+			_, _ = io.WriteString(w, `{"rom":{"used_bytes":1,"max_bytes":2,"free_bytes":1,"reachable":true},"synced_unix":7}`)
+		case "/api/v1/library/attract":
+			if r.URL.Query().Get("limit") != "24" {
+				t.Errorf("attract query = %q", r.URL.RawQuery)
+			}
+			_, _ = io.WriteString(w, `{"items":[{"game_id":"pong","title":"Pong","platform":"pong","cover":"`+handle+`","launchable":true}],"idle_seconds":60}`)
+		case "/api/v1/presentation/games/pong":
+			_, _ = io.WriteString(w, `{"game_id":"pong","state":"ready","presentation":{"cover_artwork_id":"`+handle+`"}}`)
+		case "/api/v1/presentation/artwork/" + handle:
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = io.WriteString(w, "art")
+		case "/api/v1/health":
+			_, _ = io.WriteString(w, `{"ready":true,"target":{"reachable":true,"ready":true,"connection":{"state":"ready"}}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	transport := &identityTransport{base: server.Client().Transport}
+	client := NewClient(server.URL+"/", &http.Client{Transport: transport, Timeout: 5 * time.Second})
+	games, next, err := client.ListGames(context.Background(), GameListQuery{Limit: 2, Platform: " megadrive", Sort: "system"})
+	if err != nil || len(games) != 1 || games[0].ID != "pong" || next != "next" {
+		t.Fatalf("games = %#v next=%q err=%v", games, next, err)
+	}
+	if platforms, err := client.Platforms(context.Background()); err != nil || len(platforms) != 1 {
+		t.Fatalf("platforms = %#v err=%v", platforms, err)
+	}
+	library, err := client.CoreLibrary(context.Background())
+	if err != nil || len(library.Entries) != 1 || len(library.Packages) != 1 {
+		t.Fatalf("core library = %#v err=%v", library, err)
+	}
+	if cache, err := client.LibraryCache(context.Background()); err != nil || cache.ROM.MaxBytes != 2 {
+		t.Fatalf("cache = %#v err=%v", cache, err)
+	}
+	if playlist, err := client.Attract(context.Background(), 0); err != nil || len(playlist.Items) != 1 {
+		t.Fatalf("attract = %#v err=%v", playlist, err)
+	}
+	if presentation, err := client.GamePresentation(context.Background(), "pong"); err != nil || presentation.GameID != "pong" {
+		t.Fatalf("presentation = %#v err=%v", presentation, err)
+	}
+	if health, err := client.Health(context.Background()); err != nil || !health.Ready || !health.TargetReady {
+		t.Fatalf("health = %#v err=%v", health, err)
+	}
+	if artwork, contentType, err := client.Artwork(context.Background(), handle); err != nil || string(artwork) != "art" || contentType != "image/png" {
+		t.Fatalf("artwork = %q/%q err=%v", artwork, contentType, err)
+	}
+}
+
+func TestLaunchBlockClassifiesCatalogReadiness(t *testing.T) {
+	t.Parallel()
+	ready := Game{ID: "snes-mario", Title: "Mario", System: "snes", State: "available", RootOnline: true, Launchable: true}
+	cases := []struct {
+		name     string
+		game     Game
+		block    LaunchBlock
+		eligible bool
+	}{
+		{name: "ready", game: ready, block: "", eligible: true},
+		{name: "browse-only", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: true, Launchable: false}, block: LaunchBrowseOnly, eligible: false},
+		{name: "missing", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},
+		{name: "offline", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},
+		{name: "invalid", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "invalid", RootOnline: true, Launchable: true}, block: LaunchUnreadable, eligible: false},
+		{name: "not-ready", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "scanning", RootOnline: true, Launchable: true}, block: LaunchNotReady, eligible: false},
+		{name: "browse-only-wins-over-offline", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: false}, block: LaunchBrowseOnly, eligible: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.game.LaunchBlock(); got != tc.block {
+				t.Fatalf("LaunchBlock() = %q, want %q", got, tc.block)
+			}
+			if got := tc.game.LaunchEligible(); got != tc.eligible {
+				t.Fatalf("LaunchEligible() = %v, want %v", got, tc.eligible)
+			}
+		})
+	}
+}
+
+func TestPreferLaunchableCopiesFavorite(t *testing.T) {
+	t.Parallel()
+	game := preferLaunchable(Game{
+		ID:          "snes-sonic-usa",
+		Title:       "Sonic",
+		System:      "snes",
+		State:       "available",
+		RootOnline:  false,
+		Launchable:  true,
+		Favorite:    true,
+		Collections: []string{"weekend-queue"},
+		Variants: []Game{
+			{ID: "snes-sonic-japan", Title: "Sonic", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		},
+	})
+	if game.ID != "snes-sonic-japan" || !game.Favorite || len(game.Collections) != 1 || game.Collections[0] != "weekend-queue" {
+		t.Fatalf("game = %#v", game)
+	}
+	if game.Variants != nil {
+		t.Fatalf("variants leaked into catalog row: %#v", game.Variants)
+	}
+}
+
+func TestStillHandlesReturnsNilWhenNoMedia(t *testing.T) {
+	t.Parallel()
+	if got := (AttractItem{}).StillHandles(); got != nil {
+		t.Fatalf("StillHandles() = %#v, want nil", got)
+	}
+}
+
+func TestListGamesPrefersLaunchableVariantCopiesFavorite(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/games" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = io.WriteString(w, `{"games":[{
+			"id":"snes-sonic-usa","title":"Sonic","system":"snes","state":"available",
+			"root_online":false,"launchable":true,"favorite":true,
+			"collections":["weekend-queue"],
+			"variants":[{"id":"snes-sonic-japan","title":"Sonic","system":"snes","state":"available","root_online":true,"launchable":true}]
+		}]}`)
+	}))
+	defer server.Close()
+
+	games, _, err := NewClient(server.URL, server.Client()).ListGames(context.Background(), GameListQuery{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 1 || games[0].ID != "snes-sonic-japan" || !games[0].Favorite || len(games[0].Collections) != 1 || games[0].Collections[0] != "weekend-queue" {
+		t.Fatalf("games = %#v", games)
+	}
+	if games[0].Variants != nil {
+		t.Fatalf("variants leaked into catalog row: %#v", games[0].Variants)
+	}
+}
+
+func TestClientMutationPreservesHeadersTimeoutsAndReadFailureStatus(t *testing.T) {
+	const status = http.StatusBadGateway
+	transport := mutationTransport{responses: map[string]*http.Response{}}
+	client := NewClient("http://host", &http.Client{Transport: transport, Timeout: 5 * time.Second})
+	if client.launchHTTP.Timeout != 60*time.Second || client.stopHTTP.Timeout != 60*time.Second {
+		t.Fatalf("mutation timeouts = %s/%s", client.launchHTTP.Timeout, client.stopHTTP.Timeout)
+	}
+
+	transport.responses["/api/v1/session/launch"] = syntheticResponse(status, maxResponseBytes+1)
+	launch, err := client.Launch(context.Background(), "pong")
+	if !errors.Is(err, ErrResponseTooLarge) || launch.HTTPStatus != status {
+		t.Fatalf("launch = %#v err=%v", launch, err)
+	}
+	transport.responses["/api/v1/session/stop"] = syntheticResponse(status, 8)
+	stop, err := client.Stop(context.Background())
+	if !errors.Is(err, ErrResponseTruncated) || stop.HTTPStatus != status {
+		t.Fatalf("stop = %#v err=%v", stop, err)
+	}
+}
+
+type identityTransport struct {
+	base http.RoundTripper
+}
+
+func (t *identityTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	clone.Header.Set("Authorization", "Bearer caller")
+	clone.Header.Set("X-FogCast-Target-ID", "target")
+	return t.base.RoundTrip(clone)
+}
+
+type mutationTransport struct {
+	responses map[string]*http.Response
+}
+
+func (t mutationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	response := t.responses[req.URL.Path]
+	if response == nil {
+		return nil, errors.New("unexpected request " + req.URL.Path)
+	}
+	response.Request = req
+	return response, nil
+}
+
+func syntheticResponse(status int, contentLength int64) *http.Response {
+	return &http.Response{
+		StatusCode:    status,
+		Header:        make(http.Header),
+		Body:          io.NopCloser(strings.NewReader("{}")),
+		ContentLength: contentLength,
+	}
+}

@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"strings"
 	"testing"
 	"time"
@@ -229,10 +230,10 @@ func TestAffinityPlaySessionMouseDoesNotSteal(t *testing.T) {
 	app := pointerCatalog(6)
 	now := time.Now()
 	app.NoteInput(InputKeyboard, 1)
-	app.session = SessionResult{
+	app.session = hostclient.SessionResult{
 		State:        "active",
 		CoreKeyboard: true,
-		Input:        &SessionInput{State: "attached", Ready: true},
+		Input:        &hostclient.SessionInput{State: "attached", Ready: true},
 	}
 	x, y := cellCenter(t, app, 2)
 	app.PointerMoveFrom(7, x, y, now)

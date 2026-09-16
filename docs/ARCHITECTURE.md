@@ -30,13 +30,18 @@ The important source entry points are:
 
 The browser, kit launcher, and ordinary CLI send a game ID to the same
 persistent host session. `hostclient` owns the UI-independent GET
-`/api/v1/session` response model and decoder. Tenfoot and the kit launcher
-consume that package for session polling; the browser keeps its own
-`parseSession` and shares the common success/rejection matrix in
-`hostclient/testdata/session-contract.json`. That fixture is not a claim of
-full decoder equivalence. Launch, stop, and input attach/detach stay on their
-existing endpoints. The host resolves it through the catalog and
-system table, uploads a cache miss, and calls the target agent. The agent
+`/api/v1/session` response model and decoder, and catalog launch
+eligibility (`Game.LaunchEligible`) so `ListGames` variant selection and
+sofa admission share one predicate. Tenfoot maps those block codes to
+sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
+transport, kit disk cache, and UI retain share one 64-hex rule.
+Tenfoot and the kit launcher consume that package for session
+polling; the browser keeps its own `parseSession` and shares the common
+success/rejection matrix in `hostclient/testdata/session-contract.json`.
+That fixture is not a claim of full decoder equivalence. Launch, stop,
+and input attach/detach stay on their existing endpoints. The host
+resolves it through the catalog and system table, uploads a cache miss,
+and calls the target agent. The agent
 writes the MGL atomically and sends `load_core <mgl>` to `/dev/MiSTer_cmd`.
 FogCast waits for the expected value in `/tmp/CORENAME`. Stop uses the same
 command path with `menu.rbf` and waits for `MENU`. Native FPGA Stop uses the
@@ -91,9 +96,12 @@ Target update admission remains in the root module; the fixed bootstrap and its
 Linux boot implementation are owned by the FES appliance.
 
 FogCast keeps the host applications, host services, and target agent in one Go
-module, but the source tree names their ownership explicitly. The ten-foot UI
-and kit launcher live under `ui/tenfoot` and `ui/kitlauncher`; their Go package
-names remain `tenfoot` and `kitlauncher` for compatibility. `host` and
+module, but the source tree names their ownership explicitly. The ten-foot sofa
+app lives under `ui/tenfoot` and the kit launcher under `ui/kitlauncher`; their
+Go package names remain `tenfoot` and `kitlauncher` for compatibility. Shared
+drawing, input, theme, and library helpers live under `ui/shared`, `ui/anim`,
+`ui/audioreact`, `ui/fbgrid`, `ui/gfx`, `ui/inputmap`, `ui/linuxinput`, and
+`ui/theme`. `ui/kitlauncher` must not import `ui/tenfoot`. `host` and
 `internal/hostapi` own host catalog/config/library services and host-owned
 remote-input bridges. `targetclient` owns the authenticated host-to-target
 HTTP/cache/core/development transport and endpoint reconciliation. UI packages
@@ -548,7 +556,7 @@ stream, close the reader, and drop the preview texture so no background
 goroutine holds the stream.
 
 Source entry points are `ui/tenfoot/` and `cmd/fogcast-tenfoot`. UI draw
-helpers use `ui/tenfoot/gfx.Device` (begin/clear/present, RGBA8 textures,
+helpers use `ui/gfx.Device` (begin/clear/present, RGBA8 textures,
 textured quads, fill rects, CGO-free `DrawText` / `DrawTextWeight` with
 embedded Go Regular and Go Bold, and
 `DebugText` for the 8×8 HUD / FC2D opcode). Window, events, gamepad, mouse, and text input remain
@@ -579,16 +587,16 @@ linuxfb is a kit framebuffer Device, not the SDL sofa shell.
 
 | Backend | Construction | Role |
 | --- | --- | --- |
-| SDL3 | `gfx.WrapSDLRenderer` (`ui/tenfoot/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
-| Software | `gfx.NewSoftware` (`ui/tenfoot/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
-| FPGA | `gfx.NewFPGA` (`ui/tenfoot/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/tenfoot/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/tenfoot/anim`. |
-| FPGA stub | `gfx.NewFPGAStub` (`ui/tenfoot/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
-| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/tenfoot/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/tenfoot/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/tenfoot/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/tenfoot/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
+| SDL3 | `gfx.WrapSDLRenderer` (`ui/gfx/sdl3.go`, build tag `sdl3`) | Default production path: wraps the process `SDL_Renderer` with letterbox logical presentation and VSync. |
+| Software | `gfx.NewSoftware` (`ui/gfx/software.go`) | Pure-Go RGBA8 rasterizer for tests and CI (no cgo, no SDL). Nearest blit, `Snapshot` for golden pixels. Cover/screenshot/still downscale is Catmull–Rom at decode. |
+| FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
+| FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
+| linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
 
-Tenfoot looks are data-driven. `ui/tenfoot/theme` loads colour, spacing,
+Tenfoot looks are data-driven. `ui/theme` loads colour, spacing,
 typography roles, cover-chrome, vignette, bezel, and cabinet tokens from a built-in name (`default`,
 `arcade`, `night`) or a JSON/TOML file. Roles are explicit pixel sizes
 (`title_px`, `body_px`, `caption_px`, `status_px`). Paint calls `TitlePx`,
@@ -1049,7 +1057,7 @@ the chord. Split Right enters the same mates in the hero when they exist;
 Left/B return to the list. The short split meta line still omits series.
 Meaningful scene cuts (detail open/close, attract show/hide, wheel
 enter/leave, Y layout, X pack, search OSK open/close) paint a short CGO-free overlay from the
-theme `transition` token through `ui/tenfoot/anim`: Classic a curtain,
+theme `transition` token through `ui/anim`: Classic a curtain,
 Neon a glitch/static burst, Sofa Dim a wipe. Overlays settle in under
 400ms and do not block pad input. `transition` `none`, `-no-transition`,
 or `FOGCAST_NO_TRANSITION=1` is an honest no-op. Attract does not arm while the pane or search OSK is open. Catalog cells paint decoded box-art from
@@ -1058,7 +1066,7 @@ presentation `cover_artwork_id` is present. The focused browse tile, split hero,
 and title-detail cover prefer presentation `box3d_id` (LaunchBox Box-3D, then
 Cart-3D, then Box-Spine, with a `library_media` RoleBox3D overlay that wins
 when present). Missing 3D art uses a cheap CPU 3/4 perspective of the 2D cover
-(`tenfoot.FauxBox`); missing both keeps the placeholder. Unfocused tiles stay
+(`ui/shared.FauxBox`); missing both keeps the placeholder. Unfocused tiles stay
 2D covers. Theme tokens `cabinet` / `cabinet_width` paint a thin hardware bezel
 around that focused art (Neon and Sofa Dim set a width; Classic stays 0).
 Presentation `logo_id` (LaunchBox
@@ -1107,7 +1115,7 @@ session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
 pad. Kit input discovers every eligible USB gamepad (`event*` only) plus
 physical USB keyboards for play-session HID, merges
-polls in stable device-id order through `ui/tenfoot/inputmap`, and remaps
+polls in stable device-id order through `ui/inputmap`, and remaps
 logical codes with a JSON profile (default identity). Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the
 idle framebuffer and restores it after Stop.

@@ -2,12 +2,13 @@ package tenfoot
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/ui/shared"
 	"image"
 	"os"
 	"strings"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 // gpuTexture is a Device-backed bitmap plus the CPU source used to decide
@@ -180,7 +181,7 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 		}
 		fillRect(dev, float32(x), float32(y), float32(snap.Grid.CellW), float32(snap.Grid.CellH-36), 28, 32, 44, 255)
 		if tex, ok := textures[game.ID]; ok {
-			dx, dy, dw, dh := coverDestRect(x, y, snap.Grid.CellW, snap.Grid.CellH-36, tex.w, tex.h)
+			dx, dy, dw, dh := shared.CoverDestRect(x, y, snap.Grid.CellW, snap.Grid.CellH-36, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		} else {
 			r, g, b := placeholderColor(game.Title)
@@ -207,7 +208,7 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 		tx, ty, tw, th := snap.Grid.listThumbRect(x, y)
 		fillRect(dev, float32(tx), float32(ty), float32(tw), float32(th), 18, 20, 28, 255)
 		if tex, ok := textures[game.ID]; ok {
-			dx, dy, dw, dh := coverDestRect(tx, ty, tw, th, tex.w, tex.h)
+			dx, dy, dw, dh := shared.CoverDestRect(tx, ty, tw, th, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		} else {
 			r, g, b := placeholderColor(game.Title)
@@ -328,7 +329,7 @@ func drawSessionPreview(dev gfx.Device, snap Snapshot, textures, labels map[stri
 		if stageH < 80 {
 			stageH = 80
 		}
-		dx, dy, dw, dh := coverDestRect(x, y, maxW, stageH, tex.w, tex.h)
+		dx, dy, dw, dh := shared.CoverDestRect(x, y, maxW, stageH, tex.w, tex.h)
 		drawGPU(dev, tex, dx, dy, dw, dh)
 		y += int(dh) + 16
 	}
@@ -480,7 +481,7 @@ func drawScreenshotCarousel(dev gfx.Device, snap Snapshot, labels map[string]gpu
 	if index >= 0 && index < len(ids) {
 		handle := ids[index]
 		if tex, ok := textures[screenshotWorkKey(handle)]; ok {
-			dx, dy, dw, dh := coverDestRect(x+8, y+8, w-16, innerH-16, tex.w, tex.h)
+			dx, dy, dw, dh := shared.CoverDestRect(x+8, y+8, w-16, innerH-16, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		} else {
 			drawLabel(dev, labels, used, "d-shot-miss", x+12, y+innerH/2-8, w-24, 16, "…")
@@ -743,7 +744,7 @@ func drawAttract(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuT
 			}
 		}
 		if tex, ok := textures["attract"]; ok {
-			dx, dy, dw, dh := coverDestRect(x, y, w, stageH, tex.w, tex.h)
+			dx, dy, dw, dh := shared.CoverDestRect(x, y, w, stageH, tex.w, tex.h)
 			drawGPU(dev, tex, dx, dy, dw, dh)
 		}
 	} else if item, ok := textures["attract"]; ok {

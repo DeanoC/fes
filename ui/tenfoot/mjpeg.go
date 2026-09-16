@@ -11,6 +11,8 @@ import (
 	"net/textproto"
 	"strconv"
 	"strings"
+
+	"github.com/DeanoC/FogCast/hostclient"
 )
 
 const (
@@ -121,7 +123,7 @@ func (s *MJPEGStream) NextJPEG() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		ct := contentTypeMain(hdr.Get("Content-Type"))
+		ct := hostclient.ContentTypeMain(hdr.Get("Content-Type"))
 		size, err := strconv.Atoi(strings.TrimSpace(hdr.Get("Content-Length")))
 		if err != nil || size < 1 {
 			return nil, PreviewUnavailable{Message: "session preview is unavailable"}

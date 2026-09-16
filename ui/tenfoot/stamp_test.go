@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
+	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
 func TestClientStampNowHasWallAndMono(t *testing.T) {

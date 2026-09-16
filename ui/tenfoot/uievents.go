@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"context"
+	"github.com/DeanoC/FogCast/hostclient"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +16,7 @@ func (a *App) rememberFlightLocked(id string) {
 	a.flightID = id
 }
 
-func (a *App) rememberFlightsFromEventsLocked(events []SessionEvent) {
+func (a *App) rememberFlightsFromEventsLocked(events []hostclient.SessionEvent) {
 	for i := len(events) - 1; i >= 0; i-- {
 		if validClientFlightID(events[i].FlightID) {
 			a.flightID = events[i].FlightID
@@ -95,9 +96,9 @@ func uiEventKey(kind string, detail map[string]string) string {
 	return ""
 }
 
-func (a *App) focusedGameLocked() (Game, bool) {
+func (a *App) focusedGameLocked() (hostclient.Game, bool) {
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-		return Game{}, false
+		return hostclient.Game{}, false
 	}
 	return a.games[a.grid.Focus], true
 }

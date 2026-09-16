@@ -1,26 +1,29 @@
 package kitlauncher
 
-import "github.com/DeanoC/FogCast/ui/tenfoot"
+import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/shared"
+)
 
-func titleArtwork(game tenfoot.Game, lookup func(string) tenfoot.Presentation) []string {
-	var pres tenfoot.Presentation
+func titleArtwork(game hostclient.Game, lookup func(string) hostclient.Presentation) []string {
+	var pres hostclient.Presentation
 	if lookup != nil {
 		pres = lookup(game.ID)
 	}
 	out := make([]string, 0, 3)
-	if handle := tenfoot.CoverHandle(game, pres); handle != "" {
+	if handle := shared.CoverHandle(game, pres); handle != "" {
 		out = append(out, handle)
 	}
-	if handle := tenfoot.LogoHandle(pres); handle != "" {
+	if handle := shared.LogoHandle(pres); handle != "" {
 		out = append(out, handle)
 	}
-	if handle := tenfoot.Box3DHandle(pres); handle != "" {
+	if handle := shared.Box3DHandle(pres); handle != "" {
 		out = append(out, handle)
 	}
 	return out
 }
 
-func collectTitleArtwork(games []tenfoot.Game, start, end int, lookup func(string) tenfoot.Presentation) []string {
+func collectTitleArtwork(games []hostclient.Game, start, end int, lookup func(string) hostclient.Presentation) []string {
 	if start < 0 {
 		start = 0
 	}
@@ -37,12 +40,12 @@ func collectTitleArtwork(games []tenfoot.Game, start, end int, lookup func(strin
 	return out
 }
 
-func collectIDs(games []tenfoot.Game, start, end int) []string {
-	return tenfoot.PageIDs(games, start, end)
+func collectIDs(games []hostclient.Game, start, end int) []string {
+	return shared.PageIDs(games, start, end)
 }
 
 // PrefetchArtworkHandles is focus → page → next page → strip → extra → attract.
-func PrefetchArtworkHandles(m Model, lookup func(string) tenfoot.Presentation, pageStart, pageEnd, nextEnd int, extra, attract []string) []string {
+func PrefetchArtworkHandles(m Model, lookup func(string) hostclient.Presentation, pageStart, pageEnd, nextEnd int, extra, attract []string) []string {
 	var focus []string
 	if m.WheelOpen {
 		if game, ok := m.WheelGame(m.Shelf); ok {
@@ -58,7 +61,7 @@ func PrefetchArtworkHandles(m Model, lookup func(string) tenfoot.Presentation, p
 			}
 		}
 		strip := collectTitleArtwork(m.Strip, 0, len(m.Strip), lookup)
-		return tenfoot.PrefetchOrder(focus, extra, page, strip, attract)
+		return shared.PrefetchOrder(focus, extra, page, strip, attract)
 	}
 	if game, ok := m.FocusedGame(); ok {
 		focus = titleArtwork(game, lookup)
@@ -67,7 +70,7 @@ func PrefetchArtworkHandles(m Model, lookup func(string) tenfoot.Presentation, p
 	next := collectTitleArtwork(m.Games, pageEnd, nextEnd, lookup)
 	strip := collectTitleArtwork(m.Strip, 0, len(m.Strip), lookup)
 	series := collectTitleArtwork(m.Series, 0, len(m.Series), lookup)
-	return tenfoot.PrefetchOrder(focus, page, next, strip, series, extra, attract)
+	return shared.PrefetchOrder(focus, page, next, strip, series, extra, attract)
 }
 
 // PrefetchPresentationIDs is focus → page → next page → strip → series.
@@ -82,5 +85,5 @@ func PrefetchPresentationIDs(m Model, pageStart, pageEnd, nextEnd int) []string 
 	next := collectIDs(m.Games, pageEnd, nextEnd)
 	strip := collectIDs(m.Strip, 0, len(m.Strip))
 	series := collectIDs(m.Series, 0, len(m.Series))
-	return tenfoot.PrefetchOrder(focus, page, next, strip, series)
+	return shared.PrefetchOrder(focus, page, next, strip, series)
 }

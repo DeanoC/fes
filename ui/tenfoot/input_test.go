@@ -1,13 +1,14 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
+	"github.com/DeanoC/FogCast/ui/inputmap"
 )
 
 func TestCommandFromLogicalIdentityAndSwapAB(t *testing.T) {
@@ -377,9 +378,9 @@ func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {
 
 func catalogApp(n int) *App {
 	app := NewApp(nil, 1280, 720, n)
-	app.games = make([]Game, n)
+	app.games = make([]hostclient.Game, n)
 	for i := 0; i < n; i++ {
-		app.games[i] = Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
+		app.games[i] = hostclient.Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
 	}
 	app.grid.SetCount(n)
 	return app

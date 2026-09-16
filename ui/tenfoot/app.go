@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"strings"
 	"sync"
@@ -12,8 +13,9 @@ import (
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/shared"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 const (
@@ -168,62 +170,14 @@ type HealthSnapshot struct {
 	TargetReachable bool
 	TargetReady     bool
 	Line            string
-	Connection      TargetConnection
-}
-
-// FocusDetail is the focused title's metadata shown in the detail strip.
-type FocusDetail struct {
-	Title         string
-	Platform      string
-	Year          string
-	Genre         string
-	Studio        string
-	Players       string
-	Region        string
-	Summary       string
-	Attribution   string
-	Favorite      bool
-	VideoID       string
-	ScreenshotIDs []string
-	Series        string
-	RelatedIDs    []string
-	Collection    string
-	Cached        string
-}
-
-// MetaFacts joins admitted catalog/presentation facts for the detail strip.
-// Empty fields are omitted. Play-count and last-played stay off this pane;
-// the kit platform wheel rolls them up when the games payload carries them.
-func (d FocusDetail) MetaFacts() string {
-	parts := make([]string, 0, 6)
-	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region, d.Cached} {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		parts = append(parts, part)
-	}
-	return strings.Join(parts, "  ·  ")
-}
-
-// MetaLine joins optional metadata and provider attribution.
-func (d FocusDetail) MetaLine() string {
-	parts := make([]string, 0, 2)
-	for _, part := range []string{d.MetaFacts(), d.Attribution} {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		parts = append(parts, part)
-	}
-	return strings.Join(parts, "  ·  ")
+	Connection      hostclient.TargetConnection
 }
 
 const detailMetaGap = 12
 
 // layoutDetailMeta gives attribution its own reserved width so fitLabel cannot
 // clip provenance off a shared facts line.
-func layoutDetailMeta(d FocusDetail, x, maxWidth, sizePx int) (facts string, factsX, factsW int, attr string, attrX, attrW int) {
+func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts string, factsX, factsW int, attr string, attrX, attrW int) {
 	facts = d.MetaFacts()
 	attr = strings.TrimSpace(d.Attribution)
 	if maxWidth < 1 {
@@ -245,7 +199,7 @@ func layoutDetailMeta(d FocusDetail, x, maxWidth, sizePx int) (facts string, fac
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games           []Game
+	Games           []hostclient.Game
 	Grid            Grid
 	Status          string
 	LoadErr         string
@@ -258,12 +212,12 @@ type Snapshot struct {
 	Affinity        InputKind
 	AffinityID      int
 	CoverHits       int
-	Platforms       []Platform
+	Platforms       []hostclient.Platform
 	PlatformID      string
 	Sort            string
 	Query           string
 	SearchOpen      bool
-	FocusDetail     FocusDetail
+	FocusDetail     shared.FocusDetail
 	Collection      string
 	ViewLabel       string
 	ViewPicker      bool
@@ -282,7 +236,7 @@ type Snapshot struct {
 	Region          string
 	HidePrerelease  bool
 	HideHacks       bool
-	OSK             OSKSnapshot
+	OSK             shared.OSKSnapshot
 	Health          HealthSnapshot
 	KitLease        KitLeaseSnapshot
 	Detail          DetailSnapshot
@@ -305,7 +259,7 @@ type App struct {
 	cancel context.CancelFunc
 
 	mu        sync.Mutex
-	games     []Game
+	games     []hostclient.Game
 	grid      Grid
 	covers    map[string]*coverSlot
 	inflight  map[string]workKind
@@ -325,14 +279,14 @@ type App struct {
 	maxGames  int
 	pageLimit int
 
-	platforms              []Platform
+	platforms              []hostclient.Platform
 	platformID             string
 	sort                   string
-	searchField            TextField
+	searchField            shared.TextField
 	searchOpen             bool
 	searchPending          bool
 	searchDue              time.Time
-	details                map[string]FocusDetail
+	details                map[string]shared.FocusDetail
 	shots                  map[string]*shotSlot
 	shotIDs                map[string][]string
 	detailOpen             bool
@@ -349,7 +303,7 @@ type App struct {
 	loadCancel             context.CancelFunc
 	jobCtx                 context.Context
 	collectionID           string
-	collections            []Collection
+	collections            []hostclient.Collection
 	collectionsErr         string
 	collectionsLoaded      bool
 	collectionsKick        chan struct{}
@@ -357,7 +311,7 @@ type App struct {
 	viewPickerIndex        int
 	nameEntry              nameEntryKind
 	nameEntryID            string
-	nameField              TextField
+	nameField              shared.TextField
 	collectionBusy         bool
 	membershipBusy         bool
 	collectionManageOpen   bool
@@ -376,7 +330,7 @@ type App struct {
 	filterRegion           string
 	hidePrerelease         bool
 	hideHacks              bool
-	facets                 FacetValues
+	facets                 hostclient.FacetValues
 	settingsOpen           bool
 	settingsIndex          int
 	settingsGen            int
@@ -392,26 +346,26 @@ type App struct {
 	settingsDraftTarget    string
 	settingsDraftTargets   []settingsTargetDraft
 	settingsTargetsDirty   bool
-	settingsDraftLibraries []LibraryRoot
+	settingsDraftLibraries []hostclient.LibraryRoot
 	settingsLibrariesDirty bool
 	settingsRegionIndex    int
 	settingsOSKKind        settingsOSKKind
 	settingsOSKIndex       int
 	settingsOSKIsAdd       bool
-	settingsOSKField       TextField
-	hostSettings           LibrarySettings
+	settingsOSKField       shared.TextField
+	hostSettings           hostclient.LibrarySettings
 	attractPrefEnabled     bool
 	attractForcedOff       bool
 	favoriteBusy           bool
 	hold                   HoldGate
-	session                SessionResult
+	session                hostclient.SessionResult
 	sessionTitle           string
 	sessionGen             int
 	stopPhase              string
 	stopMessage            string
 	gpuParked              bool
 	sessionKick            chan struct{}
-	health                 HealthResult
+	health                 hostclient.HealthResult
 	healthHave             bool
 	hostUnreachable        bool
 	inputBusy              bool
@@ -420,7 +374,7 @@ type App struct {
 	stopQueued             bool
 	retryStopLock          bool
 	retryStopHint          string
-	sessionEvents          []SessionEvent
+	sessionEvents          []hostclient.SessionEvent
 	sessionEventAfter      uint64
 	flightID               string
 	lastFocusKey           string
@@ -444,7 +398,7 @@ type App struct {
 	attractTried       map[string]bool
 	lastInput          time.Time
 	attractActive      bool
-	attractItems       []AttractItem
+	attractItems       []hostclient.AttractItem
 	attractIndex       int
 	attractImage       *image.RGBA
 	attractHandle      string
@@ -514,7 +468,7 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 	grid.Layout(width, height)
 	return &App{
 		client:             client,
-		games:              []Game{},
+		games:              []hostclient.Game{},
 		grid:               grid,
 		covers:             map[string]*coverSlot{},
 		inflight:           map[string]workKind{},
@@ -525,8 +479,8 @@ func NewApp(client *Client, width, height, maxGames int) *App {
 		maxGames:           maxGames,
 		pageLimit:          defaultPageLimit,
 		sort:               "title",
-		facets:             FacetValues{Genres: []string{}, Years: []string{}},
-		details:            map[string]FocusDetail{},
+		facets:             hostclient.FacetValues{Genres: []string{}, Years: []string{}},
+		details:            map[string]shared.FocusDetail{},
 		shots:              map[string]*shotSlot{},
 		shotIDs:            map[string][]string{},
 		platformKick:       make(chan struct{}, 1),
@@ -758,7 +712,7 @@ func (a *App) handleSearchLocked(cmd Command, now time.Time) {
 
 // TypeText appends into the on-screen search field from a physical keyboard.
 func (a *App) TypeText(text string, now time.Time) {
-	text = sanitizeFieldText(text)
+	text = shared.SanitizeFieldText(text)
 	if text == "" {
 		return
 	}
@@ -1047,7 +1001,7 @@ func (a *App) setGameFavoriteLocked(gameID string, favorite bool) {
 	if idx < 0 {
 		return
 	}
-	games := append([]Game{}, a.games...)
+	games := append([]hostclient.Game{}, a.games...)
 	games[idx].Favorite = favorite
 	a.games = games
 }
@@ -1365,7 +1319,7 @@ func (a *App) Affinity() Affinity {
 	return a.affinity.current
 }
 
-func (a *App) oskSnapshotLocked() OSKSnapshot {
+func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 	if a.settingsOSKOpenLocked() {
 		snap := a.settingsOSKField.Snapshot()
 		snap.Open = true
@@ -1379,7 +1333,7 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 		case settingsOSKTargetAgent:
 			snap.Prompt = "Agent password"
 			snap.Masked = true
-			snap.Buffer = maskSecret(a.settingsOSKField.Buffer)
+			snap.Buffer = shared.MaskSecret(a.settingsOSKField.Buffer)
 		case settingsOSKDevelopmentPath:
 			snap.Prompt = "DIAGNOSTIC RBF path"
 		}
@@ -1392,7 +1346,7 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 		return a.withOSKHintLocked(snap)
 	}
 	if !a.searchOpen {
-		return OSKSnapshot{}
+		return shared.OSKSnapshot{}
 	}
 	snap := a.searchField.Snapshot()
 	snap.Open = true
@@ -1400,7 +1354,7 @@ func (a *App) oskSnapshotLocked() OSKSnapshot {
 	return a.withOSKHintLocked(snap)
 }
 
-func (a *App) withOSKHintLocked(snap OSKSnapshot) OSKSnapshot {
+func (a *App) withOSKHintLocked(snap shared.OSKSnapshot) shared.OSKSnapshot {
 	snap.Hint = oskHintFor(a.affinity.current.Kind, snap.Page)
 	return snap
 }
@@ -1536,21 +1490,21 @@ func (s Snapshot) NowPlayingLine() string {
 }
 
 // Selected returns the focused game, if any.
-func (a *App) Selected() (Game, bool) {
+func (a *App) Selected() (hostclient.Game, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-		return Game{}, false
+		return hostclient.Game{}, false
 	}
 	return a.games[a.grid.Focus], true
 }
 
-func (a *App) focusDetailLocked() FocusDetail {
+func (a *App) focusDetailLocked() shared.FocusDetail {
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-		return FocusDetail{}
+		return shared.FocusDetail{}
 	}
 	game := a.games[a.grid.Focus]
-	detail := FocusDetail{
+	detail := shared.FocusDetail{
 		Title:    game.Title,
 		Platform: a.platformLabelLocked(game.System),
 		Year:     strings.TrimSpace(game.Year),
@@ -1653,7 +1607,7 @@ func (a *App) startLaunchLocked() {
 	a.startLaunchGameLocked(a.games[a.grid.Focus])
 }
 
-func (a *App) startLaunchGameLocked(game Game) {
+func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	if a.launch.Phase == "launching" || a.sessionStopOfferedLocked() || a.developmentLoadingLocked() {
 		return
 	}
@@ -1683,25 +1637,27 @@ func (a *App) startLaunchGameLocked(game Game) {
 	go a.doLaunch(ctx, game, stamp)
 }
 
-// launchBlockReason mirrors ui_shell launchBlockReason: unavailable titles
-// must not POST /api/v1/session/launch.
-func launchBlockReason(game Game) string {
-	if !game.Launchable {
+// launchBlockReason maps hostclient catalog ineligibility to sofa copy.
+// Admission rules live on hostclient.Game; unavailable titles must not
+// POST /api/v1/session/launch.
+func launchBlockReason(game hostclient.Game) string {
+	switch game.LaunchBlock() {
+	case hostclient.LaunchBrowseOnly:
 		return "This platform is browse-only on this host."
-	}
-	if game.State == "missing" || !game.RootOnline {
+	case hostclient.LaunchSourceOffline:
 		return "This game's source is offline."
-	}
-	if game.State == "invalid" {
+	case hostclient.LaunchUnreadable:
 		return "This ROM can't be read."
-	}
-	if game.State != "available" {
+	case hostclient.LaunchNotReady:
+		return "This game isn't ready to launch."
+	case "":
+		return ""
+	default:
 		return "This game isn't ready to launch."
 	}
-	return ""
 }
 
-func (a *App) doLaunch(ctx context.Context, game Game, stamp ClientStamp) {
+func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientStamp) {
 	result, err := a.client.LaunchStamped(ctx, game.ID, stamp)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1995,7 +1951,7 @@ func (a *App) fetchHealth(ctx context.Context) {
 	if statusErr == nil && status.Unavailable {
 		a.hostUnreachable = false
 		a.healthHave = true
-		a.health = HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
+		a.health = hostclient.HealthResult{Ready: true, TargetReachable: false, TargetReady: false}
 	}
 }
 
@@ -2011,7 +1967,7 @@ func (a *App) healthSnapshotLocked() HealthSnapshot {
 	}
 }
 
-func kitHealthLine(hostUnreachable, have bool, health HealthResult) string {
+func kitHealthLine(hostUnreachable, have bool, health hostclient.HealthResult) string {
 	if hostUnreachable {
 		return "host unreachable"
 	}
@@ -2033,7 +1989,7 @@ func kitHealthLine(hostUnreachable, have bool, health HealthResult) string {
 	return ""
 }
 
-func connectionLine(connection TargetConnection) string {
+func connectionLine(connection hostclient.TargetConnection) string {
 	state := strings.TrimSpace(connection.State)
 	label := strings.ReplaceAll(state, "-", " ")
 	parts := []string{label}
@@ -2048,7 +2004,7 @@ func connectionLine(connection TargetConnection) string {
 	return strings.Join(parts, " · ")
 }
 
-func remoteInputCanAttach(session SessionResult) bool {
+func remoteInputCanAttach(session hostclient.SessionResult) bool {
 	state := remoteInputState(session)
 	if !remoteInputOffered(session) || state == "" {
 		return false
@@ -2059,15 +2015,15 @@ func remoteInputCanAttach(session SessionResult) bool {
 	return state != "attached"
 }
 
-func remoteInputCanDetach(session SessionResult) bool {
+func remoteInputCanDetach(session hostclient.SessionResult) bool {
 	return remoteInputOffered(session) && remoteInputState(session) == "attached"
 }
 
-func remoteInputOffered(session SessionResult) bool {
+func remoteInputOffered(session hostclient.SessionResult) bool {
 	return session.State == "active" && session.Execution == "fpga_native" && session.Input != nil
 }
 
-func remoteInputState(session SessionResult) string {
+func remoteInputState(session hostclient.SessionResult) string {
 	if session.Input == nil {
 		return ""
 	}
@@ -2078,7 +2034,7 @@ func remoteInputTransitioning(state string) bool {
 	return state == "starting" || state == "reconnecting"
 }
 
-func remoteInputHint(session SessionResult, busy bool, action string, kind InputKind) string {
+func remoteInputHint(session hostclient.SessionResult, busy bool, action string, kind InputKind) string {
 	west := westWord(kind)
 	if busy {
 		switch action {
@@ -2132,7 +2088,7 @@ func (a *App) startInputToggleLocked() {
 }
 
 func (a *App) doInputMutation(ctx context.Context, action string) {
-	var result SessionResult
+	var result hostclient.SessionResult
 	var err error
 	if action == "detach" {
 		result, err = a.client.DetachInput(ctx)
@@ -2178,7 +2134,7 @@ func inputFailureStatus(action string) string {
 	return "input attach failed"
 }
 
-func (a *App) applySessionLocked(result SessionResult) {
+func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	if result.ErrorCode != "" {
 		return
 	}
@@ -2554,8 +2510,8 @@ func (a *App) loadCollections(ctx context.Context) {
 	}
 }
 
-func (a *App) currentQueryLocked() GameListQuery {
-	return GameListQuery{
+func (a *App) currentQueryLocked() hostclient.GameListQuery {
+	return hostclient.GameListQuery{
 		Limit:          a.pageLimit,
 		Platform:       a.platformID,
 		Sort:           catalogQuerySort(a.collectionID, a.sort),
@@ -2665,7 +2621,7 @@ func wrapWords(text string, maxChars, maxLines int) []string {
 // restoreCatalogFocus keeps the pre-reload game when it is still in the catalog.
 // If that id is gone, the original index is clamped to the new length instead of
 // resetting to 0.
-func restoreCatalogFocus(games []Game, keepID string, keepIndex int) int {
+func restoreCatalogFocus(games []hostclient.Game, keepID string, keepIndex int) int {
 	if keepID != "" {
 		for i, game := range games {
 			if game.ID == keepID {
@@ -2685,7 +2641,7 @@ func restoreCatalogFocus(games []Game, keepID string, keepIndex int) int {
 	return keepIndex
 }
 
-func (a *App) applyCatalogPageLocked(games []Game, keepID string, keepIndex int, pinned *bool, lastFocus *int) {
+func (a *App) applyCatalogPageLocked(games []hostclient.Game, keepID string, keepIndex int, pinned *bool, lastFocus *int) {
 	if *pinned && *lastFocus >= 0 && (a.grid.Focus != *lastFocus || a.navDirty) {
 		*pinned = false
 	}
@@ -2719,7 +2675,7 @@ func (a *App) captureCatalogFocusLocked() {
 
 func (a *App) loadLibrary(ctx context.Context, gen int) {
 	var (
-		all    []Game
+		all    []hostclient.Game
 		cursor string
 	)
 	a.mu.Lock()
@@ -2768,7 +2724,7 @@ func (a *App) loadLibrary(ctx context.Context, gen int) {
 			a.mu.Unlock()
 			return
 		}
-		a.applyCatalogPageLocked(append([]Game(nil), all...), keepID, keepIndex, &pinned, &lastFocus)
+		a.applyCatalogPageLocked(append([]hostclient.Game(nil), all...), keepID, keepIndex, &pinned, &lastFocus)
 		a.status = a.libraryStatusLocked()
 		a.mu.Unlock()
 		if next == "" || len(all) >= a.maxGames {
@@ -2840,20 +2796,20 @@ func (a *App) applyResult(result workResult) {
 		return
 	}
 	if result.kind == workPresentation && result.err == nil {
-		if shots := screenshotHandles(result.screenshotIDs); len(shots) > 0 {
+		if shots := shared.ScreenshotHandles(result.screenshotIDs); len(shots) > 0 {
 			a.shotIDs[result.gameID] = shots
 		} else {
 			delete(a.shotIDs, result.gameID)
 		}
 		if presentationComplete(result.state, result.attribution) {
-			a.details[result.gameID] = FocusDetail{
+			a.details[result.gameID] = shared.FocusDetail{
 				Year:          strings.TrimSpace(result.year),
 				Genre:         strings.TrimSpace(result.genre),
 				Studio:        strings.TrimSpace(result.studio),
 				Players:       strings.TrimSpace(result.players),
 				Summary:       strings.TrimSpace(result.summary),
 				Attribution:   strings.TrimSpace(result.attribution),
-				ScreenshotIDs: screenshotHandles(result.screenshotIDs),
+				ScreenshotIDs: shared.ScreenshotHandles(result.screenshotIDs),
 			}
 		}
 		a.clampCarouselLocked()
@@ -2979,7 +2935,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 		slot := a.covers[game.ID]
 		if slot == nil {
 			slot = &coverSlot{phase: coverIdle}
-			if handle := normalizeHandle(game.Cover); handle != "" {
+			if handle := hostclient.NormalizeHandle(game.Cover); handle != "" {
 				slot.handle = handle
 				slot.phase = coverArtwork
 			}
@@ -3132,7 +3088,7 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 		if err != nil {
 			return workResult{kind: workPresentation, gameID: item.gameID, gen: item.gen, err: err}
 		}
-		handle := CoverHandle(Game{ID: item.gameID}, pres)
+		handle := shared.CoverHandle(hostclient.Game{ID: item.gameID}, pres)
 		result := workResult{kind: workPresentation, gameID: item.gameID, handle: handle, missing: handle == "", state: pres.State, gen: item.gen}
 		if pres.Presentation != nil {
 			result.year = pres.Presentation.Year
@@ -3140,7 +3096,7 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 			result.summary = pres.Presentation.Summary
 			result.studio = pres.Presentation.Studio
 			result.players = pres.Presentation.Players
-			result.screenshotIDs = screenshotHandles(pres.Presentation.ScreenshotIDs)
+			result.screenshotIDs = shared.ScreenshotHandles(pres.Presentation.ScreenshotIDs)
 		}
 		result.attribution = pres.AttributionLabel()
 		return result
@@ -3149,7 +3105,7 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 		if err != nil {
 			return workResult{kind: workArtwork, gameID: item.gameID, gen: item.gen, err: err}
 		}
-		img, err := DecodeCover(data)
+		img, err := shared.DecodeCover(data)
 		if err != nil {
 			return workResult{kind: workArtwork, gameID: item.gameID, gen: item.gen, err: err}
 		}
@@ -3159,7 +3115,7 @@ func (a *App) doWork(ctx context.Context, item workItem) workResult {
 		if err != nil {
 			return workResult{kind: workScreenshot, gameID: item.gameID, handle: item.handle, gen: item.gen, shotGen: item.shotGen, err: err}
 		}
-		img, err := DecodeScreenshot(data)
+		img, err := shared.DecodeScreenshot(data)
 		if err != nil {
 			return workResult{kind: workScreenshot, gameID: item.gameID, handle: item.handle, gen: item.gen, shotGen: item.shotGen, err: err}
 		}

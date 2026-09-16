@@ -219,9 +219,9 @@ import (
 	"unsafe"
 
 	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/inputmap"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 const (
@@ -502,7 +502,7 @@ func runSmoke(ctx context.Context, opts Options, app *App, dev gfx.Device, pads 
 	snap = app.Snapshot()
 	launchIdx := -1
 	for i, game := range snap.Games {
-		if launchBlockReason(game) == "" {
+		if game.LaunchEligible() {
 			launchIdx = i
 			break
 		}

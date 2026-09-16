@@ -1,12 +1,11 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/remoteinput"
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
 )
 
 func TestYCyclesBrowseLayoutsWithoutStealingDpad(t *testing.T) {
@@ -72,7 +71,7 @@ func TestCoverflowDownEntersStripOrDetail(t *testing.T) {
 		t.Fatalf("coverflow down detail=%v focus=%d", m.DetailOpen, m.Focus)
 	}
 	m.DetailOpen = false
-	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
 	pressNamed(&m, "dpad-down", now)
 	if !m.StripActive || m.DetailOpen {
 		t.Fatalf("coverflow down strip=%v detail=%v", m.StripActive, m.DetailOpen)
@@ -153,7 +152,7 @@ func TestSplitDownEntersStripWhenPresent(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, Games: makeGames(4), Browse: fbgrid.BrowseSplit}
 	now := time.Unix(1, 0)
 	m.Focus = 3
-	m.SetStrip([]tenfoot.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	m.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
 	pressNamed(&m, "dpad-down", now)
 	if !m.StripActive || m.DetailOpen || m.Focus != 3 {
 		t.Fatalf("split down strip=%v detail=%v focus=%d", m.StripActive, m.DetailOpen, m.Focus)
@@ -174,7 +173,7 @@ func TestEmptyCatalogYStillCyclesAndHidesTiles(t *testing.T) {
 }
 
 func TestYDoesNotLaunchOrStop(t *testing.T) {
-	m := Model{Connected: true, TargetReady: true, Games: []tenfoot.Game{{ID: "pong", Launchable: true}}}
+	m := Model{Connected: true, TargetReady: true, Games: []hostclient.Game{{ID: "pong", Launchable: true}}}
 	now := time.Unix(1, 0)
 	y, _ := remoteinput.NormalizeGamepad("y", true)
 	if action := m.Input(y, now); action != "" {

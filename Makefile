@@ -25,12 +25,12 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
-test: build-agent test-ui test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix
+test: build-agent test-ui test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix
 	cd appliance && $(NATIVE_GO_ENV) go test -race ./...
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
@@ -60,6 +60,12 @@ test-target-boundary-rg-failure:
 
 test-target-boundary-host-prefix:
 	sh scripts/tests/target-boundary-host-prefix_test.sh
+
+test-ui-kit-tenfoot-boundary:
+	sh scripts/tests/ui-kit-tenfoot-boundary_test.sh
+
+test-ui-kit-tenfoot-boundary-prefix:
+	sh scripts/tests/ui-kit-tenfoot-boundary-prefix_test.sh
 
 test-ui-browser:
 	node --test internal/hostapi/ui_browser_test.js

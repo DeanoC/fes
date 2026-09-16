@@ -1,10 +1,9 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"strings"
 	"testing"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 func TestPrefetchArtworkHandlesOrdersFocusPageNextStripAttract(t *testing.T) {
@@ -14,12 +13,12 @@ func TestPrefetchArtworkHandlesOrdersFocusPageNextStripAttract(t *testing.T) {
 	strip := strings.Repeat("dd", 32)
 	attract := strings.Repeat("ee", 32)
 	m := Model{
-		Games: []tenfoot.Game{
+		Games: []hostclient.Game{
 			{ID: "focus", Cover: focus, Launchable: true},
 			{ID: "page", Cover: page, Launchable: true},
 			{ID: "next", Cover: next, Launchable: true},
 		},
-		Strip: []tenfoot.Game{{ID: "strip", Cover: strip, Launchable: true}},
+		Strip: []hostclient.Game{{ID: "strip", Cover: strip, Launchable: true}},
 		Focus: 0,
 	}
 	got := PrefetchArtworkHandles(m, nil, 0, 2, 3, nil, []string{attract})

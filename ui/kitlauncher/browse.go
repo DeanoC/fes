@@ -1,6 +1,8 @@
 package kitlauncher
 
-import "github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
+import (
+	"github.com/DeanoC/FogCast/ui/fbgrid"
+)
 
 // CycleBrowse advances the catalog presentation (Grid → Coverflow → Wall →
 // Split → Grid). Y is ignored on the platform wheel, title pane, attract,

@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,22 +14,22 @@ import (
 
 func TestKitHealthLine(t *testing.T) {
 	t.Parallel()
-	if got := kitHealthLine(true, false, HealthResult{}); got != "host unreachable" {
+	if got := kitHealthLine(true, false, hostclient.HealthResult{}); got != "host unreachable" {
 		t.Fatalf("host unreachable = %q", got)
 	}
-	if got := kitHealthLine(false, false, HealthResult{}); got != "" {
+	if got := kitHealthLine(false, false, hostclient.HealthResult{}); got != "" {
 		t.Fatalf("unknown = %q", got)
 	}
-	if got := kitHealthLine(false, true, HealthResult{Ready: false}); got != "host not ready" {
+	if got := kitHealthLine(false, true, hostclient.HealthResult{Ready: false}); got != "host not ready" {
 		t.Fatalf("host not ready = %q", got)
 	}
-	if got := kitHealthLine(false, true, HealthResult{Ready: true}); got != "kit unreachable" {
+	if got := kitHealthLine(false, true, hostclient.HealthResult{Ready: true}); got != "kit unreachable" {
 		t.Fatalf("kit unreachable = %q", got)
 	}
-	if got := kitHealthLine(false, true, HealthResult{Ready: true, TargetReachable: true}); got != "kit not ready" {
+	if got := kitHealthLine(false, true, hostclient.HealthResult{Ready: true, TargetReachable: true}); got != "kit not ready" {
 		t.Fatalf("kit not ready = %q", got)
 	}
-	if got := kitHealthLine(false, true, HealthResult{Ready: true, TargetReachable: true, TargetReady: true}); got != "" {
+	if got := kitHealthLine(false, true, hostclient.HealthResult{Ready: true, TargetReachable: true, TargetReady: true}); got != "" {
 		t.Fatalf("healthy = %q", got)
 	}
 }
@@ -36,15 +37,15 @@ func TestKitHealthLine(t *testing.T) {
 func TestConnectionLineKeepsTargetLifecycleDistinct(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		connection TargetConnection
+		connection hostclient.TargetConnection
 		want       string
 	}{
-		{TargetConnection{State: "connecting", Message: "looking for den-kit"}, "connecting · looking for den-kit"},
-		{TargetConnection{State: "disconnected", Message: "target not found"}, "disconnected · target not found"},
-		{TargetConnection{State: "ready", Address: "192.0.2.4:8182"}, "ready · 192.0.2.4:8182"},
-		{TargetConnection{State: "active", Address: "192.0.2.4:8182"}, "active · 192.0.2.4:8182"},
-		{TargetConnection{State: "busy", Owner: "living-room"}, "busy · owned by living-room"},
-		{TargetConnection{State: "recovery-required", Message: "cleanup failed"}, "recovery required · cleanup failed"},
+		{hostclient.TargetConnection{State: "connecting", Message: "looking for den-kit"}, "connecting · looking for den-kit"},
+		{hostclient.TargetConnection{State: "disconnected", Message: "target not found"}, "disconnected · target not found"},
+		{hostclient.TargetConnection{State: "ready", Address: "192.0.2.4:8182"}, "ready · 192.0.2.4:8182"},
+		{hostclient.TargetConnection{State: "active", Address: "192.0.2.4:8182"}, "active · 192.0.2.4:8182"},
+		{hostclient.TargetConnection{State: "busy", Owner: "living-room"}, "busy · owned by living-room"},
+		{hostclient.TargetConnection{State: "recovery-required", Message: "cleanup failed"}, "recovery required · cleanup failed"},
 	}
 	for _, tt := range tests {
 		if got := connectionLine(tt.connection); got != tt.want {
@@ -80,10 +81,10 @@ func TestChromeLinePrefixesKitHealth(t *testing.T) {
 
 func TestRemoteInputGates(t *testing.T) {
 	t.Parallel()
-	active := SessionResult{
+	active := hostclient.SessionResult{
 		State:     "active",
 		Execution: "fpga_native",
-		Input:     &SessionInput{State: "detached"},
+		Input:     &hostclient.SessionInput{State: "detached"},
 	}
 	if !remoteInputCanAttach(active) || remoteInputCanDetach(active) {
 		t.Fatalf("detached attach/detach = attach:%v detach:%v", remoteInputCanAttach(active), remoteInputCanDetach(active))
@@ -120,7 +121,7 @@ func TestAppPollsHealthIntoChrome(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/health":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"ready":  true,
@@ -151,7 +152,7 @@ func TestAppAttachDetachGamepadAndErrorRevert(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON
@@ -261,7 +262,7 @@ func TestAppQueuesStopUntilInputMutationFinishes(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			mu.Lock()
 			body := sessionJSON
@@ -336,7 +337,7 @@ func TestAppIgnoresInputToggleWhenNotFPGANative(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{availableGame("snes-mario", "Mario", "snes")}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","execution":"host_emulator","input":{"state":"detached"}}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/input/attach":

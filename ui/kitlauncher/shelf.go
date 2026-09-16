@@ -2,10 +2,9 @@ package kitlauncher
 
 import (
 	"fmt"
+	"github.com/DeanoC/FogCast/hostclient"
 	"sort"
 	"strings"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
 )
 
 const ShelfAll = "all"
@@ -24,7 +23,7 @@ func normalizeShelf(id string) string {
 	return id
 }
 
-func deriveShelves(games []tenfoot.Game) []string {
+func deriveShelves(games []hostclient.Game) []string {
 	seen := map[string]struct{}{}
 	for _, game := range games {
 		id := strings.ToLower(strings.TrimSpace(game.System))
@@ -48,14 +47,14 @@ func deriveShelves(games []tenfoot.Game) []string {
 	return append(out, extra...)
 }
 
-func filterGames(games []tenfoot.Game, shelf string) []tenfoot.Game {
+func filterGames(games []hostclient.Game, shelf string) []hostclient.Game {
 	shelf = normalizeShelf(shelf)
 	if shelf == ShelfAll {
-		out := make([]tenfoot.Game, len(games))
+		out := make([]hostclient.Game, len(games))
 		copy(out, games)
 		return out
 	}
-	out := make([]tenfoot.Game, 0, len(games))
+	out := make([]hostclient.Game, 0, len(games))
 	for _, game := range games {
 		if strings.EqualFold(strings.TrimSpace(game.System), shelf) {
 			out = append(out, game)
@@ -64,14 +63,14 @@ func filterGames(games []tenfoot.Game, shelf string) []tenfoot.Game {
 	return out
 }
 
-func focusedID(games []tenfoot.Game, focus int) string {
+func focusedID(games []hostclient.Game, focus int) string {
 	if focus < 0 || focus >= len(games) {
 		return ""
 	}
 	return games[focus].ID
 }
 
-func focusIndex(games []tenfoot.Game, keepID string) int {
+func focusIndex(games []hostclient.Game, keepID string) int {
 	if keepID != "" {
 		for i, game := range games {
 			if game.ID == keepID {
@@ -89,9 +88,9 @@ func focusIndex(games []tenfoot.Game, keepID string) int {
 
 // SetCatalog replaces the loaded library, rebuilds system shelves, and keeps
 // the active shelf plus focused game when they are still present.
-func (m *Model) SetCatalog(games []tenfoot.Game) {
+func (m *Model) SetCatalog(games []hostclient.Game) {
 	keep := focusedID(m.Games, m.Focus)
-	m.Catalog = append([]tenfoot.Game(nil), games...)
+	m.Catalog = append([]hostclient.Game(nil), games...)
 	m.Shelves = deriveShelves(m.Catalog)
 	m.searchPool = nil
 	m.Shelf = normalizeShelf(m.Shelf)
@@ -104,12 +103,12 @@ func (m *Model) SetCatalog(games []tenfoot.Game) {
 // ApplyCatalog merges a host catalog refresh without blanking the shelf.
 // Identical lists are a no-op. Browse-identical lists (same ids/titles/covers)
 // copy volatile fields in place so search and focus stay put.
-func (m *Model) ApplyCatalog(games []tenfoot.Game) {
+func (m *Model) ApplyCatalog(games []hostclient.Game) {
 	if m == nil {
 		return
 	}
 	if games == nil {
-		games = []tenfoot.Game{}
+		games = []hostclient.Game{}
 	}
 	if catalogListsEqual(m.Catalog, games) {
 		return
@@ -121,7 +120,7 @@ func (m *Model) ApplyCatalog(games []tenfoot.Game) {
 	m.SetCatalog(games)
 }
 
-func catalogListsEqual(a, b []tenfoot.Game) bool {
+func catalogListsEqual(a, b []hostclient.Game) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -136,7 +135,7 @@ func catalogListsEqual(a, b []tenfoot.Game) bool {
 	return true
 }
 
-func catalogBrowseEqual(a, b []tenfoot.Game) bool {
+func catalogBrowseEqual(a, b []hostclient.Game) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -159,9 +158,9 @@ func romCachedValue(v *bool) int {
 	return -1
 }
 
-func (m *Model) replaceCatalogFields(games []tenfoot.Game) {
-	m.Catalog = append([]tenfoot.Game(nil), games...)
-	byID := make(map[string]tenfoot.Game, len(games))
+func (m *Model) replaceCatalogFields(games []hostclient.Game) {
+	m.Catalog = append([]hostclient.Game(nil), games...)
+	byID := make(map[string]hostclient.Game, len(games))
 	for _, game := range games {
 		byID[game.ID] = game
 	}

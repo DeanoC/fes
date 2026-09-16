@@ -1,15 +1,14 @@
 package kitlauncher
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/fbgrid"
 	"testing"
 	"time"
-
-	"github.com/DeanoC/FogCast/ui/tenfoot"
-	"github.com/DeanoC/FogCast/ui/tenfoot/fbgrid"
 )
 
-func seriesCatalog() []tenfoot.Game {
-	return []tenfoot.Game{
+func seriesCatalog() []hostclient.Game {
+	return []hostclient.Game{
 		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", Launchable: true},
 		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", Launchable: true},
 		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", Launchable: true},
@@ -25,8 +24,8 @@ func TestSeriesHidesWithoutMates(t *testing.T) {
 	if !m.DetailOpen {
 		t.Fatal("expected detail")
 	}
-	m.ApplyPresentation("pong", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Series: "Pong"},
+	m.ApplyPresentation("pong", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Series: "Pong"},
 	})
 	if len(m.Series) != 0 || m.SeriesActive {
 		t.Fatalf("alone series=%d active=%v", len(m.Series), m.SeriesActive)
@@ -45,8 +44,8 @@ func TestDetailDownEntersSeriesAndAJumps(t *testing.T) {
 	if m.Games[m.Focus].ID != "sonic1" {
 		t.Fatalf("focus %s", m.Games[m.Focus].ID)
 	}
-	m.ApplyPresentation("sonic1", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	m.ApplyPresentation("sonic1", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Series: "Sonic the Hedgehog"},
 	})
 	if len(m.Series) != 2 || m.Series[0].ID != "sonic2" {
 		t.Fatalf("mates %v", ids(m.Series))
@@ -83,8 +82,8 @@ func TestSeriesBReturnsToDetailWithoutClosing(t *testing.T) {
 	m.SetCatalog(seriesCatalog())
 	now := time.Unix(1, 0)
 	pressNamed(&m, "b", now)
-	m.ApplyPresentation("sonic1", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	m.ApplyPresentation("sonic1", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Series: "Sonic the Hedgehog"},
 	})
 	pressNamed(&m, "dpad-down", now)
 	if !m.SeriesActive {
@@ -106,8 +105,8 @@ func TestSeriesDoesNotStealYXLaunchOrShots(t *testing.T) {
 	pressNamed(&m, "b", now)
 	aa := handleAA()
 	bb := handleBB()
-	m.ApplyPresentation("sonic1", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{
+	m.ApplyPresentation("sonic1", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{
 			Series:        "Sonic the Hedgehog",
 			ScreenshotIDs: []string{aa, bb},
 		},
@@ -142,8 +141,8 @@ func TestSplitRightEntersSeriesAndAOpensDetail(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, Browse: fbgrid.BrowseSplit}
 	m.SetCatalog(seriesCatalog())
 	now := time.Unix(1, 0)
-	m.ApplyPresentation("sonic1", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	m.ApplyPresentation("sonic1", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Series: "Sonic the Hedgehog"},
 	})
 	if len(m.Series) < 1 {
 		t.Fatal("expected mates")
@@ -182,8 +181,8 @@ func TestDetailHintNamesSeriesChord(t *testing.T) {
 	if got := m.DetailHint(); got != "A play | B back" {
 		t.Fatalf("empty hint %q", got)
 	}
-	m.ApplyPresentation("sonic1", tenfoot.Presentation{
-		Presentation: &tenfoot.PresentationInfo{Series: "Sonic the Hedgehog"},
+	m.ApplyPresentation("sonic1", hostclient.Presentation{
+		Presentation: &hostclient.PresentationInfo{Series: "Sonic the Hedgehog"},
 	})
 	if got := m.DetailHint(); got != "A play | B back | Down series" {
 		t.Fatalf("series hint %q", got)

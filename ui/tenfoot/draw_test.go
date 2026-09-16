@@ -1,12 +1,13 @@
 package tenfoot
 
 import (
+	"github.com/DeanoC/FogCast/hostclient"
 	"image"
 	"image/color"
 	"testing"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/gfx"
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 func testDrawGrid() Grid {
@@ -77,7 +78,7 @@ func TestPresentFrameUnparkDropsPreview(t *testing.T) {
 	snap := Snapshot{
 		GPUParked: false,
 		Grid:      g,
-		Games:     []Game{{ID: "sonic", Title: "Sonic"}},
+		Games:     []hostclient.Game{{ID: "sonic", Title: "Sonic"}},
 		Covers:    map[string]*image.RGBA{"sonic": coverImg},
 	}
 	if parked := presentFrame(rec, snap, textures, labels, true); parked {

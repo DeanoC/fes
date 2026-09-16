@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"encoding/json"
+	"github.com/DeanoC/FogCast/hostclient"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/ui/tenfoot/theme"
+	"github.com/DeanoC/FogCast/ui/theme"
 )
 
 func appSettingsCommitState(app *App) (idleSeconds int, hydrated bool) {
@@ -133,9 +134,9 @@ func catalogSettingsApp(t *testing.T, n int) *App {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, n)
-	app.games = make([]Game, n)
+	app.games = make([]hostclient.Game, n)
 	for i := 0; i < n; i++ {
-		app.games[i] = Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
+		app.games[i] = hostclient.Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
 	}
 	app.grid.SetCount(n)
 	return app
@@ -245,7 +246,7 @@ func TestAppSettingsEastDiscardsHostDrafts(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 8)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -292,7 +293,7 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/games" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{{ID: "g0", Title: "Game", Launchable: true}},
+				"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}},
 			})
 			return
 		}
@@ -323,7 +324,7 @@ func TestAppSettingsPatchIdleRegionsAndTarget(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 8)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -379,7 +380,7 @@ func TestAppSettingsPatchKeepsPriorOnError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 8)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -521,7 +522,7 @@ func TestAppSettingsCloseIgnoresFailedGetStatus(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	app.status = "browse ready"
 	now := time.Now()
@@ -575,7 +576,7 @@ func TestAppSettingsPatchAppliesAfterClose(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -637,7 +638,7 @@ func TestAppSettingsIdlePatchInvalidatesAttractFetch(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	app.mu.Lock()
 	app.startAttractFetchLocked(false)
@@ -715,7 +716,7 @@ func TestAppSettingsStalePatchDoesNotClearNewBusy(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -804,7 +805,7 @@ func TestAppSettingsLeftOnLowIdleDoesNotJumpToFive(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -878,7 +879,7 @@ func TestAppSettingsRehydratesAfterSaveCompletesDuringReopen(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -976,7 +977,7 @@ func TestAppSettingsStaleReopenGetRefreshesWhenPatchCompletes(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1053,7 +1054,7 @@ func TestAppSettingsStaleReopenGetKeepsNewerLocalDraft(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1118,7 +1119,7 @@ func TestAppSettingsPreservesHostIdleAboveTenMinutes(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1161,7 +1162,7 @@ func TestAppSettingsBusyBlocksHostRowEdits(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1198,7 +1199,7 @@ func TestAppSettingsRegionPatchReloadsCatalog(t *testing.T) {
 			games++
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{{ID: "g0", Title: "Game", Launchable: true}},
+				"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}},
 			})
 		case r.URL.Path == "/api/v1/library/settings":
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1277,7 +1278,7 @@ func TestAppSettingsListsLibrariesFromGet(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1321,7 +1322,7 @@ func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
 			games++
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"games": []Game{{ID: "g0", Title: "Game", Launchable: true}},
+				"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}},
 			})
 		case r.URL.Path != "/api/v1/library/settings":
 			http.NotFound(w, r)
@@ -1355,7 +1356,7 @@ func TestAppSettingsAddEditRemoveLibrariesAndPatch(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1462,7 +1463,7 @@ func TestAppSettingsLibraryOSKDoesNotStealIdleAndTarget(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1519,7 +1520,7 @@ func TestAppSettingsFailedIdleKeepsLibraryDraft(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1584,14 +1585,14 @@ func TestAppSettingsStaleLibrarySaveKeepsNewerDraft(t *testing.T) {
 				"systems":              []map[string]any{{"id": "snes", "label": "SNES"}},
 			})
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{{ID: "g0", Title: "Game", Launchable: true}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}}})
 		default:
 			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1653,7 +1654,7 @@ func TestAppSettingsListsTargetsFromGet(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1705,7 +1706,7 @@ func TestAppSettingsAddEditRemoveTargetsAndPatch(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{{ID: "g0", Title: "Game", Launchable: true}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}}})
 		case r.URL.Path != "/api/v1/library/settings":
 			http.NotFound(w, r)
 		case r.Method == http.MethodGet:
@@ -1754,7 +1755,7 @@ func TestAppSettingsAddEditRemoveTargetsAndPatch(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1887,7 +1888,7 @@ func TestAppSettingsClearTargetAgentOmitsUntouched(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -1960,7 +1961,7 @@ func TestAppSettingsSelectedTargetCareWhileSessionActive(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -2002,7 +2003,7 @@ func TestAppSettingsLibraryPatchStillOmitsTargets(t *testing.T) {
 	var patches []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/games" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"games": []Game{{ID: "g0", Title: "Game", Launchable: true}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{{ID: "g0", Title: "Game", Launchable: true}}})
 			return
 		}
 		if r.URL.Path != "/api/v1/library/settings" {
@@ -2035,7 +2036,7 @@ func TestAppSettingsLibraryPatchStillOmitsTargets(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -2098,7 +2099,7 @@ func TestAppSettingsRemoveSelectedTargetPicksReplacement(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -2146,7 +2147,7 @@ func TestAppSettingsCancelAddTargetDoesNotMarkDirty(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
-	app.games = []Game{{ID: "g0", Title: "Game"}}
+	app.games = []hostclient.Game{{ID: "g0", Title: "Game"}}
 	app.grid.SetCount(1)
 	now := time.Now()
 	app.HandleCommand(CmdSettings, now)
@@ -2176,7 +2177,7 @@ func TestPrepareIdentityPreservesUnsavedTargetEdits(t *testing.T) {
 	app.settingsOpen = true
 	app.settingsHydrated = true
 	app.settingsIndex = settingsRowPrepareTarget
-	app.hostSettings = LibrarySettings{SelectedTarget: "dev", Targets: []LibraryTarget{{Name: "dev"}}}
+	app.hostSettings = hostclient.LibrarySettings{SelectedTarget: "dev", Targets: []hostclient.LibraryTarget{{Name: "dev"}}}
 	app.settingsDraftTarget = "renamed"
 	app.settingsDraftTargets = []settingsTargetDraft{{OriginalName: "dev", Name: "renamed"}}
 	app.settingsTargetsDirty = true
