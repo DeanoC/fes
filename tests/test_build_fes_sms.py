@@ -67,6 +67,9 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("sms_machine", result.stdout)
         self.assertIn("fes-sms-machine", result.stdout)
+        self.assertIn("fes-sms-gp", result.stdout)
+        self.assertIn("stream-exchanges.json", result.stdout)
+        self.assertIn("ENABLE_MEDIA_STREAM=1", result.stdout)
         self.assertNotIn("FES_SMS_OSS", result.stdout)
         self.assertNotIn("fes-sms-machine-oss", result.stdout)
         self.assertNotIn("build_fes_sms_oss", result.stdout)
@@ -124,7 +127,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("sg1000_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 4)
+        self.assertEqual(SEED, 1)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
@@ -193,8 +196,11 @@ class BuildFesSmsTests(unittest.TestCase):
         machine = (ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text(encoding="utf-8")
         self.assertIn("coleco_vdp", machine)
         self.assertIn("coleco_dpram", machine)
+        self.assertIn("ADDRWIDTH(15)", machine)
+        self.assertIn("NUMWORDS(32768)", machine)
         self.assertIn("ADDRWIDTH(13)", machine)
         self.assertIn("NUMWORDS(8192)", machine)
+        self.assertIn("15'h7fff", machine)
         self.assertIn("cpu_addr[12:0]", machine)
         self.assertIn("2'b11", machine)
         self.assertIn("port_dc", machine)
@@ -224,6 +230,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn(b'id = "fes.sms"', manifest)
         self.assertIn(b"FES Master System", manifest)
         self.assertIn(b"fes.simple-computer", manifest)
+        self.assertIn(b'id = "fes.media.blob-stream"', manifest)
+        self.assertIn(b"fes.media.blob", manifest)
         self.assertNotIn(b"fes.coleco", manifest)
         self.assertNotIn(b"fes.sg1000", manifest)
         self.assertNotIn(b"fes.mastersystem", manifest)
@@ -245,6 +253,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("/home/deano/", readme)
         self.assertIn("Quartus", readme)
         self.assertIn("8 KiB", readme)
+        self.assertIn("32 KiB", readme)
+        self.assertIn("blob-stream", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("da6373c0", readme)
         self.assertIn("later jobs", readme.lower())
@@ -264,9 +274,13 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stderr)
             data = output.read_bytes()
             self.assertEqual(data[0], 0xF3)
+            self.assertEqual(data[4:7], bytes((0xC3, 0x00, 0x40)))  # JP 4000
             self.assertIn(b"\x31\xf0\xdf", data)  # LD SP,DFF0
             self.assertIn(b"\x32\x00\xc0", data)
-            self.assertLessEqual(len(data), 16384)
+            self.assertGreater(len(data), 16384)
+            self.assertLessEqual(len(data), 32768)
+            self.assertNotEqual(data[0x4000], 0xFF)
+            self.assertIn(bytes((0x76, 0x18, 0xFD)), data)
             digest = hashlib.sha256(data).hexdigest()
             second = Path(directory) / "again.rom"
             subprocess.run(
@@ -276,15 +290,82 @@ class BuildFesSmsTests(unittest.TestCase):
             )
             self.assertEqual(second.read_bytes(), data)
             self.assertEqual(hashlib.sha256(second.read_bytes()).hexdigest(), digest)
+            too_small = subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(Path(directory) / "bad.rom"),
+                 "--pad-to", "16384"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(too_small.returncode, 0)
+            self.assertIn("32768", too_small.stderr)
             padded = Path(directory) / "padded.rom"
             subprocess.run(
-                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "16384"],
+                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "32768"],
                 cwd=ROOT,
                 check=True,
             )
-            self.assertEqual(padded.read_bytes(), data + b"\xff" * (16384 - len(data)))
+            self.assertEqual(padded.read_bytes(), data + b"\xff" * (32768 - len(data)))
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+            hil = Path(directory) / "hil.rom"
+            subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(hil), "--interactive"],
+                cwd=ROOT,
+                check=True,
+            )
+            hil_data = hil.read_bytes()
+            self.assertEqual(hil_data[4:7], bytes((0xC3, 0x00, 0x40)))
+            self.assertGreater(len(hil_data), 16384)
+            self.assertNotIn(bytes((0x76, 0x18, 0xFD)), hil_data)
+            self.assertTrue(any(hil_data[i] == 0xC3 and hil_data[i + 2] == 0x40
+                                for i in range(0x4000, len(hil_data) - 2)))
+
+    def test_published_stream_pin_and_required_interface(self) -> None:
+        pin = (ROOT / "docs/contracts/MISTER-PACKAGES-PIN.txt").read_text(encoding="utf-8")
+        self.assertIn("c8c8dfd1fcb0503ac92baf6b365d93e8d26a0854", pin)
+        fixtures = (ROOT / "cores/fes-sms/generated/stream-exchanges.json").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(fixtures).hexdigest(),
+            "3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f",
+        )
+        contract = (ROOT / "docs/contracts/media-stream-1.0.md").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(contract).hexdigest(),
+            "aed93f66983d6edf09d4f1ea926027ebc700e95af266ae3872a2840aec9a79cb",
+        )
+        header = (ROOT / "cores/fes-sms/generated/fes_simple_computer.vh").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(header).hexdigest(),
+            "fd074e6958ea16ff277a5071bcd1e0c7b78fc984c8e7a58f9eea61c974324caa",
+        )
+        top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
+        self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
+        gp = (ROOT / "cores/fes-coleco/rtl/fes_computer_gp.v").read_text(encoding="utf-8")
+        self.assertIn("if (!ENABLE_MEDIA_STREAM || media_open)", gp)
+        from scripts.build_fes_sms_oss import _manifest as oss_manifest_fn
+
+        record = (
+            b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
+            b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_sms_oss.py",'
+            b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
+            b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
+            b'"tools":{},"parameters":{}}'
+        )
+        evidence = {
+            "build_id": "d" * 32,
+            "rbf": {"size": 16, "sha256": "e" * 64},
+        }
+        oss = oss_manifest_fn(
+            record,
+            evidence,
+            "https://github.com/DeanoC/misteross.git",
+            "a" * 40,
+            {"yosys": "test"},
+        )
+        self.assertIn(b'id = "fes.media.blob-stream"', oss)
+        self.assertIn(b"required = true", oss)
 
 
 if __name__ == "__main__":

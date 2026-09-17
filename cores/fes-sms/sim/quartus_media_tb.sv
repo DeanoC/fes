@@ -7,11 +7,12 @@ module quartus_media_tb;
     wire [31:0] gpi;
     wire reset, ready;
     wire [39:0] keyboard;
-    wire [14:0] size;
-    wire [13:0] address;
+    wire [15:0] size;
+    wire [14:0] address;
     wire [7:0] data, peek_data;
     reg [15:0] peek_addr = 16'h0000;
-    fes_computer_gp gp (.clk(clk), .gpo(gpo), .gpi(gpi), .build_id(128'b0),
+    fes_computer_gp #(.ENABLE_MEDIA_STREAM(1)) gp (
+        .clk(clk), .gpo(gpo), .gpi(gpi), .build_id(128'b0),
         .exec_reset(reset), .keyboard(keyboard), .media_ready(ready),
         .media_size(size), .media_addr(address), .media_q(data));
     sms_machine machine (.clk_sys(clk), .reset(reset), .keyboard(keyboard),

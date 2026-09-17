@@ -34,10 +34,10 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 4 is the Coleco / SG-1000 production seed. A sealed BUILD_ID
-# changes the placement search space; re-check the seed on the first
-# SMS HIP route and again after format-2 seal.
-SEED = 4
+# Seed 1 is the fes.sms production seed. Coleco / SG-1000 remain seed 4.
+# A sealed BUILD_ID changes the placement search space; re-check after
+# format-2 seal.
+SEED = 1
 SMS_GPU_BACKEND = "hip"
 SMS_GPU_ROUTER = "HIP"
 SMS_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -412,6 +412,7 @@ def _manifest(
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": evidence["build_id"],

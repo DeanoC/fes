@@ -324,6 +324,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": build_identity(record),

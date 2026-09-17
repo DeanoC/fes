@@ -1,0 +1,972 @@
+{
+  "interface": "fes.media.blob-stream",
+  "major": 1,
+  "minor": 0,
+  "capability_bit": 3,
+  "endpoint": {
+    "min": 1,
+    "max": 32768,
+    "chunk_max": 512
+  },
+  "crc_vectors": [
+    {
+      "hex": "010203",
+      "crc32": 1438416925
+    },
+    {
+      "hex": "313233343536373839",
+      "crc32": 3421780262
+    }
+  ],
+  "size_vectors": [
+    {
+      "total": 0,
+      "lo": 0,
+      "hi": 0,
+      "sms_accept": false,
+      "transport_accept": false
+    },
+    {
+      "total": 1,
+      "lo": 1,
+      "hi": 0,
+      "sms_accept": true,
+      "transport_accept": true
+    },
+    {
+      "total": 16384,
+      "lo": 16384,
+      "hi": 0,
+      "sms_accept": true,
+      "transport_accept": true
+    },
+    {
+      "total": 16385,
+      "lo": 16385,
+      "hi": 0,
+      "sms_accept": true,
+      "transport_accept": true
+    },
+    {
+      "total": 32768,
+      "lo": 32768,
+      "hi": 0,
+      "sms_accept": true,
+      "transport_accept": true
+    },
+    {
+      "total": 32769,
+      "lo": 32769,
+      "hi": 0,
+      "sms_accept": false,
+      "transport_accept": true
+    },
+    {
+      "total": 65536,
+      "lo": 0,
+      "hi": 1,
+      "sms_accept": false,
+      "transport_accept": true
+    },
+    {
+      "total": 33554432,
+      "lo": 0,
+      "hi": 512,
+      "sms_accept": false,
+      "transport_accept": true
+    },
+    {
+      "total": 33554433,
+      "lo": 1,
+      "hi": 512,
+      "sms_accept": false,
+      "transport_accept": false
+    },
+    {
+      "total": 4294967295,
+      "lo": 65535,
+      "hi": 65535,
+      "sms_accept": false,
+      "transport_accept": false
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "three-byte-ordered-commit",
+      "ready": true,
+      "received": 3,
+      "reset": false,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {
+          "name": "info-min-low",
+          "opcode": 7,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 1,
+          "gpo": [
+            117440512,
+            2264924160
+          ],
+          "gpi": 4118806529
+        },
+        {
+          "name": "info-min-high",
+          "opcode": 7,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2264989696,
+            117506048
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "info-max-low",
+          "opcode": 7,
+          "index": 2,
+          "argument": 0,
+          "error": 0,
+          "data": 32768,
+          "gpo": [
+            117571584,
+            2265055232
+          ],
+          "gpi": 4118839296
+        },
+        {
+          "name": "info-max-high",
+          "opcode": 7,
+          "index": 3,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2265120768,
+            117637120
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "info-chunk",
+          "opcode": 7,
+          "index": 4,
+          "argument": 0,
+          "error": 0,
+          "data": 512,
+          "gpo": [
+            117702656,
+            2265186304
+          ],
+          "gpi": 4118807040
+        },
+        {
+          "name": "info-invalid-index",
+          "opcode": 7,
+          "index": 5,
+          "argument": 0,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            2265251840,
+            117768192
+          ],
+          "gpi": 4114612226
+        },
+        {
+          "name": "info-nonzero-argument",
+          "opcode": 7,
+          "index": 0,
+          "argument": 1,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            117440513,
+            2264924161
+          ],
+          "gpi": 4123000835
+        },
+        {
+          "name": "data-before-begin",
+          "opcode": 10,
+          "index": 0,
+          "argument": 513,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            2315256321,
+            167772673
+          ],
+          "gpi": 4114612228
+        },
+        {
+          "name": "header-out-of-order",
+          "opcode": 8,
+          "index": 1,
+          "argument": 0,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            134283264,
+            2281766912
+          ],
+          "gpi": 4123000834
+        },
+        {
+          "name": "total-low",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281701379,
+            134217731
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "duplicate-begin-word",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            134217731,
+            2281701379
+          ],
+          "gpi": 4123000834
+        },
+        {
+          "name": "legacy-during-header",
+          "opcode": 4,
+          "index": 0,
+          "argument": 3,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            2214592515,
+            67108867
+          ],
+          "gpi": 4114612228
+        },
+        {
+          "name": "total-high",
+          "opcode": 8,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134283264,
+            2281766912
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "crc-low",
+          "opcode": 8,
+          "index": 2,
+          "argument": 32797,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281865245,
+            134381597
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "crc-high-arm",
+          "opcode": 8,
+          "index": 3,
+          "argument": 21948,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134436284,
+            2281919932
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "begin-during-transfer",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            2281701379,
+            134217731
+          ],
+          "gpi": 4114612228
+        },
+        {
+          "name": "release-incomplete",
+          "opcode": 2,
+          "index": 0,
+          "argument": 1,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            33554433,
+            2181038081
+          ],
+          "gpi": 4123000836
+        },
+        {
+          "name": "commit-before-data",
+          "opcode": 11,
+          "index": 0,
+          "argument": 0,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            2332033024,
+            184549376
+          ],
+          "gpi": 4114612228
+        },
+        {
+          "name": "offset-low",
+          "opcode": 9,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            150994944,
+            2298478592
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "offset-high",
+          "opcode": 9,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2298544128,
+            151060480
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "chunk-zero",
+          "opcode": 9,
+          "index": 2,
+          "argument": 0,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            151126016,
+            2298609664
+          ],
+          "gpi": 4123000835
+        },
+        {
+          "name": "chunk-too-large",
+          "opcode": 9,
+          "index": 2,
+          "argument": 4,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            2298609668,
+            151126020
+          ],
+          "gpi": 4114612227
+        },
+        {
+          "name": "length-arm",
+          "opcode": 9,
+          "index": 2,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            151126019,
+            2298609667
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "word-out-of-order",
+          "opcode": 10,
+          "index": 1,
+          "argument": 3,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            2315321347,
+            167837699
+          ],
+          "gpi": 4114612226
+        },
+        {
+          "name": "word-zero",
+          "opcode": 10,
+          "index": 0,
+          "argument": 513,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            167772673,
+            2315256321
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "duplicate-word",
+          "opcode": 10,
+          "index": 0,
+          "argument": 513,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            2315256321,
+            167772673
+          ],
+          "gpi": 4114612226
+        },
+        {
+          "name": "odd-padding",
+          "opcode": 10,
+          "index": 1,
+          "argument": 259,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            167837955,
+            2315321603
+          ],
+          "gpi": 4123000835
+        },
+        {
+          "name": "odd-tail",
+          "opcode": 10,
+          "index": 1,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2315321347,
+            167837699
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "extra-data",
+          "opcode": 10,
+          "index": 2,
+          "argument": 0,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            167903232,
+            2315386880
+          ],
+          "gpi": 4123000836
+        },
+        {
+          "name": "commit",
+          "opcode": 11,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2332033024,
+            184549376
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "duplicate-commit",
+          "opcode": 11,
+          "index": 0,
+          "argument": 0,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            184549376,
+            2332033024
+          ],
+          "gpi": 4123000836
+        },
+        {
+          "name": "release",
+          "opcode": 2,
+          "index": 0,
+          "argument": 1,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2181038081,
+            33554433
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "abort-released",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            201326592,
+            2348810240
+          ],
+          "gpi": 4123000836
+        }
+      ]
+    },
+    {
+      "name": "crc-mismatch-abort",
+      "ready": false,
+      "received": 0,
+      "reset": true,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {
+          "name": "total-low",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134217731,
+            2281701379
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "total-high",
+          "opcode": 8,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281766912,
+            134283264
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "crc-low",
+          "opcode": 8,
+          "index": 2,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134348800,
+            2281832448
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "crc-high-arm",
+          "opcode": 8,
+          "index": 3,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281897984,
+            134414336
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "offset-low",
+          "opcode": 9,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            150994944,
+            2298478592
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "offset-high",
+          "opcode": 9,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2298544128,
+            151060480
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "length-arm",
+          "opcode": 9,
+          "index": 2,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            151126019,
+            2298609667
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "pair",
+          "opcode": 10,
+          "index": 0,
+          "argument": 513,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2315256321,
+            167772673
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "tail",
+          "opcode": 10,
+          "index": 1,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            167837699,
+            2315321347
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "bad-crc",
+          "opcode": 11,
+          "index": 0,
+          "argument": 0,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            2332033024,
+            184549376
+          ],
+          "gpi": 4114612227
+        },
+        {
+          "name": "abort",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            201326592,
+            2348810240
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "abort-again",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2348810240,
+            201326592
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "release-aborted",
+          "opcode": 2,
+          "index": 0,
+          "argument": 1,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            33554433,
+            2181038081
+          ],
+          "gpi": 4123000836
+        }
+      ]
+    },
+    {
+      "name": "abort-partial-header",
+      "ready": false,
+      "received": 0,
+      "reset": true,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {
+          "name": "total-low",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134217731,
+            2281701379
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "abort",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2348810240,
+            201326592
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "stale-header-high",
+          "opcode": 8,
+          "index": 1,
+          "argument": 0,
+          "error": 2,
+          "data": 2,
+          "gpo": [
+            134283264,
+            2281766912
+          ],
+          "gpi": 4123000834
+        },
+        {
+          "name": "total-low",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281701379,
+            134217731
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "total-high",
+          "opcode": 8,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134283264,
+            2281766912
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "crc-low",
+          "opcode": 8,
+          "index": 2,
+          "argument": 32797,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2281865245,
+            134381597
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "crc-high-arm",
+          "opcode": 8,
+          "index": 3,
+          "argument": 21948,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            134436284,
+            2281919932
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "offset-low",
+          "opcode": 9,
+          "index": 0,
+          "argument": 1,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            2298478593,
+            150994945
+          ],
+          "gpi": 4110417920
+        },
+        {
+          "name": "offset-high",
+          "opcode": 9,
+          "index": 1,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            151060480,
+            2298544128
+          ],
+          "gpi": 4118806528
+        },
+        {
+          "name": "wrong-offset",
+          "opcode": 9,
+          "index": 2,
+          "argument": 3,
+          "error": 3,
+          "data": 3,
+          "gpo": [
+            2298609667,
+            151126019
+          ],
+          "gpi": 4114612227
+        },
+        {
+          "name": "abort",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 0,
+          "data": 0,
+          "gpo": [
+            201326592,
+            2348810240
+          ],
+          "gpi": 4118806528
+        }
+      ]
+    },
+    {
+      "name": "legacy-active-interlock",
+      "legacy_active": true,
+      "ready": false,
+      "received": 0,
+      "reset": true,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {
+          "name": "stream-begin-rejected",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            134217731,
+            2281701379
+          ],
+          "gpi": 4123000836
+        },
+        {
+          "name": "abort-rejected",
+          "opcode": 12,
+          "index": 0,
+          "argument": 0,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            2348810240,
+            201326592
+          ],
+          "gpi": 4114612228
+        }
+      ]
+    },
+    {
+      "name": "two-chunks-crc-and-ordinal-reset",
+      "ready": true,
+      "received": 5,
+      "reset": true,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {"name":"total-low","opcode":8,"index":0,"argument":5,"error":0,"data":0,"gpo":[134217733,2281701381],"gpi":4118806528},
+        {"name":"total-high","opcode":8,"index":1,"argument":0,"error":0,"data":0,"gpo":[2281766912,134283264],"gpi":4110417920},
+        {"name":"crc-low","opcode":8,"index":2,"argument":39412,"error":0,"data":0,"gpo":[134388212,2281871860],"gpi":4118806528},
+        {"name":"crc-high-arm","opcode":8,"index":3,"argument":18187,"error":0,"data":0,"gpo":[2281916171,134432523],"gpi":4110417920},
+        {"name":"first-offset-low","opcode":9,"index":0,"argument":0,"error":0,"data":0,"gpo":[150994944,2298478592],"gpi":4118806528},
+        {"name":"first-offset-high","opcode":9,"index":1,"argument":0,"error":0,"data":0,"gpo":[2298544128,151060480],"gpi":4110417920},
+        {"name":"first-length","opcode":9,"index":2,"argument":3,"error":0,"data":0,"gpo":[151126019,2298609667],"gpi":4118806528},
+        {"name":"first-pair","opcode":10,"index":0,"argument":513,"error":0,"data":0,"gpo":[2315256321,167772673],"gpi":4110417920},
+        {"name":"first-tail","opcode":10,"index":1,"argument":3,"error":0,"data":0,"gpo":[167837699,2315321347],"gpi":4118806528},
+        {"name":"second-offset-low","opcode":9,"index":0,"argument":3,"error":0,"data":0,"gpo":[2298478595,150994947],"gpi":4110417920},
+        {"name":"second-offset-high","opcode":9,"index":1,"argument":0,"error":0,"data":0,"gpo":[151060480,2298544128],"gpi":4118806528},
+        {"name":"second-length","opcode":9,"index":2,"argument":2,"error":0,"data":0,"gpo":[2298609666,151126018],"gpi":4110417920},
+        {"name":"second-ordinal-reset","opcode":10,"index":0,"argument":1284,"error":0,"data":0,"gpo":[167773444,2315257092],"gpi":4118806528},
+        {"name":"commit-across-chunks","opcode":11,"index":0,"argument":0,"error":0,"data":0,"gpo":[2332033024,184549376],"gpi":4110417920}
+      ]
+    },
+    {
+      "name": "repeated-prior-chunk-rejected",
+      "ready": false,
+      "received": 0,
+      "reset": true,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {"name":"total-low","opcode":8,"index":0,"argument":5,"error":0,"data":0,"gpo":[134217733,2281701381],"gpi":4118806528},
+        {"name":"total-high","opcode":8,"index":1,"argument":0,"error":0,"data":0,"gpo":[2281766912,134283264],"gpi":4110417920},
+        {"name":"crc-low","opcode":8,"index":2,"argument":39412,"error":0,"data":0,"gpo":[134388212,2281871860],"gpi":4118806528},
+        {"name":"crc-high-arm","opcode":8,"index":3,"argument":18187,"error":0,"data":0,"gpo":[2281916171,134432523],"gpi":4110417920},
+        {"name":"first-offset-low","opcode":9,"index":0,"argument":0,"error":0,"data":0,"gpo":[150994944,2298478592],"gpi":4118806528},
+        {"name":"first-offset-high","opcode":9,"index":1,"argument":0,"error":0,"data":0,"gpo":[2298544128,151060480],"gpi":4110417920},
+        {"name":"first-length","opcode":9,"index":2,"argument":3,"error":0,"data":0,"gpo":[151126019,2298609667],"gpi":4118806528},
+        {"name":"first-pair","opcode":10,"index":0,"argument":513,"error":0,"data":0,"gpo":[2315256321,167772673],"gpi":4110417920},
+        {"name":"first-tail","opcode":10,"index":1,"argument":3,"error":0,"data":0,"gpo":[167837699,2315321347],"gpi":4118806528},
+        {"name":"second-offset-low","opcode":9,"index":0,"argument":3,"error":0,"data":0,"gpo":[2298478595,150994947],"gpi":4110417920},
+        {"name":"second-offset-high","opcode":9,"index":1,"argument":0,"error":0,"data":0,"gpo":[151060480,2298544128],"gpi":4118806528},
+        {"name":"second-length","opcode":9,"index":2,"argument":2,"error":0,"data":0,"gpo":[2298609666,151126018],"gpi":4110417920},
+        {"name":"second-ordinal-reset","opcode":10,"index":0,"argument":1284,"error":0,"data":0,"gpo":[167773444,2315257092],"gpi":4118806528},
+        {"name":"repeat-second-offset-low","opcode":9,"index":0,"argument":3,"error":0,"data":0,"gpo":[2298478595,150994947],"gpi":4110417920},
+        {"name":"repeat-second-offset-high","opcode":9,"index":1,"argument":0,"error":0,"data":0,"gpo":[151060480,2298544128],"gpi":4118806528},
+        {"name":"repeat-second-length-rejected","opcode":9,"index":2,"argument":2,"error":3,"data":3,"gpo":[2298609666,151126018],"gpi":4114612227},
+        {"name":"commit-staged-header-rejected","opcode":11,"index":0,"argument":0,"error":4,"data":4,"gpo":[184549376,2332033024],"gpi":4123000836},
+        {"name":"abort","opcode":12,"index":0,"argument":0,"error":0,"data":0,"gpo":[2348810240,201326592],"gpi":4110417920}
+      ]
+    },
+    {
+      "name": "released-begin",
+      "initial_reset": false,
+      "ready": false,
+      "received": 0,
+      "reset": false,
+      "initial_request_toggle": false,
+      "exchanges": [
+        {
+          "name": "begin-rejected",
+          "opcode": 8,
+          "index": 0,
+          "argument": 3,
+          "error": 4,
+          "data": 4,
+          "gpo": [
+            134217731,
+            2281701379
+          ],
+          "gpi": 4123000836
+        }
+      ]
+    }
+  ]
+}

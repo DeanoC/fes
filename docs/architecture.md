@@ -1956,15 +1956,28 @@ search space. FES parent pin and kit HIL remain later jobs.
 (FogCast `protocol.SystemSMS = "sms"`). Do not use `fes.mastersystem`. It
 reuses Coleco TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers, the
 `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell. The
-SMS-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 8 KiB RAM at
-`0xc000` mirrored at `0xe000`), the 8255 joystick ports `0xdc`/`0xdd`, and VDP
-IRQ on Z80 INT rather than NMI. There is no BIOS shim. Mode 4, SN76489 audio,
-mappers and 32/48 KiB retail images remain outside this first slice.
+SMS-specific RTL is the memory map (32 KiB fixed cartridge at `0x0000–0x7fff`,
+unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
+joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, and the
+stream-enabled `fes.simple-computer` mailbox (`ENABLE_MEDIA_STREAM=1`). Legacy
+blob 1.0 stays 1–16 KiB. Stream 1.0 admits 1–32 KiB. After a commit of length
+N, mapped addresses N..0x7fff read `0xff`. HoldReset aborts an incomplete
+legacy blob even when stream is enabled (`media_open`/`media_ptr` cleared) and
+leaves in-progress stream staging in place. There is no BIOS shim. Mode 4,
+SN76489 audio, mappers and banked/48 KiB retail images remain outside this
+slice.
 
-`make sim-fes-sms` is the default Verilator machine check
-(`-DTV80_REFRESH=1` only). `make sim-fes-sms-oss` is the OSS-conditional
-machine check (`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`). Both are host
-simulation, not hardware acceptance.
+`make sms-diagnostic` emits a 32 KiB-capable Graphics I cartridge that jumps
+from `0x0000` to code at `0x4000`. The sim image HALTs after the RAM
+signature; the HIL image (`--interactive`) keeps the controller poll loop.
+`make sim-fes-sms` is the default Verilator check (`-DTV80_REFRESH=1` only):
+the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json` and the
+machine covers the 32 KiB map, long-then-short `0xff` tails, and CPU execution
+of that diagnostic (not reset-only peeks).
+`make sim-fes-sms-oss` is the OSS-conditional check
+(`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`). Both are host simulation, not hardware
+acceptance. SMS format-2 packages declare `fes.media.blob-stream` 1.0 required
+alongside blob 1.0, keyboard 1.0 and fixed-video 1.0.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never
@@ -1976,11 +1989,13 @@ and timing evidence without sealing.
 (Coleco compatibility pin as a byte copy), `constraints-oss.qsf`, and
 `clocks-oss.sdc`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys without a clean tree and does
-not seal. The producer uses `--router gpu` and seed 4 with a live HIP
-backend required. HIP `--router gpu` of the sealed netlist met the 52 MHz
-and 74.25 MHz structured fmax rows on a live HIP backend. FES parent pin
-and kit HIL remain later jobs. See
-`docs/validation/2026-09-17-sms-oss-gap-ladder.md`.
+not seal. The producer uses `--router gpu` and seed 1 with a live HIP
+backend required. Final structured `clk_sys` and `pixel_clk` rows must
+meet 52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
+See
+`docs/validation/2026-09-17-sms-oss-gap-ladder.md`,
+`docs/validation/2026-09-17-sms-32k-fixed-map.md`, and
+`docs/validation/2026-09-17-sms-32k-p2-diagnostic.md`.
 
 ## Standalone Pong game
 

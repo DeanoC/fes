@@ -53,7 +53,7 @@ not Yosys/nextpnr/Mistral limits are labelled as such.
 
 | Evidence | Present state |
 | --- | --- |
-| `scripts/build_fes_sms_oss.py` | present; SG-1000 copy (`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_COLECO_OSS=1`, seed 4, `--router gpu`, HIP `gfx1100;gfx1201`, CPU-fallback reject) |
+| `scripts/build_fes_sms_oss.py` | present; SG-1000 copy (`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_COLECO_OSS=1`, seed 1, `--router gpu`, HIP `gfx1100;gfx1201`, CPU-fallback reject) |
 | `make build-fes-sms` / `toolchain-fes-sms` | present |
 | `cores/fes-sms/toolchain.lock` | Coleco/SG-1000 lock byte copy (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) |
 | `tests/test_build_fes_sms.py` | asserts Quartus + OSS sim + OSS producer entrypoints |
@@ -325,7 +325,7 @@ not start until their dependencies pass.
 | Rung | Test / script | Pass criteria | Depends on | Powerboat now? |
 | --- | ---: | --- | --- | --- |
 | R1 | `python3 -m unittest tests.test_build_fes_sms -v` | tests OK (Quartus + default/OSS sim + OSS producer entrypoints) | — | **yes** (producer tests added after original PASS) |
-| R2 | `make sms-diagnostic` | `graphics-i.rom` 998 B sha256 `53404f52…aa39116`; 16 KiB pad `e4a4cd49…128321`; entry `0x0000` | — | **yes** |
+| R2 | `make sms-diagnostic` | sim HALT `graphics-i.rom` 17394 B sha256 `92ef4fb5…4b471eca`; HIL `graphics-i-hil.rom` 17466 B; 32 KiB pads; entry `0x0000` JP `0x4000` | — | **yes** |
 | R3 | `make sim-fes-sms VERILATOR=<cached 5.051>` | `FES SMS machine checks passed` (media, 8 KiB mirror, DC/DD, diagnostic `A5`/`DC=ff`) | R2 | **yes** (unset `FES_TOOLCHAIN_CACHE_ROOT`; pass absolute Verilator) |
 | R4 | Static OSS-absence inventory (this doc’s file list) | original PASS: producer files were absent. Producer/QSF/SDC/lock now present as Coleco copies | — | **yes** (historical) |
 | R5 | Yosys `da6373c0` wrap 16 KiB `coleco_dpram` **without** OSS defines | `ERROR: no valid mapping found for memory …ram` | Coleco HIP slot | **yes** |

@@ -457,11 +457,16 @@ backend required. HIP format-2 seal, FES parent pin and kit HIL remain later
 jobs.
 
 `make sim-fes-sms` tests the next `fes.simple-computer` Coleco/SG-1000 sibling:
-a reduced Master System machine (`fes.sms`, not `fes.mastersystem`) with the
-cartridge at `0x0000`, 8 KiB RAM at `0xc000` mirrored at `0xe000`, the shared
-TMS9918-style VDP on Z80 INT, and SMS 8255 joystick ports `0xdc`/`0xdd`. It is
-simulation, not a Quartus RBF or kit evidence. `make sim-fes-sms-oss` compiles
-the registered-media and registered-VDP branches with
+a reduced Master System machine (`fes.sms`, not `fes.mastersystem`) with a
+32 KiB fixed cartridge map at `0x0000–0x7fff` (`0x8000–0xbfff` unmapped), 8 KiB
+RAM at `0xc000` mirrored at `0xe000`, the shared TMS9918-style VDP on Z80 INT,
+SMS 8255 joystick ports `0xdc`/`0xdd`, and required `fes.media.blob-stream`
+1.0. The mailbox sim consumes `cores/fes-sms/generated/stream-exchanges.json`.
+After a commit of length N, unused mapped bytes read `0xff`. HoldReset aborts
+an incomplete legacy blob when stream is enabled. `make sms-diagnostic` emits
+a 32 KiB-capable image that jumps to `0x4000` (sim HALT vs HIL interactive).
+It is simulation, not a Quartus RBF or kit evidence. `make sim-fes-sms-oss`
+compiles the registered-media and registered-VDP branches with
 `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
@@ -476,10 +481,9 @@ hardware.
 Coleco lock (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) and the
 Coleco OSS constraint subset. Yosys must define both `FES_SMS_OSS=1` and
 `FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
-not seal. The producer uses `--router gpu` and seed 4 with a live HIP
-backend required. HIP `--router gpu` of the sealed netlist met the 52 MHz
-and 74.25 MHz structured fmax rows on a live HIP backend. FES parent pin
-and kit HIL remain later jobs.
+not seal. The producer uses `--router gpu` and seed 1 with a live HIP
+backend required. Final structured `clk_sys` and `pixel_clk` rows must meet
+52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`

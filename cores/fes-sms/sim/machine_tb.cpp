@@ -67,8 +67,23 @@ void load_blob(Vsms_machine &dut, const std::vector<uint8_t> &blob,
         tick(dut, blob, registered_media_data);
     dut.media_ready = 1;
     dut.eval();
-    for (unsigned i = 0; i < blob.size() + 32; ++i)
+    for (unsigned i = 0; i < blob.size() + 64; ++i)
         tick(dut, blob, registered_media_data);
+}
+
+void require_tail_ff(Vsms_machine &dut, unsigned committed,
+                    uint8_t &registered_media_data, const char *label) {
+    for (unsigned address = committed; address < 0x8000u; ++address) {
+        if (peek(dut, uint16_t(address), registered_media_data) != 0xff) {
+            std::cerr << label << " stale byte at 0x" << std::hex << address
+                      << std::dec << '\n';
+            fail(label);
+        }
+    }
+    require(peek(dut, 0x8000, registered_media_data) == 0xff,
+            "unmapped 8000 must read FF");
+    require(peek(dut, 0xbfff, registered_media_data) == 0xff,
+            "unmapped BFFF must read FF");
 }
 
 }  // namespace
@@ -97,11 +112,32 @@ int main(int argc, char **argv) {
     require(peek(dut, 0x0000, registered_media_data) == pattern[0],
             "cartridge base byte");
     require(peek(dut, 0x3fff, registered_media_data) == pattern.back(),
-            "cartridge final byte");
+            "16 KiB blob final byte");
     require(peek(dut, 0x4000, registered_media_data) == 0xff,
-            "unmapped 4000 must read FF");
+            "16 KiB blob unused 4000 must read FF");
+    require_tail_ff(dut, 16384, registered_media_data, "16 KiB blob tail FF");
+
+    std::vector<uint8_t> long_rom(32768);
+    for (unsigned i = 0; i < long_rom.size(); ++i)
+        long_rom[i] = uint8_t(0x5a ^ i ^ (i >> 8));
+    load_blob(dut, long_rom, registered_media_data);
+    require(peek(dut, 0x0000, registered_media_data) == long_rom[0],
+            "32 KiB base");
+    require(peek(dut, 0x4000, registered_media_data) == long_rom[0x4000],
+            "32 KiB mapped 4000");
+    require(peek(dut, 0x7fff, registered_media_data) == long_rom.back(),
+            "32 KiB final byte");
     require(peek(dut, 0x8000, registered_media_data) == 0xff,
-            "unmapped 8000 must read FF");
+            "unmapped 8000 after 32 KiB");
+
+    std::vector<uint8_t> short_rom{0x3e, 0xa5, 0x32, 0x00, 0xc0, 0x76};
+    load_blob(dut, short_rom, registered_media_data);
+    require(peek(dut, 0x0000, registered_media_data) == short_rom[0],
+            "short replacement base");
+    require(peek(dut, 0x0005, registered_media_data) == short_rom.back(),
+            "short replacement last payload");
+    require_tail_ff(dut, unsigned(short_rom.size()), registered_media_data,
+                    "long then short unused mapped bytes must read FF");
     require(uint8_t(dut.port_dc) == 0xff, "neutral DC");
     require(uint8_t(dut.port_dd) == 0xff, "neutral DD");
 
@@ -147,17 +183,30 @@ int main(int argc, char **argv) {
             diagnostic.push_back(byte);
         std::fclose(rom);
         require(!diagnostic.empty(), "empty diagnostic ROM");
+        require(diagnostic.size() > 0x4000, "diagnostic must include upper 16KiB");
+        require(diagnostic[0] == 0xf3, "diagnostic entry DI");
+        require(diagnostic[4] == 0xc3 && diagnostic[5] == 0x00 &&
+                    diagnostic[6] == 0x40,
+                "diagnostic must JP 0x4000");
+        require(diagnostic[0x4000] != 0xff, "upper-half code missing");
         dut.keyboard = 0xffffffffffull;
         load_blob(dut, diagnostic, registered_media_data);
         dut.reset = 0;
         cycles = 0;
-        for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles)
+        bool saw_upper = false;
+        for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles) {
             tick(dut, diagnostic, registered_media_data);
+            if (dut.cpu_addr_debug >= 0x4000 && dut.cpu_addr_debug < 0x8000)
+                saw_upper = true;
+        }
         require(cycles < 40000000, "diagnostic did not HALT");
+        require(saw_upper, "CPU never executed from upper 16KiB");
         require(peek(dut, 0xc000, registered_media_data) == 0xa5,
                 "diagnostic RAM signature");
         require(peek(dut, 0xc001, registered_media_data) == 0xff,
                 "diagnostic captured DC");
+        require(peek(dut, 0xc002, registered_media_data) == 0x18,
+                "diagnostic upper-half data signature");
     }
 
     std::cout << "FES SMS machine checks passed\n";

@@ -23,8 +23,10 @@ pin and kit HIL remain later jobs.
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
-- Raw 1–16 KiB mailbox media blob mapped at `0x0000–0x3fff`. There is no BIOS
-  and no reset shim; reset fetches the cartridge.
+- Raw mailbox media on a 32 KiB fixed map at `0x0000–0x7fff`. Legacy blob 1.0
+  still admits 1–16 KiB. Stream 1.0 admits 1–32 KiB. Unused mapped bytes after
+  commit read `0xff`, including after a shorter image replaces a longer one.
+  There is no BIOS and no reset shim; reset fetches the cartridge.
 - 8 KiB CPU RAM at `0xc000–0xdfff`, mirrored at `0xe000–0xffff`.
 - TMS9918-style VDP ports `0xbe` / `0xbf` and the Coleco Graphics I / bounded
   Graphics II path. VDP IRQ drives Z80 INT (maskable). Pause NMI is unused.
@@ -32,16 +34,16 @@ pin and kit HIL remain later jobs.
   existing 40-bit keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio (SN76489), Mode 4, Sega mappers, banked 32/48 KiB cartridges, expansion
-hardware, cycle-perfect clocking, sealed HIP format-2 production and native
-FogCast/runtime selection remain outside this first slice.
+Audio (SN76489), Mode 4, Sega mappers, banked/48 KiB cartridges, expansion
+hardware, cycle-perfect clocking and native FogCast/runtime selection remain
+outside this slice. Kit HIL is a later job.
 
 ## Memory and host interfaces
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x3fff` | 16 KiB cartridge aperture (mailbox blob) |
-| `0x4000–0xbfff` | unmapped; reads `ff` |
+| `0x0000–0x7fff` | 32 KiB fixed cartridge map (mailbox blob 1.0 and blob-stream 1.0) |
+| `0x8000–0xbfff` | unmapped; reads `ff` |
 | `0xc000–0xdfff` | 8 KiB CPU RAM |
 | `0xe000–0xffff` | mirror of the 8 KiB CPU RAM |
 | I/O `0xbe` | VDP data |
@@ -50,9 +52,13 @@ FogCast/runtime selection remain outside this first slice.
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
 The mailbox, keyboard rows, media handshake, build identity and fixed-video
-interfaces are the existing `fes.simple-computer` boundary. The host holds
-execution reset while uploading and commits media before releasing it. CPU and
-VDP reset remain asserted until `media_ready && media_loaded`.
+interfaces are the existing `fes.simple-computer` boundary. SMS packages
+declare `fes.media.blob-stream` 1.0 required alongside blob 1.0, keyboard 1.0
+and fixed-video 1.0. The host holds execution reset while uploading and commits
+media before releasing it. CPU and VDP reset remain asserted until
+`media_ready && media_loaded`. After a stream or blob commit of length N, every
+mapped address N..0x7fff reads `0xff`. HoldReset aborts an incomplete legacy
+blob when stream is enabled and does not discard in-progress stream staging.
 
 VDP interrupt connects to Z80 INT. The cartridge itself occupies `0x0038` if
 it installs an IM1 handler; there is no Coleco `JP 0x8066` shim and no
@@ -92,15 +98,25 @@ make sms-diagnostic
 python3 cores/fes-sms/diagnostic/generate.py \
   --output build/diagnostics/fes-sms/graphics-i.rom \
   --preview build/diagnostics/fes-sms/graphics-i.ppm
+python3 cores/fes-sms/diagnostic/generate.py --interactive \
+  --output build/diagnostics/fes-sms/graphics-i-hil.rom \
+  --preview build/diagnostics/fes-sms/graphics-i-hil.ppm
 ```
 
-The emitter is BIOS-free and MIT-licensed. The image is entered at `0x0000`,
-uses RAM at `0xc000` with the stack at `0xdff0`, paints the same Coleco
-Graphics I border/checkerboard, stores `A5` at `C000`, captures port `DC` at
-`C001` and HALTs.
+The emitter is BIOS-free and MIT-licensed. Reset enters `0x0000` and jumps to
+code at `0x4000`. Upper-half code paints the Graphics I border/checkerboard plus
+a plus-shaped tile stored only above `0x4000`, writes `A5` at `C000`, captures
+port `DC` at `C001`, and stores distinctive upper-half data `0x18` at `C002`.
+`graphics-i.rom` is the sim regression image and HALTs after that signature.
+`graphics-i-hil.rom` (`--interactive`) keeps the controller poll loop on
+`DC`/`DD` so a HIL display+USB check can Stop/relaunch; it does not HALT
+forever. `--pad-to` admits 32 KiB. This is a bounded diagnostic, not a mapper
+or retail claim. Kit HIL remains later.
 
-`make sim-fes-sms` is the cheap Verilator machine check (media copy, 8 KiB RAM
-mirror, joystick ports, optional diagnostic ROM). It is host simulation, not
+`make sim-fes-sms` is the cheap Verilator check: the stream-enabled mailbox
+consumes `cores/fes-sms/generated/stream-exchanges.json`, then the machine
+checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick ports, long-then-short
+`0xff` tails and the optional diagnostic ROM. It is host simulation, not
 hardware acceptance.
 
 `make sim-fes-sms-oss` compiles the registered-media machine and the Coleco
@@ -121,8 +137,7 @@ timing evidence without sealing. It does not program hardware.
 It copies Coleco `constraints-oss.qsf`, `clocks-oss.sdc`, and
 `toolchain.lock`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
-seal. The producer uses `--router gpu` and seed 4 with a live HIP backend
-required. HIP `--router gpu` of the sealed netlist met the 52 MHz and
-74.25 MHz structured fmax rows on a live HIP backend. FES parent pin and
-kit HIL remain later jobs. The gap inventory lives in
+seal. The producer uses `--router gpu` and seed 1 with a live HIP backend
+required. Final structured `clk_sys` and `pixel_clk` rows must meet 52 MHz
+and 74.25 MHz. FES parent pin and kit HIL remain later jobs. The gap inventory lives in
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`.
