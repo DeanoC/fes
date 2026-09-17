@@ -37,32 +37,33 @@ and successful artifact production.
 
 ## Shared compiler installation
 
-FES Python Pong, ZX81, Coleco, and SG-1000 recipes select a shared compiler
+FES Python Pong, ZX81, Coleco, SG-1000, and SMS recipes select a shared compiler
 only through an explicit `--cache-root` argument or the Make `CACHE_ROOT=`
-variable on `build-fes-pong`, `build-fes-zx81`, `build-fes-coleco`, and
-`build-fes-sg1000`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not a policy
-selector for those producers. HIP (`gpu-router=HIP`,
+variable on `build-fes-pong`, `build-fes-zx81`, `build-fes-coleco`,
+`build-fes-sg1000`, and `build-fes-sms`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is
+not a policy selector for those producers. HIP (`gpu-router=HIP`,
 `hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane:
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong and ZX81 use the repository-wide
 `toolchain.lock` HIP slot. Coleco keeps `cores/fes-coleco/toolchain.lock`.
-SG-1000 keeps `cores/fes-sg1000/toolchain.lock` as a byte copy of the Coleco
-lock (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) so a shared
-cache hits that Coleco HIP slot rather than the repository-wide mainline
-slot. Local HIP tools come from `make toolchain-fes` for Pong/ZX81,
-`make toolchain-fes-coleco` for Coleco, and `make toolchain-fes-sg1000` for
-SG-1000. `make toolchain` remains GPU-router OFF for generic OSS experiments.
+SG-1000 and SMS keep `cores/fes-sg1000/toolchain.lock` and
+`cores/fes-sms/toolchain.lock` as byte copies of the Coleco lock (Yosys
+`da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) so a shared cache hits that
+Coleco HIP slot rather than the repository-wide mainline slot. Local HIP tools
+come from `make toolchain-fes` for Pong/ZX81, `make toolchain-fes-coleco` for
+Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
+for SMS. `make toolchain` remains GPU-router OFF for generic OSS experiments.
 `make toolchain` and `make toolchain-fes` share `build/toolchain`; the last
 one run wins. `CACHE_ROOT=… make …` and `make … CACHE_ROOT=…` are both valid
 shared-cache forms; Make clears `MAKEFLAGS`/`MFLAGS` for those producer
 recipes. Omitting `--cache-root` / `CACHE_ROOT` preserves that local HIP
-install. Quartus ZX81/Coleco/SG-1000 recipes are oracle-only and are not a
+install. Quartus ZX81/Coleco/SG-1000/SMS recipes are oracle-only and are not a
 nextpnr fallback. For a shared cache, the same CACHE_ROOT=/absolute/cache
 spelling selects the FES HIP toolchain for toolchain-fes,
-toolchain-fes-coleco, and toolchain-fes-sg1000; doctor and doctor-strict use
-that same selection. An explicit FES_TOOLCHAIN_CACHE_ROOT remains accepted
-and wins when it agrees with CACHE_ROOT.
+toolchain-fes-coleco, toolchain-fes-sg1000, and toolchain-fes-sms; doctor and
+doctor-strict use that same selection. An explicit FES_TOOLCHAIN_CACHE_ROOT
+remains accepted and wins when it agrees with CACHE_ROOT.
 
 Version 1 supports one user on one Linux x86-64 glibc host. The request
 identity combines the selected lock and recipe bytes, normalized host/compiler
@@ -1948,6 +1949,38 @@ Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
 the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. Format-2
 seal still requires a clean tree; a sealed BUILD_ID changes the placement
 search space. FES parent pin and kit HIL remain later jobs.
+
+## FES Master System Quartus oracle and OSS recipe
+
+`cores/fes-sms` is the Coleco / SG-1000 sibling bring-up for package `fes.sms`
+(FogCast `protocol.SystemSMS = "sms"`). Do not use `fes.mastersystem`. It
+reuses Coleco TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers, the
+`fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell. The
+SMS-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 8 KiB RAM at
+`0xc000` mirrored at `0xe000`), the 8255 joystick ports `0xdc`/`0xdd`, and VDP
+IRQ on Z80 INT rather than NMI. There is no BIOS shim. Mode 4, SN76489 audio,
+mappers and 32/48 KiB retail images remain outside this first slice.
+
+`make sim-fes-sms` is the default Verilator machine check
+(`-DTV80_REFRESH=1` only). `make sim-fes-sms-oss` is the OSS-conditional
+machine check (`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`). Both are host
+simulation, not hardware acceptance.
+
+`make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
+It requires a clean committed tree to seal a format-2 package and never
+programs hardware. `--compile-only` writes `build/fes-sms-quartus/core.rbf`
+and timing evidence without sealing.
+
+`make build-fes-sms` is the OSS producer
+(`scripts/build_fes_sms_oss.py`). It uses `cores/fes-sms/toolchain.lock`
+(Coleco compatibility pin as a byte copy), `constraints-oss.qsf`, and
+`clocks-oss.sdc`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
+`FES_COLECO_OSS=1`. `--synth-only` runs Yosys without a clean tree and does
+not seal. The producer uses `--router gpu` and seed 4 with a live HIP
+backend required. HIP `--router gpu` of the sealed netlist met the 52 MHz
+and 74.25 MHz structured fmax rows on a live HIP backend. FES parent pin
+and kit HIL remain later jobs. See
+`docs/validation/2026-09-17-sms-oss-gap-ladder.md`.
 
 ## Standalone Pong game
 
