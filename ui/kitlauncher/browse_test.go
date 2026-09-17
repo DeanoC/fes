@@ -139,6 +139,8 @@ func TestSplitUpDownWalksListAndLastOpensDetail(t *testing.T) {
 
 func TestSplitALaunchesAndBOpensDetail(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true, Games: makeGames(4), Browse: fbgrid.BrowseSplit}
+	m.Games[0].State = "available"
+	m.Games[0].RootOnline = true
 	now := time.Unix(1, 0)
 	if action := pressNamed(&m, "a", now); action != "launch" {
 		t.Fatalf("split A %q", action)

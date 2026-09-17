@@ -543,7 +543,7 @@ func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 		case "/api/v1/health":
 			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
 		case "/api/v1/games":
-			_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","launchable":true}]}`))
+			_, _ = w.Write([]byte(`{"games":[{"id":"pong","title":"Pong","state":"available","root_online":true,"launchable":true}]}`))
 		case "/api/v1/session/launch":
 			if !loading.Load() {
 				t.Error("launch dispatched before loading frame")

@@ -32,7 +32,12 @@ The browser, kit launcher, and ordinary CLI send a game ID to the same
 persistent host session. `hostclient` owns the UI-independent GET
 `/api/v1/session` response model and decoder, and catalog launch
 eligibility (`Game.LaunchEligible`) so `ListGames` variant selection and
-sofa admission share one predicate. Tenfoot maps those block codes to
+sofa and kit catalog admission share one predicate. Browser display and launch
+dispatch use the same catalog check, matched against the Go rule by
+`hostclient/testdata/launch-eligibility.json`. Available state and explicit
+`launchable` and `root_online` true are required; missing flags do not grant
+eligibility. Catalog eligibility does not replace session or target readiness
+gates, nor the host's authoritative launch validation. Tenfoot maps those block codes to
 sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
 transport, kit disk cache, and UI retain share one 64-hex rule.
 Tenfoot and the kit launcher consume that package for session
@@ -987,6 +992,11 @@ and Stop remain unavailable until the configured host API reconnects. The kit
 launcher does not claim a target lease or call `/v2/launch` directly; lifecycle
 mutations continue through the persistent host session API. Cache and artwork
 browse state remains local and lease-free.
+Kit launch admission uses full catalog state for grid, detail, strip, and
+attract entries. An attract-only item without a known catalog row can still
+be displayed and dismissed, but cannot launch: its platform-support flag
+alone does not establish source availability. Catalog refreshes retain state
+and root-online changes even when titles and artwork are unchanged.
 The wheel is the top-level browse view: a horizontal clear-logo / wordmark
 strip plus a hero for the focused system. Catalog rows are grouped into system
 shelves (`All` plus each system present in the loaded games, typically pong,

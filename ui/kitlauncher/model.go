@@ -171,7 +171,7 @@ func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 				m.openDetail(now)
 				return ""
 			}
-			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].Launchable && m.canLaunch() {
+			if len(m.Games) > 0 && m.Focus >= 0 && m.Focus < len(m.Games) && m.Games[m.Focus].LaunchEligible() && m.canLaunch() {
 				return "launch"
 			}
 		case remoteinput.ButtonB:

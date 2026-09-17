@@ -404,7 +404,7 @@ func (m *Model) inputAttract(e remoteinput.Event, dx, dy int, now time.Time) str
 	}
 	item, ok := m.currentAttractItem()
 	m.noteActivity(now)
-	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok && item.Launchable && strings.TrimSpace(item.GameID) != "" && m.canLaunch() {
+	if e.Kind == remoteinput.KindButton && e.Action == remoteinput.ActionPress && e.Code == remoteinput.ButtonA && ok && m.attractLaunchEligible(item) && m.canLaunch() {
 		// focusedGame prefers the strip while it is active; attract A launches the still.
 		m.leaveStrip()
 		if !m.focusGame(item.GameID) {
@@ -413,6 +413,25 @@ func (m *Model) inputAttract(e remoteinput.Event, dx, dy int, now time.Time) str
 		return "launch"
 	}
 	return ""
+}
+
+func (m Model) attractLaunchEligible(item hostclient.AttractItem) bool {
+	id := strings.TrimSpace(item.GameID)
+	if !item.Launchable || id == "" {
+		return false
+	}
+	// Attract Launchable describes platform support only. Prefer the full
+	// catalog over filtered/strip copies, and require actual source state.
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID == id {
+				return game.LaunchEligible()
+			}
+		}
+	}
+	// The paired listener cannot fetch /games/{id}; an absent row cannot
+	// establish eligibility. A still remains browseable and dismissible.
+	return false
 }
 
 func (m *Model) focusGame(id string) bool {

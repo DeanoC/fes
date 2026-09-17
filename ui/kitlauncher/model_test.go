@@ -10,7 +10,7 @@ import (
 )
 
 func TestMenuAndGameControlsRemainSeparate(t *testing.T) {
-	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}, {ID: "sonic", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", State: "available", RootOnline: true, Launchable: true}, {ID: "sonic", State: "available", RootOnline: true, Launchable: true}}, Connected: true, TargetReady: true}
 	right, _ := remoteinput.NormalizeAxis("left-x", 32767)
 	m.Input(right, time.Now())
 	if m.Focus != 1 {
@@ -182,7 +182,7 @@ func makeGames(n int) []hostclient.Game {
 
 func TestIdentityRemapStillLaunchesOnA(t *testing.T) {
 	r := mustRemapper(t, "")
-	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", State: "available", RootOnline: true, Launchable: true}}, Connected: true, TargetReady: true}
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if action := m.Input(r.Apply(a), time.Now()); action != "launch" {
 		t.Fatalf("identity launch %q", action)
@@ -191,7 +191,7 @@ func TestIdentityRemapStillLaunchesOnA(t *testing.T) {
 
 func TestSwapABRemapLaunchesOnB(t *testing.T) {
 	r := mustRemapper(t, "swap-ab")
-	m := Model{Games: []hostclient.Game{{ID: "pong", Launchable: true}}, Connected: true, TargetReady: true}
+	m := Model{Games: []hostclient.Game{{ID: "pong", State: "available", RootOnline: true, Launchable: true}}, Connected: true, TargetReady: true}
 	a, _ := remoteinput.NormalizeGamepad("a", true)
 	if action := m.Input(r.Apply(a), time.Now()); action != "" {
 		t.Fatalf("A launched under swap-ab: %q", action)
@@ -217,12 +217,12 @@ func mustRemapper(t *testing.T, spec string) *inputmap.Remapper {
 
 func mixedCatalog() []hostclient.Game {
 	return []hostclient.Game{
-		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
-		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
-		{ID: "streets", Title: "Streets", System: "megadrive", Launchable: true},
+		{ID: "pong", Title: "Pong", System: "pong", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "streets", Title: "Streets", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
 		{ID: "blocked-md", Title: "Blocked", System: "megadrive", Launchable: false},
-		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
-		{ID: "zelda", Title: "Zelda", System: "snes", Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		{ID: "zelda", Title: "Zelda", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 }
 
@@ -321,10 +321,10 @@ func TestCycleShelfResetsWhenFocusLeaves(t *testing.T) {
 func TestCycleShelfLandsOnFirstLaunchable(t *testing.T) {
 	games := []hostclient.Game{
 		{ID: "locked", System: "snes", Launchable: false},
-		{ID: "mario", System: "snes", Launchable: true},
+		{ID: "mario", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 	m := Model{Connected: true, TargetReady: true}
-	m.SetCatalog(append([]hostclient.Game{{ID: "pong", System: "pong", Launchable: true}}, games...))
+	m.SetCatalog(append([]hostclient.Game{{ID: "pong", System: "pong", State: "available", RootOnline: true, Launchable: true}}, games...))
 	now := time.Now()
 	r, _ := remoteinput.NormalizeGamepad("r", true)
 	m.Input(r, now)

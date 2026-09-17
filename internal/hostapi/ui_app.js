@@ -647,8 +647,8 @@
 
   function launchBlockReason(game) {
     if (!game) return 'Select a game first.';
-    if (game.launchable === false) return 'This platform is browse-only on this host.';
-    if (game.state === 'missing' || game.root_online === false) return 'This game’s source is offline.';
+    if (game.launchable !== true) return 'This platform is browse-only on this host.';
+    if (game.state === 'missing' || game.root_online !== true) return 'This game’s source is offline.';
     if (game.state === 'invalid') return 'This ROM can’t be read.';
     if (game.state !== 'available') return 'This game isn’t ready to launch.';
     return '';
@@ -1868,7 +1868,7 @@
     }
 
     function launchAllowed(selected) {
-      if (!selected || selected.launchable === false || selected.state !== 'available') return false;
+      if (launchBlockReason(selected)) return false;
       if (!state.sessionStarted) return true;
       if (state.sessionAuthority !== 'authoritative') return false;
       if (!state.session || !['idle', 'stopped', 'active'].includes(state.sessionPhase)) return false;

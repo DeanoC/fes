@@ -101,6 +101,31 @@ test('prepareTarget patches only the selected name and retains returned target i
 });
 const FogCastMetadata = require('./ui_metadata.js');
 
+const launchEligibilityCases = JSON.parse(fs.readFileSync(
+  path.join(__dirname, '..', '..', 'hostclient', 'testdata', 'launch-eligibility.json'), 'utf8'));
+for (const entry of launchEligibilityCases) {
+  test('shared launch eligibility: ' + entry.name, async () => {
+    assert.equal(launchBlockReason(entry.game), entry.reason);
+    const game = { kind: 'raw', content_prepared: false, execution: 'fpga_native', ...entry.game };
+    for (const withSession of [false, true]) {
+      const { calls, fetchImpl } = routedFetch({
+        '/api/v1/games': [jsonResponse({ games: [game] })],
+        '/api/v1/games/fixture-game': [jsonResponse(game)],
+        '/api/v1/session': [jsonResponse(sessionFixture({ state: 'idle' })),
+          jsonResponse(sessionFixture({ state: 'active', game_id: 'fixture-game', system: 'snes' }))],
+        '/api/v1/session/launch': [jsonResponse(sessionFixture({ state: 'active', game_id: 'fixture-game', system: 'snes' }))],
+      });
+      const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+      await controller.loadCatalog('');
+      if (withSession) await controller.loadSession();
+      await controller.selectGame('fixture-game');
+      await controller.launchSelected();
+      assert.equal(calls.filter(call => call.path === '/api/v1/session/launch').length,
+        entry.block === '' ? 1 : 0, 'launch dispatch, session=' + withSession);
+    }
+  });
+}
+
 const readAsset = name => fs.readFileSync(path.join(__dirname, name), 'utf8');
 const readFixture = name => JSON.parse(readAsset(path.join('testdata', 'ui', name)));
 
@@ -574,6 +599,7 @@ function immutableBoundaryGame(overrides = {}) {
     title: 'Sonic the Hedgehog',
     system: 'megadrive',
     kind: 'zip',
+    launchable: true,
     state: 'available',
     root_online: true,
     content_prepared: true,
@@ -847,9 +873,9 @@ test('library wording shows clean titles and honest launch blocks', () => {
   assert.equal(systemLabel('lynx'), 'Atari Lynx');
   assert.equal(sourceLabel('available'), 'Ready');
   assert.equal(sourceLabel('missing'), 'Offline');
-  assert.equal(launchBlockReason({ state: 'available', content_prepared: true, root_online: true }), '');
-  assert.equal(launchBlockReason({ state: 'available', content_prepared: false, root_online: true }), '');
-  assert.equal(launchBlockReason({ state: 'missing', content_prepared: false, root_online: false }), 'This game’s source is offline.');
+  assert.equal(launchBlockReason({ launchable: true, state: 'available', content_prepared: true, root_online: true }), '');
+  assert.equal(launchBlockReason({ launchable: true, state: 'available', content_prepared: false, root_online: true }), '');
+  assert.equal(launchBlockReason({ launchable: true, state: 'missing', content_prepared: false, root_online: false }), 'This game’s source is offline.');
 });
 
 test('presentation route is a host-local path and parser bounds provider fields', () => {
@@ -957,6 +983,7 @@ test('platform navigation restores covers after switching away and back', async 
     title: 'Sonic the Hedgehog',
     system: 'megadrive',
     kind: 'zip',
+    launchable: true,
     state: 'available',
     root_online: true,
     content_prepared: true,
@@ -967,6 +994,7 @@ test('platform navigation restores covers after switching away and back', async 
     title: 'Mario',
     system: 'snes',
     kind: 'raw',
+    launchable: true,
     state: 'available',
     root_online: true,
     content_prepared: true,
@@ -2742,10 +2770,10 @@ test('session malformed state exposes a safe retry without leaking response fiel
   assert.equal(document.nodes.get('session-status').textContent, 'No active session.');
 });
 
-test('launchBlockReason disables unmapped platforms only when launchable is false', () => {
+test('launchBlockReason requires explicitly launchable platforms', () => {
   const ready = {
     id: 'snes-mario-test', title: 'Mario', system: 'snes', kind: 'raw',
-    state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
+    launchable: true, state: 'available', root_online: true, content_prepared: true, execution: 'fpga_native',
   };
   assert.equal(launchBlockReason(ready), '');
   assert.equal(launchBlockReason({ ...ready, content_prepared: false }), '');
@@ -2754,7 +2782,7 @@ test('launchBlockReason disables unmapped platforms only when launchable is fals
 
 test('loadMoreCatalog appends the next cursor page', async () => {
   const game = {
-    title: 'Alpha', system: 'snes', kind: 'raw', state: 'available',
+    title: 'Alpha', system: 'snes', kind: 'raw', launchable: true, state: 'available',
     root_online: true, content_prepared: true, execution: 'fpga_native',
   };
   const { calls, fetchImpl } = routedFetch({
@@ -3107,6 +3135,7 @@ test('virtualized wall recycles a bounded window of cards', async () => {
       title: `Title ${index}`,
       system: 'snes',
       kind: 'raw',
+      launchable: true,
       state: 'available',
       root_online: true,
       content_prepared: true,
@@ -3417,6 +3446,7 @@ function availableGame(id, title, overrides = {}) {
     title,
     system: 'snes',
     kind: 'raw',
+    launchable: true,
     state: 'available',
     root_online: true,
     content_prepared: true,

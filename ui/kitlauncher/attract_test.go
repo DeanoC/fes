@@ -238,7 +238,7 @@ func TestAttractBFromStripReturnsToStrip(t *testing.T) {
 	}
 }
 
-func TestAttractALaunchesUnknownGameID(t *testing.T) {
+func TestAttractADismissesUnknownGameID(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())
 	m.SetAttractIdle(time.Millisecond)
@@ -247,11 +247,11 @@ func TestAttractALaunchesUnknownGameID(t *testing.T) {
 	m.Tick(t0)
 	m.Tick(t0.Add(5 * time.Millisecond))
 	a, _ := remoteinput.NormalizeGamepad("a", true)
-	if action := m.Input(a, t0.Add(10*time.Millisecond)); action != "launch" {
+	if action := m.Input(a, t0.Add(10*time.Millisecond)); action != "" {
 		t.Fatalf("A action %q", action)
 	}
-	if id := m.consumeLaunchID(); id != "missing" {
-		t.Fatalf("unknown id %q", id)
+	if m.AttractActive || m.launchID != "" {
+		t.Fatalf("attract=%v pending launch=%q", m.AttractActive, m.launchID)
 	}
 	if m.Games[m.Focus].ID == "missing" {
 		t.Fatal("unknown game mutated catalog focus")

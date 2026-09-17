@@ -79,7 +79,7 @@ func focusIndex(games []hostclient.Game, keepID string) int {
 		}
 	}
 	for i, game := range games {
-		if game.Launchable {
+		if game.LaunchEligible() {
 			return i
 		}
 	}
@@ -127,6 +127,7 @@ func catalogListsEqual(a, b []hostclient.Game) bool {
 	for i := range a {
 		if a[i].ID != b[i].ID || a[i].Title != b[i].Title || a[i].System != b[i].System ||
 			a[i].Cover != b[i].Cover || a[i].Launchable != b[i].Launchable ||
+			a[i].State != b[i].State || a[i].RootOnline != b[i].RootOnline ||
 			a[i].PlayCount != b[i].PlayCount || a[i].LastPlayedAt != b[i].LastPlayedAt ||
 			a[i].Favorite != b[i].Favorite || romCachedValue(a[i].ROMCached) != romCachedValue(b[i].ROMCached) {
 			return false

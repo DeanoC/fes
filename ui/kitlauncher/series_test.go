@@ -9,10 +9,10 @@ import (
 
 func seriesCatalog() []hostclient.Game {
 	return []hostclient.Game{
-		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", Launchable: true},
-		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", Launchable: true},
-		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", Launchable: true},
-		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 }
 

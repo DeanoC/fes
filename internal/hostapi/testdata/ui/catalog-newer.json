@@ -6,6 +6,7 @@
       "system": "megadrive",
       "kind": "zip",
       "state": "available",
+      "launchable": true,
       "root_online": true,
       "content_prepared": false,
       "execution": "fpga_native"

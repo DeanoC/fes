@@ -32,7 +32,7 @@ func TestRunOfflineInputDoesNotUseHostlessTarget(t *testing.T) {
 	}))
 	defer host.Close()
 
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 	client := newSessionTestClient(t, host.URL, target.URL, game)
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Millisecond)
 	defer cancel()
@@ -59,7 +59,7 @@ func TestRunReconnectsBeforeAllowingLaunch(t *testing.T) {
 	state.Store("idle")
 	var launchCalls atomic.Int64
 	var targetRequests atomic.Int64
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		targetRequests.Add(1)
@@ -128,7 +128,7 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 	var state atomic.Value
 	state.Store("idle")
 	var launchCalls, stopCalls atomic.Int64
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -194,7 +194,7 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 	var prematureLaunch atomic.Bool
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -261,7 +261,7 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 }
 
 func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true}
+	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
