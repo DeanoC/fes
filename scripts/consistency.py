@@ -18,7 +18,11 @@ GENERATED = (
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
     ('emit-verilog', 'packages/abi/fes_simple_game.yaml', 'misteross', 'cores/fes-pong/generated/fes_gp.vh'),
     ('emit-cpp', 'packages/abi/fes_simple_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_simple_computer.hpp'),
+    ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_simple_computer.go'),
     ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-zx81/generated/fes_simple_computer.vh'),
+    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-coleco/generated/fes_simple_computer.vh'),
+    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sg1000/generated/fes_simple_computer.vh'),
+    ('emit-verilog', 'packages/abi/fes_simple_computer.yaml', 'misteross', 'cores/fes-sms/generated/fes_simple_computer.vh'),
     ('emit-cpp', 'packages/programming/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano_programming.hpp'),
 )
 COPIED_TREES = (
@@ -28,6 +32,9 @@ COPIED_TREES = (
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
 )
 COPIED_FILES = (
+    ('testdata/fes-media-stream-v1/exchanges.json', 'FogCast', 'protocol/testdata/fes-media-stream-v1/exchanges.json'),
+    ('testdata/fes-media-stream-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-media-stream-v1/exchanges.json'),
+    ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-sms/generated/stream-exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
     ('testdata/fes-simple-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-simple-computer-v1/exchanges.json'),
@@ -36,6 +43,8 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-media-stream-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-media-stream-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
 )

@@ -205,6 +205,14 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self._session()
         elif path == "/api/v1/core-packages":
             self._write({"packages": self.state["packages"]})
+        elif path.startswith("/api/v1/core-media/"):
+            media_id = path.rsplit("/", 1)[-1]
+            media = self.state.get("media_store", {}).get(media_id)
+            self.state.setdefault("media_reads", []).append(media_id)
+            if media is None:
+                self._error("ROM_NOT_FOUND", "retained media missing", 404)
+            else:
+                self._write({"media_id": media_id, "size": len(media)})
         elif path.startswith("/api/v1/library/core-entries/"):
             game_id = path.rsplit("/", 1)[-1]
             entry = self.state["entries"].get(game_id)
@@ -217,7 +225,22 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
-        if path == "/api/v1/core-packages":
+        if path == "/api/v1/core-media":
+            body = self._body()
+            self.state.setdefault("media_uploads", []).append(body)
+            self.state.setdefault("media_store", {})[hashlib.sha256(body).hexdigest()] = body
+            if self.state.get("media_disconnect"):
+                self.close_connection = True
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.connection.close()
+                return
+            if self.state.get("media_redirect"):
+                self.send_response(302)
+                self.send_header("Location", "/api/v1/library/core-entries/" + GAME_ID)
+                self.end_headers()
+                return
+            self._write(self.state.get("media_response", {"media_id": hashlib.sha256(body).hexdigest(), "size": len(body)}), status=201)
+        elif path == "/api/v1/core-packages":
             body = self._body()
             self.state["upload_bodies"].append(body)
             self.state["uploaded"] = True
@@ -260,6 +283,9 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self.state["create_bodies"].append(body)
             entry = _entry(NEW_GAME_ID, body["package_id"])
             entry["title"] = body["title"]
+            for field in ("media_id", "media_role"):
+                if field in body:
+                    entry[field] = body[field]
             self.state["entries"][NEW_GAME_ID] = entry
             self._write(entry, status=201)
         elif path == "/api/v1/session/launch":
@@ -273,6 +299,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 self._write({"state": "active"})
                 return
             entry = self.state["entries"][body["game_id"]]
+            if self.state.get("media_drift_on_launch"):
+                entry["media_id"] = WRONG_PACKAGE_ID
             identity = _active_identity(
                 package_id=entry["package_id"],
                 game_id=body["game_id"],
@@ -298,6 +326,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self._write(response)
         elif path == "/api/v1/session/stop":
             self.state["stops"] += 1
+            if self.state.get("forget_media_after_stop"):
+                self.state["media_store"] = {}
             if self.state.get("stop_status", 200) != 200:
                 self._error("TARGET_UNAVAILABLE", "stop did not become idle", self.state["stop_status"])
                 return
@@ -313,6 +343,16 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         path = urlsplit(self.path).path
+        if path.endswith("/media"):
+            body = json.loads(self._body())
+            self.state.setdefault("media_puts", []).append(body)
+            entry = self.state["entries"].get(path.split("/")[-2])
+            if self.state.get("media_cas_conflict") or entry is None or entry["package_id"] != body["expected_package_id"] or entry.get("media_id", "") != body["expected_media_id"]:
+                self._error("STALE_REVISION", "media changed", 409)
+                return
+            entry.update(media_id=body["media_id"], media_role=body["media_role"])
+            self._write(entry)
+            return
         if not path.startswith("/api/v1/library/core-entries/"):
             self._error("NOT_FOUND", path, 404)
             return
@@ -409,6 +449,122 @@ def _run_command(server, directory, *extra):
         capture_output=True,
     )
     return result, receipt
+
+
+class LibraryMediaAcceptanceTests(unittest.TestCase):
+    MEDIA = bytes(range(256)) * 128
+    DIGEST = hashlib.sha256(MEDIA).hexdigest()
+
+    def run_media(self, state, directory, server, *, existing=False, extra=()):
+        media = Path(directory) / "rom.bin"
+        media.write_bytes(self.MEDIA)
+        archive = _write_archive(directory)
+        receipt = Path(directory) / "receipt.json"
+        selection = ["--game-id", GAME_ID, "--expected-selected-package", OLD_PACKAGE_ID,
+                     "--expected-selected-media", "none"] if existing else ["--new-entry-title", "32 KiB title"]
+        result = subprocess.run(_command(server, archive, receipt, *selection,
+                                "--library-media", str(media), "--expected-media-sha256", self.DIGEST, *extra),
+                                text=True, capture_output=True)
+        return result, receipt
+
+    def test_new_and_existing_entry_import_32k_and_bind_receipt(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing), fixture(_state()) as server, tempfile.TemporaryDirectory() as directory:
+                state = server.state
+                result, receipt = self.run_media(state, directory, server, existing=existing)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                value = json.loads(receipt.read_text())
+                self.assertEqual(value["library_media"], {"media_id": self.DIGEST, "sha256": self.DIGEST, "size": 32768, "role": "blob"})
+                self.assertEqual(value["selection"]["media_id"], self.DIGEST)
+                self.assertEqual(state["media_uploads"], [self.MEDIA])
+                self.assertEqual(state["stops"], 1)
+                self.assertEqual(state["launch_bodies"], [{"game_id": GAME_ID if existing else NEW_GAME_ID}])
+                if existing:
+                    self.assertEqual(state["media_puts"], [{"expected_package_id": PACKAGE_ID,
+                        "expected_media_id": "", "media_id": self.DIGEST, "media_role": "blob"}])
+
+    def test_digest_and_existing_media_expectation_fail_before_mutation(self):
+        for extra in (("--expected-media-sha256", WRONG_PACKAGE_ID), ("--expected-selected-media", WRONG_PACKAGE_ID)):
+            with self.subTest(extra=extra), fixture(_state()) as server, tempfile.TemporaryDirectory() as directory:
+                result, receipt = self.run_media(server.state, directory, server, existing=True, extra=extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(receipt.exists())
+                self.assertEqual(server.state["upload_bodies"], [])
+
+    def test_existing_bound_media_is_preserved_until_explicit_media_cas(self):
+        state = _state()
+        state["entries"][GAME_ID].update(media_id=OLD_PACKAGE_ID, media_role="blob")
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = self.run_media(state, directory, server, existing=True,
+                extra=("--expected-selected-media", OLD_PACKAGE_ID))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(receipt.exists())
+            self.assertEqual(state["media_puts"][0]["expected_media_id"], OLD_PACKAGE_ID)
+
+    def test_optional_media_arguments_require_pair_and_explicit_existing_expectation(self):
+        with fixture(_state()) as server, tempfile.TemporaryDirectory() as directory:
+            archive = _write_archive(directory)
+            receipt = Path(directory) / "receipt.json"
+            base = _command(server, archive, receipt, "--game-id", GAME_ID,
+                            "--expected-selected-package", OLD_PACKAGE_ID)
+            for flags in (["--library-media", "missing.bin"],
+                          ["--expected-media-sha256", self.DIGEST],
+                          ["--library-media", "missing.bin", "--expected-media-sha256", self.DIGEST],
+                          ["--expected-selected-media", "none"]):
+                with self.subTest(flags=flags):
+                    args = package_acceptance.parser().parse_args(base[2:] + flags)
+                    with self.assertRaises(package_acceptance.AcceptanceError):
+                        package_acceptance.validate_args(args)
+            self.assertEqual(server.state["health_calls"], 0)
+
+    def test_media_file_bounds_and_symlink_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "media"
+            for size in (0, package_acceptance.MAX_MEDIA_BYTES + 1):
+                with path.open("wb") as handle:
+                    handle.truncate(size)
+                with self.assertRaises(package_acceptance.AcceptanceError):
+                    package_acceptance._read_archive(path, package_acceptance.MAX_MEDIA_BYTES)
+            link = Path(directory) / "link"
+            link.symlink_to(path)
+            with self.assertRaises(package_acceptance.AcceptanceError):
+                package_acceptance._read_archive(link, package_acceptance.MAX_MEDIA_BYTES)
+
+    def test_bad_import_or_ambiguous_response_never_selects_or_replays(self):
+        cases = [{"media_response": {"media_id": WRONG_PACKAGE_ID, "size": 32768}},
+                 {"media_response": {"media_id": self.DIGEST, "size": 16384}},
+                 {"media_disconnect": True}, {"media_redirect": True}]
+        for changes in cases:
+            state = _state()
+            state.update(changes)
+            with self.subTest(changes=changes), fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                result, receipt = self.run_media(state, directory, server)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(receipt.exists())
+                self.assertEqual(state["media_uploads"], [self.MEDIA])
+                self.assertEqual(state["create_bodies"], [])
+                self.assertEqual(state["launch_bodies"], [])
+
+    def test_media_cas_conflict_does_not_launch_or_rollback(self):
+        state = _state()
+        state["media_cas_conflict"] = True
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = self.run_media(state, directory, server, existing=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(len(state["selection_puts"]), 1)
+            self.assertEqual(len(state["media_puts"]), 1)
+            self.assertEqual(state["launch_bodies"], [])
+            self.assertEqual(state["entries"][GAME_ID]["package_id"], PACKAGE_ID)
+
+    def test_media_drift_after_launch_cleans_owned_session_without_receipt(self):
+        state = _state()
+        state["media_drift_on_launch"] = True
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = self.run_media(state, directory, server)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 1)
 
 
 class PackageAcceptanceTests(unittest.TestCase):

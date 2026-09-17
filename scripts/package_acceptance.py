@@ -33,6 +33,7 @@ CORE_ID_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
 GAME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
 REVISION_MAX = 256
 MAX_ARCHIVE_BYTES = 33 * 1024 * 1024
+MAX_MEDIA_BYTES = 32 * 1024 * 1024
 EXPECTED_LAUNCH_EXECUTION = "fpga_development"
 HTTP_RESPONSE_BODY_LIMIT = 1 << 20
 HTTP_ERROR_BODY_LIMIT = 16 * 1024
@@ -81,6 +82,11 @@ def _http_error_detail(error: urllib.error.HTTPError) -> str:
     return f"HTTP {error.code}" + (f": {reason}" if reason else "")
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class Api:
     """Small JSON/bytes client for the existing public host API."""
 
@@ -102,7 +108,7 @@ class Api:
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.build_opener(NoRedirect).open(request, timeout=self.timeout) as response:
                 raw = response.read(HTTP_RESPONSE_BODY_LIMIT + 1)
         except urllib.error.HTTPError as exc:
             raise AcceptanceError(f"{method} {path}: {_http_error_detail(exc)}") from exc
@@ -250,21 +256,21 @@ def _same_identity(left: SessionIdentity, right: SessionIdentity) -> bool:
     return left == right
 
 
-def _read_archive(path: Path) -> tuple[bytes, str]:
+def _read_archive(path: Path, maximum: int = MAX_ARCHIVE_BYTES) -> tuple[bytes, str]:
     try:
         info = path.lstat()
     except OSError as exc:
         raise AcceptanceError(f"cannot read archive {path}: {exc}") from exc
     if not stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
         raise AcceptanceError(f"archive is not a regular non-symlink file: {path}")
-    if info.st_size < 1 or info.st_size > MAX_ARCHIVE_BYTES:
+    if info.st_size < 1 or info.st_size > maximum:
         raise AcceptanceError(f"archive size is outside the bounded range: {path}")
     try:
         with path.open("rb") as handle:
-            data = handle.read(MAX_ARCHIVE_BYTES + 1)
+            data = handle.read(maximum + 1)
     except OSError as exc:
         raise AcceptanceError(f"cannot read archive {path}: {exc}") from exc
-    if len(data) != info.st_size or len(data) > MAX_ARCHIVE_BYTES:
+    if len(data) != info.st_size or len(data) > maximum:
         raise AcceptanceError(f"archive changed or exceeded the bounded size: {path}")
     return data, hashlib.sha256(data).hexdigest()
 
@@ -382,6 +388,11 @@ class Runner:
             raise AcceptanceError("package import descriptor core ID does not match the requested core")
         return value
 
+    def validate_media(self, value: Any, expected: str, context: str) -> None:
+        role = "blob" if expected else ""
+        if not isinstance(value, dict) or value.get("media_id", "") != expected or value.get("media_role", "") != role:
+            raise AcceptanceError(f"{context}: selected media does not match expectation")
+
     def validate_compatibility(self, value: Any) -> dict[str, Any]:
         if not isinstance(value, dict) or value.get("package_id") != self.package_id:
             raise AcceptanceError("compatibility response package identity does not match the requested package")
@@ -467,6 +478,13 @@ class Runner:
 
     def run(self) -> None:
         self._require_receipt_absent()
+        media = None
+        media_id = self.args.expected_media_sha256
+        old_media = "" if self.args.expected_selected_media == "none" else self.args.expected_selected_media
+        if self.args.library_media:
+            media, digest = _read_archive(Path(self.args.library_media), MAX_MEDIA_BYTES)
+            if digest != media_id:
+                raise AcceptanceError("library media sha256 does not match expectation")
         self.archive, self.archive_sha256 = _read_archive(self.archive_path)
         if self.archive_sha256 != self.args.expected_archive_sha256:
             raise AcceptanceError(
@@ -481,6 +499,8 @@ class Runner:
             current = self.read_entry(game_id)
             if current.get("core_id") != self.core_id or current.get("package_id") != self.expected_selected_package:
                 raise AcceptanceError("preflight selection does not match the expected current package")
+            if media is not None:
+                self.validate_media(current, old_media, "preflight")
 
         self.guard_mutation("package import")
         self.validate_import(self.api.post_bytes("/api/v1/core-packages", self.archive))
@@ -490,29 +510,59 @@ class Runner:
             self.api.post_empty(f"/api/v1/core-packages/{self.package_id}/compatibility")
         )
 
+        if media is not None:
+            self.guard_mutation("media admission")
+            if self.args.reuse_library_media:
+                imported = self.api.get(f"/api/v1/core-media/{media_id}")
+            else:
+                imported = self.api.post_bytes("/api/v1/core-media", media)
+            if not isinstance(imported, dict) or imported.get("media_id") != media_id or type(imported.get("size")) is not int or imported["size"] != len(media):
+                raise AcceptanceError("media admission identity or size does not match expectation")
+
         if self.args.game_id:
             self.guard_mutation("selection")
             current = self.read_entry(self.args.game_id)
             if current.get("core_id") != self.core_id or current.get("package_id") != self.expected_selected_package:
                 raise AcceptanceError("selection changed before compare-and-swap")
-            self.validate_entry(self.api.put_json(
+            if media is not None:
+                self.validate_media(current, old_media, "pre-selection")
+            selected = self.validate_entry(self.api.put_json(
                 self.entry_path(self.args.game_id),
                 {"package_id": self.package_id, "expected_package_id": self.expected_selected_package},
             ), self.args.game_id, "selection")
             game_id = self.args.game_id
+            if media is not None:
+                self.validate_media(selected, old_media, "package selection")
+                if not self.args.reuse_library_media:
+                    self.guard_mutation("media selection")
+                    current = self.validate_entry(self.read_entry(game_id), game_id, "pre-media selection")
+                    self.validate_media(current, old_media, "pre-media selection")
+                    selected = self.validate_entry(self.api.put_json(
+                        self.entry_path(game_id) + "/media",
+                        {"expected_package_id": self.package_id, "expected_media_id": old_media,
+                         "media_role": "blob", "media_id": media_id},
+                    ), game_id, "media selection")
+                self.validate_media(selected, media_id, "media selection")
         else:
             self.guard_mutation("new library entry")
+            entry = {"title": self.args.new_entry_title, "package_id": self.package_id}
+            if media is not None:
+                entry.update(media_role="blob", media_id=media_id)
             selected = self.api.post_json(
                 "/api/v1/library/core-entries",
-                {"title": self.args.new_entry_title, "package_id": self.package_id},
+                entry,
             )
             if not isinstance(selected, dict):
                 raise AcceptanceError("new library entry response is not an object")
             game_id = _require_game_id(selected.get("game_id"), "new library entry game ID")
             selected = self.validate_entry(selected, game_id, "new library entry")
+            if media is not None:
+                self.validate_media(selected, media_id, "new library entry")
 
         self.guard_mutation("launch")
         selected_now = self.validate_entry(self.read_entry(game_id), game_id, "pre-launch selection")
+        if media is not None:
+            self.validate_media(selected_now, media_id, "pre-launch selection")
         try:
             launch = self.api.post_json("/api/v1/session/launch", {"game_id": game_id})
             expected = self.session_identity(launch, "launch response")
@@ -526,6 +576,8 @@ class Runner:
         self.owned = expected
         try:
             self.wait_for_owned_active(expected)
+            if media is not None:
+                self.validate_media(self.validate_entry(self.read_entry(game_id), game_id, "active selection"), media_id, "active selection")
             stop = self.stop_owned(expected)
         except BaseException as operation_error:
             if self.owned is not None and not self.stop_attempted:
@@ -537,6 +589,9 @@ class Runner:
                     operation_error.add_note("owned-session cleanup completed after launch confirmation failure")
             raise
         self.check_health()
+
+        if media is not None:
+            self.validate_media(self.validate_entry(self.read_entry(game_id), game_id, "post-Stop selection"), media_id, "post-Stop selection")
 
         receipt = {
             "format": 1,
@@ -571,6 +626,10 @@ class Runner:
             "stop": stop["confirmed"],
             "created_at_utc": datetime.now(timezone.utc).isoformat(),
         }
+        if media is not None:
+            receipt["library_media"] = {"media_id": media_id, "sha256": media_id, "size": len(media), "role": "blob"}
+            receipt["media_admission"] = "retained" if self.args.reuse_library_media else "imported"
+            receipt["selection"].update(media_id=media_id, media_role="blob")
         self.write_receipt(receipt)
         print(
             f"package acceptance passed: core={self.core_id} package={self.package_id} "
@@ -599,6 +658,10 @@ def parser() -> argparse.ArgumentParser:
     selection.add_argument("--game-id", help="existing library entry to update with compare-and-swap")
     selection.add_argument("--new-entry-title", help="create a new explicit library entry after admission")
     result.add_argument("--expected-selected-package", help="required with --game-id")
+    result.add_argument("--library-media", help="optional immutable library media file (blob role)")
+    result.add_argument("--expected-media-sha256")
+    result.add_argument("--reuse-library-media", action="store_true", help="verify retained media; never import or reselect media")
+    result.add_argument("--expected-selected-media", help="current media digest or 'none'; required with existing-entry media selection")
     result.add_argument("--execute", action="store_true", help="required opt-in for session mutations")
     result.add_argument("--timeout", type=float, default=float(os.environ.get("FES_ACCEPTANCE_TIMEOUT", "30")))
     result.add_argument("--poll-attempts", type=int, default=int(os.environ.get("FES_ACCEPTANCE_POLL_ATTEMPTS", "60")))
@@ -607,6 +670,17 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if args.reuse_library_media and not (args.library_media and args.game_id and
+            args.expected_selected_media == args.expected_media_sha256):
+        raise AcceptanceError("--reuse-library-media requires an existing entry and matching explicit media expectations")
+    if bool(args.library_media) != bool(args.expected_media_sha256):
+        raise AcceptanceError("--library-media and --expected-media-sha256 are required together")
+    if args.library_media:
+        _require_sha256(args.expected_media_sha256, "expected media sha256")
+        if args.game_id and args.expected_selected_media != "none":
+            _require_sha256(args.expected_selected_media, "expected selected media")
+    if args.expected_selected_media is not None and not (args.game_id and args.library_media):
+        raise AcceptanceError("--expected-selected-media requires existing-entry library media selection")
     if not args.execute:
         raise AcceptanceError("refusing session mutations without explicit --execute")
     if args.timeout <= 0 or args.poll_attempts <= 0 or args.poll_interval < 0:

@@ -12,6 +12,81 @@ rewrite `linux.img`, resize FAT or provision a card. It cannot repair a
 version-mismatched kit. Restore a coherent platform separately before physical
 testing.
 
+## Optional immutable library media
+
+Both runners accept `--library-media /absolute/path/title.bin` together with
+`--expected-media-sha256 SHA256`. The role is explicitly `blob`; it is not
+inferred from a core ID. Files must be regular, non-symlink, nonempty and at
+most 32 MiB. The runner snapshots and hashes the bytes before API mutations,
+imports through `POST /api/v1/core-media`, and checks the returned immutable
+media ID and size. A 32 KiB ROM uses this same path; actual package capability
+admission remains the host's responsibility.
+
+A new entry includes this media binding at creation. For an existing entry,
+also supply `--expected-selected-media CURRENT_MEDIA_SHA256` (or literal
+`none` for an unbound entry), alongside `--expected-selected-package`.
+Package CAS preserves the existing media, then `/core-entries/{game_id}/media`
+CAS supplies both `expected_package_id` and `expected_media_id`. An incompatible
+old binding or a concurrent change fails closed: there is no automatic clear,
+rollback, retry or redirect replay. A failure can leave the imported objects
+and a completed package selection in the library; inspect state before another
+explicit run.
+
+The isolated wrapper forwards these options explicitly, creates the bound
+entry in cycle 1, then requires that same package and media ID in cycle 2 after
+the private host restart. Cycle 2 adds `--reuse-library-media`: it verifies the
+retained media metadata ID/size and entry binding, without media import or media
+reselection. Missing retained media fails instead of being repaired from the
+local file. The file is still checked against the supplied digest/size as an
+independent expectation. The existing package reimport/CAS baseline is unchanged;
+this is not a package-blob persistence check. Neither cycle retries ambiguous
+mutations. Per-cycle receipts mark `media_admission` as `imported` or `retained`.
+Per-cycle and final receipts record
+`library_media` with `media_id`, `sha256`, `size` and `role`; per-cycle selections
+also record `media_id` and `media_role`. The normal game-ID launch and owned
+Stop path, target/revision guards and cleanup remain unchanged.
+
+These receipts bind observed catalog selection to the lifecycle run, not to a
+target-side media digest attestation. They do not prove execution of upper ROM
+bytes, HDMI, input or gameplay. Exclusive host-session and entry ownership is
+still required. Omitting both media options preserves the existing no-media
+flow and receipt shape. Hardware execution always needs separate authorization.
+
+### Media HIL timeout recipe
+
+For a separately authorized SMS media run, add these explicit options to the
+single-run example below (using the approved ROM and its digest):
+
+```text
+--library-media /absolute/path/sms-32k.bin \
+--expected-media-sha256 ROM_SHA256 \
+--timeout 300
+```
+
+For the isolated two-cycle example, add the same media options and set both
+the HTTP request timeout and the per-cycle runner process lifetime:
+
+```text
+--library-media /absolute/path/sms-32k.bin \
+--expected-media-sha256 ROM_SHA256 \
+--timeout 300 \
+--runner-timeout 600
+```
+
+The outer HTTP budget must cover the full host-owned launch chain: configured
+activation can take 60 seconds, followed by a separate 150-second media budget
+and up to 60 seconds of bounded cleanup (270 seconds total). The runtime stream's
+120-second transfer budget alone does not bound this chain. An explicit
+300-second HTTP timeout covers it instead of cutting it off at the legacy
+30-second acceptance default. The isolated
+wrapper forwards it to both runners; its separate 600-second per-cycle lifetime
+allows the launch plus import, compatibility, selection, confirmation and Stop.
+These are bounded recipe settings, not automatic retries or changed defaults:
+legacy HTTP and isolated runner defaults remain 30 and 120 seconds respectively.
+Retain the full invocation, including these timeout values, with HIL evidence;
+receipts do not currently record timeout settings. A timeout remains an ambiguous
+failure requiring session inspection, never permission to replay the launch.
+
 ## Admission and failure boundaries
 
 Inspect the options without contacting any service:

@@ -3,7 +3,7 @@
 The host library and an FPGA core have different capacity limits. A stored
 asset is not necessarily runnable by the selected package.
 
-## Current host slice
+## Host storage foundation
 
 The selected FogCast host exposes the supported interpretation of an installed
 package through `core-media-capabilities PACKAGE_ID`. This is an offline
@@ -24,13 +24,24 @@ launch reject them for that contract before programming the FPGA. Unknown
 contract versions expose no supported media roles; optional interfaces still
 require active runtime support before delivery.
 
-No package format, target wire, shared ABI, runtime or FPGA change is part of
-this host slice. The current SMS bring-up remains on the 16 KiB interface.
+The original host-only storage slice did not change the package format, target
+wire, shared ABI, runtime or FPGA. Its legacy SMS package remains limited to
+16 KiB; storage capacity alone does not widen that package's contract.
 
-## Proposed larger-media contract — not implemented
+## Versioned larger-media integration
 
-The following is the agreed separation of responsibilities and the next
-implementation direction, not a published wire schema or hardware claim.
+The shared `fes.media.blob-stream` 1.0 wire contract is published in
+[mister-packages](https://github.com/DeanoC/mister-packages/blob/fdc4ece2e1fa87035ddca8cd147c621e7edcce3b/docs/media-stream.md).
+Runtime and host software are implemented and under integration review. They
+use 32-bit lengths and offsets, ordered 512-byte chunks and CRC32/IEEE, while
+keeping legacy blob 1.0 unchanged. The stream contract guarantees 1..32768
+bytes; the runtime separately checks the active endpoint's observed capacity.
+The concrete SMS target is a 32 KiB fixed map, not general mapper support.
+
+RTL/simulation, sealed-package integration and exact-artifact hardware
+acceptance remain pending in the
+[SMS larger-media integration plan](sms-large-media-plan.md). Implemented
+software and published definitions do not establish target acceptance.
 
 ### Capability authority
 
@@ -55,7 +66,7 @@ Larger transfers require an explicitly versioned interface/operation. Do not
 widen the old 16-bit media-length/mailbox operation in place or treat the
 host's storage-chunk size as a negotiated FPGA chunk size.
 
-The new contract needs:
+The contract and its consumers must enforce:
 
 - Explicit total length and offsets wide enough for the supported media range,
   plus separately bounded chunk length.
