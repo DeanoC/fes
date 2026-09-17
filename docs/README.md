@@ -42,6 +42,8 @@ and is not current-profile acceptance.
   acceptance; factory image closed set unchanged.
 - [FES SMS package-only host-library acceptance](validation/2026-09-17-fes-sms-package-acceptance.md):
   sealed `fes.sms` inspect + loopback import/select on tip FES; no kit HIL.
+- [FES SMS package-only kit launch/Stop HIL](validation/2026-09-17-fes-sms-kit-hil.md):
+  leased mister launch+Stop for sealed `fes.sms`; temporary host; lease released.
 - [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
   VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
 - [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard
