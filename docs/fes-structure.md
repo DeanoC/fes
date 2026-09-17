@@ -1,8 +1,8 @@
 # FES structure and refactor status
 
-Reconciled on 2026-09-17 against FES main `6d993fa`, updated by
-[FES #68](https://github.com/DeanoC/fes/pull/68) to select FogCast
-`d625fd23dcee33e8b09fca6b3adce2910271d90c`. This is the current ownership decision, not a queue of migrations
+Updated on 2026-09-17 from FES main `4902f64`, selecting FogCast
+`2b68cfa77a9fb022477b0aa456490dddc6a015a8` for the keyboard-capability cleanup.
+This is the current ownership decision, not a queue of migrations
 to repeat. Historical plans describe the implementation sequence; their
 unchecked execution steps are not evidence that merged work is absent.
 
@@ -36,6 +36,7 @@ nested module consumed by both FES boot and FogCast updates.
 | Package development | Package-only admission and isolated host restart diagnostics, separate from image assembly | FES [#62](https://github.com/DeanoC/fes/pull/62), [#64](https://github.com/DeanoC/fes/pull/64) |
 | CLI contract follow-up | Preserve mutation deadlines and complete public input status | FES [#66](https://github.com/DeanoC/fes/pull/66), FogCast [#250](https://github.com/DeanoC/FogCast/pull/250) |
 | Catalog launch eligibility | Kit grid/detail/strip/attract and browser display/dispatch agree on source readiness; shared fixture and refresh regressions | FogCast [#251](https://github.com/DeanoC/FogCast/pull/251) |
+| Keyboard capability | Shared exact `fes.keyboard` 1.0 predicate for session decoding and Kit input admission, preserving existing projections and gates | FogCast [#252](https://github.com/DeanoC/FogCast/pull/252) |
 
 These merges establish source integration, not blanket hardware acceptance.
 The factory image still selects Pong/ZX81/Coleco. Admitting another supported-ABI
@@ -78,7 +79,17 @@ second implementation of any of those decisions.
   tests and parent consistency checks. Image, media and exact-artifact hardware
   gates remain separate; compiler caches are not acceptance evidence.
 
-## Remaining work, without another broad migration
+## Refactor phase complete; deferred work
+
+The planned structure/build cleanup and the bounded client follow-ups are
+complete. Resume feature development; no additional repository split or
+client rewrite is scheduled. Workspace retirement and exact-artifact hardware
+acceptance remain separate tasks, not implied by this source-refactor status.
+
+The keyboard-capability follow-up is selected through FogCast #252. Fourteen
+characterization cases preserve exact-version recognition, nil/empty inputs,
+existing omitted-minor semantics, and Kit input-stream admission. Public
+session projections and readiness/generation/ownership gates are unchanged.
 
 The first audit follow-up, catalog launch eligibility, is implemented and
 selected through FogCast #251. Eleven shared cases cover available, offline,
@@ -88,13 +99,12 @@ and target readiness gates remain separate. Component tests, race checks,
 ARMv7 Kit compilation and parent host builds establish software integration,
 not deployment or hardware acceptance.
 
-The remaining source-level findings below are not reproduced hardware failures.
-Establish contract tests before changing behavior.
+The deferred source-level finding below is not a reproduced hardware failure.
+Establish contract tests and a concrete need before changing behavior.
 
 | Priority | Finding | Next bounded action |
 | --- | --- | --- |
 | Later | CLI and `hostclient` retain different session projections, success validation and mutation timeout policy (`internal/fogcastcli/session.go`, `hostclient/client.go`, `session_client.go`) | Specify the intended differences before sharing transport; do not undo the CLI deadline fix |
-| Small cleanup | Exact `fes.keyboard` interface-version recognition is repeated in shared session decoding and Kit capability handling (`hostclient/session.go`, `ui/kitlauncher/client.go`) | Share only the capability predicate if a focused test demonstrates equivalent semantics |
 
 Separate browser/Go decoders, CLI full input metrics, Kit's narrow session
 projection and device-specific rendering are not by themselves duplication bugs.
