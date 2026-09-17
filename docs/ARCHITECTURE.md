@@ -48,6 +48,13 @@ command path with `menu.rbf` and waits for `MENU`. Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.
 
+CLI launch and Stop preserve the caller context deadline without imposing an
+additional HTTP timeout that could undercut the host's configured mutation
+deadline. Interrupting the CLI cancels the request; it does not replay it or
+prove that a target operation was undone. Status reads retain a two-minute
+HTTP bound. CLI JSON includes the public input binding (`session_id`, `source`)
+and complete typed metrics from `host.RemoteInputStatus`.
+
 `POST /api/v1/session/launch` may include `target` to bind a live FPGA session
 to a configured target without rewriting `selected_target`. Omitted `target`
 uses the selected configured target. A second configured target may be

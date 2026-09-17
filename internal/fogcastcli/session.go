@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -22,7 +23,7 @@ type hostSession struct {
 	Execution   string                      `json:"execution,omitempty"`
 	Media       string                      `json:"media,omitempty"`
 	Progress    *hostSessionProgress        `json:"progress,omitempty"`
-	Input       *hostSessionInput           `json:"input,omitempty"`
+	Input       *host.RemoteInputStatus     `json:"input,omitempty"`
 	CorePackage *protocol.CorePackageStatus `json:"core_package,omitempty"`
 	FlightID    string                      `json:"flight_id,omitempty"`
 }
@@ -30,11 +31,6 @@ type hostSession struct {
 type hostSessionProgress struct {
 	Stage   string `json:"stage"`
 	Message string `json:"message"`
-}
-
-type hostSessionInput struct {
-	State string `json:"state"`
-	Ready bool   `json:"ready"`
 }
 
 func runHostSessionCommand(ctx context.Context, origin string, args []string) commandResult {
@@ -72,9 +68,14 @@ func callHostSession(ctx context.Context, origin, method, path string, body []by
 	if len(body) > 0 {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return errors.New("redirects are not accepted")
 	}}
+	// Mutations use the caller context: an outer fixed deadline must not
+	// undercut the host's configured upload/FPGA operation deadline.
+	if method == http.MethodGet {
+		client.Timeout = 2 * time.Minute
+	}
 	response, err := client.Do(request)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
