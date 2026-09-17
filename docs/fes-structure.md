@@ -34,6 +34,7 @@ nested module consumed by both FES boot and FogCast updates.
 | One launch path | CLI and Kit use the persistent host session API; shutdown cleans up only owned sessions | FogCast [#241](https://github.com/DeanoC/FogCast/pull/241), [#249](https://github.com/DeanoC/FogCast/pull/249); FES [#63](https://github.com/DeanoC/fes/pull/63) |
 | Package development | Package-only admission and isolated host restart diagnostics, separate from image assembly | FES [#62](https://github.com/DeanoC/fes/pull/62), [#64](https://github.com/DeanoC/fes/pull/64) |
 | CLI contract follow-up | Preserve mutation deadlines and complete public input status | FES [#66](https://github.com/DeanoC/fes/pull/66), FogCast [#250](https://github.com/DeanoC/FogCast/pull/250) |
+| Catalog launch eligibility | Kit grid/detail/strip/attract and browser display/dispatch agree on source readiness; shared fixture and refresh regressions | FogCast [#251](https://github.com/DeanoC/FogCast/pull/251) |
 
 These merges establish source integration, not blanket hardware acceptance.
 The factory image still selects Pong/ZX81/Coleco. Admitting another supported-ABI
@@ -78,15 +79,19 @@ second implementation of any of those decisions.
 
 ## Remaining work, without another broad migration
 
-The bounded source audit at the revisions above found these follow-ups. These
-are source-level discrepancies, not reproduced hardware failures. Establish
-contract tests before changing behavior; this reconciliation changes no client
-implementation.
+The first audit follow-up, catalog launch eligibility, is implemented and
+selected through FogCast #251. Eleven shared cases cover available, offline,
+missing, unreadable and omitted-field states. Kit refresh retains source-state
+changes; attract items without a known full catalog row cannot launch. Session
+and target readiness gates remain separate. Component tests, race checks,
+ARMv7 Kit compilation and parent host builds establish software integration,
+not deployment or hardware acceptance.
+
+The remaining source-level findings below are not reproduced hardware failures.
+Establish contract tests before changing behavior.
 
 | Priority | Finding | Next bounded action |
 | --- | --- | --- |
-| First | Kit grid/detail admission checks `Game.Launchable` plus host readiness, while `hostclient.Game.LaunchBlock` also checks source/readability state (`ui/kitlauncher/model.go`, `detail.go`, `hostclient/library_models.go`) | Add missing/offline/invalid/available cases and use shared catalog eligibility while retaining session/target readiness checks |
-| First | Browser `launchBlockReason` checks offline roots, but `launchAllowed` omits that check; missing booleans differ from Go zero values (`internal/hostapi/ui_app.js`) | Define one bounded cross-client eligibility fixture; preserve additional session-authority checks |
 | Later | CLI and `hostclient` retain different session projections, success validation and mutation timeout policy (`internal/fogcastcli/session.go`, `hostclient/client.go`, `session_client.go`) | Specify the intended differences before sharing transport; do not undo the CLI deadline fix |
 | Small cleanup | Exact `fes.keyboard` interface-version recognition is repeated in shared session decoding and Kit capability handling (`hostclient/session.go`, `ui/kitlauncher/client.go`) | Share only the capability predicate if a focused test demonstrates equivalent semantics |
 
