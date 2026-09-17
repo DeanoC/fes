@@ -37,6 +37,8 @@ IMAGE = "sha256:" + "b" * 64
 HOST_REVISION = "c" * 40
 RUNTIME_REVISION = "d" * 40
 HOST_BINARY = b"fake fogcast-api binary\n"
+TEST_UID = os.getuid() or 1000
+TEST_GID = os.getgid() or 1000
 
 
 def _write_inputs(directory: str) -> dict[str, Path]:
@@ -46,6 +48,25 @@ def _write_inputs(directory: str) -> dict[str, Path]:
     binary = root / "fogcast-api"
     binary.write_bytes(HOST_BINARY)
     binary.chmod(0o755)
+    launcher = root / "nonroot-python"
+    launcher.write_text(
+        textwrap.dedent(
+            f"""
+            #!/usr/bin/env python3
+            import os
+            import runpy
+            import sys
+
+            os.getuid = lambda: {TEST_UID}
+            os.getgid = lambda: {TEST_GID}
+            script, *arguments = sys.argv[1:]
+            sys.argv = [script, *arguments]
+            runpy.run_path(script, run_name="__main__")
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
     config = root / "config.toml"
     config.write_text(
         """token = \"top-secret\"
@@ -64,7 +85,7 @@ target_id = \"target-1\"
         encoding="utf-8",
     )
     config.chmod(0o600)
-    return {"archive": archive, "binary": binary, "config": config}
+    return {"archive": archive, "binary": binary, "config": config, "launcher": launcher}
 
 
 def _command(
@@ -88,6 +109,7 @@ def _command(
     values.update(overrides)
     command = [
         sys.executable,
+        str(paths["launcher"]),
         str(SCRIPT),
         "--host-binary",
         str(paths["binary"]),
@@ -162,8 +184,8 @@ def _write_fake_runtime(directory: str) -> Path:
             state = load()
             if args[:2] == ["image", "inspect"]:
                 user = os.environ.get("FAKE_IMAGE_USER", "builder")
-                uid = os.environ.get("FAKE_IMAGE_UID", {str(os.getuid())!r})
-                gid = os.environ.get("FAKE_IMAGE_GID", {str(os.getgid())!r})
+                uid = os.environ.get("FAKE_IMAGE_UID", {str(TEST_UID)!r})
+                gid = os.environ.get("FAKE_IMAGE_GID", {str(TEST_GID)!r})
                 value = {{"Id": os.environ.get("FAKE_IMAGE_ID", IMAGE), "Config": {{
                     "User": user,
                     "Env": ["PATH=/usr/bin"],
@@ -185,9 +207,10 @@ def _write_fake_runtime(directory: str) -> Path:
                        config_has_agent_secret="agent-secret" in config_text,
                        home=str(home))
                 if os.environ.get("FAKE_REPLACE_CONFIG") and not state.get("replaced_config"):
-                    config.unlink()
-                    config.write_text("replacement", encoding="utf-8")
-                    config.chmod(0o600)
+                    with config.open("r+", encoding="utf-8") as handle:
+                        handle.seek(0)
+                        handle.write("replacement")
+                        handle.truncate()
                     state["replaced_config"] = True
                 if mode == "start-failure":
                     print("docker: invalid field rw must be a key=value pair; agent-secret", file=sys.stderr)
@@ -481,6 +504,33 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
 
 
 class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
+    def test_same_inode_changed_config_is_retained(self):
+        target = package_acceptance_isolated.PrivateTarget(
+            name="dev",
+            address="http://127.0.0.1:8182",
+            agent="agent-secret",
+            target_id=TARGET_ID,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = Path(directory) / "evidence"
+            evidence.mkdir()
+            home = package_acceptance_isolated.prepare_private_home(evidence, target)
+            original = home.config.read_text(encoding="utf-8")
+            changed = original.replace('agent = "agent-secret"', 'agent = "other-secret"')
+            self.assertEqual(len(changed), len(original))
+            with home.config.open("r+", encoding="utf-8") as handle:
+                handle.seek(0)
+                handle.write(changed)
+                handle.truncate()
+            self.assertEqual(
+                (home.config.stat().st_dev, home.config.stat().st_ino),
+                home.config_identity,
+            )
+
+            with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError, "changed"):
+                package_acceptance_isolated.remove_private_config(home)
+            self.assertEqual(home.config.read_text(encoding="utf-8"), changed)
+
     def test_setup_failure_after_private_config_creation_removes_credential(self):
         state = package_acceptance_tests._state()
         with tempfile.TemporaryDirectory() as directory:
@@ -490,7 +540,7 @@ class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
             runtime_log = Path(directory) / "runtime.log"
             runtime_state = Path(directory) / "runtime-state.json"
             command = _isolated_command(paths, evidence, runtime)
-            args = package_acceptance_isolated.parser().parse_args(command[2:])
+            args = package_acceptance_isolated.parser().parse_args(command[3:])
             target = package_acceptance_isolated.validate_args(args)
             original_prepare = package_acceptance_isolated.prepare_private_home
 
@@ -508,6 +558,14 @@ class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
                 package_acceptance_isolated,
                 "prepare_private_home",
                 side_effect=prepare_then_fail,
+            ), mock.patch.object(
+                package_acceptance_isolated.os,
+                "getuid",
+                return_value=TEST_UID,
+            ), mock.patch.object(
+                package_acceptance_isolated.os,
+                "getgid",
+                return_value=TEST_GID,
             ):
                 with self.assertRaises(package_acceptance_isolated.AcceptanceError):
                     package_acceptance_isolated.execute_isolated(args, target)

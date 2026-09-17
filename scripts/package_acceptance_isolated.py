@@ -41,6 +41,7 @@ MAX_POLL_ATTEMPTS = 600
 MAX_POLL_INTERVAL = 30.0
 MAX_STRING = 256
 MAX_BINARY_BYTES = 256 * 1024 * 1024
+MAX_PRIVATE_CONFIG_BYTES = 64 * 1024
 STARTUP_POLL_INTERVAL = 0.05
 MAX_HTTP_BODY = 1 << 20
 LISTEN_RE = re.compile(r"(?m)^FogCast API listening on http://127\.0\.0\.1:(\d{1,5})[ \t]*$")
@@ -280,6 +281,41 @@ def prepare_private_home(evidence_dir: Path, target: PrivateTarget) -> PrivateHo
         raise
 
 
+def _read_private_config(path: Path, identity: tuple[int, int], expected: bytes) -> None:
+    fd: int | None = None
+    try:
+        flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_mode & 0o077
+            or (opened.st_dev, opened.st_ino) != identity
+        ):
+            raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
+        handle = os.fdopen(fd, "rb")
+        fd = None
+        with handle:
+            contents = handle.read(MAX_PRIVATE_CONFIG_BYTES + 1)
+        current = path.lstat()
+        if (
+            stat.S_ISLNK(current.st_mode)
+            or not stat.S_ISREG(current.st_mode)
+            or current.st_mode & 0o077
+            or (current.st_dev, current.st_ino) != identity
+        ):
+            raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
+    except AcceptanceError:
+        raise
+    except OSError as exc:
+        raise AcceptanceError(f"cannot inspect private credential: {exc}") from exc
+    finally:
+        if fd is not None:
+            os.close(fd)
+    if len(contents) > MAX_PRIVATE_CONFIG_BYTES or contents != expected:
+        raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
+
+
 def remove_private_config(home: PrivateHome) -> None:
     try:
         info = home.config.lstat()
@@ -290,11 +326,27 @@ def remove_private_config(home: PrivateHome) -> None:
     if (
         stat.S_ISLNK(info.st_mode)
         or not stat.S_ISREG(info.st_mode)
+        or info.st_mode & 0o077
         or (info.st_dev, info.st_ino) != home.config_identity
     ):
         raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
+    _read_private_config(
+        home.config,
+        home.config_identity,
+        _minimal_config(home.target).encode("utf-8"),
+    )
     try:
+        info = home.config.lstat()
+        if (
+            stat.S_ISLNK(info.st_mode)
+            or not stat.S_ISREG(info.st_mode)
+            or info.st_mode & 0o077
+            or (info.st_dev, info.st_ino) != home.config_identity
+        ):
+            raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
         home.config.unlink()
+    except AcceptanceError:
+        raise
     except OSError as exc:
         raise AcceptanceError(f"cannot remove private credential: {exc}") from exc
 
@@ -309,14 +361,24 @@ def remove_unreturned_private_config(evidence_dir: Path, target: PrivateTarget) 
         raise AcceptanceError(f"cannot inspect private credential: {exc}") from exc
     if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
         raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
+    identity = (info.st_dev, info.st_ino)
+    _read_private_config(
+        config,
+        identity,
+        _minimal_config(target).encode("utf-8"),
+    )
     try:
-        contents = config.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise AcceptanceError(f"cannot inspect private credential: {exc}") from exc
-    if contents != _minimal_config(target):
-        raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
-    try:
+        info = config.lstat()
+        if (
+            stat.S_ISLNK(info.st_mode)
+            or not stat.S_ISREG(info.st_mode)
+            or info.st_mode & 0o077
+            or (info.st_dev, info.st_ino) != identity
+        ):
+            raise AcceptanceError("private credential changed; refusing to remove an unfamiliar file")
         config.unlink()
+    except AcceptanceError:
+        raise
     except OSError as exc:
         raise AcceptanceError(f"cannot remove private credential: {exc}") from exc
 
