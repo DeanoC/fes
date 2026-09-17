@@ -87,7 +87,7 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 	if inspection.Descriptor.Core.ID != entry.CoreID {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeInvalidArchive, nil)
 	}
-	if _, err := s.readCoreEntryMedia(ctx, inspection.Descriptor, role, mediaID); err != nil {
+	if err := s.validateCoreEntryMedia(ctx, inspection.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
 	selected, err := store.SelectCoreEntryMedia(ctx, gameID, expectedPackage, expectedMedia, role, mediaID)
@@ -96,7 +96,28 @@ func (s *Service) SelectCoreEntryMedia(parent context.Context, gameID, expectedP
 
 // readCoreEntryMedia validates and snapshots the selected bytes before package
 // activation. This is capability-based: a core ID never chooses content.
-func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) ([]byte, error) {
+type coreEntryMedia struct {
+	io.ReadCloser
+	size   int64
+	stream bool
+}
+
+func (m *coreEntryMedia) Close() error {
+	if err := m.ReadCloser.Close(); err != nil {
+		return canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return nil
+}
+
+func (s *Service) validateCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) error {
+	media, err := s.readCoreEntryMedia(ctx, descriptor, role, id)
+	if err != nil || media == nil {
+		return err
+	}
+	return media.Close()
+}
+
+func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) (*coreEntryMedia, error) {
 	if role == "" && id == "" {
 		return nil, nil
 	}
@@ -129,20 +150,12 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if err != nil {
 		return nil, mapCoreMediaError(err)
 	}
-	defer reader.Close()
 	if opened != media {
-		return nil, canonicalError(protocol.CodeInternal, nil)
+		closeErr := (&coreEntryMedia{ReadCloser: reader}).Close()
+		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), closeErr)
 	}
-	// The legacy target transport still needs a bounded small snapshot; larger
-	// stored assets were rejected above, before activation or allocation.
-	data, err := io.ReadAll(io.LimitReader(reader, capability.MaxBytes+1))
-	if err != nil || int64(len(data)) != media.Size {
-		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	if err := reader.Close(); err != nil {
-		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	return data, nil
+	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
+	return &coreEntryMedia{ReadCloser: reader, size: media.Size, stream: capability.Interface == protocol.MediaStreamInterface()}, nil
 }
 
 func mapCoreMediaError(err error) error {

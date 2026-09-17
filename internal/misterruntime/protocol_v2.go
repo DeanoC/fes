@@ -240,7 +240,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 	}
-	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, nil)
+	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, []string{"media_stream"})
 	if err != nil {
 		return err
 	}
@@ -249,6 +249,18 @@ func validateProtocol2Shape(line []byte) error {
 		"active_interfaces": rawArray,
 	}); err != nil {
 		return err
+	}
+	if raw, ok := capabilities["media_stream"]; ok {
+		stream, err := exactRawObject(raw, []string{"interface", "min_bytes", "max_bytes", "chunk_bytes"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(stream, map[string]rawKind{"interface": rawObject, "min_bytes": rawUnsigned, "max_bytes": rawUnsigned, "chunk_bytes": rawUnsigned}); err != nil {
+			return err
+		}
+		if err := validateSupportedInterfaceShape(stream["interface"]); err != nil {
+			return err
+		}
 	}
 	if err := eachRaw(capabilities["programming_profiles"], func(raw json.RawMessage) error {
 		return requireRawKind(raw, rawString)
@@ -615,6 +627,19 @@ func consumeJSONValue(decoder *json.Decoder) error {
 }
 
 func validProtocol2Response(response Protocol2Response) bool {
+	if response.Capabilities.MediaStream != nil {
+		if response.ActivePackage == nil || !positive(response.Generation) {
+			return false
+		}
+		activation := activationFromProtocol2(response.ActivePackage.PackageID, response.ActivePackage.Descriptor, response)
+		if !protocol.MediaStreamCapable(corePackageStatus(activation)) {
+			return false
+		}
+		declared := protocol.DeclaredCoreMediaCapabilities(response.ActivePackage.Descriptor)
+		if len(declared) != 1 || declared[0].Interface != protocol.MediaStreamInterface() {
+			return false
+		}
+	}
 	if response.CoreData != nil && !response.CoreData.Valid() {
 		return false
 	}

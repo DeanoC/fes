@@ -15,7 +15,12 @@ type developmentMediaController interface {
 func developmentMediaHandler(controller DevelopmentController) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		binding, valid := protocol.DevelopmentMediaHeaders(r.Header)
-		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > protocol.MaxDevelopmentMediaBytes {
+		limit := protocol.MaxDevelopmentMediaBytes
+		binding.Stream = r.URL.Path == "/v1/development/media-stream"
+		if binding.Stream {
+			limit = protocol.MaxDeclaredMediaStreamBytes
+		}
+		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > limit {
 			writeBadRequest(w, r, protocol.DevelopmentMediaRequestError().Message)
 			return
 		}
@@ -24,7 +29,7 @@ func developmentMediaHandler(controller DevelopmentController) http.Handler {
 			writeAPIError(w, http.StatusBadRequest, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"})
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentMediaBytes)
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		status, apiErr := loader.LoadDevelopmentMedia(r.Context(), r.ContentLength, r.Body, binding)
 		setRequestState(r, status)
 		if apiErr != nil {

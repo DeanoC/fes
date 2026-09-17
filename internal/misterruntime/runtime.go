@@ -93,6 +93,7 @@ func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout 
 }
 
 type CoreActivation struct {
+	MediaStream      *protocol.MediaStreamCapability
 	PersistenceMode  string
 	PackageID        string
 	Descriptor       corepackage.Descriptor
@@ -395,6 +396,7 @@ func replacementBarrierError() *protocol.APIError {
 
 func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor, response Protocol2Response) CoreActivation {
 	activation := CoreActivation{PackageID: packageID, Descriptor: descriptor, PersistenceMode: "volatile",
+		MediaStream:      response.Capabilities.MediaStream,
 		ActiveInterfaces: append([]Protocol2Interface(nil), response.Capabilities.ActiveInterfaces...)}
 	if response.ActivePackage != nil && response.ActivePackage.PersistenceMode != "" {
 		activation.PersistenceMode = response.ActivePackage.PersistenceMode
@@ -707,8 +709,9 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	return &protocol.CorePackageStatus{PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
-		ABI:     protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
-		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
+		MediaStream: activation.MediaStream,
+		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
+		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
 }
 
 func (r *Runtime) Prepare(spec core.Spec, candidate string) (mister.PreparedLaunch, *protocol.APIError) {

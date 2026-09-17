@@ -109,6 +109,9 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
+	if value.MediaStream != nil && !protocol.MediaStreamCapable(value) {
+		return false
+	}
 	if !lowerHex(value.PackageID, 64) || value.Generation == 0 || value.ABI.ID == "" ||
 		value.ABI.Major == 0 || !lowerHex(value.BuildID, 32) ||
 		!sort.SliceIsSorted(value.ActiveInterfaces, func(i, j int) bool {

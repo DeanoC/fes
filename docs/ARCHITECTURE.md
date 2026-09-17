@@ -460,7 +460,7 @@ is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
 integration operations. The FogCast lock and expected-runtime compatibility
-constant select runtime `f700e342023e21f5917857326a0c533d621905b8`.
+constant select runtime `3fe4b914cd3b02339a53cac44ce8b4fa2d722bef`.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle
 serialization, staging permissions and exact bytes, generation changes,
@@ -1207,10 +1207,42 @@ reports `source:declared-contract` and `compatibility:unknown`: this is not
 a live target observation. Unknown versions expose no supported roles, and
 optional interfaces still require active runtime support at launch.
 
-The current target transport accepts role `blob`, 1..16384 bytes,
-for declared `fes.simple-computer` 1.0 and `fes.media.blob` 1.0 capabilities.
+Legacy target delivery accepts role `blob`, 1..16384 bytes, for declared
+`fes.simple-computer` 1.0 and `fes.media.blob` 1.0 capabilities. A package with
+both required `fes.media.blob` 1.0 and required `fes.media.blob-stream` 1.0
+uses the explicit stream transport. Its offline declared safe range is
+1..32768 bytes (32 KiB), not the host's 32 MiB import capacity. No core-ID
+allowlist selects this behavior. Unknown stream versions do not widen legacy
+delivery. The raw `core-media PATH` CLI and its host development endpoint
+retain their original 16 KiB limit.
+
+Stream delivery uses authenticated target `POST /v1/development/media-stream`
+with fixed `Content-Length`, `application/octet-stream`, package/generation
+headers and the existing kit lease. It shares lifecycle and update exclusion
+with legacy `/v1/development/media`; it does not add a host management route
+to the paired launcher listener. The adapter stages through a bounded buffer,
+honors request/lease cancellation during staging, then rechecks identity and
+observed limits before the single protocol-2 `load_media_stream` request:
+`path`, `expected_package_id`, `expected_generation`, and `size`.
+Legacy `load_media` is unchanged. No network caller supplies the staged path.
+
+Runtime `capabilities.media_stream` and target `core_package.media_stream`
+carry the exact interface version and observed `min_bytes`, `max_bytes`, and
+`chunk_bytes`, associated with the active package and generation. Admission
+uses the coordinator's retained copy of that observation from normal package
+activation. Status snapshots deep-copy it so callers cannot mutate retained
+media admission through a returned capability pointer. Admission
+requires min=1, max=32768..33554432, chunk=512 and both active interfaces;
+missing or invalid observation fails closed. FogCast still caps selection and
+delivery at the declared 32768-byte guarantee even if an endpoint reports more.
+The runtime owns the actual endpoint query and physical transaction. Generated
+constants live in `protocol/internal/generated/fes_simple_computer.go`, retaining
+the shared emitter's `generated` package. The runtime serializer fixture at
+`internal/misterruntime/testdata/protocol-v2-media-stream-responses.jsonl`
+tests the C++ JSON/Go decoder boundary, not physical hardware behavior.
+
 `fogcast/core_media.go` rejects assets outside the selected capability's size
-range before reading a bounded target payload or activating hardware. Library
+range before opening a verified snapshot or activating hardware. Library
 storage/import and target delivery deliberately have different limits.
 It validates selection and snapshots bytes before package
 activation. One lifecycle admission spans package activation, media delivery,
@@ -1220,6 +1252,14 @@ and CLI use the same session launch path, with no core-ID media registry.
 Launch target binding occurs only after lifecycle admission. After activation,
 media failure receives a separate bounded cleanup deadline, including when the
 launch caller canceled or timed out.
+Snapshot close failure after delivery enters that same Stop/recovery branch;
+it cannot turn a running launch into an error without attempting cleanup.
+For stream delivery the host uses `max(UploadTimeout, 150s)`, still bounded by
+the caller's deadline/cancellation. The target retains its operation owner for
+a bounded 135s call covering the runtime worker's 120s budget after staging.
+Legacy delivery retains its configured host timeout and existing 15s adapter
+budget. Ambiguous mutation replies are never replayed. These tests and limits
+make no SMS execution, mapper, or hardware-acceptance claim.
 
 Schema 7 seeds the historical Coleco diagnostic and binds existing Coleco
 entries once, preserving game IDs and history. The licensed source remains in

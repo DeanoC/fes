@@ -11,8 +11,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   titles per core. Package/media changes need no rebuild or host restart. Import and
   selection do not replace a running core. Library media imports stream into
   bounded storage up to the host's 32 MiB policy; package capability queries
-  report the separately enforced core limit (16 KiB for the existing blob 1.0
-  transport). Importing a larger asset does not make it runnable.
+  report the separately enforced declared core limit: 16 KiB for legacy blob
+  1.0, or a safe 32 KiB guarantee for required `fes.media.blob-stream` 1.0
+  alongside required blob 1.0. Stream launch also validates the runtime's
+  observed endpoint limits and package generation. Importing a larger asset
+  does not make it runnable; these software paths do not establish SMS hardware
+  or mapper compatibility.
   Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)

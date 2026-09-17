@@ -25,9 +25,10 @@ type Protocol2ABI struct {
 }
 
 type Protocol2Capabilities struct {
-	ProgrammingProfiles []string             `json:"programming_profiles"`
-	ABIs                []Protocol2ABI       `json:"abis"`
-	ActiveInterfaces    []Protocol2Interface `json:"active_interfaces"`
+	MediaStream         *protocol.MediaStreamCapability `json:"media_stream,omitempty"`
+	ProgrammingProfiles []string                        `json:"programming_profiles"`
+	ABIs                []Protocol2ABI                  `json:"abis"`
+	ActiveInterfaces    []Protocol2Interface            `json:"active_interfaces"`
 }
 
 type Protocol2Observed struct {

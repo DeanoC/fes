@@ -10,10 +10,13 @@ data, not compiled code: changing an installed package or media needs no host
 rebuild, image rewrite, or service restart. Host import/storage accepts
 1..33,554,432 bytes (32 MiB), using bounded-memory streaming. That is a host
 storage policy, not a claim about any core's cartridge size.
-The current target media role is `blob`,
-1..16384 bytes, requiring `fes.simple-computer` 1.0 and `fes.media.blob` 1.0.
+The target media role is `blob`: legacy delivery accepts 1..16384 bytes with
+`fes.simple-computer` 1.0 and `fes.media.blob` 1.0. Packages declaring both
+required blob 1.0 and required `fes.media.blob-stream` 1.0 have an offline safe
+guarantee of 1..32768 bytes (32 KiB). Launch also requires the runtime's actual
+observed endpoint limits and matching package generation.
 Transport is never inferred from a core ID or descriptive system field.
-Larger media and new roles need transport support; this is not a retail-media
+Beyond that guarantee, larger media and new roles need additional support; this is not a retail-media
 compatibility claim. Original catalog Pong and standalone FES Pong remain separate.
 
 ## Native launcher status
@@ -48,6 +51,19 @@ fogcast --api http://127.0.0.1:8787 --json core-entry 'ZX81' PACKAGE_ID
 in the normal library, where the existing launcher can launch it. The standard
 session launch API takes that game ID. Held Select+Start uses the existing
 package session lifecycle.
+
+Browse package-backed titles through the ordinary library query, including
+the existing library-user favorites overlay (use the host's configured access
+credentials when required):
+
+```sh
+curl 'http://127.0.0.1:8787/api/v1/games?platform=fpga&sort=title&limit=50'
+curl 'http://127.0.0.1:8787/api/v1/games?platform=fpga&collection=favorites&limit=50'
+```
+
+These queries return library game IDs, not package digests. Use
+`GET /api/v1/library/core-entries/{game_id}` for the selected package/media;
+favorites and play history remain tied to the stable game ID.
 
 Standalone FES ZX81 is a ROM-less `fes.simple-computer` 1.0 package
 (`fes.zx81` 1.0.0). Required interfaces are `fes.keyboard`,
@@ -132,6 +148,28 @@ A 512 KiB ROM can be imported and retained, but selecting it for an existing
 16 KiB core fails before activation and preserves the current selection.
 Larger core delivery needs a separately implemented, versioned transport and
 an advertised capacity; increasing host storage policy does not enable it.
+
+For a package declaring both required blob interfaces, the offline capability
+query instead reports `max_bytes:32768`, interface
+`{"id":"fes.media.blob-stream","major":1,"minor":0}` and transport
+`fes-simple-computer-mailbox-stream-v1`. `compatibility` remains `unknown`:
+this is the declared safe guarantee, not a live endpoint query or mapper promise.
+For example, import a permitted 32 KiB image and bind it explicitly:
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-media-capabilities PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/image.sms
+fogcast --api http://127.0.0.1:8787 --json core-entry 'SMS test title' PACKAGE_ID blob MEDIA_ID
+```
+
+Use the returned `game_id` with the normal session launch API. The host selects
+the explicit target `/v1/development/media-stream` operation, not a widened
+legacy endpoint. The runtime observation must report min=1, max in
+32768..33554432, and chunk=512; missing support rejects launch with cleanup.
+Host delivery remains capped at 32768 even when the endpoint advertises more.
+The raw development command `core-media PATH` still accepts only 1..16384
+bytes; use `core-media-install` and a library entry for stream delivery.
+Software tests and serializer fixtures do not establish SMS hardware acceptance.
 
 To select another installed version or return to a retained version:
 

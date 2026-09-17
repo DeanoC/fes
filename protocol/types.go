@@ -63,6 +63,7 @@ const (
 )
 
 type APIError struct {
+	Cause    error     `json:"-"`
 	Code     ErrorCode `json:"code"`
 	Message  string    `json:"message"`
 	Phase    string    `json:"phase,omitempty"`
@@ -73,6 +74,8 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return string(e.Code) + ": " + e.Message
 }
+
+func (e *APIError) Unwrap() error { return e.Cause }
 
 type ErrorEnvelope struct {
 	Error APIError `json:"error"`
@@ -128,13 +131,14 @@ type RuntimeInterface struct {
 }
 
 type CorePackageStatus struct {
-	PersistenceMode  string             `json:"persistence_mode,omitempty"`
-	PackageID        string             `json:"package_id"`
-	Generation       uint64             `json:"generation"`
-	ABI              RuntimeContract    `json:"abi"`
-	BuildID          string             `json:"build_id"`
-	ActiveInterfaces []RuntimeInterface `json:"active_interfaces"`
-	Gamepad          bool               `json:"gamepad"`
+	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`
+	PersistenceMode  string                 `json:"persistence_mode,omitempty"`
+	PackageID        string                 `json:"package_id"`
+	Generation       uint64                 `json:"generation"`
+	ABI              RuntimeContract        `json:"abi"`
+	BuildID          string                 `json:"build_id"`
+	ActiveInterfaces []RuntimeInterface     `json:"active_interfaces"`
+	Gamepad          bool                   `json:"gamepad"`
 }
 
 type Status struct {

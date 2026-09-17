@@ -503,7 +503,8 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
-		PackageID: activation.PackageID, Generation: activation.Generation,
+		MediaStream: activation.MediaStream,
+		PackageID:   activation.PackageID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
 			Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID: activation.Descriptor.Build.ID, ActiveInterfaces: interfaces,
@@ -708,6 +709,10 @@ func cloneStatus(status protocol.Status) protocol.Status {
 	if status.CorePackage != nil {
 		packageCopy := *status.CorePackage
 		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
+		if status.CorePackage.MediaStream != nil {
+			streamCopy := *status.CorePackage.MediaStream
+			packageCopy.MediaStream = &streamCopy
+		}
 		copy.CorePackage = &packageCopy
 	}
 	return copy

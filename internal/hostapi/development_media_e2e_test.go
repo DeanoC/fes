@@ -26,11 +26,20 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // Only the hardware daemon is simulated: CLI, host API/service, target client,
 // lease manager, target HTTP/controller, staging and Unix protocol are real.
 func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
+	testMediaEndToEnd(t, false)
+}
+
+func TestLibraryMediaStreamEndToEndThroughCoordinator(t *testing.T) {
+	testMediaEndToEnd(t, true)
+}
+
+func testMediaEndToEnd(t *testing.T, stream bool) {
 	dir := t.TempDir()
 	read := func(path string) []byte {
 		t.Helper()
@@ -47,9 +56,17 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 		}
 	}
 	transform := func(s string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(s, "fes.simple-game", "fes.simple-computer"), "fes.gamepad", "fes.media.blob")
+		s = strings.ReplaceAll(strings.ReplaceAll(s, "fes.simple-game", "fes.simple-computer"), "fes.gamepad", "fes.media.blob")
+		if stream {
+			s = strings.ReplaceAll(s, `{"id":"fes.media.blob","major":1,"minor":0}`, `{"id":"fes.media.blob","major":1,"minor":0},{"id":"fes.media.blob-stream","major":1,"minor":0}`)
+			s = strings.ReplaceAll(s, `{"id":"fes.media.blob","major":1,"minor":0,"required":true}`, `{"id":"fes.media.blob","major":1,"minor":0,"required":true},{"id":"fes.media.blob-stream","major":1,"minor":0,"required":true}`)
+		}
+		return s
 	}
 	manifest := []byte(transform(string(read("../../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml"))))
+	if stream {
+		manifest = bytes.Replace(manifest, []byte("[[interfaces]]\nid = \"fes.video.fixed-720p60\""), []byte("[[interfaces]]\nid = \"fes.media.blob-stream\"\nmajor = 1\nminor = 0\nrequired = true\n\n[[interfaces]]\nid = \"fes.video.fixed-720p60\""), 1)
+	}
 	payload := read("../../corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf")
 	var archive bytes.Buffer
 	for _, entry := range []struct {
@@ -87,7 +104,11 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 	}
 	lines := strings.Split(strings.TrimSpace(string(read("../misterruntime/testdata/protocol-v2.jsonl"))), "\n")
 	reply := func(index int) string {
-		return strings.ReplaceAll(transform(lines[index]), "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", inspection.PackageID) + "\n"
+		result := strings.ReplaceAll(transform(lines[index]), "b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0", inspection.PackageID)
+		if stream && index == 5 {
+			result = strings.Replace(result, `"capabilities":{`, `"capabilities":{"media_stream":{"interface":{"id":"fes.media.blob-stream","major":1,"minor":0},"min_bytes":1,"max_bytes":32768,"chunk_bytes":512},`, 1)
+		}
+		return result + "\n"
 	}
 	// Use a short socket directory to stay within sockaddr_un on every test host.
 	socketDir, err := os.MkdirTemp("", "fc-media-wire-")
@@ -103,7 +124,11 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 	done := make(chan struct{})
 	defer func() { listener.Close(); <-done }()
 	var mediaCalls atomic.Int32
+	var legacyMediaCalls atomic.Int32
 	media := bytes.Repeat([]byte{0, 255, 17, 42}, 4096)
+	if stream {
+		media = bytes.Repeat([]byte{0, 255, 17, 42}, 8192)
+	}
 	go func() {
 		defer close(done)
 		active := false
@@ -134,14 +159,29 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 			case "status":
 			case "inspect_core":
 				result = reply(3)
-			case "load_core":
+			case "inspect_core_data":
+				result = strings.Replace(reply(1), `"inspected_package":null`, fmt.Sprintf(`"inspected_package":null,"core_data":{"package_id":%q,"core_id":%q,"layout":null,"mode":"volatile","revision":"absent","paddle_speed":1,"best_rally":0}`, inspection.PackageID, inspection.Descriptor.Core.ID), 1)
+			case "load_core", "load_library_core":
+				if stream && op != "load_library_core" {
+					t.Error("stream test bypassed library activation")
+				}
 				active = true
 				result = reply(5)
-			case "load_media":
+			case "load_media", "load_media_stream":
 				mediaCalls.Add(1)
+				if op == "load_media" {
+					legacyMediaCalls.Add(1)
+				}
 				var path string
 				json.Unmarshal(request["path"], &path)
-				if len(request) != 3 || string(request["protocol"]) != "2" || !filepath.IsAbs(path) {
+				fields := 3
+				if stream {
+					fields = 6
+					if op != "load_media_stream" || string(request["expected_package_id"]) != fmt.Sprintf("%q", inspection.PackageID) || string(request["expected_generation"]) != "1" || string(request["size"]) != "32768" {
+						t.Errorf("stream binding lost: %s", line)
+					}
+				}
+				if len(request) != fields || string(request["protocol"]) != "2" || !filepath.IsAbs(path) {
 					t.Errorf("bad media request: %s", line)
 				}
 				info, err := os.Lstat(path)
@@ -181,6 +221,40 @@ func TestDevelopmentMediaEndToEndFromRunningHostCLI(t *testing.T) {
 	defer service.Close()
 	api := httptest.NewServer(hostapi.New(service))
 	defer api.Close()
+	if stream {
+		ctx := context.Background()
+		installed, _, err := service.ImportCorePackage(ctx, int64(archive.Len()), bytes.NewReader(archive.Bytes()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		asset, _, err := service.ImportCoreMedia(ctx, int64(len(media)), bytes.NewReader(media))
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := service.CreateCoreMediaEntry(ctx, "Stream integration", installed.PackageID, "blob", asset.MediaID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := service.Launch(ctx, entry.GameID, nil)
+		if err != nil {
+			t.Fatalf("fresh library stream launch: %v (daemon media calls=%d)", err, mediaCalls.Load())
+		}
+		defer func() {
+			if _, err := service.Stop(ctx); err != nil {
+				t.Error(err)
+			}
+		}()
+		binding := protocol.DevelopmentMediaBinding{PackageID: installed.PackageID, Generation: 1, Stream: true}
+		if mediaCalls.Load() != 1 || legacyMediaCalls.Load() != 0 || !binding.AcceptsSize(coordinator.Status(), 32768) || !binding.AcceptsSize(result.Status, 32768) {
+			t.Fatalf("stream capability lost: coordinator=%+v host=%+v calls=%d", coordinator.Status(), result.Status, mediaCalls.Load())
+		}
+		returned := coordinator.Status()
+		returned.CorePackage.MediaStream.ChunkBytes = 1
+		if !binding.AcceptsSize(coordinator.Status(), 32768) {
+			t.Fatal("mutating returned stream capability changed retained coordinator admission")
+		}
+		return
+	}
 	run := func(command, path string) int {
 		t.Helper()
 		var out, stderr bytes.Buffer

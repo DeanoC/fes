@@ -16,16 +16,57 @@ import (
 
 type mediaController struct {
 	fakeDevelopmentController
-	calls int
+	calls  int
+	stream bool
 }
 
 func (c *mediaController) LoadDevelopmentMedia(_ context.Context, size int64, body io.Reader, binding protocol.DevelopmentMediaBinding) (protocol.Status, *protocol.APIError) {
 	c.calls++
+	c.stream = binding.Stream
 	data, err := io.ReadAll(body)
 	if err != nil || int64(len(data)) != size || binding.PackageID != strings.Repeat("a", 64) || binding.Generation != 9 {
 		panic("wrong media transport")
 	}
 	return protocol.Status{State: protocol.StateActive}, nil
+}
+
+func TestMediaStreamHTTPExplicitRouteAndAdmission(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer manager.Close()
+	grant := claimKit(t, manager)
+	controller := &mediaController{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithDevelopment(controller), httpapi.WithKitLease(manager))
+	for _, tc := range []struct {
+		name, path, bearer, lease string
+		size, want                int
+	}{
+		{"stream", "/v1/development/media-stream", "bearer", grant.Token, 32768, 200},
+		{"oversize", "/v1/development/media-stream", "bearer", grant.Token, 32769, 400},
+		{"legacy unchanged", "/v1/development/media", "bearer", grant.Token, 32768, 400},
+		{"auth", "/v1/development/media-stream", "wrong", grant.Token, 1, 401},
+		{"lease", "/v1/development/media-stream", "bearer", "", 1, 403},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := controller.calls
+			r := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(strings.Repeat("x", tc.size)))
+			r.Header.Set("Authorization", "Bearer "+tc.bearer)
+			r.Header.Set(httpapi.KitLeaseHeader, tc.lease)
+			r.Header.Set("Content-Type", "application/octet-stream")
+			(protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}).SetHeaders(r.Header)
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			if w.Code != tc.want {
+				t.Fatalf("status=%d body=%s", w.Code, w.Body)
+			}
+			if tc.want == 200 {
+				if controller.calls != before+1 || !controller.stream {
+					t.Fatal("stream selection lost")
+				}
+			} else if controller.calls != before {
+				t.Fatal("rejected request dispatched")
+			}
+		})
+	}
 }
 
 func TestDevelopmentMediaHTTPAdmissionAndLease(t *testing.T) {

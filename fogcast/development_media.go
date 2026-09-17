@@ -32,6 +32,10 @@ func (s *Service) LoadDevelopmentMedia(parent context.Context, size int64, body 
 
 // Caller holds lifecycle admission and supplies an already bounded snapshot.
 func (s *Service) loadDevelopmentMediaLocked(ctx context.Context, data []byte, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	return s.loadDevelopmentMediaReaderLocked(ctx, int64(len(data)), bytes.NewReader(data), b)
+}
+
+func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	s.executionMu.Lock()
 	blocked := s.activeExecution == ExecutionHostOnly || s.packageRejection != nil
 	s.executionMu.Unlock()
@@ -72,7 +76,10 @@ func (s *Service) loadDevelopmentMediaLocked(ctx context.Context, data []byte, b
 	if !b.Matches(prior) {
 		return prior, protocol.DevelopmentMediaIdentityError()
 	}
-	status, err := loader.LoadDevelopmentMedia(ctx, int64(len(data)), bytes.NewReader(data), b)
+	if !b.AcceptsSize(prior, size) {
+		return prior, protocol.DevelopmentMediaRequestError()
+	}
+	status, err := loader.LoadDevelopmentMedia(ctx, size, body, b)
 	if err != nil {
 		// A status read cannot prove media delivery; never replay.
 		return status, preserveCorePackageError(err)

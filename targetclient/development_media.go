@@ -13,18 +13,28 @@ func (c *Client) LoadDevelopmentMedia(ctx context.Context, size int64, body io.R
 	if !b.Valid() {
 		return protocol.Status{}, protocol.DevelopmentMediaRequestError()
 	}
-	data, apiErr := protocol.ReadDevelopmentMedia(size, body)
-	if apiErr != nil {
-		return protocol.Status{}, apiErr
+	path := "/v1/development/media"
+	if b.Stream {
+		if size < 1 || size > protocol.MaxDeclaredMediaStreamBytes || body == nil {
+			return protocol.Status{}, protocol.DevelopmentMediaRequestError()
+		}
+		path = "/v1/development/media-stream"
+	} else {
+		data, apiErr := protocol.ReadDevelopmentMedia(size, body)
+		if apiErr != nil {
+			return protocol.Status{}, apiErr
+		}
+		body = bytes.NewReader(data)
 	}
 	if c.kitLease == nil {
 		return protocol.Status{}, ErrKitLeaseLost
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/v1/development/media", nil).String(), bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint(path, nil).String(), readOnlyReader{body})
 	if err != nil {
 		return protocol.Status{}, err
 	}
 	request.Header.Set("Authorization", "Bearer "+c.token)
+	request.ContentLength = size
 	request.Header.Set("Content-Type", "application/octet-stream")
 	b.SetHeaders(request.Header)
 	if err = c.kitLease.Authorize(request, false); err != nil {

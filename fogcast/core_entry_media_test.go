@@ -17,14 +17,16 @@ import (
 
 type defaultMediaPackageClient struct {
 	*packageLibraryClient
-	mediaCalls   int
-	mediaBody    []byte
-	mediaBinding protocol.DevelopmentMediaBinding
-	mediaStatus  protocol.Status
-	mediaErr     error
+	mediaCalls    int
+	mediaBody     []byte
+	mediaBinding  protocol.DevelopmentMediaBinding
+	mediaStatus   protocol.Status
+	mediaErr      error
+	mediaDeadline time.Time
 }
 
-func (c *defaultMediaPackageClient) LoadDevelopmentMedia(_ context.Context, _ int64, body io.Reader, binding protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+func (c *defaultMediaPackageClient) LoadDevelopmentMedia(ctx context.Context, _ int64, body io.Reader, binding protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	c.mediaDeadline, _ = ctx.Deadline()
 	c.mediaCalls++
 	c.mediaBody, _ = io.ReadAll(body)
 	c.mediaBinding = binding

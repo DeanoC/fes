@@ -2,6 +2,7 @@ package agent_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -17,6 +18,50 @@ type mediaRuntime struct {
 	calls            int
 	started, release chan struct{}
 	failure          *protocol.APIError
+}
+
+type ownedMediaRuntime struct {
+	mediaRuntime
+	stage func(context.Context, context.Context, int64, io.Reader) *protocol.APIError
+}
+
+func (r *ownedMediaRuntime) LoadDevelopmentMediaOwned(admission, owner context.Context, n int64, body io.Reader, b protocol.DevelopmentMediaBinding) *protocol.APIError {
+	return r.stage(admission, owner, n, body)
+}
+
+func TestMediaStreamCoordinatorKeepsAdmissionCancellableAndOwnerAlive(t *testing.T) {
+	status := mediaStatus()
+	status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.MediaStreamInterface().ID, Major: 1})
+	status.CorePackage.MediaStream = &protocol.MediaStreamCapability{Interface: protocol.MediaStreamInterface(), MinBytes: 1, MaxBytes: 32768, ChunkBytes: 512}
+	runtime := &ownedMediaRuntime{mediaRuntime: mediaRuntime{fakeRuntime: fakeRuntime{reconciled: status}}}
+	c := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	c.Initialize(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	started, release := make(chan struct{}), make(chan struct{})
+	runtime.stage = func(admission, owner context.Context, n int64, body io.Reader) *protocol.APIError {
+		close(started)
+		<-admission.Done()
+		if owner.Err() != nil {
+			t.Error("request cancellation revoked mutation owner")
+		}
+		<-release
+		return &protocol.APIError{Code: protocol.CodeTransferFailed, Phase: "admission", Message: "cancelled", Cause: admission.Err()}
+	}
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		_, err := c.LoadDevelopmentMedia(ctx, 32768, strings.NewReader(strings.Repeat("x", 32768)), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Stream: true})
+		done <- err
+	}()
+	<-started
+	cancel()
+	if _, err := c.Stop(context.Background()); err == nil || err.Code != protocol.CodeBusy {
+		t.Fatalf("ownership lost: %v", err)
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cause lost: %v", err)
+	}
 }
 
 func (r *mediaRuntime) LoadDevelopmentMedia(ctx context.Context, n int64, b io.Reader, binding protocol.DevelopmentMediaBinding) *protocol.APIError {

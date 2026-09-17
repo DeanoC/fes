@@ -31,6 +31,18 @@ func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMedi
 	if descriptor.ABI.ID != "fes.simple-computer" || descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
 		return result
 	}
+	legacyRequired, streamRequired := false, false
+	for _, contract := range descriptor.Interfaces {
+		if contract.Required && contract.Major == 1 && contract.Minor == 0 {
+			legacyRequired = legacyRequired || contract.ID == "fes.media.blob"
+			streamRequired = streamRequired || contract.ID == MediaStreamInterface().ID
+		}
+	}
+	if legacyRequired && streamRequired {
+		return append(result, CoreMediaCapability{Role: "blob", Format: "raw", MinBytes: 1,
+			MaxBytes: MaxDeclaredMediaStreamBytes, Interface: MediaStreamInterface(),
+			Transport: "fes-simple-computer-mailbox-stream-v1"})
+	}
 	for _, contract := range descriptor.Interfaces {
 		if contract.ID == "fes.media.blob" && contract.Major == 1 && contract.Minor == 0 {
 			return append(result, CoreMediaCapability{

@@ -7,6 +7,7 @@ import (
 	"io"
 	"reflect"
 	"regexp"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -220,7 +221,7 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if !check.Compatible {
 		return catalog.CoreEntry{}, check.CompatibilityError
 	}
-	if _, err := s.readCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
+	if err := s.validateCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
 		return catalog.CoreEntry{}, err
 	}
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
@@ -262,7 +263,7 @@ func mapCoreEntryError(err error) error {
 	}
 }
 
-func (s *Service) launchCoreEntry(parent context.Context, gameID, target string) (protocol.CachedLaunchResponse, error) {
+func (s *Service) launchCoreEntry(parent context.Context, gameID, target string) (result protocol.CachedLaunchResponse, resultErr error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -275,7 +276,12 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	}
 	defer s.clearUnstartedSessionTarget()
 	var entry catalog.CoreEntry
-	var media []byte
+	var media *coreEntryMedia
+	defer func() {
+		if media != nil {
+			resultErr = errors.Join(resultErr, media.Close())
+		}
+	}()
 	status, err := s.loadCoreLocked(ctx, parent, func(ctx context.Context) (coreLoadSource, error) {
 		selected, err := s.CoreEntry(ctx, gameID)
 		if err != nil {
@@ -299,14 +305,25 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	if err != nil {
 		return response, err
 	}
-	if len(media) == 0 {
+	if media == nil {
 		return response, nil
 	}
 	if status.CorePackage == nil {
 		return response, canonicalError(protocol.CodeInternal, nil)
 	}
 	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
-	mediaStatus, mediaErr := s.loadDevelopmentMediaLocked(ctx, media, binding)
+	binding.Stream = media.stream
+	mediaCtx := ctx
+	if media.stream {
+		// Staging/package activation use the normal upload deadline. Stream
+		// delivery additionally covers the daemon's 120s owned media worker.
+		var mediaCancel context.CancelFunc
+		mediaCtx, mediaCancel = context.WithTimeout(parent, max(s.uploadTimeout, 150*time.Second))
+		defer mediaCancel()
+	}
+	mediaStatus, mediaErr := s.loadDevelopmentMediaReaderLocked(mediaCtx, media.size, media.ReadCloser, binding)
+	mediaErr = errors.Join(mediaErr, media.Close())
+	media = nil
 	if mediaErr != nil {
 		// Activation already mutated the target. Even if the caller canceled or
 		// exhausted its deadline, attempt one bounded cleanup while retaining

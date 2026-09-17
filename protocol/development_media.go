@@ -16,6 +16,7 @@ const HostTargetIDHeader = "X-FogCast-Target-ID"
 // DevelopmentMediaBinding names the already active target package generation.
 // It is checked by FogCast; the local runtime load_media wire shape is unchanged.
 type DevelopmentMediaBinding struct {
+	Stream     bool // Selected explicitly by the stream endpoint, never inferred from size.
 	PackageID  string
 	Generation uint64
 	Target     string // Host-only binding; not sent to the local runtime.
@@ -35,7 +36,7 @@ func (b DevelopmentMediaBinding) Valid() bool {
 }
 func (b DevelopmentMediaBinding) Matches(s Status) bool {
 	return b.Valid() && s.State == StateActive && s.Development && s.Recovery == "" && s.LastError == nil &&
-		s.CorePackage != nil && s.CorePackage.PackageID == b.PackageID && s.CorePackage.Generation == b.Generation && DevelopmentMediaCapable(s.CorePackage)
+		s.CorePackage != nil && s.CorePackage.PackageID == b.PackageID && s.CorePackage.Generation == b.Generation && DevelopmentMediaCapable(s.CorePackage) && (!b.Stream || MediaStreamCapable(s.CorePackage))
 }
 func DevelopmentMediaCapable(p *CorePackageStatus) bool {
 	if p == nil || p.ABI.ID != "fes.simple-computer" || p.ABI.Major != 1 || p.ABI.Minor != 0 {
