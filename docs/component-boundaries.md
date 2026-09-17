@@ -89,9 +89,12 @@ Do not equate a process boundary with a mandatory repository split.
 The target agent is a candidate for later extraction if other host clients
 need an independently released target service. UI extraction is useful only
 if clients need independent development or release cycles. Whole-system image
-ownership has already moved to FES `image/`. The next proposed boundary is a
-shared appliance module followed by FES ownership of the boot executable;
-see the [structure proposal](fes-structure.md).
+ownership lives in FES `image/`; the shared appliance module and FES-owned
+boot executable have also landed. Target contracts and shared host-client
+logic are separated with dependency guards. Keep the target implementation
+in FogCast until an independent release/consumer need or measured build/test
+coupling justifies extraction;
+see the [current refactor decision](fes-structure.md).
 
 ## Integrated source set
 
@@ -175,6 +178,7 @@ Current development and assembly capabilities:
    Quartus bring-up, nextpnr/mistral and physical acceptance evidence are
    separate from the package-only assembly. See [FES ZX81](fes-zx81.md).
 
-The next ownership migration is described in [FES structure](fes-structure.md).
+Completed migrations and remaining decisions are recorded in
+[FES structure](fes-structure.md).
 Earlier checks and limitations remain in the dated validation documents;
 they describe their selected artifacts rather than the current profile.

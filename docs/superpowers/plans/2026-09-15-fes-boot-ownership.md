@@ -1,5 +1,10 @@
 # FES Boot Ownership Implementation Plan
 
+Status reconciled 2026-09-17: historical implementation plan. Software ownership migration integrated through FogCast #243 and FES #55. This does not certify later boot images or physical boot acceptance.
+Use [current structure and refactor status](../../fes-structure.md) for remaining
+work. Original task checkboxes and execution constraints below are historical,
+not instructions to repeat merged work or proof of unrecorded acceptance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move the stable FES boot selector and its Linux-only helpers from FogCast into an FES-owned `platform` Go module while preserving the boot ABI, image layout, update admission, and source-bound bootstrap evidence.
