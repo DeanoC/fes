@@ -44,6 +44,8 @@ and is not current-profile acceptance.
   sealed `fes.sms` inspect + loopback import/select on tip FES; no kit HIL.
 - [FES SMS package-only kit launch/Stop HIL](validation/2026-09-17-fes-sms-kit-hil.md):
   leased mister launch+Stop for sealed `fes.sms`; temporary host; lease released.
+- [FES SG-1000 package-only kit launch/Stop HIL](validation/2026-09-17-fes-sg1000-kit-hil.md):
+  leased mister launch+Stop for sealed `fes.sg1000`; temporary host; lease released.
 - [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
   VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
 - [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard
