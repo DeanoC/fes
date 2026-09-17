@@ -88,6 +88,7 @@ public:
 		std::uint64_t generation = 0);
 	Error SetComputerKeyboard(std::uint64_t matrix) override;
 	Error LoadComputerMedia(const std::string& path) override;
+	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
 
 private:
 	Error PrepareCoreDataInternal(AdmittedCorePackage*, const std::string&, CoreData*, bool);

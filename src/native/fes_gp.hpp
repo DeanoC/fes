@@ -15,6 +15,13 @@ namespace native {
 
 class Clock;
 class Mmio;
+class ComputerMediaSnapshot;
+
+struct MediaStreamInfo {
+	std::uint32_t minimum = 0;
+	std::uint32_t maximum = 0;
+	std::uint16_t chunk_bytes = 0;
+};
 
 class FesGp final {
 public:
@@ -24,7 +31,7 @@ public:
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
 	Error Identify(const CoreDescriptor&, std::uint64_t absolute_deadline_ms,
-		bool* safe_to_quiesce = nullptr);
+		bool* safe_to_quiesce = nullptr, std::uint16_t* observed_capabilities = nullptr);
 
 private:
 	Mmio& mmio_;
@@ -51,16 +58,26 @@ public:
 	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
 	Error SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t deadline);
 	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	Error StreamInfo(MediaStreamInfo*) const;
+	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
+	Error AbortMediaStream(std::uint64_t deadline);
+	std::uint16_t observed_capabilities() const { return observed_capabilities_; }
 
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
 	Error DataControl(std::uint16_t, std::uint64_t);
+	Error StreamCommand(std::uint8_t opcode, std::uint8_t index,
+		std::uint16_t argument, std::uint64_t deadline);
 	FesGp& gp_;
 	bool persistence_verified_ = false;
 	bool reset_held_ = true;
 	bool freeze_attempted_ = false;
 	bool computer_ = false;
+	std::uint16_t observed_capabilities_ = 0;
+	MediaStreamInfo stream_info_;
+	bool stream_verified_ = false;
+	bool stream_pending_ = false;
 };
 
 } // namespace native

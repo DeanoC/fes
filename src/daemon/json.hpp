@@ -12,12 +12,13 @@ namespace mister {
 namespace daemon {
 namespace json {
 
-enum class Type { object, string, integer, boolean, null_value };
+enum class Type { object, string, integer, unsigned_integer, boolean, null_value };
 
 struct Value {
 	Type type = Type::null_value;
 	std::string string_value;
 	std::int64_t integer_value = 0;
+	std::uint64_t unsigned_value = 0;
 	bool boolean_value = false;
 	std::vector<std::pair<std::string, Value> > object;
 };

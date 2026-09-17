@@ -155,10 +155,20 @@ struct SupportedABI {
 	std::vector<SupportedInterface> interfaces;
 };
 
+struct MediaStreamCapability {
+	SupportedInterface interface;
+	std::uint32_t min_bytes = 0;
+	std::uint32_t max_bytes = 0;
+	std::uint32_t chunk_bytes = 0;
+};
+
 struct Capabilities {
 	std::vector<std::string> programming_profiles;
 	std::vector<SupportedABI> abis;
 	std::vector<SupportedInterface> active_interfaces;
+	// Empty interface ID means absent. This is observed active-session data,
+	// not the compiled driver declaration registry above.
+	MediaStreamCapability media_stream;
 };
 
 struct ObservedIdentity {
@@ -386,6 +396,10 @@ public:
 		return {ErrorCode::unsupported_interface,
 			"computer media is unavailable", "request"};
 	}
+	virtual Error LoadComputerMediaStream(const std::string&, std::uint32_t)
+	{
+		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
+	}
 };
 
 class Runtime {
@@ -409,6 +423,9 @@ public:
 	Error LoadContainedDevelopmentRBF(const std::string&);
 	Error SetComputerKeyboard(std::uint64_t matrix);
 	Error LoadComputerMedia(const std::string& path);
+	Error LoadComputerMediaStream(const std::string& path,
+		const std::string& expected_package_id, std::uint64_t expected_generation,
+		std::uint32_t size);
 	Error Stop();
 
 private:

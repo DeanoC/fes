@@ -33,6 +33,19 @@ public:
 	mister::Error InspectCorePackage(const std::string&, const std::string&,
 		mister::CorePackageInspection*) override;
 	mister::Capabilities capabilities() const override { return supported; }
+	mister::Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
+	{
+		++media_stream_calls;
+		media_stream_path = path;
+		media_stream_size = size;
+		if (on_media_stream) on_media_stream();
+		return media_stream_result;
+	}
+	int media_stream_calls = 0;
+	std::string media_stream_path;
+	std::uint32_t media_stream_size = 0;
+	std::function<void()> on_media_stream;
+	mister::Error media_stream_result;
 	mister::HardwareResult LoadCore(
 		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t) override;
 	int flush_calls = 0;

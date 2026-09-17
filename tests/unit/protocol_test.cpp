@@ -514,8 +514,105 @@ void TestPersistenceRequestsAndResponseFixtures()
 
 } // namespace
 
-int main()
+void TestMediaStreamRequestAndObservedResponse()
 {
+	const std::string prefix = R"({"protocol":2,"operation":"load_media_stream","path":"/media","expected_package_id":")" +
+		std::string(64, 'a') + R"(","expected_generation":)";
+	Request request;
+	for (const auto& generation : {"1", "9223372036854775808", "18446744073709551615"}) {
+		assert(Parse(prefix + generation + ",\"size\":32768}", &request).ok());
+		assert(request.operation == Operation::load_media_stream);
+		assert(request.expected_generation == std::stoull(generation));
+		assert(request.media_size == 32768 && request.expected_package_id == std::string(64, 'a'));
+	}
+	for (const auto& generation : {"0", "-1", "1.5", "true", "\"1\"", "18446744073709551616"})
+		assert(!Parse(prefix + generation + ",\"size\":1}", &request).ok());
+	for (const auto& size : {"0", "-1", "33554433", "4294967296", "1.5", "null"})
+		assert(!Parse(prefix + "1,\"size\":" + size + "}", &request).ok());
+	assert(!Parse(prefix + "1}", &request).ok());
+	assert(!Parse(prefix + "1,\"size\":1,\"extra\":0}", &request).ok());
+	assert(Parse(prefix + "1,\"size\":33554432}", &request).ok());
+	mister::Status status;
+	status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
+	assert(mister::daemon::EncodeResponse(2, true, status, "test").find("media_stream") == std::string::npos);
+	status.state = State::running_development;
+	status.generation = 1;
+	status.active_package.package_id = std::string(64, 'a');
+	const auto encoded = mister::daemon::EncodeResponse(2, true, status, "test");
+	assert(encoded.find(R"("media_stream":{"interface":{"id":"fes.media.blob-stream","major":1,"minor":0},"min_bytes":1,"max_bytes":32768,"chunk_bytes":512})") != std::string::npos);
+	assert(mister::daemon::EncodeResponse(true, status, "test").find("media_stream") == std::string::npos);
+}
+
+std::vector<std::string> MediaStreamResponseFixtures()
+{
+	Status status;
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.sms";
+	status.generation = 7;
+	status.active_package.package_id = std::string(64, 'a');
+	auto& descriptor = status.active_package.descriptor;
+	descriptor = FixtureDescriptor();
+	descriptor.core.id = "fes.sms";
+	descriptor.core.name = "Synthetic FES SMS";
+	descriptor.abi = {"fes.simple-computer", 1, 0};
+	descriptor.interfaces = {{"fes.keyboard", 1, 0, true},
+		{"fes.media.blob", 1, 0, true}, {"fes.media.blob-stream", 1, 0, true},
+		{"fes.video.fixed-720p60", 1, 0, true}};
+	status.active_package.observed = {descriptor.abi, descriptor.build.id};
+	status.core_data.mode = "volatile";
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	status.capabilities.active_interfaces = {{"fes.keyboard", 1, 0},
+		{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
+		{"fes.video.fixed-720p60", 1, 0}};
+	status.capabilities.abis = {{"fes.simple-computer", 1, 0, status.capabilities.active_interfaces}};
+	status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
+	std::vector<std::string> lines;
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+	// Legacy package on the same stream-capable runtime: registry support must
+	// not fabricate an observed endpoint capability.
+	status.active_package.package_id = std::string(64, 'b');
+	status.generation = 8;
+	descriptor.interfaces.erase(descriptor.interfaces.begin() + 2);
+	status.capabilities.active_interfaces.erase(status.capabilities.active_interfaces.begin() + 2);
+	status.capabilities.media_stream = {};
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+	status.state = State::idle;
+	status.execution = Execution::none;
+	status.core.clear();
+	status.generation = 0;
+	status.active_package = {};
+	status.capabilities.active_interfaces.clear();
+	lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+	return lines;
+}
+
+void TestMediaStreamResponseFixtures()
+{
+	std::ifstream input("tests/fixtures/protocol-v2-media-stream-responses.jsonl");
+	assert(input.good());
+	const auto expected = MediaStreamResponseFixtures();
+	std::string line;
+	for (const auto& serialized : expected) {
+		assert(static_cast<bool>(std::getline(input, line)));
+		assert(serialized == line);
+	}
+	assert(!std::getline(input, line));
+	assert(expected[0].find("\"media_stream\":") != std::string::npos);
+	assert(expected[1].find("\"media_stream\":") == std::string::npos);
+	assert(expected[2].find("\"media_stream\":") == std::string::npos);
+}
+
+int main(int argc, char** argv)
+{
+	// Emit with the production serializer; fixture updates are never hand JSON.
+	if (argc == 2 && std::string(argv[1]) == "--emit-media-stream-fixtures") {
+		for (const auto& line : MediaStreamResponseFixtures()) std::cout << line << '\n';
+		return 0;
+	}
+	assert(argc == 1);
+	TestMediaStreamResponseFixtures();
+	TestMediaStreamRequestAndObservedResponse();
 	Request persistent;
 	assert(Parse(
 		R"({"protocol":2,"operation":"inspect_core_data","package_path":"/tmp/p","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","data_root":"/tmp/data"})",
@@ -540,5 +637,5 @@ int main()
 	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 18 tests passed\n";
+	std::cout << "protocol_test: 20 tests passed\n";
 }

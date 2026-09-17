@@ -919,8 +919,69 @@ void TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration()
 
 } // namespace
 
+void TestStreamBindingCapacityOwnershipAndStop()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	f.hardware.supported.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.status().capabilities.media_stream.interface.id.empty());
+	assert(f.runtime.LoadCore("/packages/sms", id).ok());
+	const auto generation = f.runtime.status().generation;
+	assert(generation > 0);
+	assert(f.runtime.status().capabilities.media_stream.max_bytes == 32768);
+	for (auto size : {0u, 32769u, 33554433u, 0xffffffffu})
+		assert(!f.runtime.LoadComputerMediaStream("/media", id, generation, size).ok());
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, 0, 1).ok());
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, generation + 1, 1).ok());
+	assert(!f.runtime.LoadComputerMediaStream("/media", std::string(64, 'b'), generation, 1).ok());
+	assert(!f.runtime.LoadComputerMediaStream("relative", id, generation, 1).ok());
+	assert(f.hardware.media_stream_calls == 0);
+	f.hardware.on_media_stream = [&] {
+		assert(f.runtime.Stop().code == ErrorCode::busy);
+		assert(f.runtime.LoadCore("/packages/sms", id).code == ErrorCode::busy);
+		assert(f.runtime.LoadComputerMediaStream("/media", id, generation, 3).code == ErrorCode::busy);
+	};
+	assert(f.runtime.LoadComputerMediaStream("/media", id, generation, 32768).ok());
+	assert(f.hardware.media_stream_calls == 1 && f.hardware.media_stream_size == 32768);
+	assert(f.hardware.media_stream_path == "/media");
+	f.hardware.media_stream_result = {ErrorCode::io_failed, "transfer failed", "input"};
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, generation, 3).ok());
+	assert(f.runtime.status().generation == generation);
+	assert(f.runtime.status().active_package.package_id == id);
+	assert(f.runtime.Stop().ok());
+	assert(f.runtime.status().capabilities.media_stream.interface.id.empty());
+	f.hardware.on_media_stream = {};
+	f.hardware.media_stream_result = {};
+	assert(f.runtime.LoadCore("/packages/sms", id).ok());
+	assert(f.runtime.status().generation != generation);
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, generation, 3).ok());
+	assert(f.runtime.LoadComputerMediaStream("/media", id, f.runtime.status().generation, 3).ok());
+	const auto current = f.runtime.status().generation;
+	f.hardware.on_media_stream = [&] {
+		f.hardware.ReportFault(current, {ErrorCode::io_failed, "same-generation input fault", "input"});
+	};
+	f.hardware.media_stream_result = {ErrorCode::io_failed, "ambiguous cleanup", "recovery"};
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, current, 3).ok());
+	assert(f.runtime.status().state == State::reboot_required);
+	assert(f.runtime.status().generation == current);
+	assert(f.runtime.status().active_package.package_id == id);
+	const auto calls = f.hardware.media_stream_calls;
+	assert(!f.runtime.LoadComputerMediaStream("/media", id, current, 3).ok());
+	const auto idle_calls = f.hardware.idle_calls;
+	const auto stopped = f.runtime.Stop();
+	assert(stopped.code == ErrorCode::io_failed && stopped.phase == "recovery");
+	assert(stopped.message == "ambiguous cleanup");
+	f.hardware.ReportFault(current, {ErrorCode::io_failed, "late retired-generation fault", "input"});
+	assert(f.runtime.Stop().message == "ambiguous cleanup");
+	assert(f.runtime.status().error.message == "ambiguous cleanup");
+	assert(f.hardware.idle_calls == idle_calls); // no replay or background cleanup
+	assert(f.hardware.media_stream_calls == calls);
+}
+
 int main()
 {
+	TestStreamBindingCapacityOwnershipAndStop();
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
 	TestInputFaultDuringRestoreIsOwnedByRestoredGeneration();
 	TestSaveFailurePreservesSessionForStopRetry();
@@ -964,6 +1025,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 41 passed");
+	puts("runtime_test: 42 passed");
 	return 0;
 }

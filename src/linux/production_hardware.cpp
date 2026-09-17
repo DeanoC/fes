@@ -236,6 +236,10 @@ public:
 	{
 		return hardware_.LoadComputerMedia(path);
 	}
+	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
+	{
+		return hardware_.LoadComputerMediaStream(path, size);
+	}
 
 private:
 	native::PosixArtifactOpener opener_;

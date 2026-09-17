@@ -567,12 +567,27 @@ Capabilities NativeHardware::capabilities() const
 				generated::FesSimpleComputerInterfaceVideoFixed720p60Minor},
 			{generated::FesSimpleComputerInterfaceMediaBlobID,
 				generated::FesSimpleComputerInterfaceMediaBlobMajor,
-				generated::FesSimpleComputerInterfaceMediaBlobMinor}};
+				generated::FesSimpleComputerInterfaceMediaBlobMinor},
+			{generated::FesSimpleComputerInterfaceMediaBlobStreamID,
+				generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
+				generated::FesSimpleComputerInterfaceMediaBlobStreamMinor}};
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
 		std::sort(result.abis.begin(), result.abis.end(),
 			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
+		if (active_driver_ == fes_gp_driver_) {
+			MediaStreamInfo info;
+			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
+			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
+				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
+					generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
+					generated::FesSimpleComputerInterfaceMediaBlobStreamMinor};
+				result.media_stream.min_bytes = info.minimum;
+				result.media_stream.max_bytes = info.maximum;
+				result.media_stream.chunk_bytes = info.chunk_bytes;
+			}
+		}
 	}
 	return result;
 }
@@ -596,6 +611,35 @@ Error NativeHardware::LoadComputerMedia(const std::string& path)
 	if (!admitted.ok()) return WithPhase(admitted, "request");
 	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMedia(
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+Error NativeHardware::LoadComputerMediaStream(const std::string& path, std::uint32_t size)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface, "FES computer stream is not active", "request"};
+	auto& driver = *static_cast<FesGpCoreDriver*>(fes_gp_driver_);
+	MediaStreamInfo info;
+	Error error = driver.StreamInfo(&info);
+	if (!error.ok()) return error;
+	if (size < info.minimum || size > info.maximum)
+		return {ErrorCode::invalid_request, "size exceeds observed media stream capacity", "request"};
+	// One budget includes file snapshot/CRC and every transfer exchange.
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	ComputerMediaSnapshot snapshot;
+	error = snapshot.Prepare(path, info.minimum, info.maximum, clock_, deadline);
+	if (!error.ok()) return WithPhase(error, "request");
+	if (snapshot.size() != size)
+		return {ErrorCode::invalid_request, "media size does not match request", "request"};
+	error = driver.LoadMediaStream(snapshot, clock_, deadline);
+	if (!error.ok()) {
+		// Cleanup is independently bounded; a poisoned mailbox performs no writes.
+		const auto cleanup = driver.AbortMediaStream(Deadline(clock_, timeouts_.core_io_ms));
+		if (!cleanup.ok()) {
+			error.message += "; media stream cleanup failed: " + cleanup.message;
+			error.phase = "recovery";
+		}
+	}
+	return error;
 }
 
 HardwareResult NativeHardware::LoadCore(

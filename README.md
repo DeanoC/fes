@@ -1,5 +1,10 @@
 # libmister-runtime
 
+The optional `fes.media.blob-stream` 1.0 computer interface supports bounded,
+generation-bound media delivery using observed endpoint capacity. See
+[stream media](docs/media-stream.md) for the protocol-2 request, deadlines and
+failure semantics. Legacy `load_media` remains a separate 1..16384-byte path.
+
 `libmister-runtime` is the standalone C++14 lifecycle library and local control
 daemon for the native MiSTer hardware-control direction. The repository keeps
 the lifecycle API, native Linux primitives, profile model, and

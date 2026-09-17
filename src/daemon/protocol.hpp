@@ -20,6 +20,7 @@ enum class Operation {
 	update_core_settings,
 	set_keyboard,
 	load_media,
+	load_media_stream,
 	load_development_rbf,
 	stop,
 };
@@ -37,6 +38,9 @@ struct Request {
 	std::uint16_t paddle_speed = 1;
 	std::uint64_t keyboard_matrix = 0;
 	std::string media_path;
+	std::string expected_package_id;
+	std::uint64_t expected_generation = 0;
+	std::uint32_t media_size = 0;
 };
 
 Error ParseRequest(const std::string& line, Request* request);

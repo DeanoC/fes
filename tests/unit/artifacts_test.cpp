@@ -3,6 +3,8 @@
 
 #include "capture_diagnostic.hpp"
 #include "native/artifacts.hpp"
+#include "native/hardware.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 
 #include <assert.h>
 #include <errno.h>
@@ -14,6 +16,7 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace {
 
@@ -243,8 +246,77 @@ void TestComputerMediaIsBoundedOpaqueRegularFile()
 	assert(!mister::native::ReadComputerMedia(d.files[0] + std::string("\0x", 2), &bytes).ok());
 }
 
+class SnapshotClock final : public mister::native::Clock {
+public:
+	std::uint64_t NowMs() const override
+	{
+		if (hook) hook(calls);
+		return calls++;
+	}
+	mutable std::uint64_t calls = 0;
+	std::function<void(std::uint64_t)> hook;
+};
+
+void TestStreamSnapshotBoundsCRCAndPrivateCopy()
+{
+	using namespace mister::native::generated;
+	TempDirectory d;
+	const std::string path = d.File("crc", 9);
+	const int fd = open(path.c_str(), O_WRONLY);
+	assert(write(fd, "123456789", 9) == 9);
+	assert(close(fd) == 0);
+	SnapshotClock clock;
+	mister::native::ComputerMediaSnapshot snapshot;
+	assert(snapshot.Prepare(path, 1, 32768, clock, 100).ok());
+	assert(snapshot.size() == 9 && snapshot.crc32() == 0xcbf43926u);
+	assert(truncate(path.c_str(), 0) == 0);
+	unsigned char result[9] = {};
+	assert(snapshot.Read(0, result, 9, clock, 100).ok());
+	assert(!snapshot.Read(0, result, 9, clock, 0).ok());
+	assert(std::string(reinterpret_cast<char*>(result), 9) == "123456789");
+	assert(!snapshot.Read(1, result, 9, clock, 100).ok());
+	assert(!snapshot.Prepare(path, 1, 32768, clock, 100).ok());
+	for (std::uint32_t size : {0u, 1u, 511u, 512u, 513u, 16385u, 32768u,
+			32769u, FesSimpleComputerMediaStreamMaxBytes, FesSimpleComputerMediaStreamMaxBytes + 1}) {
+		const std::string file = d.File("size" + std::to_string(size), size);
+		SnapshotClock steady;
+		mister::native::ComputerMediaSnapshot candidate;
+		assert(candidate.Prepare(file, 1, FesSimpleComputerMediaStreamMaxBytes,
+			steady, 1000000).ok() == (size > 0 && size <= FesSimpleComputerMediaStreamMaxBytes));
+		if (size > 32768) {
+			mister::native::ComputerMediaSnapshot small;
+			assert(!small.Prepare(file, 1, 32768, steady, 1000000).ok());
+		}
+	}
+}
+
+void TestStreamSnapshotChangedLengthAndDeadline()
+{
+	TempDirectory d;
+	for (const auto size : {1u, 1025u}) {
+		const auto path = d.File("changing" + std::to_string(size), 1024);
+		SnapshotClock clock;
+		// Change after the first 512-byte read, before the next read / EOF check.
+		clock.hook = [&](std::uint64_t call) {
+			if (call == 2) assert(truncate(path.c_str(), size) == 0);
+		};
+		mister::native::ComputerMediaSnapshot candidate;
+		assert(!candidate.Prepare(path, 1, 32768, clock, 100).ok());
+		assert(candidate.size() == 0);
+	}
+	const auto path = d.File("deadline", 1024);
+	for (const auto deadline : {0u, 1u, 2u, 3u, 4u, 5u}) {
+		SnapshotClock clock;
+		mister::native::ComputerMediaSnapshot candidate;
+		assert(!candidate.Prepare(path, 1, 32768, clock, deadline).ok());
+		assert(candidate.size() == 0);
+	}
+}
+
 int main()
 {
+	TestStreamSnapshotBoundsCRCAndPrivateCopy();
+	TestStreamSnapshotChangedLengthAndDeadline();
 	TestComputerMediaIsBoundedOpaqueRegularFile();
 	TestSaveFileAdmissionAndAtomicRetry();
 	TestMissingDirectoryAndZeroLengthAreRejected();
@@ -254,6 +326,6 @@ int main()
 	TestAbsoluteAndRelativeOpenUseTheSameFileAdmission();
 	TestCompleteSetFailureDoesNotAssignOutput();
 	TestMultiFilePreflightRetainsAndClosesDescriptors();
-	puts("artifacts_test: 9 passed");
+	puts("artifacts_test: 11 passed");
 	return 0;
 }

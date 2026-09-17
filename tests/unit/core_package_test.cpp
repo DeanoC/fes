@@ -247,6 +247,16 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	auto gamepad = descriptor;
 	gamepad.interfaces.push_back({"fes.gamepad", 1, 0, true});
 	assert(!mister::native::CheckCoreCompatibility(gamepad).ok());
+	auto stream = descriptor;
+	stream.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(stream).ok());
+	stream.interfaces.back().major = 2;
+	assert(!mister::native::CheckCoreCompatibility(stream).ok());
+	stream.interfaces.back().required = false;
+	assert(mister::native::CheckCoreCompatibility(stream).ok());
+	stream.interfaces.back() = {"fes.media.blob-stream", 1, 0, true};
+	stream.interfaces.erase(stream.interfaces.begin() + 2);
+	assert(!mister::native::CheckCoreCompatibility(stream).ok()); // legacy remains required
 }
 
 void TestDirectoryAdmissionAndRetainedPayload()

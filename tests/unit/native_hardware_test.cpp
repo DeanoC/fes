@@ -11,6 +11,7 @@
 #include "native/core_package.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/core_data.hpp"
 #include "native/input.hpp"
@@ -755,11 +756,11 @@ std::size_t Count(const std::vector<std::string>& values,
 }
 
 void PushFesGpResponse(mister_test::FakeMmio* mmio, bool toggle,
-	std::uint16_t response)
+	std::uint16_t response, bool failed = false)
 {
 	using namespace mister::native::generated;
 	const std::uint32_t completed = FesGpSignature |
-		(toggle ? FesGpAckMask : 0u) | response;
+		(toggle ? FesGpAckMask : 0u) | (failed ? FesGpErrorMask : 0u) | response;
 	mmio->PushRead(kSpiGpiAddress, completed ^ FesGpAckMask);
 	mmio->PushRead(kSpiGpiAddress, completed);
 	mmio->PushRead(kSpiGpiAddress, completed);
@@ -2647,8 +2648,84 @@ void TestPersistenceContractAdmissionAndVolatileIsolation()
 
 } // namespace
 
+void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	mister_test::FakeMmio mmio;
+	FixedClock clock(100);
+	FesGp transport(mmio, clock);
+	FesGpCoreDriver driver(transport);
+	Fixture fixture(&driver);
+	TempDirectory package;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
+	ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.media.blob-stream\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	std::unique_ptr<mister::AdmittedCorePackage> admitted;
+	assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+	assert(fixture.hardware.capabilities().media_stream.interface.id.empty());
+	auto words = FesGpIdentityWords();
+	words[FesGpIdentityAbiTagIndex] = FesSimpleComputerAbiTag;
+	words[FesGpIdentityCapabilitiesIndex] = 15;
+	ScriptFesGpIdentity(&mmio, words);
+	bool toggle = false;
+	auto reply = [&](std::uint16_t value = 0, bool failed = false) {
+		toggle = !toggle;
+		PushFesGpResponse(&mmio, toggle, value, failed);
+	};
+	for (auto value : {1, 0, 32768, 0, 512}) reply(value);
+	for (unsigned i = 0; i < 9; ++i) reply(); // keyboard neutral + initial release
+	assert(fixture.hardware.LoadCore(std::move(admitted), 1).error.ok());
+	const auto capacity = fixture.hardware.capabilities().media_stream;
+	assert(capacity.interface.id == "fes.media.blob-stream");
+	assert(capacity.min_bytes == 1 && capacity.max_bytes == 32768 && capacity.chunk_bytes == 512);
+	const auto media = package.File("media", "123");
+	const auto before = mmio.writes.size();
+	assert(!fixture.hardware.LoadComputerMediaStream(media, 4).ok());
+	assert(!fixture.hardware.LoadComputerMediaStream(media, 32769).ok());
+	for (const auto& path : {package.path + "/missing", package.path + "/missing/media", package.path}) {
+		const auto admission = fixture.hardware.LoadComputerMediaStream(path, 3);
+		assert(admission.code == mister::ErrorCode::io_failed);
+		assert(admission.phase == "request");
+		assert(mmio.writes.size() == before); // no hold, transfer or Abort on admission failure
+	}
+	assert(mmio.writes.size() == before);
+	for (unsigned i = 0; i < 12; ++i) reply();
+	assert(fixture.hardware.LoadComputerMediaStream(media, 3).ok());
+	assert(mmio.writes.size() == before + 24);
+	// Explicit data rejection causes one independently acknowledged Abort, no release.
+	for (unsigned i = 0; i < 8; ++i) reply();
+	reply(4, true);
+	reply();
+	auto error = fixture.hardware.LoadComputerMediaStream(media, 3);
+	assert(!error.ok() && error.phase == "input");
+	assert(((mmio.writes.back().value >> 24) & 127) == FesSimpleComputerOpcodeMediaStreamAbort);
+	for (unsigned i = 0; i < 12; ++i) reply();
+	assert(fixture.hardware.LoadComputerMediaStream(media, 3).ok());
+	// Abort failure retains pending ownership; retry cannot send Begin or legacy data.
+	for (unsigned i = 0; i < 8; ++i) reply();
+	reply(4, true);
+	reply(4, true);
+	error = fixture.hardware.LoadComputerMediaStream(media, 3);
+	assert(!error.ok() && error.phase == "recovery");
+	const auto failed = mmio.writes.size();
+	assert(!driver.LoadMedia({1}, 10000).ok());
+	assert(mmio.writes.size() == failed);
+	// Explicit Stop can establish a new programmed session outside the stream path.
+	reply(); // outgoing hold reset
+	assert(fixture.hardware.LoadIdle().error.ok());
+	assert(fixture.hardware.capabilities().media_stream.interface.id.empty());
+}
+
 int main()
 {
+	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
@@ -2699,6 +2776,6 @@ int main()
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 48 passed");
+	puts("native_hardware_test: 49 passed");
 	return 0;
 }

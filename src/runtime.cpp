@@ -3,6 +3,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 
 #include <algorithm>
 #include <condition_variable>
@@ -413,6 +414,14 @@ public:
 			}
 			status_.capabilities.active_interfaces = ActiveInterfaces(
 				info.descriptor, status_.capabilities);
+			status_.capabilities.media_stream = hardware_.capabilities().media_stream;
+			if (status_.capabilities.media_stream.interface.id.empty()) {
+				auto& interfaces = status_.capabilities.active_interfaces;
+				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
+					[](const SupportedInterface& item) {
+						return item.id == native::generated::FesSimpleComputerInterfaceMediaBlobStreamID;
+					}), interfaces.end());
+			}
 			status_.error = {};
 			busy_ = false;
 		}
@@ -548,6 +557,46 @@ public:
 		return error;
 	}
 
+	Error LoadComputerMediaStream(const std::string& path, const std::string& package_id,
+		std::uint64_t generation, std::uint32_t size)
+	{
+		if (!ValidAbsolutePath(path) || !ValidPackageId(package_id) || generation == 0 ||
+			size < native::generated::FesSimpleComputerMediaStreamMinBytes ||
+			size > native::generated::FesSimpleComputerMediaStreamMaxBytes)
+			return Invalid("invalid media stream request");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
+				return Busy("FES computer is not available");
+			if (generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("media stream package or generation changed");
+			const auto& media = status_.capabilities.media_stream;
+			if (media.interface.id.empty())
+				return {ErrorCode::unsupported_interface, "observed media stream is unavailable", "compatibility"};
+			if (size < media.min_bytes || size > media.max_bytes)
+				return Invalid("media exceeds observed endpoint capacity");
+			busy_ = true;
+		}
+		const Error error = hardware_.LoadComputerMediaStream(path, size);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_.error = error;
+			// Preserve ownership/package/generation if cleanup could not synchronize.
+			if (error.phase == "recovery") {
+				status_.state = State::reboot_required;
+				// The terminal recovery error owns reconciliation now. A fault queued
+				// while busy must not leave Stop permanently blocked by its marker.
+				active_generation_ = 0;
+				pending_fault_generation_ = 0;
+			}
+			busy_ = false;
+		}
+		condition_.notify_all();
+		return error;
+	}
+
 	Error Stop()
 	{
 		LogRecord immediate;
@@ -667,6 +716,7 @@ public:
 		Status result;
 		result.state = state;
 		result.capabilities = hardware_.capabilities();
+		result.capabilities.media_stream = {};
 		return result;
 	}
 
@@ -836,6 +886,12 @@ Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
 Error Runtime::LoadComputerMedia(const std::string& path)
 {
 	return impl_->LoadComputerMedia(path);
+}
+
+Error Runtime::LoadComputerMediaStream(const std::string& path,
+	const std::string& package_id, std::uint64_t generation, std::uint32_t size)
+{
+	return impl_->LoadComputerMediaStream(path, package_id, generation, size);
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {

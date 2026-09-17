@@ -744,6 +744,12 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					return CompatibilityError(ErrorCode::unsupported_interface,
 						"required media interface is unsupported");
 				media = supported && interface.required;
+			} else if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID) {
+				if (interface.required &&
+					(interface.major != FesSimpleComputerInterfaceMediaBlobStreamMajor ||
+					interface.minor != FesSimpleComputerInterfaceMediaBlobStreamMinor))
+					return CompatibilityError(ErrorCode::unsupported_interface,
+						"required media stream interface is unsupported");
 			} else if (interface.required) {
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required interface is unsupported");

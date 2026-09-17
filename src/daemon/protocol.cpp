@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "daemon/json.hpp"
+#include "native/generated/fes_simple_computer.hpp"
 
 namespace mister {
 namespace daemon {
@@ -390,7 +391,21 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		AppendSupportedInterface(&output,
 			status.capabilities.active_interfaces[index]);
 	}
-	output.Append("]},\"active_package\":");
+	output.Append("]");
+	const auto& media = status.capabilities.media_stream;
+	if (!media.interface.id.empty() && status.generation != 0 &&
+		!status.active_package.package_id.empty()) {
+		output.Append(",\"media_stream\":{\"interface\":");
+		AppendSupportedInterface(&output, media.interface);
+		output.Append(",\"min_bytes\":");
+		output.Append(std::to_string(media.min_bytes));
+		output.Append(",\"max_bytes\":");
+		output.Append(std::to_string(media.max_bytes));
+		output.Append(",\"chunk_bytes\":");
+		output.Append(std::to_string(media.chunk_bytes));
+		output.Append("}");
+	}
+	output.Append("},\"active_package\":");
 	if (status.active_package.package_id.empty()) {
 		output.Append("null");
 	} else {
@@ -544,6 +559,29 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.operation = Operation::set_keyboard;
 			parsed.keyboard_matrix =
 				static_cast<std::uint64_t>(matrix->integer_value);
+		} else if (operation->string_value == "load_media_stream") {
+			const char* const fields[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation", "size"};
+			if (!HasOnly(root, fields, 6, &error)) return error;
+			const std::string* path = nullptr;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "path", &path, &error) ||
+				!StringMember(root, "expected_package_id", &package, &error)) return error;
+			const auto* generation = Find(root, "expected_generation");
+			const auto* size = Find(root, "size");
+			if (!Path(*path) || !PackageID(*package) || !generation ||
+				!((generation->type == json::Type::integer && generation->integer_value > 0) ||
+					generation->type == json::Type::unsigned_integer) ||
+				!size || size->type != json::Type::integer ||
+				size->integer_value < native::generated::FesSimpleComputerMediaStreamMinBytes ||
+				size->integer_value > native::generated::FesSimpleComputerMediaStreamMaxBytes)
+				return Invalid("invalid media stream path, binding or size");
+			parsed.operation = Operation::load_media_stream;
+			parsed.media_path = *path;
+			parsed.expected_package_id = *package;
+			parsed.expected_generation = generation->type == json::Type::unsigned_integer ?
+				generation->unsigned_value : static_cast<std::uint64_t>(generation->integer_value);
+			parsed.media_size = static_cast<std::uint32_t>(size->integer_value);
 		} else if (operation->string_value == "load_media") {
 			const char* const fields[] = {"protocol", "operation", "path"};
 			if (!HasOnly(root, fields, 3, &error)) return error;

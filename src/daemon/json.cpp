@@ -55,7 +55,7 @@ private:
 		}
 		if (token == '-' || (token >= '0' && token <= '9')) {
 			value->type = Type::integer;
-			return ParseInteger(&value->integer_value);
+			return ParseInteger(value);
 		}
 		if (token == 't') {
 			if (!Consume("true")) return Fail("invalid token");
@@ -222,7 +222,7 @@ private:
 		return true;
 	}
 
-	bool ParseInteger(std::int64_t* value)
+	bool ParseInteger(Value* value)
 	{
 		const bool negative = ConsumeCharacter('-');
 		if (position_ == input_.size() || input_[position_] < '0' || input_[position_] > '9')
@@ -232,7 +232,7 @@ private:
 			return Fail("leading zero");
 		const std::uint64_t limit = negative
 			? static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) + 1
-			: static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+			: std::numeric_limits<std::uint64_t>::max();
 		std::uint64_t parsed = 0;
 		while (position_ < input_.size() && input_[position_] >= '0' && input_[position_] <= '9') {
 			const std::uint64_t digit = static_cast<std::uint64_t>(input_[position_] - '0');
@@ -241,10 +241,13 @@ private:
 			++position_;
 		}
 		if (negative) {
-			if (parsed == limit) *value = std::numeric_limits<std::int64_t>::min();
-			else *value = -static_cast<std::int64_t>(parsed);
+			if (parsed == limit) value->integer_value = std::numeric_limits<std::int64_t>::min();
+			else value->integer_value = -static_cast<std::int64_t>(parsed);
+		} else if (parsed > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+			value->type = Type::unsigned_integer;
+			value->unsigned_value = parsed;
 		} else {
-			*value = static_cast<std::int64_t>(parsed);
+			value->integer_value = static_cast<std::int64_t>(parsed);
 		}
 		return true;
 	}

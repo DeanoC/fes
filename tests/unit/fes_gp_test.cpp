@@ -8,9 +8,12 @@
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
+#include "native/artifacts.hpp"
 
 #include <assert.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #include <cstdint>
 #include <fstream>
@@ -678,10 +681,264 @@ void TestPersistenceIdentityInfoAndPartialRestoreRejection()
 	assert(mmio.writes.size() == 46); // no commit after rejected second write
 }
 
+void TestSharedStreamWireFixtures()
+{
+	const auto source = ReadFile("tests/fixtures/fes-media-stream-v1/exchanges.json");
+	const std::regex scenarios(R"rx("initial_request_toggle"\s*:\s*false)rx");
+	const std::regex rows(R"rx(\{[^{}]*"opcode"[^{}]*\})rx");
+	const std::regex request(R"rx("gpo"\s*:\s*\[\s*([0-9]+),\s*([0-9]+)\s*\])rx");
+	const std::regex response(R"rx("gpi"\s*:\s*([0-9]+))rx");
+	std::vector<std::size_t> starts;
+	for (std::sregex_iterator it(source.begin(), source.end(), scenarios), end; it != end; ++it)
+		starts.push_back(static_cast<std::size_t>(it->position()));
+	assert(starts.size() == 7);
+	starts.push_back(source.size());
+	unsigned count = 0;
+	for (std::size_t scenario = 0; scenario + 1 < starts.size(); ++scenario) {
+		const auto text = source.substr(starts[scenario], starts[scenario + 1] - starts[scenario]);
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		for (std::sregex_iterator row(text.begin(), text.end(), rows), end; row != end; ++row) {
+			const auto exchange = row->str();
+			std::smatch q, r;
+			assert(std::regex_search(exchange, q, request));
+			assert(std::regex_search(exchange, r, response));
+			const auto settled = static_cast<std::uint32_t>(std::stoul(q[1]));
+			const auto toggled = static_cast<std::uint32_t>(std::stoul(q[2]));
+			const auto gpi = static_cast<std::uint32_t>(std::stoul(r[1]));
+			PushCompleted(&mmio, (gpi & FesGpAckMask) != 0,
+				static_cast<std::uint16_t>(gpi), (gpi & FesGpErrorMask) != 0);
+			const auto before = mmio.writes.size();
+			std::uint16_t result = 0;
+			const auto error = gp.Exchange(static_cast<std::uint8_t>((toggled >> 24) & 0x7f),
+				static_cast<std::uint8_t>(toggled >> 16), static_cast<std::uint16_t>(toggled),
+				100000, &result);
+			assert(error.ok() == ((gpi & FesGpErrorMask) == 0));
+			assert(result == static_cast<std::uint16_t>(gpi));
+			assert(mmio.writes[before].value == settled);
+			assert(mmio.writes[before + 1].value == toggled);
+			++count;
+		}
+	}
+	assert(count == 92);
+}
+
+struct StreamFixture {
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp{mmio, clock};
+	mister::native::FesGpCoreDriver driver{gp};
+	mister::native::CoreDescriptor descriptor = Descriptor("00112233445566778899aabbccddeeff");
+	mister::native::CoreDriverContext context;
+	bool toggle = false;
+	StreamFixture()
+	{
+		descriptor.abi = {FesSimpleComputerABIID, 1, 0};
+		descriptor.interfaces = {{FesSimpleComputerInterfaceMediaBlobID, 1, 0, true},
+			{FesSimpleComputerInterfaceMediaBlobStreamID, 1, 0, true}};
+		context.descriptor = &descriptor;
+	}
+	void Reply(std::uint16_t value = 0, bool failed = false)
+	{
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, value, failed);
+	}
+	mister::Error Identify(std::uint32_t minimum = 1, std::uint32_t maximum = 32768,
+		std::uint16_t chunk = 512, std::uint16_t caps = 15)
+	{
+		auto words = IdentityWords(descriptor.build.id);
+		words[FesGpIdentityAbiTagIndex] = FesSimpleComputerAbiTag;
+		words[FesGpIdentityCapabilitiesIndex] = caps;
+		for (auto word : words) Reply(word);
+		bool declared = false;
+		for (const auto& interface : descriptor.interfaces)
+			if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID &&
+				interface.major == 1 && interface.minor == 0) declared = true;
+		if (declared && (caps & FesSimpleComputerCapabilityMediaBlobStream))
+			for (auto word : {static_cast<std::uint16_t>(minimum),
+				static_cast<std::uint16_t>(minimum >> 16), static_cast<std::uint16_t>(maximum),
+				static_cast<std::uint16_t>(maximum >> 16), chunk}) Reply(word);
+		return driver.Identify(context, 1000000).error;
+	}
+};
+
+struct StreamFile {
+	std::string path;
+	StreamFile(std::uint32_t size)
+	{
+		char pattern[] = "/tmp/libmister-stream-test-XXXXXX";
+		const int fd = mkstemp(pattern);
+		assert(fd >= 0);
+		path = pattern;
+		std::array<std::uint8_t, 512> data;
+		for (std::size_t i = 0; i < data.size(); ++i) data[i] = static_cast<std::uint8_t>(i + 1);
+		for (std::uint32_t n = 0; n < size;) {
+			const auto length = std::min<std::uint32_t>(data.size(), size - n);
+			assert(write(fd, data.data(), length) == static_cast<ssize_t>(length));
+			n += length;
+		}
+		assert(close(fd) == 0);
+	}
+	~StreamFile() { assert(unlink(path.c_str()) == 0); }
+};
+
+void TestStreamIdentityRequiresObservedCapacityAndDeclaration()
+{
+	for (auto maximum : {0u, 32767u, 33554433u, 0xffffffffu}) {
+		StreamFixture f;
+		assert(!f.Identify(1, maximum).ok());
+		mister::native::MediaStreamInfo info;
+		assert(!f.driver.StreamInfo(&info).ok());
+	}
+	for (auto chunk : {0u, 511u, 513u}) {
+		StreamFixture f;
+		assert(!f.Identify(1, 32768, chunk).ok());
+	}
+	StreamFixture minimum;
+	assert(!minimum.Identify(2).ok());
+	StreamFixture missing;
+	assert(!missing.Identify(1, 32768, 512, 7).ok());
+	StreamFixture undeclared;
+	undeclared.descriptor.interfaces.pop_back();
+	assert(undeclared.Identify().ok());
+	assert(undeclared.driver.observed_capabilities() == 15);
+	assert(undeclared.mmio.writes.size() == 32); // identity only; no Info commands
+	mister::native::MediaStreamInfo info;
+	assert(!undeclared.driver.StreamInfo(&info).ok());
+	StreamFixture optional;
+	optional.descriptor.interfaces.back().required = false;
+	assert(optional.Identify(1, 32768, 512, 7).ok());
+	assert(!optional.driver.StreamInfo(&info).ok());
+	assert(optional.mmio.writes.size() == 32);
+	StreamFixture unknown;
+	unknown.descriptor.interfaces.back().required = false;
+	unknown.descriptor.interfaces.back().major = 2;
+	assert(unknown.Identify().ok());
+	assert(unknown.mmio.writes.size() == 32);
+	assert(!unknown.driver.StreamInfo(&info).ok());
+	StreamFixture valid;
+	assert(valid.Identify(1, 33554432).ok());
+	assert(valid.driver.StreamInfo(&info).ok());
+	assert(info.maximum == 33554432 && info.minimum == 1 && info.chunk_bytes == 512);
+	valid.driver.BeginSession();
+	assert(valid.driver.observed_capabilities() == 0);
+	assert(!valid.driver.StreamInfo(&info).ok());
+}
+
+void TestStreamTransferBoundariesAndCRC()
+{
+	for (auto size : {1u, 3u, 511u, 512u, 513u, 16385u, 32768u}) {
+		StreamFixture f;
+		assert(f.Identify().ok());
+		StreamFile file(size);
+		mister::native::ComputerMediaSnapshot snapshot;
+		assert(snapshot.Prepare(file.path, 1, 32768, f.clock, 1000000).ok());
+		const auto start = f.mmio.writes.size();
+		f.Reply(); // hold reset
+		for (unsigned i = 0; i < 4; ++i) f.Reply();
+		for (unsigned offset = 0; offset < size; offset += 512) {
+			for (unsigned i = 0; i < 3; ++i) f.Reply();
+			for (unsigned i = 0; i < (std::min(512u, size - offset) + 1) / 2; ++i) f.Reply();
+		}
+		f.Reply(); // commit
+		f.Reply(); // release only after commit
+		assert(f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+		std::size_t cursor = start;
+		auto expect = [&](unsigned op, unsigned index, unsigned argument) {
+			const auto word = f.mmio.writes[cursor + 1].value & ~FesGpRequestMask;
+			assert(word == ((op << 24) | (index << 16) | argument));
+			cursor += 2;
+		};
+		expect(2, 0, 0);
+		expect(8, 0, size & 65535);
+		expect(8, 1, size >> 16);
+		expect(8, 2, snapshot.crc32() & 65535);
+		expect(8, 3, snapshot.crc32() >> 16);
+		if (size == 3) assert(snapshot.crc32() == 0x55bc801d);
+		for (unsigned offset = 0; offset < size; offset += 512) {
+			const auto length = std::min(512u, size - offset);
+			expect(9, 0, offset & 65535);
+			expect(9, 1, offset >> 16);
+			expect(9, 2, length);
+			for (unsigned byte = 0; byte < length; byte += 2)
+				expect(10, byte / 2, ((byte + 1) & 255) |
+					(byte + 1 < length ? ((byte + 2) & 255) << 8 : 0));
+		}
+		expect(11, 0, 0);
+		expect(2, 0, 1);
+		assert(cursor == f.mmio.writes.size());
+	}
+	StreamFixture f;
+	assert(f.Identify().ok());
+	StreamFile file(32769);
+	mister::native::ComputerMediaSnapshot snapshot;
+	assert(snapshot.Prepare(file.path, 1, 33554432, f.clock, 1000000).ok());
+	const auto before = f.mmio.writes.size();
+	assert(!f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+	assert(f.mmio.writes.size() == before);
+}
+
+void TestStreamFailureAbortAndAmbiguousSession()
+{
+	{
+		StreamFixture f;
+		assert(f.Identify().ok());
+		StreamFile file(3);
+		mister::native::ComputerMediaSnapshot snapshot;
+		assert(snapshot.Prepare(file.path, 1, 32768, f.clock, 1000000).ok());
+		for (unsigned i = 0; i < 5; ++i) f.Reply(); // hold + Begin
+		const auto before = f.mmio.writes.size();
+		ScriptClock expired({1000000});
+		const auto error = f.driver.LoadMediaStream(snapshot, expired, 1000000);
+		assert(!error.ok() && error.message == "media snapshot read deadline exceeded");
+		assert(f.mmio.writes.size() == before + 10); // no Chunk/Data/Commit/Release
+		f.Reply();
+		assert(f.driver.AbortMediaStream(1000000).ok());
+	}
+	// Hold, all Begin/Chunk/data words, commit and release are independent failure points.
+	for (unsigned failure = 1; failure < 12; ++failure) {
+		StreamFixture f;
+		assert(f.Identify().ok());
+		StreamFile file(3);
+		mister::native::ComputerMediaSnapshot snapshot;
+		assert(snapshot.Prepare(file.path, 1, 32768, f.clock, 1000000).ok());
+		const auto before = f.mmio.writes.size();
+		for (unsigned i = 0; i < failure; ++i) f.Reply();
+		f.Reply(4, true);
+		assert(!f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+		assert(f.mmio.writes.size() == before + 2 * (failure + 1));
+		const auto stopped = f.mmio.writes.size();
+		assert(!f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+		assert(!f.driver.LoadMedia({1}, 1000000).ok());
+		assert(!f.driver.Start({}, 1000000).error.ok());
+		assert(f.mmio.writes.size() == stopped);
+		f.Reply();
+		assert(f.driver.AbortMediaStream(1000000).ok());
+		assert(f.driver.AbortMediaStream(1000000).ok());
+		assert(f.mmio.writes.size() == stopped + 2);
+	}
+	StreamFixture f;
+	assert(f.Identify().ok());
+	StreamFile file(3);
+	mister::native::ComputerMediaSnapshot snapshot;
+	assert(snapshot.Prepare(file.path, 1, 32768, f.clock, 1000000).ok());
+	f.Reply(); // hold; missing Begin ACK poisons the session
+	assert(!f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+	const auto before = f.mmio.writes.size();
+	assert(!f.driver.AbortMediaStream(1000000).ok());
+	assert(!f.driver.LoadMediaStream(snapshot, f.clock, 1000000).ok());
+	assert(f.mmio.writes.size() == before);
+}
+
 } // namespace
 
 int main()
 {
+	TestSharedStreamWireFixtures();
+	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
+	TestStreamTransferBoundariesAndCRC();
+	TestStreamFailureAbortAndAmbiguousSession();
 	TestPersistenceTransfersAndPoisonedSnapshot();
 	TestSharedPersistenceWireFixtures();
 	TestPersistenceIdentityInfoAndPartialRestoreRejection();
@@ -693,6 +950,6 @@ int main()
 	TestComputerKeyboardMatrixAndMediaBlob();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 11 groups passed");
+	puts("fes_gp_test: 15 groups passed");
 	return 0;
 }

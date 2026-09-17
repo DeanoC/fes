@@ -65,6 +65,10 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::load_media:
 		result = runtime_.LoadComputerMedia(request.media_path);
 		break;
+	case Operation::load_media_stream:
+		result = runtime_.LoadComputerMediaStream(request.media_path,
+			request.expected_package_id, request.expected_generation, request.media_size);
+		break;
 	case Operation::load_development_rbf:
 		result = request.protocol == 2 ?
 			runtime_.LoadContainedDevelopmentRBF(request.rbf) :

@@ -178,10 +178,10 @@ $(BUILD_DIR)/tests/unit/core_data_test: tests/unit/core_data_test.cpp src/native
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/core_data_test.cpp src/native/core_data.cpp src/native/sha256.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/fes_gp_test: tests/unit/fes_gp_test.cpp \
-		tests/support/fake_mmio.cpp src/native/fes_gp.cpp
+		tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/fes_gp_test.cpp \
-		tests/support/fake_mmio.cpp src/native/fes_gp.cpp -o "$@"
+		tests/support/fake_mmio.cpp src/native/fes_gp.cpp src/native/artifacts.cpp src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/unit/core_loader_test: tests/unit/core_loader_test.cpp \
 		tests/support/fake_spi.cpp src/native/artifacts.cpp src/native/core_loader.cpp \

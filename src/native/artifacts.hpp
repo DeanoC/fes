@@ -33,6 +33,26 @@ private:
 	std::string path_;
 };
 
+class Clock;
+
+// Private unlinked file: a stable, bounded-memory snapshot for mailbox upload.
+class ComputerMediaSnapshot {
+public:
+	ComputerMediaSnapshot() = default;
+	~ComputerMediaSnapshot();
+	ComputerMediaSnapshot(const ComputerMediaSnapshot&) = delete;
+	ComputerMediaSnapshot& operator=(const ComputerMediaSnapshot&) = delete;
+	Error Prepare(const std::string& path, std::uint32_t minimum,
+		std::uint32_t maximum, Clock&, std::uint64_t deadline);
+	Error Read(std::uint32_t offset, std::uint8_t* data, std::size_t length,
+		Clock&, std::uint64_t deadline) const;
+	std::uint32_t size() const { return size_; }
+	std::uint32_t crc32() const { return crc32_; }
+private:
+	int fd_ = -1;
+	std::uint32_t size_ = 0, crc32_ = 0;
+};
+
 // A retained directory and original snapshot; final bytes are replaced atomically.
 class SaveFile {
 public:

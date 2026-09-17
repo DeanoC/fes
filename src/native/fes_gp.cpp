@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "native/fes_gp.hpp"
+#include "native/artifacts.hpp"
 
 #include "native/core_package.hpp"
 #include "native/generated/de10_nano.hpp"
@@ -201,8 +202,9 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 }
 
 Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
-	bool* safe_to_quiesce)
+	bool* safe_to_quiesce, std::uint16_t* observed_capabilities)
 {
+	if (observed_capabilities != nullptr) *observed_capabilities = 0;
 	if (safe_to_quiesce != nullptr) *safe_to_quiesce = false;
 	const std::uint64_t now = clock_.NowMs();
 	if (now >= deadline) return Io("FES GP discovery deadline exceeded");
@@ -241,6 +243,12 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 			else if (interface.id == FesSimpleComputerInterfaceMediaBlobID)
 				capabilities = static_cast<std::uint16_t>(capabilities |
 					FesSimpleComputerCapabilityMediaBlob);
+			else if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID &&
+				interface.required &&
+				interface.major == FesSimpleComputerInterfaceMediaBlobStreamMajor &&
+				interface.minor == FesSimpleComputerInterfaceMediaBlobStreamMinor)
+				capabilities = static_cast<std::uint16_t>(capabilities |
+					FesSimpleComputerCapabilityMediaBlobStream);
 			continue;
 		}
 		if (interface.id == FesGpInterfaceGamepadID)
@@ -278,6 +286,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (index == FesGpIdentityCapabilitiesIndex && safe_to_quiesce != nullptr)
 			*safe_to_quiesce = true;
 	}
+	if (observed_capabilities != nullptr)
+		*observed_capabilities = observed[FesGpIdentityCapabilitiesIndex];
 	return {};
 }
 
@@ -290,6 +300,10 @@ void FesGpCoreDriver::BeginSession()
 	reset_held_ = true;
 	freeze_attempted_ = false;
 	computer_ = false;
+	observed_capabilities_ = 0;
+	stream_info_ = {};
+	stream_verified_ = false;
+	stream_pending_ = false;
 }
 
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
@@ -311,8 +325,42 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			"request"}, false, ""};
 	bool safe_to_quiesce = false;
 	persistence_verified_ = false;
-	Error error = gp_.Identify(*context.descriptor, deadline, &safe_to_quiesce);
+	stream_verified_ = false;
+	stream_info_ = {};
+	Error error = gp_.Identify(*context.descriptor, deadline, &safe_to_quiesce,
+		&observed_capabilities_);
 	computer_ = error.ok() && context.descriptor->abi.id == FesSimpleComputerABIID;
+	bool stream_declared = false;
+	for (const auto& interface : context.descriptor->interfaces)
+		if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID &&
+			interface.major == FesSimpleComputerInterfaceMediaBlobStreamMajor &&
+			interface.minor == FesSimpleComputerInterfaceMediaBlobStreamMinor)
+			stream_declared = true;
+	if (computer_ && stream_declared &&
+		(observed_capabilities_ & FesSimpleComputerCapabilityMediaBlobStream)) {
+		// Query actual endpoint limits during discovery, separately from declarations.
+		std::uint16_t words[5] = {};
+		for (std::uint8_t index = 0; index < 5 && error.ok(); ++index)
+			error = gp_.Exchange(FesSimpleComputerOpcodeMediaStreamInfo,
+				index, 0, deadline, &words[index]);
+		MediaStreamInfo info;
+		info.minimum = words[0] | (static_cast<std::uint32_t>(words[1]) << 16);
+		info.maximum = words[2] | (static_cast<std::uint32_t>(words[3]) << 16);
+		info.chunk_bytes = words[4];
+		if (error.ok() && (info.minimum != FesSimpleComputerMediaStreamMinBytes ||
+			info.maximum < FesSimpleComputerMediaStreamGuaranteedMaxBytes ||
+			info.maximum > FesSimpleComputerMediaStreamMaxBytes ||
+			info.chunk_bytes != FesSimpleComputerMediaStreamChunkMaxBytes))
+			error = Mismatch("invalid live media stream capacity");
+		if (error.ok()) {
+			stream_info_ = info;
+			for (const auto& interface : context.descriptor->interfaces)
+				if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID &&
+					interface.major == FesSimpleComputerInterfaceMediaBlobStreamMajor &&
+					interface.minor == FesSimpleComputerInterfaceMediaBlobStreamMinor)
+					stream_verified_ = true;
+		}
+	}
 	if (error.ok()) {
 		bool words = false, pong = false;
 		for (const auto& interface : context.descriptor->interfaces) {
@@ -419,6 +467,7 @@ Error FesGpCoreDriver::SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t dea
 Error FesGpCoreDriver::LoadMedia(
 	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
 {
+	if (stream_pending_) return Io("media stream requires recovery before legacy media");
 	if (!computer_)
 		return {ErrorCode::unsupported_interface, "FES computer media is inactive",
 			"input"};
@@ -466,9 +515,88 @@ Error FesGpCoreDriver::LoadMedia(
 	return WithPhase(std::move(released.error), "input");
 }
 
+Error FesGpCoreDriver::StreamInfo(MediaStreamInfo* output) const
+{
+	if (!stream_verified_ || output == nullptr)
+		return {ErrorCode::unsupported_interface, "verified media stream is unavailable",
+			"compatibility"};
+	*output = stream_info_;
+	return {};
+}
+
+Error FesGpCoreDriver::StreamCommand(std::uint8_t opcode, std::uint8_t index,
+	std::uint16_t argument, std::uint64_t deadline)
+{
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(opcode, index, argument, deadline, &response);
+	if (error.ok() && response != 0) error = Io("invalid media stream response");
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::AbortMediaStream(std::uint64_t deadline)
+{
+	if (!stream_pending_) return {};
+	// Exchange refuses all writes after an ambiguous ACK; never replay a mutation.
+	Error error = StreamCommand(FesSimpleComputerOpcodeMediaStreamAbort,
+		FesSimpleComputerControlIndex, 0, deadline);
+	if (error.ok()) stream_pending_ = false;
+	return error;
+}
+
+Error FesGpCoreDriver::LoadMediaStream(const ComputerMediaSnapshot& media,
+	Clock& clock, std::uint64_t deadline)
+{
+	MediaStreamInfo info;
+	Error error = StreamInfo(&info);
+	if (!error.ok()) return error;
+	if (stream_pending_) return Io("media stream requires recovery");
+	if (media.size() < info.minimum || media.size() > info.maximum)
+		return {ErrorCode::invalid_request, "media exceeds live stream capacity", "request"};
+	// Also retain ownership if hold-reset itself completes ambiguously.
+	stream_pending_ = true;
+	error = Quiesce({}, deadline).error;
+	if (!error.ok()) return error;
+	// Mark pending before the first Begin word: its acceptance invalidates readiness.
+	stream_pending_ = true;
+	const std::uint16_t header[] = {static_cast<std::uint16_t>(media.size()),
+		static_cast<std::uint16_t>(media.size() >> 16),
+		static_cast<std::uint16_t>(media.crc32()),
+		static_cast<std::uint16_t>(media.crc32() >> 16)};
+	for (std::uint8_t index = 0; index < 4 && error.ok(); ++index)
+		error = StreamCommand(FesSimpleComputerOpcodeMediaStreamBegin,
+			index, header[index], deadline);
+	std::array<std::uint8_t, FesSimpleComputerMediaStreamChunkMaxBytes> bytes = {};
+	for (std::uint32_t offset = 0; offset < media.size() && error.ok();) {
+		const auto length = std::min<std::uint32_t>(bytes.size(), media.size() - offset);
+		error = media.Read(offset, bytes.data(), length, clock, deadline);
+		const std::uint16_t chunk[] = {static_cast<std::uint16_t>(offset),
+			static_cast<std::uint16_t>(offset >> 16), static_cast<std::uint16_t>(length)};
+		for (std::uint8_t index = 0; index < 3 && error.ok(); ++index)
+			error = StreamCommand(FesSimpleComputerOpcodeMediaStreamChunk,
+				index, chunk[index], deadline);
+		for (std::uint32_t byte = 0; byte < length && error.ok(); byte += 2) {
+			const std::uint16_t word = static_cast<std::uint16_t>(bytes[byte] |
+				(byte + 1 < length ? static_cast<std::uint16_t>(bytes[byte + 1]) << 8 : 0));
+			error = StreamCommand(FesSimpleComputerOpcodeMediaStreamData,
+				static_cast<std::uint8_t>(byte / 2), word, deadline);
+		}
+		offset += length;
+	}
+	if (error.ok()) error = StreamCommand(FesSimpleComputerOpcodeMediaStreamCommit,
+		FesSimpleComputerControlIndex, 0, deadline);
+	if (!error.ok()) return error;
+	error = Gameplay(FesGpGameplayRelease, deadline).error;
+	if (error.ok()) {
+		reset_held_ = false;
+		stream_pending_ = false;
+	}
+	return WithPhase(error, "input");
+}
+
 CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
+	if (stream_pending_) return {Io("incomplete media stream cannot start"), false, ""};
 	if (computer_) {
 		CoreDriverResult neutralized = NeutralizeKeyboard(deadline);
 		if (!neutralized.error.ok()) return neutralized;

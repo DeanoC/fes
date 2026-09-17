@@ -345,6 +345,14 @@ legacy fallback.
 
 ## Protocol
 
+Computer stream media uses the same owned runtime busy boundary, with exact
+active package/generation binding before hardware access. Observed stream Info
+is retained separately from the driver registry. An unlinked, bounded-buffer
+snapshot supplies CRC-checked chunk delivery; no live source or host-sized byte
+array is retained during GP transfer. A poisoned mailbox is never replayed.
+See [stream media](docs/media-stream.md) for the protocol-2 extension, optional
+observed capability, timeout budgets and terminal cleanup-failure semantics.
+
 Protocol 1 accepts exactly four operations over a local Unix socket, one JSON
 request and one JSON response per connection:
 
