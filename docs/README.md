@@ -37,6 +37,9 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [FES SMS parent pin](validation/2026-09-17-fes-sms-parent-pin.md):
+  misteross `#65` pin and `fes.sms` recipe registration for package-only
+  acceptance; factory image closed set unchanged.
 - [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
   VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
 - [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard

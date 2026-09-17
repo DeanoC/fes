@@ -150,6 +150,8 @@ class CoreBuildTest(unittest.TestCase):
                                       'FES_ZX81_PACKAGE_SELECTION': '/untrusted-zx81-selection',
                                       'FES_COLECO_PACKAGE_DIR': '/untrusted-coleco-package',
                                       'FES_COLECO_PACKAGE_SELECTION': '/untrusted-coleco-selection',
+                                      'FES_SMS_PACKAGE_DIR': '/untrusted-sms-package',
+                                      'FES_SMS_PACKAGE_SELECTION': '/untrusted-sms-selection',
                                       'FES_PACKAGE_IDS': 'fes.pong,fes.zx81',
                                       'FES_TOOLCHAIN_CACHE_ROOT': '/ambient-toolchains'}):
             env = build_environment()
@@ -160,6 +162,8 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_ZX81_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_COLECO_PACKAGE_DIR' in env)
         self.assertFalse('FES_COLECO_PACKAGE_SELECTION' in env)
+        self.assertFalse('FES_SMS_PACKAGE_DIR' in env)
+        self.assertFalse('FES_SMS_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_PACKAGE_IDS' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
 
@@ -301,6 +305,18 @@ class CoreBuildTest(unittest.TestCase):
             'FES_COLECO_PACKAGE_DIR=/packages/coleco',
             'FES_COLECO_PACKAGE_SELECTION=/records/fes-coleco.package-selection.toml',
         ])
+        sms_only = ({
+            'directory': Path('/packages/sms'),
+            'selection_path': Path('/records/fes-sms.package-selection.toml'),
+            'inputs': {'selection': {'core_id': 'fes.sms', 'package_id': 'd' * 64},
+                       'selection_sha256': 'a' * 64, 'manifest_sha256': 'b' * 64,
+                       'core_rbf_sha256': 'c' * 64},
+        },)
+        self.assertEqual(build.package_arguments(sms_only), [
+            'FES_PACKAGE_IDS=fes.sms',
+            'FES_SMS_PACKAGE_DIR=/packages/sms',
+            'FES_SMS_PACKAGE_SELECTION=/records/fes-sms.package-selection.toml',
+        ])
         first, first_info = build.image_fingerprint('base', {'sources': {}}, packages)
         reversed_fingerprint, _ = build.image_fingerprint(
             'base', {'sources': {}}, tuple(reversed(packages)))
@@ -380,6 +396,8 @@ class CoreBuildTest(unittest.TestCase):
                     'FES_ZX81_PACKAGE_SELECTION': '/ambient/zx81-selection',
                     'FES_COLECO_PACKAGE_DIR': '/ambient/coleco',
                     'FES_COLECO_PACKAGE_SELECTION': '/ambient/coleco-selection',
+                    'FES_SMS_PACKAGE_DIR': '/ambient/sms',
+                    'FES_SMS_PACKAGE_SELECTION': '/ambient/sms-selection',
                 }), \
                     patch.object(build.sys, 'argv',
                                  ['build.py', 'image', '--profile', 'native-integration-dev']), \
@@ -423,6 +441,8 @@ class CoreBuildTest(unittest.TestCase):
                     (core_id.replace('.', '-') + '.package-selection.toml')))
         self.assertNotEqual(captured['env']['FES_PACKAGE_IDS'], 'ambient')
         self.assertNotEqual(captured['env']['FES_PONG_PACKAGE_DIR'], '/ambient/pong')
+        self.assertNotIn('FES_SMS_PACKAGE_DIR', captured['env'])
+        self.assertNotIn('FES_SMS_PACKAGE_SELECTION', captured['env'])
 
     def test_multi_package_publication_is_complete_and_rejects_extra_selection_or_identity(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -79,6 +79,19 @@ FORMAT2_RECIPES = {
         package_selection_env="FES_COLECO_PACKAGE_SELECTION",
         quartus_role="bring-up/check oracle",
     ),
+    "fes.sms": Format2Recipe(
+        core_id="fes.sms",
+        producer_script="scripts/build_fes_sms_oss.py",
+        producer_module="scripts.build_fes_sms_oss",
+        authenticate="_authenticate_sms_tools",
+        lock_path="cores/fes-sms/toolchain.lock",
+        gpu_router=HIP_ROUTER,
+        hip_architectures=HIP_ARCHITECTURES,
+        selection_filename="fes-sms.package-selection.toml",
+        package_dir_env="FES_SMS_PACKAGE_DIR",
+        package_selection_env="FES_SMS_PACKAGE_SELECTION",
+        quartus_role="bring-up/check oracle",
+    ),
 }
 
 
