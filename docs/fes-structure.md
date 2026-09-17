@@ -1,7 +1,8 @@
 # FES structure and refactor status
 
-Reconciled on 2026-09-17 against FES `095cc7a` and its selected FogCast
-`c6b7841`. This is the current ownership decision, not a queue of migrations
+Reconciled on 2026-09-17 against FES main `6d993fa`, updated by
+[FES #68](https://github.com/DeanoC/fes/pull/68) to select FogCast
+`d625fd23dcee33e8b09fca6b3adce2910271d90c`. This is the current ownership decision, not a queue of migrations
 to repeat. Historical plans describe the implementation sequence; their
 unchecked execution steps are not evidence that merged work is absent.
 
