@@ -119,6 +119,10 @@ default `c++`) for generated-header syntax tests.
 
 ## Plan
 
+The canonical [media stream 1.0 contract](docs/media-stream.md) extends the
+simple-computer ABI without widening legacy blob 1.0. YAML constants and
+synthetic fixtures are shared definitions, not runtime or hardware acceptance.
+
 See [docs/PLAN.md](docs/PLAN.md) and [docs/schema.md](docs/schema.md).
 
 1. **Milestone 1:** Cyclone V HPS map round-trips the runtime constants.

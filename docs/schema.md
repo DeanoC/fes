@@ -326,6 +326,11 @@ is the contiguous golden mailbox sequence for that ABI.
 
 ## programming_profiles
 
+The optional registry extension `fes.media.blob-stream` 1.0 uses capability
+bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
+legacy required interfaces. See [the authoritative stream contract](media-stream.md).
+The base ABI and format-2 manifest schema remain unchanged.
+
 A programming-profile registry names the platform/device and approved
 profile/ABI-major pairs. It remains descriptive: runtime owns each profile's
 electrical setup, containment, reset ordering, and bridge release.

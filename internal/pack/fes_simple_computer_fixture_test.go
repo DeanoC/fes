@@ -136,6 +136,11 @@ func TestFesSimpleComputerGoldenExchangeFixture(t *testing.T) {
 	identityWords[constants("FesSimpleComputerIdentityAbiMinorIndex")] = uint16(constants("FesSimpleComputerAbiMinor"))
 	var capabilities uint16
 	for _, iface := range abi.Interfaces {
+		// This immutable fixture represents a legacy package, not every
+		// interface now available in the registry.
+		if iface.ID == "fes.media.blob-stream" {
+			continue
+		}
 		capabilities |= 1 << iface.CapabilityBit
 	}
 	if capabilities != 7 {

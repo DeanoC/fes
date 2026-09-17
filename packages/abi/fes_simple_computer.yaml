@@ -100,6 +100,56 @@ constants:
     value: 0
   - name: FesSimpleComputerMediaDataTailIndex
     value: 1
+  - name: FesSimpleComputerOpcodeMediaStreamInfo
+    value: 7
+  - name: FesSimpleComputerOpcodeMediaStreamBegin
+    value: 8
+  - name: FesSimpleComputerOpcodeMediaStreamChunk
+    value: 9
+  - name: FesSimpleComputerOpcodeMediaStreamData
+    value: 10
+  - name: FesSimpleComputerOpcodeMediaStreamCommit
+    value: 11
+  - name: FesSimpleComputerOpcodeMediaStreamAbort
+    value: 12
+  - name: FesSimpleComputerMediaStreamMinBytes
+    value: 1
+  - name: FesSimpleComputerMediaStreamGuaranteedMaxBytes
+    value: 32768
+  - name: FesSimpleComputerMediaStreamMaxBytes
+    value: 33554432
+  - name: FesSimpleComputerMediaStreamChunkMaxBytes
+    value: 512
+  - name: FesSimpleComputerMediaStreamInfoMinLoIndex
+    value: 0
+  - name: FesSimpleComputerMediaStreamInfoMinHiIndex
+    value: 1
+  - name: FesSimpleComputerMediaStreamInfoMaxLoIndex
+    value: 2
+  - name: FesSimpleComputerMediaStreamInfoMaxHiIndex
+    value: 3
+  - name: FesSimpleComputerMediaStreamInfoChunkMaxIndex
+    value: 4
+  - name: FesSimpleComputerMediaStreamBeginTotalLoIndex
+    value: 0
+  - name: FesSimpleComputerMediaStreamBeginTotalHiIndex
+    value: 1
+  - name: FesSimpleComputerMediaStreamBeginCRC32LoIndex
+    value: 2
+  - name: FesSimpleComputerMediaStreamBeginCRC32HiIndex
+    value: 3
+  - name: FesSimpleComputerMediaStreamChunkOffsetLoIndex
+    value: 0
+  - name: FesSimpleComputerMediaStreamChunkOffsetHiIndex
+    value: 1
+  - name: FesSimpleComputerMediaStreamChunkLengthIndex
+    value: 2
+  - name: FesSimpleComputerMediaStreamCRC32Initial
+    value: 0xffffffff
+  - name: FesSimpleComputerMediaStreamCRC32Polynomial
+    value: 0xedb88320
+  - name: FesSimpleComputerMediaStreamCRC32FinalXor
+    value: 0xffffffff
 interfaces:
   - id: fes.keyboard
     major: 1
@@ -113,3 +163,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 2
+  - id: fes.media.blob-stream
+    major: 1
+    minor: 0
+    capability_bit: 3
