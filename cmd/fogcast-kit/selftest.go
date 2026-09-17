@@ -1345,7 +1345,7 @@ func exerciseSearchGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 	stripM := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
 	stripM.SetCatalog(mixedCatalog())
-	stripM.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", Launchable: true}}, "Recent")
+	stripM.SetStrip([]hostclient.Game{{ID: "recent", Title: "Recent", State: "available", RootOnline: true, Launchable: true}}, "Recent")
 	press(&stripM, "start")
 	oskType(&stripM, "zzzz")
 	if !stripM.FocusSearchKey("done") {
@@ -1360,8 +1360,8 @@ func exerciseSearchGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 	untitled := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
 	untitled.SetCatalog([]hostclient.Game{
-		{ID: "logo-md", Title: "", System: "megadrive", Launchable: true},
-		{ID: "named", Title: "Streets", System: "megadrive", Launchable: true},
+		{ID: "logo-md", Title: "", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "named", Title: "Streets", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
 	})
 	press(&untitled, "start")
 	oskType(&untitled, "megadrive")
@@ -1432,12 +1432,12 @@ func idsOf(games []hostclient.Game) []string {
 
 func mixedCatalog() []hostclient.Game {
 	return []hostclient.Game{
-		{ID: "pong", Title: "Pong", System: "pong", Launchable: true},
-		{ID: "sonic", Title: "Sonic", System: "megadrive", Launchable: true},
-		{ID: "streets", Title: "Streets", System: "megadrive", Launchable: true},
+		{ID: "pong", Title: "Pong", System: "pong", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "streets", Title: "Streets", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
 		{ID: "blocked-md", Title: "Blocked", System: "megadrive", Launchable: false},
-		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
-		{ID: "zelda", Title: "Zelda", System: "snes", Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		{ID: "zelda", Title: "Zelda", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 }
 
@@ -2162,8 +2162,8 @@ func exerciseStripGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
 	m.SetCatalog(mixedShelfGames())
 	recents := []hostclient.Game{
-		{ID: "megadrive-02", Title: "MEGADRIVE 02", System: "megadrive", Launchable: true},
-		{ID: "snes-07", Title: "SNES 07", System: "snes", Launchable: true},
+		{ID: "megadrive-02", Title: "MEGADRIVE 02", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "snes-07", Title: "SNES 07", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 	m.SetStrip(recents, "Recent")
 	cfg := d.Config()
@@ -2252,7 +2252,7 @@ func exerciseStripGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 
 	emptyGames := make([]hostclient.Game, 8)
 	for i := range emptyGames {
-		emptyGames[i] = hostclient.Game{ID: fmt.Sprintf("g%d", i), Title: "T", System: "snes", Launchable: true}
+		emptyGames[i] = hostclient.Game{ID: fmt.Sprintf("g%d", i), Title: "T", System: "snes", State: "available", RootOnline: true, Launchable: true}
 	}
 	empty := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true, Games: emptyGames}
 	empty.Focus = 7
@@ -2564,10 +2564,10 @@ func exerciseNavGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	games := make([]hostclient.Game, 25)
 	for i := range games {
 		games[i] = hostclient.Game{
-			ID:         fmt.Sprintf("game-%02d", i),
-			Title:      fmt.Sprintf("Title %02d", i),
-			System:     "snes",
-			Launchable: true,
+			ID:     fmt.Sprintf("game-%02d", i),
+			Title:  fmt.Sprintf("Title %02d", i),
+			System: "snes",
+			State:  "available", RootOnline: true, Launchable: true,
 		}
 	}
 	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true, ControllerConnected: true}
@@ -2645,7 +2645,7 @@ func paintModel(d *gfx.LinuxFB, m kitlauncher.Model, th theme.Theme) fbgrid.Grid
 }
 
 func exerciseThemeGrid(d *gfx.LinuxFB) (string, error) {
-	games := []hostclient.Game{{ID: "g0", Title: "Title 00", System: "snes", Launchable: true}}
+	games := []hostclient.Game{{ID: "g0", Title: "Title 00", System: "snes", State: "available", RootOnline: true, Launchable: true}}
 	m := kitlauncher.Model{Games: games, Connected: true, TargetReady: true, ControllerConnected: true}
 	var b strings.Builder
 	sample := func(name string, th theme.Theme) (hlB, hlG, hlR, bgB, bgG, bgR byte, err error) {
@@ -2774,10 +2774,10 @@ func mixedShelfGames() []hostclient.Game {
 	games := make([]hostclient.Game, len(systems))
 	for i, system := range systems {
 		games[i] = hostclient.Game{
-			ID:         fmt.Sprintf("%s-%02d", system, i),
-			Title:      fmt.Sprintf("%s %02d", strings.ToUpper(system), i),
-			System:     system,
-			Launchable: true,
+			ID:     fmt.Sprintf("%s-%02d", system, i),
+			Title:  fmt.Sprintf("%s %02d", strings.ToUpper(system), i),
+			System: system,
+			State:  "available", RootOnline: true, Launchable: true,
 		}
 	}
 	return games
@@ -3051,10 +3051,10 @@ func textImagesDiffer(a, b *image.RGBA) bool {
 
 func seriesSelftestGames() []hostclient.Game {
 	return []hostclient.Game{
-		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", Launchable: true},
-		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", Launchable: true},
-		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", Launchable: true},
-		{ID: "mario", Title: "Mario", System: "snes", Launchable: true},
+		{ID: "sonic1", Title: "Sonic the Hedgehog", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic2", Title: "Sonic the Hedgehog 2", System: "megadrive", State: "available", RootOnline: true, Launchable: true},
+		{ID: "sonic3", Title: "Sonic the Hedgehog 3", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		{ID: "mario", Title: "Mario", System: "snes", State: "available", RootOnline: true, Launchable: true},
 	}
 }
 
@@ -3130,7 +3130,7 @@ func exerciseSeriesGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	}
 
 	alone := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true}
-	alone.SetCatalog([]hostclient.Game{{ID: "pong", Title: "Pong", System: "pong", Launchable: true}})
+	alone.SetCatalog([]hostclient.Game{{ID: "pong", Title: "Pong", System: "pong", State: "available", RootOnline: true, Launchable: true}})
 	press(&alone, "b")
 	alone.ApplyPresentation("pong", hostclient.Presentation{
 		Presentation: &hostclient.PresentationInfo{Series: "Pong"},

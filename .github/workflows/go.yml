@@ -22,9 +22,17 @@ jobs:
         run: go test -race ./...
       - name: Compile root Go packages
         run: go test -run '^$' ./...
+      - name: Test catalog migrations and media concurrency
+        run: |
+          go test ./catalog
+          go test -race ./catalog -run 'TestCoreEntr|TestCoreMedia|TestSchemaSeven'
       - name: Test changed root packages
         run: >-
           go test -race
+          ./fogcast
+          ./host
+          ./internal/fogcastcli
+          ./internal/hostapi
           ./cmd/mister-agent
           ./internal/appliancedata
           ./internal/applianceupdate

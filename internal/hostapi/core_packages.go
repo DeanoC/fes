@@ -27,6 +27,7 @@ type coreLibraryService interface {
 var corePackageIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func registerCoreLibrary(mux *http.ServeMux, service Service) {
+	registerCoreMediaLibrary(mux, service)
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(coreLibraryService)
@@ -107,6 +108,8 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 		var request struct {
 			Title     string `json:"title"`
 			PackageID string `json:"package_id"`
+			MediaRole string `json:"media_role"`
+			MediaID   string `json:"media_id"`
 		}
 		if decodeSingleJSON(w, r, &request) != nil {
 			return
@@ -115,7 +118,22 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 			writeError(w, 400, "BAD_REQUEST", "package ID is invalid")
 			return
 		}
-		value, err := s.CreateCoreEntry(r.Context(), request.Title, request.PackageID)
+		if !validCoreMediaPair(request.MediaRole, request.MediaID) {
+			writeError(w, 400, "BAD_REQUEST", "media role and ID are invalid")
+			return
+		}
+		var value catalog.CoreEntry
+		var err error
+		if request.MediaID != "" {
+			media, ok := service.(coreMediaLibraryService)
+			if !ok {
+				writeError(w, 501, "UNSUPPORTED_OPERATION", "core media library is unavailable")
+				return
+			}
+			value, err = media.CreateCoreMediaEntry(r.Context(), request.Title, request.PackageID, request.MediaRole, request.MediaID)
+		} else {
+			value, err = s.CreateCoreEntry(r.Context(), request.Title, request.PackageID)
+		}
 		if err != nil {
 			writeCoreLibraryError(w, err)
 			return

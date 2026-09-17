@@ -3,12 +3,21 @@ package catalog
 import (
 	"context"
 	"database/sql"
+	_ "embed"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 6
+const schemaVersion = 7
+
+// This historical asset is used only by the schema 7 migration. New entries
+// always require an explicit media selection, including new Coleco entries.
+//
+//go:embed seeds/coleco-controllers.hex
+var legacyColecoMediaHex string
 
 const schemaV1 = `
 CREATE TABLE libraries (
@@ -111,6 +120,50 @@ END;
 PRAGMA user_version = 6;
 `
 
+const schemaV7 = `
+CREATE TABLE core_media (
+  media_id TEXT PRIMARY KEY,
+  size INTEGER NOT NULL,
+  data BLOB NOT NULL
+);
+CREATE TABLE core_entries_v7 (
+  game_id TEXT PRIMARY KEY REFERENCES games(game_id) ON DELETE CASCADE,
+  core_id TEXT NOT NULL,
+  package_id TEXT NOT NULL,
+  media_role TEXT NOT NULL DEFAULT '',
+  media_id TEXT NOT NULL DEFAULT '',
+  CHECK ((media_role = '' AND media_id = '') OR (media_role = 'blob' AND length(media_id) = 64))
+);
+INSERT INTO core_entries_v7(game_id, core_id, package_id)
+  SELECT game_id, core_id, package_id FROM core_entries;
+DROP TABLE core_entries;
+ALTER TABLE core_entries_v7 RENAME TO core_entries;
+CREATE INDEX core_entries_core_id ON core_entries(core_id);
+PRAGMA user_version = 7;
+`
+
+func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
+	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
+		return err
+	}
+	data, err := hex.DecodeString(strings.Join(strings.Fields(legacyColecoMediaHex), ""))
+	if err != nil {
+		return fmt.Errorf("decode legacy Coleco media: %w", err)
+	}
+	media, err := coreMediaIdentity(data)
+	if err != nil {
+		return err
+	}
+	if media.MediaID != "ef9443c2787cd02b6d78d233d015b0bbf3fb21d53d1a5890497cdbb7897f053c" {
+		return fmt.Errorf("%w: legacy Coleco seed digest mismatch", ErrInvalidCoreMedia)
+	}
+	if _, err := connection.ExecContext(ctx, `INSERT INTO core_media(media_id, size, data) VALUES (?, ?, ?)`, media.MediaID, media.Size, data); err != nil {
+		return err
+	}
+	_, err = connection.ExecContext(ctx, `UPDATE core_entries SET media_role = 'blob', media_id = ? WHERE core_id = 'fes.coleco'`, media.MediaID)
+	return err
+}
+
 func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if _, err := connection.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
 		return fmt.Errorf("begin catalog migration: %w", err)
@@ -169,6 +222,11 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 			return fmt.Errorf("apply catalog schema version 6: %w", err)
 		}
 		version = 6
+	}
+	if version == 6 {
+		if err := migrateCoreMedia(ctx, connection); err != nil {
+			return fmt.Errorf("apply catalog schema version 7: %w", err)
+		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("commit catalog migration: %w", err)

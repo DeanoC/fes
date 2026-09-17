@@ -709,13 +709,9 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	if err := s.bindLaunchTarget(target); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
-	defer s.clearUnstartedSessionTarget()
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
-			return s.launchCoreEntry(ctx, gameID)
+			return s.launchCoreEntry(ctx, gameID, target)
 		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
 		}
@@ -732,6 +728,10 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	if err := s.bindLaunchTarget(target); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	defer s.clearUnstartedSessionTarget()
 	if s.discoveryEnabled() {
 		execution, err := s.SessionExecution(ctx, gameID)
 		if err != nil {
@@ -1343,6 +1343,11 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 	}
 	defer releaseLifecycle()
 
+	return s.loadCoreLocked(ctx, parent, source)
+}
+
+// Caller holds lifecycle admission through package and optional media delivery.
+func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
 	s.executionMu.Lock()
 	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
@@ -1726,8 +1731,14 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	return s.stopLocked(ctx, parent, timeout)
+}
+
+// Caller holds lifecycle admission.
+func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration) (protocol.Status, error) {
 	s.executionMu.Lock()
-	pendingRejection = s.packageRejection != nil
+	activeExecution := s.activeExecution
+	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
 	if pendingRejection {
 		return s.stopRejectedCore(ctx)

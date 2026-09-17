@@ -7,7 +7,8 @@ and content selection; the MiSTer is a small, directly controlled target.
 ## What works now
 
 - [Installed FPGA core packages](docs/core-package-library.md) with explicit
-  version selection and ROM-less entries in the normal library. Import and
+  version and immutable media selection in the normal library, with multiple
+  titles per core. Package/media changes need no rebuild or host restart. Import and
   selection do not replace a running core. Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)

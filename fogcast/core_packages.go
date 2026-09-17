@@ -10,7 +10,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/coremedia"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -172,7 +171,10 @@ func (s *Service) CoreEntry(ctx context.Context, id string) (catalog.CoreEntry, 
 	return result, mapCoreEntryError(err)
 }
 func (s *Service) CreateCoreEntry(parent context.Context, title, id string) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id)
+	return s.writeCoreEntry(parent, "", title, "", id, "", "")
+}
+func (s *Service) CreateCoreMediaEntry(parent context.Context, title, id, role, mediaID string) (catalog.CoreEntry, error) {
+	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID)
 }
 func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id string) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(gameID) != nil {
@@ -181,9 +183,9 @@ func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id s
 	if !packageIDPattern.MatchString(expected) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
-	return s.writeCoreEntry(parent, gameID, "", expected, id)
+	return s.writeCoreEntry(parent, gameID, "", expected, id, "", "")
 }
-func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id string) (catalog.CoreEntry, error) {
+func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id, role, mediaID string) (catalog.CoreEntry, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -204,6 +206,7 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 		if entry.PackageID != expected {
 			return catalog.CoreEntry{}, mapCoreEntryError(catalog.ErrCoreEntryConflict)
 		}
+		role, mediaID = entry.MediaRole, entry.MediaID
 		old, err := s.inspectInstalledCore(ctx, entry.PackageID)
 		if err != nil {
 			return catalog.CoreEntry{}, err
@@ -217,6 +220,9 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	if !check.Compatible {
 		return catalog.CoreEntry{}, check.CompatibilityError
 	}
+	if _, err := s.readCoreEntryMedia(ctx, check.Descriptor, role, mediaID); err != nil {
+		return catalog.CoreEntry{}, err
+	}
 	if current != nil && current.PersistenceLayout != nil && !reflect.DeepEqual(current.PersistenceLayout, check.PersistenceLayout) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeIncompatibleData, nil)
 	}
@@ -229,7 +235,13 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {
-		entry, err = store.CreateCoreEntry(ctx, title, check.Descriptor.Core.ID, id)
+		if role == "" && mediaID == "" {
+			entry, err = store.CreateCoreEntry(ctx, title, check.Descriptor.Core.ID, id)
+		} else if mediaStore, ok := s.catalog.(coreMediaCatalog); ok {
+			entry, err = mediaStore.CreateCoreMediaEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID)
+		} else {
+			return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+		}
 	} else {
 		entry, err = store.SelectCoreEntry(ctx, gameID, check.Descriptor.Core.ID, expected, id)
 	}
@@ -250,9 +262,21 @@ func mapCoreEntryError(err error) error {
 	}
 }
 
-func (s *Service) launchCoreEntry(ctx context.Context, gameID string) (protocol.CachedLaunchResponse, error) {
+func (s *Service) launchCoreEntry(parent context.Context, gameID, target string) (protocol.CachedLaunchResponse, error) {
+	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	defer cancel()
+	release, err := s.acquireLifecycle(ctx)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
+	}
+	defer release()
+	if err := s.bindLaunchTarget(target); err != nil {
+		return protocol.CachedLaunchResponse{}, corePackageRequestFailure(err)
+	}
+	defer s.clearUnstartedSessionTarget()
 	var entry catalog.CoreEntry
-	status, err := s.loadCore(ctx, func(ctx context.Context) (coreLoadSource, error) {
+	var media []byte
+	status, err := s.loadCoreLocked(ctx, parent, func(ctx context.Context) (coreLoadSource, error) {
 		selected, err := s.CoreEntry(ctx, gameID)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -265,25 +289,34 @@ func (s *Service) launchCoreEntry(ctx context.Context, gameID string) (protocol.
 		if inspection.Descriptor.Core.ID != entry.CoreID {
 			return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
 		}
+		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
 	response := protocol.CachedLaunchResponse{Status: status}
 	if err != nil {
 		return response, err
 	}
-	media, ok := coremedia.Lookup(entry.CoreID)
-	if !ok {
+	if len(media) == 0 {
 		return response, nil
 	}
 	if status.CorePackage == nil {
 		return response, canonicalError(protocol.CodeInternal, nil)
 	}
-	binding := s.defaultDevelopmentMediaBinding(*status.CorePackage)
-	mediaStatus, mediaErr := s.LoadDevelopmentMedia(ctx, int64(len(media)), bytes.NewReader(media), binding)
+	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
+	mediaStatus, mediaErr := s.loadDevelopmentMediaLocked(ctx, media, binding)
 	if mediaErr != nil {
-		stopStatus, stopErr := s.Stop(ctx)
+		// Activation already mutated the target. Even if the caller canceled or
+		// exhausted its deadline, attempt one bounded cleanup while retaining
+		// lifecycle admission and the original target binding.
+		cleanupParent := context.WithoutCancel(parent)
+		cleanupCtx, cleanupCancel := serviceTimeout(cleanupParent, s.uploadTimeout)
+		stopStatus, stopErr := s.stopLocked(cleanupCtx, cleanupParent, s.uploadTimeout)
+		cleanupCancel()
 		if stopErr != nil {
-			recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "default core media cleanup is not confirmed", Phase: "recovery"}
+			recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "library core media cleanup is not confirmed", Phase: "recovery"}
 			s.executionMu.Lock()
 			s.packageRejection = recoveryErr
 			s.activeGameID, s.activeSystem = "", ""
@@ -311,7 +344,7 @@ func postMutationCoreMediaError(err error) error {
 	return &classified
 }
 
-func (s *Service) defaultDevelopmentMediaBinding(packageStatus protocol.CorePackageStatus) protocol.DevelopmentMediaBinding {
+func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePackageStatus) protocol.DevelopmentMediaBinding {
 	s.executionMu.Lock()
 	target := s.activeTarget
 	if target == "" {

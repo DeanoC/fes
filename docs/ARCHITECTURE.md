@@ -1166,8 +1166,9 @@ renderers over the same session model and do not own physical transitions.
 ## Installed core packages and library entries
 
 The host package store validates and atomically publishes immutable archives by
-package ID. Catalog schema v5 associates a stable ROM-less game entry with one
-explicit package ID; importing a version does not select or activate it.
+package ID. Catalog schema v7 associates each stable game entry with an
+explicit package ID and optional media role/digest. Multiple titles can use
+the same core. Importing a package or media object does not select or activate it.
 The `fpga` browse platform is not a cartridge/runtime system. Library scans
 exclude its logical root. See [package library API and operations](core-package-library.md).
 
@@ -1186,19 +1187,25 @@ Changing the selection affects future launches. Runtime status stays truthful;
 the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
 
-Some FES library entries have a validated development-media default registered
-by exact core ID in `internal/coremedia`. After package activation, the host
-delivers that asset through the existing development-media service with the
-active package ID, generation, target and target ID; a delivery failure invokes
-the existing Stop/recovery path and is not reported as a usable launch. The
-current registered asset is the 2299-byte BIOS-free Coleco controller
-diagnostic (`fes.coleco`), whose controller/graphics output is documented in
-the FES validation record. With the exact `fes.keyboard` 1.0 interface, its
-controls use the shared host mapping described above. This is a development
-diagnostic, not a retail cartridge compatibility claim. `fes.pong` remains
-media-free, and `fes.zx81` remains an explicit-media launch until a tape
-asset is separately validated. The explicit `core-media` operation remains
-available for alternate media.
+Media objects are immutable SHA-256-addressed bytes in the existing catalog
+database. The current bounded transport accepts role `blob`, 1..16384 bytes,
+for declared `fes.simple-computer` 1.0 and `fes.media.blob` 1.0 capabilities.
+`fogcast/core_media.go` validates selection and snapshots bytes before package
+activation. One lifecycle admission spans package activation, media delivery,
+and any Stop/recovery cleanup. Delivery binds the confirmed package ID,
+generation, target and target ID; failure is not a usable launch. Kit, browser,
+and CLI use the same session launch path, with no core-ID media registry.
+Launch target binding occurs only after lifecycle admission. After activation,
+media failure receives a separate bounded cleanup deadline, including when the
+launch caller canceled or timed out.
+
+Schema 7 seeds the historical Coleco diagnostic and binds existing Coleco
+entries once, preserving game IDs and history. The licensed source remains in
+`catalog/seeds` for migration only. New entries select media explicitly;
+cleared selections are not restored on restart. Package/media selection affects
+the next launch, not the active session. The raw `core-media` development
+operation remains available. This transport is not a retail compatibility
+claim or support for arbitrary new media roles.
 
 A confirmed package activation commits its host-side ownership only after the
 previous host executor stops successfully. If that cleanup fails, the service

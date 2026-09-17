@@ -12,7 +12,6 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/coremedia"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -102,6 +101,17 @@ func newCoreEntryLaunchFixture(t *testing.T, raw []byte, title string) (*Service
 	if err != nil {
 		t.Fatal(err)
 	}
+	if inspection.Descriptor.ABI.ID == "fes.simple-computer" {
+		media := []byte("library media fixture")
+		asset, _, err := s.ImportCoreMedia(ctx, int64(len(media)), bytes.NewReader(media))
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err = s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", "blob", asset.MediaID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	return s, client, entry, inspection
 }
 
@@ -122,7 +132,7 @@ func coreEntryActiveStatus(inspection corepackage.Inspection, generation uint64,
 	}
 }
 
-func TestLaunchCoreEntryAutomaticallyLoadsRegisteredDefaultMedia(t *testing.T) {
+func TestLaunchCoreEntryLoadsSelectedMedia(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
 	active := coreEntryActiveStatus(inspection, 7, true)
@@ -136,10 +146,7 @@ func TestLaunchCoreEntryAutomaticallyLoadsRegisteredDefaultMedia(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
 	}
-	want, ok := coremedia.Lookup("fes.coleco")
-	if !ok {
-		t.Fatal("test asset is not registered")
-	}
+	want := []byte("library media fixture")
 	wantBinding := protocol.DevelopmentMediaBinding{PackageID: entry.PackageID, Generation: 7, Target: "dev"}
 	if client.mediaCalls != 1 || !bytes.Equal(client.mediaBody, want) || client.mediaBinding != wantBinding {
 		t.Fatalf("media calls=%d body=%d binding=%+v, want one exact upload binding=%+v", client.mediaCalls, len(client.mediaBody), client.mediaBinding, wantBinding)
@@ -149,7 +156,7 @@ func TestLaunchCoreEntryAutomaticallyLoadsRegisteredDefaultMedia(t *testing.T) {
 	}
 }
 
-func TestLaunchCoreEntryWithoutDefaultMediaRemainsPackageOnly(t *testing.T) {
+func TestLaunchCoreEntryWithoutMediaRemainsPackageOnly(t *testing.T) {
 	ctx := context.Background()
 	raw := libraryPackageFixture(t, "0.1.0")
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, raw, "FES Pong")
@@ -167,7 +174,7 @@ func TestLaunchCoreEntryWithoutDefaultMediaRemainsPackageOnly(t *testing.T) {
 	}
 }
 
-func TestLaunchCoreEntryStopsAfterDefaultMediaFailure(t *testing.T) {
+func TestLaunchCoreEntryStopsAfterSelectedMediaFailure(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
 	active := coreEntryActiveStatus(inspection, 8, true)
@@ -180,7 +187,7 @@ func TestLaunchCoreEntryStopsAfterDefaultMediaFailure(t *testing.T) {
 	}
 
 	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil {
-		t.Fatal("Launch succeeded after default media failure")
+		t.Fatal("Launch succeeded after selected media failure")
 	}
 	if client.mediaCalls != 1 || client.stopCalls != 1 {
 		t.Fatalf("media calls=%d stop calls=%d, want one each", client.mediaCalls, client.stopCalls)
@@ -190,7 +197,7 @@ func TestLaunchCoreEntryStopsAfterDefaultMediaFailure(t *testing.T) {
 	}
 }
 
-func TestLaunchCoreEntryReclassifiesDefaultMediaFailureAfterConfirmedStop(t *testing.T) {
+func TestLaunchCoreEntryReclassifiesSelectedMediaFailureAfterConfirmedStop(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
 	active := coreEntryActiveStatus(inspection, 10, true)
@@ -204,7 +211,7 @@ func TestLaunchCoreEntryReclassifiesDefaultMediaFailureAfterConfirmedStop(t *tes
 
 	response, err := s.Launch(ctx, entry.GameID, nil)
 	if err == nil {
-		t.Fatal("Launch succeeded after default media failure")
+		t.Fatal("Launch succeeded after selected media failure")
 	}
 	var apiErr *protocol.APIError
 	if !errors.As(err, &apiErr) || apiErr.Phase != "recovery" {
@@ -215,7 +222,7 @@ func TestLaunchCoreEntryReclassifiesDefaultMediaFailureAfterConfirmedStop(t *tes
 	}
 }
 
-func TestLaunchCoreEntryMarksRecoveryWhenDefaultMediaCleanupFails(t *testing.T) {
+func TestLaunchCoreEntryMarksRecoveryWhenSelectedMediaCleanupFails(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
 	active := coreEntryActiveStatus(inspection, 9, true)
@@ -230,7 +237,7 @@ func TestLaunchCoreEntryMarksRecoveryWhenDefaultMediaCleanupFails(t *testing.T) 
 
 	response, err := s.Launch(ctx, entry.GameID, nil)
 	if err == nil {
-		t.Fatal("Launch succeeded after default media and cleanup failures")
+		t.Fatal("Launch succeeded after selected media and cleanup failures")
 	}
 	if client.mediaCalls != 1 || client.stopCalls != 1 {
 		t.Fatalf("media calls=%d stop calls=%d, want one each", client.mediaCalls, client.stopCalls)

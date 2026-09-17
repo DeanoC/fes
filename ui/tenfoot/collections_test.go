@@ -684,7 +684,11 @@ func TestAppCollectionMembershipToggleAndErrorRevert(t *testing.T) {
 		mu.Lock()
 		n := len(methods)
 		mu.Unlock()
-		return n >= 1 && len(snap.Games) == 1 && gameHasCollection(snap.Games[0], "weekend-queue") && !strings.Contains(snap.Status, "collection failed")
+		// Membership is optimistic; wait for the response before another toggle.
+		app.mu.Lock()
+		busy := app.membershipBusy
+		app.mu.Unlock()
+		return n >= 1 && !busy && len(snap.Games) == 1 && gameHasCollection(snap.Games[0], "weekend-queue") && !strings.Contains(snap.Status, "collection failed")
 	})
 	mu.Lock()
 	fail = true

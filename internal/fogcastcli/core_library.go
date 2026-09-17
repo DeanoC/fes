@@ -3,11 +3,14 @@ package fogcastcli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -19,7 +22,7 @@ import (
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
+	case "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
 		return true
 	}
 	return false
@@ -31,7 +34,30 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 	contentType := "application/json"
 	expectedID := ""
 	var expectedInspection *corepackage.Inspection
+	expectedMediaID := ""
 	switch args[0] {
+	case "core-media-install":
+		snapshot, err := snapshotCoreMedia(args[1])
+		if err != nil {
+			return commandResult{err: err, exit: 1}
+		}
+		method, path, data, contentType = http.MethodPost, "/api/v1/core-media", snapshot, "application/octet-stream"
+		digest := sha256.Sum256(snapshot)
+		expectedMediaID = hex.EncodeToString(digest[:])
+	case "core-media-select":
+		expected, next := args[3], args[4]
+		if expected == "none" {
+			expected = ""
+		}
+		if next == "none" {
+			next = ""
+		}
+		role := ""
+		if next != "" {
+			role = "blob"
+		}
+		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])+"/media"
+		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "expected_media_id": expected, "media_role": role, "media_id": next})
 	case "core-settings", "core-progress", "core-settings-set":
 		if protocol.ValidateGameID(args[1]) != nil {
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "game ID is invalid"}, exit: 1}
@@ -61,7 +87,11 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 		method, path = http.MethodPost, path+"/"+url.PathEscape(args[1])+"/compatibility"
 	case "core-entry":
 		method, path = http.MethodPost, "/api/v1/library/core-entries"
-		data, _ = json.Marshal(map[string]string{"title": args[1], "package_id": args[2]})
+		entry := map[string]string{"title": args[1], "package_id": args[2]}
+		if len(args) == 5 {
+			entry["media_role"], entry["media_id"] = args[3], args[4]
+		}
+		data, _ = json.Marshal(entry)
 	case "core-select":
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})
@@ -97,6 +127,15 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "installed package response differs from imported archive"}, exit: 1}
 		}
 	}
+	if expectedMediaID != "" {
+		var result struct {
+			MediaID string `json:"media_id"`
+			Size    int64  `json:"size"`
+		}
+		if json.Unmarshal(body, &result) != nil || result.MediaID != expectedMediaID || result.Size != int64(len(data)) {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "installed media response differs from imported bytes"}, exit: 1}
+		}
+	}
 	value := json.RawMessage(body)
 	return commandResult{jsonValue: value, human: func(output io.Writer) error {
 		var pretty bytes.Buffer
@@ -107,4 +146,25 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 		_, err := output.Write(pretty.Bytes())
 		return err
 	}}
+}
+
+func snapshotCoreMedia(path string) ([]byte, error) {
+	before, err := os.Lstat(path)
+	if err != nil || !before.Mode().IsRegular() || before.Size() < 1 || before.Size() > protocol.MaxDevelopmentMediaBytes {
+		return nil, protocol.DevelopmentMediaRequestError()
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, protocol.DevelopmentMediaRequestError()
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
+		return nil, protocol.DevelopmentMediaRequestError()
+	}
+	data, apiErr := protocol.ReadDevelopmentMedia(opened.Size(), file)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	return data, nil
 }

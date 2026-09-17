@@ -29,7 +29,7 @@ func TestCoreEntryCreateBrowseAndReopen(t *testing.T) {
 	if game.Title != entry.Title || game.System != catalog.CorePlatform ||
 		game.Kind != catalog.SourceKindCorePackage || game.State != catalog.SourceStateAvailable ||
 		!game.RootOnline || game.Content != nil || game.Fingerprint != (catalog.Fingerprint{}) ||
-		game.RelativePath != entry.CoreID || game.GroupKey != entry.GameID {
+		game.RelativePath != entry.GameID || game.GroupKey != entry.GameID {
 		t.Fatalf("catalog game = %+v", game)
 	}
 	if catalog.Launchable(catalog.CorePlatform) {
@@ -88,8 +88,8 @@ func TestCoreEntryCreateConflictsAndSelectionIsCAS(t *testing.T) {
 	if _, err := store.CreateCoreEntry(ctx, "First", "fes.pong", firstID); !errors.Is(err, catalog.ErrCoreEntryConflict) {
 		t.Fatalf("duplicate CreateCoreEntry error = %v", err)
 	}
-	if _, err := store.CreateCoreEntry(ctx, "Other", "fes.pong", secondID); !errors.Is(err, catalog.ErrCoreEntryConflict) {
-		t.Fatalf("same-core CreateCoreEntry error = %v", err)
+	if other, err := store.CreateCoreEntry(ctx, "Other", "fes.pong", secondID); err != nil || other.GameID == entry.GameID {
+		t.Fatalf("distinct-title CreateCoreEntry = %+v, %v", other, err)
 	}
 	if _, err := store.SelectCoreEntry(ctx, entry.GameID, "fes.other", firstID, secondID); !errors.Is(err, catalog.ErrCoreEntryCoreMismatch) {
 		t.Fatalf("wrong-core SelectCoreEntry error = %v", err)
@@ -105,13 +105,12 @@ func TestCoreEntryCreateConflictsAndSelectionIsCAS(t *testing.T) {
 	if _, err := store.SelectCoreEntry(ctx, entry.GameID, "fes.pong", firstID, secondID); !errors.Is(err, catalog.ErrCoreEntryConflict) {
 		t.Fatalf("replayed SelectCoreEntry error = %v", err)
 	}
-	other, err := store.CreateCoreEntry(ctx, "Alpha", "fes.alpha", firstID)
+	_, err = store.CreateCoreEntry(ctx, "Alpha", "fes.alpha", firstID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	entries, err := store.CoreEntries(ctx)
-	if err != nil || len(entries) != 2 || entries[0].GameID > entries[1].GameID ||
-		(entries[0].GameID != entry.GameID && entries[0].GameID != other.GameID) {
+	if err != nil || len(entries) != 3 || entries[0].GameID > entries[1].GameID || entries[1].GameID > entries[2].GameID {
 		t.Fatalf("sorted CoreEntries = %+v, %v", entries, err)
 	}
 	if _, err := store.CoreEntry(ctx, "missing"); !errors.Is(err, catalog.ErrCoreEntryNotFound) {
