@@ -27,8 +27,8 @@ module top #(
     wire exec_reset;
     wire [39:0] keyboard;
     wire media_ready;
-    wire [14:0] media_size;
-    wire [13:0] media_addr;
+    wire [15:0] media_size;
+    wire [14:0] media_addr;
     wire [7:0] media_data;
     wire [7:0] logical_x;
     wire [7:0] logical_y;
@@ -83,7 +83,7 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    fes_computer_gp mailbox (
+    fes_computer_gp #(.ENABLE_MEDIA_STREAM(1)) mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),

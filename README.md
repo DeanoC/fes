@@ -457,11 +457,14 @@ backend required. HIP format-2 seal, FES parent pin and kit HIL remain later
 jobs.
 
 `make sim-fes-sms` tests the next `fes.simple-computer` Coleco/SG-1000 sibling:
-a reduced Master System machine (`fes.sms`, not `fes.mastersystem`) with the
-cartridge at `0x0000`, 8 KiB RAM at `0xc000` mirrored at `0xe000`, the shared
-TMS9918-style VDP on Z80 INT, and SMS 8255 joystick ports `0xdc`/`0xdd`. It is
-simulation, not a Quartus RBF or kit evidence. `make sim-fes-sms-oss` compiles
-the registered-media and registered-VDP branches with
+a reduced Master System machine (`fes.sms`, not `fes.mastersystem`) with a
+32 KiB fixed cartridge map at `0x0000–0x7fff` (`0x8000–0xbfff` unmapped), 8 KiB
+RAM at `0xc000` mirrored at `0xe000`, the shared TMS9918-style VDP on Z80 INT,
+SMS 8255 joystick ports `0xdc`/`0xdd`, and required `fes.media.blob-stream`
+1.0. The mailbox sim consumes `cores/fes-sms/generated/stream-exchanges.json`.
+After a commit of length N, unused mapped bytes read `0xff`. It is simulation,
+not a Quartus RBF or kit evidence. `make sim-fes-sms-oss` compiles the
+registered-media and registered-VDP branches with
 `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe

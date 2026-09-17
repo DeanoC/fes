@@ -67,6 +67,9 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("sms_machine", result.stdout)
         self.assertIn("fes-sms-machine", result.stdout)
+        self.assertIn("fes-sms-gp", result.stdout)
+        self.assertIn("stream-exchanges.json", result.stdout)
+        self.assertIn("ENABLE_MEDIA_STREAM=1", result.stdout)
         self.assertNotIn("FES_SMS_OSS", result.stdout)
         self.assertNotIn("fes-sms-machine-oss", result.stdout)
         self.assertNotIn("build_fes_sms_oss", result.stdout)
@@ -193,8 +196,11 @@ class BuildFesSmsTests(unittest.TestCase):
         machine = (ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text(encoding="utf-8")
         self.assertIn("coleco_vdp", machine)
         self.assertIn("coleco_dpram", machine)
+        self.assertIn("ADDRWIDTH(15)", machine)
+        self.assertIn("NUMWORDS(32768)", machine)
         self.assertIn("ADDRWIDTH(13)", machine)
         self.assertIn("NUMWORDS(8192)", machine)
+        self.assertIn("15'h7fff", machine)
         self.assertIn("cpu_addr[12:0]", machine)
         self.assertIn("2'b11", machine)
         self.assertIn("port_dc", machine)
@@ -224,6 +230,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn(b'id = "fes.sms"', manifest)
         self.assertIn(b"FES Master System", manifest)
         self.assertIn(b"fes.simple-computer", manifest)
+        self.assertIn(b'id = "fes.media.blob-stream"', manifest)
+        self.assertIn(b"fes.media.blob", manifest)
         self.assertNotIn(b"fes.coleco", manifest)
         self.assertNotIn(b"fes.sg1000", manifest)
         self.assertNotIn(b"fes.mastersystem", manifest)
@@ -245,6 +253,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("/home/deano/", readme)
         self.assertIn("Quartus", readme)
         self.assertIn("8 KiB", readme)
+        self.assertIn("32 KiB", readme)
+        self.assertIn("blob-stream", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("da6373c0", readme)
         self.assertIn("later jobs", readme.lower())
@@ -285,6 +295,49 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(padded.read_bytes(), data + b"\xff" * (16384 - len(data)))
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+
+    def test_published_stream_pin_and_required_interface(self) -> None:
+        pin = (ROOT / "docs/contracts/MISTER-PACKAGES-PIN.txt").read_text(encoding="utf-8")
+        self.assertIn("c8c8dfd1fcb0503ac92baf6b365d93e8d26a0854", pin)
+        fixtures = (ROOT / "cores/fes-sms/generated/stream-exchanges.json").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(fixtures).hexdigest(),
+            "3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f",
+        )
+        contract = (ROOT / "docs/contracts/media-stream-1.0.md").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(contract).hexdigest(),
+            "aed93f66983d6edf09d4f1ea926027ebc700e95af266ae3872a2840aec9a79cb",
+        )
+        header = (ROOT / "cores/fes-sms/generated/fes_simple_computer.vh").read_bytes()
+        self.assertEqual(
+            hashlib.sha256(header).hexdigest(),
+            "fd074e6958ea16ff277a5071bcd1e0c7b78fc984c8e7a58f9eea61c974324caa",
+        )
+        top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
+        self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
+        from scripts.build_fes_sms_oss import _manifest as oss_manifest_fn
+
+        record = (
+            b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
+            b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_sms_oss.py",'
+            b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
+            b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
+            b'"tools":{},"parameters":{}}'
+        )
+        evidence = {
+            "build_id": "d" * 32,
+            "rbf": {"size": 16, "sha256": "e" * 64},
+        }
+        oss = oss_manifest_fn(
+            record,
+            evidence,
+            "https://github.com/DeanoC/misteross.git",
+            "a" * 40,
+            {"yosys": "test"},
+        )
+        self.assertIn(b'id = "fes.media.blob-stream"', oss)
+        self.assertIn(b"required = true", oss)
 
 
 if __name__ == "__main__":

@@ -67,7 +67,7 @@ help:
 		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
 		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
 		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
-		"  sim-fes-sms  Test the FES simple-computer Master System machine (fes.sms)" \
+		"  sim-fes-sms  Test the FES SMS blob-stream mailbox and 32KiB fixed-map machine (fes.sms)" \
 		"  sim-fes-sms-oss  Test OSS-conditional SMS registered media, RAM and VDP" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sms-diagnostic  Generate the open Master System Graphics I cartridge and reference image" \
@@ -482,13 +482,24 @@ sms-diagnostic:
 
 sim-fes-sms: sms-diagnostic
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-sms-gp
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
+		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
+		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
+		-GENABLE_MEDIA_STREAM=1 \
+		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-gp" \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
+	@build/sim/fes-sms-gp/Vfes_computer_gp \
+		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
 	@mkdir -p build/sim/fes-sms-machine
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
+		-Wno-CASEX -Wno-PROCASSINIT -Wno-SIMILARNAME \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
@@ -502,6 +513,18 @@ sim-fes-sms: sms-diagnostic
 
 sim-fes-sms-oss: sms-diagnostic
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-sms-gp-oss
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
+		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
+		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
+		-GENABLE_MEDIA_STREAM=1 \
+		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-oss" \
+		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
+	@build/sim/fes-sms-gp-oss/Vfes_computer_gp \
+		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
 	@mkdir -p build/sim/fes-sms-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 \
@@ -509,7 +532,7 @@ sim-fes-sms-oss: sms-diagnostic
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
+		-Wno-CASEX -Wno-PROCASSINIT -Wno-SIMILARNAME \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \

@@ -3,12 +3,12 @@
 //
 // Package id is fes.sms (FogCast protocol.SystemSMS = "sms"). This is a Coleco
 // / SG-1000 sibling, not a second console stack: TV80, the bounded
-// TMS9918-style VDP, dual-port RAM wrappers and the 16 KiB mailbox blob are
-// the Coleco modules. The SMS first slice replaces the memory map (8 KiB RAM
-// at c000, mirrored at e000) and wires the VDP interrupt to Z80 INT rather
-// than NMI. There is no BIOS shim; the cartridge occupies 0x0000. Audio,
-// Mode 4, mappers, 32/48 KiB retail images and pause-NMI remain outside this
-// slice.
+// TMS9918-style VDP, dual-port RAM wrappers and the mailbox blob are the
+// Coleco modules. The SMS first slice maps a 32 KiB fixed cartridge at
+// 0x0000-0x7fff (legacy blob 1.0 still 1-16 KiB), 8 KiB RAM at c000 mirrored
+// at e000, and wires the VDP interrupt to Z80 INT rather than NMI. There is
+// no BIOS shim; the cartridge occupies 0x0000. Audio, Mode 4, mappers, banked
+// 48 KiB images and pause-NMI remain outside this slice.
 
 `ifdef FES_SMS_OSS
 `define FES_SMS_REGISTERED_MEDIA
@@ -21,9 +21,9 @@ module sms_machine (
     input  wire        reset,
     input  wire [39:0] keyboard,
     input  wire        media_ready,
-    input  wire [14:0] media_size,
+    input  wire [15:0] media_size,
     input  wire [7:0]  media_data,
-    output reg  [13:0] media_addr,
+    output reg  [14:0] media_addr,
     input  wire [15:0] peek_addr,
     output reg  [7:0]  peek_data,
     output wire [7:0]  controller1_value,
@@ -38,7 +38,7 @@ module sms_machine (
     output wire [15:0] cpu_addr_debug,
     output wire        cpu_halt_n
 );
-    localparam [13:0] CARTRIDGE_LAST = 14'h3fff;
+    localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
     reg       media_loaded;
     reg       reset_d;
@@ -49,7 +49,7 @@ module sms_machine (
 `ifdef FES_SMS_REGISTERED_MEDIA
     reg       media_data_valid;
     reg       media_request_done;
-    reg [13:0] media_write_addr;
+    reg [14:0] media_write_addr;
 `endif
 
     wire [15:0] cpu_addr;
@@ -109,14 +109,14 @@ module sms_machine (
                                 keyboard[8], keyboard[7], keyboard[5]};
 
     initial begin
-        media_addr = 14'h0000;
+        media_addr = 15'h0000;
         media_loaded = 1'b0;
         reset_d = 1'b0;
         vdp_write_seen = 1'b0;
 `ifdef FES_SMS_REGISTERED_MEDIA
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
-        media_write_addr = 14'h0000;
+        media_write_addr = 15'h0000;
 `endif
         ce_cpu_p = 1'b0;
         ce_cpu_n = 1'b0;
@@ -180,20 +180,24 @@ module sms_machine (
     wire cpu_io_read = !nIORQ && !nRD;
     wire cpu_mem_write = !nMREQ && !nWR;
     wire cpu_ram_select = cpu_addr[15:14] == 2'b11;
-    wire cpu_cartridge_select = cpu_addr[15:14] == 2'b00;
+    wire cpu_cartridge_select = !cpu_addr[15];
     wire peek_ram_select = peek_addr[15:14] == 2'b11;
-    wire peek_cartridge_select = peek_addr[15:14] == 2'b00;
+    wire peek_cartridge_select = !peek_addr[15];
+    wire cpu_cartridge_mapped = cpu_cartridge_select &&
+        (media_size[15] || (cpu_addr[14:0] < media_size[14:0]));
+    wire peek_cartridge_mapped = peek_cartridge_select &&
+        (media_size[15] || (peek_addr[14:0] < media_size[14:0]));
     wire ppi_select = cpu_addr[7:2] == 6'b110111;
 
 `ifdef FES_SMS_REGISTERED_MEDIA
     wire media_load_write = !media_loaded && media_ready && media_data_valid;
-    wire [13:0] cartridge_address_a = media_load_write ? media_write_addr :
-                                      cpu_addr[13:0];
+    wire [14:0] cartridge_address_a = media_load_write ? media_write_addr :
+                                      cpu_addr[14:0];
     wire cartridge_wren_a = media_load_write;
 `else
-    wire media_load_active = !media_loaded && media_ready && media_size != 15'd0;
-    wire [13:0] cartridge_address_a = media_load_active ? media_addr :
-                                      cpu_addr[13:0];
+    wire media_load_active = !media_loaded && media_ready && media_size != 16'd0;
+    wire [14:0] cartridge_address_a = media_load_active ? media_addr :
+                                      cpu_addr[14:0];
     wire cartridge_wren_a = media_load_active;
 `endif
     wire [7:0] cartridge_read;
@@ -202,15 +206,15 @@ module sms_machine (
     wire [7:0] ram_peek;
 
     coleco_dpram #(
-        .ADDRWIDTH(14),
-        .NUMWORDS(16384)
+        .ADDRWIDTH(15),
+        .NUMWORDS(32768)
     ) cartridge_ram (
         .clock(clk_sys),
         .address_a(cartridge_address_a),
         .data_a(media_data),
         .wren_a(cartridge_wren_a),
         .q_a(cartridge_read),
-        .address_b(peek_addr[13:0]),
+        .address_b(peek_addr[14:0]),
         .data_b(8'h00),
         .wren_b(1'b0),
         .q_b(cartridge_peek)
@@ -243,7 +247,7 @@ module sms_machine (
     always @* begin
         cpu_din = 8'hff;
         if (cpu_mem_read) begin
-            if (cpu_cartridge_select)
+            if (cpu_cartridge_mapped)
                 cpu_din = cartridge_read;
             else if (cpu_ram_select)
                 cpu_din = ram_read;
@@ -255,29 +259,29 @@ module sms_machine (
     always @(posedge clk_sys) begin
         reset_d <= reset;
         if (!media_ready || (reset && !reset_d)) begin
-            media_addr <= 14'h0000;
+            media_addr <= 15'h0000;
             media_loaded <= 1'b0;
 `ifdef FES_SMS_REGISTERED_MEDIA
             media_data_valid <= 1'b0;
             media_request_done <= 1'b0;
-            media_write_addr <= 14'h0000;
+            media_write_addr <= 15'h0000;
 `endif
-        end else if (!media_loaded && media_size != 15'd0) begin
+        end else if (!media_loaded && media_size != 16'd0) begin
 `ifdef FES_SMS_REGISTERED_MEDIA
             if (!media_data_valid) begin
                 media_data_valid <= 1'b1;
-                media_write_addr <= 14'h0000;
-                if (media_size == 15'd1)
+                media_write_addr <= 15'h0000;
+                if (media_size == 16'd1)
                     media_request_done <= 1'b1;
                 else
-                    media_addr <= 14'h0001;
+                    media_addr <= 15'h0001;
             end else if (media_request_done) begin
                 media_loaded <= 1'b1;
                 media_data_valid <= 1'b0;
             end else begin
                 media_write_addr <= media_write_addr + 1'b1;
                 if (media_addr == CARTRIDGE_LAST ||
-                    ({1'b0, media_addr} + 15'd1 >= media_size)) begin
+                    ({1'b0, media_addr} + 16'd1 >= media_size)) begin
                     media_request_done <= 1'b1;
                 end else begin
                     media_addr <= media_addr + 1'b1;
@@ -285,7 +289,7 @@ module sms_machine (
             end
 `else
             if (media_addr == CARTRIDGE_LAST ||
-                ({1'b0, media_addr} + 15'd1 >= media_size)) begin
+                ({1'b0, media_addr} + 16'd1 >= media_size)) begin
                 media_loaded <= 1'b1;
             end else begin
                 media_addr <= media_addr + 1'b1;
@@ -296,7 +300,7 @@ module sms_machine (
 
     always @* begin
         peek_data = 8'hff;
-        if (peek_cartridge_select)
+        if (peek_cartridge_mapped)
             peek_data = cartridge_peek;
         else if (peek_ram_select)
             peek_data = ram_peek;
