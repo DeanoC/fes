@@ -3,14 +3,11 @@ package fogcastcli
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,28 +19,40 @@ import (
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
+	case "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
 		return true
 	}
 	return false
 }
 
-func runCoreLibraryCommand(ctx context.Context, origin string, args []string) commandResult {
+func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (result commandResult) {
 	method, path := http.MethodGet, "/api/v1/core-packages"
 	var data []byte
 	contentType := "application/json"
 	expectedID := ""
 	var expectedInspection *corepackage.Inspection
 	expectedMediaID := ""
+	var mediaSnapshot *coreMediaSnapshot
 	switch args[0] {
+	case "core-media-capabilities":
+		if protocol.ValidateDigest(args[1]) != nil {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "package ID is invalid"}, exit: 1}
+		}
+		path += "/" + url.PathEscape(args[1]) + "/media-capabilities"
 	case "core-media-install":
-		snapshot, err := snapshotCoreMedia(args[1])
+		snapshot, err := snapshotCoreMedia(ctx, args[1])
 		if err != nil {
 			return commandResult{err: err, exit: 1}
 		}
-		method, path, data, contentType = http.MethodPost, "/api/v1/core-media", snapshot, "application/octet-stream"
-		digest := sha256.Sum256(snapshot)
-		expectedMediaID = hex.EncodeToString(digest[:])
+		defer func() {
+			if err := snapshot.Close(); err != nil {
+				result.err = errors.Join(result.err, err)
+				result.exit = 1
+			}
+		}()
+		mediaSnapshot = snapshot
+		method, path, contentType = http.MethodPost, "/api/v1/core-media", "application/octet-stream"
+		expectedMediaID = snapshot.mediaID
 	case "core-media-select":
 		expected, next := args[3], args[4]
 		if expected == "none" {
@@ -96,12 +105,20 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})
 	}
-	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(origin, "/")+path, bytes.NewReader(data))
+	var requestBody io.Reader = bytes.NewReader(data)
+	if mediaSnapshot != nil {
+		requestBody = io.LimitReader(mediaSnapshot.file, mediaSnapshot.size)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(origin, "/")+path, requestBody)
 	if err != nil {
 		return commandResult{err: err, exit: 1}
 	}
 	request.Header.Set("Accept", "application/json")
-	if len(data) > 0 {
+	if mediaSnapshot != nil {
+		request.ContentLength = mediaSnapshot.size
+		// No GetBody: an ambiguous import must never be replayed.
+	}
+	if len(data) > 0 || mediaSnapshot != nil {
 		request.Header.Set("Content-Type", contentType)
 	}
 	client := &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("redirects are not accepted") }}
@@ -132,7 +149,7 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 			MediaID string `json:"media_id"`
 			Size    int64  `json:"size"`
 		}
-		if json.Unmarshal(body, &result) != nil || result.MediaID != expectedMediaID || result.Size != int64(len(data)) {
+		if json.Unmarshal(body, &result) != nil || result.MediaID != expectedMediaID || result.Size != mediaSnapshot.size {
 			return commandResult{err: &protocol.APIError{Code: protocol.CodeInternal, Message: "installed media response differs from imported bytes"}, exit: 1}
 		}
 	}
@@ -146,25 +163,4 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) co
 		_, err := output.Write(pretty.Bytes())
 		return err
 	}}
-}
-
-func snapshotCoreMedia(path string) ([]byte, error) {
-	before, err := os.Lstat(path)
-	if err != nil || !before.Mode().IsRegular() || before.Size() < 1 || before.Size() > protocol.MaxDevelopmentMediaBytes {
-		return nil, protocol.DevelopmentMediaRequestError()
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, protocol.DevelopmentMediaRequestError()
-	}
-	defer file.Close()
-	opened, err := file.Stat()
-	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
-		return nil, protocol.DevelopmentMediaRequestError()
-	}
-	data, apiErr := protocol.ReadDevelopmentMedia(opened.Size(), file)
-	if apiErr != nil {
-		return nil, apiErr
-	}
-	return data, nil
 }

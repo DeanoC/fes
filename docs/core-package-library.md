@@ -7,7 +7,10 @@ ID; importing another version leaves that selection unchanged.
 
 Entries can be package-only or select immutable imported media. Selection is
 data, not compiled code: changing an installed package or media needs no host
-rebuild, image rewrite, or service restart. The current media role is `blob`,
+rebuild, image rewrite, or service restart. Host import/storage accepts
+1..33,554,432 bytes (32 MiB), using bounded-memory streaming. That is a host
+storage policy, not a claim about any core's cartridge size.
+The current target media role is `blob`,
 1..16384 bytes, requiring `fes.simple-computer` 1.0 and `fes.media.blob` 1.0.
 Transport is never inferred from a core ID or descriptive system field.
 Larger media and new roles need transport support; this is not a retail-media
@@ -36,6 +39,7 @@ Run the host normally, then use its existing API origin:
 fogcast --api http://127.0.0.1:8787 --json core-install /absolute/path/core.fcore
 fogcast --api http://127.0.0.1:8787 --json core-list
 fogcast --api http://127.0.0.1:8787 --json core-check PACKAGE_ID
+fogcast --api http://127.0.0.1:8787 --json core-media-capabilities PACKAGE_ID
 fogcast --api http://127.0.0.1:8787 --json core-entry 'Standalone FES Pong' PACKAGE_ID
 fogcast --api http://127.0.0.1:8787 --json core-entry 'ZX81' PACKAGE_ID
 ```
@@ -88,8 +92,10 @@ fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID 
 fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID OLD_MEDIA_ID none
 ```
 
-`core-media-install` returns `media_id` (SHA-256) and `size`. It snapshots a
-bounded regular file; changing that file later does not change stored bytes.
+`core-media-install` returns `media_id` (SHA-256) and `size`. It streams a
+bounded regular file into a private snapshot; changing that file later does not
+change stored bytes. CLI upload and catalog storage use bounded buffers rather
+than loading the whole file into memory.
 Import a changed file to get its new ID, then select it explicitly. `none`
 means no media in the checked CLI selection. Media selection validates the
 installed descriptor and stored bytes locally, including while the target is
@@ -97,6 +103,35 @@ offline. Launch revalidates the target's actual active interfaces and sends the
 selected snapshot. Selection never rewrites an active session.
 An optional blob declaration is eligible for selection, not a promise that
 every target activates it; missing active support fails launch with cleanup.
+
+`core-media-capabilities PACKAGE_ID` works offline and returns:
+
+```json
+{
+  "package_id": "<selected package digest>",
+  "source": "declared-contract",
+  "compatibility": "unknown",
+  "import_max_bytes": 33554432,
+  "media": [{
+    "role": "blob",
+    "format": "raw",
+    "min_bytes": 1,
+    "max_bytes": 16384,
+    "interface": {"id": "fes.media.blob", "major": 1, "minor": 0},
+    "transport": "fes-simple-computer-mailbox-v1"
+  }]
+}
+```
+
+The response describes the host's supported interpretation of the installed
+package declaration, not negotiated or measured hardware capacity. A package
+with no supported media contract returns `media:[]`. No name-based core
+allowlist or mapper inference is used.
+
+A 512 KiB ROM can be imported and retained, but selecting it for an existing
+16 KiB core fails before activation and preserves the current selection.
+Larger core delivery needs a separately implemented, versioned transport and
+an advertised capacity; increasing host storage policy does not enable it.
 
 To select another installed version or return to a retained version:
 
@@ -128,6 +163,7 @@ fields. No API response exposes the archive's private filesystem location.
 | `POST /api/v1/core-media` | Bounded `application/octet-stream` bytes; `{media_id,size}` (201 new, 200 already stored) |
 | `GET /api/v1/core-media/{id}` | Verified `{media_id,size}`, no path or bytes |
 | `POST /api/v1/core-packages/{id}/compatibility` | Empty body; `{package_id,descriptor,compatible,compatibility_error,target,target_id,state}` |
+| `GET /api/v1/core-packages/{id}/media-capabilities` | Offline declared-contract projection with separate host import policy and supported role limits |
 | `POST /api/v1/library/core-entries` | `{"title":"Standalone FES Pong","package_id":"..."}`, optionally `media_role:"blob",media_id:"..."`; returns entry |
 | `GET /api/v1/library/core-entries` | `{entries:[...]}` |
 | `GET /api/v1/library/core-entries/{game_id}` | `{game_id,title,core_id,package_id}`, plus `media_role,media_id` when selected |
@@ -158,9 +194,13 @@ root. Archives are content-addressed, validated before atomic publication and
 revalidated from the same bytes sent for activation. Partial imports never
 become inventory entries. An installed ID is never silently overwritten.
 
-Selections and bounded media bytes live in the existing catalog database.
+Selections and media bytes live in the existing catalog database. Schema 8
+adds 64 KiB chunk rows for new imports while retaining existing inline objects,
+digests, entries and history. The migration does not rewrite package archives.
 Every media read rechecks its size and digest; corrupt objects are refused,
-never silently replaced. Reserved package libraries
+never silently replaced. Upload staging and verified read snapshots are private
+temporary files, removed on failure or close; they are not a second persistent
+store. Reserved package libraries
 are excluded from ROM-library retirement and scans. Back up both the catalog
 and the package directory. Appliance image updates do not change these host
 files. This milestone retains all installed versions; removal and automatic

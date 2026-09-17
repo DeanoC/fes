@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, package
 	}
 	defer tx.Rollback()
 	if mediaID != "" {
-		if _, _, err := readCoreMedia(ctx, tx, mediaID); err != nil {
+		if _, err := verifyCoreMedia(ctx, tx, mediaID, io.Discard); err != nil {
 			return CoreEntry{}, err
 		}
 	}

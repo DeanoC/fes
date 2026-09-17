@@ -14,6 +14,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/DeanoC/FogCast/catalog"
 )
 
 func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
@@ -52,13 +54,13 @@ func TestCoreMediaCommandsUseHostShapes(t *testing.T) {
 }
 
 func TestCoreMediaCommandArguments(t *testing.T) {
-	for _, name := range []string{"core-entry", "core-media-install", "core-media-select"} {
+	for _, name := range []string{"core-entry", "core-media-install", "core-media-select", "core-media-capabilities"} {
 		for n := 1; n <= 7; n++ {
 			args := []string{name}
 			for len(args) < n {
 				args = append(args, "x")
 			}
-			want := name == "core-entry" && (n == 3 || n == 5) || name == "core-media-install" && n == 2 || name == "core-media-select" && n == 5
+			want := name == "core-entry" && (n == 3 || n == 5) || (name == "core-media-install" || name == "core-media-capabilities") && n == 2 || name == "core-media-select" && n == 5
 			if validCommand(args) != want || !coreLibraryCommand(name) {
 				t.Fatalf("args=%v valid=%v", args, validCommand(args))
 			}
@@ -117,16 +119,30 @@ func TestCoreMediaInstallVerifiesDigestAndSize(t *testing.T) {
 
 func TestCoreMediaSnapshotRegularBoundedFile(t *testing.T) {
 	dir := t.TempDir()
-	for _, size := range []int{0, 1, 16384, 16385} {
+	for _, size := range []int{0, 1, 16384, 16385, int(catalog.MaxCoreMediaBytes), int(catalog.MaxCoreMediaBytes) + 1} {
 		path := filepath.Join(dir, "media")
 		content := bytes.Repeat([]byte{42}, size)
 		if err := os.WriteFile(path, content, 0600); err != nil {
 			t.Fatal(err)
 		}
-		data, err := snapshotCoreMedia(path)
-		want := size >= 1 && size <= 16384
-		if (err == nil) != want || want && !bytes.Equal(data, content) {
-			t.Fatalf("size=%d read=%d err=%v", size, len(data), err)
+		snapshot, err := snapshotCoreMedia(context.Background(), path)
+		want := size >= 1 && int64(size) <= catalog.MaxCoreMediaBytes
+		if (err == nil) != want {
+			t.Fatalf("size=%d err=%v", size, err)
+		}
+		if snapshot != nil {
+			hash := sha256.New()
+			n, readErr := io.Copy(hash, snapshot.file)
+			digest := sha256.Sum256(content)
+			name := snapshot.file.Name()
+			info, statErr := snapshot.file.Stat()
+			snapshot.Close()
+			if readErr != nil || statErr != nil || n != int64(size) || snapshot.size != n || snapshot.mediaID != hex.EncodeToString(digest[:]) || !bytes.Equal(hash.Sum(nil), digest[:]) || info.Mode().Perm() != 0600 {
+				t.Fatalf("snapshot size=%d n=%d err=%v stat=%v", size, n, readErr, statErr)
+			}
+			if _, err := os.Stat(name); !os.IsNotExist(err) {
+				t.Fatalf("snapshot not removed: %v", err)
+			}
 		}
 	}
 	target := filepath.Join(dir, "target")

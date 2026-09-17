@@ -29,6 +29,7 @@ jobs:
       - name: Test changed root packages
         run: >-
           go test -race
+          ./protocol
           ./fogcast
           ./host
           ./internal/fogcastcli

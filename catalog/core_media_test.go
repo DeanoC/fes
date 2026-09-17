@@ -103,7 +103,7 @@ func TestCoreMediaBytesPersistenceAndIntegrity(t *testing.T) {
 	if err != nil || string(raw) != fmt.Sprintf(`{"media_id":"%s","size":4}`, media.MediaID) {
 		t.Fatalf("JSON = %s, %v", raw, err)
 	}
-	for _, data := range [][]byte{nil, {}, make([]byte, protocol.MaxDevelopmentMediaBytes+1)} {
+	for _, data := range [][]byte{nil, {}} {
 		if _, _, err := s.ImportCoreMedia(ctx, data); !errors.Is(err, ErrInvalidCoreMedia) {
 			t.Fatalf("invalid size %d: %v", len(data), err)
 		}
@@ -353,7 +353,7 @@ func TestSchemaSevenMigratesLegacyEntriesOnce(t *testing.T) {
 		}
 	}
 	var version int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 7 {
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 8 {
 		t.Fatalf("version = %d, %v", version, err)
 	}
 	rows, err := s.db.QueryContext(ctx, "PRAGMA foreign_key_check")

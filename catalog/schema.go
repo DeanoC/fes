@@ -11,7 +11,17 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 7
+const schemaVersion = 8
+
+const schemaV8 = `
+CREATE TABLE core_media_chunks (
+  media_id TEXT NOT NULL REFERENCES core_media(media_id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL,
+  data BLOB NOT NULL,
+  PRIMARY KEY(media_id, chunk_index)
+);
+PRAGMA user_version = 8;
+`
 
 // This historical asset is used only by the schema 7 migration. New entries
 // always require an explicit media selection, including new Coleco entries.
@@ -226,6 +236,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 6 {
 		if err := migrateCoreMedia(ctx, connection); err != nil {
 			return fmt.Errorf("apply catalog schema version 7: %w", err)
+		}
+		version = 7
+	}
+	if version == 7 {
+		if _, err := connection.ExecContext(ctx, schemaV8); err != nil {
+			return fmt.Errorf("apply catalog schema version 8: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

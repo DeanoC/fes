@@ -9,7 +9,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - [Installed FPGA core packages](docs/core-package-library.md) with explicit
   version and immutable media selection in the normal library, with multiple
   titles per core. Package/media changes need no rebuild or host restart. Import and
-  selection do not replace a running core. Library FES Pong packages with the
+  selection do not replace a running core. Library media imports stream into
+  bounded storage up to the host's 32 MiB policy; package capability queries
+  report the separately enforced core limit (16 KiB for the existing blob 1.0
+  transport). Importing a larger asset does not make it runnable.
+  Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
   expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`

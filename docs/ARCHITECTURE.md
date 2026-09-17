@@ -1166,7 +1166,7 @@ renderers over the same session model and do not own physical transitions.
 ## Installed core packages and library entries
 
 The host package store validates and atomically publishes immutable archives by
-package ID. Catalog schema v7 associates each stable game entry with an
+package ID. Catalog schema v8 associates each stable game entry with an
 explicit package ID and optional media role/digest. Multiple titles can use
 the same core. Importing a package or media object does not select or activate it.
 The `fpga` browse platform is not a cartridge/runtime system. Library scans
@@ -1188,9 +1188,31 @@ the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
-database. The current bounded transport accepts role `blob`, 1..16384 bytes,
+database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
+Imports stream to a private temporary snapshot before taking a database writer
+transaction; SHA identity, declared length and cancellation are checked before
+atomic metadata/chunk publication. Schema 8 stores new objects in 64 KiB chunks,
+retaining schema 7 inline objects. Reads verify contiguous chunk order, size and
+digest; launch receives a verified private snapshot, never a live database
+cursor. Failed imports and closed snapshots remove temporary files. Backups
+still cover a single catalog database, not a second persistent asset directory.
+Interrupted import reads preserve cancellation and deadline errors through the
+service boundary rather than classifying them as invalid media.
+
+`protocol/core_media.go` projects supported transport semantics from exact
+package ABI/interface declarations, never core IDs. The offline
+`core-media-capabilities` API/CLI separates `import_max_bytes` storage policy
+from each role's `min_bytes`/`max_bytes`, format and transport. It explicitly
+reports `source:declared-contract` and `compatibility:unknown`: this is not
+a live target observation. Unknown versions expose no supported roles, and
+optional interfaces still require active runtime support at launch.
+
+The current target transport accepts role `blob`, 1..16384 bytes,
 for declared `fes.simple-computer` 1.0 and `fes.media.blob` 1.0 capabilities.
-`fogcast/core_media.go` validates selection and snapshots bytes before package
+`fogcast/core_media.go` rejects assets outside the selected capability's size
+range before reading a bounded target payload or activating hardware. Library
+storage/import and target delivery deliberately have different limits.
+It validates selection and snapshots bytes before package
 activation. One lifecycle admission spans package activation, media delivery,
 and any Stop/recovery cleanup. Delivery binds the confirmed package ID,
 generation, target and target ID; failure is not a usable launch. Kit, browser,

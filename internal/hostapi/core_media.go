@@ -16,11 +16,31 @@ type coreMediaLibraryService interface {
 	SelectCoreEntryMedia(context.Context, string, string, string, string, string) (catalog.CoreEntry, error)
 }
 
+type coreMediaCapabilitiesService interface {
+	CoreMediaCapabilities(context.Context, string) (protocol.CoreMediaCapabilities, error)
+}
+
 func validCoreMediaPair(role, id string) bool {
 	return role == "" && id == "" || role == "blob" && corePackageIDRE.MatchString(id)
 }
 
 func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
+	mux.HandleFunc("GET /api/v1/core-packages/{package_id}/media-capabilities", func(w http.ResponseWriter, r *http.Request) {
+		if rejectCoreLibraryBody(w, r) || !validPackagePath(w, r) {
+			return
+		}
+		s, ok := service.(coreMediaCapabilitiesService)
+		if !ok {
+			writeError(w, 501, "UNSUPPORTED_OPERATION", "core media capabilities are unavailable")
+			return
+		}
+		value, err := s.CoreMediaCapabilities(r.Context(), r.PathValue("package_id"))
+		if err != nil {
+			writeCoreLibraryError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, value)
+	})
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreMediaLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(coreMediaLibraryService)
@@ -33,11 +53,11 @@ func registerCoreMediaLibrary(mux *http.ServeMux, service Service) {
 	}
 	mux.HandleFunc("POST /api/v1/core-media", withService(func(w http.ResponseWriter, r *http.Request, s coreMediaLibraryService) {
 		types := r.Header.Values("Content-Type")
-		if len(types) != 1 || types[0] != "application/octet-stream" || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > protocol.MaxDevelopmentMediaBytes {
+		if len(types) != 1 || types[0] != "application/octet-stream" || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > catalog.MaxCoreMediaBytes {
 			writeError(w, 400, "BAD_REQUEST", "media import requires a bounded application/octet-stream body")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxDevelopmentMediaBytes)
+		r.Body = http.MaxBytesReader(w, r.Body, catalog.MaxCoreMediaBytes)
 		value, created, err := s.ImportCoreMedia(r.Context(), r.ContentLength, r.Body)
 		if err != nil {
 			writeCoreLibraryError(w, err)

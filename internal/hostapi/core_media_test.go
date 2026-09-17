@@ -29,12 +29,12 @@ type coreMediaAPIService struct {
 
 func (s *coreMediaAPIService) ImportCoreMedia(_ context.Context, size int64, body io.Reader) (catalog.CoreMedia, bool, error) {
 	s.calls++
-	data, err := protocol.ReadDevelopmentMedia(size, body)
-	if err != nil {
-		return catalog.CoreMedia{}, false, err
+	hash := sha256.New()
+	n, err := io.CopyBuffer(hash, io.LimitReader(body, catalog.MaxCoreMediaBytes+1), make([]byte, 64<<10))
+	if err != nil || n != size || n < 1 || n > catalog.MaxCoreMediaBytes {
+		return catalog.CoreMedia{}, false, &protocol.APIError{Code: protocol.CodeBadRequest}
 	}
-	digest := sha256.Sum256(data)
-	return catalog.CoreMedia{MediaID: hex.EncodeToString(digest[:]), Size: size}, s.created, s.err
+	return catalog.CoreMedia{MediaID: hex.EncodeToString(hash.Sum(nil)), Size: size}, s.created, s.err
 }
 func (s *coreMediaAPIService) CoreMedia(_ context.Context, id string) (catalog.CoreMedia, error) {
 	s.calls++
@@ -75,9 +75,10 @@ func TestCoreMediaImportHeadersAndBounds(t *testing.T) {
 		calls    int
 	}{
 		{"one", 1, []string{"application/octet-stream"}, nil, "x", 201, 1},
-		{"maximum", 16384, []string{"application/octet-stream"}, nil, strings.Repeat("x", 16384), 201, 1},
+		{"above development limit", 16385, []string{"application/octet-stream"}, nil, strings.Repeat("x", 16385), 201, 1},
+		{"maximum", catalog.MaxCoreMediaBytes, []string{"application/octet-stream"}, nil, strings.Repeat("x", int(catalog.MaxCoreMediaBytes)), 201, 1},
 		{"empty", 0, []string{"application/octet-stream"}, nil, "", 400, 0},
-		{"oversize", 16385, []string{"application/octet-stream"}, nil, "x", 400, 0},
+		{"oversize", catalog.MaxCoreMediaBytes + 1, []string{"application/octet-stream"}, nil, "x", 400, 0},
 		{"unknown", -1, []string{"application/octet-stream"}, nil, "x", 400, 0},
 		{"missing type", 1, nil, nil, "x", 400, 0},
 		{"wrong type", 1, []string{"text/plain"}, nil, "x", 400, 0},
@@ -86,7 +87,7 @@ func TestCoreMediaImportHeadersAndBounds(t *testing.T) {
 		{"chunked", 1, []string{"application/octet-stream"}, []string{"chunked"}, "x", 400, 0},
 		{"short", 2, []string{"application/octet-stream"}, nil, "x", 400, 1},
 		{"long", 1, []string{"application/octet-stream"}, nil, "xx", 400, 1},
-		{"bounded reader", 1, []string{"application/octet-stream"}, nil, strings.Repeat("x", 16385), 400, 1},
+		{"bounded reader", 1, []string{"application/octet-stream"}, nil, strings.Repeat("x", int(catalog.MaxCoreMediaBytes)+1), 400, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &coreMediaAPIService{created: true}
