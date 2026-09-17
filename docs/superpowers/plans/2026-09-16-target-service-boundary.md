@@ -1,5 +1,10 @@
 # FES Target-Service Boundary Preparation Implementation Plan
 
+Status reconciled 2026-09-17: historical implementation plan. Contract preparation integrated through FogCast #244 and FES #57. A target module/repository split was not implemented and is not currently scheduled.
+Use [current structure and refactor status](../../fes-structure.md) for remaining
+work. Original task checkboxes and execution constraints below are historical,
+not instructions to repeat merged work or proof of unrecorded acceptance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the FogCast host/UI and target-agent contract seams module-safe so a later target-service module or repository split is evidence-driven and does not move runtime behavior blindly.

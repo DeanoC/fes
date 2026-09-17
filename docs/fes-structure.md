@@ -1,136 +1,112 @@
-# FES structure: next migration
+# FES structure and refactor status
 
-Status: proposed implementation sequence, inspected at FES `4d3983d` and
-FogCast `b1488d1` on 2026-09-15. This document does not claim the code has moved.
+Reconciled on 2026-09-17 against FES `095cc7a` and its selected FogCast
+`c6b7841`. This is the current ownership decision, not a queue of migrations
+to repeat. Historical plans describe the implementation sequence; their
+unchecked execution steps are not evidence that merged work is absent.
 
 ## Decision
 
-FES owns the appliance platform; FogCast is its host application and client
-suite. Put appliance boot software beside FES image assembly, and make shared
-appliance storage and manifests usable by both boot software and the target
-agent. Keep the existing four component repositories through this migration.
-Use Go modules to establish the new build boundary inside the existing repos.
+Keep FES plus its four component repositories. FES owns appliance assembly,
+boot software, component selection and integration evidence. FogCast owns the
+host application, clients and network-facing target agent. Runtime hardware
+control, FPGA builds and shared definitions retain their existing owners.
+Main_MiSTer is reference/test material, not a native production dependency.
 
-The first implementation slice extracts the shared appliance package into a
-standalone Go module within FogCast. The following slice moves the boot
-executable and its private helpers into FES. This ordering gives the existing
-agent and the future FES boot binary one storage implementation, with no
-FogCast-to-FES dependency cycle.
+Keep the target implementation in the FogCast root Go module for now. Its
+public contracts and dependency guards are already separated; a further
+module/repository split needs an independent release/consumer requirement or
+measured build/test coupling, not just a desire to move directories.
+Keep the appliance schema/store as one
+nested module consumed by both FES boot and FogCast updates.
 
-## What is already done
+## Landed work
 
-- FES `image/` owns Buildroot and system image assembly.
-- FogCast UI packages live under `ui/tenfoot` and `ui/kitlauncher`.
-- Host-to-target transport lives in `targetclient`.
-- FES incremental builds retain compiler/base work; its normal FPGA producers
-  use HIP/nextpnr for Pong, ZX81 and Coleco.
-- The three-system target runner is merged. On 2026-09-15 the deployed
-  development image passed its API/media/input/Stop checks and the operator
-  reported seeing all three systems on the physical display. This is bounded
-  display evidence, not exhaustive controller, audio or emulation coverage.
-
-These completed changes are the baseline, not work to repeat.
-
-## Source ownership and destination
-
-| Responsibility | Current source | Proposed destination |
+| Area | Implemented boundary | Merge evidence |
 | --- | --- | --- |
-| Image, media, release assembly | FES `image/`, `scripts/appliance*.py` | Remain in FES |
-| Shared release schema | FogCast `appliance/release.go` | FogCast `appliance/`, standalone Go module |
-| Immutable image store | FogCast `internal/appliance` | `appliance/store` in that shared module |
-| Boot command | FogCast `cmd/fes-boot` | FES `platform/cmd/fes-boot` |
-| Boot policy and Linux mechanisms | FogCast `internal/applianceboot`, `internal/bootlinux` | FES `platform/internal/applianceboot`, `platform/internal/bootlinux` |
-| Network update admission | FogCast `internal/applianceupdate` | Remain with the target agent |
-| Operator update client | FogCast `cmd/fes-update` | Remain with host clients initially |
-| Target HTTP/cache/session coordination | FogCast `internal/agent`, `internal/httpapi` | Explicit target service boundary; separate extraction review later |
-| Host/library/services and browser API | FogCast `host`, `fogcast`, `catalog`, `internal/hostapi` | Remain in FogCast |
-| UI strategies | FogCast `ui/tenfoot`, `ui/kitlauncher`, browser assets | Remain clients of host/transport contracts |
-| Physical hardware lifecycle | libmister-runtime | Remain library and daemon together |
-| FPGA recipes and sources | misteross | Remain one builder component |
-| Board/ABI definitions and generation | mister-packages | Remain shared definition authority |
+| Image assembly | FES `image/`; no second native image recipe in FogCast | FES [#26](https://github.com/DeanoC/fes/pull/26), [#27](https://github.com/DeanoC/fes/pull/27) |
+| Build reuse | Host-only inputs, validated FPGA artifact reuse, shared compiler cache, HIP-first format-2 package lanes | FES [#36](https://github.com/DeanoC/fes/pull/36)–[#40](https://github.com/DeanoC/fes/pull/40), [#44](https://github.com/DeanoC/fes/pull/44) |
+| UI and transport | Explicit `ui/` namespace and separate `targetclient` | FES [#48](https://github.com/DeanoC/fes/pull/48), [#49](https://github.com/DeanoC/fes/pull/49) |
+| Shared appliance module | FogCast `appliance/` owns release schema and `store/` | FES [#52](https://github.com/DeanoC/fes/pull/52), FogCast [#238](https://github.com/DeanoC/FogCast/pull/238) |
+| Boot ownership | FES `platform/` owns boot command and Linux helpers | FES [#55](https://github.com/DeanoC/fes/pull/55), FogCast [#243](https://github.com/DeanoC/FogCast/pull/243) |
+| Target contracts | Public core-package/lease contracts and executable dependency guards | FES [#57](https://github.com/DeanoC/fes/pull/57), FogCast [#244](https://github.com/DeanoC/FogCast/pull/244) |
+| Shared client logic | UI-independent session decoder, library client, launch eligibility and artwork-handle normalization | FES [#58](https://github.com/DeanoC/fes/pull/58), [#59](https://github.com/DeanoC/fes/pull/59) |
+| One launch path | CLI and Kit use the persistent host session API; shutdown cleans up only owned sessions | FogCast [#241](https://github.com/DeanoC/FogCast/pull/241), [#249](https://github.com/DeanoC/FogCast/pull/249); FES [#63](https://github.com/DeanoC/fes/pull/63) |
+| Package development | Package-only admission and isolated host restart diagnostics, separate from image assembly | FES [#62](https://github.com/DeanoC/fes/pull/62), [#64](https://github.com/DeanoC/fes/pull/64) |
+| CLI contract follow-up | Preserve mutation deadlines and complete public input status | FES [#66](https://github.com/DeanoC/fes/pull/66), FogCast [#250](https://github.com/DeanoC/FogCast/pull/250) |
 
-Proposed layout after the first two implementation slices:
+These merges establish source integration, not blanket hardware acceptance.
+The factory image still selects Pong/ZX81/Coleco. Admitting another supported-ABI
+package through the host library does not add it to that factory image.
 
-```text
-fes/
-  platform/                 Go module github.com/DeanoC/fes/platform
-    cmd/fes-boot/
-    internal/applianceboot/
-    internal/bootlinux/
-  image/
-  scripts/
-  sources/FogCast/
-    appliance/              Go module github.com/DeanoC/FogCast/appliance
-      release.go
-      store/
-    cmd/mister-agent/
-    cmd/fes-update/
-    internal/applianceupdate/
-    host/ targetclient/ ui/
-```
+## Current source ownership
 
-The shared module initially remains physically inside FogCast to keep its
-standalone checkout buildable. Its ownership is the FES appliance contract,
-not the game library. A new repository is justified only if independent
-consumers/releases later need it. Directory placement and product ownership
-are different decisions.
+| Responsibility | Owner and source |
+| --- | --- |
+| Image, media, release assembly | FES `image/`, `scripts/appliance*.py` |
+| Boot policy, Linux mechanisms and boot executable | FES `platform/cmd/fes-boot`, `platform/internal/applianceboot`, `platform/internal/bootlinux` |
+| Shared appliance release schema and immutable store | FogCast nested module `appliance/`, `appliance/store` |
+| Network update admission | FogCast `internal/applianceupdate` with target-agent coordination |
+| Operator update client | FogCast `cmd/fes-update` |
+| Target HTTP/cache/session coordination | FogCast `cmd/mister-agent`, `internal/agent`, `internal/httpapi` |
+| Public target contracts and transport | FogCast `corepackage`, `kitlease`, `protocol`, `targetclient` |
+| Host/library services and browser API | FogCast `host`, `fogcast`, `catalog`, `internal/hostapi` |
+| Shared host client and UI strategies | FogCast `hostclient`, `ui/tenfoot`, `ui/kitlauncher`, browser assets |
+| Physical FPGA/media/input lifecycle | libmister-runtime library and daemon |
+| FPGA recipes, compiler tools and source builds | misteross |
+| Board/ABI definitions and generation | mister-packages |
 
-## Why this order
+The host chooses content; the agent coordinates network requests and leases;
+the runtime performs physical transitions. No repository split should create a
+second implementation of any of those decisions.
 
-`cmd/fes-boot/main_linux.go` imports the release schema, image store, boot
-policy and Linux helpers. The policy imports the schema and store; the Linux
-helpers have no FogCast imports. This is a bounded boot dependency graph.
+## Rules retained by the refactor
 
-By contrast, `internal/applianceupdate.Service` directly holds an
-`*agent.Coordinator` and uses its update-admission and idle checks.
-`cmd/fes-update` imports `fogcast`, discovery and `targetclient`. Extracting
-either alongside boot would broaden this change into live session handling.
+- One appliance manifest/store implementation. FES builds against the selected
+  immutable FogCast module source; published inputs contain no worker paths.
+- Test nested Go modules explicitly: root `go test ./...` does not include them.
+- Bootstrap evidence identifies FES platform source, selected appliance module,
+  Go toolchain and flags. Do not attribute FES boot source to FogCast.
+- Keep target implementation free of host/UI dependencies and public contracts
+  free of target internals; the selected FogCast Makefile runs the boundary tests.
+- Share transport/schema and genuine policy, not device-specific rendering or
+  input. Browser JavaScript and Go client models can differ intentionally;
+  shared fixtures test the contract without claiming complete decoder identity.
+- Host/UI changes do not require FPGA compilation. Use `make host`, component
+  tests and parent consistency checks. Image, media and exact-artifact hardware
+  gates remain separate; compiler caches are not acceptance evidence.
 
-The store and manifest must remain single implementations. Moving only their
-boot copies into FES would let boot selection and network installation diverge.
+## Remaining work, without another broad migration
 
-## Build and contract rules
+The bounded source audit at the revisions above found these follow-ups. These
+are source-level discrepancies, not reproduced hardware failures. Establish
+contract tests before changing behavior; this reconciliation changes no client
+implementation.
 
-- Keep the existing manifest bytes, closed schema, boot ABI, filesystem layout,
-  update admission and HTTP contracts throughout the shared-module slice.
-- Pin the shared module for standalone consumers. A checked-in relative
-  replacement within FogCast can support its nested module; FES must build
-  against a selected immutable module revision and validate agreement with the
-  selected FogCast tree. No developer worktree path belongs in published inputs.
-- Run nested-module tests explicitly: root `go test ./...` skips them.
-- After boot migration, image assembly builds boot from FES `platform/`.
-  `scripts/appliance.py` and `scripts/appliance_media.py` build `./cmd/fes-boot`
-  from FES `platform/` against the selected FogCast `appliance` module and bind
-  additive platform/module provenance in bootstrap evidence. Never relabel FES
-  boot source as FogCast source.
-- Boot receipts must cover FES platform source, selected shared-module content,
-  Go toolchain and build flags. A module/lock change must invalidate boot output.
-- Preserve release manifests as identities of the selected system components.
-  Bootstrap evidence separately identifies the source of the boot binary.
-  Specify compatibility with retained evidence before changing its format.
-- Host/UI edits must not require rebuilding compilers or FPGA packages.
-  Demonstrate changed-input invalidation and unchanged-input reuse for any new
-  receipt; do not claim a speed improvement from directory moves alone.
+| Priority | Finding | Next bounded action |
+| --- | --- | --- |
+| First | Kit grid/detail admission checks `Game.Launchable` plus host readiness, while `hostclient.Game.LaunchBlock` also checks source/readability state (`ui/kitlauncher/model.go`, `detail.go`, `hostclient/library_models.go`) | Add missing/offline/invalid/available cases and use shared catalog eligibility while retaining session/target readiness checks |
+| First | Browser `launchBlockReason` checks offline roots, but `launchAllowed` omits that check; missing booleans differ from Go zero values (`internal/hostapi/ui_app.js`) | Define one bounded cross-client eligibility fixture; preserve additional session-authority checks |
+| Later | CLI and `hostclient` retain different session projections, success validation and mutation timeout policy (`internal/fogcastcli/session.go`, `hostclient/client.go`, `session_client.go`) | Specify the intended differences before sharing transport; do not undo the CLI deadline fix |
+| Small cleanup | Exact `fes.keyboard` interface-version recognition is repeated in shared session decoding and Kit capability handling (`hostclient/session.go`, `ui/kitlauncher/client.go`) | Share only the capability predicate if a focused test demonstrates equivalent semantics |
 
-## Reviewable sequence
+Separate browser/Go decoders, CLI full input metrics, Kit's narrow session
+projection and device-specific rendering are not by themselves duplication bugs.
 
-1. **Shared appliance module:** move the image store beside the public schema,
-   update imports, add explicit nested-module CI, and prove existing agent and
-   boot behavior still passes. See the [implementation plan](superpowers/plans/2026-09-15-appliance-module.md).
-2. **FES boot ownership:** move the boot command/helpers to `platform/`, update
-   both parent builders, cache inputs, provenance and reconstruction tests.
-   Build static ARM output and run isolated boot tests before any kit operation.
-   Reproducible bootstrap assembly and designated-kit boot acceptance are
-   separate gates for this slice; the current game display check does not
-   qualify a replacement boot selector.
-3. **Target service boundary:** inventory the full agent dependency closure,
-   including kit launcher, input and update admission; decide on module/release
-   independence using that evidence. Keep physical lifecycle in the runtime.
-4. **UI/host consolidation:** assess duplicated models and presentation logic
-   across browser, tenfoot and kit clients. Share transport/schema and genuinely
-   common logic; retain rendering/input appropriate to each device.
+1. Retire obsolete worktrees only after checking ownership, unique changes,
+   nested worktrees, running jobs and retained evidence. See the dated
+   [workspace audit](validation/2026-09-17-workspace-tidying.md). The inventory
+   is not a deletion list. Bring the canonical checkout forward in a separate
+   coordinated operation after its selected components and users are checked.
+2. Fix concrete duplicated behavior when demonstrated by a failing contract
+   test. Do not merge all clients or introduce another abstraction solely to
+   eliminate similar-looking structs.
+3. Revisit target extraction only if a separately released agent, an external
+   consumer, or measured build/test coupling requires it. Account for agent,
+   cache, input, kit launcher and updater dependencies together before moving.
+4. Keep hardware acceptance attached to exact artifacts. SG-1000 display and
+   controller acceptance remains separate from the passed package lifecycle
+   diagnostic; new core development does not reopen the completed cache work.
 
-One integrator owns component selection and cross-module contracts. A worker
-can own the shared-module move while a reviewer checks import direction and
-CI coverage. Boot integration follows that result; it is not a parallel edit
-of the same dependency contract.
+There is no further repository split or cache rewrite scheduled by this
+decision. Future feature work should use the established boundaries.

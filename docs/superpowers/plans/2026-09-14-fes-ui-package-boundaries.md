@@ -1,5 +1,10 @@
 # FES-first UI Package Boundaries Implementation Plan
 
+Status reconciled 2026-09-17: historical implementation plan. UI namespace migration integrated through FogCast #235 and FES #48. Follow-on ownership and client work is reconciled in the current structure guide.
+Use [current structure and refactor status](../../fes-structure.md) for remaining
+work. Original task checkboxes and execution constraints below are historical,
+not instructions to repeat merged work or proof of unrecorded acceptance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move FogCast's UI packages under an explicit `ui/` namespace and pin the reviewed component revision in FES without changing runtime behavior.

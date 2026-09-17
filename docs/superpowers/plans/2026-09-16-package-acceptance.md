@@ -1,5 +1,10 @@
 # Package-only acceptance implementation plan
 
+Status reconciled 2026-09-17: historical implementation plan. Software integrated through FES #62; FES #64 added the isolated host/restart wrapper. Hardware evidence remains scoped in the package acceptance guide.
+Use [current structure and refactor status](../../fes-structure.md) for remaining
+work. Original task checkboxes and execution constraints below are historical,
+not instructions to repeat merged work or proof of unrecorded acceptance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Exercise one immutable sealed package through existing host APIs without rebuilding or deploying a system image.
