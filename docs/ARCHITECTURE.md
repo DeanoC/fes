@@ -889,6 +889,11 @@ claim someone else's active session. Replacement operations retain the grant.
 Explicit public Stop releases its grant after input/media/hardware cleanup;
 replacement Stop retains ownership for the next launch. Application shutdown
 releases its grants after input/session cleanup.
+Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
+an active host-only session or a foreground target with a held grant. Clean
+idle after explicit Stop and never-owned idle skip the target Stop, while a
+lost or foreign target grant fails closed. Once admitted, shutdown uses the
+existing Stop timeout, retry, recovery, and error-propagation behavior.
 
 A renewal error or expired grant invalidates local ownership and stops renewal.
 The host does not automatically take over or fall back to an unguarded target

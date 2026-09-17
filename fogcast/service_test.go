@@ -2247,6 +2247,139 @@ type fakeServiceClient struct {
 	stopErr            error
 }
 
+type shutdownOwnershipServiceClient struct {
+	*fakeServiceClient
+	hasKitGrant bool
+}
+
+func (f *shutdownOwnershipServiceClient) HasKitGrant() bool { return f.hasKitGrant }
+
+func TestServiceShutdownCleanupRequiredUsesLocalOwnership(t *testing.T) {
+	tests := []struct {
+		name      string
+		execution string
+		target    string
+		grant     bool
+		want      bool
+	}{
+		{name: "never-owned idle"},
+		{name: "post-stop idle"},
+		{name: "owned native active", execution: ExecutionFPGANative, target: "dev", grant: true, want: true},
+		{name: "owned development recovery", execution: ExecutionFPGADevelopment, target: "dev", grant: true, want: true},
+		{name: "lost native ownership", execution: ExecutionFPGANative, target: "dev", want: false},
+		{name: "lost development ownership", execution: ExecutionFPGADevelopment, target: "dev", want: false},
+		{name: "active host-only", execution: ExecutionHostOnly, target: "host", want: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &shutdownOwnershipServiceClient{
+				fakeServiceClient: &fakeServiceClient{}, hasKitGrant: tc.grant,
+			}
+			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+			service.executionMu.Lock()
+			service.activeExecution = tc.execution
+			service.activeTarget = tc.target
+			service.executionMu.Unlock()
+
+			if got := service.ShutdownCleanupRequired(); got != tc.want {
+				t.Fatalf("shutdown cleanup required = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestServiceShutdownCleanupRequiredUsesForegroundTargetGrant(t *testing.T) {
+	selected := &shutdownOwnershipServiceClient{
+		fakeServiceClient: &fakeServiceClient{}, hasKitGrant: true,
+	}
+	foreground := &shutdownOwnershipServiceClient{
+		fakeServiceClient: &fakeServiceClient{}, hasKitGrant: true,
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, selected)
+	service.targetMu.Lock()
+	service.targetClients["other"] = foreground
+	service.targetMu.Unlock()
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "other"
+	service.executionMu.Unlock()
+
+	if !service.ShutdownCleanupRequired() {
+		t.Fatal("foreground target grant was not admitted for shutdown cleanup")
+	}
+	foreground.hasKitGrant = false
+	if service.ShutdownCleanupRequired() {
+		t.Fatal("selected target grant admitted cleanup after foreground ownership was lost")
+	}
+}
+
+func TestServiceShutdownCleanupRequiredClearsAfterOwnedStopAndRelease(t *testing.T) {
+	var stopCalls, releaseCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"lease"}`)
+		case "/v1/stop":
+			if r.Header.Get(targetclient.KitLeaseHeader) != "lease" {
+				t.Errorf("stop lease = %q, want lease", r.Header.Get(targetclient.KitLeaseHeader))
+			}
+			stopCalls++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			if r.Header.Get(targetclient.KitLeaseHeader) != "lease" {
+				t.Errorf("release lease = %q, want lease", r.Header.Get(targetclient.KitLeaseHeader))
+			}
+			releaseCalls++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "test", "game")
+	defer lease.Close(context.Background())
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	claim, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim lease: %v", err)
+	}
+	if !lease.Held() {
+		t.Fatal("claimed lease is not held")
+	}
+
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+	if !service.ShutdownCleanupRequired() {
+		t.Fatal("owned active service was not admitted for shutdown cleanup")
+	}
+	if status, err := service.Stop(context.Background()); err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("owned stop = %+v, %v", status, err)
+	}
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("release lease: %v", err)
+	}
+	if lease.Held() {
+		t.Fatal("released lease remains held")
+	}
+	if service.ShutdownCleanupRequired() {
+		t.Fatal("post-stop idle service still admitted for shutdown cleanup")
+	}
+	if stopCalls != 1 || releaseCalls != 1 {
+		t.Fatalf("target lifecycle calls = stop:%d release:%d, want 1 each", stopCalls, releaseCalls)
+	}
+}
+
 func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {
 	payload := []byte("fcore")
 	packageStatus := protocol.Status{State: protocol.StateActive, Development: true,

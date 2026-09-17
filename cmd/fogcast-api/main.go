@@ -32,6 +32,10 @@ type service interface {
 	Close() error
 }
 
+type shutdownOwnership interface {
+	ShutdownCleanupRequired() bool
+}
+
 type openService func(context.Context, fogcast.Paths) (service, error)
 type composeAPIFunc func(service, fogcast.Config, bridgeStarterFactory) (http.Handler, func() error, error)
 
@@ -900,6 +904,10 @@ func finishRun(code int, stderr io.Writer, closers ...runCloser) int {
 }
 
 func stopServiceForShutdown(service service) error {
+	owner, ok := service.(shutdownOwnership)
+	if !ok || !owner.ShutdownCleanupRequired() {
+		return nil
+	}
 	var first error
 	for attempt := 0; attempt < 2; attempt++ {
 		stopCtx, cancel := context.WithTimeout(context.Background(), targetCleanupTimeout)

@@ -203,9 +203,10 @@ func (*compositionService) Close() error { return nil }
 
 type shutdownCompositionService struct {
 	compositionService
-	mu       sync.Mutex
-	stopErrs []error
-	stops    int
+	mu              sync.Mutex
+	stopErrs        []error
+	stops           int
+	shutdownCleanup bool
 }
 
 type folderWatchCompositionService struct {
@@ -248,6 +249,10 @@ func (s *shutdownCompositionService) Stop(context.Context) (protocol.Status, err
 	err := s.stopErrs[0]
 	s.stopErrs = s.stopErrs[1:]
 	return protocol.Status{State: protocol.StateIdle}, err
+}
+
+func (s *shutdownCompositionService) ShutdownCleanupRequired() bool {
+	return s.shutdownCleanup
 }
 
 func TestComposeAPIWiresRemoteInputController(t *testing.T) {
@@ -1472,7 +1477,7 @@ func TestCompositionOldGenerationCannotStopReplacementTarget(t *testing.T) {
 
 func TestStopServiceForShutdownRetriesAndPropagatesFirstFailure(t *testing.T) {
 	first := errors.New("host stop failed")
-	service := &shutdownCompositionService{stopErrs: []error{first, nil}}
+	service := &shutdownCompositionService{stopErrs: []error{first, nil}, shutdownCleanup: true}
 	if err := stopServiceForShutdown(service); !errors.Is(err, first) {
 		t.Fatalf("shutdown error = %v, want first failure", err)
 	}
@@ -1481,6 +1486,39 @@ func TestStopServiceForShutdownRetriesAndPropagatesFirstFailure(t *testing.T) {
 	service.mu.Unlock()
 	if stops != 2 {
 		t.Fatalf("shutdown stop attempts = %d, want 2", stops)
+	}
+}
+
+func TestStopServiceForShutdownSkipsNeverOwnedIdle(t *testing.T) {
+	service := &shutdownCompositionService{}
+
+	if err := stopServiceForShutdown(service); err != nil {
+		t.Fatalf("shutdown error = %v", err)
+	}
+	if service.stops != 0 {
+		t.Fatalf("shutdown stop attempts = %d, want 0", service.stops)
+	}
+}
+
+func TestStopServiceForShutdownSkipsPostStopIdle(t *testing.T) {
+	service := &shutdownCompositionService{stops: 1}
+
+	if err := stopServiceForShutdown(service); err != nil {
+		t.Fatalf("shutdown error = %v", err)
+	}
+	if service.stops != 1 {
+		t.Fatalf("shutdown stop attempts = %d, want unchanged at 1", service.stops)
+	}
+}
+
+func TestStopServiceForShutdownStopsOwnedSession(t *testing.T) {
+	service := &shutdownCompositionService{shutdownCleanup: true}
+
+	if err := stopServiceForShutdown(service); err != nil {
+		t.Fatalf("shutdown error = %v", err)
+	}
+	if service.stops != 1 {
+		t.Fatalf("shutdown stop attempts = %d, want 1", service.stops)
 	}
 }
 

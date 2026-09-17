@@ -2736,6 +2736,25 @@ func (s *Service) KitLease() *targetclient.KitLease {
 	return nil
 }
 
+// ShutdownCleanupRequired reports whether this process still has local
+// ownership that permits shutdown cleanup. It never contacts or mutates a
+// target: host-only execution is locally owned, while target execution needs
+// a currently held grant on the foreground target.
+func (s *Service) ShutdownCleanupRequired() bool {
+	s.executionMu.Lock()
+	activeExecution := s.activeExecution
+	s.executionMu.Unlock()
+	if activeExecution == ExecutionHostOnly {
+		return true
+	}
+	client, ok := s.selectedClientSnapshot()
+	if !ok {
+		return false
+	}
+	owner, ok := client.(interface{ HasKitGrant() bool })
+	return ok && owner.HasKitGrant()
+}
+
 // ReleaseKitLease is for an explicit user Stop after input/media cleanup.
 // Replacement Stop retains ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
