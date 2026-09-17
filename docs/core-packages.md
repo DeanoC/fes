@@ -154,12 +154,13 @@ import nor selection rebuilds compilers or FPGA payloads.
 
 ### Library media
 
-With the data-driven core-media FogCast version selected, multiple titles can
-use one core/package; only duplicate core/title pairs conflict. Library entries
+Multiple titles can use one core/package; only duplicate core/title pairs
+conflict. Library entries
 select immutable media by SHA-256, independently of the installed package:
 
 ```sh
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/controller.rom
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-capabilities PACKAGE_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-entry 'Coleco controls' PACKAGE_ID blob MEDIA_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID
 out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID OLD_MEDIA_ID NEW_MEDIA_ID
@@ -172,12 +173,23 @@ Selection checks both the expected package and media IDs and affects the next
 launch. Changing the original file does not change imported bytes; import the
 new bytes and explicitly select their new digest. Package changes retain media.
 
-The current `blob` contract accepts 1 through 16,384 bytes (16 KiB), requiring
+Host storage accepts 1 byte through 32 MiB in bounded-memory streams and 64 KiB catalog
+chunks. That limit is separate from the selected core's media capacity.
+`core-media-capabilities` reports the offline supported declaration, including
+role, format, minimum/maximum size and transport, with target compatibility
+explicitly unknown. Unknown interface versions do not inherit larger capacity.
+
+The current `blob` target contract accepts 1 through 16,384 bytes (16 KiB), requiring
 `fes.simple-computer` 1.0 and `fes.media.blob` 1.0. It is not arbitrary cartridge
 support. New Coleco entries require explicit media to run a diagnostic;
 package-only entries upload nothing. Schema 7 migrates existing Coleco entries
 once to the historical diagnostic as ordinary selected media. Clearing that
 selection is preserved across restart.
+
+For example, importing a 512 KiB ROM succeeds, but selecting it for blob 1.0
+fails before hardware activation and leaves the previous selection unchanged.
+See [media capacity and transport](core-media-evolution.md) for the current
+storage boundary and the explicitly proposed larger-media runtime/FPGA work.
 
 Media bytes and selections live in the host catalog, so back it up alongside
 the package store. Where a core supports persistence, settings/progress remain
