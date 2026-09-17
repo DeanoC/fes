@@ -481,10 +481,9 @@ hardware.
 Coleco lock (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) and the
 Coleco OSS constraint subset. Yosys must define both `FES_SMS_OSS=1` and
 `FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
-not seal. The producer uses `--router gpu` and seed 4 with a live HIP
-backend required. HIP `--router gpu` of the sealed netlist met the 52 MHz
-and 74.25 MHz structured fmax rows on a live HIP backend. FES parent pin
-and kit HIL remain later jobs.
+not seal. The producer uses `--router gpu` and seed 1 with a live HIP
+backend required. Final structured `clk_sys` and `pixel_clk` rows must meet
+52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`

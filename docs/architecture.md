@@ -1989,10 +1989,10 @@ and timing evidence without sealing.
 (Coleco compatibility pin as a byte copy), `constraints-oss.qsf`, and
 `clocks-oss.sdc`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys without a clean tree and does
-not seal. The producer uses `--router gpu` and seed 4 with a live HIP
-backend required. HIP `--router gpu` of the sealed netlist met the 52 MHz
-and 74.25 MHz structured fmax rows on a live HIP backend. FES parent pin
-and kit HIL remain later jobs. See
+not seal. The producer uses `--router gpu` and seed 1 with a live HIP
+backend required. Final structured `clk_sys` and `pixel_clk` rows must
+meet 52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
+See
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`,
 `docs/validation/2026-09-17-sms-32k-fixed-map.md`, and
 `docs/validation/2026-09-17-sms-32k-p2-diagnostic.md`.

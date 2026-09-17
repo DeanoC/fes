@@ -53,7 +53,7 @@ not Yosys/nextpnr/Mistral limits are labelled as such.
 
 | Evidence | Present state |
 | --- | --- |
-| `scripts/build_fes_sms_oss.py` | present; SG-1000 copy (`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_COLECO_OSS=1`, seed 4, `--router gpu`, HIP `gfx1100;gfx1201`, CPU-fallback reject) |
+| `scripts/build_fes_sms_oss.py` | present; SG-1000 copy (`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_COLECO_OSS=1`, seed 1, `--router gpu`, HIP `gfx1100;gfx1201`, CPU-fallback reject) |
 | `make build-fes-sms` / `toolchain-fes-sms` | present |
 | `cores/fes-sms/toolchain.lock` | Coleco/SG-1000 lock byte copy (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) |
 | `tests/test_build_fes_sms.py` | asserts Quartus + OSS sim + OSS producer entrypoints |

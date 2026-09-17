@@ -127,7 +127,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("sg1000_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 4)
+        self.assertEqual(SEED, 1)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
