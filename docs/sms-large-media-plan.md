@@ -5,8 +5,9 @@ Status: implementation in progress; no larger-ROM hardware acceptance claimed.
 ## Integration checkpoint
 
 - Shared stream definitions are merged in mister-packages #9 (`fdc4ece`).
-- Runtime #24 (`342183f`) and FogCast #256 (`43528b2`) implement the explicit
-  stream path. Runtime tests and ARM cross-build, host tests/vet and builds,
+- Runtime #24 is merged (`3fe4b91`); FogCast #256 (`6849e03`) implements the
+  explicit stream path, including coordinator capability propagation and
+  isolated status snapshots. Runtime tests and ARM cross-build, host tests/vet and builds,
   and parent consistency/host build have passed. Host browser/CDP coverage
   was skipped because Chrome was unavailable.
 - Parent consistency checks cover 18 generated consumers, 15 fixture copies
