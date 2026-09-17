@@ -146,7 +146,9 @@ class BundleTest(unittest.TestCase):
         staged = subprocess.check_output(
             ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
             text=True)
-        self.assertIn('1308f94d62061d308a756d5f197d14e81cb4cf5c', staged)
+        self.assertIn('18c064bb200ee9f58d8e14e98d62cc0d02fe5d19', staged)
+        self.assertTrue((root / 'sources/misteross/scripts/build_fes_sms_oss.py').is_file())
+        self.assertTrue((root / 'sources/misteross/cores/fes-sms/toolchain.lock').is_file())
         module = self.module()
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()

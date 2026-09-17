@@ -14,26 +14,46 @@ from tests.test_bundle import BundleTest
 
 
 class RecipeRegistryTest(unittest.TestCase):
-    def test_registry_contains_exactly_three_hip_descriptors(self):
-        self.assertEqual(tuple(recipes.FORMAT2_RECIPES), ("fes.pong", "fes.zx81", "fes.coleco"))
+    def test_registry_contains_exactly_four_hip_descriptors(self):
+        self.assertEqual(
+            tuple(recipes.FORMAT2_RECIPES),
+            ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms"))
         expected = {
             "fes.pong": {
                 "producer_script": "scripts/build_fes_pong.py",
                 "producer_module": "scripts.build_fes_pong",
                 "lock_path": "toolchain.lock",
                 "selection_filename": "fes-pong.package-selection.toml",
+                "authenticate": "_authenticate_tools",
+                "package_dir_env": "FES_PONG_PACKAGE_DIR",
+                "package_selection_env": "FES_PONG_PACKAGE_SELECTION",
             },
             "fes.zx81": {
                 "producer_script": "scripts/build_fes_zx81_oss.py",
                 "producer_module": "scripts.build_fes_zx81_oss",
                 "lock_path": "toolchain.lock",
                 "selection_filename": "fes-zx81.package-selection.toml",
+                "authenticate": "_authenticate_tools",
+                "package_dir_env": "FES_ZX81_PACKAGE_DIR",
+                "package_selection_env": "FES_ZX81_PACKAGE_SELECTION",
             },
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_oss.py",
                 "producer_module": "scripts.build_fes_coleco_oss",
                 "lock_path": "cores/fes-coleco/toolchain.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
+                "authenticate": "_authenticate_coleco_tools",
+                "package_dir_env": "FES_COLECO_PACKAGE_DIR",
+                "package_selection_env": "FES_COLECO_PACKAGE_SELECTION",
+            },
+            "fes.sms": {
+                "producer_script": "scripts/build_fes_sms_oss.py",
+                "producer_module": "scripts.build_fes_sms_oss",
+                "lock_path": "cores/fes-sms/toolchain.lock",
+                "selection_filename": "fes-sms.package-selection.toml",
+                "authenticate": "_authenticate_sms_tools",
+                "package_dir_env": "FES_SMS_PACKAGE_DIR",
+                "package_selection_env": "FES_SMS_PACKAGE_SELECTION",
             },
         }
         for core_id, fields in expected.items():
@@ -42,6 +62,9 @@ class RecipeRegistryTest(unittest.TestCase):
             self.assertEqual(recipe.producer_script, fields["producer_script"])
             self.assertEqual(recipe.producer_module, fields["producer_module"])
             self.assertEqual(recipe.lock_path, fields["lock_path"])
+            self.assertEqual(recipe.authenticate, fields["authenticate"])
+            self.assertEqual(recipe.package_dir_env, fields["package_dir_env"])
+            self.assertEqual(recipe.package_selection_env, fields["package_selection_env"])
             self.assertEqual(recipe.gpu_router, "HIP")
             self.assertEqual(recipe.hip_architectures, "gfx1100;gfx1201")
             self.assertEqual(recipe.selection_filename, fields["selection_filename"])
@@ -49,9 +72,13 @@ class RecipeRegistryTest(unittest.TestCase):
         pong = recipes.recipe_for("fes.pong")
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
+        sms = recipes.recipe_for("fes.sms")
         self.assertEqual(pong.lock_path, zx81.lock_path)
         self.assertNotEqual(coleco.lock_path, pong.lock_path)
+        self.assertNotEqual(sms.lock_path, pong.lock_path)
+        self.assertNotEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
+        self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
             recipes.recipe_for("fes.unknown")
 
@@ -62,6 +89,9 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.pong"}, {"core_id": "fes.zx81"}]},
             "native-integration-dev"), ("fes.pong", "fes.zx81"))
         self.assertEqual(build.selected_packages({}, "native-dev"), ())
+        self.assertEqual(build.selected_packages(
+            {"fpga_packages": [{"core_id": "fes.sms"}]},
+            "native-integration-dev"), ("fes.sms",))
         cases = (
             ({"fpga_packages": [{"core_id": "fes.unknown"}]}, "unknown"),
             ({"fpga_packages": [{"core_id": "fes.pong"}, {"core_id": "fes.pong"}]}, "duplicate"),
@@ -79,7 +109,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_each_descriptor_dispatches_its_producer_with_explicit_cache_root(self):
         module = self.module()
-        for core_id in ("fes.pong", "fes.zx81", "fes.coleco"):
+        for core_id in ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms"):
             with self.subTest(core_id=core_id), tempfile.TemporaryDirectory() as temporary:
                 source = Path(temporary)
                 recipe = recipes.recipe_for(core_id)

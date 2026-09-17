@@ -2,11 +2,14 @@
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
 
-The recipe registry supports the described `fes.pong`, `fes.zx81` and
-`fes.coleco` packages. The default target-image selector installs the ordered
-closed package set, while focused profiles may select a smaller package set.
-See [FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up
-notes.
+The recipe registry supports the described `fes.pong`, `fes.zx81`,
+`fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image
+selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
+package set, while focused profiles may select a smaller package set.
+`fes.sms` is registered for package-only host-library acceptance. Its
+selection filename is `fes-sms.package-selection.toml`. It is not in the
+factory image closed set. See [FES ZX81](fes-zx81.md) and the Coleco
+validation records for bring-up notes.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
