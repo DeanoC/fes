@@ -39,6 +39,12 @@ type SessionCoreInterface struct {
 	Minor uint16 `json:"minor"`
 }
 
+// IsKeyboard reports the exact keyboard interface supported by session clients.
+// Other versions are not assumed to be compatible with fes.keyboard 1.0.
+func (i SessionCoreInterface) IsKeyboard() bool {
+	return i.ID == "fes.keyboard" && i.Major == 1 && i.Minor == 0
+}
+
 // SessionCorePackage is the package capability projection attached to a
 // session. Generation is deliberately uint64 so the wire value is lossless.
 type SessionCorePackage struct {
@@ -184,7 +190,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	}
 	if wire.CorePackage != nil {
 		for _, contract := range wire.CorePackage.ActiveInterfaces {
-			if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+			if contract.IsKeyboard() {
 				result.CoreKeyboard = true
 				break
 			}

@@ -40,6 +40,10 @@ eligibility. Catalog eligibility does not replace session or target readiness
 gates, nor the host's authoritative launch validation. Tenfoot maps those block codes to
 sofa copy. Artwork handles use `hostclient.NormalizeHandle` so host
 transport, kit disk cache, and UI retain share one 64-hex rule.
+Shared session decoding and Kit capability checks use
+`hostclient.SessionCoreInterface.IsKeyboard` for exact `fes.keyboard` 1.0
+recognition. Unsupported versions remain ineligible; input readiness,
+generation and session ownership checks still apply separately.
 Tenfoot and the kit launcher consume that package for session
 polling; the browser keeps its own `parseSession` and shares the common
 success/rejection matrix in `hostclient/testdata/session-contract.json`.

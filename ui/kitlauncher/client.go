@@ -164,7 +164,7 @@ func (p *CorePackageSession) HasKeyboard() bool {
 		return false
 	}
 	for _, contract := range p.ActiveInterfaces {
-		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {
+		if hostclient.SessionCoreInterface(contract).IsKeyboard() {
 			return true
 		}
 	}
