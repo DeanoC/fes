@@ -227,6 +227,18 @@ def package_id_from_selection(path: Path) -> str:
     return package_id
 
 
+def parse_entries(values: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        core, separator, game_id = value.partition("=")
+        if not separator or core not in CORE_ORDER or not game_id.strip():
+            raise AcceptanceError(f"entry must be CORE=GAME_ID for a supported core: {value}")
+        if core in result:
+            raise AcceptanceError(f"entry supplied more than once for {core}")
+        result[core] = game_id
+    return result
+
+
 def parse_media(values: list[str]) -> dict[str, Path]:
     result: dict[str, Path] = {}
     for value in values:
@@ -250,6 +262,7 @@ class Runner:
         self.poll_attempts = args.poll_attempts
         self.poll_interval = args.poll_interval
         self.media = parse_media(args.media)
+        self.entries = parse_entries(args.entry)
         self.capture_dir = Path(args.capture_dir) if args.capture_dir else None
         self.video_device = args.video_device
         self.capture_size = args.capture_size
@@ -297,9 +310,17 @@ class Runner:
                 if entry.get("core_id") == core
                 and entry.get("package_id") == expected[core]
                 and entry.get("game_id")
+                and (core not in self.entries or entry.get("game_id") == self.entries[core])
             ]
             if len(entry_matches) != 1:
-                raise AcceptanceError(f"{core}: expected one selected library entry")
+                if core in self.entries:
+                    raise AcceptanceError(
+                        f"{core}: entry {self.entries[core]} must match exactly one library entry "
+                        f"with package {expected[core]}"
+                    )
+                raise AcceptanceError(
+                    f"{core}: expected one selected library entry; specify --entry {core}=GAME_ID"
+                )
             games[core] = entry_matches[0]["game_id"]
         return games
 
@@ -459,6 +480,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--poll-attempts", type=int, default=int(os.environ.get("FES_ACCEPTANCE_POLL_ATTEMPTS", "60")))
     result.add_argument("--poll-interval", type=float, default=float(os.environ.get("FES_ACCEPTANCE_POLL_INTERVAL", "1")))
     result.add_argument("--media", action="append", default=[], metavar="CORE=PATH")
+    result.add_argument("--entry", action="append", default=[], metavar="CORE=GAME_ID",
+                        help="select an exact library entry; required when core/package matches are ambiguous")
     result.add_argument("--capture-dir", default=os.environ.get("FES_ACCEPTANCE_CAPTURE_DIR"))
     result.add_argument("--video-device", default=os.environ.get("FES_HDMI_DEVICE", "/dev/video0"))
     result.add_argument("--capture-size", default=os.environ.get("FES_HDMI_SIZE", "1280x720"))

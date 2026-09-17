@@ -140,6 +140,41 @@ class _HTTPErrorHandler(BaseHTTPRequestHandler):
 
 
 class TargetAcceptanceTests(unittest.TestCase):
+    def test_inventory_explicit_entry_and_singleton_fallback(self):
+        expected = {core: str(index) * 64 for index, core in enumerate(target_acceptance.CORE_ORDER, 1)}
+        entries = [dict(core_id=core, package_id=package, game_id=core + "-one")
+                   for core, package in expected.items()]
+        packages = [dict(package_id=package, descriptor={"core": {"id": core}})
+                    for core, package in expected.items()]
+        runner = target_acceptance.Runner(target_acceptance.parser().parse_args([]))
+        runner.host = SimpleNamespace(get=lambda path: (
+            {"entries": entries} if path.endswith("core-entries") else {"packages": packages}))
+        self.assertEqual(runner.inventory(expected)["fes.coleco"], "fes.coleco-one")
+        entries.append(dict(entries[-1], game_id="coleco-two"))
+        with self.assertRaisesRegex(target_acceptance.AcceptanceError, "specify --entry"):
+            runner.inventory(expected)
+        runner.entries = target_acceptance.parse_entries(["fes.coleco=coleco-two"])
+        self.assertEqual(runner.inventory(expected)["fes.coleco"], "coleco-two")
+        entries.append(dict(core_id="fes.coleco", package_id="f" * 64, game_id="wrong-package"))
+        for entry in (
+            "missing", "fes.pong-one", "wrong-package",
+        ):
+            with self.subTest(entry=entry):
+                runner.entries = {"fes.coleco": entry}
+                with self.assertRaisesRegex(target_acceptance.AcceptanceError, "must match exactly one"):
+                    runner.inventory(expected)
+
+    def test_entry_arguments_reject_invalid_and_duplicate_core(self):
+        for values in (["fes.sms=game"], ["fes.pong="], ["fes.pong= "], ["fes.pong"],
+                       ["fes.pong=one", "fes.pong=two"]):
+            with self.subTest(values=values):
+                with self.assertRaises(target_acceptance.AcceptanceError):
+                    target_acceptance.parse_entries(values)
+        args = target_acceptance.parser().parse_args(
+            ["--entry", "fes.pong=one", "--entry", "fes.coleco=two"])
+        self.assertEqual(target_acceptance.parse_entries(args.entry),
+                         {"fes.pong": "one", "fes.coleco": "two"})
+
     def test_api_http_error_includes_bounded_structured_detail(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), _HTTPErrorHandler)
         server.error_status = 503
@@ -202,7 +237,7 @@ class TargetAcceptanceTests(unittest.TestCase):
         thread.start()
         try:
             origin = f"http://127.0.0.1:{server.server_port}"
-            runner = target_acceptance.Runner(SimpleNamespace(
+            runner = target_acceptance.Runner(SimpleNamespace(entry=[],
                 host_api=origin,
                 target_api=origin,
                 timeout=1,

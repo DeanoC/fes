@@ -152,6 +152,40 @@ explicit checked update for the next launch; the currently running package keeps
 its actual identity. Select a retained older package to roll back. Neither
 import nor selection rebuilds compilers or FPGA payloads.
 
+### Library media
+
+With the data-driven core-media FogCast version selected, multiple titles can
+use one core/package; only duplicate core/title pairs conflict. Library entries
+select immutable media by SHA-256, independently of the installed package:
+
+```sh
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/controller.rom
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-entry 'Coleco controls' PACKAGE_ID blob MEDIA_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID OLD_MEDIA_ID NEW_MEDIA_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID OLD_MEDIA_ID none
+```
+
+Use the returned `media_id` and `game_id`; the create and select examples are
+alternative workflows. `none` is the CLI spelling for an empty selection.
+Selection checks both the expected package and media IDs and affects the next
+launch. Changing the original file does not change imported bytes; import the
+new bytes and explicitly select their new digest. Package changes retain media.
+
+The current `blob` contract accepts 1 through 16,384 bytes (16 KiB), requiring
+`fes.simple-computer` 1.0 and `fes.media.blob` 1.0. It is not arbitrary cartridge
+support. New Coleco entries require explicit media to run a diagnostic;
+package-only entries upload nothing. Schema 7 migrates existing Coleco entries
+once to the historical diagnostic as ordinary selected media. Clearing that
+selection is preserved across restart.
+
+Media bytes and selections live in the host catalog, so back it up alongside
+the package store. Where a core supports persistence, settings/progress remain
+core-scoped: different titles using that core do not gain separate save slots.
+The raw `core-media` development upload remains available, and the parent
+target-acceptance runner's `--media` option exercises that diagnostic path,
+not selected-media acceptance.
+
 The host retains all versions under `~/.local/share/fogcast/core-packages/`;
 back up that directory together with its catalog database. Appliance image
 recovery remains independent of these host files. See the selected
