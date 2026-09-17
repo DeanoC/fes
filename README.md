@@ -456,6 +456,29 @@ not seal. The producer uses `--router gpu` and seed 4 with a live HIP
 backend required. HIP format-2 seal, FES parent pin and kit HIL remain later
 jobs.
 
+`make sim-fes-sms` tests the next `fes.simple-computer` Coleco/SG-1000 sibling:
+a reduced Master System machine (`fes.sms`, not `fes.mastersystem`) with the
+cartridge at `0x0000`, 8 KiB RAM at `0xc000` mirrored at `0xe000`, the shared
+TMS9918-style VDP on Z80 INT, and SMS 8255 joystick ports `0xdc`/`0xdd`. It is
+simulation, not a Quartus RBF or kit evidence. `make sim-fes-sms-oss` compiles
+the registered-media and registered-VDP branches with
+`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`.
+
+`make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
+for package `fes.sms` 1.0.0. It reuses Coleco TV80, VDP, video, GP and PLL
+modules and is not a nextpnr fallback. Set
+`QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. The recipe
+requires a clean committed tree to seal a format-2 package; `--compile-only`
+produces the RBF and timing evidence without sealing. This does not program
+hardware.
+
+`make build-fes-sms` is the OSS Yosys/nextpnr-mistral recipe. It copies the
+Coleco lock (Yosys `da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) and the
+Coleco OSS constraint subset. Yosys must define both `FES_SMS_OSS=1` and
+`FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
+not seal. The producer uses `--router gpu` and seed 4 with a live HIP
+backend required. FES parent pin and kit HIL remain later jobs.
+
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`
 is the authenticated HIP nextpnr/Mistral production recipe for `5CSEBA6U23I7`.
@@ -552,6 +575,11 @@ build/fes-sg1000-quartus/build-inputs.json              # pre-compile canonical 
 build/fes-sg1000-quartus/manifest.toml                  # generated format-2 manifest when sealed
 build/fes-sg1000-oss/synth.json                          # OSS Yosys evidence (synth-only or full)
 build/fes-sg1000-oss/core.rbf                            # OSS nextpnr/Mistral FES SG-1000 RBF when sealed
+build/fes-sms-quartus/core.rbf                           # Quartus bring-up FES Master System RBF
+build/fes-sms-quartus/build-inputs.json                  # pre-compile canonical inputs
+build/fes-sms-quartus/manifest.toml                      # generated format-2 manifest when sealed
+build/fes-sms-oss/synth.json                             # OSS Yosys evidence (synth-only or full)
+build/fes-sms-oss/core.rbf                               # OSS nextpnr/Mistral FES Master System RBF when sealed
 build/fes-coleco-oss/build-summary.json                  # timing/resource/tool evidence
 build/fes-coleco-oss/manifest.toml                       # generated format-2 manifest
 build/packages/<package-id>/manifest.toml               # format-2 manifest
@@ -614,27 +642,33 @@ make compare EXP=020_linux_mailbox
 
 ### Shared immutable toolchain cache
 
-The FES Python Pong, ZX81, and Coleco recipes use HIP nextpnr (`--router gpu`
-with a live HIP backend) as the standard production lane. Shared-cache mode
+The FES Python Pong, ZX81, Coleco, SG-1000, and SMS recipes use HIP nextpnr
+(`--router gpu` with a live HIP backend) as the standard production lane. Shared-cache mode
 is selected only by an explicit `--cache-root PATH` on the producer CLI or by
 `CACHE_ROOT=/absolute/cache` on `make build-fes-pong`, `make build-fes-zx81`,
-and `make build-fes-coleco`, not by ambient `FES_TOOLCHAIN_CACHE_ROOT`.
+`make build-fes-coleco`, `make build-fes-sg1000`, and `make build-fes-sms`,
+not by ambient `FES_TOOLCHAIN_CACHE_ROOT`.
 Omitting `--cache-root` / `CACHE_ROOT` keeps the repository-local HIP
-toolchain from `make toolchain-fes` (Pong/ZX81) or `make toolchain-fes-coleco`.
+toolchain from `make toolchain-fes` (Pong/ZX81), `make toolchain-fes-coleco`,
+`make toolchain-fes-sg1000`, or `make toolchain-fes-sms`.
 Pong and ZX81 authenticate the repository-wide `toolchain.lock` HIP slot
 (`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). Coleco keeps
 `cores/fes-coleco/toolchain.lock` and the same HIP lane without aliasing the
-root-lock cache slot. Quartus recipes remain oracle-only for ZX81 and Coleco
-and are not a nextpnr fallback.
+root-lock cache slot. SG-1000 and SMS keep byte copies of that Coleco lock.
+Quartus recipes remain oracle-only for ZX81, Coleco, SG-1000, and SMS and
+are not a nextpnr fallback.
 An empty shared cache is provisioned with the same Make variable used by the
 producer recipes:
 
     CACHE_ROOT=/absolute/cache make toolchain-fes
     CACHE_ROOT=/absolute/cache make toolchain-fes-coleco
+    CACHE_ROOT=/absolute/cache make toolchain-fes-sg1000
+    CACHE_ROOT=/absolute/cache make toolchain-fes-sms
     CACHE_ROOT=/absolute/cache make doctor-strict
 
-The first two commands populate the separate root-lock and Coleco-lock HIP
-slots. Later producer commands reuse those verified slots. An explicit
+`toolchain-fes` populates the root-lock HIP slot. Coleco, SG-1000, and SMS
+toolchain targets populate the Coleco-lock HIP slot. Later producer commands
+reuse those verified slots. An explicit
 FES_TOOLCHAIN_CACHE_ROOT is still supported for callers that already use the
 internal spelling; if both variables are set they must name the same absolute
 path.
@@ -651,9 +685,15 @@ CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-zx81
 make build-fes-zx81 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-coleco
 make build-fes-coleco CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
+CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-sg1000
+make build-fes-sg1000 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
+CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-sms
+make build-fes-sms CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
+python3 scripts/build_fes_sg1000_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
+python3 scripts/build_fes_sms_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
 ```
 
 A nextpnr command that merely contains `--router gpu` is not sufficient: the
