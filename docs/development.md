@@ -177,6 +177,17 @@ input bridge, and stops back to idle.
 The runner always stops an active session during cleanup. It does not infer
 video correctness from a successful API response.
 
+Multiple library titles may select the same core and package. Select the exact
+game ID when that match is ambiguous, repeating the option for other cores:
+
+```sh
+make target-acceptance TARGET_ACCEPTANCE_ARGS='--entry fes.coleco=GAME_ID --entry fes.zx81=OTHER_GAME_ID'
+```
+
+Each supplied game ID must match the expected core and exact package from the
+selection records. Without an option for a core, exactly one matching entry
+must exist; the runner never picks the first of several titles.
+
 For the full physical evidence lane, provide the exact media fixtures and an
 HDMI capture directory explicitly:
 
@@ -192,6 +203,13 @@ package, input count, media digest and capture digest. Capture digests prove
 which bytes were recorded; visual interpretation remains a human HDMI review.
 The lane is intentionally not part of ordinary CI because it requires the
 designated physical kit and `/dev/video0`.
+
+The `--media` option remains an explicit development upload after library launch;
+it can replace library-selected media for that diagnostic session. Its receipt
+records the uploaded file digest, not proof of immutable library-media selection.
+This lane does not establish selected-media acceptance. For persistent library
+selection, use the [data-driven media commands](core-packages.md#library-media).
+Fresh Coleco entries receive no implicit controller diagnostic.
 
 Use `make build` and `make verify` for stabilized integration and release checks.
 A warm development image is diagnostic evidence and cannot satisfy those
