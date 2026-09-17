@@ -274,9 +274,13 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stderr)
             data = output.read_bytes()
             self.assertEqual(data[0], 0xF3)
+            self.assertEqual(data[4:7], bytes((0xC3, 0x00, 0x40)))  # JP 4000
             self.assertIn(b"\x31\xf0\xdf", data)  # LD SP,DFF0
             self.assertIn(b"\x32\x00\xc0", data)
-            self.assertLessEqual(len(data), 16384)
+            self.assertGreater(len(data), 16384)
+            self.assertLessEqual(len(data), 32768)
+            self.assertNotEqual(data[0x4000], 0xFF)
+            self.assertIn(bytes((0x76, 0x18, 0xFD)), data)
             digest = hashlib.sha256(data).hexdigest()
             second = Path(directory) / "again.rom"
             subprocess.run(
@@ -286,15 +290,37 @@ class BuildFesSmsTests(unittest.TestCase):
             )
             self.assertEqual(second.read_bytes(), data)
             self.assertEqual(hashlib.sha256(second.read_bytes()).hexdigest(), digest)
+            too_small = subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(Path(directory) / "bad.rom"),
+                 "--pad-to", "16384"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(too_small.returncode, 0)
+            self.assertIn("32768", too_small.stderr)
             padded = Path(directory) / "padded.rom"
             subprocess.run(
-                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "16384"],
+                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "32768"],
                 cwd=ROOT,
                 check=True,
             )
-            self.assertEqual(padded.read_bytes(), data + b"\xff" * (16384 - len(data)))
+            self.assertEqual(padded.read_bytes(), data + b"\xff" * (32768 - len(data)))
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+            hil = Path(directory) / "hil.rom"
+            subprocess.run(
+                [sys.executable, str(GENERATOR), "--output", str(hil), "--interactive"],
+                cwd=ROOT,
+                check=True,
+            )
+            hil_data = hil.read_bytes()
+            self.assertEqual(hil_data[4:7], bytes((0xC3, 0x00, 0x40)))
+            self.assertGreater(len(hil_data), 16384)
+            self.assertNotIn(bytes((0x76, 0x18, 0xFD)), hil_data)
+            self.assertTrue(any(hil_data[i] == 0xC3 and hil_data[i + 2] == 0x40
+                                for i in range(0x4000, len(hil_data) - 2)))
 
     def test_published_stream_pin_and_required_interface(self) -> None:
         pin = (ROOT / "docs/contracts/MISTER-PACKAGES-PIN.txt").read_text(encoding="utf-8")
@@ -316,6 +342,8 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
         self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
+        gp = (ROOT / "cores/fes-coleco/rtl/fes_computer_gp.v").read_text(encoding="utf-8")
+        self.assertIn("if (!ENABLE_MEDIA_STREAM || media_open)", gp)
         from scripts.build_fes_sms_oss import _manifest as oss_manifest_fn
 
         record = (

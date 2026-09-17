@@ -5,6 +5,8 @@
 // ENABLE_MEDIA_STREAM adds fes.media.blob-stream 1.0 (opcodes 7..12, 32 KiB
 // RAM, capability bit 3). Default zero keeps the original 16 KiB blob ports
 // and HOLD_RESET/RELEASE behaviour for Coleco, SG-1000 and ZX81 callers.
+// With stream enabled, HoldReset still cancels an incomplete legacy blob and
+// does not discard in-progress stream staging.
 module fes_computer_gp #(
     parameter ENABLE_MEDIA_STREAM = 0
 ) (
@@ -310,7 +312,8 @@ module fes_computer_gp #(
                     else if (command_argument == `FES_SIMPLE_COMPUTER_EXECUTION_HOLD_RESET) begin
                         exec_reset <= 1'b1;
                         clear_keyboard;
-                        if (!ENABLE_MEDIA_STREAM) begin
+                        // Abort an incomplete legacy blob. Stream staging stays across Hold.
+                        if (!ENABLE_MEDIA_STREAM || media_open) begin
                             media_open <= 1'b0;
                             media_ptr <= 15'd0;
                         end

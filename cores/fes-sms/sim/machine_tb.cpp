@@ -183,17 +183,30 @@ int main(int argc, char **argv) {
             diagnostic.push_back(byte);
         std::fclose(rom);
         require(!diagnostic.empty(), "empty diagnostic ROM");
+        require(diagnostic.size() > 0x4000, "diagnostic must include upper 16KiB");
+        require(diagnostic[0] == 0xf3, "diagnostic entry DI");
+        require(diagnostic[4] == 0xc3 && diagnostic[5] == 0x00 &&
+                    diagnostic[6] == 0x40,
+                "diagnostic must JP 0x4000");
+        require(diagnostic[0x4000] != 0xff, "upper-half code missing");
         dut.keyboard = 0xffffffffffull;
         load_blob(dut, diagnostic, registered_media_data);
         dut.reset = 0;
         cycles = 0;
-        for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles)
+        bool saw_upper = false;
+        for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles) {
             tick(dut, diagnostic, registered_media_data);
+            if (dut.cpu_addr_debug >= 0x4000 && dut.cpu_addr_debug < 0x8000)
+                saw_upper = true;
+        }
         require(cycles < 40000000, "diagnostic did not HALT");
+        require(saw_upper, "CPU never executed from upper 16KiB");
         require(peek(dut, 0xc000, registered_media_data) == 0xa5,
                 "diagnostic RAM signature");
         require(peek(dut, 0xc001, registered_media_data) == 0xff,
                 "diagnostic captured DC");
+        require(peek(dut, 0xc002, registered_media_data) == 0x18,
+                "diagnostic upper-half data signature");
     }
 
     std::cout << "FES SMS machine checks passed\n";

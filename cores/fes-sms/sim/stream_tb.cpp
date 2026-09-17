@@ -516,6 +516,55 @@ int main(int argc, char **argv) {
                 "short payload");
     }
 
+    {
+        Mailbox mailbox;
+        bool toggle = false;
+        exchange(mailbox, toggle, 4, 0, 3, response(!toggle, false, 0),
+                 "legacy begin before hold");
+        require(mailbox.core().media_open, "legacy begin opens");
+        exchange(mailbox, toggle, 2, 0, 0, response(!toggle, false, 0),
+                 "hold reset aborts legacy");
+        require(!mailbox.core().media_open, "hold must clear media_open");
+        exchange(mailbox, toggle, 5, 0, 0x0201, response(!toggle, true, 4),
+                 "data after legacy hold must reject");
+    }
+
+    {
+        Mailbox mailbox;
+        bool toggle = false;
+        exchange(mailbox, toggle, 4, 0, 3, response(!toggle, false, 0),
+                 "legacy begin for pair-then-hold");
+        exchange(mailbox, toggle, 5, 0, 0x0201, response(!toggle, false, 0),
+                 "legacy pair before hold");
+        exchange(mailbox, toggle, 2, 0, 0, response(!toggle, false, 0),
+                 "hold after incomplete pair");
+        require(!mailbox.core().media_open, "incomplete pair aborted");
+        exchange(mailbox, toggle, 5, 0, 0x0403, response(!toggle, true, 4),
+                 "further legacy data after hold rejected");
+        exchange(mailbox, toggle, 8, 0, 3, response(!toggle, false, 0),
+                 "stream begin after aborted legacy");
+        require(mailbox.core().stream_begin_next == 1, "stream staging after abort");
+        exchange(mailbox, toggle, 12, 0, 0, response(!toggle, false, 0),
+                 "abort staged stream after interlock");
+    }
+
+    {
+        Mailbox mailbox;
+        bool toggle = false;
+        exchange(mailbox, toggle, 8, 0, 3, response(!toggle, false, 0),
+                 "stream begin lo preserved across hold");
+        require(mailbox.core().stream_begin_next == 1, "begin next after first word");
+        exchange(mailbox, toggle, 2, 0, 0, response(!toggle, false, 0),
+                 "hold during stream staging");
+        require(mailbox.core().stream_begin_next == 1, "hold preserves stream staging");
+        require(!mailbox.core().media_open, "hold does not invent legacy open");
+        exchange(mailbox, toggle, 8, 1, 0, response(!toggle, false, 0),
+                 "stream begin hi after hold");
+        require(mailbox.core().stream_begin_next == 2, "staging advanced after hold");
+        exchange(mailbox, toggle, 12, 0, 0, response(!toggle, false, 0),
+                 "abort preserved stream");
+    }
+
     std::cout << "FES SMS blob-stream 1.0 mailbox checks passed\n";
     return EXIT_SUCCESS;
 }

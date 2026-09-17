@@ -43,3 +43,6 @@ header semantics.
 
 A new sealed RBF is not produced in this job. The Quartus and OSS producers
 will emit the required stream interface on the next clean seal.
+
+The 32 KiB CPU-execution diagnostic and HoldReset legacy-abort follow-on live
+in `docs/validation/2026-09-17-sms-32k-p2-diagnostic.md`.

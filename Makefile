@@ -477,8 +477,13 @@ sms-diagnostic:
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py \
 		--output build/diagnostics/fes-sms/graphics-i.rom \
 		--preview build/diagnostics/fes-sms/graphics-i.ppm
-	$(PYTHON) cores/fes-sms/diagnostic/generate.py --pad-to 16384 \
-		--output build/diagnostics/fes-sms/graphics-i-16k.rom
+	$(PYTHON) cores/fes-sms/diagnostic/generate.py --pad-to 32768 \
+		--output build/diagnostics/fes-sms/graphics-i-32k.rom
+	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive \
+		--output build/diagnostics/fes-sms/graphics-i-hil.rom \
+		--preview build/diagnostics/fes-sms/graphics-i-hil.ppm
+	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive --pad-to 32768 \
+		--output build/diagnostics/fes-sms/graphics-i-hil-32k.rom
 
 sim-fes-sms: sms-diagnostic
 	$(require_local_sim)
