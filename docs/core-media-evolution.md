@@ -32,14 +32,14 @@ wire, shared ABI, runtime or FPGA. Its legacy SMS package remains limited to
 
 The shared `fes.media.blob-stream` 1.0 wire contract is published in
 [mister-packages](https://github.com/DeanoC/mister-packages/blob/fdc4ece2e1fa87035ddca8cd147c621e7edcce3b/docs/media-stream.md).
-Runtime and host software are implemented and under integration review. They
+Runtime and host software are merged and selected for integration. They
 use 32-bit lengths and offsets, ordered 512-byte chunks and CRC32/IEEE, while
 keeping legacy blob 1.0 unchanged. The stream contract guarantees 1..32768
 bytes; the runtime separately checks the active endpoint's observed capacity.
 The concrete SMS target is a 32 KiB fixed map, not general mapper support.
 
-RTL/simulation, sealed-package integration and exact-artifact hardware
-acceptance remain pending in the
+The corrected SMS RTL is merged and its HIP-sealed package is handed off.
+Combined-source verification and exact-artifact hardware acceptance are tracked in the
 [SMS larger-media integration plan](sms-large-media-plan.md). Implemented
 software and published definitions do not establish target acceptance.
 

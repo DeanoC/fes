@@ -1,6 +1,6 @@
 # SMS larger-media integration plan
 
-Status: implementation in progress; no larger-ROM hardware acceptance claimed.
+Status: merged components selected; exact-artifact hardware acceptance pending.
 
 ## Integration checkpoint
 
@@ -13,13 +13,21 @@ Status: implementation in progress; no larger-ROM hardware acceptance claimed.
 - Parent consistency checks cover 18 generated consumers, 15 fixture copies
   and four copied source pins. Parent Python tests passed; container-delegated
   cases passed in their respective container runs.
-- SMS RTL #66 (`7028b84`) is a review candidate, not an accepted package.
-  Review requires a CPU-executed upper-16-KiB diagnostic and preservation of
-  legacy upload cancellation on Hold Reset. A fresh HIP seal and coherent
-  exact-artifact hardware acceptance remain pending.
+- SMS RTL #66 is merged at `be3b0836fd18fa24dae8f2eaec152c6be4c8f7a3`.
+  Fix `9fa3a02` adds CPU-executed upper-half diagnostics and preserves legacy
+  upload cancellation on Hold Reset. Sealed tip `d647781` uses HIP seed 1;
+  Coleco/SG-1000 remain on seed 4. Caster's package-only handoff identifies:
+  - package ID `6e172ee279a69d6c7326009c7a8a82ab496e56ce2cb5ac2f2e7e3252d7b194d7`
+  - RBF SHA-256 `2a245d6e8a5d73b52f86c6b7c8a802019ecfd43d1ccf3ed29eb3d9d6d15d0090`
+  - interactive 32 KiB ROM SHA-256 `411c33162658bf0bba55f5745565ee023c6bb6f5190a57f9a3b3ea5e2c484835`
+  These identities are build handoff evidence, not hardware acceptance.
 
 These are candidate revisions, not release or hardware-acceptance identities.
-Do not deploy this checkpoint while its SMS review findings remain unresolved.
+The combined source selection can be built and checked before parent merge.
+FES #76's standalone pin lacked the matching shared consumers; #75 now includes
+that pin with all matching components, so neither build nor automated preparation
+depends on #76 merging first. Physical acceptance and the parent merge stay held
+for the operator's display/controller check.
 
 The first target is an open 32 KiB SMS diagnostic mapped contiguously at
 `0x0000–0x7fff`. It must execute or validate distinct bytes above `0x3fff`;
@@ -62,4 +70,4 @@ The factory image's package set does not change merely to admit this package.
 
 No existing hardware result is inherited by the new package or runtime.
 No kit service, live library, rootfs or physical card is changed during the
-software implementation phase. SG-1000's separate acceptance lane stays parked.
+software implementation phase. SG-1000 evidence and acceptance are a separate lane.
