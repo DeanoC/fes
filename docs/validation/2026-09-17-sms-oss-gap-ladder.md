@@ -6,9 +6,9 @@ Yosys/nextpnr/Mistral path, lists every support gap with file and symbol
 evidence, and records the misteross test ladder. The ladder **is** the
 schedule.
 
-The OSS producer, Coleco-lock copy, and OSS constraint subset are in tree.
-It does not claim a sealed HIP format-2 package, FES parent pin, or kit HIL
-until R14. Do not use `fes.mastersystem`.
+The OSS producer, Coleco-lock copy, OSS constraint subset, HIP `--router gpu`
+route, and format-2 seal are in tree. It does not claim a FES parent pin or
+kit HIL. Do not use `fes.mastersystem`.
 
 ## Sources compared
 
@@ -59,8 +59,8 @@ not Yosys/nextpnr/Mistral limits are labelled as such.
 | `tests/test_build_fes_sms.py` | asserts Quartus + OSS sim + OSS producer entrypoints |
 | Coleco / SG-1000 siblings | unchanged |
 
-R12 synth-only, R13 HIP route, and R14 format-2 seal remain the next rungs.
-FES parent pin and kit HIL are not claimed.
+R12 synth-only, R13 HIP route, and R14 format-2 seal are done. FES parent
+pin and kit HIL are not claimed.
 
 ### G2. OSS constraint subset is a Coleco byte copy
 
@@ -229,7 +229,7 @@ structured fmax rows at 52.0 / 74.25. misteross experiments `760_pll_52`
 and `610_pll_frac_7425`, plus nextpnr `mistral/tests/pll/`, already cover the
 profiles. SMS does not lack a PLL BEL. R12/R13 produce the SMS netlist.
 
-### G9. HIP GPU router, seed, and CPU-fallback reject are wired; not yet run
+### G9. HIP GPU router, seed, and CPU-fallback reject are wired and pass
 
 Coleco / SG-1000 production:
 
@@ -245,8 +245,8 @@ two HIP cache slots:
 | `.../slots/ddcd4905...` | `da6373c0` | `2d3c216` | Coleco lock (required for G5) |
 | `.../slots/cc150969...` | `ec34fcf3` | `9cbbf735` | repository `toolchain.lock` (wrong mapper for sprite banks) |
 
-nextpnr GPU-router fixtures: `mistral/tests/gpurouter/`. R13/R14 HIP-route
-an SMS netlist on Powerboat.
+nextpnr GPU-router fixtures: `mistral/tests/gpurouter/`. R13/R14 HIP-routed
+the SMS netlist on Powerboat (`backend hip:AMD Radeon RX 7900 XTX`, seed 4).
 
 ### G10. OSS machine sim exists; no board/GP/VDP-only SMS lane
 
@@ -290,8 +290,8 @@ first slice.
 
 ### G13. Later jobs, not this ladder's finish line
 
-HIP format-2 seal for `fes.sms` is R14. FES parent pin and kit HIL remain
-later jobs.
+HIP format-2 seal for `fes.sms` is done (R14). FES parent pin and kit HIL
+remain later jobs.
 
 ## Formic / nextpnr / Mistral map
 
@@ -336,21 +336,20 @@ not start until their dependencies pass.
 | R9 | Coleco nextpnr `mistral/tests/quartus_constraints/check.py` | `PASS: Quartus SDC/QSF subset routed one PLL and met 25 MHz` | Coleco HIP slot | **yes** (sibling fixture; not an SMS netlist) |
 | R10 | `make sim-fes-sms-oss` with `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1` | machine checks pass on registered media + registered VDP/RAM | G3 Makefile/defines; R3 | **yes** (this job) |
 | R11 | Optional `make sim-fes-coleco-oss` | Coleco OSS sim still green (shared modules) | Coleco tree | **not run**; not required |
-| R12 | `scripts/build_fes_sms_oss.py --synth-only` Yosys of `top` | synth.json contains 2 `altera_pll`, `MISTRAL_IO`, `MISTRAL_M10K`/`_TDP`, no forbidden DSP/MLAB | G1–G7, R7, R10 | **this job** |
-| R13 | nextpnr HIP route of that netlist (`--router gpu`, Coleco pin, seed 4) | no unrouted nets; live HIP backend; 52 MHz and 74.25 MHz fmax rows pass | R12, G9 | **this job** |
-| R14 | Format-2 OSS seal | clean tree, `build-inputs.json`, manifest `fes.sms` | R13 | **this job** |
+| R12 | `scripts/build_fes_sms_oss.py --synth-only` Yosys of `top` | synth.json contains 2 `altera_pll`, `MISTRAL_IO`, `MISTRAL_M10K`/`_TDP`, no forbidden DSP/MLAB | G1–G7, R7, R10 | **yes** |
+| R13 | nextpnr HIP route (`--router gpu`, Coleco pin, seed 4) | no unrouted nets; live HIP backend; 52 MHz and 74.25 MHz fmax rows pass | R12, G9 | **yes** (sealed netlist; full recipe) |
+| R14 | Format-2 OSS seal | clean tree, `build-inputs.json`, manifest `fes.sms` | R13 | **yes** |
 | R15 | formic execution of G4/G5/G8 | formic tree exists and names the failing shapes | G11 | **no** — no formic tree |
 | R16 | FES pin / kit HIL | out of scope | R14 | **no** — do not start |
 
-Schedule = this table. R1–R10 are done. R12–R14 are the producer/HIP/seal
-kick.
+Schedule = this table. R1–R10 and R12–R14 are done.
 
 ## Execution this session (2026-09-17)
 
 Host: Powerboat `192.168.10.202`, worktree
-`/home/deano/fes-worktrees/misteross-sms-quartus` @ `bbbcef4` dirty.
-Mac worktree `/Users/clawzai/Developer/misteross-wt-sms-quartus` ran R1–R2
-as well. Coleco tools:
+`/home/deano/fes-worktrees/misteross-sms-quartus`. R1–R10 ran at `bbbcef4`
+(dirty). R12–R14 ran on clean `9c6dc96`. Mac worktree
+`/Users/clawzai/Developer/misteross-wt-sms-quartus`. Coleco tools:
 `/home/deano/fes/out/cache/misteross-toolchains/slots/ddcd49051df430f25b58a05011bc3bf0379a33cf482384da288703d18bd1a8f4/install/bin/{yosys,nextpnr-mistral,verilator}`.
 Mainline Yosys for R8:
 `.../slots/cc150969dad68a4363678bf99ba81da80f16028175a0cf247f91f1372a7875f9/install/bin/yosys`.
@@ -371,14 +370,15 @@ Probe logs: `/tmp/sms-gap-ladder/` on Powerboat.
 | R9 | **PASS** | Coleco nextpnr SDC fixture; `clk25` achieved 296.65 MHz vs 25 MHz |
 | R10 | **PASS** | `make sim-fes-sms-oss` Verilator 5.051; `FES SMS machine checks passed`; both OSS defines |
 | R11 | **not run** | optional Coleco OSS sim |
-| R12–R14 | **this job** | producer in tree; HIP/seal on Powerboat after a clean commit |
+| R12 | **PASS** | `--synth-only` 10s; `altera_pll=2` `MISTRAL_IO=2` `MISTRAL_M10K=52` `MISTRAL_M10K_TDP=104`; synth.json sha256 `99cb79e8…3e3b5738` |
+| R13 | **PASS** (HIP route of sealed netlist) | nextpnr `2d3c216` `--router gpu` seed 4; `backend hip:AMD Radeon RX 7900 XTX ready`; GPU router 6.87s; 0 unrouted; `clk_sys` 53.17 MHz PASS at 52.00; `pixel_clk` 107.10 MHz PASS at 74.25; provisional `clk_sys` 38.87 MHz FAIL before GPU repair (`--timing-allow-fail`); `validate_build_evidence` OK |
+| R14 | **PASS** | clean `9c6dc96`; format-2 `fes.sms` package_id `c9f2f7d71e77ab6153ddf7224d2beabede6258c1265bb3bfcfa2b5641e1de1b4`; BUILD_ID `7088fdb52c3ea75b636d13d07a46587a`; `.fcore` sha256 `f172d94d64f1c0d9301f244cb7c3c671961948b271895ecc8b3f3223f3bdc4b2` (2,579,968 bytes); RBF sha256 `b95fb1af1825ed62cb7a71f076f0a7ec7aba4d9547584b9cada7fb9bfb03878e` (2,576,153 bytes) |
 | R15–R16 | **not run** | no formic; no FES pin/HIL |
 
 `make sim-fes-sms-quartus` is **not runnable** on Powerboat (`iverilog`
 absent). That is a vendor-model probe, not an OSS gap.
 
-## Next rung after producer commit
+## Next rung after this GREEN
 
-R12 synth-only, then R13 HIP `--router gpu` seed 4 on a live HIP backend,
-then R14 format-2 seal on the clean committed tree. Do not FES-pin or
-kit-HIL until R14 passes.
+R15 formic is blocked (no formic tree). R16 FES pin / kit HIL out of scope;
+do not start. Package acceptance is parked.
