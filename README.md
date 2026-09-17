@@ -140,6 +140,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make host` | Linux API server and CLI |
 | `make dev` | Incremental diagnostic native image with retained compiler/base |
 | `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'` | Explicit opt-in single-package lifecycle diagnostic; no image rebuild ([guide](docs/package-acceptance.md)) |
+| `make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS='...'` | Private-host package lifecycle and restart diagnostic; live library is not mounted ([guide](docs/package-acceptance.md)) |
 | `make build` | Host and two-pass native image, reusing matching checked outputs |
 | `make image` | Image only with structural checks |
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |

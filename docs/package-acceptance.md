@@ -106,6 +106,86 @@ Durable on-kit package installation, automatic storage repair, protocol-version
 redesign and four-pack factory-image assembly are deliberately separate work.
 The existing `make target-acceptance` image lane remains unchanged.
 
+## Isolated host and restart diagnostic
+
+Use the isolated wrapper when testing a new entry must not change the live
+host library. It runs the same package acceptance flow twice, with a host
+shutdown and restart between runs. It does not add another target launch path.
+
+```sh
+make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS='--help'
+```
+
+The command requires Linux, Docker, an explicitly selected existing immutable
+FES boot-media container image, and a self-contained Linux host executable.
+Run as the non-root user matching that image's builder UID/GID. The executable
+must not be group/world-writable; stage a mode-0755 copy if needed, then verify
+its digest. The wrapper mounts a verified private copy of the executable.
+It never pulls or builds a container image, compiles FogCast, or updates the
+kit. Select a host containing the owned-session shutdown fix (FogCast
+`e87e6562b364353cc0ce980027cad3ee90ec8d8b` or a later compatible revision).
+
+After separately authorizing hardware testing and obtaining exclusive use of
+the designated kit:
+
+```sh
+python3 scripts/package_acceptance_isolated.py \
+  --host-binary /absolute/path/fogcast-api \
+  --expected-host-sha256 HOST_BINARY_SHA256 \
+  --container-image sha256:EXISTING_IMAGE_SHA256 \
+  --host-config /absolute/path/private/config.toml \
+  --evidence-dir /absolute/path/new-isolated-run \
+  --archive /absolute/path/core.fcore \
+  --expected-archive-sha256 ARCHIVE_SHA256 \
+  --expected-package-id PACKAGE_ID \
+  --expected-core-id CORE_ID \
+  --expected-target-id AUTHORIZED_TARGET_ID \
+  --expected-host-revision HOST_COMMIT \
+  --expected-agent-revision AGENT_COMMIT \
+  --expected-runtime-revision RUNTIME_COMMIT \
+  --new-entry-title 'Isolated package diagnostic' \
+  --execute
+```
+
+The supplied private configuration selects the target; the independently
+specified target ID must agree. Only that target's connection settings are
+copied into a temporary owner-only configuration. Live library roots, metadata,
+media and input configuration are not copied. The container sees a new private
+home and the selected host executable, not the live host's home or library.
+Its root is read-only, its host API is loopback-only, and its default user home
+is not changed through an environment override.
+By default each host selects a fresh ephemeral port. The wrapper discovers it
+from that container's startup log; it never falls back to a live host API.
+
+The first cycle creates an isolated library entry and launches/stops it.
+Shutdown must exit successfully. The second host uses the retained private
+catalog and repeats launch/Stop for that exact entry and package, followed by
+another successful shutdown. Package admission and owned-session cleanup remain
+in the existing acceptance runner. Ambiguous mutations are not automatically
+replayed. Exclusive kit use is still required; catalog isolation does not reserve
+hardware or permit takeover of another operator's lease.
+
+By default the host and agent must advertise the same full Git commit. A
+separately authorized labelled development host requires
+`--allow-development-host`; this records the relaxed host-revision policy as
+diagnostic evidence and does not disable runtime compatibility or kit ownership
+checks. The wrapper never changes a binary's embedded revision.
+
+Logs, individual cycle receipts and a final diagnostic result are retained in
+the new evidence directory. Final success requires both lifecycle cycles,
+successful shutdowns and cleanup. Temporary credentials and the wrapper's own
+containers are cleaned up on handled failures too; cleanup errors remain failures.
+If removal fails, cleanup makes one bounded forced-removal retry without
+replaying Stop. The run still fails; inspect `failure.json` for residual
+containers or credential-cleanup errors before reusing the target.
+The private catalog/package store is retained for inspection. Do not publish
+the evidence directory indiscriminately: treat any interrupted run as private
+until credential cleanup has been confirmed. SIGKILL or machine failure cannot
+guarantee cleanup.
+
+This is a lifecycle and host-restart diagnostic, not HDMI/controller, media,
+power-loss, image-reproducibility or release acceptance.
+
 ## Recorded diagnostic hardware run (2026-09-16)
 
 On the designated MiSTer, SG-1000 passed two package-only runs (launch/Stop,
