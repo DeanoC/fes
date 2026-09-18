@@ -138,11 +138,12 @@ type presentationAttribution struct {
 }
 
 type apiError struct {
-	Code     string `json:"code"`
-	Message  string `json:"message"`
-	Phase    string `json:"phase,omitempty"`
-	Expected string `json:"expected,omitempty"`
-	Observed string `json:"observed,omitempty"`
+	StopStage string `json:"stop_stage,omitempty"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Phase     string `json:"phase,omitempty"`
+	Expected  string `json:"expected,omitempty"`
+	Observed  string `json:"observed,omitempty"`
 }
 
 type serverOptions struct {
@@ -896,12 +897,15 @@ func writeSessionError(w http.ResponseWriter, err error) {
 			message = publicErrorMessage(apiErr.Code)
 		}
 		writeJSON(w, status, map[string]any{"error": apiError{
-			Code: string(apiErr.Code), Message: message, Phase: phase,
+			StopStage: fogcast.StopStage(err),
+			Code:      string(apiErr.Code), Message: message, Phase: phase,
 			Expected: apiErr.Expected, Observed: apiErr.Observed,
 		}})
 		return
 	}
-	writeError(w, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE", "session operation failed")
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{
+		Code: "TARGET_UNAVAILABLE", Message: "session operation failed", StopStage: fogcast.StopStage(err),
+	}})
 }
 
 func targetConnection(service Service) *fogcast.TargetConnection {

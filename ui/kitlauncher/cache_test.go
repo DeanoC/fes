@@ -10,6 +10,27 @@ import (
 	"time"
 )
 
+func TestTransientStatusLabeledTransportFailure(t *testing.T) {
+	for _, message := range []string{
+		hostUnavailableMessage,
+		"Host unavailable (Launch Browser Pong)",
+		"Host unavailable (Stop Browser Pong)",
+	} {
+		if !isTransientStatus(message) {
+			t.Errorf("transport status not transient: %q", message)
+		}
+	}
+	for _, message := range []string{
+		"Stop the failed session before launching (Launch Browser Pong)",
+		"MISTER_UNAVAILABLE (Launch Browser Pong)",
+		"Package unavailable (Launch Host unavailable)",
+	} {
+		if isTransientStatus(message) {
+			t.Errorf("actionable error would be discarded: %q", message)
+		}
+	}
+}
+
 func TestDiskStoreCatalogRoundTrip(t *testing.T) {
 	t.Parallel()
 	store := mustOpenStore(t)

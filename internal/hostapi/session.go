@@ -855,7 +855,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
 	if _, err := s.developmentActive(ctx); err != nil {
-		return sessionResult{}, err
+		return sessionResult{}, fogcast.WithStopStage(err, "development_probe")
 	}
 	s.ensureFlight()
 
@@ -883,7 +883,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 		st, serviceErr = s.stopServiceBounded()
 	}
 	if mediaErr != nil {
-		return sessionResult{}, mediaErr
+		return sessionResult{}, fogcast.WithStopStage(mediaErr, "media_stop")
 	}
 	if serviceErr != nil {
 		var failure *protocol.APIError
@@ -901,7 +901,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 		return sessionResult{}, serviceErr
 	}
 	if inputErr != nil {
-		return sessionResult{}, remoteInputError()
+		return sessionResult{}, fogcast.WithStopStage(remoteInputError(), "input_detach")
 	}
 	result := s.publicSession(st, nil)
 	if hadMedia {
@@ -930,7 +930,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 			err := owner.ReleaseKitLease(releaseCtx)
 			cancel()
 			if err != nil {
-				return sessionResult{}, err
+				return sessionResult{}, fogcast.WithStopStage(err, "lease_release")
 			}
 		}
 	}

@@ -41,6 +41,10 @@ func (s *Service) cancelTargetLookup() {
 // refreshTargetConnection runs under the existing lifecycle admission. It never
 // claims ownership or retries a hardware mutation.
 func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health, error) {
+	return s.refreshTargetConnectionWithBackoff(ctx, true)
+}
+
+func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respectBackoff bool) (protocol.Health, error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
 	name := s.sessionTargetNameLocked()
@@ -60,9 +64,9 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	if previous.TargetID != selected.TargetID || previous.Address == "" {
 		previous = TargetConnection{Address: selected.Address, TargetID: selected.TargetID}
 	}
-	if time.Now().Before(s.nextLookup) && s.connection.State == "disconnected" {
+	if respectBackoff && time.Now().Before(s.nextLookup) && s.connection.State == "disconnected" {
 		s.connectionMu.Unlock()
-		return protocol.Health{}, errors.New("target lookup backoff")
+		return protocol.Health{}, &targetObservationError{"admission_backoff", errors.New("target lookup backoff")}
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	s.lookupCancel = cancel
@@ -72,10 +76,10 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	defer cancel()
 	health, address, err := s.probeTarget(lookupCtx, concrete, selected)
 	if err != nil {
-		return s.connectionFailed(previous, err)
+		return s.connectionFailed(previous, &targetObservationError{"admission_health", err})
 	}
 	if err := lookupCtx.Err(); err != nil {
-		return s.connectionFailed(previous, err)
+		return s.connectionFailed(previous, &targetObservationError{"admission_health", err})
 	}
 	// Authenticated explicit address may bind an existing agent identity once.
 	if selected.TargetID == "" && discovery.ValidID(health.TargetID) && s.configPath != "" {
@@ -98,7 +102,7 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	if selected.TargetID == "" {
 		status, err := concrete.Status(lookupCtx)
 		if err != nil {
-			return s.connectionFailed(previous, errors.New("Target status could not be reconciled."))
+			return s.connectionFailed(previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")})
 		}
 		base, _ := url.Parse(address)
 		// Old peers may omit the lease extension. Its absence does not disable
@@ -116,14 +120,14 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	}
 	ownership, err := concrete.AdoptEndpoint(lookupCtx, base, reboot)
 	if err != nil {
-		return s.connectionFailed(previous, errors.New("Target ownership could not be reconciled."))
+		return s.connectionFailed(previous, &targetObservationError{"admission_ownership", errors.New("Target ownership could not be reconciled.")})
 	}
 	if !reboot && (previous.Address != address || (hadGrant && !ownership.Owned)) && s.targetReset != nil {
 		s.targetReset()
 	}
 	status, err := concrete.Status(lookupCtx)
 	if err != nil {
-		return s.connectionFailed(previous, errors.New("Target status could not be reconciled."))
+		return s.connectionFailed(previous, &targetObservationError{"admission_status", errors.New("Target status could not be reconciled.")})
 	}
 	connection := connectionFromStatus(health, status, ownership, address, selected.TargetID)
 	s.executionMu.Lock()
@@ -197,6 +201,16 @@ func (s *Service) protocolAdmissionEnabled() bool {
 	return real
 }
 
+// Explicit Stop is a recovery request, not a background observation. Ignore only
+// the lookup timer; retain the same fresh protocol, identity, ownership and status
+// checks and their existing deadlines. This never retries a mutation.
+func (s *Service) refreshStopAdmission(ctx context.Context) (protocol.Health, error) {
+	if s.discoveryEnabled() {
+		return s.refreshTargetConnectionWithBackoff(ctx, false)
+	}
+	return s.refreshTargetAdmission(ctx)
+}
+
 // Address-only mutation admission checks the contract without adding discovery,
 // status, or lease reconciliation to the existing execution path.
 func (s *Service) refreshTargetAdmission(ctx context.Context) (protocol.Health, error) {
@@ -214,7 +228,7 @@ func (s *Service) refreshTargetAdmission(ctx context.Context) (protocol.Health, 
 		err = protocol.CheckAPIVersion(health.APIVersion)
 	}
 	if err != nil {
-		return s.connectionFailed(s.TargetConnection(), err)
+		return s.connectionFailed(s.TargetConnection(), &targetObservationError{"admission_health", err})
 	}
 	if connection := s.TargetConnection(); connection.State == "version_mismatch" {
 		connection.State, connection.Message = "connecting", ""

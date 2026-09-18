@@ -1733,30 +1733,34 @@ func (s *Service) Stop(parent context.Context) (protocol.Status, error) {
 	defer cancel()
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
 	if err != nil {
-		return protocol.Status{}, err
+		return protocol.Status{}, WithStopStage(err, "lifecycle")
 	}
 	defer releaseLifecycle()
 	return s.stopLocked(ctx, parent, timeout)
 }
 
 // Caller holds lifecycle admission.
-func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration) (protocol.Status, error) {
+func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration) (result protocol.Status, resultErr error) {
+	stage := "admission"
+	defer func() { resultErr = WithStopStage(resultErr, stage) }()
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
 	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
 	if pendingRejection {
-		return s.stopRejectedCore(ctx)
+		stage = "development_recovery"
+		return s.stopRejectedCoreWithAdmission(ctx, true)
 	}
 
 	if activeExecution != ExecutionHostOnly && s.protocolAdmissionEnabled() {
-		if _, err := s.refreshTargetAdmission(ctx); err != nil {
-			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+		if _, err := s.refreshStopAdmission(ctx); err != nil {
+			return protocol.Status{}, stopAdmissionError(err)
 		}
 	}
 
 	hostOnly := activeExecution == ExecutionHostOnly
 	if hostOnly {
+		stage = "host_stop"
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
 			return protocol.Status{}, err
 		}
@@ -1776,10 +1780,12 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		s.stoppedKitLease = leased.KitLease()
 	}
 	s.executionMu.Unlock()
+	stage = "target_stop"
 	status, err := client.Stop(ctx)
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
 		if targetDeadlineExpired && ambiguousTargetMutationError(err) && activeExecution != ExecutionFPGADevelopment {
+			stage = "reconcile_stop"
 			status, err = s.reconcileLostStop(parent, client, err, timeout)
 			if err != nil {
 				return protocol.Status{}, err
@@ -1789,6 +1795,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		}
 	}
 	if status.State == protocol.StateStopping && status.Development && status.Recovery == protocol.RecoveryRebootRequired {
+		stage = "development_recovery"
 		recoveryClient, ok := client.(developmentRecoveryClient)
 		if !ok {
 			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)

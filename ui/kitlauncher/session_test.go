@@ -350,6 +350,73 @@ func newSessionTestClient(t *testing.T, hostURL, agentURL string, game hostclien
 	return client
 }
 
+func TestRunClearsLabeledHostUnavailableAfterReconnect(t *testing.T) {
+	game := hostclient.Game{ID: "fpga-pong", Title: "Browser Pong", System: "fpga", State: "available", RootOnline: true, Launchable: true}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var launches atomic.Int64
+	observedLoss := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			if launches.Load() != 0 {
+				select {
+				case <-observedLoss:
+				case <-ctx.Done():
+					return
+				}
+			}
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []map[string]any{{"id": game.System, "game_count": 1}}})
+		case "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{game}})
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		case "/api/v1/session/launch":
+			launches.Add(1)
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			_ = conn.Close() // Lost response, never permission to replay the POST.
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	defer cancel() // Unblock any handler before server.Close.
+	client := newSessionTestClient(t, server.URL, "", game)
+	var ready atomic.Bool
+	pad := &offlineLaunchPad{ready: &ready}
+	lost, recovered := false, false
+	var recoveredMessage string
+	if err := Run(ctx, client, func(m Model) {
+		if m.Connected && m.TargetReady && len(m.Games) == 1 {
+			ready.Store(true)
+		}
+		if !lost && !m.Connected && m.Message == "Host unavailable (Launch Browser Pong)" {
+			lost = true
+			close(observedLoss)
+		}
+		if lost && m.Connected && m.TargetReady && !m.Busy {
+			recovered, recoveredMessage = true, m.Message
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !lost || !recovered || recoveredMessage != "" {
+		t.Fatalf("lost=%v recovered=%v message=%q", lost, recovered, recoveredMessage)
+	}
+	if launches.Load() != 1 {
+		t.Fatalf("launches=%d; must not replay", launches.Load())
+	}
+}
+
 func writeAgentTestConfig(t *testing.T, launcherPath, agentURL string) {
 	t.Helper()
 	u, err := url.Parse(agentURL)

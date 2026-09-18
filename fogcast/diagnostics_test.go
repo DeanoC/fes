@@ -57,10 +57,34 @@ func TestCanonicalRemoteDiagnostics(t *testing.T) {
 }
 
 func TestSafeTargetDiagnosticRecognizedPhases(t *testing.T) {
-	for _, phase := range []string{"request", "admission", "compatibility", "identity", "transfer", "transport", "program", "load", "save", "core_data", "recovery", "connection", "input", "lifecycle", "video"} {
+	for _, phase := range []string{"request", "admission", "compatibility", "identity", "transfer", "transport", "program", "programming", "quiesce", "load", "save", "core_data", "recovery", "connection", "input", "lifecycle", "video"} {
 		_, got := SafeTargetDiagnostic(&protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "secret", Phase: phase})
 		if got != phase {
 			t.Fatalf("lost recognized phase %q: %q", phase, got)
 		}
+	}
+}
+
+func TestCanonicalRemoteRuntimePhasesRemainSafe(t *testing.T) {
+	for _, phase := range []string{"quiesce", "programming", "private-token-phase"} {
+		t.Run(phase, func(t *testing.T) {
+			source := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "secret /private/core.rbf", Phase: phase}
+			err := canonicalRemoteError(source, protocol.CodeMiSTerUnavailable)
+			var got *protocol.APIError
+			if !errors.As(err, &got) {
+				t.Fatalf("missing API error: %v", err)
+			}
+			want := phase
+			if phase == "private-token-phase" {
+				want = ""
+			}
+			if got.Code != source.Code || got.Phase != want || got.Message != "MiSTer is unavailable" {
+				t.Fatalf("unexpected diagnostic: %+v", got)
+			}
+			message, publicPhase := SafeTargetDiagnostic(got)
+			if message != "" || publicPhase != want {
+				t.Fatalf("public diagnostic message=%q phase=%q", message, publicPhase)
+			}
+		})
 	}
 }

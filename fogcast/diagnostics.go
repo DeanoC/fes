@@ -23,7 +23,7 @@ func SafeTargetDiagnostic(remote *protocol.APIError) (message, phase string) {
 		return "", ""
 	}
 	switch remote.Phase {
-	case "request", "admission", "compatibility", "identity", "transfer", "transport", "program", "load", "save", "core_data", "recovery", "connection", "input", "lifecycle", "video":
+	case "request", "admission", "compatibility", "identity", "transfer", "transport", "program", "programming", "quiesce", "load", "save", "core_data", "recovery", "connection", "input", "lifecycle", "video":
 		phase = remote.Phase
 	}
 	switch remote.Code {

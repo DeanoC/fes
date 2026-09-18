@@ -463,6 +463,8 @@ func isTransientStatus(message string) bool {
 	case connectingMessage, OfflineMessage, hostUnavailableMessage, "Kit in use", "Kit unavailable", "Kit not ready":
 		return true
 	default:
-		return false
+		// Mutation failures include the attempted action/title. Clear that
+		// transport-only status on recovery just like its unlabeled form.
+		return strings.HasPrefix(message, hostUnavailableMessage+" (")
 	}
 }

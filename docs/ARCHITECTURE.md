@@ -1316,6 +1316,17 @@ replay a failed launch. Kit launch diagnostics record the submitted game ID and
 bounded result code, separately from the currently displayed selection, without
 logging credentials or raw response bodies.
 
+Stop errors additionally expose an allowlisted `stop_stage`, independently of
+the target protocol `phase`. Admission health, ownership, status and lookup
+backoff are distinguished from `target_stop` and later recovery. `target_stop`
+means the client call began, not proof that the remote mutation executed. Stage
+reporting preserves cancellation and protocol error identity. Explicit Stop
+ignores the background lookup backoff timer, but still performs fresh bounded
+health/version, identity, ownership and status admission. Polling retains its
+backoff; Stop does not bypass those checks or replay a mutation. This fixes the
+host-side backoff refusal, not every possible Stop failure, and is not itself a
+hardware acceptance claim.
+
 
 ## Described-core persistent data
 

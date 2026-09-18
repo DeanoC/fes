@@ -389,8 +389,21 @@ type coreLoadSource struct {
 // including an earlier host executor whose cleanup failed after target success.
 // Caller holds lifecycle admission.
 func (s *Service) stopRejectedCore(ctx context.Context) (protocol.Status, error) {
+	return s.stopRejectedCoreWithAdmission(ctx, false)
+}
+
+// Activation cleanup retains ordinary admission; only explicit Stop ignores the
+// observation backoff timer. All target validation and recovery steps are shared.
+func (s *Service) stopRejectedCoreWithAdmission(ctx context.Context, explicitStop bool) (protocol.Status, error) {
 	if s.protocolAdmissionEnabled() {
-		if _, err := s.refreshTargetAdmission(ctx); err != nil {
+		admit := s.refreshTargetAdmission
+		if explicitStop {
+			admit = s.refreshStopAdmission
+		}
+		if _, err := admit(ctx); err != nil {
+			if explicitStop {
+				return protocol.Status{}, stopAdmissionError(err)
+			}
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
