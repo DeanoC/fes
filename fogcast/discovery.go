@@ -6,9 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/buildinputs"
 	"github.com/DeanoC/FogCast/internal/discovery"
-	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -45,12 +43,7 @@ func (s *Service) cancelTargetLookup() {
 func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health, error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
-	name := s.selectedTarget
-	s.executionMu.Lock()
-	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
-		name = s.activeTarget
-	}
-	s.executionMu.Unlock()
+	name := s.sessionTargetNameLocked()
 	selected := targetByName(s.targets, name)
 	client, ok := s.selectedClientLocked()
 	concrete, realClient := client.(*targetclient.Client)
@@ -151,6 +144,10 @@ func (s *Service) connectionFailed(previous TargetConnection, err error) (protoc
 	defer s.connectionMu.Unlock()
 	previous.State = "disconnected"
 	previous.Message = err.Error()
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeVersionMismatch {
+		previous.State = "version_mismatch"
+	}
 	s.connection = previous
 	delay := time.Second << min(s.lookupFailures, 4)
 	if delay > 15*time.Second {
@@ -186,8 +183,44 @@ func (s *Service) startTargetMonitor() {
 func (s *Service) discoveryEnabled() bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	_, real := s.targetClients[s.selectedTarget].(*targetclient.Client)
-	return real && targetByName(s.targets, s.selectedTarget).TargetID != ""
+	name := s.sessionTargetNameLocked()
+	_, real := s.targetClients[name].(*targetclient.Client)
+	return real && targetByName(s.targets, name).TargetID != ""
+}
+
+func (s *Service) protocolAdmissionEnabled() bool {
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	client, _ := s.selectedClientLocked()
+	_, real := client.(*targetclient.Client)
+	// Address-only peers require the same protocol admission as discovered peers.
+	return real
+}
+
+// Address-only mutation admission checks the contract without adding discovery,
+// status, or lease reconciliation to the existing execution path.
+func (s *Service) refreshTargetAdmission(ctx context.Context) (protocol.Health, error) {
+	if s.discoveryEnabled() {
+		return s.refreshTargetConnection(ctx)
+	}
+	s.targetMu.RLock()
+	client, ok := s.selectedClientLocked()
+	s.targetMu.RUnlock()
+	if !ok {
+		return protocol.Health{}, errors.New("target unavailable")
+	}
+	health, err := client.Health(ctx)
+	if err == nil {
+		err = protocol.CheckAPIVersion(health.APIVersion)
+	}
+	if err != nil {
+		return s.connectionFailed(s.TargetConnection(), err)
+	}
+	if connection := s.TargetConnection(); connection.State == "version_mismatch" {
+		connection.State, connection.Message = "connecting", ""
+		s.publishConnection(connection)
+	}
+	return health, nil
 }
 
 func (s *Service) incompatibleTargetError() error {
@@ -205,7 +238,7 @@ func (s *Service) incompatibleTargetError() error {
 	}
 	return &protocol.APIError{
 		Code:    protocol.CodeVersionMismatch,
-		Message: "target artifacts do not match this host",
+		Message: "target API version is missing or unsupported; expected v1",
 	}
 }
 
@@ -222,9 +255,12 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	health, err := client.Health(healthCtx)
 	cancel()
 	valid := func(h protocol.Health) bool {
-		return h.APIVersion == "v1" && (selected.TargetID == "" || h.TargetID == selected.TargetID)
+		return selected.TargetID == "" || h.TargetID == selected.TargetID
 	}
 	if err == nil && valid(health) {
+		if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
+			return protocol.Health{}, "", err
+		}
 		return health, client.EndpointURL().String(), nil
 	}
 	if selected.TargetID == "" {
@@ -257,6 +293,9 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 	if err != nil || !valid(health) {
 		return protocol.Health{}, "", errors.New("Discovered kit failed identity, authentication, or protocol validation.")
 	}
+	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
+		return protocol.Health{}, "", err
+	}
 	return health, address, nil
 }
 
@@ -264,7 +303,7 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
 	concrete, ok := client.(*targetclient.Client)
-	selected := targetByName(s.targets, s.selectedTarget)
+	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	if !ok || selected.TargetID == "" {
 		return client.Health
 	}
@@ -316,9 +355,9 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {
 	connection := TargetConnection{State: "ready", Address: address, TargetID: id, BootID: health.BootID}
-	if field, _, _ := buildinputs.Check(version.Revision, buildinputs.ExpectedRuntimeCommit(), health.Artifacts); field != "" {
+	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 		connection.State = "version_mismatch"
-		connection.Message = "Target " + field + " does not match this host."
+		connection.Message = err.Error()
 		return connection
 	}
 	switch {

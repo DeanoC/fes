@@ -308,14 +308,14 @@ func TestSameBootAddressChangeInvalidatesLocalInputHandle(t *testing.T) {
 	}
 }
 
-func TestVersionMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
+func TestProtocolMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
 	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
 	var launches int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/health":
 			json.NewEncoder(w).Encode(protocol.Health{
-				APIVersion: "v1", Ready: true, TargetID: id, BootID: "boot",
+				APIVersion: "v2", Ready: true, TargetID: id, BootID: "boot",
 				Artifacts: &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40)},
 			})
 		case "/v1/kit/lease":
@@ -332,8 +332,8 @@ func TestVersionMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
 	defer srv.Close()
 	base, _ := url.Parse(srv.URL)
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: srv.URL, Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{{ID: "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", System: protocol.SystemMegaDrive}}}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", srv.Client()))
-	if _, err := s.Health(context.Background()); err != nil {
-		t.Fatal(err)
+	if _, err := s.Health(context.Background()); err == nil {
+		t.Fatal("unsupported protocol admitted")
 	}
 	if got := s.TargetConnection(); got.State != "version_mismatch" || got.Message == "" {
 		t.Fatalf("%+v", got)

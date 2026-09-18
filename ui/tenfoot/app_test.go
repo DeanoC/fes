@@ -328,7 +328,6 @@ func TestAppLoadsCatalogCoverWithoutPresentationRoundTrip(t *testing.T) {
 	holdPresentation := make(chan struct{})
 	var releaseOnce sync.Once
 	releasePresentation := func() { releaseOnce.Do(func() { close(holdPresentation) }) }
-	t.Cleanup(releasePresentation)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/v1/games":
@@ -355,7 +354,11 @@ func TestAppLoadsCatalogCoverWithoutPresentationRoundTrip(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Cleanup(server.Close)
+	t.Cleanup(func() {
+		// Close waits for handlers, including the deliberately held response.
+		releasePresentation()
+		server.Close()
+	})
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)

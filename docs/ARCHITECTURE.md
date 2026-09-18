@@ -147,10 +147,24 @@ optional format-2 package id, and on an appliance boot the bootstrap ticket
 fields mean there is no sealed record (for example a Main-backend image), not
 that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
 (`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` when the
-target is reachable. Connection state remains separate from game state. When both sides advertise
-a comparable runtime commit or FogCast revision and they disagree, connection
-state is `version_mismatch` and launches, development loads, and package
-activation are refused. Configuration is not rewritten to hide the mismatch.
+target is reachable. These identities describe provenance, not runtime
+compatibility. FES retains exact component pins, native input locks, hashes and
+release receipts for reproducibility and exact-artifact acceptance.
+
+Connection compatibility uses the target's existing `api_version` contract:
+the host supports exactly `v1`. Missing, malformed or unsupported versions
+fail closed before target mutation; different agent or runtime Git revisions
+alone do not block the connection. Target identity, authentication, readiness,
+lease ownership and recovery checks remain separate requirements.
+
+API compatibility is not a promise that every operation is available. The
+native adapter negotiates its versioned runtime protocol; package inspection
+checks the runtime's ABI registry before activation. Media, input and
+persistence retain their operation-specific interface versions, limits and
+package/generation checks. Unsupported operations remain rejected rather than
+being inferred from a Git revision or silently retried through another path.
+Breaking API semantics require a new supported contract, not an arbitrary
+source revision comparison. Configuration is not rewritten to hide failures.
 
 ## Agent runtime backends
 
@@ -469,8 +483,9 @@ For a separately started diagnostic host on port 8797, the operator sequence
 is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
-integration operations. The FogCast lock and expected-runtime compatibility
-constant select runtime `a6d658cd305c4a84860afc1f8b00a2798ee6e4f4`.
+integration operations. The FogCast native input lock selects runtime
+`a6d658cd305c4a84860afc1f8b00a2798ee6e4f4` for reproducible image assembly;
+live compatibility is determined by protocol and operation contracts.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle
 serialization, staging permissions and exact bytes, generation changes,
@@ -980,7 +995,8 @@ never replays a launch, upload, Stop, reboot, or input operation.
 
 The existing public health response includes `target.connection`; status responses
 include `connection`, including unavailable responses. Its states are
-`disconnected`, `connecting`, `ready`, `active`, `busy` and `recovery-required`,
+`disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
+and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
 The browser and tenfoot target views show this state. Manual addresses remain
 usable where multicast is unavailable. This path has host/fake-peer regression
