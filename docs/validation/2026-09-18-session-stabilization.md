@@ -1,6 +1,6 @@
 # Session stabilization diagnostic
 
-FES selects FogCast `88a2307` for explicit Stop admission and diagnostic fixes
+FES selects FogCast `6976a4a` (source-identical merge of tested `88a2307`) for explicit Stop admission and diagnostic fixes
 (FogCast #267). Runtime, misteross and shared-definition pins are unchanged.
 
 ## Failure and fix
