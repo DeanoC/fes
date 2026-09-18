@@ -1,7 +1,9 @@
 # FES structure and refactor status
 
-Updated on 2026-09-17 from FES main `4902f64`, selecting FogCast
-`2b68cfa77a9fb022477b0aa456490dddc6a015a8` for the keyboard-capability cleanup.
+Updated on 2026-09-18 after FES #75–#77. Canonical and integration checkouts
+were synchronized to main `a362662`. Selected FogCast `d9745ed`,
+runtime `a6d658c`, misteross `0825da5` and mister-packages `fdc4ece`
+passed full-image verification and bounded physical acceptance.
 This is the current ownership decision, not a queue of migrations
 to repeat. Historical plans describe the implementation sequence; their
 unchecked execution steps are not evidence that merged work is absent.
@@ -83,8 +85,12 @@ second implementation of any of those decisions.
 
 The planned structure/build cleanup and the bounded client follow-ups are
 complete. Resume feature development; no additional repository split or
-client rewrite is scheduled. Workspace retirement and exact-artifact hardware
-acceptance remain separate tasks, not implied by this source-refactor status.
+client rewrite is scheduled. Workspace retirement is an ownership-checked
+operation; see the [2026-09-18 cleanup](validation/2026-09-18-workspace-retirement.md).
+Full-image deployment and physical acceptance for Pong, ZX81, Coleco and the
+retained SMS package are recorded in the
+[2026-09-18 validation record](validation/2026-09-18-sms-stream-start-diagnostic.md).
+This does not imply generalized core, mapper or release acceptance.
 
 The keyboard-capability follow-up is selected through FogCast #252. Fourteen
 characterization cases preserve exact-version recognition, nil/empty inputs,
