@@ -28,6 +28,7 @@ from scripts.build_fes_pong import (
 )
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,16 @@ SEED = 4
 # miss 52 MHz on that seed while nearby seeds close; try 4 first, then the
 # HIP-checked fallbacks.
 PLACER_SEEDS = (4, 1, 2, 3, 5, 12, 7, 10)
+# HeAP timing weight 300 + critexp 5 closed seed 4 at 57.45 MHz on the
+# sealed HIP netlist (default weight 10 was 51.67 FAIL). Weight 1000 also
+# passed (56.62); 2000 was only 52.27. ZX81 keeps 1000 for its own seed 10.
+PLACER_TIMING_WEIGHT = 300
+PLACER_CRITICALITY_EXPONENT = 5
+# Search policy for --best-fmax. First-pass still uses PLACER_TIMING_WEIGHT
+# only. The winner is recorded in evidence, not substituted back into these
+# constants (that would change BUILD_ID and invalidate the search).
+PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
+PLACER_QOR_BUDGET = 24
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -91,6 +102,7 @@ BUILD_OUTPUTS = (
     "nextpnr.log",
     "build-summary.json",
     "manifest.toml",
+    "qor-ranking.json",
 )
 ORDINARY_RESOURCES = frozenset(
     {
@@ -175,6 +187,8 @@ def create_build_record(
     repository: str,
     revision: str,
     tool_identities: Mapping[str, str],
+    *,
+    qor_mode: str = "first-pass",
 ) -> bytes:
     fields = {
         "format": 1,
@@ -195,6 +209,11 @@ def create_build_record(
             "reference_clock_hz": 50_000_000,
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_timingweights": ",".join(str(weight) for weight in PLACER_WEIGHTS),
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
+            "placer_qor_mode": qor_mode,
+            "placer_qor_budget": PLACER_QOR_BUDGET,
             "router": ROUTER,
             "toolchain_lock": COLECO_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, COLECO_TOOLCHAIN_LOCK)),
@@ -242,6 +261,8 @@ def build_commands(
         # on this netlist it is slower and can move a passing route back below
         # the timing target.
         "--seed", str(seed),
+        "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
+        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", ROUTER,
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
@@ -428,15 +449,26 @@ def _manifest(
     return encode_manifest(fields)
 
 
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None) -> Path:
+def build(
+    root: Path = ROOT,
+    package_store: Path | None = None,
+    *,
+    cache_root: Path | None = None,
+    best_fmax: bool = False,
+) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES ColecoVision package store must be {root / 'build/packages'}")
+    qor_mode = "staged" if best_fmax else "first-pass"
+    qor_weights = PLACER_WEIGHTS if best_fmax else (PLACER_TIMING_WEIGHT,)
+    qor_budget = PLACER_QOR_BUDGET if best_fmax else max(len(PLACER_SEEDS), 1)
     repository, revision = _require_clean_source(root)
     authenticated = _authenticate_coleco_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    record = create_build_record(root, repository, revision, identities)
+    record = create_build_record(
+        root, repository, revision, identities, qor_mode=qor_mode,
+    )
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -448,28 +480,28 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         _run_tool(commands[0], root, output / "yosys.log")
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        evidence = None
-        selected_seed = None
-        failures: list[str] = []
-        for seed in PLACER_SEEDS:
-            _clear_route_outputs(output)
-            commands = build_commands(
-                root, output, build_id,
-                {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
-                seed=seed,
+        try:
+            winner = route_after_synth(
+                nextpnr=authenticated["nextpnr-mistral"].path,
+                fixture=output / "synth.json",
+                dest=output,
+                device=TARGET,
+                qsf=root / QSF,
+                sdc=root / SDC,
+                freq="74.25",
+                seeds=PLACER_SEEDS,
+                weights=qor_weights,
+                critexp=PLACER_CRITICALITY_EXPONENT,
+                budget=qor_budget,
+                mode=qor_mode,
+                extra=("--router", ROUTER),
             )
-            try:
-                _run_tool(commands[1], root, output / "nextpnr.log")
-                evidence = validate_build_evidence(output, root)
-            except BuildError as exc:
-                failures.append(f"seed {seed}: {exc}")
-                continue
-            selected_seed = seed
-            break
-        if evidence is None or selected_seed is None:
-            detail = failures[-1] if failures else "no placer seeds configured"
-            raise BuildError(f"no Coleco placement met final signoff ({detail})")
-        evidence["route"]["placer_seed"] = selected_seed
+        except SearchError as exc:
+            raise BuildError(str(exc)) from exc
+        evidence = validate_build_evidence(output, root)
+        evidence["route"]["placer_seed"] = winner.seed
+        evidence["route"]["placer_heap_timingweight"] = winner.weight
+        evidence["route"]["placer_qor_mode"] = qor_mode
         evidence.update(
             {
                 "build_id": build_id,
@@ -506,6 +538,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
+    parser.add_argument(
+        "--best-fmax",
+        action="store_true",
+        help="after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass",
+    )
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
@@ -523,7 +560,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(" ".join(yosys))
             print(" ".join(nextpnr))
             return 0
-        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root))
+        print(
+            build(
+                arguments.root,
+                arguments.package_output,
+                cache_root=arguments.cache_root,
+                best_fmax=arguments.best_fmax,
+            )
+        )
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-coleco-oss: {exc}", file=sys.stderr)
         return 1
