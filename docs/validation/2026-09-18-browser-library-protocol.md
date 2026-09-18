@@ -9,7 +9,8 @@ remain provenance. Package ABI, native protocol, input, persistence and media
 limits retain their operation-specific checks.
 
 No FPGA compilation, agent/runtime/Kit replacement, image rebuild, SD write or
-reboot was performed for this diagnostic. This is not image reproducibility or
+reboot was performed for the initial browser diagnostic below. A later host/Kit
+diagnostic deployment is recorded separately at the end. This is not image reproducibility or
 release acceptance, and the Pong leg does not exercise media import.
 
 ## Artifacts actually exercised
@@ -29,7 +30,7 @@ release acceptance, and the Pong leg does not exercise media import.
 The host uses a normal full revision stamp, not a development version or
 spoofed agent revision. Health reports both differing revisions and `ready`.
 Later source revisions must not inherit exact-binary acceptance from this run.
-The parent candidate selects `c8deb0fb4a2ebd3a55ba476d18d9fc9c65012579`,
+The initial parent candidate selected `c8deb0fb4a2ebd3a55ba476d18d9fc9c65012579`,
 which additionally fixes explicit multi-target admission after review. Its
 full Go suite, affected race tests and parent consistency/host build are
 separate software evidence; it was not substituted under the operator's live
@@ -46,8 +47,9 @@ diagnostic entry is intentionally retained.
 The running Kit refreshed its own `launcher-cache/catalog.json` with that exact
 ID and launch eligibility. Launch through the common host session API reported
 the exact active package and attached input. A second launch/Stop cycle passed.
-Physical display/controller/Kit-menu acceptance remains pending operator
-confirmation; catalog persistence alone does not establish visible rendering.
+At this stage physical display/controller/Kit-menu acceptance was pending;
+the later operator confirmation is recorded below. Catalog persistence alone
+does not establish visible rendering.
 
 Failures are retained, not erased from the acceptance record:
 
@@ -92,3 +94,40 @@ This private evidence includes catalog backups; it is not a portable release
 artifact. The host service remains autostart-disabled. It is temporarily active
 for the operator's physical check and must be stopped and the kit released
 after that session.
+
+## Later diagnostics and latest component selection
+
+FogCast #260 and #263 are merged. On the diagnostic host/Kit build containing
+the #263 changes, the operator confirmed controller launch of the browser-created
+Pong entry, return to menu and relaunch. The correct entry ID also reproduced an
+admission failure while the target retained an earlier runtime error; explicit
+Stop cleared it. No wrong-entry dispatch was demonstrated.
+
+Deployed diagnostic binary SHA-256 values:
+
+- Host: `0288a8bda3e826e545c37e5106d10045c10661ad609b0f06991232059410d160`.
+- Kit: `8e869915c18963181c947bb4eadeed600e9e09468b95d6463cde40d368a4c483`.
+
+The Kit binary is a temporary bind-mounted overlay that disappears on reboot.
+The original image, target agent, runtime and FPGA packages were unchanged.
+Evidence and rollback notes are in Powerboat
+`/home/deano/fes/out/hardware/menu-launch-errors/deploy-bdB1Da/`.
+Immediate automated Stop reproduced #261 once on this build; explicit recovery
+Stop and a subsequent launch/Stop succeeded. #261 remains unresolved. The new
+retained-error wording has regression coverage, not deliberate deployed fault
+injection. The two diagnostic follow-ups remain FogCast #264 and #265.
+
+The refreshed integration candidate selects:
+
+| Component | Revision |
+| --- | --- |
+| FogCast | `76179c6` (latest merged #263 plus runtime-lock alignment, #266) |
+| libmister-runtime | `8c4b690964ca2af06581e4cf11df22d33f48e1e0` |
+| misteross | `ea1fd3e488dfee7a6e056b2a871a4dbf835fa3d8` |
+| mister-packages | `fdc4ece2e1fa87035ddca8cd147c621e7edcce3b` |
+
+The runtime merge commit has the identical Git tree as the previous `a6d658c`
+pin. FogCast #266 aligns its lock and provenance constant with that merge commit.
+misteross now includes the merged recipe-clock scoring, Coleco/ZX81 placer search
+and two-HIP-device search changes. No new FPGA compilation, image build or
+exact-artifact hardware acceptance is claimed for this refreshed combination.
