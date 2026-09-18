@@ -43,7 +43,7 @@ test: build-agent test-ui test-target-boundary test-target-contract-boundary tes
 
 test-ui:
 	$(MAKE) test-ui-boundary
-	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js
+	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js internal/hostapi/ui_core_library_test.js
 	node --test internal/hostapi/ui_browser_test.js
 
 test-ui-boundary:

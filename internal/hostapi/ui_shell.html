@@ -12,6 +12,7 @@
     <div class="header-tools">
       <p id="health" class="host-status" role="status">Checking local host…</p>
       <button id="open-settings" class="button secondary" type="button">Settings</button>
+      <button id="open-core-library" class="button secondary" type="button">Manage FPGA library</button>
     </div>
   </header>
   <main class="launcher" id="launcher" data-keyboard-pane="rail">
@@ -183,7 +184,47 @@
     </div>
   </div>
   <div id="game-actions-menu" class="game-actions-menu" hidden role="menu" aria-label="Game actions"></div>
+  <dialog id="core-library" hidden aria-labelledby="core-library-heading">
+    <h2 id="core-library-heading">Manage FPGA library</h2>
+    <p>Import and select for the next Kit launch. This panel never launches or stops a session.</p>
+    <div class="core-library-actions">
+      <button id="core-library-refresh" class="button secondary" type="button">Refresh</button>
+      <button id="core-library-close" class="button secondary" type="button">Close</button>
+    </div>
+    <fieldset>
+      <legend>Installed packages</legend>
+      <label for="core-package-file">Package archive (.fcore, up to 33 MiB)</label>
+      <input id="core-package-file" type="file" accept=".fcore">
+      <button id="core-package-import" class="button" type="button">Import package</button>
+      <label for="core-entry-select">Library entry</label>
+      <select id="core-entry-select"><option value="">New entry</option></select>
+      <p id="core-entry-current"></p>
+      <label for="core-package-select">Installed package (existing entries show same-core versions)</label>
+      <select id="core-package-select"><option value="">Choose package</option></select>
+      <button id="core-package-check" class="button secondary" type="button">Check compatibility</button>
+      <p id="core-package-status" role="status"></p>
+      <button id="core-entry-package-save" class="button" type="button">Select package for entry</button>
+    </fieldset>
+    <fieldset>
+      <legend>Optional immutable media</legend>
+      <label for="core-media-file">Media file (host storage up to 32 MiB; core limits may be smaller)</label>
+      <input id="core-media-file" type="file">
+      <button id="core-media-import" class="button" type="button">Import media</button>
+      <button id="core-media-discard" class="button secondary" type="button">Use no media for new entry</button>
+      <p id="core-media-status" role="status"></p>
+      <button id="core-entry-media-save" class="button" type="button">Select imported media for entry</button>
+      <button id="core-entry-media-clear" class="button secondary" type="button">Clear entry media</button>
+    </fieldset>
+    <fieldset>
+      <legend>Create a new title</legend>
+      <label for="core-entry-title">Title (up to 256 UTF-8 bytes)</label>
+      <input id="core-entry-title" type="text" maxlength="256" autocomplete="off">
+      <button id="core-entry-create" class="button" type="button">Create entry</button>
+    </fieldset>
+    <p id="core-library-message" role="status" aria-live="polite"></p>
+  </dialog>
   {{FOGCAST_METADATA}}
+  {{FOGCAST_CORE_LIBRARY}}
   {{FOGCAST_APP}}
 </body>
 </html>

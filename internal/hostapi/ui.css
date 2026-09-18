@@ -20,8 +20,9 @@ button, input { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .58; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.site-header { display: flex; align-items: center; justify-content: space-between; padding: 18px clamp(20px, 5vw, 72px); border-bottom: 1px solid var(--line); }
-.header-tools { display: flex; align-items: center; gap: 12px; }
+.site-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 18px clamp(20px, 5vw, 72px); border-bottom: 1px solid var(--line); }
+.header-tools { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; align-items: center; gap: 12px; }
+.header-tools > * { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .brand { color: var(--ink); font-size: 1.15rem; font-weight: 800; letter-spacing: .18em; text-decoration: none; }
 .brand span { color: var(--accent); }
 .host-status { margin: 0; color: var(--accent-cool); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
@@ -611,3 +612,24 @@ img.cover-art { display: block; width: 100%; object-fit: contain; object-positio
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
   .game-card:hover, .game-card.selected { transform: none; }
 }
+/* Native modal keeps management separate from launcher input and focus. */
+#core-library {
+  width: min(52rem, 92vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 1.5rem;
+  border: 1px solid #64748b;
+  border-radius: 1rem;
+  background: #111827;
+  color: #f1f5f9;
+}
+#core-library[hidden] { display: none; }
+#core-library::backdrop { background: #000b; }
+#core-library fieldset { margin: 1rem 0; padding: 1rem; border: 1px solid #64748b; }
+#core-library label { display: block; margin-top: .75rem; }
+#core-library select, #core-library input { max-width: 100%; margin: .5rem 0; }
+#core-library select, #core-entry-title { width: 100%; }
+#core-library p { overflow-wrap: anywhere; }
+#core-library .button { margin: .25rem; }
+#core-library-message { min-height: 1.5em; }
+#core-library button:disabled { opacity: .5; cursor: wait; }

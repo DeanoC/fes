@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const http = require('node:http');
+const fs = require('node:fs');
 const {
   BrowserHarness,
   BrowserPage,
@@ -328,6 +329,162 @@ test('normalizePlan copies collections into the browser fixture plan', () => {
   assert.deepEqual(normalizePlan({}).collections, []);
 });
 
+const CORE_PACKAGE = 'a'.repeat(64);
+const CORE_NEXT = 'b'.repeat(64);
+const CORE_MEDIA = 'c'.repeat(64);
+const corePackage = id => ({package_id:id, descriptor:{core:{id:'fes.sms', version:'1.0.0'}}});
+const coreEntry = (overrides = {}) => ({game_id:'sms-browser-title', title:'Browser SMS title',
+  core_id:'fes.sms', package_id:CORE_PACKAGE, ...overrides});
+const coreReply = (value, status = 200, options = {}) =>
+  fixture('catalog-populated.json', status, {...options, override:value});
+const coreCaps = id => coreReply({package_id:id, source:'declared-contract', compatibility:'unknown',
+  import_max_bytes:33554432, media:[{role:'blob', min_bytes:1, max_bytes:32768,
+    transport:'fes-simple-computer-mailbox-stream-v1'}]});
+
+async function browserFile(harness, selector, name, bytes) {
+  await harness.evaluate(`(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([new Uint8Array(${JSON.stringify(bytes)})], ${JSON.stringify(name)}));
+    const input = document.querySelector(${JSON.stringify(selector)});
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  })()`);
+}
+
+async function browserSelect(harness, selector, value) {
+  await harness.evaluate(`(() => {
+    const select = document.querySelector(${JSON.stringify(selector)});
+    select.value = ${JSON.stringify(value)};
+    select.dispatchEvent(new Event('change', {bubbles:true}));
+  })()`);
+  await harness.waitForSnapshot(s => !s.coreLibrary.busy);
+}
+
+function assertNoLifecycle(harness) {
+  assert.deepEqual(harness.fixtureEvidence().filter(r =>
+    r.method !== 'GET' && r.path !== '/api/v1/debug/ui-events' &&
+    !/^\/api\/v1\/(core-packages|core-media|library\/core-entries)(\/|$)/.test(r.path)), []);
+}
+
+test('FogCast core library Chrome/CDP integration', { timeout: 30_000 }, async t => {
+  const harness = new BrowserHarness();
+  try {
+    try {
+      await harness.start();
+    } catch (error) {
+      if (!REQUIRED && error && error.preReadiness === true) {
+        t.skip(error.reason);
+        return;
+      }
+      throw error;
+    }
+    await t.test('core library imports files and creates explicit media title without lifecycle', async () => {
+      const entry = coreEntry({media_role:'blob', media_id:CORE_MEDIA});
+      await runScenario(harness, 'core-library-import-create', basePlan({
+        sessions:[fixture('session-idle.json')],
+        coreRoutes:{
+          'GET /api/v1/core-packages': [coreReply({packages:[]}), coreReply({packages:[corePackage(CORE_PACKAGE)]})],
+          'GET /api/v1/library/core-entries': [coreReply({entries:[]}), coreReply({entries:[]}), coreReply({entries:[entry]})],
+          'POST /api/v1/core-packages': coreReply(corePackage(CORE_PACKAGE), 201, {delayMs:100}),
+          [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
+          'POST /api/v1/core-media':coreReply({media_id:CORE_MEDIA, size:4}, 201),
+          'POST /api/v1/library/core-entries':coreReply(entry, 201),
+        },
+      }), async () => {
+        await harness.click('#open-core-library');
+        await harness.waitForSnapshot(s => s.coreLibrary.open && !s.coreLibrary.busy);
+        await browserFile(harness, '#core-package-file', 'sms.fcore', [0,255,1,128]);
+        await harness.click('#core-package-import');
+        await harness.waitForSnapshot(s => s.coreLibrary.busy);
+        assert.equal(await harness.evaluate("document.querySelector('#core-package-import').disabled"), true);
+        await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.package === CORE_PACKAGE);
+        await browserFile(harness, '#core-media-file', 'diagnostic.sms', [255,0,128,1]);
+        await harness.click('#core-media-import');
+        const imported = await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.mediaStatus.includes(CORE_MEDIA));
+        assert.match(imported.coreLibrary.packageStatus, /unknown/i);
+        assert.match(imported.coreLibrary.mediaStatus, /32768.*Declared only/);
+        await harness.evaluate("document.querySelector('#core-entry-title').value = 'Browser SMS title'");
+        await harness.click('#core-entry-create');
+        await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.entry === entry.game_id);
+        const writes = harness.fixtureEvidence().filter(r => r.method === 'POST' && r.path !== '/api/v1/debug/ui-events');
+        assert.deepEqual(writes.map(r => r.path), ['/api/v1/core-packages', '/api/v1/core-media', '/api/v1/library/core-entries']);
+        assert.equal(writes[0].requestContentType, 'application/octet-stream');
+        assert.equal(writes[0].requestBody, Buffer.from([0,255,1,128]).toString('base64'));
+        assert.equal(writes[1].requestContentType, 'application/octet-stream');
+        assert.equal(writes[1].requestBody, Buffer.from([255,0,128,1]).toString('base64'));
+        for (const upload of writes.slice(0, 2)) {
+          assert.equal(upload.requestContentLength, '4');
+          assert.equal(upload.requestTransferEncoding, '');
+        }
+        assert.deepEqual(JSON.parse(writes[2].requestBody),
+          {title:entry.title, package_id:CORE_PACKAGE, media_role:'blob', media_id:CORE_MEDIA});
+        assertNoLifecycle(harness);
+        if (process.env.FOGCAST_CORE_BROWSER_SCREENSHOT) {
+          try {
+            await harness.setViewport(1280, 900);
+            const shot = await harness.page.connection.send('Page.captureScreenshot',
+              {format:'png', captureBeyondViewport:false}, harness.page.sessionId);
+            fs.writeFileSync(process.env.FOGCAST_CORE_BROWSER_SCREENSHOT, Buffer.from(shot.data, 'base64'), {flag:'wx'});
+            await harness.setViewport(390, 844);
+            const narrow = await harness.page.connection.send('Page.captureScreenshot',
+              {format:'png', captureBeyondViewport:false}, harness.page.sessionId);
+            fs.writeFileSync(process.env.FOGCAST_CORE_BROWSER_SCREENSHOT + '.narrow.png',
+              Buffer.from(narrow.data, 'base64'), {flag:'wx'});
+          } finally {
+            await harness.clearViewport();
+          }
+        }
+        await harness.click('#core-library-close');
+        await harness.waitForSnapshot(s => !s.coreLibrary.open && s.activeElementID === 'open-core-library');
+      });
+    });
+
+    for (const stale of [false, true]) {
+      await t.test(`core library package CAS ${stale ? 'conflict refreshes without replay' : 'selects preserving media then clears'}`, async () => {
+        const entry = coreEntry({media_role:'blob', media_id:CORE_MEDIA});
+        const selected = {...entry, package_id:CORE_NEXT};
+        const cleared = coreEntry({package_id:CORE_NEXT});
+        await runScenario(harness, `core-library-cas-${stale}`, basePlan({
+          sessions:[fixture('session-idle.json')],
+          coreRoutes:{
+            'GET /api/v1/core-packages':coreReply({packages:[corePackage(CORE_PACKAGE),corePackage(CORE_NEXT)]}),
+            'GET /api/v1/library/core-entries':[coreReply({entries:[entry]}),coreReply({entries:[selected]}),coreReply({entries:[cleared]})],
+            [`GET /api/v1/core-packages/${CORE_PACKAGE}/media-capabilities`]:coreCaps(CORE_PACKAGE),
+            [`GET /api/v1/core-packages/${CORE_NEXT}/media-capabilities`]:coreCaps(CORE_NEXT),
+            [`PUT /api/v1/library/core-entries/${entry.game_id}`]:stale
+              ? coreReply({error:{code:'CONFLICT',message:'Selection changed'}},409) : coreReply(selected),
+            [`PUT /api/v1/library/core-entries/${entry.game_id}/media`]:coreReply(cleared),
+          },
+        }), async () => {
+          await harness.click('#open-core-library');
+          await harness.waitForSnapshot(s => s.coreLibrary.open && !s.coreLibrary.busy);
+          await browserSelect(harness, '#core-entry-select', entry.game_id);
+          await browserSelect(harness, '#core-package-select', CORE_NEXT);
+          await harness.click('#core-entry-package-save');
+          const result = await harness.waitForSnapshot(s => !s.coreLibrary.busy &&
+            (stale ? s.coreLibrary.message.includes('not replayed') : s.coreLibrary.message.includes('Package selected')));
+          assert.match(result.coreLibrary.current, new RegExp(CORE_NEXT));
+          assert.match(result.coreLibrary.current, new RegExp(CORE_MEDIA));
+          if (!stale) {
+            await harness.click('#core-entry-media-clear');
+            await harness.waitForSnapshot(s => !s.coreLibrary.busy && s.coreLibrary.message.includes('cleared'));
+          }
+          const writes = harness.fixtureEvidence().filter(r => r.method === 'PUT');
+          assert.equal(writes.length, stale ? 1 : 2);
+          assert.deepEqual(JSON.parse(writes[0].requestBody), {expected_package_id:CORE_PACKAGE,package_id:CORE_NEXT});
+          if (!stale) assert.deepEqual(JSON.parse(writes[1].requestBody),
+            {expected_package_id:CORE_NEXT, expected_media_id:CORE_MEDIA,media_role:'',media_id:''});
+          assertNoLifecycle(harness);
+        });
+      });
+    }
+
+  } finally {
+    process.stdout.write(`FOGCAST_BROWSER_EVIDENCE ${JSON.stringify(harness.report())}\n`);
+    await harness.close();
+  }
+});
+
 test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async t => {
   const harness = new BrowserHarness();
   try {
@@ -508,7 +665,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         snapshot = await harness.waitForText('#launch-status', 'launch_success');
         assert.equal(snapshot.detailHeading, 'Sonic the Hedgehog (detail refresh)');
         assert.match(snapshot.launchText, /session accepted/i);
-        assert.equal(apiEvidence(harness).find(record => record.method === 'POST').path, '/api/v1/session/launch');
+        assert.equal(apiEvidence(harness).find(record => record.method === 'POST' && record.path === '/api/v1/session/launch').path, '/api/v1/session/launch');
       });
 
       await runScenario(harness, 'rich-detail-hero', basePlan({
@@ -519,6 +676,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         },
       }), async () => {
         await selectSonic(harness);
+        // Detail text can arrive before asynchronous artwork replaces its
+        // placeholder. Measure decoded images, retaining the normal 3s bound.
+        await harness.page.waitForValue(`[
+          document.querySelector('#detail-content .detail-hero img.cover-art'),
+          document.querySelector('#catalog-list .game-card.selected img.cover-art'),
+        ].every(image => image && image.complete && image.naturalWidth > 0)`);
         const layout = await harness.evaluate(`(() => {
           const detail = document.getElementById('detail-content');
           const panel = document.getElementById('detail');
@@ -780,7 +943,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         await launchSelected(harness);
         const snapshot = await harness.waitForText('#launch-status', 'launch_success');
         assert.match(snapshot.launchText, /session accepted/i);
-        const launch = apiEvidence(harness).find(record => record.method === 'POST');
+        const launch = apiEvidence(harness).find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
         assert.ok(launch);
         assert.equal(launch.path, '/api/v1/session/launch');
         assert.equal(launch.requestContentType, 'application/json');
@@ -808,7 +971,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           assert.match(snapshot.launchText, new RegExp(expectedText, 'i'));
           assert.match(snapshot.detailActions, /Retry launch/i);
           assertNoPrivateErrorText(snapshot);
-          assert.equal(apiEvidence(harness).find(record => record.method === 'POST').status, response.status);
+          assert.equal(apiEvidence(harness).find(record => record.method === 'POST' && record.path === '/api/v1/session/launch').status, response.status);
         });
       });
     }
@@ -826,7 +989,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           await launchSelected(harness);
           snapshot = await harness.waitForText('#launch-status', 'launch_success');
           assert.equal(snapshot.launchText.includes('launch_success'), true);
-          const launch = apiEvidence(harness).find(record => record.method === 'POST');
+          const launch = apiEvidence(harness).find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
           assert.equal(launch.requestBody, '{"game_id":"megadrive-sonic-test"}');
         });
       });
@@ -850,7 +1013,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           await launchSelected(harness);
           snapshot = await harness.waitForText('#launch-status', 'launch_success');
           assert.equal(snapshot.launchText.includes('launch_success'), true);
-          const launch = apiEvidence(harness).find(record => record.method === 'POST');
+          const launch = apiEvidence(harness).find(record => record.method === 'POST' && record.path === '/api/v1/session/launch');
           assert.equal(launch.requestBody, '{"game_id":"megadrive-sonic-test"}');
           const presentation = presentationEvidence(harness)[0];
           assert.equal(presentation.path, `/api/v1/presentation/games/${SONIC_ID}`);
@@ -1103,6 +1266,9 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
           ],
         }), async () => {
           await harness.waitForText('#session-status', 'Active session');
+          // Let the initial preview resource settle before deliberately hiding
+          // it through loss of session authority; keep network errors strict.
+          await harness.waitForSettled();
           await harness.click('#refresh-session');
           const unavailable = await harness.waitForText('#session-status', expectedStatus);
           assert.match(unavailable.sessionText, /last-known/i);

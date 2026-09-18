@@ -8,7 +8,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 
 - [Installed FPGA core packages](docs/core-package-library.md) with explicit
   version and immutable media selection in the normal library, with multiple
-  titles per core. Package/media changes need no rebuild or host restart. Import and
+  titles per core. The browser's **Manage FPGA library** panel imports packages
+  and media, creates titles, and explicitly changes their selections through
+  the same host API as the CLI. Package/media changes need no rebuild or host restart. Import and
   selection do not replace a running core. Library media imports stream into
   bounded storage up to the host's 32 MiB policy; package capability queries
   report the separately enforced declared core limit: 16 KiB for legacy blob

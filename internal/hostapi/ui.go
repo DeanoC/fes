@@ -18,13 +18,17 @@ var uiMetadata string
 //go:embed ui_app.js
 var uiApp string
 
+//go:embed ui_core_library.js
+var uiCoreLibrary string
+
 var uiHTML = assembleUI()
 
 func assembleUI() string {
 	assets := map[string]string{
-		"{{FOGCAST_STYLES}}":   "<style>" + uiStyles + "</style>",
-		"{{FOGCAST_METADATA}}": "<script>" + uiMetadata + "</script>",
-		"{{FOGCAST_APP}}":      "<script>globalThis.FogCastPresentationEnabled = true;globalThis.FogCastPrefetchVisibleCovers = true;globalThis.FogCastConnectionPollingEnabled = true;</script><script>" + uiApp + "</script>",
+		"{{FOGCAST_STYLES}}":       "<style>" + uiStyles + "</style>",
+		"{{FOGCAST_METADATA}}":     "<script>" + uiMetadata + "</script>",
+		"{{FOGCAST_CORE_LIBRARY}}": "<script>" + uiCoreLibrary + "</script>",
+		"{{FOGCAST_APP}}":          "<script>globalThis.FogCastPresentationEnabled = true;globalThis.FogCastPrefetchVisibleCovers = true;globalThis.FogCastConnectionPollingEnabled = true;</script><script>" + uiApp + "</script>",
 	}
 	result := uiShell
 	for placeholder, asset := range assets {

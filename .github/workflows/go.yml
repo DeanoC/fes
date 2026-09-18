@@ -17,6 +17,8 @@ jobs:
             go.sum
             appliance/go.sum
       - run: make build-agent
+      - name: Test browser controllers
+        run: node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js internal/hostapi/ui_core_library_test.js
       - name: Test shared appliance module
         working-directory: appliance
         run: go test -race ./...
