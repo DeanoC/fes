@@ -229,7 +229,21 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlsplit(self.path).path
         if path == "/api/v1/session/input/event":
-            self.state.setdefault("input_events", []).append(json.loads(self._body()))
+            try:
+                body = json.loads(self._body())
+            except (ValueError, UnicodeError):
+                self._error("BAD_REQUEST", "input event is invalid", 400)
+                return
+            event = body.get("event") if isinstance(body, dict) else None
+            fields = {"device", "kind", "action", "code", "value"}
+            # The pinned host decodes an event envelope, not a bare Event.
+            # Require the full explicit diagnostic shape in this fixture.
+            if (not isinstance(body, dict) or set(body) != {"event"}
+                    or not isinstance(event, dict) or set(event) != fields
+                    or any(type(event[key]) is not int for key in fields)):
+                self._error("BAD_REQUEST", "input event is invalid", 400)
+                return
+            self.state.setdefault("input_events", []).append(body)
             self.state["diagnostic_input"]["metrics"]["frames_sent"] += self.state.get("input_progress", 3)
             if self.state.get("input_replace"):
                 self.state["active_identity"]["flight_id"] = "foreign-flight"
@@ -1449,7 +1463,23 @@ class InputDiagnosticAcceptanceTests(unittest.TestCase):
         self.assertEqual(record["mode"], "lifecycle-input-diagnostic")
         self.assertEqual(record["diagnostics"][0]["events_acknowledged"], 2)
         self.assertEqual(record["diagnostics"][0]["frame_delta"], 6)
+        self.assertEqual(state["input_events"], [
+            {"event": {"device": 1, "kind": 1, "action": action, "code": 100, "value": 0}}
+            for action in (1, 0)])
         self.assertEqual(state["stops"], 1)
+
+    def test_endpoint_fixture_rejects_bare_or_malformed_event_without_delivery(self):
+        event = {"device": 1, "kind": 1, "action": 1, "code": 100, "value": 0}
+        state = _state()
+        with fixture(state) as server:
+            api = package_acceptance.Api(f"http://127.0.0.1:{server.server_port}", 1)
+            for body in (event, {"event": None}, {"event": {"code": 100}},
+                         {"event": dict(event, action=True)},
+                         {"event": dict(event, value="0")},
+                         {"event": event, "extra": 1}):
+                with self.subTest(body=body), self.assertRaisesRegex(package_acceptance.AcceptanceError, "HTTP 400 BAD_REQUEST"):
+                    api.post_json("/api/v1/session/input/event", body)
+        self.assertEqual(state.get("input_events", []), [])
 
     def test_invalid_file_and_nonfinite_timeout_precede_all_mutations(self):
         for value, extra in (({}, ()), (None, ("--input-timeout", "nan")),

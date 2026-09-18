@@ -34,6 +34,16 @@ and `out/validation/core-input-check.log` in this worktree.
 The committed Pong example parsed successfully with two events and SHA-256
 `3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460`.
 
+PR review questioned the event envelope. The selected FogCast `d9745ed` handler
+requires `{"event": {...}}`; the older target-acceptance helper constructs the
+same envelope. A fresh focused host test passed:
+
+```sh
+go test ./internal/hostapi -run '^TestSessionPlayHIDReachesAttachedInputAndFailClosedOnForeignLease$' -count=1 -v
+```
+
+This is a host HTTP-handler test with fake input, not a live kit operation.
+
 Requested events, host acknowledgements and input frame-counter deltas are
 recorded separately. Host frame counters include heartbeats and state resyncs;
 they are not per-event FPGA acknowledgements. A successful diagnostic does not
