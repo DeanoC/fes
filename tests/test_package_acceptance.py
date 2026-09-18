@@ -195,6 +195,9 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         }
         if identity.get("target_id") is not None:
             response["target_id"] = identity["target_id"]
+        if "diagnostic_input" in self.state:
+            response["input"] = self.state["diagnostic_input"]
+            response["core_package"]["active_interfaces"] = self.state.get("diagnostic_interfaces", [])
         self._write(response)
 
     def do_GET(self):
@@ -225,7 +228,20 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
-        if path == "/api/v1/core-media":
+        if path == "/api/v1/session/input/event":
+            self.state.setdefault("input_events", []).append(json.loads(self._body()))
+            self.state["diagnostic_input"]["metrics"]["frames_sent"] += self.state.get("input_progress", 3)
+            if self.state.get("input_replace"):
+                self.state["active_identity"]["flight_id"] = "foreign-flight"
+            if self.state.get("input_session_replace"):
+                self.state["diagnostic_input"]["session_id"] = "foreign-input"
+            if self.state.get("input_disconnect"):
+                self.close_connection = True
+                self.connection.shutdown(socket.SHUT_RDWR)
+                self.connection.close()
+                return
+            self._write(self.state.get("input_response", {"ok": True}))
+        elif path == "/api/v1/core-media":
             body = self._body()
             self.state.setdefault("media_uploads", []).append(body)
             self.state.setdefault("media_store", {})[hashlib.sha256(body).hexdigest()] = body
@@ -1404,6 +1420,93 @@ class PackageAcceptanceTests(unittest.TestCase):
 
         self.assertTrue(state["cleanup_probe_seen"])
         self.assertEqual(state["stops"], 0)
+
+
+class InputDiagnosticAcceptanceTests(unittest.TestCase):
+    def run_input(self, state, *, value=None, extra=()):
+        interface = {"id": "fes.gamepad", "major": 1, "minor": 0}
+        value = value if value is not None else {
+            "format": 1, "interface": interface,
+            "events": [{"device": 1, "kind": 1, "action": action, "code": 100, "value": 0}
+                       for action in (1, 0)]}
+        state.setdefault("diagnostic_interfaces", [interface])
+        state.setdefault("diagnostic_input", {
+            "session_id": "input-1", "state": "attached", "ready": True,
+            "metrics": {"frames_sent": 10, "state_resyncs": 0}})
+        with tempfile.TemporaryDirectory() as directory, fixture(state) as server:
+            path = Path(directory) / "input.json"
+            raw = json.dumps(value).encode()
+            path.write_bytes(raw)
+            result, receipt = _run_command(server, directory, "--input-events", str(path),
+                "--expected-input-sha256", hashlib.sha256(raw).hexdigest(), *extra)
+            record = json.loads(receipt.read_text()) if receipt.exists() else None
+        return result, record
+
+    def test_success_records_acks_and_independent_transport_progress(self):
+        state = _state()
+        result, record = self.run_input(state)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(record["mode"], "lifecycle-input-diagnostic")
+        self.assertEqual(record["diagnostics"][0]["events_acknowledged"], 2)
+        self.assertEqual(record["diagnostics"][0]["frame_delta"], 6)
+        self.assertEqual(state["stops"], 1)
+
+    def test_invalid_file_and_nonfinite_timeout_precede_all_mutations(self):
+        for value, extra in (({}, ()), (None, ("--input-timeout", "nan")),
+                             (None, ("--input-timeout", "inf")),
+                             (None, ("--input-events", "", "--expected-input-sha256", ""))):
+            state = _state()
+            result, record = self.run_input(state, value=value, extra=extra)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIsNone(record)
+            self.assertEqual(state["health_calls"], 0)
+            self.assertEqual(state["upload_bodies"], [])
+
+    def test_incompatible_interface_cleanup_without_input(self):
+        state = _state()
+        state["diagnostic_interfaces"] = [{"id": "fes.gamepad", "major": 1, "minor": 1}]
+        result, record = self.run_input(state)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(record)
+        self.assertEqual(state.get("input_events", []), [])
+        self.assertEqual(state["stops"], 1)
+
+    def test_ambiguous_post_not_replayed_owned_stop_once(self):
+        state = _state()
+        state["input_disconnect"] = True
+        result, record = self.run_input(state)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(record)
+        self.assertEqual(len(state["input_events"]), 1)
+        self.assertEqual(state["stops"], 1)
+
+    def test_foreign_flight_never_stopped(self):
+        state = _state()
+        state["input_replace"] = True
+        result, record = self.run_input(state)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(record)
+        self.assertEqual(len(state["input_events"]), 1)
+        self.assertEqual(state["stops"], 0)
+
+    def test_input_replacement_aborts_and_cleans_owned_game(self):
+        state = _state()
+        state["input_session_replace"] = True
+        result, record = self.run_input(state)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(record)
+        self.assertEqual(len(state["input_events"]), 1)
+        self.assertEqual(state["stops"], 1)
+
+    def test_timeout_restores_cleanup_budget_and_stop_failure_remains_failure(self):
+        for stop_status in (200, 503):
+            state = _state()
+            state.update(input_progress=0, stop_status=stop_status)
+            result, record = self.run_input(state, extra=("--input-timeout", "0.05", "--poll-interval", "5"))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIsNone(record)
+            self.assertEqual(state["stops"], 1)
+            self.assertIn("timed out", result.stderr)
 
 
 if __name__ == "__main__":

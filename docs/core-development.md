@@ -92,14 +92,50 @@ compatibility and selection checks, launches and stops, restarts the private
 host, then relaunches and stops the same selection. It does not modify the live
 host library. Imported media must survive that restart without reimport.
 
-## Evidence boundary and next slice
+## Optional input diagnostic
+
+For an authorized, exclusively owned kit test, add an explicit event recipe to
+the acceptance command:
+
+```text
+--input-events /absolute/path/pong-gamepad.json \
+--expected-input-sha256 INPUT_FILE_SHA256 --input-timeout 10
+```
+
+`examples/input/pong-gamepad.json` is a bounded press/release of gamepad D-pad Up
+for a core advertising `fes.gamepad` 1.0. It is an explicit example, not a
+core-name default. Inspect the file and calculate its SHA-256 before supplying
+that digest. The command never silently selects an input recipe for a core.
+
+The same options are available on both package-acceptance runners. The isolated
+wrapper freezes one copy in its evidence directory and uses it in both lifecycle
+cycles. Missing options preserve the previous lifecycle-only behavior.
+
+Recipes are closed format-1 JSON documents with a versioned `interface` and an
+explicit `events` array. Files are limited to 64 KiB and 64 events. Supported
+event forms, balanced press/release pairs and neutral final axis state are
+validated before any API mutation. No arbitrary sleeps or commands are allowed.
+The runtime must advertise the exact requested active interface and the owned
+input bridge must be attached and ready before dispatch.
+
+The runner checks session and input-bridge identity before each event and while
+observing counters. A changed owner, reconnect, regressed counter, timeout or
+ambiguous request fails the diagnostic; events are never replayed automatically.
+Existing owned-session Stop cleanup remains responsible for returning to idle.
+The input endpoint does not accept a session compare-and-swap token, so these
+checks are not atomic exclusion. Exclusive host/kit use is still mandatory.
+
+## Evidence boundary and remaining work
 
 Preparation proves a bound build artifact, not runtime compatibility.
 Isolated acceptance proves the recorded package/media selection and lifecycle,
 not visible pixels or controller behavior. It is not an image/release receipt.
 
-The next slice is an explicit core-specific input diagnostic consumed by the
-existing acceptance runner, with observed input-delivery evidence and separate
-physical display/controller confirmation. Do not substitute generic Coleco
-events for an unfamiliar core. Independent execution by another team is also
-required before declaring new-core onboarding routine.
+Input receipts distinguish requested/acknowledged events from the observed
+transport frame delta; one event need not produce one frame. Positive frame
+progress can include heartbeat traffic and is not proof that the FPGA consumed
+an event, that a physical USB
+controller works, or that the display changed. Physical display/controller
+confirmation remains separate. Do not substitute generic Coleco events for an
+unfamiliar core. Independent execution by another team is also required before
+declaring new-core onboarding routine.

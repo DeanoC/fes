@@ -639,6 +639,10 @@ def runner_command(
         if game_id is not None:
             command.extend(["--expected-selected-media", args.expected_media_sha256,
                             "--reuse-library-media"])
+    if getattr(args, "input_diagnostic", None) is not None:
+        command.extend(["--input-events", str(Path(args.input_events).resolve()),
+                        "--expected-input-sha256", args.input_diagnostic.sha256,
+                        "--input-timeout", str(args.input_timeout)])
     return command
 
 
@@ -806,6 +810,18 @@ def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
         value["library_media"] = {"media_id": args.expected_media_sha256,
                                   "sha256": args.expected_media_sha256,
                                   "size": args.library_media_bytes, "role": "blob"}
+    diagnostic = getattr(args, "input_diagnostic", None)
+    if diagnostic is not None:
+        value["mode"] = "isolated-lifecycle-input-diagnostic"
+        value["input_diagnostic"] = {
+            "sha256": diagnostic.sha256,
+            "interface": diagnostic.interface,
+            "events_requested": len(diagnostic.events),
+        }
+        value["diagnostic_scope"] = (
+            "Explicit event acknowledgements and input frame-counter increases in both cycles "
+            "are required for success; not hardware consumption, HDMI or physical controller acceptance."
+        )
     return value
 
 
@@ -825,7 +841,8 @@ def _write_runner_output(cycle_dir: Path, result: subprocess.CompletedProcess[st
     _write_private_text(cycle_dir / "runner.stderr", _safe_text(result.stderr, secrets_to_redact))
 
 
-def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: bool = False) -> str:
+def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: bool = False,
+                         diagnostics: list[dict[str, Any]] | None = None) -> str:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -845,6 +862,31 @@ def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: b
             raise AcceptanceError("package acceptance runner receipt media identity does not match the request")
         if value.get("media_admission") != ("retained" if retained_media else "imported"):
             raise AcceptanceError("package acceptance runner receipt media admission does not match the cycle")
+    diagnostic = getattr(args, "input_diagnostic", None)
+    if diagnostic is not None:
+        observed = value.get("diagnostics")
+        if (value.get("mode") != "lifecycle-input-diagnostic"
+                or not isinstance(observed, list) or len(observed) != 1
+                or not isinstance(observed[0], dict)):
+            raise AcceptanceError("runner receipt is missing the requested input diagnostic")
+        item = observed[0]
+        if (item.get("sha256") != diagnostic.sha256
+                or json.dumps(item.get("interface"), sort_keys=True)
+                != json.dumps(diagnostic.interface, sort_keys=True)):
+            raise AcceptanceError("runner receipt input diagnostic identity does not match")
+        counters = ("events_requested", "events_acknowledged", "frames_before",
+                    "frames_after", "frame_delta")
+        if any(type(item.get(key)) is not int or item[key] < 0 for key in counters):
+            raise AcceptanceError("runner receipt input diagnostic counters are invalid")
+        if (item["events_requested"] != len(diagnostic.events)
+                or item["events_requested"] < 1
+                or item["events_acknowledged"] != item["events_requested"]
+                or item["frame_delta"] <= 0
+                or item["frames_after"] - item["frames_before"] != item["frame_delta"]):
+            raise AcceptanceError("runner receipt input diagnostic delivery is incomplete or inconsistent")
+        _require_string(item.get("input_session_id"), "input diagnostic session ID", 512)
+        if diagnostics is not None:
+            diagnostics.append(item)
     game_id = selection.get("game_id")
     return _require_string(game_id, "package acceptance runner game ID", 512)
 
@@ -866,6 +908,7 @@ class IsolatedAcceptance:
         self.home = home
         self.binary = binary
         self.containers: list[ContainerRecord] = []
+        self.diagnostics: dict[str, list[dict[str, Any]]] = {}
 
     def _start(self, cycle: str) -> tuple[ContainerRecord, str]:
         record = ContainerRecord(
@@ -917,7 +960,8 @@ class IsolatedAcceptance:
         _write_runner_output(cycle_dir, result, self.target)
         if result.returncode != 0:
             raise AcceptanceError(f"package acceptance runner failed (exit {result.returncode})")
-        return _read_runner_receipt(receipt, self.args, retained_media=game_id is not None)
+        return _read_runner_receipt(receipt, self.args, retained_media=game_id is not None,
+                                    diagnostics=self.diagnostics.setdefault(cycle, []))
 
     def _stop(self, record: ContainerRecord) -> None:
         if record.stop_attempted:
@@ -1005,6 +1049,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--archive", required=True)
     result.add_argument("--library-media")
     result.add_argument("--expected-media-sha256")
+    result.add_argument("--input-events")
+    result.add_argument("--expected-input-sha256")
+    result.add_argument("--input-timeout", type=float, default=10.0)
     result.add_argument("--expected-archive-sha256", required=True)
     result.add_argument("--expected-package-id", required=True)
     result.add_argument("--expected-core-id", required=True)
@@ -1032,6 +1079,20 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> PrivateTarget:
+    if (args.input_events is None) != (args.expected_input_sha256 is None):
+        raise AcceptanceError("--input-events and --expected-input-sha256 are required together")
+    if not math.isfinite(args.input_timeout) or not 0 < args.input_timeout <= 60:
+        raise AcceptanceError("input timeout must be finite and in (0, 60]")
+    args.input_diagnostic = None
+    if args.input_events is not None:
+        _require_string(args.input_events, "input events path", 4096)
+        _require_digest(args.expected_input_sha256, "expected input sha256")
+        # The loader retains validated bytes before any Docker/API operation.
+        from input_diagnostic import load_diagnostic
+        try:
+            args.input_diagnostic = load_diagnostic(args.input_events, args.expected_input_sha256)
+        except ValueError as exc:
+            raise AcceptanceError(f"invalid input diagnostic: {exc}") from exc
     if bool(args.library_media) != bool(args.expected_media_sha256):
         raise AcceptanceError("--library-media and --expected-media-sha256 are required together")
     if args.library_media:
@@ -1149,15 +1210,26 @@ def execute_isolated(args: argparse.Namespace, target: PrivateTarget) -> None:
     acceptance: IsolatedAcceptance | None = None
     cycles: list[dict[str, Any]] = []
     try:
+        diagnostic = getattr(args, "input_diagnostic", None)
+        if diagnostic is not None:
+            snapshot = evidence_dir / "input-events.json"
+            with snapshot.open("xb") as handle:
+                handle.write(diagnostic.raw)
+            snapshot.chmod(0o400)
+            args.input_events = str(snapshot.resolve())
         binary = snapshot_binary(Path(args.host_binary), evidence_dir, args.expected_host_sha256)
         home = prepare_private_home(evidence_dir, target)
         acceptance = IsolatedAcceptance(args, target, runtime, evidence_dir, home, binary)
         first_game_id, first_container = acceptance._cycle("cycle-1", None)
         cycles.append({"name": "initial", "game_id": first_game_id, "container": first_container})
+        if diagnostic is not None:
+            cycles[-1]["diagnostics"] = acceptance.diagnostics["cycle-1"]
         second_game_id, second_container = acceptance._cycle("cycle-2", first_game_id)
         if second_game_id != first_game_id:
             raise AcceptanceError("restart selected a different persisted library entry")
         cycles.append({"name": "restart", "game_id": second_game_id, "container": second_container})
+        if diagnostic is not None:
+            cycles[-1]["diagnostics"] = acceptance.diagnostics["cycle-2"]
         remove_private_config(home)
         receipt = _receipt_base(args, True)
         receipt.update(
@@ -1194,7 +1266,9 @@ def execute_isolated(args: argparse.Namespace, target: PrivateTarget) -> None:
     print(
         f"isolated package acceptance passed: core={args.expected_core_id} "
         f"package={args.expected_package_id} game={cycles[0]['game_id']} "
-        f"evidence={evidence_dir} (lifecycle-only; no media/input diagnostics)"
+        f"evidence={evidence_dir} "
+        + ("(explicit input diagnostic; not hardware consumption)" if diagnostic is not None
+           else "(lifecycle-only; no media/input diagnostics)")
     )
 
 
