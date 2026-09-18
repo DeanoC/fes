@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "da6373c0d7565f36036051efc7895fb0d9ac13c3"
+commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
 order = 10
-rationale = "Coleco-specific CMake build; the registered packed 4-bit sprite line banks rely on the established M10K SDP inference from merged PR #12 da6373c0 (zero-valued asynchronous read-output reset onto ACLR1). The later PR #13 ec34fcf3 flow-through mapper reclassifies this registered ramstyle=M10K shape as CFG_ASYNC_READ with an unused constant CLK2, which nextpnr correctly rejects. Pair with nextpnr 2d3c216a and unchanged Mistral b28e30a; this is a core-local compatibility pin, not the repository-wide default."
+rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de: SYNC SDP/TDP libmap cells so Coleco 256x4 sprite line banks keep a live CLK2 without CFG_ASYNC_READ). On ec34fcf3. Feature commits a7671c03 and 42e99880. Pair with nextpnr 2ceec425 and unchanged Mistral b28e30a; this core-local lock is the Coleco HIP slot."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for the Coleco OSS lane: nextpnr ef29443 Cyclone V MUL9
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "2d3c216afb7051d2e2070cbf678a50f274b3f786"
+commit = "2ceec42587c7261196c13c59b2e7daf4b87f1c5d"
 order = 30
-rationale = "Coleco-specific route/pack compatibility: accepts equal-width 8192x1, 4096x2 and 2048x5 true-dual-port M10Ks (merged PR #67 2d3c216a: bank-replicated narrow data, 13th address bit on 8192x1, scalar A1DATA/A1Q), paired with Yosys da6373c0 and Mistral b28e30a. The GPU device backend is enabled separately for this core-local build."
+rationale = "GPU-router timing repair (merged PR #70 2ceec425 onto 2e02395): design WNS, unfreeze still-failing frozen arcs, same-band peer groups. Preserves narrow TDP from PR #67 2d3c216a. Pair with Yosys e2d425de and Mistral b28e30a. The GPU device backend is enabled separately for this core-local HIP build."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

@@ -49,7 +49,7 @@ CPU-reference fallback. Pong and ZX81 use the repository-wide
 `toolchain.lock` HIP slot. Coleco keeps `cores/fes-coleco/toolchain.lock`.
 SG-1000 and SMS keep `cores/fes-sg1000/toolchain.lock` and
 `cores/fes-sms/toolchain.lock` as byte copies of the Coleco lock (Yosys
-`da6373c0`, nextpnr `2d3c216`, Mistral `b28e30a`) so a shared cache hits that
+`e2d425de`, nextpnr `2ceec425`, Mistral `b28e30a`) so a shared cache hits that
 Coleco HIP slot rather than the repository-wide mainline slot. Local HIP tools
 come from `make toolchain-fes` for Pong/ZX81, `make toolchain-fes-coleco` for
 Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
@@ -194,7 +194,18 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `9cbbf7353dd2b818ab73031fcf30d9993578c783` is
+The current nextpnr pin `2ceec42587c7261196c13c59b2e7daf4b87f1c5d` is
+merged PR #70 (`204a9bbbc2133d078e07bc40b293d8da593db176` and
+`183ace577f441e2813b20b55888a2c8951599314` onto
+`2e02395263ef0f2071b2cc9653faf38ac1dc8fcc`). GPU-router timing repair
+measures design WNS including frozen sinks, unfreezes still-failing
+frozen arcs, and re-routes same-band peer groups at present-congestion
+cost. Pair it with Yosys `ec34fcf3`. Mistral stays `b28e30a`.
+
+That pin sits on `2e02395263ef0f2071b2cc9653faf38ac1dc8fcc`,
+merged PR #69. Consumer-domain clocks for read-only asynchronous M10Ks.
+
+That pin sits on `9cbbf7353dd2b818ab73031fcf30d9993578c783`,
 merged PR #68 (`6535e945377283260431cc14d3f9700536588833` onto
 `2d3c216afb7051d2e2070cbf678a50f274b3f786`). It borrows a live design
 clock for read-only asynchronous M10Ks whose write clock is folded,
@@ -1875,8 +1886,8 @@ line banks, sequential clear and publication interlock are deliberate RTL
 scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
-recipe uses its core-local lock with Yosys `da6373c0`, nextpnr-mistral
-`2d3c216` with `--router gpu`, seed 4 and `--timing-allow-fail`, and Mistral
+recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
+`2ceec425` with `--router gpu`, seed 4 and `--timing-allow-fail`, and Mistral
 `b28e30a`; the selected toolchain enables the HIP device backend. Because the
 sealed build record changes the embedded `BUILD_ID`, the seed is part of the
 route recipe. The GPU router can report a provisional timing shortfall before
@@ -1913,7 +1924,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2d3c216`, `--router gpu`, seed 4, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `2ceec425`, `--router gpu`, seed 4, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2

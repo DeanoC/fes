@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "ec34fcf38986217af9b5558936044b7197d968a7"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 9cbbf735; published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 2ceec425; published DeanoC/yosys main merge."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "9cbbf7353dd2b818ab73031fcf30d9993578c783"
+commit = "2ceec42587c7261196c13c59b2e7daf4b87f1c5d"
 order = 30
-rationale = "Clocks native asynchronous read-only M10Ks (merged PR #68 9cbbf735: borrow a live design clock for folded CLK1, fan both CLKIN sinks, ENABLE[0], TOP_CE0_SEL on 1024x10 without CFG_BYTE_ENABLE). On 2d3c216a. Feature commit 6535e945. Preserves narrow TDP, GPU router, selector audit, HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, async TDP timing, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "GPU-router timing repair uses design WNS, unfreezes still-failing frozen arcs, and re-routes same-band peer groups (merged PR #70 2ceec425 onto 2e02395). Feature commits 204a9bbb and 183ace57. Preserves async-read M10K clocks (PR #68), consumer-domain async ROM clocks (PR #69), narrow TDP, GPU router, selector audit, HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

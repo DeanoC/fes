@@ -16,7 +16,7 @@ board top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `da6373c0`, nextpnr `2d3c216`). FES parent
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `2ceec425`). FES parent
 pin and kit HIL remain later jobs.
 
 ## Implemented first slice

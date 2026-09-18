@@ -139,8 +139,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(SMS_TOOLCHAIN_LOCK, "cores/fes-sms/toolchain.lock")
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
-        self.assertEqual(SMS_TOOL_COMMITS["yosys"], "da6373c0d7565f36036051efc7895fb0d9ac13c3")
-        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "2d3c216afb7051d2e2070cbf678a50f274b3f786")
+        self.assertEqual(SMS_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
+        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "2ceec42587c7261196c13c59b2e7daf4b87f1c5d")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         coleco_pins = load_lock(ROOT / "cores/fes-coleco/toolchain.lock")
         self.assertEqual(pins["yosys"].commit, coleco_pins["yosys"].commit)
@@ -159,7 +159,7 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
-        self.assertEqual(global_pins["nextpnr"].commit, "9cbbf7353dd2b818ab73031fcf30d9993578c783")
+        self.assertEqual(global_pins["nextpnr"].commit, "2ceec42587c7261196c13c59b2e7daf4b87f1c5d")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
@@ -256,7 +256,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("32 KiB", readme)
         self.assertIn("blob-stream", readme)
         self.assertIn("FES_COLECO_OSS", readme)
-        self.assertIn("da6373c0", readme)
+        self.assertIn("e2d425de", readme)
         self.assertIn("later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
