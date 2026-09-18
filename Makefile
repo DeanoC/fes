@@ -22,6 +22,7 @@ PACKAGE_MANIFEST ?=
 PACKAGE_RBF ?=
 PACKAGE_OUTPUT ?= $(CURDIR)/build/packages
 CACHE_ROOT ?=
+GPU_DEVICES ?= 0,1
 
 FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE := $(strip $(if $(FES_TOOLCHAIN_CACHE_ROOT),$(FES_TOOLCHAIN_CACHE_ROOT),$(CACHE_ROOT)))
 FES_TOOLCHAIN_CACHE_ENV = $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),FES_TOOLCHAIN_CACHE_ROOT="$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
@@ -58,9 +59,9 @@ help:
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
-		"  build-fes-zx81  Seal FES ZX81 with HIP nextpnr/Mistral (CACHE_ROOT=; BEST_FMAX=1 searches weight/seed)" \
+		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision with HIP nextpnr/Mistral (CACHE_ROOT=; BEST_FMAX=1 searches weight/seed)" \
+		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
@@ -402,13 +403,13 @@ build-fes-zx81-quartus:
 	$(PYTHON) scripts/build_fes_zx81.py --root "$(CURDIR)"
 
 build-fes-zx81:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax,)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_zx81_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
 
 build-fes-coleco-quartus:
 	$(PYTHON) scripts/build_fes_coleco.py --root "$(CURDIR)"
 
 build-fes-coleco:
-	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax,)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_coleco_oss.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)$(if $(filter 1,$(BEST_FMAX)), --best-fmax$(if $(strip $(GPU_DEVICES)), --gpu-devices "$(GPU_DEVICES)",),)
 
 .PHONY: sg1000-diagnostic
 sg1000-diagnostic:

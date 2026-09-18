@@ -1897,7 +1897,7 @@ recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
 exponent 5, and `--timing-allow-fail`, and Mistral
 `b28e30a`; the selected toolchain enables the HIP device backend. Default
 place-and-route is first-to-pass on that seed order at weight 300.
-`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
+`make build-fes-coleco BEST_FMAX=1 GPU_DEVICES=0,1` synthesizes once, then searches the
 weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax;
 the winner is stored in route evidence, not written back into recipe
 constants (that would change `BUILD_ID`). Because the
@@ -2168,7 +2168,7 @@ router with a pure-delay timing-repair phase (merged PR #66; the
 repository toolchain builds it without a GPU and its host backend
 produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
-passing seed. `make build-fes-zx81 BEST_FMAX=1` keeps that synthesis and
+passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=0,1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
 Fmax; the selected seed and weight go into route evidence. This keeps native async-M10K address paths within the 52 MHz
 system constraint. The recipe requires two
