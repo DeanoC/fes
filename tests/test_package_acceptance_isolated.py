@@ -12,6 +12,7 @@ import textwrap
 import time
 import tomllib
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 from pathlib import Path
 
@@ -359,6 +360,32 @@ def _run_isolated(command, runtime_log, runtime_state, *, api_port=None, **env_o
 
 
 class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
+    def test_media_receipt_binding_is_required(self):
+        args = SimpleNamespace(library_media="rom.bin", expected_media_sha256="e" * 64,
+            library_media_bytes=32768, expected_host_sha256="f" * 64, container_image=IMAGE,
+            expected_package_id=PACKAGE_ID, expected_core_id=CORE_ID, expected_target_id=TARGET_ID,
+            expected_host_revision=HOST_REVISION, expected_agent_revision=HOST_REVISION,
+            expected_runtime_revision=RUNTIME_REVISION, allow_development_host=False)
+        expected = {"media_id": "e" * 64, "sha256": "e" * 64, "size": 32768, "role": "blob"}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "receipt.json"
+            value = {"success": True, "package_id": PACKAGE_ID, "core_id": CORE_ID,
+                     "target_id": TARGET_ID, "library_media": expected, "media_admission": "imported",
+                     "selection": {"game_id": "sms-title", "package_id": PACKAGE_ID,
+                                   "media_id": "e" * 64, "media_role": "blob"}}
+            path.write_text(json.dumps(value))
+            self.assertEqual(package_acceptance_isolated._read_runner_receipt(path, args), "sms-title")
+            for media in (None, {**expected, "media_id": "f" * 64},
+                          {**expected, "size": 16384}, {**expected, "role": "other"}):
+                with self.subTest(media=media):
+                    path.write_text(json.dumps({**value, "library_media": media}))
+                    with self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                        package_acceptance_isolated._read_runner_receipt(path, args)
+            value["selection"]["media_id"] = "f" * 64
+            path.write_text(json.dumps(value))
+            with self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                package_acceptance_isolated._read_runner_receipt(path, args)
+
     def test_rejects_root_caller_for_supported_image(self):
         metadata = {
             "Id": IMAGE,
@@ -504,6 +531,65 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
 
 
 class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
+    def test_media_is_bound_across_restart_and_final_receipt(self):
+        state = package_acceptance_tests._state()
+        state["entries"] = {}
+        media_bytes = bytes(range(256)) * 128
+        digest = hashlib.sha256(media_bytes).hexdigest()
+        with _full_identity_fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            paths = _write_inputs(directory)
+            media = Path(directory) / "sms.bin"
+            media.write_bytes(media_bytes)
+            runtime = _write_fake_runtime(directory)
+            evidence = Path(directory) / "evidence"
+            command = _isolated_command(paths, evidence, runtime)
+            command.extend(["--library-media", str(media), "--expected-media-sha256", digest])
+            result = _run_isolated(command, Path(directory) / "runtime.log",
+                                   Path(directory) / "runtime-state.json", api_port=server.server_port)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected = {"media_id": digest, "sha256": digest, "size": 32768, "role": "blob"}
+            receipt = json.loads((evidence / "receipt.json").read_text())
+            self.assertEqual(receipt["library_media"], expected)
+            self.assertEqual(receipt["cycles"][0]["game_id"], receipt["cycles"][1]["game_id"])
+            self.assertEqual(state["media_uploads"], [media_bytes])
+            self.assertEqual(state.get("media_puts", []), [])
+            self.assertEqual(state["media_reads"], [digest])
+            self.assertEqual(state["stops"], 2)
+            self.assertEqual(len(state["launch_bodies"]), 2)
+            for cycle in ("cycle-1", "cycle-2"):
+                value = json.loads((evidence / cycle / "receipt.json").read_text())
+                self.assertEqual(value["library_media"], expected)
+                self.assertEqual(value["selection"]["media_id"], digest)
+                self.assertEqual(value["media_admission"], "imported" if cycle == "cycle-1" else "retained")
+            self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
+
+    def test_missing_retained_media_fails_second_cycle_without_repair(self):
+        state = package_acceptance_tests._state()
+        state["entries"] = {}
+        state["forget_media_after_stop"] = True
+        media_bytes = bytes(range(256)) * 128
+        digest = hashlib.sha256(media_bytes).hexdigest()
+        with _full_identity_fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            paths = _write_inputs(directory)
+            media = Path(directory) / "sms.bin"
+            media.write_bytes(media_bytes)
+            runtime = _write_fake_runtime(directory)
+            evidence = Path(directory) / "evidence"
+            command = _isolated_command(paths, evidence, runtime)
+            command.extend(["--library-media", str(media), "--expected-media-sha256", digest])
+            result = _run_isolated(command, Path(directory) / "runtime.log",
+                                   Path(directory) / "runtime-state.json", api_port=server.server_port)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((evidence / "receipt.json").exists())
+            self.assertFalse((evidence / "cycle-2/receipt.json").exists())
+            self.assertTrue((evidence / "failure.json").exists())
+            self.assertEqual(state["media_uploads"], [media_bytes])
+            self.assertEqual(state["media_reads"], [digest])
+            self.assertEqual(state.get("media_puts", []), [])
+            self.assertEqual(len(state["launch_bodies"]), 1)
+            self.assertEqual(state["stops"], 1)
+            self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
+
     def test_same_inode_changed_config_is_retained(self):
         target = package_acceptance_isolated.PrivateTarget(
             name="dev",

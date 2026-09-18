@@ -18,7 +18,7 @@ host software and target root filesystem.
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
-| Separate library storage from core capacity and plan larger-media transport | [Media capacity and transport](core-media-evolution.md) (current host behavior and proposed runtime work) |
+| Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Review the historical Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
 | Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
@@ -38,6 +38,9 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [SMS 32 KiB stream diagnostic](validation/2026-09-18-sms-stream-start-diagnostic.md):
+  corrected startup/input, physical diagnostic display/controls/menu return and
+  three UI relaunches; full-image verification is separate from kit acceptance.
 - [FES SMS parent pin](validation/2026-09-17-fes-sms-parent-pin.md):
   misteross `#65` pin and `fes.sms` recipe registration for package-only
   acceptance; factory image closed set unchanged.

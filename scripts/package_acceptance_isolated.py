@@ -633,6 +633,12 @@ def runner_command(
         command.extend(["--new-entry-title", args.new_entry_title])
     else:
         command.extend(["--game-id", game_id, "--expected-selected-package", args.expected_package_id])
+    if args.library_media:
+        command.extend(["--library-media", str(Path(args.library_media).resolve()),
+                        "--expected-media-sha256", args.expected_media_sha256])
+        if game_id is not None:
+            command.extend(["--expected-selected-media", args.expected_media_sha256,
+                            "--reuse-library-media"])
     return command
 
 
@@ -784,7 +790,7 @@ def _identity_value(args: argparse.Namespace) -> dict[str, str]:
 
 
 def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
-    return {
+    value = {
         "format": 1,
         "success": success,
         "mode": "isolated-lifecycle",
@@ -796,6 +802,11 @@ def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
         "revisions": _identity_value(args),
         "host_revision_policy": "development-label" if args.allow_development_host else "strict",
     }
+    if args.library_media:
+        value["library_media"] = {"media_id": args.expected_media_sha256,
+                                  "sha256": args.expected_media_sha256,
+                                  "size": args.library_media_bytes, "role": "blob"}
+    return value
 
 
 def _cycle_directory(evidence_dir: Path, cycle: str) -> Path:
@@ -814,7 +825,7 @@ def _write_runner_output(cycle_dir: Path, result: subprocess.CompletedProcess[st
     _write_private_text(cycle_dir / "runner.stderr", _safe_text(result.stderr, secrets_to_redact))
 
 
-def _read_runner_receipt(path: Path, args: argparse.Namespace) -> str:
+def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: bool = False) -> str:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -828,6 +839,12 @@ def _read_runner_receipt(path: Path, args: argparse.Namespace) -> str:
     selection = value.get("selection")
     if not isinstance(selection, dict):
         raise AcceptanceError("package acceptance runner receipt has no selection")
+    if args.library_media:
+        expected = _receipt_base(args, True)["library_media"]
+        if value.get("library_media") != expected or selection.get("media_id") != args.expected_media_sha256 or selection.get("media_role") != "blob" or selection.get("package_id") != args.expected_package_id:
+            raise AcceptanceError("package acceptance runner receipt media identity does not match the request")
+        if value.get("media_admission") != ("retained" if retained_media else "imported"):
+            raise AcceptanceError("package acceptance runner receipt media admission does not match the cycle")
     game_id = selection.get("game_id")
     return _require_string(game_id, "package acceptance runner game ID", 512)
 
@@ -900,7 +917,7 @@ class IsolatedAcceptance:
         _write_runner_output(cycle_dir, result, self.target)
         if result.returncode != 0:
             raise AcceptanceError(f"package acceptance runner failed (exit {result.returncode})")
-        return _read_runner_receipt(receipt, self.args)
+        return _read_runner_receipt(receipt, self.args, retained_media=game_id is not None)
 
     def _stop(self, record: ContainerRecord) -> None:
         if record.stop_attempted:
@@ -986,6 +1003,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--host-config", required=True)
     result.add_argument("--evidence-dir", required=True)
     result.add_argument("--archive", required=True)
+    result.add_argument("--library-media")
+    result.add_argument("--expected-media-sha256")
     result.add_argument("--expected-archive-sha256", required=True)
     result.add_argument("--expected-package-id", required=True)
     result.add_argument("--expected-core-id", required=True)
@@ -1013,6 +1032,14 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> PrivateTarget:
+    if bool(args.library_media) != bool(args.expected_media_sha256):
+        raise AcceptanceError("--library-media and --expected-media-sha256 are required together")
+    if args.library_media:
+        _require_digest(args.expected_media_sha256, "expected media sha256")
+        media = _require_file(args.library_media, "library media")
+        args.library_media_bytes, digest = _read_digest(media, "library media", 32 * 1024 * 1024)
+        if args.library_media_bytes < 1 or digest != args.expected_media_sha256:
+            raise AcceptanceError("library media sha256 or size does not match expectation")
     if not args.execute:
         raise AcceptanceError("refusing isolated mutations without explicit --execute")
     if args.listen_port < 0 or args.listen_port > 65535:

@@ -3,6 +3,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -146,10 +147,37 @@ class BundleTest(unittest.TestCase):
         staged = subprocess.check_output(
             ['git', '-C', str(root), 'ls-files', '--stage', '--', 'sources/misteross'],
             text=True)
-        self.assertIn('18c064bb200ee9f58d8e14e98d62cc0d02fe5d19', staged)
+        mode, revision, stage, path = staged.split()
+        self.assertEqual((mode, stage, path), ('160000', '0', 'sources/misteross'))
+        source = root / path
+        self.assertEqual(subprocess.check_output(
+            ['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(), revision)
+        subprocess.run(['git', '-C', str(source), 'diff', '--exit-code', revision, '--'],
+                       check=True, capture_output=True, text=True)
         self.assertTrue((root / 'sources/misteross/scripts/build_fes_sms_oss.py').is_file())
         self.assertTrue((root / 'sources/misteross/cores/fes-sms/toolchain.lock').is_file())
         module = self.module()
+        # Probe the selected producer's CLI and authentication call contract,
+        # without building tools or accepting an unrelated local checkout.
+        probe = '''
+import importlib
+import inspect
+import sys
+from pathlib import Path
+producer = importlib.import_module(sys.argv[1])
+inspect.signature(getattr(producer, sys.argv[2])).bind(
+    Path.cwd(), cache_root=Path("unused-cache-probe"))
+'''
+        for recipe in module.FORMAT2_RECIPES.values():
+            with self.subTest(core=recipe.core_id):
+                self.assertTrue((source / recipe.lock_path).is_file())
+                help_text = subprocess.check_output(
+                    [sys.executable, str(source / recipe.producer_script), '--help'],
+                    cwd=source, text=True, timeout=30)
+                self.assertIn('--cache-root', help_text)
+                subprocess.run(
+                    [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate],
+                    cwd=source, check=True, capture_output=True, text=True, timeout=30)
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
         self.assertIn(
