@@ -1,11 +1,15 @@
 # SMS larger-media integration plan
 
-Status: merged components selected; exact-artifact hardware acceptance pending.
+Status: selected stream integration implemented; derived diagnostic physical
+checks and full-image software verification PASS, with distinct artifact scopes.
 
 ## Integration checkpoint
 
 - Shared stream definitions are merged in mister-packages #9 (`fdc4ece`).
-- Runtime #24 (`3fe4b91`) and FogCast #256 (`b606ca0`) are merged. They implement
+- Selected runtime is `a6d658cd305c4a84860afc1f8b00a2798ee6e4f4`; selected
+  FogCast is `d9745ed746a1e8d0bde423151d08810248ce8815`. These include the
+  stream-start reset ordering and SMS direction/Fire1 input corrections after
+  the initial runtime #24 / FogCast #256 integration. They implement
   the explicit stream path, including coordinator capability propagation and
   isolated status snapshots. Runtime tests and ARM cross-build, host tests/vet and builds,
   and parent consistency/host build have passed. Host browser/CDP coverage
@@ -13,21 +17,38 @@ Status: merged components selected; exact-artifact hardware acceptance pending.
 - Parent consistency checks cover 18 generated consumers, 15 fixture copies
   and four copied source pins. Parent Python tests passed; container-delegated
   cases passed in their respective container runs.
-- SMS RTL #66 is merged at `be3b0836fd18fa24dae8f2eaec152c6be4c8f7a3`.
+- Selected misteross is `0825da5f277648009c2caa21c591e8b8bbca212a`, including
+  the subsequent compiler/recipe fixes from #67/#68. SMS RTL #66 merged at
+  `be3b0836fd18fa24dae8f2eaec152c6be4c8f7a3`.
   Fix `9fa3a02` adds CPU-executed upper-half diagnostics and preserves legacy
-  upload cancellation on Hold Reset. Sealed tip `d647781` uses HIP seed 1;
-  Coleco/SG-1000 remain on seed 4. Caster's package-only handoff identifies:
+  upload cancellation on Hold Reset. The diagnostic package handoff from
+  sealed tip `d647781` used HIP seed 1; its identities below are distinct from
+  newly rebuilt packages using the selected compiler/recipe revisions:
   - package ID `6e172ee279a69d6c7326009c7a8a82ab496e56ce2cb5ac2f2e7e3252d7b194d7`
   - RBF SHA-256 `2a245d6e8a5d73b52f86c6b7c8a802019ecfd43d1ccf3ed29eb3d9d6d15d0090`
   - interactive 32 KiB ROM SHA-256 `411c33162658bf0bba55f5745565ee023c6bb6f5190a57f9a3b3ea5e2c484835`
-  These identities are build handoff evidence, not hardware acceptance.
+  The exact diagnostic package/media subsequently passed the bounded physical
+  checks recorded below; this does not accept newly rebuilt FPGA outputs.
 
-These are candidate revisions, not release or hardware-acceptance identities.
-The combined source selection can be built and checked before parent merge.
+The selected revisions and diagnostic hardware identities are separate evidence.
 FES #76's standalone pin lacked the matching shared consumers; #75 now includes
 that pin with all matching components, so neither build nor automated preparation
-depends on #76 merging first. Physical acceptance and the parent merge stay held
-for the operator's display/controller check.
+depends on #76 merging first.
+
+The corrected derived diagnostic passed visible HDMI output, P1 directions/A
+press-release, menu return and three consecutive exact-SMS UI relaunches.
+The intervening missing `pong.rbf` launch selected Pong, not SMS. Earlier startup
+and input failures remain recorded in the
+[diagnostic acceptance record](validation/2026-09-18-sms-stream-start-diagnostic.md).
+
+Full-image verification separately passed two-pass reproducibility, structural
+checks and QEMU packaging (not FPGA emulation). The retained receipt is
+`out/hardware/sms32k-inputfix-20260918.muS1pr/full-image.1yUF9p/verification.json`;
+verified image SHA-256 is
+`6538ca1b5d61729f287a5aaeb5a72c14cf7f8bd6ae03bd87bc874056c65c75d9`.
+This does not establish physical acceptance of that full image or its rebuilt
+FPGA packages, nor does it imply release publication. The diagnostic kit and
+full-image verification remain separate acceptance scopes.
 
 The first target is an open 32 KiB SMS diagnostic mapped contiguously at
 `0x0000–0x7fff`. It must execute or validate distinct bytes above `0x3fff`;

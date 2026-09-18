@@ -207,3 +207,23 @@ Yosys remains `ec34fcf38986217af9b5558936044b7197d968a7`.
 Parent consistency passes for this selection. Fresh build/verification is
 pending. This compiler/recipe change does not retroactively validate newly
 produced FPGA packages on hardware; the working diagnostic kit is unchanged.
+
+### Full-image verification completed
+
+Parent `44c864ab5e56c1913b90ce45fc3fd945a6005a9d` completed `make build`
+and `make verify` on Powerboat. Evidence is retained in
+`out/hardware/sms32k-inputfix-20260918.muS1pr/full-image.1yUF9p/`.
+Both independent image passes produced SHA-256
+`6538ca1b5d61729f287a5aaeb5a72c14cf7f8bd6ae03bd87bc874056c65c75d9`;
+the published image was independently hashed to the same value.
+`verification.json` reports two-pass reproducibility, structural validation and
+QEMU packaging all passing. QEMU log SHA-256 is
+`934eec984cfcaa9caf3ee9237250d84fc5ccf0de2c10cf40534e41e0a9d03527`.
+Historical baseline comparison is not asserted (`null`).
+
+All three factory packages were built with the selected HIP recipes. Coleco
+passed with seed 1: system clock 52.559658 MHz versus 52.002083 MHz required,
+pixel clock 94.652161 MHz versus 74.250069 MHz required. This clears the earlier
+timing failure and full-build landing gate. QEMU is a packaging check, not FPGA
+emulation. The full image and its rebuilt FPGA packages have not been deployed;
+the physical acceptance above remains specific to the derived SMS diagnostic.

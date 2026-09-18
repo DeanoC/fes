@@ -179,9 +179,17 @@ chunks. That limit is separate from the selected core's media capacity.
 role, format, minimum/maximum size and transport, with target compatibility
 explicitly unknown. Unknown interface versions do not inherit larger capacity.
 
-The current `blob` target contract accepts 1 through 16,384 bytes (16 KiB), requiring
-`fes.simple-computer` 1.0 and `fes.media.blob` 1.0. It is not arbitrary cartridge
-support. New Coleco entries require explicit media to run a diagnostic;
+The legacy `fes.media.blob` 1.0 target transport accepts 1 through 16,384 bytes
+(16 KiB), requiring `fes.simple-computer` 1.0. That limit is unchanged. The
+implemented `fes.media.blob-stream` 1.0 transport is a distinct interface, not
+a widening of legacy blob 1.0. Stream-enabled SMS supports 1 through 32,768
+bytes (32 KiB) on its fixed `0x0000–0x7fff` map. Both transports use the library
+media role `blob`; the role alone does not identify the transport or capacity.
+Stream delivery requires verified active stream support and checks the endpoint's
+observed capacity separately from the offline declaration and host storage limit.
+Neither transport implies arbitrary cartridge or mapper support.
+
+New Coleco entries require explicit media to run a diagnostic;
 package-only entries upload nothing. Schema 7 migrates existing Coleco entries
 once to the historical diagnostic as ordinary selected media. Clearing that
 selection is preserved across restart.
@@ -189,7 +197,8 @@ selection is preserved across restart.
 For example, importing a 512 KiB ROM succeeds, but selecting it for blob 1.0
 fails before hardware activation and leaves the previous selection unchanged.
 See [media capacity and transport](core-media-evolution.md) for the current
-storage boundary and the explicitly proposed larger-media runtime/FPGA work.
+storage boundary and implemented versioned stream path, and the
+[SMS integration checkpoint](sms-large-media-plan.md) for exact acceptance scope.
 
 Media bytes and selections live in the host catalog, so back it up alongside
 the package store. Where a core supports persistence, settings/progress remain
