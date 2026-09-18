@@ -460,7 +460,7 @@ is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
 integration operations. The FogCast lock and expected-runtime compatibility
-constant select runtime `3fe4b914cd3b02339a53cac44ce8b4fa2d722bef`.
+constant select runtime `a6d658cd305c4a84860afc1f8b00a2798ee6e4f4`.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle
 serialization, staging permissions and exact bytes, generation changes,
