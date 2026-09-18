@@ -94,6 +94,41 @@ host library. Imported media must survive that restart without reimport.
 
 ## Optional input diagnostic
 
+### ZX81 keyboard quick-start
+
+With the selected toolchain/package cache available, prepare a new candidate:
+
+```sh
+mkdir -p out/core-dev
+python3 scripts/core_dev.py prepare --core fes.zx81 --output out/core-dev/zx81-001
+sha256sum examples/input/zx81-keyboard.json
+```
+
+The committed recipe presses and releases Shift: keyboard device 0, key kind 0,
+code 256, on `fes.keyboard` 1.0. The code comes from the selected FogCast
+`internal/zx81keys/matrix.go`; it is not a gamepad-to-keyboard mapping.
+No external media is required for this ZX81 package. Shift alone need not
+produce visible output; success does not prove FPGA key consumption.
+
+After reserving the kit and checking its lease, use the acceptance command
+above with `--prepared out/core-dev/zx81-001/prepared.json`, a fresh evidence
+directory and title, and add:
+
+```text
+--input-events /absolute/path/to/fes/examples/input/zx81-keyboard.json
+--expected-input-sha256 0e93f736f2d0418f2791ae702758e0ae21b6924e2380ba6cdc232e37b80f296b
+--input-timeout 10
+```
+
+Verify the recipe digest yourself and retain the explicit accepted host binary,
+container image, target and platform-revision arguments; do not discover and
+blindly trust the installed versions. A successful run produces `receipt.json`
+and `preparation.json`, plus each cycle's receipt. Check both cycles, host
+shutdown/container cleanup, credential removal and the released kit lease.
+This is a transport/lifecycle diagnostic, not a typing or physical USB test.
+
+### Input recipe contract
+
 For an authorized, exclusively owned kit test, add an explicit event recipe to
 the acceptance command:
 
@@ -141,3 +176,37 @@ controller works, or that the display changed. Physical display/controller
 confirmation remains separate. Do not substitute generic Coleco events for an
 unfamiliar core. Independent execution by another team is also required before
 declaring new-core onboarding routine.
+
+## Recorded ZX81 diagnostic (2026-09-18)
+
+Fresh package preparation on Powerboat took 4.75 seconds using the existing
+HIP build cache, with no image assembly. It reproduced package
+`af84d2c7fd0ec920beb3214594688d2b17eb5724aba5ac917cfa37f359cc3a1e`
+and archive SHA-256
+`c765295e0c3e4c2b7ae0157a881c0d8eed372b41a3b5cebcaf46fb89634d5208`.
+
+The acceptance runner from FES `f2bf099740b1cc4d500d31d26a73accc1c876b89`
+used the explicit keyboard recipe above. On target
+`73dc9f5f-1a12-4a95-a820-a9b4e600769a`, both initial launch/input/Stop and
+host-restart/relaunch/input/Stop passed: 2/2 events acknowledged and a frame
+delta of 3 per cycle. The same private library entry survived the host restart.
+Strict host/agent revision checks matched
+`d9745ed746a1e8d0bde423151d08810248ce8815`; runtime matched
+`a6d658cd305c4a84860afc1f8b00a2798ee6e4f4`.
+
+Both host containers exited 0 and were removed, private credentials were
+removed, and the kit lease returned to free. The boot ID and installed image
+digest were unchanged. No deployment, reboot, or physical USB/display test
+was performed. Event acknowledgement and frame progress remain transport
+evidence, not FPGA key-consumption evidence.
+
+Retained evidence paths on Powerboat:
+
+- Preparation: `/home/deano/fes/out/dev/library-client/fes/out/core-dev/zx81-input-20260918-02/prepared.json`
+- Acceptance: `/home/deano/fes/out/hardware/zx81-input-20260918.AuX9VN/acceptance/`
+
+The acceptance directory contains the frozen input recipe, both cycle receipts,
+the final `receipt.json`, and `preparation.json` binding the prepared candidate.
+Preparation used the retained build-cache checkout at `27bc483`; its four
+selected component revisions match the acceptance checkout. The build-cache
+checkout and live host library were otherwise left unchanged.
