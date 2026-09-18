@@ -65,18 +65,18 @@ The host `GET /api/v1/health` object includes a `host` identity (`version`,
 `revision`, `os`, `arch`) and forwards `target.artifacts` when the target is
 reachable.
 
-When both sides advertise a comparable runtime commit or FogCast revision and
-they disagree, host connection state is `version_mismatch` (the target stays
-reachable). Launches, development loads, and package activation are refused.
-Configuration is not rewritten. Missing artifacts (Main-backend images, or
-binaries built without git ldflags) stay compatible until they advertise
-identity.
+Live connection compatibility requires the target API contract `v1`, not equal
+FogCast or runtime Git revisions. Missing or unsupported API versions produce
+`version_mismatch` and refuse admission. Package ABI, native runtime protocol,
+media, input and persistence support are checked by the corresponding operation.
+Artifact revisions remain provenance; missing provenance does not bypass API
+admission. Configuration is not rewritten.
 
 ## What may differ
 
 | May differ | Must match for a launch |
 | --- | --- |
-| Surface UI build vs last cold image, if the protocol is unchanged and the operator accepts diagnostic use | Agent, runtime commit, installed cores, and ABI snapshot the host was selected against |
+| Host, agent and runtime source revisions | Supported target API and operation-specific runtime/package contracts; selected package identity and target ownership |
 | Uncommitted component worktrees vs parent pins (worktrees are not the image) | Parent gitlink, FogCast runtime lock, and generated package consumers (`make check`) |
 | Capture device presence | Not part of the FPGA tuple |
 | DHCP address | `target_id` (discovery); never a new identity minted by media |
