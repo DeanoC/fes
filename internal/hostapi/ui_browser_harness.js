@@ -106,6 +106,7 @@ function assembleProductionHTML(metadataMode = 'normal', options = {}) {
     ? 'globalThis.FogCastPrefetchVisibleCovers = true;'
     : '';
   const replacements = {
+    '{{FOGCAST_CORE_LIBRARY}}': `<script>${readAsset('ui_core_library.js')}</script>`,
     '{{FOGCAST_STYLES}}': `<style>${styles}</style>`,
     '{{FOGCAST_APP}}': `<script>globalThis.FogCastPresentationEnabled = true;${prefetch}globalThis.FogCastAttractDisabled = ${attractDisabled};${attractIdle}</script><script>${app}</script>`,
   };
@@ -188,6 +189,12 @@ function normalizePlan(plan = {}) {
     settings: plan.settings || { attract_idle_seconds: 60, preferred_regions: ['usa', 'world', 'europe', 'japan'] },
     platforms: plan.platforms || { platforms: [] },
     collections: Array.isArray(plan.collections) ? plan.collections.slice() : [],
+    coreRoutes: new Map(Object.entries(plan.coreRoutes || {}).map(([route, responses]) => {
+      if (!/^(GET|POST|PUT) \/api\/v1\/(core-packages|core-media|library\/core-entries)(\/[^?\s]+)?$/.test(route)) {
+        throw new TypeError(`invalid core fixture route: ${route}`);
+      }
+      return [route, normalizeQueue(responses, route)];
+    })),
     catalogQueues,
     detailQueues,
     presentationQueues,
@@ -302,7 +309,7 @@ class FixtureServer extends EventEmitter {
     this.timers.clear();
   }
 
-  async readRequestBody(request) {
+  async readRequestBody(request, encoding = 'utf8') {
     const chunks = [];
     let total = 0;
     for await (const chunk of request) {
@@ -313,7 +320,7 @@ class FixtureServer extends EventEmitter {
       }
       chunks.push(chunk);
     }
-    return Buffer.concat(chunks).toString('utf8');
+    return Buffer.concat(chunks).toString(encoding);
   }
 
   newRecord(request, url) {
@@ -325,6 +332,8 @@ class FixtureServer extends EventEmitter {
       status: null,
       fixture: null,
       requestContentType: request.headers['content-type'] || '',
+      requestContentLength: request.headers['content-length'] || '',
+      requestTransferEncoding: request.headers['transfer-encoding'] || '',
       requestBody: '',
       responseOrder: null,
       unexpected: false,
@@ -364,6 +373,17 @@ class FixtureServer extends EventEmitter {
     const record = this.newRecord(request, url);
     if (url.origin !== this.origin) {
       await this.deliver(record, response, this.unexpectedResponse(record, 400, 'request origin was not fixture loopback'));
+      return;
+    }
+
+    const coreQueue = !url.search && this.plan.coreRoutes.get(`${request.method} ${url.pathname}`);
+    if (coreQueue) {
+      record.requestBody = await this.readRequestBody(request,
+        record.requestContentType === 'application/octet-stream' ? 'base64' : 'utf8');
+      // Reads may repeat during refresh; mutations must consume exactly one
+      // explicitly planned reply, so an automatic replay fails the scenario.
+      const selected = request.method === 'GET' && coreQueue.length === 1 ? coreQueue[0] : coreQueue.shift();
+      await this.deliver(record, response, selected || this.unexpectedResponse(record, 500, 'core mutation queue exhausted'));
       return;
     }
 
@@ -534,6 +554,14 @@ class FixtureServer extends EventEmitter {
       await this.deliver(record, response, this.unexpectedResponse(record, 404, 'media handle was not configured'));
       return;
     }
+    // No live media stream exists here. Only this exact preview route is inert;
+    // other unplanned routes remain scenario failures.
+    if (url.pathname === '/api/v1/session/preview' && request.method === 'GET' && !url.search) {
+      await this.deliver(record, response, {
+        fixture: 'preview-inactive', status: 204, hold: false, delayMs: 0, body: Buffer.alloc(0),
+      });
+      return;
+    }
     if (url.pathname === '/api/v1/session' && request.method === 'GET') {
       const selected = this.plan.sessionQueue.length === 1
         ? this.plan.sessionQueue[0]
@@ -685,7 +713,10 @@ class FixtureServer extends EventEmitter {
       status: record.status,
       fixture: record.fixture,
       requestContentType: boundedText(record.requestContentType, '', 120),
+      requestContentLength: boundedText(record.requestContentLength, '', 24),
+      requestTransferEncoding: boundedText(record.requestTransferEncoding, '', 24),
       requestBody: record.path === '/api/v1/session/launch' || record.path === '/api/v1/session/stop'
+        || /^\/api\/v1\/(core-packages|core-media|library\/core-entries)(\/|$)/.test(record.path)
         ? boundedText(record.requestBody, '', 512)
         : undefined,
       responseOrder: record.responseOrder,
@@ -1388,6 +1419,16 @@ class BrowserPage {
         collectionMemberLabel: Array.from(document.querySelectorAll('.collection-member-button')).map(item => item.textContent || ''),
         attractHidden: document.querySelector('#attract')?.hidden !== false,
         attractTitle: text('#attract-title'),
+        coreLibrary: {
+          open: document.querySelector('#core-library')?.open === true,
+          busy: document.querySelector('#core-library')?.getAttribute('aria-busy') === 'true',
+          message: text('#core-library-message'),
+          packageStatus: text('#core-package-status'),
+          mediaStatus: text('#core-media-status'),
+          current: text('#core-entry-current'),
+          entry: document.querySelector('#core-entry-select')?.value || '',
+          package: document.querySelector('#core-package-select')?.value || '',
+        },
         settingsHidden: document.querySelector('#settings')?.hidden !== false,
         settingsAttract: document.querySelector('#settings-attract-idle')?.value || '',
         settingsRegions: document.querySelector('#settings-preferred-regions')?.value || '',

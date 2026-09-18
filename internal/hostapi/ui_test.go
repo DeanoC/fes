@@ -23,6 +23,26 @@ func TestUIHandlerReturnsSelfContainedHTML(t *testing.T) {
 	}
 }
 
+func TestUICoreLibraryManagementIsEmbeddedAndExplicit(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"Manage FPGA library", "FogCastCoreLibrary", "createController",
+		"id=\"core-library\"", "id=\"core-package-file\"", "id=\"core-media-file\"",
+		"id=\"core-entry-title\"", "id=\"core-entry-package-save\"",
+		"id=\"core-entry-media-save\"", "id=\"core-entry-media-clear\"",
+		"/api/v1/core-packages", "/api/v1/core-media", "/api/v1/library/core-entries",
+		"expected_package_id", "expected_media_id", "coreLibraryIsOpen()",
+		"Change may already be saved. Refresh to confirm",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("missing core library integration %q", token)
+		}
+	}
+	if strings.Contains(html, "{{FOGCAST_CORE_LIBRARY}}") {
+		t.Fatal("unexpanded core library asset")
+	}
+}
+
 func TestUIEscapesGameTextInBrowserTemplate(t *testing.T) {
 	html := hostapi.UIHTMLForTest()
 	for _, token := range []string{"textContent", "createElement", "replaceChildren"} {

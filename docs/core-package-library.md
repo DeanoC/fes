@@ -34,6 +34,40 @@ target inspection path described below. The native launcher does not install
 packages or change the selected package. Package replacement remains the
 explicit core-select/API operation and is outside this read-only UI slice.
 
+## Browser management
+
+Open **Manage FPGA library** on the normal host browser listener. Import a
+sealed `.fcore` archive, select an installed version, and check its target
+compatibility. Installed inventory is not proof of compatibility; an offline
+or busy target remains unknown. Creating a title and replacing its package
+still require the existing host's authoritative compatibility checks.
+
+For a media-backed title, upload a ROM/media file explicitly. The panel shows
+its immutable digest and size beside the selected package's declared capacity.
+The host's 32 MiB import policy is separate from the core's supported media
+size. No file extension, core name or successful upload proves a ROM will run.
+This panel uploads and selects media; it does not add a media inventory browser.
+
+Create a title with the selected package and optional media, or select an
+existing title to change its package or select/clear its media. These operations
+affect the next launch, not the running session. A conflicting selection must
+be refreshed and explicitly selected again; the browser never retries mutations
+automatically.
+
+Requests, including response reads, have a two-minute browser deadline. A
+timeout releases the panel controls but does not prove that an upload or
+selection was rejected: refresh to confirm the outcome before another explicit
+attempt.
+
+The title appears in the ordinary **FPGA cores** catalog. The Kit's existing
+catalog refresh (normally every 30 seconds while connected and not busy)
+discovers it, and its normal launch/Stop controls use the same
+host session API. The management panel does not launch or stop a core, expose
+target credentials, or add management routes to the paired Kit listener.
+Shipping this panel requires a host software update once; subsequent compatible
+package/media changes require neither a host rebuild/restart nor a kit-image
+rewrite. New runtime capabilities remain a separate software change.
+
 ## Operator commands
 
 Run the host normally, then use its existing API origin:

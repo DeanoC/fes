@@ -4804,11 +4804,11 @@
   }
 
   async function enterAttract() {
-    if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
+    if (attractIsDisabled() || attractActive || settingsIsOpen() || coreLibraryIsOpen() || !nodes.attract) return;
     closeGameActionsMenu({ restoreFocus: false });
     try {
       const playlist = await controller.loadAttract(24);
-      if (attractIsDisabled() || attractActive || settingsIsOpen() || !nodes.attract) return;
+      if (attractIsDisabled() || attractActive || settingsIsOpen() || coreLibraryIsOpen() || !nodes.attract) return;
       attractItems = playlist.items || [];
       if (!attractItems.length) return;
       attractIndex = 0;
@@ -4825,7 +4825,7 @@
       attractTimer = null;
     }
     if (attractActive) hideAttract();
-    if (attractIsDisabled() || settingsIsOpen() || !nodes.attract || !attractIdleHydrated) return;
+    if (attractIsDisabled() || settingsIsOpen() || coreLibraryIsOpen() || !nodes.attract || !attractIdleHydrated) return;
     if (typeof root.setTimeout !== 'function') return;
     attractTimer = root.setTimeout(enterAttract, currentAttractIdleMs());
   }
@@ -4851,6 +4851,11 @@
 
   function settingsIsOpen() {
     return Boolean(nodes.settings && nodes.settings.hidden === false);
+  }
+
+  function coreLibraryIsOpen() {
+    const panel = document.getElementById('core-library');
+    return Boolean(panel && panel.hidden === false);
   }
 
   function isSettingsTarget(target) {
@@ -5388,6 +5393,7 @@
   }
 
   function restoreKeyboardFocus() {
+    if (coreLibraryIsOpen()) return;
     if (attractActive) return;
     if (gameActionsMenuIsOpen()) {
       const activeMenu = typeof document !== 'undefined' ? document.activeElement : null;
@@ -5683,6 +5689,7 @@
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', bumpSettingsGeneration);
   if (typeof document.addEventListener === 'function') {
     document.addEventListener('keydown', event => {
+      if (coreLibraryIsOpen()) return;
       if (attractActive) {
         event.preventDefault?.();
         exitAttract();
@@ -5852,6 +5859,7 @@
       document.addEventListener('mousemove', resetAttractTimer);
     }
     document.addEventListener('focusin', event => {
+      if (coreLibraryIsOpen()) return;
       if (gameActionsMenuIsOpen() && event && event.target && !isGameActionsMenuTarget(event.target)) {
         closeGameActionsMenu({ restoreFocus: false });
       }
@@ -5873,6 +5881,13 @@
     nodes.attract.addEventListener('click', exitAttract);
   }
   if (nodes.settings) nodes.settings.hidden = true;
+  if (root.FogCastCoreLibrary) {
+    root.FogCastCoreLibrary.mount(document, root.FogCastCoreLibrary.createController({
+      fetchImpl: root.fetch.bind(root),
+      onChange: state => { if (state.open) { hideAttract(); closeGameActionsMenu({ restoreFocus: false }); } },
+      onCatalogChange: () => { nodes.refresh?.click(); }
+    }));
+  }
   if (nodes.gameActions) nodes.gameActions.hidden = true;
   renderCatalog();
   renderLibraryNav();
