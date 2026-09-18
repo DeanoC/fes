@@ -8,8 +8,11 @@ selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
 package set, while focused profiles may select a smaller package set.
 `fes.sms` is registered for package-only host-library acceptance. Its
 selection filename is `fes-sms.package-selection.toml`. It is not in the
-factory image closed set. See [FES ZX81](fes-zx81.md) and the Coleco
-validation records for bring-up notes.
+factory image closed set. The current misteross pin is `0825da5f…` (includes
+merged `#66`/`be3b0836…` and sealed tip `d647781…`), the sealed 32 KiB
+fixed-map HIP/nextpnr producer (seed 1; Coleco/SG-1000 stay seed 4). See the
+[32 KiB parent pin](validation/2026-09-17-fes-sms-32k-parent-pin.md),
+[FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up notes.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
