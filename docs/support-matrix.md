@@ -35,7 +35,7 @@ fixtures verify software mechanics and do not establish system support.
 | Described-core persistence | FES Pong 1.0 settings/progress codec, production-factory data operations, atomic records, library restore/flush, CAS and explicit failed-save resume | software: yes | hardware: pending |
 | FES GP core driver | production bounded GPO/GPI identity and controls, fixed ADV7513-only video, normalized generation-bound input | software: yes | hardware: pending |
 | FES computer development media | filename-independent 1..16384-byte regular blob, bounded snapshot, hold/transfer/commit/release with no release on transfer failure | software: yes | hardware: pending |
-| FES computer stream media 1.0 | observed capacity, package/generation-bound private snapshot, 512-byte chunks, CRC32, bounded Abort and ambiguous-session rejection | software: yes | hardware: pending |
+| FES computer stream media 1.0 | reset-held fresh activation until media commit, observed capacity, package/generation-bound private snapshot, 512-byte chunks, CRC32, bounded Abort and ambiguous-session rejection | software: yes | hardware: pending |
 | Target diagnostic event ring | FogCast #206 event shape for FIFO consume (including persistence mutation completion), named-cap/fd, fpga_manager, CORENAME, Main pid, and typed fences | software: yes | hardware: not applicable |
 
 Production native construction is available for the image-owned idle baseline,

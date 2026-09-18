@@ -2648,13 +2648,57 @@ void TestPersistenceContractAdmissionAndVolatileIsolation()
 
 } // namespace
 
+// Model the endpoint readiness gate, rather than acknowledging premature release.
+// Other protocol responses remain scripted; this is not a second stream codec.
+class MediaReadyGate final : public mister::native::Mmio {
+public:
+	mister_test::FakeMmio scripted;
+	bool ready = false;
+	bool reset_held = true;
+	unsigned releases = 0;
+	mister::Error Write32(std::uint32_t address, std::uint32_t value) override
+	{
+		request_ = value;
+		return scripted.Write32(address, value);
+	}
+	mister::Error Read32(std::uint32_t address, std::uint32_t* value) override
+	{
+		using namespace mister::native::generated;
+		auto error = scripted.Read32(address, value);
+		if (!error.ok()) return error;
+		const bool toggle = (request_ & FesGpRequestMask) != 0;
+		if (((*value & FesGpAckMask) != 0) != toggle) return {};
+		const auto opcode = (request_ & FesGpOpcodeMask) >> 24;
+		const auto argument = request_ & FesGpArgumentMask;
+		if (opcode == FesSimpleComputerOpcodeExecution &&
+			argument == FesSimpleComputerExecutionRelease && !ready)
+			*value = (*value & ~FesGpResponseMask) | FesGpErrorMask |
+				FesSimpleComputerErrorInvalidState;
+		if (toggle == applied_toggle_) return {};
+		applied_toggle_ = toggle;
+		if (*value & FesGpErrorMask) return {};
+		if (opcode == FesSimpleComputerOpcodeMediaStreamBegin ||
+			opcode == FesSimpleComputerOpcodeMediaStreamAbort) ready = false;
+		if (opcode == FesSimpleComputerOpcodeMediaStreamCommit) ready = true;
+		if (opcode == FesSimpleComputerOpcodeExecution) {
+			reset_held = argument == FesSimpleComputerExecutionHoldReset;
+			if (!reset_held) ++releases;
+		}
+		return {};
+	}
+private:
+	std::uint32_t request_ = 0;
+	bool applied_toggle_ = false;
+};
+
 void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 {
 	using namespace mister::native;
 	using namespace mister::native::generated;
-	mister_test::FakeMmio mmio;
+	MediaReadyGate endpoint;
+	auto& mmio = endpoint.scripted;
 	FixedClock clock(100);
-	FesGp transport(mmio, clock);
+	FesGp transport(endpoint, clock);
 	FesGpCoreDriver driver(transport);
 	Fixture fixture(&driver);
 	TempDirectory package;
@@ -2680,8 +2724,11 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 		PushFesGpResponse(&mmio, toggle, value, failed);
 	};
 	for (auto value : {1, 0, 32768, 0, 512}) reply(value);
-	for (unsigned i = 0; i < 9; ++i) reply(); // keyboard neutral + initial release
-	assert(fixture.hardware.LoadCore(std::move(admitted), 1).error.ok());
+	for (unsigned i = 0; i < 9; ++i) reply(); // keyboard neutral + hold, never release
+	const auto activated = fixture.hardware.LoadCore(std::move(admitted), 1);
+	if (!activated.error.ok()) fprintf(stderr, "fresh stream activation: %s\n", activated.error.message.c_str());
+	assert(activated.error.ok());
+	assert(endpoint.reset_held && !endpoint.ready && endpoint.releases == 0);
 	const auto capacity = fixture.hardware.capabilities().media_stream;
 	assert(capacity.interface.id == "fes.media.blob-stream");
 	assert(capacity.min_bytes == 1 && capacity.max_bytes == 32768 && capacity.chunk_bytes == 512);
@@ -2699,6 +2746,7 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 	for (unsigned i = 0; i < 12; ++i) reply();
 	assert(fixture.hardware.LoadComputerMediaStream(media, 3).ok());
 	assert(mmio.writes.size() == before + 24);
+	assert(!endpoint.reset_held && endpoint.ready && endpoint.releases == 1);
 	// Explicit data rejection causes one independently acknowledged Abort, no release.
 	for (unsigned i = 0; i < 8; ++i) reply();
 	reply(4, true);

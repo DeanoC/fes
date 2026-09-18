@@ -600,6 +600,9 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	if (computer_) {
 		CoreDriverResult neutralized = NeutralizeKeyboard(deadline);
 		if (!neutralized.error.ok()) return neutralized;
+		// Fresh stream endpoints have no committed media and reject release.
+		// Activation publishes the owned session; media commit releases it later.
+		if (stream_verified_) return Quiesce({}, deadline);
 	}
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);

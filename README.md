@@ -61,7 +61,9 @@ development system stays null for protocol-1 compatibility. FES GP package
 activation is software-tested through the production
 MMIO driver, fixed ADV7513-only video path, and generation-bound normalized
 gamepad sink. It verifies all 16 identity/build words before controls, then
-brings up video, sends neutral input, releases gameplay, and starts input. The
+brings up video, sends neutral input, releases gameplay, and starts input.
+Verified stream-media computer sessions instead finish activation held in reset
+until their first successful media commit. Legacy startup is unchanged. The
 Protocol 2 on the local socket exposes `status`, `inspect_core`, `load_core`,
 explicit contained diagnostic RBF loading, and `stop`. Every response reports
 the actual profile/ABI registry, active package identity and lifecycle
