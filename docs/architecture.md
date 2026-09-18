@@ -2139,7 +2139,7 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
-10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 300,
+10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,
 criticality exponent 5 and `--router gpu`, nextpnr's connection-based
 router with a pure-delay timing-repair phase (merged PR #66; the
 repository toolchain builds it without a GPU and its host backend
