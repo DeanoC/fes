@@ -42,6 +42,45 @@ func TestSharedLaunchEligibility(t *testing.T) {
 	}
 }
 
+func TestPackageTitleLaunchIdentityAcrossRefresh(t *testing.T) {
+	game := hostclient.Game{ID: "fpga-browser-protocol-smoke-pong-20260918", Title: "Browser protocol smoke Pong 20260918", System: "fpga", State: "available", RootOnline: true, Launchable: true}
+	legacy := game
+	legacy.ID, legacy.Title, legacy.System = "pong", "Pong", "pong"
+	for _, surface := range []string{"grid", "detail", "strip", "attract"} {
+		t.Run(surface, func(t *testing.T) {
+			m := eligibilityModel(game, surface)
+			m.ApplyCatalog([]hostclient.Game{legacy, game})
+			if surface == "strip" {
+				m.ApplyStrip([]hostclient.Game{legacy, game}, "Recent")
+			}
+			if action := pressNamed(&m, "a", time.Unix(2, 0)); action != "launch" {
+				t.Fatalf("action=%q", action)
+			}
+			// Dispatch dismisses attract; that must not redirect the selection.
+			m.hideAttract()
+			id := m.consumeLaunchID()
+			if id != game.ID {
+				t.Fatalf("submitted %q, want %q", id, game.ID)
+			}
+			if got := sessionActionLabel(m, "launch", id); got != "Launch "+game.Title {
+				t.Fatalf("label=%q", got)
+			}
+		})
+	}
+}
+
+func TestSessionActionLabelUsesSubmittedIdentity(t *testing.T) {
+	m := Model{Catalog: []hostclient.Game{{ID: "old", Title: "Old title"}, {ID: "new", Title: "New title"}}}
+	m.Games = []hostclient.Game{{ID: "new", Title: "New title"}}
+	if got := sessionActionLabel(m, "stop", "old"); got != "Stop Old title" {
+		t.Fatalf("label followed focus: %q", got)
+	}
+	m.Catalog[0].Title = "Bad\n\t\x00title"
+	if got := sessionActionLabel(m, "launch", "old"); got != "Launch Bad  title" {
+		t.Fatalf("unsafe label: %q", got)
+	}
+}
+
 func eligibilityModel(game hostclient.Game, surface string) Model {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog([]hostclient.Game{game})

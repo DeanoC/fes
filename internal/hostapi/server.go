@@ -754,7 +754,7 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 	case protocol.CodeKitLeaseDenied:
 		return "kit lease is foreign; HID is fail-closed"
 	case protocol.CodeVersionMismatch:
-		return "target artifacts do not match this host"
+		return "target API version is missing or unsupported; expected v1"
 	case protocol.CodeMiSTerUnavailable:
 		return "MiSTer is unavailable"
 	case protocol.CodeCoreTimeout:
@@ -891,8 +891,12 @@ func writeSessionError(w http.ResponseWriter, err error) {
 		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeUnsupportedSystem || apiErr.Code == protocol.CodeUnsupportedOperation {
 			status = http.StatusBadRequest
 		}
+		message, phase := fogcast.SafeTargetDiagnostic(apiErr)
+		if message == "" {
+			message = publicErrorMessage(apiErr.Code)
+		}
 		writeJSON(w, status, map[string]any{"error": apiError{
-			Code: string(apiErr.Code), Message: publicErrorMessage(apiErr.Code), Phase: apiErr.Phase,
+			Code: string(apiErr.Code), Message: message, Phase: phase,
 			Expected: apiErr.Expected, Observed: apiErr.Observed,
 		}})
 		return

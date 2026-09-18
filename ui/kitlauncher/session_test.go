@@ -1,17 +1,20 @@
 package kitlauncher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -261,7 +264,11 @@ func TestRunDoesNotRelaunchUntilDelayedStopConfirmsIdle(t *testing.T) {
 }
 
 func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
-	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
+	var logs bytes.Buffer
+	previousOutput := log.Writer()
+	log.SetOutput(&logs)
+	defer log.SetOutput(previousOutput)
+	game := hostclient.Game{ID: "fpga-browser-protocol-smoke-pong-20260918", Title: "Browser protocol smoke Pong 20260918", System: "fpga", State: "available", RootOnline: true, Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/v1/session":
@@ -275,6 +282,12 @@ func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
 		case "/api/v1/library/attract":
 			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
 		case "/api/v1/session/launch":
+			var body struct {
+				GameID string `json:"game_id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.GameID != game.ID {
+				t.Errorf("submitted game_id=%q, decode=%v; want %q", body.GameID, err, game.ID)
+			}
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"error":{"code":"KIT_LEASE_BLOCKED","message":"another session owns the kit"}}`))
 		default:
@@ -293,7 +306,7 @@ func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
 		if m.Connected && m.TargetReady && len(m.Games) == 1 {
 			ready.Store(true)
 		}
-		if !m.Busy && strings.Contains(m.Message, "KIT_LEASE_BLOCKED") {
+		if !m.Busy && strings.Contains(m.Message, "another session owns the kit") {
 			message.Store(m.Message)
 			cancel()
 		}
@@ -301,11 +314,22 @@ func TestRunDisplaysBoundedSessionAPIError(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := message.Load().(string)
-	if got != "KIT_LEASE_BLOCKED: another session owns the kit" {
+	if got != "another session owns the kit (Launch Browser protocol smoke Pong 20260918)" {
 		t.Fatalf("safe API error = %q", got)
 	}
 	if strings.Contains(got, "Operation failed") || len(got) > 160 {
 		t.Fatalf("unbounded/generic API error = %q", got)
+	}
+	for _, want := range []string{
+		"kit session dispatch epoch=1 action=launch game_id=" + strconv.Quote(game.ID),
+		"kit session result epoch=1 action=launch game_id=" + strconv.Quote(game.ID) + " http_status=409 code=\"KIT_LEASE_BLOCKED\"",
+	} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("missing trace %q in %q", want, logs.String())
+		}
+	}
+	if strings.Contains(logs.String(), "another session owns the kit") {
+		t.Fatal("trace included response message rather than safe result fields")
 	}
 }
 

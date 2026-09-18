@@ -7,6 +7,7 @@ import (
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/theme"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -44,13 +45,33 @@ type observation struct {
 
 const hostUnavailableMessage = "Host unavailable"
 
+// Resolve feedback from the submitted identity, never from later UI focus.
+func sessionActionLabel(m Model, action, id string) string {
+	verb := "Launch"
+	if action == "stop" {
+		verb = "Stop"
+	}
+	title := id
+	for _, pool := range [][]hostclient.Game{m.Catalog, m.Games, m.Strip} {
+		for _, game := range pool {
+			if game.ID == id && strings.TrimSpace(game.Title) != "" {
+				title = game.Title
+				return verb + " " + boundedSessionText(title, 40)
+			}
+		}
+	}
+	return strings.TrimSpace(verb + " " + boundedSessionText(title, 40))
+}
+
 func sessionOperationMessage(result hostclient.SessionResult, err error) string {
 	code := boundedSessionCode(result.ErrorCode)
 	message := boundedSessionText(result.ErrorMessage, 120)
+	// The footer may clip: show the actionable explanation before context.
+	// The machine-readable code is retained in the bounded result log.
+	if message != "" {
+		return message
+	}
 	if code != "" {
-		if message != "" {
-			return code + ": " + message
-		}
 		return code
 	}
 	if err != nil && result.HTTPStatus == 0 {
@@ -225,18 +246,21 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		epoch++
 		e := epoch
 		m.Busy = true
-		closeInput()
-		if m.AttractActive {
-			m.hideAttract()
-		}
-		m.Message = "Loading game"
-		id := ""
+		id := m.Session.GameID
 		if action == "launch" {
 			id = m.consumeLaunchID()
 			if id == "" {
 				m.Busy = false
 				return
 			}
+		}
+		label := sessionActionLabel(m, action, id)
+		closeInput()
+		if m.AttractActive {
+			m.hideAttract()
+		}
+		m.Message = "Loading game"
+		if action == "launch" {
 			// Publish feedback while Menu still owns the display, before the
 			// asynchronous request can hand HDMI to the game.
 			present(m)
@@ -244,6 +268,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.Message = "Stopping game"
 			present(m)
 		}
+		// Do not log credentials, raw transport errors, or response bodies.
+		log.Printf("kit session dispatch epoch=%d action=%s game_id=%q", e, action, boundedSessionText(id, 160))
 		go func() {
 			o := observation{epoch: e, mutation: true}
 			var r hostclient.SessionResult
@@ -253,6 +279,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			} else {
 				r, err = c.Library.Stop(ctx)
 			}
+			log.Printf("kit session result epoch=%d action=%s game_id=%q http_status=%d code=%q request_error=%t",
+				e, action, boundedSessionText(id, 160), r.HTTPStatus, boundedSessionCode(r.ErrorCode), err != nil)
 			if err != nil {
 				o.message = sessionOperationMessage(r, err)
 				o.hostAbsent = r.HTTPStatus == 0
@@ -260,6 +288,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				o.message = sessionOperationMessage(r, nil)
 			} else {
 				o.session, o.err = c.Session(ctx)
+			}
+			if o.message != "" {
+				o.message += " (" + label + ")"
 			}
 			send(o)
 		}()
@@ -299,7 +330,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.Session = o.session
 				}
 				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
-					if m.Message != hostUnavailableMessage {
+					if m.Message != hostUnavailableMessage && !strings.HasPrefix(m.Message, hostUnavailableMessage+" (") {
 						m.Message = OfflineMessage
 					}
 				}

@@ -1400,7 +1400,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	}
 	if err != nil {
 		if corePackagePreMutationFailure(err) {
-			return protocol.Status{}, preserveCorePackageError(err)
+			return protocol.Status{}, preserveCorePackageError(retainedAdmissionDiagnostic(prior, err))
 		}
 		status, err = s.reconcileLostCoreLoad(parent, client, prior, err)
 		if err != nil {
@@ -2543,9 +2543,14 @@ func (r *progressReader) Close() error {
 func canonicalRemoteError(err error, fallback protocol.ErrorCode) error {
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
-		return canonicalError(apiErr.Code, safeContextError(err))
+		fallback = apiErr.Code
 	}
-	return canonicalError(fallback, safeContextError(err))
+	result := canonicalError(fallback, nil).(*protocol.APIError)
+	applyRemoteDiagnostic(result, apiErr, err)
+	if cause := safeContextError(err); cause != nil {
+		return errors.Join(result, cause)
+	}
+	return result
 }
 
 func canonicalPreparationError(err error) error {
@@ -2575,6 +2580,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "catalog game was not found"
 	case protocol.CodeBusy:
 		message = "another launch or stop transition is running"
+	case protocol.CodeKitLeaseDenied:
+		message = "Another session owns the target; release it from that session before retrying."
 	case protocol.CodeUnsupportedSystem:
 		message = "game system is unsupported"
 	case protocol.CodeUnsupportedOperation:

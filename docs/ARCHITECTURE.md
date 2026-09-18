@@ -1309,6 +1309,13 @@ such as a failed native core load. Coordinator Stop fast-paths only clean idle;
 it retries runtime Stop for idle-with-error and clears the error only after a
 confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
+An idle menu therefore does not by itself establish launch readiness. A retained
+runtime error can reject admission of a different, valid package. Use the normal
+session Stop path to recover, then retry explicitly; clients do not silently
+replay a failed launch. Kit launch diagnostics record the submitted game ID and
+bounded result code, separately from the currently displayed selection, without
+logging credentials or raw response bodies.
+
 
 ## Described-core persistent data
 
