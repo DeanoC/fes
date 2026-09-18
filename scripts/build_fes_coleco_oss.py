@@ -28,7 +28,7 @@ from scripts.build_fes_pong import (
 )
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
-from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts.search_placer_qor import SearchError, _parse_ints, route_after_synth
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -456,6 +456,7 @@ def build(
     *,
     cache_root: Path | None = None,
     best_fmax: bool = False,
+    gpu_devices: Sequence[int] = (),
 ) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -497,6 +498,7 @@ def build(
                 mode=qor_mode,
                 extra=("--router", ROUTER),
                 required=PLACER_QOR_CLOCKS,
+                gpu_devices=gpu_devices,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -545,6 +547,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass",
     )
+    parser.add_argument(
+        "--gpu-devices",
+        default="0,1",
+        help="HIP device indices for --best-fmax (default 0,1 = XTX + 9700)",
+    )
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
@@ -568,6 +575,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.package_output,
                 cache_root=arguments.cache_root,
                 best_fmax=arguments.best_fmax,
+                gpu_devices=_parse_ints(arguments.gpu_devices) if arguments.best_fmax else (),
             )
         )
     except (BuildError, OSError, ValueError) as exc:

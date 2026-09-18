@@ -10,6 +10,7 @@ from scripts.search_placer_qor import (
     SearchError,
     _run_nextpnr,
     _score_report,
+    evaluate_pairs,
     extend_seed_sweep,
     plan_staged,
     promote_candidate,
@@ -35,6 +36,66 @@ def _candidate(seed: int, weight: int, sys_mhz: float) -> Candidate:
 
 
 class SearchPlacerQorTests(unittest.TestCase):
+    def test_evaluate_pairs_uses_multiple_workers(self) -> None:
+        import threading
+        import time
+
+        current = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def run(seed: int, weight: int) -> Candidate:
+            nonlocal current, peak
+            with lock:
+                current += 1
+                peak = max(peak, current)
+            time.sleep(0.05)
+            with lock:
+                current -= 1
+            return _candidate(seed, weight, 57.0)
+
+        evaluate_pairs([(1, 10), (2, 10), (3, 10), (4, 10)], run, workers=2)
+        self.assertGreaterEqual(peak, 2)
+
+    def test_first_pass_stays_sequential_with_two_gpu_devices(self) -> None:
+        import threading
+        import time
+
+        current = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def run(seed: int, weight: int) -> Candidate:
+            nonlocal current, peak
+            with lock:
+                current += 1
+                peak = max(peak, current)
+            time.sleep(0.03)
+            with lock:
+                current -= 1
+            return _candidate(seed, weight, 51.0 if seed != 2 else 56.0)
+
+        ranked = search(
+            nextpnr=Path("nextpnr"),
+            fixture=Path("synth.json"),
+            output=Path("/tmp"),
+            device="5CSEBA6U23I7",
+            qsf=Path("x.qsf"),
+            sdc=None,
+            freq=None,
+            seeds=(4, 1, 2),
+            weights=(10,),
+            critexp=5,
+            budget=8,
+            mode="first-pass",
+            extra=(),
+            timeout=1,
+            gpu_devices=(0, 1),
+            run_one=run,
+        )
+        self.assertEqual(peak, 1)
+        self.assertEqual(ranked[0].seed, 2)
+
     def test_staged_plan_probes_every_weight_on_diverse_seeds(self) -> None:
         seeds = (4, 1, 2, 3, 5)
         weights = (10, 300, 1000)

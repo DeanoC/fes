@@ -31,9 +31,10 @@ Staged search (default) is not a full grid:
 ``--budget``). ``--mode first-pass`` stops at the first candidate that meets
 every constraint, matching today's producers.
 
-GPU note: one nextpnr HIP process already holds ~2.5 GB. Two devices can run
-two seeds as separate processes (``--gpu-devices 0,1`` is reserved). Packing
-several seeds into one kernel is a later change; occupancy is per placement.
+GPU: ``--gpu-devices 0,1`` runs staged/grid candidates as separate nextpnr
+processes, one HIP device each (7900 XTX + R9700). First-pass stays
+sequential so the first closing seed is deterministic. Packing several
+seeds into one kernel is later; occupancy is per placement.
 """
 
 from __future__ import annotations
@@ -43,9 +44,11 @@ import json
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
+from queue import Queue
+from typing import Callable, Mapping, Sequence
 
 
 class SearchError(Exception):
@@ -288,6 +291,18 @@ def plan_staged(
     return planned
 
 
+def evaluate_pairs(
+    pairs: Sequence[tuple[int, int]],
+    run: Callable[[int, int], Candidate],
+    workers: int,
+) -> list[Candidate]:
+    if workers <= 1 or len(pairs) <= 1:
+        return [run(seed, weight) for seed, weight in pairs]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run, seed, weight) for seed, weight in pairs]
+        return [future.result() for future in futures]
+
+
 def extend_seed_sweep(
     planned: list[tuple[int, int]],
     seeds: Sequence[int],
@@ -321,31 +336,46 @@ def search(
     extra: Sequence[str],
     timeout: int,
     required: Sequence[tuple[str | None, float]] | None = None,
+    gpu_devices: Sequence[int] = (),
     run_one=None,
 ) -> list[Candidate]:
-    run = run_one or (
-        lambda seed, weight: _run_nextpnr(
-            nextpnr,
-            fixture,
-            output,
-            device=device,
-            qsf=qsf,
-            sdc=sdc,
-            freq=freq,
-            seed=seed,
-            weight=weight,
-            critexp=critexp,
-            extra=extra,
-            timeout=timeout,
-            required=required,
-        )
-    )
+    gpu_pool: Queue[int | None] = Queue()
+    assigned = list(gpu_devices) if gpu_devices else [None]
+    for gpu in assigned:
+        gpu_pool.put(gpu)
+
+    def run(seed: int, weight: int) -> Candidate:
+        if run_one is not None:
+            return run_one(seed, weight)
+        gpu = gpu_pool.get()
+        try:
+            extra_run = list(extra)
+            if gpu is not None:
+                extra_run += ["--gpu-device", str(gpu)]
+            return _run_nextpnr(
+                nextpnr,
+                fixture,
+                output,
+                device=device,
+                qsf=qsf,
+                sdc=sdc,
+                freq=freq,
+                seed=seed,
+                weight=weight,
+                critexp=critexp,
+                extra=tuple(extra_run),
+                timeout=timeout,
+                required=required,
+            )
+        finally:
+            gpu_pool.put(gpu)
+
+    # First-pass must stay sequential so the first closing seed is stable.
+    workers = 1 if mode == "first-pass" else max(1, len(assigned) if gpu_devices else 1)
     results: list[Candidate] = []
     if mode == "grid":
         pairs = [(seed, weight) for weight in weights for seed in seeds][:budget]
-        for seed, weight in pairs:
-            results.append(run(seed, weight))
-        return sorted(results, key=lambda item: item.key(), reverse=True)
+        return sorted(evaluate_pairs(pairs, run, workers), key=lambda item: item.key(), reverse=True)
     if mode == "first-pass":
         for weight in weights:
             for seed in seeds:
@@ -358,12 +388,10 @@ def search(
         return sorted(results, key=lambda item: item.key(), reverse=True)
 
     pairs = plan_staged(seeds, weights, budget)
-    for seed, weight in pairs:
-        results.append(run(seed, weight))
+    results = evaluate_pairs(pairs, run, workers)
     best_weight = sorted(results, key=lambda item: item.key(), reverse=True)[0].weight
     extra_pairs = extend_seed_sweep(list(pairs), seeds, best_weight, budget)[len(pairs) :]
-    for seed, weight in extra_pairs:
-        results.append(run(seed, weight))
+    results.extend(evaluate_pairs(extra_pairs, run, workers))
     return sorted(results, key=lambda item: item.key(), reverse=True)
 
 
@@ -430,6 +458,7 @@ def route_after_synth(
     extra: Sequence[str],
     timeout: int = 600,
     required: Sequence[tuple[str | None, float]] | None = None,
+    gpu_devices: Sequence[int] = (),
     run_one=None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
@@ -453,6 +482,7 @@ def route_after_synth(
         extra=extra,
         timeout=timeout,
         required=required,
+        gpu_devices=gpu_devices,
         run_one=run_one,
     )
     (dest / "qor-ranking.json").write_text(
@@ -505,11 +535,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="NAME:MHZ",
         help="required clock for pass/fail (repeatable). Use :mhz to match constraint only.",
     )
+    parser.add_argument(
+        "--gpu-devices",
+        default="",
+        help="comma-separated HIP device indices for staged/grid (e.g. 0,1)",
+    )
     args = parser.parse_args(argv)
     try:
         seeds = _parse_ints(args.seeds)
         weights = _parse_ints(args.weights)
         required = tuple(_parse_clock(item) for item in args.clock) or None
+        gpu_devices = _parse_ints(args.gpu_devices) if args.gpu_devices.strip() else ()
     except ValueError as exc:
         print(f"search_placer_qor: {exc}", file=sys.stderr)
         return 2
@@ -530,6 +566,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         extra=tuple(args.extra),
         timeout=args.timeout,
         required=required,
+        gpu_devices=gpu_devices,
     )
     report = ranking_document(
         ranked,
