@@ -154,8 +154,10 @@ class BundleTest(unittest.TestCase):
             ['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(), revision)
         subprocess.run(['git', '-C', str(source), 'diff', '--exit-code', revision, '--'],
                        check=True, capture_output=True, text=True)
-        self.assertTrue((root / 'sources/misteross/scripts/build_fes_sms_oss.py').is_file())
+        producer = root / 'sources/misteross/scripts/build_fes_sms_oss.py'
+        self.assertTrue(producer.is_file())
         self.assertTrue((root / 'sources/misteross/cores/fes-sms/toolchain.lock').is_file())
+        self.assertRegex(producer.read_text(), r'(?m)^SEED = 1$')
         module = self.module()
         # Probe the selected producer's CLI and authentication call contract,
         # without building tools or accepting an unrelated local checkout.

@@ -41,6 +41,10 @@ and is not current-profile acceptance.
 - [SMS 32 KiB stream diagnostic](validation/2026-09-18-sms-stream-start-diagnostic.md):
   corrected startup/input, physical diagnostic display/controls/menu return and
   three UI relaunches; full-image verification is separate from kit acceptance.
+- [FES SMS 32 KiB parent pin](validation/2026-09-17-fes-sms-32k-parent-pin.md):
+  sealed 32 KiB `fes.sms` HIP/nextpnr identity on misteross `0825da5f`
+  (lineage `#66`/`d647781`); documentation/tests after FES `#75`; factory
+  image closed set unchanged.
 - [FES SMS parent pin](validation/2026-09-17-fes-sms-parent-pin.md):
   misteross `#65` pin and `fes.sms` recipe registration for package-only
   acceptance; factory image closed set unchanged.
