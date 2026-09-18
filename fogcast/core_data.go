@@ -75,8 +75,8 @@ func (s *Service) inspectInstalledCoreData(ctx context.Context, id string, u *pr
 	if err != nil {
 		return CoreDataResult{}, err
 	}
-	if s.discoveryEnabled() {
-		if _, err = s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err = s.refreshTargetAdmission(ctx); err != nil {
 			return CoreDataResult{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}

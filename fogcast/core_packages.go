@@ -119,8 +119,8 @@ func (s *Service) inspectInstalledCore(ctx context.Context, id string) (CoreComp
 	if err != nil {
 		return CoreCompatibility{}, err
 	}
-	if s.discoveryEnabled() {
-		if _, err = s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err = s.refreshTargetAdmission(ctx); err != nil {
 			return CoreCompatibility{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
@@ -389,8 +389,8 @@ type coreLoadSource struct {
 // including an earlier host executor whose cleanup failed after target success.
 // Caller holds lifecycle admission.
 func (s *Service) stopRejectedCore(ctx context.Context) (protocol.Status, error) {
-	if s.discoveryEnabled() {
-		if _, err := s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}

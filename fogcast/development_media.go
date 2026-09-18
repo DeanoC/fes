@@ -42,8 +42,8 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 	if blocked {
 		return protocol.Status{}, protocol.DevelopmentMediaIdentityError()
 	}
-	if s.discoveryEnabled() {
-		if _, err := s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}

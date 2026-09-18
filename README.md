@@ -42,9 +42,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Target `GET /v1/health` reports sealed `artifacts` from the installed
   `build-inputs` record (and appliance boot ticket when present). Host
   `GET /api/v1/health` includes `host` OS/arch/version identity and forwards
-  those target artifacts. A disagreeing runtime commit or FogCast revision
-  sets connection state `version_mismatch` and refuses launch without
-  rewriting configuration.
+  those target artifacts as provenance. Connection compatibility uses the
+  advertised target API contract (`v1`), not Git revision equality. Missing or
+  unsupported API versions refuse launch; package ABI, media, input and
+  persistence support are checked by the corresponding operation. Different
+  host, agent or runtime revisions alone do not require an image update.
 - Target-side content caching, input, stop, and active-core observation.
 - Stable target identity and local DNS-SD reconnection after reboot/address
   changes. `GET /api/v1/session` reports the host session `id` and the bound

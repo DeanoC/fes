@@ -732,13 +732,13 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer s.clearUnstartedSessionTarget()
-	if s.discoveryEnabled() {
+	if s.protocolAdmissionEnabled() {
 		execution, err := s.SessionExecution(ctx, gameID)
 		if err != nil {
 			return protocol.CachedLaunchResponse{}, err
 		}
 		if execution != ExecutionHostOnly {
-			if _, err := s.refreshTargetConnection(ctx); err != nil {
+			if _, err := s.refreshTargetAdmission(ctx); err != nil {
 				return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 			}
 		}
@@ -1275,8 +1275,8 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
-	if s.discoveryEnabled() {
-		if _, err := s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
@@ -1361,8 +1361,8 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
 	size, content := selected.size, selected.body
-	if s.discoveryEnabled() {
-		if _, err := s.refreshTargetConnection(ctx); err != nil {
+	if s.protocolAdmissionEnabled() {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
 		}
 	}
@@ -1744,8 +1744,8 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		return s.stopRejectedCore(ctx)
 	}
 
-	if activeExecution != ExecutionHostOnly && s.discoveryEnabled() {
-		if _, err := s.refreshTargetConnection(ctx); err != nil {
+	if activeExecution != ExecutionHostOnly && s.protocolAdmissionEnabled() {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
@@ -2603,7 +2603,7 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 	case protocol.CodeSaveFailed:
 		message = "core data could not be durably written; inspect status before retrying"
 	case protocol.CodeVersionMismatch:
-		message = "target artifacts do not match this host"
+		message = "target API version is missing or unsupported; expected v1"
 	case protocol.CodeInternal:
 		message = "FogCast operation failed internally"
 	default:

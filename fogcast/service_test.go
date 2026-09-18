@@ -1502,7 +1502,7 @@ func TestServiceFPGANativeClientUsesAgentLaunchAndEmptyStop(t *testing.T) {
 	if _, err := service.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	if got := strings.Join(paths, ","); got != "GET /v1/health,GET /v1/status,GET /v1/kit/lease,POST /v1/launch,GET /v1/status,POST /v1/stop" {
+	if got := strings.Join(paths, ","); got != "GET /v1/health,GET /v1/status,GET /v1/kit/lease,GET /v1/health,POST /v1/launch,GET /v1/status,GET /v1/health,POST /v1/stop" {
 		t.Fatalf("paths = %q", got)
 	}
 	wantLaunch := `{"game_id":"snes-synthetic","system":"snes","rom_path":"/media/fat/games/SNES/ActRaiser.smc"}`
@@ -1667,6 +1667,8 @@ func TestServiceOpenUsesOperationContextsInsteadOfCallerHTTPClientTimeout(t *tes
 	}
 	transport := serviceRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
+		case request.URL.Path == "/v1/health":
+			return serviceJSONResponse(request, protocol.Health{APIVersion: "v1", Ready: true})
 		case request.URL.Path == "/v1/kit/claim":
 			return serviceJSONResponse(request, map[string]any{"status": map[string]any{"state": "held", "generation": "test", "expires_at": time.Now().Add(time.Minute), "expires_in_ms": 60000}, "token": "test-lease"})
 		case request.URL.Path == "/v1/kit/release":
@@ -2121,6 +2123,9 @@ type delayedFailingUploadTransport struct {
 }
 
 func (t *delayedFailingUploadTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request.URL.Path == "/v1/health" {
+		return serviceJSONResponse(request, protocol.Health{APIVersion: "v1", Ready: true})
+	}
 	switch request.Method {
 	case http.MethodGet:
 		return serviceJSONResponse(request, protocol.CacheProbeResponse{Present: false})
@@ -2318,6 +2323,8 @@ func TestServiceShutdownCleanupRequiredClearsAfterOwnedStopAndRelease(t *testing
 	var stopCalls, releaseCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
 		case "/v1/kit/claim":
 			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"lease"}`)
 		case "/v1/stop":
@@ -2750,7 +2757,7 @@ func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 			if rebooted {
 				bootID = "boot-after"
 			}
-			_ = json.NewEncoder(w).Encode(protocol.Health{Ready: true, BootID: bootID})
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true, BootID: bootID})
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/status":
 			statusCalls++
 			if !rebooted {
@@ -2848,6 +2855,8 @@ func TestServiceDevelopmentRBFLostResponseUsesStatusOnlyOnce(t *testing.T) {
 			uploads, statuses := 0, 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
+				case "/v1/health":
+					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
 				case "/v1/development/rbf":
 					_, _ = io.ReadAll(r.Body)
 					mu.Lock()
@@ -2907,6 +2916,8 @@ func TestServiceDevelopmentRBFLostResponseBoundsEachStatusCall(t *testing.T) {
 	uploads, statuses := 0, 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
 		case "/v1/development/rbf":
 			_, _ = io.ReadAll(r.Body)
 			mu.Lock()
