@@ -13,7 +13,7 @@ ENV = ROOT / "scripts" / "env.sh"
 LOCK_COMMITS = {
     "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "9cbbf7353dd2b818ab73031fcf30d9993578c783",
+    "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -58,7 +58,7 @@ case "$1" in
         case "$(basename "$source_dir")" in
             yosys) commit="ec34fcf38986217af9b5558936044b7197d968a7" ;;
             mistral) commit="b28e30a36b5139aaed5a5d361a30b542e6b7c758" ;;
-            nextpnr) commit="9cbbf7353dd2b818ab73031fcf30d9993578c783" ;;
+            nextpnr) commit="0fad53a75a0218941c417ec6bb58bdede9070987" ;;
             verilator) commit="5e4151e3e0c8ecf11d9845a93495f37a31b2f667" ;;
             openfpgaloader) commit="0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86" ;;
             *) exit 1 ;;
@@ -200,7 +200,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
                 env=environment,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("da6373c0d7565f36036051efc7895fb0d9ac13c3", result.stdout)
+        self.assertIn("e2d425dee148cc60c50f4e9b354a10d90eab15f4", result.stdout)
         self.assertIn(f"source: {toolchain_root}/src/yosys", result.stdout)
         self.assertIn(f"lock: {lock_path}", result.stdout)
         self.assertIn("gpu-router: HIP", result.stdout)

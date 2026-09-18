@@ -20,6 +20,7 @@ from scripts.build_fes_coleco_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS,
     RTL_SOURCES,
+    PLACER_SEEDS,
     SEED,
     BuildError,
     COLECO_GPU_ARCHITECTURES,
@@ -228,6 +229,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertEqual(SEED, 4)
+        self.assertEqual(PLACER_SEEDS[0], SEED)
         self.assertIn("--seed", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertIn("--router", nextpnr)
@@ -247,14 +249,15 @@ class BuildFesColecoTests(unittest.TestCase):
             {"yosys": "test"},
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
+        self.assertIn(b'"seed_order":"4,1,2,3,5,12,7,10"', record)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_architectures":"gfx1100;gfx1201"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
 
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
         pins = load_lock(ROOT / COLECO_TOOLCHAIN_LOCK)
-        self.assertEqual(pins["yosys"].commit, "da6373c0d7565f36036051efc7895fb0d9ac13c3")
-        self.assertEqual(pins["nextpnr"].commit, "2d3c216afb7051d2e2070cbf678a50f274b3f786")
+        self.assertEqual(pins["yosys"].commit, "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
+        self.assertEqual(pins["nextpnr"].commit, "0fad53a75a0218941c417ec6bb58bdede9070987")
 
     def test_coleco_uses_a_core_local_toolchain_without_downgrading_main(self) -> None:
         self.assertEqual(COLECO_TOOLCHAIN_LOCK, "cores/fes-coleco/toolchain.lock")
@@ -262,7 +265,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
-        self.assertEqual(global_pins["nextpnr"].commit, "9cbbf7353dd2b818ab73031fcf30d9993578c783")
+        self.assertEqual(global_pins["nextpnr"].commit, "0fad53a75a0218941c417ec6bb58bdede9070987")
 
     def test_oss_rejects_a_cpu_only_gpu_router_binary(self) -> None:
         with self.assertRaisesRegex(BuildError, "device backend"):

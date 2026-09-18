@@ -35,6 +35,10 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
 SEED = 4
+# Seed 4 is the historical packed-sprite placement. A sealed BUILD_ID can
+# miss 52 MHz on that seed while nearby seeds close; try 4 first, then the
+# HIP-checked fallbacks.
+PLACER_SEEDS = (4, 1, 2, 3, 5, 12, 7, 10)
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -46,8 +50,8 @@ COLECO_TOOLCHAIN_LOCK = "cores/fes-coleco/toolchain.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "2d3c216afb7051d2e2070cbf678a50f274b3f786",
-    "yosys": "da6373c0d7565f36036051efc7895fb0d9ac13c3",
+    "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
+    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
 ABI_DEFINITION = "cores/fes-coleco/generated/fes_simple_computer.vh"
@@ -189,7 +193,8 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": SEED,
+            "seed": PLACER_SEEDS[0],
+            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "router": ROUTER,
             "toolchain_lock": COLECO_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, COLECO_TOOLCHAIN_LOCK)),
@@ -204,6 +209,7 @@ def build_commands(
     output: Path,
     build_id: str,
     tools: Mapping[str, Path],
+    seed: int = SEED,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     if output != root / OUTPUT_RELATIVE:
         raise BuildError(f"FES ColecoVision OSS output must be {root / OUTPUT_RELATIVE}")
@@ -235,7 +241,7 @@ def build_commands(
         # the sealed recipe. Timing-driven rip-up is intentionally not enabled:
         # on this netlist it is slower and can move a passing route back below
         # the timing target.
-        "--seed", str(SEED),
+        "--seed", str(seed),
         "--router", ROUTER,
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
@@ -264,6 +270,15 @@ def _prepare_output(root: Path) -> Path:
                 raise BuildError(f"build output must be a regular file: {path}")
             path.unlink()
     return output
+
+
+def _clear_route_outputs(output: Path) -> None:
+    for name in ("core.rbf", "routed.json", "timing.json", "nextpnr.log"):
+        path = output / name
+        if path.exists() or path.is_symlink():
+            if path.is_symlink() or not path.is_file():
+                raise BuildError(f"build output must be a regular file: {path}")
+            path.unlink()
 
 
 def _frequency_row(
@@ -433,8 +448,28 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         _run_tool(commands[0], root, output / "yosys.log")
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        _run_tool(commands[1], root, output / "nextpnr.log")
-        evidence = validate_build_evidence(output, root)
+        evidence = None
+        selected_seed = None
+        failures: list[str] = []
+        for seed in PLACER_SEEDS:
+            _clear_route_outputs(output)
+            commands = build_commands(
+                root, output, build_id,
+                {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+                seed=seed,
+            )
+            try:
+                _run_tool(commands[1], root, output / "nextpnr.log")
+                evidence = validate_build_evidence(output, root)
+            except BuildError as exc:
+                failures.append(f"seed {seed}: {exc}")
+                continue
+            selected_seed = seed
+            break
+        if evidence is None or selected_seed is None:
+            detail = failures[-1] if failures else "no placer seeds configured"
+            raise BuildError(f"no Coleco placement met final signoff ({detail})")
+        evidence["route"]["placer_seed"] = selected_seed
         evidence.update(
             {
                 "build_id": build_id,
