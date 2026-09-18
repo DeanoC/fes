@@ -162,6 +162,38 @@ class ExecutionTests(unittest.TestCase):
                 run_diagnostic(runner, "owned", diagnostic, 1)
             self.assertEqual(runner.posts, [])
 
+    def test_waits_for_initial_ready_without_sending_early_events(self):
+        diagnostic = self.load()
+        runner = FakeRunner(diagnostic)
+        original = runner.session
+        calls = []
+        def session():
+            calls.append(1)
+            value = original()
+            if len(calls) < 3:
+                self.assertEqual(runner.posts, [])
+                value["input"].update(state="starting", ready=False)
+            return value
+        runner.session = session
+        result = run_diagnostic(runner, "owned", diagnostic, 1)
+        self.assertEqual(result["events_acknowledged"], 2)
+        self.assertEqual(result["frames_before"], 10)
+
+    def test_waiting_checks_owner_and_deadline_without_events(self):
+        diagnostic = self.load()
+        for foreign in (False, True):
+            runner = FakeRunner(diagnostic)
+            runner.value["input"].update(state="starting", ready=False)
+            if foreign:
+                runner.value["owner"] = "foreign"
+            runner.args.poll_interval = 20
+            start = time.monotonic()
+            with self.assertRaisesRegex(ValueError, "ownership changed" if foreign else "timed out"):
+                run_diagnostic(runner, "owned", diagnostic, .05)
+            self.assertLess(time.monotonic() - start, .5)
+            self.assertEqual(runner.posts, [])
+            self.assertEqual(runner.api.timeout, 30)
+
     def test_replacement_reconnect_and_counter_regression_abort_before_next_event(self):
         diagnostic = self.load()
         for change in (

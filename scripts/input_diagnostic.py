@@ -144,7 +144,7 @@ def run_diagnostic(runner, expected, diagnostic, timeout):
     def clamp():
         runner.api.timeout = min(original_timeout, remaining())
 
-    def observe():
+    def observe(waiting=False):
         nonlocal input_id, resyncs, last_frames
         clamp()
         session = runner.session()
@@ -160,10 +160,13 @@ def run_diagnostic(runner, expected, diagnostic, timeout):
                 for item in interfaces):
             raise ValueError("required input interface is not active")
         status = session.get("input")
-        if not isinstance(status, dict) or status.get("state") != "attached" or status.get("ready") is not True:
-            raise ValueError("owned input is not attached and ready")
-        if status.get("source") == "launcher":
+        if isinstance(status, dict) and status.get("source") == "launcher":
             raise ValueError("launcher owns input; refusing to steal its source")
+        if not isinstance(status, dict) or status.get("state") != "attached" or status.get("ready") is not True:
+            if waiting and (status is None or isinstance(status, dict)
+                            and status.get("state") in ("detached", "starting", "attached")):
+                return None
+            raise ValueError("owned input is not attached and ready")
         identity = status.get("session_id")
         if not isinstance(identity, str) or not 1 <= len(identity) <= 256:
             raise ValueError("missing owned input session identity")
@@ -182,7 +185,15 @@ def run_diagnostic(runner, expected, diagnostic, timeout):
 
     try:
         with _deadline(timeout):
-            before = observe()
+            before = None
+            for attempt in range(runner.args.poll_attempts):
+                before = observe(waiting=True)
+                if before is not None:
+                    break
+                if attempt + 1 < runner.args.poll_attempts:
+                    time.sleep(min(runner.args.poll_interval, remaining()))
+            if before is None:
+                raise ValueError("owned input did not become attached and ready")
             acknowledged = 0
             for event in diagnostic.events:
                 observe()

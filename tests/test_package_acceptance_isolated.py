@@ -481,6 +481,8 @@ class IsolatedInputDiagnosticTests(unittest.TestCase):
         snapshot_identity = []
 
         def start(acceptance, cycle):
+            config = tomllib.loads(acceptance.home.config.read_text())
+            self.assertTrue(config["remote_input"]["enabled"])
             package_acceptance_isolated._cycle_directory(evidence, cycle)
             record = package_acceptance_isolated.ContainerRecord(
                 name=cycle, cycle=cycle, start_attempted=True, started=True)
@@ -830,6 +832,7 @@ class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
             evidence = Path(directory) / "evidence"
             evidence.mkdir()
             home = package_acceptance_isolated.prepare_private_home(evidence, target)
+            self.assertFalse(tomllib.loads(home.config.read_text())["remote_input"]["enabled"])
             original = home.config.read_text(encoding="utf-8")
             changed = original.replace('agent = "agent-secret"', 'agent = "other-secret"')
             self.assertEqual(len(changed), len(original))
