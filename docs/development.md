@@ -151,6 +151,10 @@ diagnostic loop.
 
 ## Package-only development acceptance
 
+Start with the [core developer workflow](core-development.md) to prepare one
+authenticated HIP package and freeze optional media without an image build.
+Its acceptance adapter reuses the isolated runner below.
+
 For a sealed core package using an existing ABI, use the separate
 [package-only acceptance workflow](package-acceptance.md). It imports one
 archive into the host library and uses the existing compatibility, selection

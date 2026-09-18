@@ -118,6 +118,14 @@ class ReceiptTest(unittest.TestCase):
             recipe_names = {str(path.relative_to(build.ROOT)) for path in build.BUILD_RECIPE_FILES}
             self.assertNotIn('scripts/build_diagnostics.py', recipe_names)
 
+    def test_declarative_recipe_registry_is_fingerprinted(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        from recipes import REGISTRY_PATH
+        self.assertIn(REGISTRY_PATH, build.BUILD_RECIPE_FILES)
+        self.assertEqual(build.recipe_fingerprint([REGISTRY_PATH]),
+                         {'config/core-recipes.toml': build.digest(REGISTRY_PATH)})
+
     def test_verified_image_rejects_missing_or_mismatched_evidence(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

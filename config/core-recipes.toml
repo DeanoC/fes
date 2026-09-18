@@ -1,0 +1,54 @@
+# FES format-2 producers; paths are relative to the selected misteross source.
+version = 1
+
+[[recipes]]
+core_id = "fes.pong"
+producer_script = "scripts/build_fes_pong.py"
+producer_module = "scripts.build_fes_pong"
+authenticate = "_authenticate_tools"
+lock_path = "toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-pong.package-selection.toml"
+package_dir_env = "FES_PONG_PACKAGE_DIR"
+package_selection_env = "FES_PONG_PACKAGE_SELECTION"
+quartus_role = "check only when a twin exists"
+
+[[recipes]]
+core_id = "fes.zx81"
+producer_script = "scripts/build_fes_zx81_oss.py"
+producer_module = "scripts.build_fes_zx81_oss"
+authenticate = "_authenticate_tools"
+lock_path = "toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-zx81.package-selection.toml"
+package_dir_env = "FES_ZX81_PACKAGE_DIR"
+package_selection_env = "FES_ZX81_PACKAGE_SELECTION"
+quartus_role = "bring-up/check oracle"
+
+[[recipes]]
+core_id = "fes.coleco"
+producer_script = "scripts/build_fes_coleco_oss.py"
+producer_module = "scripts.build_fes_coleco_oss"
+authenticate = "_authenticate_coleco_tools"
+lock_path = "cores/fes-coleco/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-coleco.package-selection.toml"
+package_dir_env = "FES_COLECO_PACKAGE_DIR"
+package_selection_env = "FES_COLECO_PACKAGE_SELECTION"
+quartus_role = "bring-up/check oracle"
+
+[[recipes]]
+core_id = "fes.sms"
+producer_script = "scripts/build_fes_sms_oss.py"
+producer_module = "scripts.build_fes_sms_oss"
+authenticate = "_authenticate_sms_tools"
+lock_path = "cores/fes-sms/toolchain.lock"
+gpu_router = "HIP"
+hip_architectures = "gfx1100;gfx1201"
+selection_filename = "fes-sms.package-selection.toml"
+package_dir_env = "FES_SMS_PACKAGE_DIR"
+package_selection_env = "FES_SMS_PACKAGE_SELECTION"
+quartus_role = "bring-up/check oracle"
