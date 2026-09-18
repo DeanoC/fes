@@ -476,14 +476,19 @@ func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
 }
 
 func (s *Service) selectedClientLocked() (serviceClient, bool) {
+	client := s.targetClients[s.sessionTargetNameLocked()]
+	return client, client != nil
+}
+
+// Caller holds targetMu. Admission and transport must resolve the same binding.
+func (s *Service) sessionTargetNameLocked() string {
 	name := s.selectedTarget
 	s.executionMu.Lock()
 	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
 		name = s.activeTarget
 	}
 	s.executionMu.Unlock()
-	client := s.targetClients[name]
-	return client, client != nil
+	return name
 }
 
 type targetPlay struct {

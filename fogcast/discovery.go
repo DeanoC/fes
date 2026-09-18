@@ -43,12 +43,7 @@ func (s *Service) cancelTargetLookup() {
 func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health, error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
-	name := s.selectedTarget
-	s.executionMu.Lock()
-	if s.activeTarget != "" && s.activeExecution != ExecutionHostOnly {
-		name = s.activeTarget
-	}
-	s.executionMu.Unlock()
+	name := s.sessionTargetNameLocked()
 	selected := targetByName(s.targets, name)
 	client, ok := s.selectedClientLocked()
 	concrete, realClient := client.(*targetclient.Client)
@@ -188,14 +183,16 @@ func (s *Service) startTargetMonitor() {
 func (s *Service) discoveryEnabled() bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	_, real := s.targetClients[s.selectedTarget].(*targetclient.Client)
-	return real && targetByName(s.targets, s.selectedTarget).TargetID != ""
+	name := s.sessionTargetNameLocked()
+	_, real := s.targetClients[name].(*targetclient.Client)
+	return real && targetByName(s.targets, name).TargetID != ""
 }
 
 func (s *Service) protocolAdmissionEnabled() bool {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	_, real := s.targetClients[s.selectedTarget].(*targetclient.Client)
+	client, _ := s.selectedClientLocked()
+	_, real := client.(*targetclient.Client)
 	// Address-only peers require the same protocol admission as discovered peers.
 	return real
 }
@@ -306,7 +303,7 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
 	concrete, ok := client.(*targetclient.Client)
-	selected := targetByName(s.targets, s.selectedTarget)
+	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	if !ok || selected.TargetID == "" {
 		return client.Health
 	}

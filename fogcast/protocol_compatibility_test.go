@@ -12,9 +12,110 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
+
+func TestLaunchOnDisabledSelectedUsesBoundTargetProtocol(t *testing.T) {
+	for _, id := range []string{"", "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"} {
+		for _, version := range []string{"", "v2", "v1"} {
+			t.Run(id+"/"+version, func(t *testing.T) {
+				var mutations, healths atomic.Int32
+				game := serviceGame(catalog.Content{})
+				peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != http.MethodGet {
+						mutations.Add(1)
+					}
+					switch r.URL.Path {
+					case "/v1/health":
+						healths.Add(1)
+						json.NewEncoder(w).Encode(protocol.Health{APIVersion: version, TargetID: id, Ready: true})
+					case "/v1/status":
+						json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+					case "/v1/kit/lease":
+						json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+					case "/v1/launch":
+						core := "SNES"
+						json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive, GameID: &game.ID, System: &game.System, ExpectedCore: &core, ObservedCore: &core})
+					default:
+						http.Error(w, "unexpected path", 500)
+					}
+				}))
+				defer peer.Close()
+				base, _ := url.Parse(peer.URL)
+				s := newService(Config{
+					Libraries:      []catalog.Root{{ID: game.LibraryID, System: game.System, Path: t.TempDir()}},
+					Targets:        []TargetConfig{{Name: "disabled", Enabled: false}, {Name: "bound", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: id}},
+					SelectedTarget: "disabled", RequestTimeout: time.Second, UploadTimeout: time.Second,
+					FPGAROMPaths: map[string]string{game.ID: "/media/fat/games/SNES/test.sfc"},
+				}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, nil,
+					withTargetClientFactory(func(TargetConfig) (serviceClient, error) {
+						return targetclient.NewClient(base, "secret", peer.Client()), nil
+					}))
+				_, err := s.LaunchOn(context.Background(), game.ID, "bound", nil)
+				if version == "v1" {
+					if err != nil || mutations.Load() != 1 || healths.Load() == 0 {
+						t.Fatalf("compatible launch: err=%v mutations=%d health=%d", err, mutations.Load(), healths.Load())
+					}
+				} else if err == nil || mutations.Load() != 0 || healths.Load() == 0 {
+					t.Fatalf("invalid peer bypassed admission: err=%v mutations=%d health=%d", err, mutations.Load(), healths.Load())
+				}
+				if s.selectedTarget != "disabled" {
+					t.Fatal("selected target rewritten")
+				}
+			})
+		}
+	}
+}
+
+func TestBoundTargetDeterminesDiscoveryMode(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	for _, boundIdentity := range []bool{false, true} {
+		t.Run(map[bool]string{false: "identity-selected-address-bound", true: "address-selected-identity-bound-wrong-ID"}[boundIdentity], func(t *testing.T) {
+			var mutations, statusCalls atomic.Int32
+			peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					mutations.Add(1)
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true, TargetID: "wrong-id"})
+				case "/v1/stop":
+					json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+				default:
+					statusCalls.Add(1)
+					http.Error(w, "status/lease unavailable", 503)
+				}
+			}))
+			defer peer.Close()
+			selectedID, boundID := id, ""
+			if boundIdentity {
+				selectedID, boundID = "", id
+			}
+			base, _ := url.Parse(peer.URL)
+			client := targetclient.NewClient(base, "secret", peer.Client())
+			s := newService(Config{Targets: []TargetConfig{
+				{Name: "selected", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: selectedID},
+				{Name: "bound", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: boundID},
+			}, SelectedTarget: "selected", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			s.targetClients["bound"] = client
+			s.activeTarget, s.activeExecution = "bound", ExecutionFPGANative
+			s.resolveTarget = func(context.Context, string) ([]string, error) { return []string{peer.URL}, nil }
+			_, err := s.Stop(context.Background())
+			if boundIdentity {
+				if err == nil || mutations.Load() != 0 {
+					t.Fatalf("wrong bound identity admitted: err=%v mutations=%d", err, mutations.Load())
+				}
+			} else if err != nil || mutations.Load() != 1 {
+				t.Fatalf("address-only Stop acquired discovery dependency: err=%v mutations=%d", err, mutations.Load())
+			}
+			if statusCalls.Load() != 0 {
+				t.Fatalf("unexpected status/lease calls=%d", statusCalls.Load())
+			}
+		})
+	}
+}
 
 func TestProtocolAdmissionBeforeMutationAndDiscoveryAdoption(t *testing.T) {
 	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
