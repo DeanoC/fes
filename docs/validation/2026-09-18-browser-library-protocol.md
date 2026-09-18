@@ -121,7 +121,7 @@ The refreshed integration candidate selects:
 
 | Component | Revision |
 | --- | --- |
-| FogCast | `76179c6` (latest merged #263 plus runtime-lock alignment, #266) |
+| FogCast | `4c89796` (latest merged #263 plus runtime-lock, smoke fixture and documentation alignment, #266) |
 | libmister-runtime | `8c4b690964ca2af06581e4cf11df22d33f48e1e0` |
 | misteross | `ea1fd3e488dfee7a6e056b2a871a4dbf835fa3d8` |
 | mister-packages | `fdc4ece2e1fa87035ddca8cd147c621e7edcce3b` |
