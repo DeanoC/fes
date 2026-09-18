@@ -37,8 +37,10 @@ packages remain those of the baseline; their provenance is not relabeled.
 
 Extracted bytes, root-owned executable mode, filesystem check and post-reboot
 image/binary hashes passed. The host reports target ready. No executable overlay
-remains; the Kit change survives reboot. Physical controller acceptance after
-this reboot is pending, separate from pre-reboot API verification.
+remains; the Kit change survives reboot. After this reboot, the operator confirmed
+three consecutive controller launch/return-to-menu cycles for the browser-created
+Pong entry. The Kit dispatch/result log independently records all six operations
+as HTTP 200 for the exact entry ID, and final host session status is idle.
 
 The old image is retained on the card as
 `/media/fat/linux/linux.img.before-session-stabilization`. Rollback is an explicit
