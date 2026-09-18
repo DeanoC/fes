@@ -43,8 +43,10 @@ SDC = "cores/fes-zx81/clocks-oss.sdc"
 # Keep a fixed order so a source revision cannot silently choose a different
 # placement. Seed 34 was selected by a host sweep for the native async-M10K
 # netlist at this revision; later revisions still try every earlier seed first.
+# Weight 1000 pulls the RAM M10Ks onto the clk_sys path; 300 left seed 10 at
+# 51.09 MHz vs 52 MHz, and 2000 regressed that seed.
 PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34)
-PLACER_TIMING_WEIGHT = 300
+PLACER_TIMING_WEIGHT = 1000
 PLACER_CRITICALITY_EXPONENT = 5
 RTL_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
