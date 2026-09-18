@@ -107,7 +107,9 @@ for a core advertising `fes.gamepad` 1.0. It is an explicit example, not a
 core-name default. Inspect the file and calculate its SHA-256 before supplying
 that digest. The command never silently selects an input recipe for a core.
 
-The same options are available on both package-acceptance runners. The isolated
+The isolated host enables remote input only when this diagnostic is requested;
+lifecycle-only runs keep it disabled. The same options are available on both
+package-acceptance runners. The isolated
 wrapper freezes one copy in its evidence directory and uses it in both lifecycle
 cycles. Missing options preserve the previous lifecycle-only behavior.
 

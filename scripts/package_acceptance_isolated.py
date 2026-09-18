@@ -20,7 +20,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -57,6 +57,7 @@ class PrivateTarget:
     address: str
     agent: str
     target_id: str
+    remote_input_enabled: bool = False
 
 
 @dataclass
@@ -222,7 +223,7 @@ def _minimal_config(target: PrivateTarget) -> str:
             f"target_id = {_toml_string(target.target_id)}",
             "",
             "[remote_input]",
-            "enabled = false",
+            f"enabled = {'true' if target.remote_input_enabled else 'false'}",
             "",
             "[media]",
             "enabled = false",
@@ -1164,6 +1165,7 @@ def validate_args(args: argparse.Namespace) -> PrivateTarget:
         raise AcceptanceError("container image must be an immutable sha256 image ID")
     config = _require_file(args.host_config, "host config")
     target = _load_private_target(config, target_id)
+    target = replace(target, remote_input_enabled=args.input_diagnostic is not None)
     _require_new_evidence_dir(args.evidence_dir)
     if not PACKAGE_ACCEPTANCE.is_file():
         raise AcceptanceError("existing package acceptance runner is missing")
