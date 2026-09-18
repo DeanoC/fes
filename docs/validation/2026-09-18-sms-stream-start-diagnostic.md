@@ -187,3 +187,23 @@ visible output, P1 directions/A press-release, menu return and three consecutive
 UI relaunches. The earlier Pong selection failure is retained above and is not
 an SMS relaunch failure. Full-image build/verification remains a separate merge
 gate; this acceptance applies only to the identified derived diagnostic image.
+
+## Full-image follow-up: updated FPGA tools
+
+The first full-image attempt at parent `f6faaef` successfully bootstrapped the
+old authenticated HIP toolchains and built Pong/ZX81 packages, but stopped at
+Coleco signoff: 48.4004 MHz achieved versus 52.00208282470703 MHz required.
+No full-image success or verification is claimed for that attempt.
+
+The next candidate selects merged misteross
+`0825da5f277648009c2caa21c591e8b8bbca212a` (PRs #67/#68): ZX81 placement timing
+weight 1000, nextpnr `0fad53a75a0218941c417ec6bb58bdede9070987` GPU repair,
+and Coleco/SG-1000/SMS Yosys `e2d425dee148cc60c50f4e9b354a10d90eab15f4`
+registered M10K correction. Coleco tries a fixed ordered seed list and still
+requires final timing signoff. The older Coleco compatibility revision is
+replaced, but the core-local toolchain lock is retained: repository-default
+Yosys remains `ec34fcf38986217af9b5558936044b7197d968a7`.
+
+Parent consistency passes for this selection. Fresh build/verification is
+pending. This compiler/recipe change does not retroactively validate newly
+produced FPGA packages on hardware; the working diagnostic kit is unchanged.
