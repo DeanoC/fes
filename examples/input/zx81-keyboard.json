@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "interface": {"id": "fes.keyboard", "major": 1, "minor": 0},
+  "events": [
+    {"device": 0, "kind": 0, "action": 1, "code": 256, "value": 0},
+    {"device": 0, "kind": 0, "action": 0, "code": 256, "value": 0}
+  ]
+}
