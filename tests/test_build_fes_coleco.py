@@ -20,7 +20,9 @@ from scripts.build_fes_coleco_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS,
     RTL_SOURCES,
+    PLACER_CRITICALITY_EXPONENT,
     PLACER_SEEDS,
+    PLACER_TIMING_WEIGHT,
     SEED,
     BuildError,
     COLECO_GPU_ARCHITECTURES,
@@ -230,8 +232,12 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("74.25", nextpnr)
         self.assertEqual(SEED, 4)
         self.assertEqual(PLACER_SEEDS[0], SEED)
+        self.assertEqual(PLACER_TIMING_WEIGHT, 300)
+        self.assertEqual(PLACER_CRITICALITY_EXPONENT, 5)
         self.assertIn("--seed", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "300")
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-critexp") + 1], "5")
         self.assertIn("--router", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
@@ -250,6 +256,18 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"seed_order":"4,1,2,3,5,12,7,10"', record)
+        self.assertIn(b'"placer_heap_timingweight":300', record)
+        self.assertIn(b'"placer_heap_timingweights":"10,100,300,1000,2000"', record)
+        self.assertIn(b'"placer_heap_critexp":5', record)
+        self.assertIn(b'"placer_qor_mode":"first-pass"', record)
+        staged = create_build_record(
+            ROOT,
+            "https://example.invalid/misteross.git",
+            "a" * 40,
+            {"yosys": "test"},
+            qor_mode="staged",
+        )
+        self.assertIn(b'"placer_qor_mode":"staged"', staged)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_architectures":"gfx1100;gfx1201"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)

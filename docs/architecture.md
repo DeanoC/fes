@@ -1893,8 +1893,14 @@ scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
 recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`0fad53a7` with `--router gpu`, seed 4 and `--timing-allow-fail`, and Mistral
-`b28e30a`; the selected toolchain enables the HIP device backend. Because the
+`0fad53a7` with `--router gpu`, seed 4, HeAP timing weight 300, criticality
+exponent 5, and `--timing-allow-fail`, and Mistral
+`b28e30a`; the selected toolchain enables the HIP device backend. Default
+place-and-route is first-to-pass on that seed order at weight 300.
+`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
+weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax;
+the winner is stored in route evidence, not written back into recipe
+constants (that would change `BUILD_ID`). Because the
 sealed build record changes the embedded `BUILD_ID`, the seed is part of the
 route recipe. The GPU router can report a provisional timing shortfall before
 its final repair/signoff pass; the allowance lets it complete, while the
@@ -1930,7 +1936,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `0fad53a7`, `--router gpu`, seed 4, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `0fad53a7`, `--router gpu`, seed 4, HeAP timing weight 300, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2
@@ -2162,7 +2168,9 @@ router with a pure-delay timing-repair phase (merged PR #66; the
 repository toolchain builds it without a GPU and its host backend
 produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
-passing seed. This keeps native async-M10K address paths within the 52 MHz
+passing seed. `make build-fes-zx81 BEST_FMAX=1` keeps that synthesis and
+searches weights 10/100/300/1000/2000 plus remaining seeds for the best
+Fmax; the selected seed and weight go into route evidence. This keeps native async-M10K address paths within the 52 MHz
 system constraint. The recipe requires two
 `altera_pll` cells (52 MHz system and 74.25 MHz pixel). Also required: the HPS GP
 mailbox, the I2C bridge,
