@@ -196,6 +196,15 @@ matrix (`set_keyboard`); Select+Start remains the software Stop chord. The
 exact `fes.coleco` package with `fes.keyboard` 1.0 maps D-pad/left-stick
 Up/Right/Down/Left to keyboard bits 0..3 and A/B to P1 Fire1 bit 4/Fire2
 bit 10.
+The exact `fes.sms` core with verified `fes.keyboard` 1.0 reuses this
+mapping for P1 Up/Right/Down/Left and A/Fire1 (bits 0..4). SMS Fire2 is
+unsupported: B remains an unmapped gamepad event and does not assert keyboard
+Q/bit 10. Coleco's B mapping is unchanged.
+The shared state-diff path joins keyboard, D-pad and axis holds, releases on
+button-up or axis neutral, replays mapped state on transport reconnect, and
+clears state on source close or Stop. Other core IDs and absent/unsupported
+keyboard interfaces do not enable this mapping. This is software coverage,
+not physical USB/controller or SMS hardware acceptance.
 A host library entry for `fes.zx81` uses `load_library_core` like other
 ROM-less FPGA cores; development `core-load` stays a separate volatile
 activation and does not create that entry.
@@ -365,9 +374,10 @@ ID, active interfaces, generation, and derived gamepad capability in
 `GET /api/v1/session`. Status reconstruction after a host restart attaches
 input only for native games or active custom packages with `fes.gamepad` or
 the exact `fes.keyboard` 1.0 interface; raw development RBF sessions remain
-input-disabled. Manual input attachment uses the same predicate. Coleco's
-gamepad-to-keyboard mapping is selected only for the exact `fes.coleco` core
-together with that keyboard interface.
+input-disabled. Manual input attachment uses the same predicate. The shared
+gamepad-to-keyboard mapping is selected only for exact `fes.coleco` or
+`fes.sms` together with that verified keyboard interface; SMS consumes only
+the P1 directions and Fire1 subset described above.
 
 The kit launcher opens a stream only for a nonempty input session that is ready
 or reconnecting and is native or a capable custom development package. A
@@ -599,6 +609,8 @@ Esc and Backspace remain session-stop chrome. Letter `s` stays a core key.
 A `fes.keyboard` core maps those keys onto the ZX81 matrix. For exact
 `fes.coleco`, D-pad/left-stick and A/B events are mapped onto the Coleco P1
 keyboard bits while overlapping keyboard, D-pad, and axis holds remain joined.
+Exact `fes.sms` reuses that path for directions and A/Fire1 only; B does not
+provide SMS Fire2.
 Native SNES/MD
 encode USB keys as gamepad buttons (codes 100–112) so the target mux does not
 route them to `set_keyboard` and reconnect replay does not treat matrix codes

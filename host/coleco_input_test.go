@@ -45,6 +45,18 @@ func waitForFrameCount(t *testing.T, starter *testBridgeStarter, count int) []pr
 	return framesSnapshot(starter)
 }
 
+func waitForMatrixRelease(t *testing.T, starter *testBridgeStarter) {
+	t.Helper()
+	waitFor(t, time.Second, func() bool {
+		starter.mu.Lock()
+		sink := starter.sinks[0]
+		starter.mu.Unlock()
+		sink.mu.Lock()
+		defer sink.mu.Unlock()
+		return sink.releases > 0
+	})
+}
+
 func requireKeyboardFrame(t *testing.T, frame protocol.InputFrame, action remoteinput.Action, code remoteinput.Code) {
 	t.Helper()
 	if frame.Device != uint8(remoteinput.DeviceKeyboard) || frame.Kind != uint8(remoteinput.KindKey) ||
@@ -72,25 +84,41 @@ func TestRemoteInputColecoMapsControllerInputsToKeyboardMatrixBits(t *testing.T)
 		{name: "left stick down", event: remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: remoteinput.AxisLeftY, Value: 32767}, code: zx81keys.Letter('X'), bit: 2},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			starter := &testBridgeStarter{}
-			input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
-			if err != nil {
-				t.Fatal(err)
+	for _, core := range []string{"fes.coleco", "fes.sms"} {
+		for _, tc := range cases {
+			if core == "fes.sms" && tc.name == "fire two" {
+				continue // SMS currently consumes only matrix bits 0..4.
 			}
-			defer input.Close()
-			attachRemoteInputWithCapabilities(t, input, "fes.coleco", true)
-			if err := input.Send(context.Background(), tc.event); err != nil {
-				t.Fatalf("send: %v", err)
-			}
-			frames := waitForFrameCount(t, starter, 1)
-			requireKeyboardFrame(t, frames[0], remoteinput.ActionPress, tc.code)
-			matrix := zx81keys.Matrix(map[remoteinput.Code]bool{tc.code: true})
-			if matrix != zx81keys.Neutral&^(uint64(1)<<tc.bit) {
-				t.Fatalf("matrix = %#x, want bit %d asserted", matrix, tc.bit)
-			}
-		})
+			t.Run(core+"/"+tc.name, func(t *testing.T) {
+				starter := &testBridgeStarter{}
+				input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer input.Close()
+				attachRemoteInputWithCapabilities(t, input, core, true)
+				if err := input.Send(context.Background(), tc.event); err != nil {
+					t.Fatalf("send: %v", err)
+				}
+				frames := waitForFrameCount(t, starter, 1)
+				requireKeyboardFrame(t, frames[0], remoteinput.ActionPress, tc.code)
+				matrix := zx81keys.Matrix(map[remoteinput.Code]bool{tc.code: true})
+				if matrix != zx81keys.Neutral&^(uint64(1)<<tc.bit) {
+					t.Fatalf("matrix = %#x, want bit %d asserted", matrix, tc.bit)
+				}
+				release := tc.event
+				if release.Kind == remoteinput.KindAxis {
+					release.Value = 0
+				} else {
+					release.Action = remoteinput.ActionRelease
+				}
+				if err := input.Send(context.Background(), release); err != nil {
+					t.Fatal(err)
+				}
+				frames = waitForFrameCount(t, starter, 2)
+				requireKeyboardFrame(t, frames[1], remoteinput.ActionRelease, tc.code)
+			})
+		}
 	}
 }
 
@@ -101,6 +129,9 @@ func TestRemoteInputColecoMappingRequiresExactCoreAndKeyboardCapability(t *testi
 		keyboard bool
 	}{
 		{name: "no keyboard interface", core: "fes.coleco", keyboard: false},
+		{name: "sms no keyboard interface", core: "fes.sms", keyboard: false},
+		{name: "sms wrong core case", core: "FES.sms", keyboard: true},
+		{name: "sms prefix is not exact", core: "fes.sms.other", keyboard: true},
 		{name: "wrong core case", core: "FES.coleco", keyboard: true},
 		{name: "zx81", core: "fes.zx81", keyboard: true},
 		{name: "pong", core: "fes.pong", keyboard: false},
@@ -128,14 +159,41 @@ func TestRemoteInputColecoMappingRequiresExactCoreAndKeyboardCapability(t *testi
 	}
 }
 
-func TestRemoteInputColecoKeepsOverlappingKeyboardDPadAndAxisHeld(t *testing.T) {
+func TestRemoteInputSMSLeavesBUnmapped(t *testing.T) {
 	starter := &testBridgeStarter{}
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer input.Close()
-	attachRemoteInputWithCapabilities(t, input, "fes.coleco", true)
+	attachRemoteInputWithCapabilities(t, input, "fes.sms", true)
+	for i, action := range []remoteinput.Action{remoteinput.ActionPress, remoteinput.ActionRelease} {
+		event := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: action, Code: remoteinput.ButtonB}
+		if err := input.Send(context.Background(), event); err != nil {
+			t.Fatal(err)
+		}
+		frames := waitForFrameCount(t, starter, i+1)
+		frame := frames[i]
+		if frame.Device != uint8(event.Device) || frame.Kind != uint8(event.Kind) || frame.Action != uint8(action) || remoteinput.Code(frame.Code) != event.Code {
+			t.Fatalf("SMS B must remain unmapped, got %+v", frame)
+		}
+	}
+}
+
+func TestRemoteInputColecoKeepsOverlappingKeyboardDPadAndAxisHeld(t *testing.T) {
+	for _, core := range []string{"fes.coleco", "fes.sms"} {
+		t.Run(core, func(t *testing.T) { testMatrixOverlappingHolds(t, core) })
+	}
+}
+
+func testMatrixOverlappingHolds(t *testing.T, core string) {
+	starter := &testBridgeStarter{}
+	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	attachRemoteInputWithCapabilities(t, input, core, true)
 
 	keyboardDown := remoteinput.Event{Device: remoteinput.DeviceKeyboard, Kind: remoteinput.KindKey, Action: remoteinput.ActionPress, Code: zx81keys.KeyShift}
 	keyboardUp := keyboardDown
@@ -176,13 +234,19 @@ func TestRemoteInputColecoKeepsOverlappingKeyboardDPadAndAxisHeld(t *testing.T) 
 }
 
 func TestRemoteInputColecoSourceCloseDropsMappedStateBeforeReconnect(t *testing.T) {
+	for _, core := range []string{"fes.coleco", "fes.sms"} {
+		t.Run(core, func(t *testing.T) { testMatrixSourceReconnect(t, core) })
+	}
+}
+
+func testMatrixSourceReconnect(t *testing.T, core string) {
 	starter := &testBridgeStarter{}
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer input.Close()
-	attachRemoteInputWithCapabilities(t, input, "fes.coleco", true)
+	attachRemoteInputWithCapabilities(t, input, core, true)
 	sessionID := input.Status().SessionID
 	source, err := input.ClaimSource(sessionID)
 	if err != nil {
@@ -196,6 +260,7 @@ func TestRemoteInputColecoSourceCloseDropsMappedStateBeforeReconnect(t *testing.
 	if err := source.Close(); err != nil {
 		t.Fatal(err)
 	}
+	waitForMatrixRelease(t, starter)
 	replacement, err := input.ClaimSource(sessionID)
 	if err != nil {
 		t.Fatal(err)
@@ -213,13 +278,19 @@ func TestRemoteInputColecoSourceCloseDropsMappedStateBeforeReconnect(t *testing.
 }
 
 func TestRemoteInputColecoStopClearsMappedStateForNewGeneration(t *testing.T) {
+	for _, core := range []string{"fes.coleco", "fes.sms"} {
+		t.Run(core, func(t *testing.T) { testMatrixStop(t, core) })
+	}
+}
+
+func testMatrixStop(t *testing.T, core string) {
 	starter := &testBridgeStarter{}
 	input, err := host.NewRemoteInput(host.RemoteInputConfig{Starter: starter})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer input.Close()
-	attachRemoteInputWithCapabilities(t, input, "fes.coleco", true)
+	attachRemoteInputWithCapabilities(t, input, core, true)
 	up := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonDPadUp}
 	if err := input.Send(context.Background(), up); err != nil {
 		t.Fatal(err)
@@ -228,7 +299,8 @@ func TestRemoteInputColecoStopClearsMappedStateForNewGeneration(t *testing.T) {
 	if err := input.Detach(context.Background(), "session_stop"); err != nil {
 		t.Fatal(err)
 	}
-	attachRemoteInputWithCapabilities(t, input, "fes.coleco", true)
+	waitForMatrixRelease(t, starter)
+	attachRemoteInputWithCapabilities(t, input, core, true)
 	waitFor(t, time.Second, func() bool {
 		starter.mu.Lock()
 		defer starter.mu.Unlock()
