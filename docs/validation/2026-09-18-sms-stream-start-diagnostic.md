@@ -227,3 +227,36 @@ pixel clock 94.652161 MHz versus 74.250069 MHz required. This clears the earlier
 timing failure and full-build landing gate. QEMU is a packaging check, not FPGA
 emulation. The full image and its rebuilt FPGA packages have not been deployed;
 the physical acceptance above remains specific to the derived SMS diagnostic.
+
+### Subsequent full-image deployment and physical acceptance
+
+The exact verified image above was subsequently deployed to the designated
+MiSTer at 192.168.10.84. Boot ID changed to
+`1e22fd4a-c72d-4331-8cc3-fd9316d61fc6`; installed runtime, agent and Kit hashes
+matched direct read-only extraction from that image. Evidence is retained at
+`out/hardware/full-image-20260918.8MiIie/`, including
+`deployment-a6985413e27a39c8d85a23cc.json`.
+The accepted diagnostic image remains intact as
+`/media/fat/linux/linux.img.sms32k-a6985413e27a39c8d85a23cc.before`.
+
+The existing library entries were explicitly moved to the new factory packages:
+
+- Pong: `9be4b59993cfd0ac6b347da42decb340235c570d310901468778d6dad15d0120`.
+- ZX81: `af84d2c7fd0ec920beb3214594688d2b17eb5724aba5ac917cfa37f359cc3a1e`.
+- Coleco: `61714b569c705d2785e6820caac028ec96f6b5ff25395e39d27a6fdb13c3fc7d`.
+
+Media selections were preserved. SMS package and 32 KiB ROM remained unchanged.
+The factory harness passed launch, input delivery and Stop for all three cores;
+`factory-captures/acceptance.json` records those legs. Its initial captures were
+black, so those frames are not video proof. A later settled SMS capture
+(`sms-settled.jpg`) visibly showed the expected checkerboard; the SMS lifecycle
+receipt also passed. The Kit UI was restored after automated testing.
+
+The operator then confirmed SMS display, input and return to menu, followed by
+all three factory cores working, explicitly including a physical USB keyboard
+for ZX81 and USB controller input for the others. This completes visible output,
+physical input and menu-return acceptance for these exact packages on the full
+image. Three consecutive SMS UI relaunches were established on the earlier
+diagnostic image; that repetition count is not claimed for this full-image run.
+No new SMS FPGA package, SG-1000 test, retail-ROM/mapper coverage or release
+publication is implied.
