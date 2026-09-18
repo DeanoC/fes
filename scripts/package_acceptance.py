@@ -26,6 +26,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from input_diagnostic import load_diagnostic, run_diagnostic, validate_timeout
+
 
 PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -478,6 +481,13 @@ class Runner:
 
     def run(self) -> None:
         self._require_receipt_absent()
+        diagnostic = None
+        if self.args.input_events is not None:
+            try:
+                diagnostic = load_diagnostic(self.args.input_events, self.args.expected_input_sha256)
+            except ValueError as exc:
+                raise AcceptanceError(str(exc)) from exc
+        diagnostics = []
         media = None
         media_id = self.args.expected_media_sha256
         old_media = "" if self.args.expected_selected_media == "none" else self.args.expected_selected_media
@@ -578,6 +588,11 @@ class Runner:
             self.wait_for_owned_active(expected)
             if media is not None:
                 self.validate_media(self.validate_entry(self.read_entry(game_id), game_id, "active selection"), media_id, "active selection")
+            if diagnostic is not None:
+                try:
+                    diagnostics.append(run_diagnostic(self, expected, diagnostic, self.args.input_timeout))
+                except ValueError as exc:
+                    raise AcceptanceError(str(exc)) from exc
             stop = self.stop_owned(expected)
         except BaseException as operation_error:
             if self.owned is not None and not self.stop_attempted:
@@ -596,8 +611,8 @@ class Runner:
         receipt = {
             "format": 1,
             "success": True,
-            "mode": "lifecycle-only",
-            "diagnostics": [],
+            "mode": "lifecycle-input-diagnostic" if diagnostic is not None else "lifecycle-only",
+            "diagnostics": diagnostics,
             "archive_path": str(self.archive_path),
             "archive_bytes": len(self.archive),
             "archive_sha256": self.archive_sha256,
@@ -633,7 +648,9 @@ class Runner:
         self.write_receipt(receipt)
         print(
             f"package acceptance passed: core={self.core_id} package={self.package_id} "
-            f"game={game_id} receipt={self.receipt_path} (lifecycle-only; no media/input diagnostics)"
+            f"game={game_id} receipt={self.receipt_path} "
+            + ("(lifecycle-input-diagnostic; no physical acceptance)" if diagnostic is not None
+               else "(lifecycle-only; no media/input diagnostics)")
         )
 
 
@@ -662,6 +679,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-media-sha256")
     result.add_argument("--reuse-library-media", action="store_true", help="verify retained media; never import or reselect media")
     result.add_argument("--expected-selected-media", help="current media digest or 'none'; required with existing-entry media selection")
+    result.add_argument("--input-events", help="explicit bounded input diagnostic JSON")
+    result.add_argument("--expected-input-sha256")
+    result.add_argument("--input-timeout", type=float, default=10.0)
     result.add_argument("--execute", action="store_true", help="required opt-in for session mutations")
     result.add_argument("--timeout", type=float, default=float(os.environ.get("FES_ACCEPTANCE_TIMEOUT", "30")))
     result.add_argument("--poll-attempts", type=int, default=int(os.environ.get("FES_ACCEPTANCE_POLL_ATTEMPTS", "60")))
@@ -670,6 +690,16 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    if (args.input_events is None) != (args.expected_input_sha256 is None):
+        raise AcceptanceError("--input-events and --expected-input-sha256 are required together")
+    if args.input_events is not None:
+        if not args.input_events.strip():
+            raise AcceptanceError("input events path must not be empty")
+        _require_sha256(args.expected_input_sha256, "expected input SHA-256")
+    try:
+        validate_timeout(args.input_timeout)
+    except ValueError as exc:
+        raise AcceptanceError(str(exc)) from exc
     if args.reuse_library_media and not (args.library_media and args.game_id and
             args.expected_selected_media == args.expected_media_sha256):
         raise AcceptanceError("--reuse-library-media requires an existing entry and matching explicit media expectations")

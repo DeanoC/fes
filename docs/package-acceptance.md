@@ -12,6 +12,13 @@ rewrite `linux.img`, resize FAT or provision a card. It cannot repair a
 version-mismatched kit. Restore a coherent platform separately before physical
 testing.
 
+## Optional input diagnostics
+
+Optional explicit input recipes are documented in the
+[core developer workflow](core-development.md#optional-input-diagnostic).
+They add bounded event acknowledgements and transport-counter evidence to the
+existing lifecycle; they do not establish physical controller or FPGA behavior.
+
 ## Optional immutable library media
 
 Both runners accept `--library-media /absolute/path/title.bin` together with

@@ -116,6 +116,19 @@ class PreparedAcceptanceTest(unittest.TestCase):
             self.assertEqual(accept.main(["--prepared", str(self.receipt), *self.platform_options()]), 2)
         execute.assert_not_called()
 
+    def test_explicit_input_options_forward_without_inference(self):
+        diagnostic = self.root / "events.json"
+        diagnostic.write_text('{"format":1}')
+        expected = hashlib.sha256(diagnostic.read_bytes()).hexdigest()
+        with patch.object(accept.isolated, "main", return_value=7) as runner:
+            self.assertEqual(accept.main([
+                "--prepared", str(self.receipt), *self.platform_options(),
+                "--input-events", str(diagnostic), "--expected-input-sha256", expected,
+                "--input-timeout", "3", "--execute"]), 7)
+        forwarded = runner.call_args.args[0]
+        self.assertEqual(forwarded[forwarded.index("--input-events") + 1], str(diagnostic))
+        self.assertEqual(forwarded[forwarded.index("--expected-input-sha256") + 1], expected)
+
     def test_success_binds_exact_preparation_receipt(self):
         evidence = self.root / "evidence"
         evidence.mkdir()

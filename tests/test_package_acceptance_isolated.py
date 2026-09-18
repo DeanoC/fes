@@ -1,6 +1,7 @@
 import hashlib
 import contextlib
 import importlib.util
+import io
 import json
 import os
 import signal
@@ -357,6 +358,234 @@ def _run_isolated(command, runtime_log, runtime_state, *, api_port=None, **env_o
         capture_output=True,
         env=environment,
     )
+
+
+class IsolatedInputDiagnosticTests(unittest.TestCase):
+    def diagnostic(self):
+        interface = {"id": "fes.keyboard", "major": 1, "minor": 0}
+        events = [{"device": 0, "kind": 0, "action": action, "code": 256, "value": 0}
+                  for action in (1, 0)]
+        raw = json.dumps({"format": 1, "interface": interface, "events": events}).encode()
+        return SimpleNamespace(raw=raw, sha256=hashlib.sha256(raw).hexdigest(),
+                               interface=interface, events=events)
+
+    def arguments(self, directory):
+        paths = _write_inputs(directory)
+        evidence = Path(directory) / "evidence"
+        source = Path(directory) / "diagnostic.json"
+        diagnostic = self.diagnostic()
+        source.write_bytes(diagnostic.raw)
+        command = _command(paths, evidence)[3:] + [
+            "--input-events", str(source), "--expected-input-sha256", diagnostic.sha256,
+            "--input-timeout", "7.5"]
+        args = package_acceptance_isolated.parser().parse_args(command)
+        return args, paths, evidence, source, diagnostic
+
+    def child_receipt(self, diagnostic):
+        return {"success": True, "package_id": PACKAGE_ID, "core_id": CORE_ID,
+                "target_id": TARGET_ID, "selection": {"game_id": "same-entry"},
+                "mode": "lifecycle-input-diagnostic", "diagnostics": [{
+                    "sha256": diagnostic.sha256, "interface": diagnostic.interface,
+                    "events_requested": 2, "events_acknowledged": 2,
+                    "frames_before": 10, "frames_after": 12, "frame_delta": 2,
+                    "input_session_id": "input-1"}]}
+
+    def test_preflight_loader_failure_precedes_all_docker_and_api_operations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, _, evidence, _, _ = self.arguments(directory)
+            loader = mock.Mock(side_effect=ValueError("invalid fixture or digest"))
+            with mock.patch.dict(sys.modules, {"input_diagnostic": SimpleNamespace(load_diagnostic=loader)}), \
+                    mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker, \
+                    mock.patch.object(package_acceptance_isolated, "_get_json") as api:
+                with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError, "invalid fixture"):
+                    package_acceptance_isolated.validate_args(args)
+                docker.assert_not_called()
+                api.assert_not_called()
+            loader.assert_called_once_with(args.input_events, args.expected_input_sha256)
+            self.assertFalse(evidence.exists())
+
+    def test_pairing_digest_and_timeout_rejected_before_loader_or_docker(self):
+        cases = [
+            {"input_events": None}, {"expected_input_sha256": None},
+            {"expected_input_sha256": "wrong"},
+            *({"input_timeout": value} for value in (0, -1, 60.1, float("inf"), float("nan"))),
+        ]
+        for change in cases:
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                args, _, evidence, _, _ = self.arguments(directory)
+                for name, value in change.items():
+                    setattr(args, name, value)
+                loader = mock.Mock()
+                with mock.patch.dict(sys.modules, {"input_diagnostic": SimpleNamespace(load_diagnostic=loader)}), \
+                        mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker:
+                    with self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                        package_acceptance_isolated.validate_args(args)
+                    loader.assert_not_called()
+                    docker.assert_not_called()
+                self.assertFalse(evidence.exists())
+
+    def test_explicit_empty_input_flags_do_not_silently_disable_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = _write_inputs(directory)
+            evidence = Path(directory) / "evidence"
+            command = _command(paths, evidence)[3:] + [
+                "--input-events", "", "--expected-input-sha256", ""]
+            with mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker, \
+                    mock.patch.object(package_acceptance_isolated, "_get_json") as api, \
+                    contextlib.redirect_stderr(io.StringIO()) as errors:
+                self.assertEqual(package_acceptance_isolated.main(command), 1)
+                docker.assert_not_called()
+                api.assert_not_called()
+            self.assertIn("input events path", errors.getvalue())
+            self.assertFalse(evidence.exists())
+
+    def test_child_receipt_requires_bound_identity_complete_ack_and_consistent_counters(self):
+        mutations = [
+            lambda value: value.pop("diagnostics"),
+            lambda value: value.update(diagnostics=[]),
+            lambda value: value.update(mode="lifecycle-only"),
+            lambda value: value["diagnostics"].append(dict(value["diagnostics"][0])),
+        ]
+        for field, bad_values in {
+            "sha256": ["e" * 64, None],
+            "interface": [{"id": "fes.gamepad", "major": 1, "minor": 0},
+                          {"id": "fes.keyboard", "major": True, "minor": 0}, None],
+            "events_requested": [1, 0, True, "2"],
+            "events_acknowledged": [1, 3, False],
+            "frames_before": [-1, True, 13],
+            "frames_after": [-1, "12", 9],
+            "frame_delta": [0, -1, 1, True],
+            "input_session_id": [None, "", "bad\nID"],
+        }.items():
+            for value in bad_values:
+                mutations.append(lambda receipt, field=field, value=value:
+                                 receipt["diagnostics"][0].update({field: value}))
+        with tempfile.TemporaryDirectory() as directory:
+            args, _, _, _, diagnostic = self.arguments(directory)
+            args.input_diagnostic = diagnostic
+            receipt = Path(directory) / "child.json"
+            receipt.write_text(json.dumps(self.child_receipt(diagnostic)))
+            self.assertEqual(package_acceptance_isolated._read_runner_receipt(receipt, args), "same-entry")
+            for mutation in mutations:
+                value = self.child_receipt(diagnostic)
+                mutation(value)
+                receipt.write_text(json.dumps(value))
+                with self.subTest(value=value), self.assertRaises(package_acceptance_isolated.AcceptanceError):
+                    package_acceptance_isolated._read_runner_receipt(receipt, args)
+
+    def run_cycles(self, directory, bad_cycle=None):
+        args, paths, evidence, source, diagnostic = self.arguments(directory)
+        target = package_acceptance_isolated.validate_args(args)
+        self.assertEqual(args.input_diagnostic.raw, diagnostic.raw)
+        calls = []
+        snapshot_identity = []
+
+        def start(acceptance, cycle):
+            package_acceptance_isolated._cycle_directory(evidence, cycle)
+            record = package_acceptance_isolated.ContainerRecord(
+                name=cycle, cycle=cycle, start_attempted=True, started=True)
+            acceptance.containers.append(record)
+            return record, "http://127.0.0.1:1234"
+
+        def child(command, **kwargs):
+            calls.append(command)
+            frozen = Path(command[command.index("--input-events") + 1])
+            self.assertEqual(frozen, evidence / "input-events.json")
+            self.assertEqual(frozen.read_bytes(), diagnostic.raw)
+            self.assertEqual(frozen.stat().st_mode & 0o777, 0o400)
+            snapshot_identity.append((frozen.stat().st_ino, frozen.stat().st_mtime_ns))
+            self.assertEqual(command[command.index("--expected-input-sha256") + 1], diagnostic.sha256)
+            self.assertEqual(command[command.index("--input-timeout") + 1], "7.5")
+            source.write_bytes(b"changed original after preflight")
+            value = self.child_receipt(diagnostic)
+            if len(calls) == bad_cycle:
+                value.pop("diagnostics")
+            Path(command[command.index("--receipt") + 1]).write_text(json.dumps(value))
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker, \
+                mock.patch.object(package_acceptance_isolated, "validate_image_metadata"), \
+                mock.patch.object(package_acceptance_isolated.IsolatedAcceptance, "_start", start), \
+                mock.patch.object(package_acceptance_isolated.subprocess, "run", side_effect=child):
+            runtime = docker.return_value
+            runtime.stop.return_value = {"exit_code": 0, "status": "exited"}
+            if bad_cycle:
+                with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError, "input diagnostic"):
+                    package_acceptance_isolated.execute_isolated(args, target)
+                self.assertFalse((evidence / "receipt.json").exists())
+                failure = json.loads((evidence / "failure.json").read_text())
+                self.assertFalse(failure["success"])
+                self.assertEqual(len(calls), bad_cycle)
+                self.assertEqual(failure["cleanup_errors"], [])
+                self.assertEqual(len(failure["cycles"]), bad_cycle - 1)
+                self.assertEqual(len(failure["containers"]), bad_cycle)
+                for container in failure["containers"]:
+                    self.assertTrue(container["removed"])
+                    self.assertEqual(container["remove_attempts"], 1)
+                    self.assertEqual(container["exit_code"], 0)
+                    self.assertEqual(container["status"], "exited")
+            else:
+                package_acceptance_isolated.execute_isolated(args, target)
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(snapshot_identity[0], snapshot_identity[1])
+                self.assertIn("--new-entry-title", calls[0])
+                self.assertIn("--game-id", calls[1])
+                receipt = json.loads((evidence / "receipt.json").read_text())
+                self.assertEqual(receipt["mode"], "isolated-lifecycle-input-diagnostic")
+                self.assertEqual(receipt["input_diagnostic"]["sha256"], diagnostic.sha256)
+                self.assertIn("not hardware consumption", receipt["diagnostic_scope"])
+                for cycle in receipt["cycles"]:
+                    self.assertEqual(cycle["diagnostics"], self.child_receipt(diagnostic)["diagnostics"])
+            # Exercise the real _stop/_remove and cleanup bookkeeping. A failed
+            # receipt still retires its started container once; previously
+            # completed cycles must not be stopped or removed again.
+            expected_cleanup = []
+            for index in range(1, (bad_cycle or 2) + 1):
+                expected_cleanup.extend([
+                    mock.call.stop(f"cycle-{index}", args.shutdown_timeout),
+                    mock.call.remove(f"cycle-{index}", force=False),
+                ])
+            self.assertEqual([call for call in runtime.mock_calls
+                              if call[0] in ("stop", "remove")], expected_cleanup)
+        self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
+
+    def test_real_invalid_snapshot_rejected_by_main_before_docker(self):
+        for contents, correct_hash in ((b"not JSON", True), (b"{}", False)):
+            with self.subTest(contents=contents), tempfile.TemporaryDirectory() as directory:
+                args, paths, evidence, source, diagnostic = self.arguments(directory)
+                source.write_bytes(contents)
+                expected = hashlib.sha256(contents).hexdigest() if correct_hash else diagnostic.sha256
+                command = _command(paths, evidence)[3:] + [
+                    "--input-events", str(source), "--expected-input-sha256", expected]
+                with mock.patch.object(package_acceptance_isolated, "DockerRuntime") as docker, \
+                        mock.patch.object(package_acceptance_isolated, "_get_json") as api, \
+                        contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(package_acceptance_isolated.main(command), 1)
+                    docker.assert_not_called()
+                    api.assert_not_called()
+                self.assertFalse(evidence.exists())
+
+    def test_both_cycles_forward_one_snapshot_even_when_original_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_cycles(directory)
+
+    def test_each_cycle_requires_diagnostic_receipt(self):
+        for cycle in (1, 2):
+            with self.subTest(cycle=cycle), tempfile.TemporaryDirectory() as directory:
+                self.run_cycles(directory, bad_cycle=cycle)
+
+    def test_default_mode_receipt_and_runner_have_no_diagnostic_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args, _, _, _, _ = self.arguments(directory)
+            args.input_events = args.expected_input_sha256 = None
+            package_acceptance_isolated.validate_args(args)
+            self.assertIsNone(args.input_diagnostic)
+            receipt = package_acceptance_isolated._receipt_base(args, True)
+            self.assertEqual(receipt["mode"], "isolated-lifecycle")
+            self.assertNotIn("input_diagnostic", receipt)
+            command = package_acceptance_isolated.runner_command(args, "http://127.0.0.1:1234", Path("receipt"), None)
+            self.assertNotIn("--input-events", command)
+            self.assertNotIn("--input-timeout", command)
 
 
 class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
