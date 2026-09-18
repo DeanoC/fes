@@ -49,7 +49,7 @@ SG1000_TOOLCHAIN_LOCK = "cores/fes-sg1000/toolchain.lock"
 SG1000_TOOLCHAIN_ROOT = "build/toolchain/fes-sg1000"
 SG1000_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "2ceec42587c7261196c13c59b2e7daf4b87f1c5d",
+    "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 RECIPE = "scripts/build_fes_sg1000_oss.py"

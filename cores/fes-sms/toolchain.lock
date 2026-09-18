@@ -2,7 +2,7 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
 order = 10
-rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de: SYNC SDP/TDP libmap cells so Coleco 256x4 sprite line banks keep a live CLK2 without CFG_ASYNC_READ). On ec34fcf3. Feature commits a7671c03 and 42e99880. Pair with nextpnr 2ceec425 and unchanged Mistral b28e30a; this core-local lock is the Coleco HIP slot."
+rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de: SYNC SDP/TDP libmap cells so Coleco 256x4 sprite line banks keep a live CLK2 without CFG_ASYNC_READ). On ec34fcf3. Feature commits a7671c03 and 42e99880. Pair with nextpnr 0fad53a7 and unchanged Mistral b28e30a; this core-local lock is the Coleco HIP slot."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for the Coleco OSS lane: nextpnr ef29443 Cyclone V MUL9
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "2ceec42587c7261196c13c59b2e7daf4b87f1c5d"
+commit = "0fad53a75a0218941c417ec6bb58bdede9070987"
 order = 30
-rationale = "GPU-router timing repair (merged PR #70 2ceec425 onto 2e02395): design WNS, unfreeze still-failing frozen arcs, same-band peer groups. Preserves narrow TDP from PR #67 2d3c216a. Pair with Yosys e2d425de and Mistral b28e30a. The GPU device backend is enabled separately for this core-local HIP build."
+rationale = "GPU-router delay-only repair restores the previous legal tree when an arc cannot re-route (merged PR #71 0fad53a7 onto 2ceec425). Preserves design-WNS repair from PR #70 and narrow TDP from PR #67. Pair with Yosys e2d425de and Mistral b28e30a. The GPU device backend is enabled separately for this core-local HIP build."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

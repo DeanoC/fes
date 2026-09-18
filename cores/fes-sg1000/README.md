@@ -13,7 +13,7 @@ the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `2ceec425`). HIP format-2
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). HIP format-2
 seal, formic gap execution, FES parent pin and kit HIL remain later jobs.
 
 ## Implemented first slice

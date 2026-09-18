@@ -449,7 +449,7 @@ produces the RBF and timing evidence without sealing. This does not program
 hardware.
 
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral recipe. It copies the
-Coleco lock (Yosys `e2d425de`, nextpnr `2ceec425`) and the Coleco OSS
+Coleco lock (Yosys `e2d425de`, nextpnr `0fad53a7`) and the Coleco OSS
 constraint subset. Yosys must define both `FES_SG1000_OSS=1` and
 `FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
 not seal. The producer uses `--router gpu` and seed 4 with a live HIP
@@ -478,7 +478,7 @@ produces the RBF and timing evidence without sealing. This does not program
 hardware.
 
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral recipe. It copies the
-Coleco lock (Yosys `e2d425de`, nextpnr `2ceec425`, Mistral `b28e30a`) and the
+Coleco lock (Yosys `e2d425de`, nextpnr `0fad53a7`, Mistral `b28e30a`) and the
 Coleco OSS constraint subset. Yosys must define both `FES_SMS_OSS=1` and
 `FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
 not seal. The producer uses `--router gpu` and seed 1 with a live HIP
