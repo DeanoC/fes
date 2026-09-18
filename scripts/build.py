@@ -20,7 +20,7 @@ from inputs import git, validate
 import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
-from recipes import FORMAT2_RECIPES, recipe_for
+from recipes import FORMAT2_RECIPES, REGISTRY_PATH, recipe_for
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
@@ -42,7 +42,7 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
-                           if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path))
+                           if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)) + (REGISTRY_PATH,)
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",

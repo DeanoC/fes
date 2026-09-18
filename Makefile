@@ -23,10 +23,13 @@ TARGET_ACCEPTANCE_SELECTION_DIR ?= out/$(PROFILE)/development
 TARGET_ACCEPTANCE_ARGS ?=
 PACKAGE_ACCEPTANCE_ARGS ?=
 PACKAGE_ACCEPTANCE_ISOLATED_ARGS ?=
+CORE_DEV_ARGS ?=
+CORE_DEV_ACCEPT_ARGS ?=
 help:
 	@printf '%s\n' 'FES: start with AGENTS.md and docs/development.md' 'make check | doctor | build | host | image | verify | rebuild | dev | platform-provision | platform-test | target-acceptance | media | verify-media | rollback-media | test' 'Default: native-integration-dev; FES image lanes are package-only' 'Appliance bootstrap builds FES platform/ against the selected FogCast appliance module.' 'make media auto-embeds the private host token; use FES_UNPROVISIONED=1 for CI-only media.' 'Quartus is an explicit oracle/check for unsupported systems; build does not deploy.'
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
+	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
 doctor build host image verify rebuild dev:
 	$(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
 platform-provision:
@@ -44,6 +47,12 @@ target-acceptance:
 	$(PYTHON) scripts/target_acceptance.py --selection-dir "$(TARGET_ACCEPTANCE_SELECTION_DIR)" $(TARGET_ACCEPTANCE_ARGS)
 
 .PHONY: package-acceptance
+.PHONY: core-dev core-dev-accept
+core-dev:
+	$(PYTHON) scripts/core_dev.py $(CORE_DEV_ARGS)
+core-dev-accept:
+	$(PYTHON) scripts/core_dev_accept.py $(CORE_DEV_ACCEPT_ARGS)
+
 package-acceptance:
 	$(PYTHON) scripts/package_acceptance.py $(PACKAGE_ACCEPTANCE_ARGS)
 

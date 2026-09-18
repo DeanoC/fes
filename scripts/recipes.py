@@ -1,6 +1,9 @@
 """Immutable format-2 recipe descriptors owned by the FES parent."""
 from dataclasses import dataclass
 import os
+import keyword
+import re
+import tomllib
 from pathlib import Path
 
 TOOLCHAIN_CACHE_ROOT = Path(__file__).resolve().parents[1] / "out/cache/misteross-toolchains"
@@ -39,60 +42,74 @@ class Format2Recipe:
     cache_root: Path = TOOLCHAIN_CACHE_ROOT
 
 
-FORMAT2_RECIPES = {
-    "fes.pong": Format2Recipe(
-        core_id="fes.pong",
-        producer_script="scripts/build_fes_pong.py",
-        producer_module="scripts.build_fes_pong",
-        authenticate="_authenticate_tools",
-        lock_path="toolchain.lock",
-        gpu_router=HIP_ROUTER,
-        hip_architectures=HIP_ARCHITECTURES,
-        selection_filename="fes-pong.package-selection.toml",
-        package_dir_env="FES_PONG_PACKAGE_DIR",
-        package_selection_env="FES_PONG_PACKAGE_SELECTION",
-        quartus_role="check only when a twin exists",
-    ),
-    "fes.zx81": Format2Recipe(
-        core_id="fes.zx81",
-        producer_script="scripts/build_fes_zx81_oss.py",
-        producer_module="scripts.build_fes_zx81_oss",
-        authenticate="_authenticate_tools",
-        lock_path="toolchain.lock",
-        gpu_router=HIP_ROUTER,
-        hip_architectures=HIP_ARCHITECTURES,
-        selection_filename="fes-zx81.package-selection.toml",
-        package_dir_env="FES_ZX81_PACKAGE_DIR",
-        package_selection_env="FES_ZX81_PACKAGE_SELECTION",
-        quartus_role="bring-up/check oracle",
-    ),
-    "fes.coleco": Format2Recipe(
-        core_id="fes.coleco",
-        producer_script="scripts/build_fes_coleco_oss.py",
-        producer_module="scripts.build_fes_coleco_oss",
-        authenticate="_authenticate_coleco_tools",
-        lock_path="cores/fes-coleco/toolchain.lock",
-        gpu_router=HIP_ROUTER,
-        hip_architectures=HIP_ARCHITECTURES,
-        selection_filename="fes-coleco.package-selection.toml",
-        package_dir_env="FES_COLECO_PACKAGE_DIR",
-        package_selection_env="FES_COLECO_PACKAGE_SELECTION",
-        quartus_role="bring-up/check oracle",
-    ),
-    "fes.sms": Format2Recipe(
-        core_id="fes.sms",
-        producer_script="scripts/build_fes_sms_oss.py",
-        producer_module="scripts.build_fes_sms_oss",
-        authenticate="_authenticate_sms_tools",
-        lock_path="cores/fes-sms/toolchain.lock",
-        gpu_router=HIP_ROUTER,
-        hip_architectures=HIP_ARCHITECTURES,
-        selection_filename="fes-sms.package-selection.toml",
-        package_dir_env="FES_SMS_PACKAGE_DIR",
-        package_selection_env="FES_SMS_PACKAGE_SELECTION",
-        quartus_role="bring-up/check oracle",
-    ),
-}
+REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
+_RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root"}
+_IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
+
+
+def _relative_path(value):
+    # Validate the original spelling, before Path can normalize traversal/dots.
+    return all(re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]*", part)
+               and part not in (".", "..") for part in value.split("/"))
+
+
+def load_recipes(path=REGISTRY_PATH):
+    """Load the closed version-1 data schema; never import or execute producers."""
+    with Path(path).open("rb") as source:
+        document = tomllib.load(source)
+    if set(document) != {"version", "recipes"}:
+        raise ValueError("recipe registry requires exactly version and recipes")
+    if type(document["version"]) is not int or document["version"] != 1:
+        raise ValueError("unsupported recipe registry version")
+    entries = document["recipes"]
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("recipes must be a nonempty array of tables")
+    result, selections, environment_names = {}, set(), set()
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != _RECIPE_FIELDS:
+            raise ValueError("recipe fields must exactly match the version-1 schema")
+        if any(not isinstance(value, str) or not value.strip()
+               or any(ord(char) < 32 or ord(char) == 127 for char in value)
+               for value in entry.values()):
+            raise ValueError("recipe fields must be nonempty strings without control characters")
+        core_id = entry["core_id"]
+        if not re.fullmatch(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*", core_id):
+            raise ValueError("invalid recipe core_id")
+        for field in ("producer_script", "lock_path"):
+            if not _relative_path(entry[field]):
+                raise ValueError(f"invalid relative {field}")
+        module = entry["producer_module"]
+        if (not all(re.fullmatch(_IDENTIFIER, part) and not keyword.iskeyword(part)
+                    for part in module.split("."))
+                or entry["producer_script"] != module.replace(".", "/") + ".py"):
+            raise ValueError("invalid producer_module or producer_script mismatch")
+        auth = entry["authenticate"]
+        if not re.fullmatch(_IDENTIFIER, auth) or keyword.iskeyword(auth):
+            raise ValueError("invalid authenticate identifier")
+        if entry["gpu_router"] != HIP_ROUTER:
+            raise ValueError("only the HIP production route is supported")
+        if not re.fullmatch(r"gfx[0-9a-f]+(?:;gfx[0-9a-f]+)*", entry["hip_architectures"]):
+            raise ValueError("invalid HIP architectures")
+        selection = entry["selection_filename"]
+        if ("/" in selection or not _relative_path(selection)
+                or not selection.endswith(".package-selection.toml")):
+            raise ValueError("invalid selection_filename")
+        names = (entry["package_dir_env"], entry["package_selection_env"])
+        if any(not re.fullmatch(r"FES_[A-Z0-9_]+_PACKAGE_(?:DIR|SELECTION)", name)
+               for name in names):
+            raise ValueError("invalid package environment variable")
+        if not names[0].endswith("_DIR") or not names[1].endswith("_SELECTION"):
+            raise ValueError("package environment variable role mismatch")
+        if core_id in result or selection in selections or any(
+                name in environment_names for name in names) or names[0] == names[1]:
+            raise ValueError("duplicate core ID, selection filename or environment variable")
+        result[core_id] = Format2Recipe(**entry)
+        selections.add(selection)
+        environment_names.update(names)
+    return result
+
+
+FORMAT2_RECIPES = load_recipes()
 
 
 def recipe_for(core_id):

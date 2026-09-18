@@ -14,10 +14,13 @@ from tests.test_bundle import BundleTest
 
 
 class RecipeRegistryTest(unittest.TestCase):
-    def test_registry_contains_exactly_four_hip_descriptors(self):
-        self.assertEqual(
-            tuple(recipes.FORMAT2_RECIPES),
-            ("fes.pong", "fes.zx81", "fes.coleco", "fes.sms"))
+    def test_registry_preserves_existing_hip_descriptors(self):
+        self.assert_existing_descriptors()
+
+    def assert_existing_descriptors(self):
+        self.assertTrue(
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms"}
+            <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
                 "producer_script": "scripts/build_fes_pong.py",
@@ -69,6 +72,8 @@ class RecipeRegistryTest(unittest.TestCase):
             self.assertEqual(recipe.hip_architectures, "gfx1100;gfx1201")
             self.assertEqual(recipe.selection_filename, fields["selection_filename"])
             self.assertEqual(recipe.cache_root, recipes.TOOLCHAIN_CACHE_ROOT)
+            self.assertEqual(recipe.quartus_role, "check only when a twin exists"
+                             if core_id == "fes.pong" else "bring-up/check oracle")
         pong = recipes.recipe_for("fes.pong")
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
@@ -100,6 +105,127 @@ class RecipeRegistryTest(unittest.TestCase):
         for profile, needle in cases:
             with self.subTest(profile=profile), self.assertRaisesRegex(ValueError, needle):
                 build.selected_packages(profile, "native-integration-dev")
+
+
+
+class RecipeDataTest(unittest.TestCase):
+    def load_document(self, document):
+        # Fixture serialization only: the production loader always parses TOML.
+        import json
+        text = "version = " + json.dumps(document["version"]) + "\n"
+        for key, value in document.items():
+            if key not in ("version", "recipes"):
+                text += key + " = " + json.dumps(value) + "\n"
+        for entry in document["recipes"]:
+            text += "\n[[recipes]]\n"
+            for key, value in entry.items():
+                text += key + " = " + json.dumps(value) + "\n"
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "recipes.toml"
+            path.write_text(text)
+            return recipes.load_recipes(path)
+
+    def document(self):
+        import tomllib
+        return tomllib.loads(recipes.REGISTRY_PATH.read_text())
+
+    def test_fifth_recipe_is_only_data(self):
+        document = self.document()
+        fifth = dict(document["recipes"][0])
+        fifth.update(
+            core_id="fes.fixture",
+            producer_script="scripts/build_fes_fixture.py",
+            producer_module="scripts.build_fes_fixture",
+            selection_filename="fes-fixture.package-selection.toml",
+            package_dir_env="FES_FIXTURE_PACKAGE_DIR",
+            package_selection_env="FES_FIXTURE_PACKAGE_SELECTION",
+        )
+        document["recipes"].append(fifth)
+        loaded = self.load_document(document)
+        self.assertEqual(tuple(loaded), (*recipes.FORMAT2_RECIPES, "fes.fixture"))
+        self.assertEqual(loaded["fes.fixture"], recipes.Format2Recipe(**fifth))
+        with patch.object(recipes, "FORMAT2_RECIPES", loaded):
+            # The same invariants used for the real registry must accept a
+            # data-only extension, without weakening existing descriptor checks.
+            RecipeRegistryTest().assert_existing_descriptors()
+            self.assertIs(recipes.recipe_for("fes.fixture"), loaded["fes.fixture"])
+            env = recipes.producer_environment(
+                {"CC": "bad", "MAKEFLAGS": "bad", "KEEP": "yes"},
+                recipes.recipe_for("fes.fixture"))
+            self.assertNotIn("CC", env)
+            self.assertNotIn("MAKEFLAGS", env)
+            self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
+            self.assertEqual(env["KEEP"], "yes")
+
+    def test_unknown_and_each_missing_recipe_field_rejected(self):
+        for field in self.document()["recipes"][0]:
+            document = self.document()
+            del document["recipes"][0][field]
+            with self.subTest(missing=field), self.assertRaises(ValueError):
+                self.load_document(document)
+        for field in ("command", "shell", "cache_root"):
+            document = self.document()
+            document["recipes"][0][field] = "arbitrary"
+            with self.subTest(unknown=field), self.assertRaises(ValueError):
+                self.load_document(document)
+
+    def test_invalid_field_values_rejected(self):
+        cases = {
+            "core_id": ["", "pong", "fes.Pong", 1],
+            "producer_script": ["/scripts/x.py", "../x.py", "scripts/../x.py",
+                                "scripts//x.py", "./scripts/x.py", "scripts/x.py;true",
+                                "scripts\\x.py", "scripts/other.py"],
+            "lock_path": ["/tmp/lock", "../lock", "cores/./lock", "cores//lock",
+                          "cores/../lock", "C:\\lock", "lock\n"],
+            "producer_module": ["scripts.x;exec", "scripts..x", ".scripts.x",
+                                "scripts.class", "scripts.1x"],
+            "authenticate": ["x()", "a.b", "class", "x;true", "1x"],
+            "gpu_router": ["OFF", "CUDA", "hip"],
+            "hip_architectures": ["", "gfx1100;$(true)", "gfx1100;;gfx1201"],
+            "selection_filename": ["../x.package-selection.toml",
+                                   "/x.package-selection.toml", "x.toml"],
+            "package_dir_env": ["PATH", "FES_X_PACKAGE_SELECTION", "FES_X;Y_PACKAGE_DIR"],
+            "package_selection_env": ["HOME", "FES_X_PACKAGE_DIR"],
+            "quartus_role": ["", False, "oracle\ncommand"],
+        }
+        for field, values in cases.items():
+            for value in values:
+                document = self.document()
+                document["recipes"][0][field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.load_document(document)
+
+    def test_duplicate_identifiers_rejected(self):
+        for field in ("core_id", "selection_filename", "package_dir_env",
+                      "package_selection_env"):
+            document = self.document()
+            document["recipes"][1][field] = document["recipes"][0][field]
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "duplicate"):
+                self.load_document(document)
+
+    def test_closed_top_level_schema_and_version(self):
+        for text in ('version = 2\nrecipes = []', 'version = true\nrecipes = []',
+                     'version = "1"\nrecipes = []', 'version = 1',
+                     'recipes = []', 'version = 1\nrecipes = {}',
+                     'version = 1\nrecipes = ["bad"]',
+                     'version = 1\nrecipes = []',
+                     'version = 1\nrecipes = []\ncommand = "true"',
+                     'version = 1\nversion = 1\nrecipes = []'):
+            with tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / "bad.toml"
+                path.write_text(text)
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    recipes.load_recipes(path)
+
+    def test_import_uses_checkout_registry_not_cwd(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(
+                [sys.executable, "-c",
+                 "import sys; sys.path.insert(0, sys.argv[1]); import recipes; "
+                 "assert recipes.FORMAT2_RECIPES == recipes.load_recipes(recipes.REGISTRY_PATH)",
+                 str(recipes.REGISTRY_PATH.parent.parent / "scripts")],
+                cwd=temporary, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class RecipeResolverTest(unittest.TestCase):

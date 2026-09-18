@@ -18,6 +18,7 @@ host software and target root filesystem.
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
+| Prepare one core without rebuilding the image, then run isolated acceptance | [Core developer workflow](core-development.md) |
 | Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Review the historical Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |

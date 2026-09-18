@@ -25,6 +25,10 @@ catalog system.
 
 ## Build and inspect
 
+For a single core without image assembly, use the
+[core developer workflow](core-development.md). Producer descriptors live in
+`config/core-recipes.toml`; package capabilities remain in sealed manifests.
+
 FES resolves every selected package from its misteross recipe before an image
 or development-cache reuse decision. It authenticates the clean misteross
 source, the pinned OSS tools and each canonical build-input record. A cached
