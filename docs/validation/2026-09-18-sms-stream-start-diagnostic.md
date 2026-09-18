@@ -5,8 +5,9 @@
 The designated MiSTer kit passed package admission, selected 32 KiB library-media
 launch, active-session confirmation, and Stop back to idle after correcting
 runtime startup ordering. This is a derived-image lifecycle diagnostic, not a
-full reproducible-image or release acceptance. Physical HDMI/controller and
-operator Stop/relaunch checks remain pending.
+full reproducible-image or release acceptance. The operator subsequently
+confirmed visible output and return to the menu, but gameplay controls produced
+no visible indicator changes. Gameplay input acceptance therefore failed.
 
 ## Failure and correction
 
@@ -70,3 +71,15 @@ focused and full runtime tests passed after it; ARM cross-build passed;
 independent review found no actionable issues. FogCast compatibility race tests
 and native-runtime smoke tests passed. Parent `make check` and `make host`
 passed with the corrected pins. Full-image build/verification remains separate.
+
+## Operator input failure
+
+A second launch reached active generation 2, flight
+`5f85f240-8f82-48de-9ecc-ec4b7076e1fb`, with attached input. The operator saw
+the diagnostic and returned to the menu, but D-pad/fire caused no visual change.
+The final idle session recorded 164 input frames; this transport count does not
+prove gameplay delivery. Source inspection found the host controller-to-matrix
+translation gated exclusively on `fes.coleco`, while SMS uses the same first
+five matrix bits and advertises keyboard rather than gamepad input. A separate
+FogCast mapping correction and fresh-image input check are required. Preserve
+this failed input result independently of any later corrected-image evidence.
