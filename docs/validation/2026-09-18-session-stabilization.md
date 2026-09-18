@@ -46,7 +46,9 @@ The old image is retained on the card as
 `/media/fat/linux/linux.img.before-session-stabilization`. Rollback is an explicit
 idle maintenance operation: preserve the current candidate, restore that exact
 baseline as linux.img, sync and reboot. Do not overwrite a mounted backing inode.
-The host service remains autostart-disabled and active for the operator test.
+After physical acceptance, the host service was stopped (inactive/dead),
+autostart remained disabled, and the target lease was verified free. The
+exclusive reservation was released to the coordinating team.
 
 Private evidence and source snapshots live on Powerboat under
 `/home/deano/fes/out/hardware/session-stabilization-N3jJhn/`.
