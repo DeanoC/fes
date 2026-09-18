@@ -39,6 +39,14 @@ and blob 1.0 requirements remain unchanged.
 
 ## Transfer and failures
 
+Fresh stream activation initializes video and neutral keyboard rows, then
+explicitly holds reset without attempting execution release. `load_core`
+success establishes the owned package/generation and observed capacity, not
+executing media. Only a subsequent successful media Commit permits release.
+This behavior requires verified stream support; legacy and undeclared or absent
+optional-stream sessions retain their previous startup behavior. Keyboard and
+hold-reset failures fail activation without releasing execution.
+
 Before holding reset or sending Begin, the runtime opens a regular, non-symlink
 file and snapshots it into a private 0600 temporary file unlinked immediately.
 It uses a 512-byte buffer and computes reflected CRC32/IEEE over exact payload

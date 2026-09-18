@@ -826,6 +826,44 @@ void TestStreamIdentityRequiresObservedCapacityAndDeclaration()
 	assert(!valid.driver.StreamInfo(&info).ok());
 }
 
+void TestStreamStartKeepsResetAndLegacyStillReleases()
+{
+	// Only the verified declaration + observed capability changes startup.
+	for (unsigned mode = 0; mode < 5; ++mode) {
+		StreamFixture f;
+		if (mode == 1 || mode == 2) f.descriptor.interfaces.pop_back();
+		if (mode == 3) f.descriptor.interfaces.back().required = false;
+		if (mode == 4) {
+			f.descriptor.interfaces.back().required = false;
+			f.descriptor.interfaces.back().major = 2;
+		}
+		assert(f.Identify(1, 32768, 512, mode == 1 || mode == 3 ? 7 : 15).ok());
+		const auto before = f.mmio.writes.size();
+		for (unsigned i = 0; i < 9; ++i) f.Reply();
+		assert(f.driver.Start(f.context, 1000000).error.ok());
+		assert(f.mmio.writes.size() == before + 18);
+		for (unsigned row = 0; row < 8; ++row)
+			assert((f.mmio.writes[before + row * 2 + 1].value & ~FesGpRequestMask) ==
+				((FesSimpleComputerOpcodeKeyboard << 24) | (row << 16) | 0x1f));
+		assert((f.mmio.writes.back().value & ~FesGpRequestMask) ==
+			((FesSimpleComputerOpcodeExecution << 24) | (mode == 0 ? 0u : 1u)));
+	}
+	// Each neutral row and the final hold can fail; no later command or release follows.
+	for (unsigned failure = 0; failure < 9; ++failure) {
+		StreamFixture f;
+		assert(f.Identify().ok());
+		const auto before = f.mmio.writes.size();
+		for (unsigned i = 0; i < failure; ++i) f.Reply();
+		f.Reply(FesSimpleComputerErrorInvalidState, true);
+		const auto result = f.driver.Start(f.context, 1000000);
+		assert(result.error.code == mister::ErrorCode::io_failed && result.mutation_attempted);
+		assert(result.error.phase == (failure < 8 ? "input" : "quiesce"));
+		assert(f.mmio.writes.size() == before + (failure + 1) * 2);
+		for (auto i = before; i < f.mmio.writes.size(); ++i)
+			assert((f.mmio.writes[i].value & ~FesGpRequestMask) != 0x02000001u);
+	}
+}
+
 void TestStreamTransferBoundariesAndCRC()
 {
 	for (auto size : {1u, 3u, 511u, 512u, 513u, 16385u, 32768u}) {
@@ -938,6 +976,7 @@ int main()
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();
+	TestStreamStartKeepsResetAndLegacyStillReleases();
 	TestStreamFailureAbortAndAmbiguousSession();
 	TestPersistenceTransfersAndPoisonedSnapshot();
 	TestSharedPersistenceWireFixtures();
@@ -950,6 +989,6 @@ int main()
 	TestComputerKeyboardMatrixAndMediaBlob();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 15 groups passed");
+	puts("fes_gp_test: 16 groups passed");
 	return 0;
 }

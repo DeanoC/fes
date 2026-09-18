@@ -114,7 +114,13 @@ on `fes-gp-v1`. `CheckCoreCompatibility` and `FesGpCoreDriver` identify both
 ABIs over the same GP transport: tag 1 with gamepad plus fixed 720p60 for
 Pong, tag 2 with keyboard, fixed 720p60 and media blob for ZX81. Gamepad
 input stays disabled for the computer ABI. After video bring-up the driver
-writes eight neutral keyboard rows and releases execution. Live `set_keyboard`
+writes eight neutral keyboard rows. A verified stream-media session explicitly
+holds execution reset and completes activation without releasing: a fresh
+endpoint has no committed media yet. Its later media transaction releases only
+after successful Commit. Non-stream computer startup still releases execution
+as before; the decision uses verified stream support, not a core ID or a bare
+capability bit. Keyboard or hold failures fail activation without release.
+Live `set_keyboard`
 uses a 40-bit active-low matrix (five bits per ULA row); `load_media` reads a
 1..16384-byte regular file into a bounded snapshot before touching the core.
 The blob ABI is filename-independent: ZX81 `.p` and Coleco cartridge bytes use
