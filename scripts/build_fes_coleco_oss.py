@@ -50,6 +50,7 @@ PLACER_CRITICALITY_EXPONENT = 5
 # constants (that would change BUILD_ID and invalidate the search).
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_QOR_BUDGET = 24
+PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -495,6 +496,7 @@ def build(
                 budget=qor_budget,
                 mode=qor_mode,
                 extra=("--router", ROUTER),
+                required=PLACER_QOR_CLOCKS,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc

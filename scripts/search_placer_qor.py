@@ -68,6 +68,13 @@ class Candidate:
         return (self.passing, self.worst_ratio, self.sum_ratio, -self.weight, -self.seed)
 
 
+def _parse_clock(text: str) -> tuple[str | None, float]:
+    if ":" not in text:
+        raise ValueError("clock must be name:mhz or :mhz")
+    name, mhz = text.split(":", 1)
+    return (name or None, float(mhz))
+
+
 def _parse_ints(text: str) -> tuple[int, ...]:
     values = tuple(int(part) for part in text.split(",") if part.strip() != "")
     if not values:
@@ -86,13 +93,11 @@ def _probe_seeds(seeds: Sequence[int]) -> tuple[int, ...]:
     return tuple(ordered)
 
 
-def _score_report(report: Mapping[str, object]) -> tuple[bool, float, float, dict[str, tuple[float, float]]]:
+def _parse_fmax(report: Mapping[str, object]) -> dict[str, tuple[float, float]]:
     raw = report.get("fmax")
     if not isinstance(raw, dict) or not raw:
         raise ValueError("timing report has no fmax table")
     fmax: dict[str, tuple[float, float]] = {}
-    ratios: list[float] = []
-    passing = True
     for name, row in raw.items():
         if not isinstance(row, dict):
             continue
@@ -101,11 +106,40 @@ def _score_report(report: Mapping[str, object]) -> tuple[bool, float, float, dic
         if constraint <= 0:
             raise ValueError(f"non-positive constraint for {name}")
         fmax[str(name)] = (achieved, constraint)
-        ratios.append(achieved / constraint)
-        if achieved < constraint:
-            passing = False
-    if not ratios:
+    if not fmax:
         raise ValueError("timing report has no clock rows")
+    return fmax
+
+
+def _match_clock(
+    fmax: Mapping[str, tuple[float, float]],
+    name_contains: str | None,
+    expected: float,
+) -> tuple[str, float, float]:
+    matches: list[tuple[str, float, float]] = []
+    tolerance = max(1e-6, expected * 5e-5)
+    for name, (achieved, constraint) in fmax.items():
+        if name_contains is not None and name_contains not in name:
+            continue
+        if abs(constraint - expected) <= tolerance:
+            matches.append((name, achieved, constraint))
+    if len(matches) != 1:
+        label = name_contains or f"{expected:g} MHz"
+        raise ValueError(f"timing report must contain exactly one {label} clock")
+    return matches[0]
+
+
+def _score_report(
+    report: Mapping[str, object],
+    required: Sequence[tuple[str | None, float]] | None = None,
+) -> tuple[bool, float, float, dict[str, tuple[float, float]]]:
+    fmax = _parse_fmax(report)
+    if required:
+        rows = [_match_clock(fmax, name, expected) for name, expected in required]
+    else:
+        rows = [(name, achieved, constraint) for name, (achieved, constraint) in fmax.items()]
+    ratios = [achieved / constraint for _, achieved, constraint in rows]
+    passing = all(achieved >= constraint for _, achieved, constraint in rows)
     return passing, min(ratios), sum(ratios), fmax
 
 
@@ -123,6 +157,7 @@ def _run_nextpnr(
     critexp: int,
     extra: Sequence[str],
     timeout: int,
+    required: Sequence[tuple[str | None, float]] | None = None,
 ) -> Candidate:
     run_dir = output / f"s{seed}-w{weight}-c{critexp}"
     if run_dir.exists():
@@ -152,19 +187,69 @@ def _run_nextpnr(
         command += ["--freq", freq]
     try:
         with log_path.open("w") as log:
-            subprocess.run(
+            result = subprocess.run(
                 command,
                 stdout=log,
                 stderr=subprocess.STDOUT,
-                check=True,
+                check=False,
                 timeout=timeout,
             )
-        passing, worst, total, fmax = _score_report(json.loads(report.read_text()))
-    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError, KeyError) as exc:
-        passing, worst, total, fmax = False, 0.0, 0.0, {}
-        extra = f"search_placer_qor: {exc}\n"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        extra_text = f"search_placer_qor: {exc}\n"
         previous = log_path.read_text() if log_path.exists() else ""
-        log_path.write_text(previous + extra)
+        log_path.write_text(previous + extra_text)
+        return Candidate(
+            seed=seed,
+            weight=weight,
+            critexp=critexp,
+            passing=False,
+            worst_ratio=0.0,
+            sum_ratio=0.0,
+            fmax={},
+            log=str(log_path),
+            run_dir=str(run_dir),
+        )
+    text = log_path.read_text() if log_path.exists() else ""
+    rbf = run_dir / "core.rbf"
+    finished = (
+        "Info: Program finished normally." in text
+        and report.is_file()
+        and rbf.is_file()
+        and rbf.stat().st_size > 0
+    )
+    # nextpnr-mistral can emit an intermediate timing ERROR, repair, finish a
+    # payload, and still exit 1. Score a finished run; crash/timeout stays 0.
+    if not finished:
+        if result.returncode != 0:
+            extra_text = f"search_placer_qor: tool failed with exit {result.returncode}\n"
+            log_path.write_text(text + extra_text)
+        return Candidate(
+            seed=seed,
+            weight=weight,
+            critexp=critexp,
+            passing=False,
+            worst_ratio=0.0,
+            sum_ratio=0.0,
+            fmax={},
+            log=str(log_path),
+            run_dir=str(run_dir),
+        )
+    try:
+        passing, worst, total, fmax = _score_report(json.loads(report.read_text()), required)
+    except (ValueError, json.JSONDecodeError, KeyError, OSError) as exc:
+        extra_text = f"search_placer_qor: {exc}\n"
+        log_path.write_text(text + extra_text)
+        return Candidate(
+            seed=seed,
+            weight=weight,
+            critexp=critexp,
+            passing=False,
+            worst_ratio=0.0,
+            sum_ratio=0.0,
+            fmax={},
+            log=str(log_path),
+            run_dir=str(run_dir),
+        )
     return Candidate(
         seed=seed,
         weight=weight,
@@ -235,6 +320,7 @@ def search(
     mode: str,
     extra: Sequence[str],
     timeout: int,
+    required: Sequence[tuple[str | None, float]] | None = None,
     run_one=None,
 ) -> list[Candidate]:
     run = run_one or (
@@ -251,6 +337,7 @@ def search(
             critexp=critexp,
             extra=extra,
             timeout=timeout,
+            required=required,
         )
     )
     results: list[Candidate] = []
@@ -342,6 +429,7 @@ def route_after_synth(
     mode: str,
     extra: Sequence[str],
     timeout: int = 600,
+    required: Sequence[tuple[str | None, float]] | None = None,
     run_one=None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
@@ -364,6 +452,7 @@ def route_after_synth(
         mode=mode,
         extra=extra,
         timeout=timeout,
+        required=required,
         run_one=run_one,
     )
     (dest / "qor-ranking.json").write_text(
@@ -409,10 +498,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--mode", choices=("staged", "grid", "first-pass"), default="staged")
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--extra", nargs="*", default=[])
+    parser.add_argument(
+        "--clock",
+        action="append",
+        default=[],
+        metavar="NAME:MHZ",
+        help="required clock for pass/fail (repeatable). Use :mhz to match constraint only.",
+    )
     args = parser.parse_args(argv)
     try:
         seeds = _parse_ints(args.seeds)
         weights = _parse_ints(args.weights)
+        required = tuple(_parse_clock(item) for item in args.clock) or None
     except ValueError as exc:
         print(f"search_placer_qor: {exc}", file=sys.stderr)
         return 2
@@ -432,6 +529,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         mode=args.mode,
         extra=tuple(args.extra),
         timeout=args.timeout,
+        required=required,
     )
     report = ranking_document(
         ranked,

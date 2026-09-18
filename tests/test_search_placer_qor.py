@@ -8,6 +8,8 @@ from pathlib import Path
 from scripts.search_placer_qor import (
     Candidate,
     SearchError,
+    _run_nextpnr,
+    _score_report,
     extend_seed_sweep,
     plan_staged,
     promote_candidate,
@@ -188,6 +190,96 @@ class SearchPlacerQorTests(unittest.TestCase):
             ranking = json.loads((dest / "qor-ranking.json").read_text())
             self.assertEqual(ranking["winner"]["seed"], 4)
             self.assertEqual(ranking["winner"]["weight"], 300)
+
+    def test_score_report_uses_recipe_clocks_not_the_50mhz_input(self) -> None:
+        report = {
+            "fmax": {
+                "clk_sys": {"achieved": 57.45, "constraint": 52.0},
+                "pixel_clk": {"achieved": 100.0, "constraint": 74.25},
+                "FPGA_CLK1_50": {"achieved": 40.0, "constraint": 50.0},
+            }
+        }
+        passing_all, _, _, _ = _score_report(report)
+        self.assertFalse(passing_all)
+        passing_recipe, worst, _, _ = _score_report(
+            report, required=(("clk_sys", 52.0), (None, 74.25))
+        )
+        self.assertTrue(passing_recipe)
+        self.assertGreater(worst, 1.0)
+
+    def test_finished_nextpnr_exit_1_is_still_scored(self) -> None:
+        fake = r"""#!/usr/bin/env python3
+import json, pathlib, sys
+report = write = rbf = None
+args = sys.argv[1:]
+for i, arg in enumerate(args):
+    if arg == "--report":
+        report = pathlib.Path(args[i + 1])
+    elif arg == "--write":
+        write = pathlib.Path(args[i + 1])
+    elif arg == "--rbf":
+        rbf = pathlib.Path(args[i + 1])
+report.write_text(json.dumps({"fmax": {
+    "clk_sys": {"achieved": 57.45, "constraint": 52.0},
+    "pixel_clk": {"achieved": 100.0, "constraint": 74.25},
+}}))
+write.write_text("{}")
+rbf.write_bytes(b"rbf")
+print("Info: Program finished normally.")
+raise SystemExit(1)
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "nextpnr-mistral"
+            binary.write_text(fake)
+            binary.chmod(0o755)
+            output = Path(directory) / "out"
+            output.mkdir()
+            (Path(directory) / "synth.json").write_text("{}")
+            (Path(directory) / "x.qsf").write_text("")
+            candidate = _run_nextpnr(
+                binary,
+                Path(directory) / "synth.json",
+                output,
+                device="5CSEBA6U23I7",
+                qsf=Path(directory) / "x.qsf",
+                sdc=None,
+                freq="74.25",
+                seed=4,
+                weight=300,
+                critexp=5,
+                extra=(),
+                timeout=10,
+                required=(("clk_sys", 52.0), (None, 74.25)),
+            )
+            self.assertTrue(candidate.passing)
+            self.assertGreater(candidate.worst_ratio, 1.0)
+
+    def test_crashed_nextpnr_is_scored_zero(self) -> None:
+        fake = "#!/usr/bin/env python3\nraise SystemExit(1)\n"
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / "nextpnr-mistral"
+            binary.write_text(fake)
+            binary.chmod(0o755)
+            output = Path(directory) / "out"
+            output.mkdir()
+            (Path(directory) / "synth.json").write_text("{}")
+            (Path(directory) / "x.qsf").write_text("")
+            candidate = _run_nextpnr(
+                binary,
+                Path(directory) / "synth.json",
+                output,
+                device="5CSEBA6U23I7",
+                qsf=Path(directory) / "x.qsf",
+                sdc=None,
+                freq=None,
+                seed=4,
+                weight=10,
+                critexp=5,
+                extra=(),
+                timeout=10,
+            )
+            self.assertFalse(candidate.passing)
+            self.assertEqual(candidate.worst_ratio, 0.0)
 
     def test_route_after_synth_errors_when_nothing_closes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

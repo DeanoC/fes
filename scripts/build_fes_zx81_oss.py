@@ -51,6 +51,7 @@ PLACER_TIMING_WEIGHT = 1000
 PLACER_CRITICALITY_EXPONENT = 5
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_QOR_BUDGET = 24
+PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
 RTL_SOURCES = (
     "cores/fes-zx81/rtl/sys_pll.v",
     "cores/fes-zx81/rtl/pixel_pll.v",
@@ -445,6 +446,7 @@ def build(
                 budget=qor_budget,
                 mode=qor_mode,
                 extra=("--router", "gpu"),
+                required=PLACER_QOR_CLOCKS,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
