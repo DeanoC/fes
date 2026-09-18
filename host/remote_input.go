@@ -622,14 +622,16 @@ func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
 }
 
 func (r *RemoteInput) colecoInputEnabledLocked() bool {
-	return r.core == colecoCoreID && r.keyboard
+	// SMS shares the Coleco P1 direction/Fire1 matrix bits. Both require
+	// the verified keyboard interface; other cores retain their input path.
+	return (r.core == colecoCoreID || r.core == "fes.sms") && r.keyboard
 }
 
 func (r *RemoteInput) colecoDesiredStateLocked() map[remoteinput.Code]bool {
 	snapshot := r.inputState.Snapshot()
 	desired := make(map[remoteinput.Code]bool)
 	for _, code := range snapshot.Pressed {
-		if mapped, ok := colecoButtonKey(code); ok {
+		if mapped, ok := colecoButtonKey(code); ok && !(r.core == "fes.sms" && code == remoteinput.ButtonB) {
 			desired[mapped] = true
 		} else {
 			desired[code] = true

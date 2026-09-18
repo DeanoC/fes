@@ -35,6 +35,23 @@ func TestSessionPassesExactKeyboardCapabilityToRemoteInput(t *testing.T) {
 		wantKeyboard bool
 	}{
 		{
+			name:         "sms keyboard 1.0",
+			core:         "fes.sms",
+			interfaces:   []protocol.RuntimeInterface{{ID: "fes.keyboard", Major: 1, Minor: 0}},
+			wantKeyboard: true,
+		},
+		{
+			name:       "sms wrong keyboard minor with gamepad",
+			core:       "fes.sms",
+			interfaces: []protocol.RuntimeInterface{{ID: "fes.keyboard", Major: 1, Minor: 1}},
+			gamepad:    true,
+		},
+		{
+			name:    "sms without keyboard with gamepad",
+			core:    "fes.sms",
+			gamepad: true,
+		},
+		{
 			name:         "coleco keyboard 1.0",
 			core:         "fes.coleco",
 			interfaces:   []protocol.RuntimeInterface{{ID: "fes.keyboard", Major: 1, Minor: 0}},
