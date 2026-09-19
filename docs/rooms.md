@@ -46,8 +46,11 @@ Ready game shows a FES launch overlay immediately; a second Confirm
 does not POST again while that launch is in flight. Launch failure keeps
 the selected location and offers Retry or Back to room. Pointer tap on
 the compact selected-destination strip is Details (same path as Y / `i`)
-when the destination is a game; it does not Confirm. No essential
-room action is long-press-only or chord-only; see
+when the destination is a game; it does not Confirm. After Stop (and any
+required saving) the same room, selected location, and nested parent stack
+return. A failed save stays on failed-save chrome and is not shown as a
+successful completion. No essential room action is long-press-only or
+chord-only; see
 [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 A room that fails to compile or errors at runtime shows a Go-drawn error

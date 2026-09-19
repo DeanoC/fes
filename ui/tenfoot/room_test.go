@@ -76,6 +76,9 @@ type roomHost struct {
 	launchGate   chan struct{}
 	launchStatus int
 	launchBody   string
+	stopStatus   int
+	stopBody     string
+	stops        int
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -134,8 +137,24 @@ func newRoomHost(t *testing.T) *roomHost {
 			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario"}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
 			h.mu.Lock()
-			h.state = "idle"
+			h.stops++
+			status := h.stopStatus
+			body := h.stopBody
+			if status == 0 {
+				h.state = "idle"
+			}
 			h.mu.Unlock()
+			if status != 0 {
+				if status == http.StatusOK {
+					status = http.StatusInternalServerError
+				}
+				w.WriteHeader(status)
+				if body == "" {
+					body = `{"error":{"code":"SAVE_FAILED","message":"cartridge save could not be written"}}`
+				}
+				_, _ = io.WriteString(w, body)
+				return
+			}
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			h.mu.Lock()

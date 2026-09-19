@@ -364,10 +364,19 @@ func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 	if title == "" {
 		title = strings.TrimSpace(snap.Session.GameID)
 	}
+	heading := nowPlayingHeading(snap)
 	if snap.Session.Diagnostic {
 		title = "DIAGNOSTIC RBF"
+	} else if heading == nowPlayingHeadingSave || heading == nowPlayingHeadingStop {
+		if title == "" {
+			title = heading
+		}
 	} else if title == "" {
 		title = "Session active"
+	}
+	if heading == nowPlayingHeadingSave || heading == nowPlayingHeadingStop {
+		drawLabel(dev, labels, used, "np-head", x, y, maxW, 20, heading)
+		y += 28
 	}
 	drawLabel(dev, labels, used, "np-title", x, y, maxW, 28, title)
 	y += 40
@@ -375,7 +384,7 @@ func drawNowPlaying(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 		drawLabel(dev, labels, used, "np-diag", x, y, maxW, 16, diagnosticHint)
 		y += 28
 	}
-	meta := strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), "Now playing"))
+	meta := strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), nowPlayingHeading(snap)))
 	meta = strings.TrimSpace(strings.TrimPrefix(meta, "  ·  "))
 	if snap.Session.Diagnostic {
 		meta = strings.TrimSpace(strings.TrimPrefix(snap.NowPlayingLine(), diagnosticLabel))
