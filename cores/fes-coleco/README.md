@@ -11,7 +11,9 @@ retail-game compatibility.
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain.
-- Raw 1–16 KiB mailbox media blob, mirrored through `0x8000–0xffff`.
+- Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
+  16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
+  Legacy `fes.media.blob` remains bounded to 1–16 KiB.
 - Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
   proprietary ColecoVision BIOS is embedded.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
@@ -37,15 +39,15 @@ compatibility boundaries.
 | --- | --- |
 | `0x0000–0x1fff` | open reset ROM; reset jumps to `0x8000`, NMI at `0x0066` jumps to `0x8066` |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
-| `0x8000–0xffff` | mirrored 16 KiB cartridge aperture |
+| `0x8000–0xffff` | fixed 32 KiB cartridge aperture; images up to 16 KiB mirror at C000 |
 | I/O `0xbe` | VDP data |
 | I/O `0xbf` | VDP control/status |
 | I/O writes `0x80–0x9f` / `0xc0–0xdf` | select keypad / joystick mode for both players |
 | I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
-The application mailbox advertises fixed video, blob media, `fes.gamepad.ports`
+The application mailbox advertises fixed video, blob media, blob-stream media, `fes.gamepad.ports`
 1.0 and `fes.keypad.ports` 1.0. It does not advertise keyboard or legacy gamepad.
-The common endpoint supplies accepted writes to a console-owned 16 KiB staging
+The common endpoint supplies accepted writes to a console-owned 32 KiB staging
 RAM; `coleco_application_gp` preserves the machine's registered cartridge-copy path.
 The host holds execution reset while uploading and commits media before
 releasing it. GP commit acknowledges publication of the mailbox blob; the
@@ -54,6 +56,26 @@ until `media_ready && media_loaded`, even if the host releases immediately
 after the commit ACK. Both compiler lanes' final registered write completes before
 `media_loaded` permits execution. No host delay or new mailbox operation is
 required. A release without committed media also keeps CPU and VDP in reset.
+
+Stream media uses the existing opcodes 7–12, reflected IEEE CRC32, ordered
+32-bit begin/chunk fields and chunks of at most 512 bytes. This endpoint reports
+1..32768 bytes. Commit requires the entire declared length and matching CRC;
+failed, partial or aborted streams cannot release execution. Abort invalidates
+staging; HOLD preserves staging and neutralizes controllers. The shared endpoint
+keeps streaming optional and disabled by default for existing applications.
+For images larger than 16 KiB, CPU and peek reads past the committed length return
+FF, including after a longer image was previously loaded. There is no bank mapper.
+
+`make coleco-stream-diagnostic` generates original MIT-licensed 24 KiB, 32767-byte
+and 32 KiB ROMs. Their real CPU reads C000, C001 and the final valid byte; shorter
+images also check the first out-of-range address and FFFF for FF. Failure loops
+before video initialization. Success stores A5 at RAM 6000 and paints the existing
+Graphics I frame (`stream-pass.ppm`). `make sim-fes-coleco` transfers these through
+the real mailbox, verifies reset through the final registered copy, checks every
+cartridge byte and exact HDMI frame, and reloads 32 KiB → 24 KiB → 32767 → legacy.
+Both conditional lanes run these checks. Shared golden stream vectors additionally
+exercise CRC errors, incomplete transfers, invalid sequencing, abort, oversize,
+odd chunks and odd-address RAM pairs. Hardware acceptance is a separate FES step.
 
 The machine adapter qualifies each held CPU `OUT` cycle into one VDP write
 strobe. TV80 holds IORQ/WR low across multiple CPU enables; passing every enable

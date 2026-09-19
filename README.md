@@ -6,6 +6,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
 
 ## What works now
 
+- Coleco fixed 32 KiB cartridges use the shared CRC-checked blob-stream endpoint;
+  `make coleco-stream-diagnostic` emits BIOS-free upper-ROM CPU/video checks.
+  Small cartridges retain the legacy 16 KiB mirrored map.
 - Shared controller ports: Coleco uses the composable application endpoint
   with two native digital gamepads and two twelve-key keypads.
   `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.

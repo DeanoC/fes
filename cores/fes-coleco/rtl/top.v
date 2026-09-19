@@ -27,8 +27,8 @@ module top #(
     wire [15:0] controller_buttons;
     wire [23:0] controller_keypad;
     wire media_ready;
-    wire [14:0] media_size;
-    wire [13:0] media_addr;
+    wire [15:0] media_size;
+    wire [14:0] media_addr;
     wire [7:0] media_data;
     wire [7:0] logical_x;
     wire [7:0] logical_y;

@@ -17,8 +17,13 @@ packages keep their own ABI and behavior.
 Video is mandatory for application v1. Parameters `ENABLE_GAMEPAD` and
 `ENABLE_MEDIA` independently enable the eight-button, single-controller
 gamepad and 1–16384-byte blob endpoints. Absent endpoint opcodes reject with
-invalid-opcode; stream opcodes are also rejected and stream capability is not
-advertised by this implementation. Successful mutations return zero.
+invalid-opcode. Optional `ENABLE_MEDIA_STREAM=1` requires `ENABLE_MEDIA=1`
+and implements blob-stream 1.0 with a 32 KiB endpoint limit and IEEE CRC32.
+Default applications still reject stream opcodes. Stream-enabled applications
+receive fifteen-bit `media_write_addr` and sixteen-bit `media_size`; default
+widths remain fourteen and fifteen bits. Accepted byte pairs still target address
+and address+1, low byte first, including odd starting addresses. Successful
+mutations return zero.
 
 `ENABLE_CONTROLLER_PORTS` instead enables `fes.gamepad.ports` 1.0: exactly
 two eight-button logical ports, mutually exclusive with `ENABLE_GAMEPAD`.
@@ -2009,14 +2014,18 @@ game acceptance.
 uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
 as a system reference, but is a reduced Verilog-first adapter around the
 shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
-`fes.keypad.ports` 1.0, fixed video and blob media. A/B map to Fire 1/2; the
+`fes.keypad.ports` 1.0, fixed video, blob and blob-stream media. A/B map to Fire 1/2; the
 twelve keypad bits represent 0..9, *, #. Each active-high full-state write
 addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
 staging RAM preserves registered media-copy timing. The first slice contains a TV80
 Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
 Graphics I and Graphics II video, two active-low controller views and the FES
-fixed-video shell. A raw 1–16 KiB cartridge image is mirrored through the
-16 KiB `0x8000–0xffff` aperture. Audio, BIOS services, expansion hardware, bank
+fixed-video shell. A raw 1–32 KiB cartridge image uses the fixed
+`0x8000–0xffff` aperture. Images up to 16 KiB preserve the prior C000 mirror;
+larger images use all fifteen address bits and return FF beyond committed length.
+The shared stream endpoint validates ordered chunks and complete CRC before
+publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
+holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio, BIOS services, expansion hardware, bank
 switching, full VDP modes, cycle-perfect timing and retail-cartridge
 compatibility remain outside this slice.
 

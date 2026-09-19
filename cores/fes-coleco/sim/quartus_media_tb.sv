@@ -8,8 +8,8 @@ module quartus_media_tb;
     wire reset, ready;
     wire [15:0] controller_buttons;
     wire [23:0] controller_keypad;
-    wire [14:0] size;
-    wire [13:0] address;
+    wire [15:0] size;
+    wire [14:0] address;
     wire [7:0] data, peek_data;
     reg [15:0] peek_addr = 16'h8000;
     coleco_application_gp gp (.clk(clk), .gpo(gpo), .gpi(gpi), .build_id(128'b0),

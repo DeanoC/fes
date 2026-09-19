@@ -3,7 +3,7 @@
 //
 // This is intentionally an adapter-sized machine rather than a claim of full
 // ColecoVision compatibility: the reset shim replaces the proprietary BIOS,
-// the cartridge aperture is a single 16 KiB blob, and the VDP exposes the
+// the cartridge aperture is a fixed 32 KiB image, and the VDP exposes the
 // bounded Graphics I slice implemented in coleco_vdp.sv.
 
 `ifdef FES_COLECO_OSS
@@ -18,9 +18,9 @@ module coleco_machine (
     input  wire [15:0] controller_buttons,
     input  wire [23:0] controller_keypad,
     input  wire        media_ready,
-    input  wire [14:0] media_size,
+    input  wire [15:0] media_size,
     input  wire [7:0]  media_data,
-    output reg  [13:0] media_addr,
+    output reg  [14:0] media_addr,
     input  wire [15:0] peek_addr,
     output reg  [7:0]  peek_data,
     output wire [7:0]  controller1_value,
@@ -33,7 +33,7 @@ module coleco_machine (
     output wire [15:0] cpu_addr_debug,
     output wire        cpu_halt_n
 );
-    localparam [13:0] CARTRIDGE_LAST = 14'h3fff;
+    localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
     reg       media_loaded;
     reg       reset_d;
@@ -44,7 +44,7 @@ module coleco_machine (
 `ifdef FES_COLECO_REGISTERED_MEDIA
     reg       media_data_valid;
     reg       media_request_done;
-    reg [13:0] media_write_addr;
+    reg [14:0] media_write_addr;
 `endif
 
     wire [15:0] cpu_addr;
@@ -145,7 +145,7 @@ module coleco_machine (
                                 keypad_code(controller_keypad[23:12])};
 
     initial begin
-        media_addr = 14'h0000;
+        media_addr = 15'h0000;
         media_loaded = 1'b0;
         reset_d = 1'b0;
         vdp_write_seen = 1'b0;
@@ -153,7 +153,7 @@ module coleco_machine (
 `ifdef FES_COLECO_REGISTERED_MEDIA
         media_data_valid = 1'b0;
         media_request_done = 1'b0;
-        media_write_addr = 14'h0000;
+        media_write_addr = 15'h0000;
 `endif
         ce_cpu_p = 1'b0;
         ce_cpu_n = 1'b0;
@@ -233,13 +233,13 @@ module coleco_machine (
     // byte currently present on media_data. The final request is held for one
     // extra clock so the last registered result is written as well.
     wire media_load_write = !media_loaded && media_ready && media_data_valid;
-    wire [13:0] cartridge_address_a = media_load_write ? media_write_addr :
-                                      cpu_addr[13:0];
+    wire [14:0] cartridge_address_a = media_load_write ? media_write_addr :
+                                      (media_size <= 16'd16384 ? {1'b0, cpu_addr[13:0]} : cpu_addr[14:0]);
     wire cartridge_wren_a = media_load_write;
 `else
-    wire media_load_active = !media_loaded && media_ready && media_size != 15'd0;
-    wire [13:0] cartridge_address_a = media_load_active ? media_addr :
-                                      cpu_addr[13:0];
+    wire media_load_active = !media_loaded && media_ready && media_size != 16'd0;
+    wire [14:0] cartridge_address_a = media_load_active ? media_addr :
+                                      (media_size <= 16'd16384 ? {1'b0, cpu_addr[13:0]} : cpu_addr[14:0]);
     wire cartridge_wren_a = media_load_active;
 `endif
     wire [7:0] cartridge_read;
@@ -250,15 +250,15 @@ module coleco_machine (
     wire [7:0] reset_rom_peek;
 
     coleco_dpram #(
-        .ADDRWIDTH(14),
-        .NUMWORDS(16384)
+        .ADDRWIDTH(15),
+        .NUMWORDS(32768)
     ) cartridge_ram (
         .clock(clk_sys),
         .address_a(cartridge_address_a),
         .data_a(media_data),
         .wren_a(cartridge_wren_a),
         .q_a(cartridge_read),
-        .address_b(peek_addr[13:0]),
+        .address_b(media_size <= 16'd16384 ? {1'b0, peek_addr[13:0]} : peek_addr[14:0]),
         .data_b(8'h00),
         .wren_b(1'b0),
         .q_b(cartridge_peek)
@@ -318,7 +318,7 @@ module coleco_machine (
             else if (cpu_ram_select)
                 cpu_din = ram_read;
             else if (cpu_cartridge_select)
-                cpu_din = cartridge_read;
+                cpu_din = (media_size > 16'd16384 && {1'b0, cpu_addr[14:0]} >= media_size) ? 8'hff : cartridge_read;
         end else if (cpu_io_read) begin
             cpu_din = io_read_data;
         end
@@ -331,24 +331,24 @@ module coleco_machine (
     always @(posedge clk_sys) begin
         reset_d <= reset;
         if (!media_ready || (reset && !reset_d)) begin
-            media_addr <= 14'h0000;
+            media_addr <= 15'h0000;
             media_loaded <= 1'b0;
 `ifdef FES_COLECO_REGISTERED_MEDIA
             media_data_valid <= 1'b0;
             media_request_done <= 1'b0;
-            media_write_addr <= 14'h0000;
+            media_write_addr <= 15'h0000;
 `endif
-        end else if (!media_loaded && media_size != 15'd0) begin
+        end else if (!media_loaded && media_size != 16'd0) begin
 `ifdef FES_COLECO_REGISTERED_MEDIA
             if (!media_data_valid) begin
                 // Prime the registered GP mailbox read. No cartridge write is
                 // enabled until media_data contains byte zero.
                 media_data_valid <= 1'b1;
-                media_write_addr <= 14'h0000;
-                if (media_size == 15'd1)
+                media_write_addr <= 15'h0000;
+                if (media_size == 16'd1)
                     media_request_done <= 1'b1;
                 else
-                    media_addr <= 14'h0001;
+                    media_addr <= 15'h0001;
             end else if (media_request_done) begin
                 // The write enable is still high for this edge, so the final
                 // registered byte is committed before marking the load done.
@@ -357,7 +357,7 @@ module coleco_machine (
             end else begin
                 media_write_addr <= media_write_addr + 1'b1;
                 if (media_addr == CARTRIDGE_LAST ||
-                    ({1'b0, media_addr} + 15'd1 >= media_size)) begin
+                    ({1'b0, media_addr} + 16'd1 >= media_size)) begin
                     media_request_done <= 1'b1;
                 end else begin
                     media_addr <= media_addr + 1'b1;
@@ -365,7 +365,7 @@ module coleco_machine (
             end
 `else
             if (media_addr == CARTRIDGE_LAST ||
-                ({1'b0, media_addr} + 15'd1 >= media_size)) begin
+                ({1'b0, media_addr} + 16'd1 >= media_size)) begin
                 media_loaded <= 1'b1;
             end else begin
                 media_addr <= media_addr + 1'b1;
@@ -381,7 +381,7 @@ module coleco_machine (
         else if (peek_addr[15:13] == 3'b011)
             peek_data = ram_peek;
         else if (peek_addr[15:14] == 2'b10 || peek_addr[15:14] == 2'b11)
-            peek_data = cartridge_peek;
+            peek_data = (media_size > 16'd16384 && {1'b0, peek_addr[14:0]} >= media_size) ? 8'hff : cartridge_peek;
     end
 endmodule
 

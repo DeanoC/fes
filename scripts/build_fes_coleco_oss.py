@@ -440,6 +440,7 @@ def _manifest(
             {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": evidence["build_id"],

@@ -444,7 +444,7 @@ class BuildFesColecoTests(unittest.TestCase):
         fields = tomllib.loads(manifest.decode())
         self.assertEqual(fields["abi"], {"id": "fes.application", "major": 1, "minor": 0})
         self.assertEqual({i["id"] for i in fields["interfaces"]},
-                         {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.video.fixed-720p60"})
+                         {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60"})
         self.assertTrue(all(i["required"] for i in fields["interfaces"]))
         self.assertIn("cores/fes-common/rtl/fes_application_gp.v", RTL_SOURCES)
         self.assertIn("cores/fes-coleco/rtl/coleco_application_gp.v", RTL_SOURCES)
