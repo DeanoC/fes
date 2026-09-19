@@ -8,8 +8,9 @@ browser: the library is still there for "everything", rooms are for curated,
 styled slices.
 
 The intended explore-and-play experience is specified in
-[rooms-experience.md](rooms-experience.md). This page is the authoring
-and API guide.
+[rooms-experience.md](rooms-experience.md). Logical actions map to common
+pads in [rooms-controller-bindings.md](rooms-controller-bindings.md). This
+page is the authoring and API guide.
 
 Rooms are Lua scripts plus data, run inside the launcher in a sandboxed
 [gopher-lua](https://github.com/yuin/gopher-lua) VM (`ui/rooms`). A script
@@ -32,13 +33,15 @@ Rooms live one directory each under the rooms directory:
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
-Open the picker with **h** / **Home** on a keyboard or **hold B** on a
-gamepad; it lists every room plus **Library**. Settings has a **Home** row
+Open the picker with **h** / **Home** on a keyboard, or **hold B** on a
+gamepad (a shortcut, not the only Home route). Settings has a **Home** row
 (`library` or `rooms`, persisted as `home` in `tenfoot.json`, or `-home`)
-that chooses what appears at start. In a room, **B/Esc** goes back (to the
-parent room, then to the picker), **GUIDE/o** still opens settings, and
-safe-area nudges still work. Everything else (d-pad, A, X, Y, shoulders,
-Tab, SELECT) is delivered to the script.
+that chooses what appears at start; **GUIDE/o** opens that system menu as a
+tap. In a room, **B/Esc** goes back (to the parent room, then to the
+picker), **GUIDE/o** still opens settings, and safe-area nudges still work.
+Everything else (d-pad, A, X, Y, shoulders, Tab, SELECT) is delivered to
+the script. No essential room action is long-press-only or chord-only; see
+[rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 A room that fails to compile or errors at runtime shows a Go-drawn error
 panel with the message; Back returns to the picker. A room can never wedge
@@ -91,7 +94,8 @@ Define any of these globals:
 
 Command names: `up down left right select back stop search tab tab_prev
 filter_prev filter_next sort favorite view_prev view_next view_picker
-layout_cycle filters`.
+layout_cycle filters`. There is no `details` command yet; Y / North arrives
+as `search`. See [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 ## API
 

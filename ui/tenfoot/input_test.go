@@ -64,6 +64,45 @@ func TestCommandFromGamepadButtons(t *testing.T) {
 	}
 }
 
+// Essential room actions (docs/rooms-experience.md §3) must have a tap or
+// key route. Long-press may add a shortcut; it must not be the only route.
+// See docs/rooms-controller-bindings.md.
+func TestEssentialRoomActionsHaveTapRoutes(t *testing.T) {
+	t.Parallel()
+	if CommandFromButton(ButtonDPadUp) != CmdUp || CommandFromButton(ButtonDPadDown) != CmdDown ||
+		CommandFromButton(ButtonDPadLeft) != CmdLeft || CommandFromButton(ButtonDPadRight) != CmdRight {
+		t.Fatal("direction d-pad")
+	}
+	if CommandFromButton(ButtonSouth) != CmdSelect {
+		t.Fatal("confirm south/A")
+	}
+	if CommandFromButton(ButtonEast) != CmdBack {
+		t.Fatal("back east/B")
+	}
+	if CommandFromKey("up") != CmdUp || CommandFromKey("down") != CmdDown ||
+		CommandFromKey("left") != CmdLeft || CommandFromKey("right") != CmdRight {
+		t.Fatal("direction arrows")
+	}
+	if CommandFromKey("return") != CmdSelect || CommandFromKey("space") != CmdSelect {
+		t.Fatal("confirm keyboard")
+	}
+	if CommandFromKey("escape") != CmdBack || CommandFromKey("backspace") != CmdBack {
+		t.Fatal("back keyboard")
+	}
+	if CommandFromKey("o") != CmdSettings {
+		t.Fatal("system menu keyboard (SDL GUIDE maps to CmdSettings in sdl.go)")
+	}
+	if longPressCommand(CmdSelect) == CmdSelect || longPressCommand(CmdBack) == CmdBack {
+		t.Fatal("long-press must not replace the tap essential action")
+	}
+	if longPressCommand(CmdSettings) != CmdNone || longPressCommand(CmdUp) != CmdNone {
+		t.Fatal("system menu and direction must not be long-press gated")
+	}
+	if longPressCommand(CmdBack) != CmdHome {
+		t.Fatal("hold B remains a Home shortcut, not the only Home route")
+	}
+}
+
 func TestCommandFromKeyAndStick(t *testing.T) {
 	t.Parallel()
 	if CommandFromKey("right") != CmdRight || CommandFromKey("return") != CmdSelect {

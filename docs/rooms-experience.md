@@ -72,6 +72,14 @@ Use **logical actions**; button prompts match the connected controller.
 
 No essential action may require a long press or button combination as its **only** route.
 
+Physical bindings for Xbox-style, PlayStation-style, generic SDL, keyboard,
+and pointer are in
+[rooms-controller-bindings.md](rooms-controller-bindings.md). Tip tenfoot
+already has tap routes for Direction, Confirm, Back, and System menu.
+Details is specified here and is **not** wired in rooms yet (follow-up with
+task #3). Hold-B rooms picker is a shortcut; Home is also reachable through
+the system menu.
+
 ---
 
 ## 4. Selecting a game
@@ -178,7 +186,7 @@ See companion section below (also summarised in chat). Update status here as ite
 | --- | --- | --- | --- |
 | 0 | Land this doc in-repo (`docs/rooms-experience.md`) | Merged; linked from `docs/rooms.md` | Bot team (doc PR) |
 | 1 | Decide attract-in-room policy | **STATUS done / decided** (2026-09-19): default off while a room is focused; per-room opt-in with optional custom attract | Deano (+ Foggy) |
-| 2 | Logical action ↔ controller binding table | Documented bindings for common pads; no essential long-press-only | Luna / UI |
+| 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Details tap binding remains a follow-up with task #3 | Luna / UI |
 | 3 | Info panel: five availability states | Checking/Missing/Needs choice/Unavailable/Ready with distinct copy + Confirm never no-op | Luna / UI (host match hooks as needed) |
 | 4 | Played vs Completed data contract | Written contract + UI uses it (no false “completed”) | Kepler or host owner + Luna |
 | 5 | Target setup for launch smoke | Can Confirm→Play on at least one Ready title from Mushroom Kingdom | Deano / kit+host |
@@ -190,6 +198,6 @@ See companion section below (also summarised in chat). Update status here as ite
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 2 → 3, with 5 in parallel whenever target is ready, then 6–7, then 8–12. (0 and 1 are done.)
+**Recommended sequence for starting now:** 3, with 5 in parallel whenever target is ready, then 6–7, then 8–12. (0, 1, and 2 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).
