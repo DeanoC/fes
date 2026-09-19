@@ -298,8 +298,10 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 	if len(a.inflight) >= maxInflight {
 		return queue
 	}
-	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-		return queue
+	if a.room == nil || a.roomDetail.ID == "" {
+		if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+			return queue
+		}
 	}
 	ids := a.focusDetailLocked().ScreenshotIDs
 	if len(ids) == 0 {
@@ -334,7 +336,12 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 			continue
 		}
 		slot.phase = coverArtwork
-		gameID := a.games[a.grid.Focus].ID
+		gameID := ""
+		if a.room != nil && a.roomDetail.ID != "" {
+			gameID = a.roomDetail.ID
+		} else if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
+			gameID = a.games[a.grid.Focus].ID
+		}
 		a.screenshotContextLocked()
 		a.inflight[key] = workScreenshot
 		queue = append(queue, pendingWork{

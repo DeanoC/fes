@@ -2,17 +2,17 @@
 -- title resolved from the library by name at load time (game ids are path
 -- based, so rooms search rather than hard-code them). The island node opens
 -- a nested room. The last visited node is remembered between sessions.
+-- Loading results never move the player's selection.
 local Map = require "widgets.nodemap"
-local ease = require "util.ease"
 local color = require "util.color"
 
 local LEVELS = {
-  { id = "dk",    x = 120, y = 420, label = "Donkey Kong",           search = "Donkey Kong",           platform = "arcade" },
-  { id = "smb",   x = 300, y = 360, label = "Super Mario Bros.",     search = "Super Mario Bros",      platform = "nes" },
+  { id = "dk",    x = 120, y = 420, label = "Donkey Kong",           search = "Donkey Kong",           platform = "arcade", note = "The arcade original that started it all." },
+  { id = "smb",   x = 300, y = 360, label = "Super Mario Bros.",     search = "Super Mario Bros.",     platform = "nes", note = "The NES original — one quest, one castle." },
   { id = "smb2",  x = 440, y = 260, label = "Super Mario Bros. 2",   search = "Super Mario Bros. 2",   platform = "nes" },
   { id = "smb3",  x = 600, y = 340, label = "Super Mario Bros. 3",   search = "Super Mario Bros. 3",   platform = "nes" },
   { id = "sml",   x = 700, y = 180, label = "Super Mario Land",      search = "Super Mario Land",      platform = "gb" },
-  { id = "smw",   x = 820, y = 420, label = "Super Mario World",     search = "Super Mario World",     platform = "snes" },
+  { id = "smw",   x = 820, y = 420, label = "Super Mario World",     search = "Super Mario World",     platform = "snes", note = "Keep Yoshi. The SNES overworld this room remembers." },
   { id = "yoshi", x = 980, y = 300, label = "Yoshi's Island",        search = "Yoshi's Island",        platform = "snes" },
   { id = "island", x = 1080, y = 500, label = "Sports Island", room = "example.mario-sports", color = "#2fb457" },
 }
@@ -25,29 +25,47 @@ local map
 local resolving = 0
 local clouds = {}
 
-local function pick(games, wanted)
-  wanted = wanted:lower()
-  for _, g in ipairs(games) do
-    if g.title:lower():find(wanted, 1, true) and g.launchable then return g end
+local function publish()
+  local node = map and map:focused()
+  if not node then destination.clear() return end
+  if node.room then
+    destination.set{ kind = "room", label = node.label, room_id = node.room }
+    return
   end
-  for _, g in ipairs(games) do
-    if g.title:lower():find(wanted, 1, true) then return g end
-  end
-  return games[1]
+  destination.set{
+    kind = "game",
+    label = node.label,
+    system = node.platform,
+    platform = node.platform,
+    query = node.search,
+    game_id = node.game and node.game.id or "",
+    matches = node.matches,
+    resolving = node.search and not node.resolved,
+    missing = node.missing,
+    note = node.note,
+  }
 end
 
 local function resolve(node)
   resolving = resolving + 1
+  node.resolved = false
   library.query({ q = node.search, platform = node.platform, limit = 20 }, function(games, err)
     resolving = resolving - 1
-    if err or not games or #games == 0 then
+    node.resolved = true
+    if err or not games then
       node.missing = true
+      publish()
       return
     end
-    local g = pick(games, node.search)
-    node.game = g
-    node.done = (g.play_count or 0) > 0
-    node.icon = image.cover(g.id)
+    local result = destination.classify(games, { q = node.search })
+    node.matches = result.matches
+    node.missing = result.state == "missing"
+    node.game = result.game
+    if result.game then
+      node.done = (result.game.play_count or 0) > 0
+      node.icon = image.cover(result.game.id)
+    end
+    publish()
   end)
 end
 
@@ -64,6 +82,7 @@ function load()
   for i = 1, 6 do
     clouds[i] = { x = (i - 1) * room.width / 6 + (i * 37) % 90, y = 40 + (i * 53) % 90, w = 90 + (i * 29) % 60, speed = 8 + (i * 7) % 12 }
   end
+  publish()
 end
 
 function update(dt)
@@ -73,27 +92,33 @@ function update(dt)
   end
 end
 
-local function activate(node)
-  if not node then return end
-  if node.room then rooms.open(node.room) return end
-  if node.game then session.launch(node.game.id) end
-end
-
 function on_input(cmd)
   if map:input(cmd) then
     store.set("focus", map.focus)
+    publish()
     return true
   end
-  if cmd == "select" then activate(map:focused()) return true end
   return false
 end
 
-function on_hover(id) if map:on_hover(id) then store.set("focus", map.focus) end end
-function on_activate(id) if map:on_activate(id) then activate(map:focused()) end end
+function on_hover(id)
+  if map:on_hover(id) then
+    store.set("focus", map.focus)
+    publish()
+  end
+end
+
+function on_activate(id)
+  if map:on_activate(id) then
+    store.set("focus", map.focus)
+    publish()
+  end
+end
 
 function on_resume()
   local node = map:focused()
   if node and node.game then node.done = true end
+  publish()
 end
 
 local function cloud(c)
@@ -117,29 +142,5 @@ function draw()
   gfx.text(status, w - 24, 20, { size = 16, align = "right", color = "#ffffff" })
 
   map:draw{ edge_color = "#f4e6b4", node_color = "#e84a3a", done_color = "#2fb457", focus_color = room.theme.accent, path_width = 8, labels_focused_only = true, label_color = "#ffffff" }
-
-  local node = map:focused()
-  if node then
-    local px, py, pw, ph = 24, h - 150, w - 48, 126
-    gfx.rect(px, py, pw, ph, color.with_alpha("#000000", 150))
-    gfx.rect(px, py, 6, ph, room.theme.accent)
-    local tx = px + 28
-    if node.icon and node.icon.ready then
-      gfx.image(node.icon, px + 16, py + 12, 76, 102)
-      tx = px + 110
-    end
-    gfx.text(node.label, tx, py + 14, { size = 26, bold = true, color = "#ffffff" })
-    if node.room then
-      gfx.text("Enter the island", tx, py + 52, { size = 18, color = "#cde" })
-    elseif node.game then
-      local g = node.game
-      local meta = (g.system or ""):upper() .. (g.year ~= "" and ("  ·  " .. g.year) or "")
-      gfx.text(g.title .. "   " .. meta, tx, py + 52, { size = 18, color = "#cde", max_w = pw - (tx - px) - 20 })
-      gfx.text(g.launchable and "Press select to play" or ("Not launchable: " .. (g.launch_block or "unknown")), tx, py + 84, { size = 16, color = g.launchable and room.theme.accent or "#ff8a80" })
-    elseif node.missing then
-      gfx.text("Not in your library yet (" .. node.search .. " on " .. node.platform .. ")", tx, py + 52, { size = 18, color = "#ff8a80" })
-    else
-      gfx.text("Searching the library...", tx, py + 52, { size = 18, color = "#cde" })
-    end
-  end
+  publish()
 end

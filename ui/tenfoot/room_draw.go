@@ -202,7 +202,86 @@ func drawRoom(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuText
 		}
 	}
 	dev.SetBlend(gfx.BlendAlpha)
+	drawRoomDestination(dev, snap, labels, used)
 	drawRoomChrome(dev, snap, labels, used)
+}
+
+func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	pane, ok := roomDestGeom(snap)
+	if !ok {
+		return
+	}
+	d := snap.Room.Destination
+	x, y, w, h := pane.X, pane.Y, pane.W, pane.H
+	fillRect(dev, float32(x), float32(y), float32(w), float32(h), 0, 0, 0, 170)
+	th := drawTheme(snap)
+	fillRect(dev, float32(x), float32(y), 6, float32(h), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
+	pad := 20
+	title := strings.TrimSpace(d.Label)
+	if title == "" {
+		title = "Selected destination"
+	}
+	drawLabel(dev, labels, used, "rd-title", x+pad, y+12, w-2*pad, 24, title)
+	meta := strings.ToUpper(strings.TrimSpace(d.System))
+	if meta == "" {
+		meta = strings.ToUpper(strings.TrimSpace(d.Platform))
+	}
+	if d.Kind == rooms.KindRoom {
+		meta = "ROOM"
+	}
+	if meta != "" {
+		drawLabel(dev, labels, used, "rd-sys", x+pad, y+42, w-2*pad, 16, meta)
+	}
+	status := strings.TrimSpace(d.Status)
+	if status == "" && d.Kind == rooms.KindUnresolved {
+		status = "Matching this location…"
+	}
+	if status != "" {
+		drawLabel(dev, labels, used, "rd-status", x+pad, y+66, w-2*pad, 16, status)
+	}
+	action := strings.TrimSpace(d.Action)
+	if action != "" {
+		drawLabel(dev, labels, used, "rd-action", x+pad, y+88, w-2*pad, 16, action)
+	}
+}
+
+func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	panel, ok := roomChoicePanel(snap)
+	if !ok {
+		return
+	}
+	rows := snap.Room.Choice.Rows
+	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
+	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	drawLabel(dev, labels, used, "rchoice-title", x+16, y+12, panelW-32, 18, "Choose an edition")
+	for i := 0; i < panel.Visible; i++ {
+		idx := panel.Start + i
+		if idx >= len(rows) {
+			break
+		}
+		rowY := panel.rowY(i)
+		if idx == snap.Room.Choice.Index {
+			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
+		}
+		label := strings.TrimSpace(rows[idx].Title)
+		if label == "" {
+			label = rows[idx].ID
+		}
+		sys := strings.ToUpper(strings.TrimSpace(rows[idx].System))
+		if sys != "" {
+			label = label + "  ·  " + sys
+		}
+		if !rows[idx].LaunchEligible() {
+			label = label + "  (unavailable)"
+		}
+		drawLabel(dev, labels, used, fmt.Sprintf("rchoice-%d", idx), x+20, rowY+8, panelW-40, 16, label)
+	}
+	hint := strings.TrimSpace(snap.Room.Choice.Hint)
+	if hint == "" {
+		hint = roomChoiceHint(snap.Affinity)
+	}
+	drawLabel(dev, labels, used, "rchoice-hint", x+16, y+panelH-24, panelW-32, 14, hint)
 }
 
 // drawRoomChrome keeps host/kit health, launch progress and the input hint

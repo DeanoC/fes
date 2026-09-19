@@ -27,6 +27,8 @@ type RoomSnapshot struct {
 	// safe content area) into window pixels.
 	OffsetX, OffsetY int
 	Width, Height    int
+	Destination      rooms.Destination
+	Choice           RoomChoiceSnapshot
 }
 
 // RoomPickerRow is one entry of the home picker.
@@ -160,7 +162,7 @@ func (a *App) openRoomPickerLocked() {
 		a.status = "no rooms installed"
 		return
 	}
-	a.closeDetailLocked()
+	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
@@ -248,7 +250,7 @@ func (a *App) openRoomLocked(id string) {
 		return
 	}
 	a.closeRoomLocked()
-	a.closeDetailLocked()
+	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
@@ -289,6 +291,7 @@ func (a *App) closeRoomLocked() {
 	a.room = nil
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
+	a.closeRoomOverlaysLocked()
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-close", "view": "room:" + id})
 }
 
@@ -304,6 +307,7 @@ func (a *App) closeAllRoomsLocked() {
 // leaveRoomLocked resumes the suspended parent room or, at the root,
 // returns to the picker.
 func (a *App) leaveRoomLocked() {
+	a.closeRoomOverlaysLocked()
 	if n := len(a.roomStack); n > 0 {
 		parent := a.roomStack[n-1]
 		a.roomStack = a.roomStack[:n-1]
@@ -336,36 +340,6 @@ func roomCommandName(cmd Command) string {
 	return strings.ReplaceAll(cmd.String(), "-", "_")
 }
 
-// handleRoomLocked routes a command into the open room. Back leaves the room
-// when the script does not consume it; Home always opens the picker.
-func (a *App) handleRoomLocked(cmd Command) {
-	if a.room == nil {
-		return
-	}
-	if cmd == CmdHome {
-		a.openRoomPickerLocked()
-		return
-	}
-	if a.room.Err() != nil {
-		if cmd == CmdBack || cmd == CmdSelect {
-			a.leaveRoomLocked()
-		}
-		return
-	}
-	handled := a.room.Input(roomCommandName(cmd))
-	a.applyRoomActionsLocked()
-	if a.room == nil {
-		return
-	}
-	if !handled && cmd == CmdBack {
-		if a.launch.Phase == "launching" {
-			a.status = "launch in progress"
-			return
-		}
-		a.leaveRoomLocked()
-	}
-}
-
 func (a *App) applyRoomActionsLocked() {
 	if a.room == nil {
 		return
@@ -375,21 +349,7 @@ func (a *App) applyRoomActionsLocked() {
 		case rooms.ActionLaunch:
 			a.launchFromRoomLocked(act.GameID)
 		case rooms.ActionOpenRoom:
-			parent := a.room
-			pack, ok := a.roomsIndex.Find(act.RoomID)
-			if !ok || !pack.Valid() {
-				a.status = fmt.Sprintf("room %s is not installed", act.RoomID)
-				return
-			}
-			// Suspend the parent instead of closing it so its state is
-			// intact when Back returns here.
-			a.room = nil
-			a.roomStack = append(a.roomStack, parent)
-			a.openRoomLocked(act.RoomID)
-			if a.room == nil {
-				a.roomStack = a.roomStack[:len(a.roomStack)-1]
-				a.room = parent
-			}
+			a.openNestedRoomLocked(act.RoomID)
 			return
 		case rooms.ActionBack:
 			a.leaveRoomLocked()
@@ -542,15 +502,17 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		return RoomSnapshot{}
 	}
 	snap := RoomSnapshot{
-		Open:    true,
-		ID:      a.room.ID(),
-		Title:   a.room.Title(),
-		Frame:   a.roomFrame,
-		Err:     a.roomErr,
-		OffsetX: a.grid.contentLeft(),
-		OffsetY: a.grid.contentTop(),
-		Width:   a.grid.contentWidth(),
-		Height:  a.grid.contentHeight(),
+		Open:        true,
+		ID:          a.room.ID(),
+		Title:       a.room.Title(),
+		Frame:       a.roomFrame,
+		Err:         a.roomErr,
+		OffsetX:     a.grid.contentLeft(),
+		OffsetY:     a.grid.contentTop(),
+		Width:       a.grid.contentWidth(),
+		Height:      a.grid.contentHeight(),
+		Destination: a.roomDestinationLocked(),
+		Choice:      a.roomChoiceSnapshotLocked(),
 	}
 	if withImages {
 		snap.Images = a.room.Images()
@@ -563,7 +525,18 @@ func (a *App) roomHintLocked() string {
 	if a.room != nil && a.room.Err() != nil {
 		return backWord(kind) + " home"
 	}
-	return backWord(kind) + " back  " + homeWord(kind) + " rooms  " + settingsWord(kind) + " settings"
+	if a.roomChoiceOpen {
+		return roomChoiceHint(kind)
+	}
+	if a.detailOpen {
+		return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+	}
+	dest := a.roomDestinationLocked()
+	action := strings.TrimSpace(dest.Action)
+	if action == "" {
+		action = "confirm"
+	}
+	return selectWord(kind) + " " + strings.ToLower(action) + "  " + detailsWord(kind) + " details  " + backWord(kind) + " back  " + homeWord(kind) + " rooms  " + settingsWord(kind) + " settings"
 }
 
 func homeWord(kind InputKind) string {

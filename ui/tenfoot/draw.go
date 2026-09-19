@@ -146,6 +146,10 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 	used := map[string]struct{}{}
 	if snap.Room.Open {
 		drawRoom(dev, snap, textures, labels, used)
+		if snap.Detail.Open {
+			drawDetail(dev, snap, labels, used, textures)
+		}
+		drawRoomChoice(dev, snap, labels, used)
 	} else {
 		dev.Clear(drawTheme(snap).SofaBackground)
 		drawHeader(dev, snap, labels, used)
@@ -465,6 +469,19 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 	}
 	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
 		drawLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*20, textW, 16, line)
+	}
+	lineY += len(wrapWords(detail.Summary, maxChars, summaryLines)) * 20
+	if snap.Room.Open {
+		if note := strings.TrimSpace(snap.Room.Destination.Note); note != "" {
+			credit := snap.Room.Destination.CuratorAttribution()
+			if credit == "" {
+				credit = "Note from this room"
+			}
+			drawLabel(dev, labels, used, "d-note-attr", x+pad, lineY+8, textW, 14, credit)
+			for i, line := range wrapWords(note, maxChars, 3) {
+				drawLabel(dev, labels, used, fmt.Sprintf("d-note-%d", i), x+pad, lineY+28+i*20, textW, 16, line)
+			}
+		}
 	}
 	if geom.Carousel.W > 0 {
 		drawScreenshotCarousel(dev, snap, labels, used, textures, geom.Carousel.X, geom.Carousel.Y, geom.Carousel.W, geom.Carousel.H)
