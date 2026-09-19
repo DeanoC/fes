@@ -3,12 +3,13 @@
 //
 // Package id is fes.sms (FogCast protocol.SystemSMS = "sms"). This is a Coleco
 // / SG-1000 sibling, not a second console stack: TV80, the bounded
-// TMS9918-style VDP, dual-port RAM wrappers and the mailbox blob are the
+// TMS9918-style VDP fallback, dual-port RAM wrappers and the mailbox blob are the
 // Coleco modules. The SMS first slice maps a 32 KiB fixed cartridge at
 // 0x0000-0x7fff (legacy blob 1.0 still 1-16 KiB), 8 KiB RAM at c000 mirrored
 // at e000, and wires the VDP interrupt to Z80 INT rather than NMI. There is
-// no BIOS shim; the cartridge occupies 0x0000. Audio, Mode 4, mappers, banked
-// 48 KiB images and pause-NMI remain outside this slice.
+// no BIOS shim; the cartridge occupies 0x0000. The SMS-owned VDP adds Mode 4
+// while retaining the legacy modes. Audio, mappers, banked 48 KiB images and
+// pause-NMI remain outside this slice.
 
 `ifdef FES_SMS_OSS
 `define FES_SMS_REGISTERED_MEDIA
@@ -32,7 +33,7 @@ module sms_machine (
     output wire [7:0]  port_dd,
     output wire [7:0]  logical_x,
     output wire [7:0]  logical_y,
-    output wire [1:0]  logical_pixel,
+    output wire [5:0]  logical_pixel,
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
@@ -71,7 +72,7 @@ module sms_machine (
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
     wire [7:0] vdp_raster_x;
-    wire [1:0] vdp_raster_pixel;
+    wire [5:0] vdp_raster_color;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
     wire       vdp_status_overflow;
@@ -93,7 +94,7 @@ module sms_machine (
     assign cpu_halt_n = nHALT;
     assign logical_x = vdp_raster_x;
     assign logical_y = vdp_raster_y[7:0];
-    assign logical_pixel = vdp_raster_pixel;
+    assign logical_pixel = vdp_raster_color;
     assign logical_blank = vdp_raster_blank;
     assign vdp_status = {vdp_raster_blank, vdp_status_overflow,
                          vdp_status_collision, vdp_status_fifth_index};
@@ -155,7 +156,7 @@ module sms_machine (
         .DI(cpu_din)
     );
 
-    coleco_vdp vdp (
+    sms_vdp vdp (
         .clk(clk_sys),
         .reset(machine_reset),
         .cpu_ce(vdp_bus_ce),
@@ -168,7 +169,7 @@ module sms_machine (
         .raster_ce(ce_vdp),
         .raster_x(vdp_raster_x),
         .raster_y(vdp_raster_y),
-        .raster_pixel(vdp_raster_pixel),
+        .raster_color(vdp_raster_color),
         .raster_blank(vdp_raster_blank),
         .status_collision(vdp_status_collision),
         .status_overflow(vdp_status_overflow),

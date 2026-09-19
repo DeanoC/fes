@@ -1,17 +1,17 @@
-# FES Master System first slice
+# FES Master System fixed-map slice
 
 This directory is the next FES emulator bring-up after SG-1000. It is a
-reduced Master System-compatible console slice that uses the existing
+bounded Master System-compatible console slice that uses the existing
 `fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
 
 The package id is `fes.sms` (FogCast `protocol.SystemSMS = "sms"` / library
 SMS). Do not use `fes.mastersystem`.
 
 Master System is a Coleco / SG-1000 sibling, not a second console stack.
-TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox,
-both PLL wrappers and the 720p HDMI shell are the Coleco modules. This tree
-supplies the SMS memory map, the 8255 joystick ports, VDP-to-INT wiring, the
-board top, Quartus pins and the oracle recipe.
+TV80, the legacy TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox and
+both PLL wrappers remain Coleco modules. This tree supplies the SMS memory map,
+Mode 4 VDP and six-bit video shell, the 8255 joystick ports, VDP-to-INT wiring,
+the board top, Quartus pins and the oracle recipe.
 
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
@@ -19,7 +19,7 @@ compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). FES parent
 pin and kit HIL remain later jobs.
 
-## Implemented first slice
+## Implemented slice
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
@@ -28,15 +28,20 @@ pin and kit HIL remain later jobs.
   commit read `0xff`, including after a shorter image replaces a longer one.
   There is no BIOS and no reset shim; reset fetches the cartridge.
 - 8 KiB CPU RAM at `0xc000–0xdfff`, mirrored at `0xe000–0xffff`.
-- TMS9918-style VDP ports `0xbe` / `0xbf` and the Coleco Graphics I / bounded
-  Graphics II path. VDP IRQ drives Z80 INT (maskable). Pause NMI is unused.
+- VDP ports `0xbe` / `0xbf` with legacy TMS modes plus SMS Mode 4. Mode 4 has
+  16 KiB VRAM, 32-entry six-bit CRAM, 32×28 tilemaps, tile priority/palette and
+  horizontal/vertical flip, horizontal/vertical scrolling and lock bits, the
+  left-column mask, 8×8/8×16 zoomable sprites, eight-sprite overflow, sprite
+  collision, line interrupts and VBlank interrupts. VDP IRQ drives Z80 INT
+  (maskable). Pause NMI is unused.
 - Two joysticks on the SMS 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
-- Centered 512×384 logical image in the established 1650×750 HDMI timing.
+- Centered 512×384 logical image in the established 1650×750 HDMI timing, with
+  the SMS two-bit-per-channel CRAM expanded to 24-bit HDMI RGB.
 
-Audio (SN76489), Mode 4, Sega mappers, banked/48 KiB cartridges, expansion
-hardware, cycle-perfect clocking and native FogCast/runtime selection remain
-outside this slice. Kit HIL is a later job.
+Audio (SN76489), Sega mappers, banked/48 KiB cartridges, expansion hardware,
+224/240-line modes, PAL timing, cycle-perfect raster effects and native
+FogCast/runtime selection remain outside this slice. Kit HIL is a later job.
 
 ## Memory and host interfaces
 
@@ -89,35 +94,37 @@ Up/Right/Down/Left/Fire1). The SMS 8255 permutes those bits onto DC/DD:
 Neutral ports read `ff`. This is a diagnostic mapping on the unchanged 40-bit
 `fes.simple-computer` keyboard transport, not a new physical-gamepad API.
 
-## Open Graphics I diagnostic
+## Open Mode 4 diagnostic
 
 From the misteross root:
 
 ```sh
 make sms-diagnostic
 python3 cores/fes-sms/diagnostic/generate.py \
-  --output build/diagnostics/fes-sms/graphics-i.rom \
-  --preview build/diagnostics/fes-sms/graphics-i.ppm
+  --output build/diagnostics/fes-sms/mode4.rom \
+  --preview build/diagnostics/fes-sms/mode4.ppm
 python3 cores/fes-sms/diagnostic/generate.py --interactive \
-  --output build/diagnostics/fes-sms/graphics-i-hil.rom \
-  --preview build/diagnostics/fes-sms/graphics-i-hil.ppm
+  --output build/diagnostics/fes-sms/mode4-hil.rom \
+  --preview build/diagnostics/fes-sms/mode4-hil.ppm
 ```
 
 The emitter is BIOS-free and MIT-licensed. Reset enters `0x0000` and jumps to
-code at `0x4000`. Upper-half code paints the Graphics I border/checkerboard plus
-a plus-shaped tile stored only above `0x4000`, writes `A5` at `C000`, captures
-port `DC` at `C001`, and stores distinctive upper-half data `0x18` at `C002`.
-`graphics-i.rom` is the sim regression image and HALTs after that signature.
-`graphics-i-hil.rom` (`--interactive`) keeps the controller poll loop on
+code at `0x4000`. Upper-half code initializes Mode 4 VRAM, both CRAM palettes,
+the `0x3800` name table and `0x3f00` SAT, then paints the border/checkerboard
+plus a flipped, priority-marked and alternate-palette plus tile. It writes `A5`
+at `C000`, captures port `DC` at `C001`, and stores distinctive upper-half data
+`0x18` at `C002`. `mode4.rom` is the sim regression image and HALTs after that
+signature. `mode4-hil.rom` (`--interactive`) keeps the controller poll loop on
 `DC`/`DD` so a HIL display+USB check can Stop/relaunch; it does not HALT
 forever. `--pad-to` admits 32 KiB. This is a bounded diagnostic, not a mapper
 or retail claim. Kit HIL remains later.
 
 `make sim-fes-sms` is the cheap Verilator check: the stream-enabled mailbox
-consumes `cores/fes-sms/generated/stream-exchanges.json`, then the machine
-checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick ports, long-then-short
-`0xff` tails and the optional diagnostic ROM. It is host simulation, not
-hardware acceptance.
+consumes `cores/fes-sms/generated/stream-exchanges.json`; the focused VDP unit
+checks Mode 4 VRAM buffering, CRAM color, tile priority/palette, sprite
+collision, line IRQ and VBlank IRQ; then the machine checks 32 KiB fixed-map
+copy, 8 KiB RAM mirror, joystick ports, long-then-short `0xff` tails and the
+diagnostic ROM. It is host simulation, not hardware acceptance.
 
 `make sim-fes-sms-oss` compiles the registered-media machine and the Coleco
 registered VDP/RAM wrappers with `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`. The
@@ -128,7 +135,7 @@ shared `coleco_dpram` / `coleco_vdp` mappers key off `FES_COLECO_OSS`, not
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sms` 1.0.0. It requires a clean committed tree, writes
+for `fes.sms` 1.1.0. It requires a clean committed tree, writes
 `build/fes-sms-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. `--compile-only` produces the RBF and
 timing evidence without sealing. It does not program hardware.

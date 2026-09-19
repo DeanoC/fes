@@ -5,9 +5,9 @@
 `endif
 
 // DE10-Nano shell for the reduced Master System machine. The mailbox and
-// machine remain in the 52 MHz system domain; the logical frame buffer
-// crosses to the independent 74.25 MHz HDMI pixel domain in the shared
-// Coleco 720p shell. Package id is fes.sms.
+// machine remain in the 52 MHz system domain; the six-bit logical frame buffer
+// crosses to the independent 74.25 MHz HDMI pixel domain in the SMS 720p shell.
+// Package id is fes.sms.
 module top #(
     parameter [127:0] BUILD_ID = `FES_SMS_BUILD_ID
 ) (
@@ -32,7 +32,7 @@ module top #(
     wire [7:0] media_data;
     wire [7:0] logical_x;
     wire [7:0] logical_y;
-    wire [1:0] logical_pixel;
+    wire [5:0] logical_color;
     wire logical_blank;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
@@ -116,7 +116,7 @@ module top #(
         .port_dd(),
         .logical_x(logical_x),
         .logical_y(logical_y),
-        .logical_pixel(logical_pixel),
+        .logical_pixel(logical_color),
         .logical_blank(logical_blank),
         .vdp_status(),
         .cpu_addr_debug(),
@@ -124,13 +124,13 @@ module top #(
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
-    coleco_video_720p video (
+    sms_video_720p video (
         .clk_sys(clk_sys),
         .pixel_clk(pixel_clk),
         .raster_ce(1'b1),
         .logical_x(logical_x),
         .logical_y(logical_y),
-        .logical_pixel(logical_pixel),
+        .logical_color(logical_color),
         .logical_blank(logical_blank),
         .red(HDMI_TX_D[23:16]),
         .green(HDMI_TX_D[15:8]),
