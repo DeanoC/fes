@@ -444,6 +444,45 @@ func (c *Client) SetFavorite(ctx context.Context, gameID string, favorite bool) 
 	return nil
 }
 
+// EditionPreferences loads GET /api/v1/library/edition-preferences.
+func (c *Client) EditionPreferences(ctx context.Context) ([]EditionPreference, error) {
+	var page struct {
+		Preferences []EditionPreference `json:"preferences"`
+	}
+	if err := c.getJSON(ctx, "/api/v1/library/edition-preferences", &page); err != nil {
+		return nil, err
+	}
+	if page.Preferences == nil {
+		page.Preferences = []EditionPreference{}
+	}
+	return page.Preferences, nil
+}
+
+// SetEditionPreference calls PUT /api/v1/library/edition-preferences.
+func (c *Client) SetEditionPreference(ctx context.Context, query, platform, gameID string) (EditionPreference, error) {
+	query = strings.TrimSpace(query)
+	gameID = strings.TrimSpace(gameID)
+	if query == "" {
+		return EditionPreference{}, fmt.Errorf("edition query is empty")
+	}
+	if gameID == "" {
+		return EditionPreference{}, fmt.Errorf("game id is empty")
+	}
+	var result EditionPreference
+	payload := map[string]string{
+		"query":    query,
+		"platform": strings.TrimSpace(platform),
+		"game_id":  gameID,
+	}
+	if err := c.doJSON(ctx, http.MethodPut, "/api/v1/library/edition-preferences", payload, &result); err != nil {
+		return EditionPreference{}, err
+	}
+	if strings.TrimSpace(result.GameID) == "" {
+		result.GameID = gameID
+	}
+	return result, nil
+}
+
 // Facets loads GET /api/v1/library/facets. Nil genre/year arrays become empty.
 func (c *Client) Facets(ctx context.Context) (FacetValues, error) {
 	var values FacetValues

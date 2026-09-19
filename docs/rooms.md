@@ -197,8 +197,11 @@ destinations expose the same `played` / `completed` / `history` fields.
 `destination.get()` / `destination.clear()`.
 
 Confirm never silently no-ops: Ready plays, a room destination enters,
-Needs a choice opens an edition list, Missing opens the library, Checking
-and Unavailable show honest copy (Unavailable also opens Details). Details
+Needs a choice opens an edition list unless a household edition preference
+is saved for that query and platform, Missing opens the library, Checking
+and Unavailable show honest copy (Unavailable also opens Details). A saved
+preference that still matches makes Confirm Play and Details open the shared
+game panel; a stale preference still forces a choice. Details
 (Y / `i`, or a pointer tap on the compact strip) opens the shared
 game-info panel with Play as primary; a room `note` is attributed as
 “Note from <author>”. Strip taps do not steal Direction, Confirm, Back, or

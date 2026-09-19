@@ -38,6 +38,11 @@ type collectionService interface {
 	CollectionIDsByGame(context.Context, []string) (map[string][]string, error)
 }
 
+type editionPreferenceService interface {
+	SetEditionPreference(context.Context, string, string, string) (libraryuser.EditionPreference, error)
+	EditionPreferences(context.Context) ([]libraryuser.EditionPreference, error)
+}
+
 type coverService interface {
 	CoverHandle(context.Context, string) string
 	GameMedia(context.Context, string) (librarymedia.GameMedia, error)
@@ -492,6 +497,65 @@ func writeCollectionError(w http.ResponseWriter, err error) {
 		return
 	}
 	writeSessionError(w, err)
+}
+
+type editionPreferenceWrite struct {
+	Query    string `json:"query"`
+	Platform string `json:"platform"`
+	GameID   string `json:"game_id"`
+}
+
+func handleEditionPreferences(w http.ResponseWriter, r *http.Request, service Service) {
+	if err := rejectBody(w, r); err != nil {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "edition preference request body must be empty")
+		return
+	}
+	store, ok := service.(editionPreferenceService)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"preferences": []editionPreferenceResult{}})
+		return
+	}
+	listed, err := store.EditionPreferences(r.Context())
+	if err != nil {
+		writeSessionError(w, err)
+		return
+	}
+	result := make([]editionPreferenceResult, 0, len(listed))
+	for _, item := range listed {
+		result = append(result, publicEditionPreference(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"preferences": result})
+}
+
+func handleSetEditionPreference(w http.ResponseWriter, r *http.Request, service Service) {
+	store, ok := service.(editionPreferenceService)
+	if !ok {
+		writeError(w, http.StatusNotFound, "EDITION_PREFERENCE_UNAVAILABLE", "edition preferences are unavailable")
+		return
+	}
+	var body editionPreferenceWrite
+	if err := decodeSingleJSON(w, r, &body); err != nil {
+		return
+	}
+	pref, err := store.SetEditionPreference(r.Context(), body.Query, body.Platform, body.GameID)
+	if err != nil {
+		if errors.Is(err, libraryuser.ErrInvalid) {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "edition preference request is invalid")
+			return
+		}
+		writeSessionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicEditionPreference(pref))
+}
+
+func publicEditionPreference(pref libraryuser.EditionPreference) editionPreferenceResult {
+	return editionPreferenceResult{
+		Query:    pref.Query,
+		Platform: pref.Platform,
+		GameID:   pref.GameID,
+		ChosenAt: pref.ChosenAt,
+	}
 }
 
 func handleFavorite(w http.ResponseWriter, r *http.Request, service Service, favorite bool) {

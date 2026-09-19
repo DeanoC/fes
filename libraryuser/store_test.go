@@ -177,3 +177,114 @@ func TestCollectionsRejectReservedAndInvalidIDs(t *testing.T) {
 		t.Fatalf("empty membership map = %v, %v", ids, err)
 	}
 }
+
+func TestEditionPreferenceSaveLoadAndSkipMissing(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "user.sqlite3")
+	store, err := libraryuser.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved, err := store.SetEditionPreference(ctx, "Super Mario Bros.", "NES", "nes-smb-usa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Query != "super mario bros" || saved.Platform != "nes" || saved.GameID != "nes-smb-usa" || saved.ChosenAt == 0 {
+		t.Fatalf("saved = %+v", saved)
+	}
+	got, err := store.EditionPreference(ctx, "super mario bros.", "nes")
+	if err != nil || got.GameID != "nes-smb-usa" || got.Query != "super mario bros" {
+		t.Fatalf("load = %+v, %v", got, err)
+	}
+	replaced, err := store.SetEditionPreference(ctx, "Super Mario Bros", "nes", "nes-smb-jp")
+	if err != nil || replaced.GameID != "nes-smb-jp" {
+		t.Fatalf("replace = %+v, %v", replaced, err)
+	}
+	listed, err := store.EditionPreferences(ctx)
+	if err != nil || len(listed) != 1 || listed[0].GameID != "nes-smb-jp" {
+		t.Fatalf("list = %+v, %v", listed, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := libraryuser.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	again, err := reopened.EditionPreference(ctx, "SUPER MARIO BROS.", "NES")
+	if err != nil || again.GameID != "nes-smb-jp" {
+		t.Fatalf("reopen = %+v, %v", again, err)
+	}
+	if _, err := reopened.EditionPreference(ctx, "Zelda", "nes"); !errors.Is(err, libraryuser.ErrNotFound) {
+		t.Fatalf("missing = %v", err)
+	}
+	if _, err := reopened.SetEditionPreference(ctx, "", "nes", "nes-smb-usa"); !errors.Is(err, libraryuser.ErrInvalid) {
+		t.Fatalf("empty query = %v", err)
+	}
+	if _, err := reopened.SetEditionPreference(ctx, "Mario", "nes", "Not A Game"); !errors.Is(err, libraryuser.ErrInvalid) {
+		t.Fatalf("invalid game = %v", err)
+	}
+}
+
+func TestEditionPreferenceMigratesFromV2AndKeepsGameState(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "user.sqlite3")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE game_state (
+  game_id TEXT PRIMARY KEY,
+  favorite INTEGER NOT NULL DEFAULT 0,
+  favorited_at INTEGER,
+  last_played_at INTEGER,
+  play_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE collections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE collection_membership (
+  collection_id TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (collection_id, game_id),
+  FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+);
+INSERT INTO game_state(game_id, favorite, favorited_at, last_played_at, play_count)
+VALUES('snes-mario-test', 1, 11, 22, 3);
+INSERT INTO collections(id, name, created_at) VALUES('weekend-queue', 'Weekend Queue', 1);
+PRAGMA user_version = 2;
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := libraryuser.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	state, err := store.State(ctx, "snes-mario-test")
+	if err != nil || !state.Favorite || state.PlayCount != 3 {
+		t.Fatalf("migrated state = %+v, %v", state, err)
+	}
+	listed, err := store.Collections(ctx)
+	if err != nil || len(listed) != 1 || listed[0].ID != "weekend-queue" {
+		t.Fatalf("migrated collections = %+v, %v", listed, err)
+	}
+	saved, err := store.SetEditionPreference(ctx, "Mario", "snes", "snes-mario-test")
+	if err != nil || saved.GameID != "snes-mario-test" {
+		t.Fatalf("v3 write = %+v, %v", saved, err)
+	}
+	empty, err := store.EditionPreferences(ctx)
+	if err != nil || len(empty) != 1 {
+		t.Fatalf("v3 list = %+v, %v", empty, err)
+	}
+}

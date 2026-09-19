@@ -1,6 +1,7 @@
 package tenfoot
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -17,11 +18,7 @@ type RoomChoiceSnapshot struct {
 }
 
 func roomPickKey(d rooms.Destination) string {
-	q := strings.TrimSpace(d.Query)
-	if q == "" {
-		q = strings.TrimSpace(d.Label)
-	}
-	return strings.ToLower(q) + "|" + strings.TrimSpace(d.Platform)
+	return rooms.DestinationPreferenceKey(d)
 }
 
 func (a *App) roomDestinationLocked() rooms.Destination {
@@ -29,36 +26,73 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 		return rooms.Destination{}
 	}
 	d := a.room.Destination()
-	if key := roomPickKey(d); key != "|" && a.roomPicks != nil {
+	if key := roomPickKey(d); key != "" && a.roomPicks != nil {
 		if id := strings.TrimSpace(a.roomPicks[key]); id != "" {
-			for _, g := range d.Matches {
-				if g.ID == id {
-					d.GameID = g.ID
-					d.Matches = []hostclient.Game{g}
-					d.Label = g.Title
-					d.System = g.System
-					if g.LaunchEligible() {
-						d.Availability = rooms.AvailReady
-					} else {
-						d.Availability = rooms.AvailUnavailable
-					}
-					d.FillCopy()
-					d.FillHistory()
-					return d
-				}
-			}
+			return rooms.ApplyEditionPreference(d, id)
 		}
 	}
 	return d
 }
 
 func (a *App) rememberRoomPickLocked(d rooms.Destination, game hostclient.Game) {
+	if strings.TrimSpace(game.ID) == "" {
+		return
+	}
 	if a.roomPicks == nil {
 		a.roomPicks = map[string]string{}
 	}
-	if key := roomPickKey(d); key != "|" {
-		a.roomPicks[key] = game.ID
+	key := roomPickKey(d)
+	if key == "" {
+		return
 	}
+	a.roomPicks[key] = game.ID
+	query := strings.TrimSpace(d.Query)
+	if query == "" {
+		query = strings.TrimSpace(d.Label)
+	}
+	platform := strings.TrimSpace(d.Platform)
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go a.persistEditionPreference(ctx, query, platform, game.ID)
+}
+
+func (a *App) persistEditionPreference(ctx context.Context, query, platform, gameID string) {
+	if a == nil || a.client == nil {
+		return
+	}
+	_, _ = a.client.SetEditionPreference(ctx, query, platform, gameID)
+}
+
+func (a *App) mergeEditionPreferencesLocked(prefs []hostclient.EditionPreference) {
+	if a.roomPicks == nil {
+		a.roomPicks = map[string]string{}
+	}
+	for _, pref := range prefs {
+		id := strings.TrimSpace(pref.GameID)
+		key := rooms.DestinationPreferenceKey(rooms.Destination{Query: pref.Query, Platform: pref.Platform})
+		if key == "" || id == "" {
+			continue
+		}
+		if _, exists := a.roomPicks[key]; exists {
+			continue
+		}
+		a.roomPicks[key] = id
+	}
+}
+
+func (a *App) loadEditionPreferences(ctx context.Context) {
+	if a == nil || a.client == nil {
+		return
+	}
+	prefs, err := a.client.EditionPreferences(ctx)
+	if err != nil || ctx.Err() != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.mergeEditionPreferencesLocked(prefs)
 }
 
 func (a *App) closeRoomOverlaysLocked() {

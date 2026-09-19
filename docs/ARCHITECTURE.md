@@ -547,6 +547,7 @@ Native SDL3 UI
   -> PUT or DELETE /api/v1/library/favorites/{id} for the focused title
   -> PUT or DELETE /api/v1/library/collections/{id}/{gameId} for custom-shelf membership
   -> PUT /api/v1/library/collections/{id}?name=... and DELETE /api/v1/library/collections/{id} for custom shelves
+  -> GET /api/v1/library/edition-preferences and PUT /api/v1/library/edition-preferences for household room edition choice
   -> GET /api/v1/presentation/artwork/{handle} from catalog cover handles
     and focused-title screenshot handles
   -> GET /api/v1/presentation/games/{id} for the focused title (studio,

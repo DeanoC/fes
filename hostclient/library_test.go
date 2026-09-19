@@ -191,6 +191,35 @@ func TestClientMutationPreservesHeadersTimeoutsAndReadFailureStatus(t *testing.T
 	}
 }
 
+func TestClientEditionPreferencesSaveAndLoad(t *testing.T) {
+	var puts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/edition-preferences":
+			_, _ = io.WriteString(w, `{"preferences":[{"query":"super mario bros","platform":"nes","game_id":"nes-smb-usa","chosen_at":1}]}`)
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/edition-preferences":
+			puts++
+			body, _ := io.ReadAll(r.Body)
+			if !strings.Contains(string(body), `"game_id":"nes-smb-jp"`) || !strings.Contains(string(body), `"query":"Super Mario Bros."`) {
+				t.Errorf("put body = %s", body)
+			}
+			_, _ = io.WriteString(w, `{"query":"super mario bros","platform":"nes","game_id":"nes-smb-jp","chosen_at":2}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, server.Client())
+	listed, err := client.EditionPreferences(context.Background())
+	if err != nil || len(listed) != 1 || listed[0].GameID != "nes-smb-usa" {
+		t.Fatalf("list = %#v err=%v", listed, err)
+	}
+	saved, err := client.SetEditionPreference(context.Background(), "Super Mario Bros.", "nes", "nes-smb-jp")
+	if err != nil || saved.GameID != "nes-smb-jp" || puts != 1 {
+		t.Fatalf("save = %#v puts=%d err=%v", saved, puts, err)
+	}
+}
+
 type identityTransport struct {
 	base http.RoundTripper
 }

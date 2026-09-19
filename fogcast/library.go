@@ -77,6 +77,48 @@ func (s *Service) RecordPlay(ctx context.Context, gameID string) error {
 	return nil
 }
 
+func (s *Service) SetEditionPreference(ctx context.Context, query, platform, gameID string) (libraryuser.EditionPreference, error) {
+	if s.users == nil {
+		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeInternal, nil)
+	}
+	pref, err := s.users.SetEditionPreference(ctx, query, platform, gameID)
+	if err != nil {
+		if errors.Is(err, libraryuser.ErrInvalid) {
+			return libraryuser.EditionPreference{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return pref, nil
+}
+
+func (s *Service) EditionPreference(ctx context.Context, query, platform string) (libraryuser.EditionPreference, error) {
+	if s.users == nil {
+		return libraryuser.EditionPreference{}, libraryuser.ErrNotFound
+	}
+	pref, err := s.users.EditionPreference(ctx, query, platform)
+	if err != nil {
+		if errors.Is(err, libraryuser.ErrNotFound) {
+			return libraryuser.EditionPreference{}, libraryuser.ErrNotFound
+		}
+		if errors.Is(err, libraryuser.ErrInvalid) {
+			return libraryuser.EditionPreference{}, canonicalError(protocol.CodeBadRequest, nil)
+		}
+		return libraryuser.EditionPreference{}, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return pref, nil
+}
+
+func (s *Service) EditionPreferences(ctx context.Context) ([]libraryuser.EditionPreference, error) {
+	if s.users == nil {
+		return []libraryuser.EditionPreference{}, nil
+	}
+	prefs, err := s.users.EditionPreferences(ctx)
+	if err != nil {
+		return nil, canonicalError(protocol.CodeInternal, safeContextError(err))
+	}
+	return prefs, nil
+}
+
 func (s *Service) Collections(ctx context.Context) ([]libraryuser.Collection, error) {
 	if s.users == nil {
 		return []libraryuser.Collection{}, nil

@@ -350,6 +350,11 @@ make tenfoot-smoke
   generation. Each game may include `favorite` and `collections`.
 - `PUT` / `DELETE /api/v1/library/favorites/{id}` toggles the focused title.
   Unfavoriting while the Favorites view is active reloads that collection.
+- `GET /api/v1/library/edition-preferences` hydrates household room edition
+  choices (`{preferences:[{query,platform,game_id,chosen_at},…]}`) from
+  `libraryuser`. `PUT /api/v1/library/edition-preferences` with
+  `{query,platform,game_id}` remembers Confirm/Details edition choice so a
+  later visit does not re-ask while that `game_id` is still a match.
 - `GET /api/v1/presentation/games/{id}` for the focused title's detail pane
   (title, platform, year, genre, studio, players, summary, screenshot handles,
   and provider attribution). Empty studio, players, and summary are omitted.
@@ -475,7 +480,9 @@ Press **h**/Home or **hold B** for Home (hold B is a shortcut; GUIDE
 or `o` opens Settings, whose Home row Confirm goes Home now). Home lists
 pinned rooms, recently played games, installed rooms, and the full
 library; `-home rooms` (or Settings › Home Left/Right) starts there.
-Room logical-action bindings live in
+When several editions match, Confirm and Details force a choice unless a
+household preference is already saved (`libraryuser` via the edition-preferences
+host API). Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`
 `rooms_dir`, or `<config>/FogCast/rooms`; the embedded `example.*` rooms

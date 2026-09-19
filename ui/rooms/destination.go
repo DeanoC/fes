@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/libraryuser"
 )
 
 // Availability is one of the five destination states in rooms-experience §4.
@@ -106,25 +107,45 @@ func exactTitleMatches(games []hostclient.Game, query string) []hostclient.Game 
 }
 
 func normalizeTitle(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	if s == "" {
-		return ""
+	return libraryuser.CanonicalEditionQuery(s)
+}
+
+// DestinationPreferenceKey is the household edition-preference key for a
+// published location (query, else label, plus platform).
+func DestinationPreferenceKey(d Destination) string {
+	q := strings.TrimSpace(d.Query)
+	if q == "" {
+		q = strings.TrimSpace(d.Label)
 	}
-	b := make([]rune, 0, len(s))
-	lastSpace := false
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b = append(b, r)
-			lastSpace = false
-		case r == ' ' || r == '\t':
-			if !lastSpace && len(b) > 0 {
-				b = append(b, ' ')
-				lastSpace = true
-			}
+	return libraryuser.EditionKey(q, d.Platform)
+}
+
+// ApplyEditionPreference collapses Needs a choice onto the saved edition when
+// that game is still in the current match set. Unknown or stale IDs leave the
+// destination unchanged so Confirm still forces a choice.
+func ApplyEditionPreference(d Destination, gameID string) Destination {
+	gameID = strings.TrimSpace(gameID)
+	if gameID == "" || d.Availability != AvailNeedsChoice {
+		return d
+	}
+	for _, g := range d.Matches {
+		if g.ID != gameID {
+			continue
 		}
+		d.GameID = g.ID
+		d.Matches = []hostclient.Game{g}
+		d.Label = g.Title
+		d.System = g.System
+		if g.LaunchEligible() {
+			d.Availability = AvailReady
+		} else {
+			d.Availability = AvailUnavailable
+		}
+		d.FillCopy()
+		d.FillHistory()
+		return d
 	}
-	return strings.TrimSpace(string(b))
+	return d
 }
 
 // FillCopy sets distinct Status and Action strings for the compact panel.

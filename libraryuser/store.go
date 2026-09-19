@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schemaV1 = `
 CREATE TABLE game_state (
@@ -43,6 +43,18 @@ CREATE INDEX collections_created ON collections(created_at, id);
 CREATE INDEX collection_membership_game ON collection_membership(game_id);
 CREATE INDEX collection_membership_added ON collection_membership(collection_id, added_at DESC, game_id);
 PRAGMA user_version = 2;
+`
+
+const schemaV3 = `
+CREATE TABLE edition_preference (
+  match_key TEXT PRIMARY KEY,
+  query TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT '',
+  game_id TEXT NOT NULL,
+  chosen_at INTEGER NOT NULL
+);
+CREATE INDEX edition_preference_chosen ON edition_preference(chosen_at DESC, match_key);
+PRAGMA user_version = 3;
 `
 
 type State struct {
@@ -116,6 +128,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 1 {
 		if _, err := connection.ExecContext(ctx, schemaV2); err != nil {
 			return fmt.Errorf("apply user library schema v2: %w", err)
+		}
+		version = 2
+	}
+	if version == 2 {
+		if _, err := connection.ExecContext(ctx, schemaV3); err != nil {
+			return fmt.Errorf("apply user library schema v3: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

@@ -385,3 +385,78 @@ func TestRoomDestinationStripPointerOpensDetails(t *testing.T) {
 		t.Fatalf("Confirm must still launch, launches=%v", h.launches)
 	}
 }
+
+func enterOverworldChoice(t *testing.T, app *App, now time.Time) {
+	t.Helper()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "room dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == "overworld"
+	})
+	app.HandleCommand(CmdSortCycle, now)
+}
+
+func TestRoomEditionPreferencePersistsAndSkipsReask(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+		testRoomPack(t, "nested", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	enterOverworldChoice(t, app, now)
+
+	snap := app.Snapshot()
+	if snap.Room.Destination.Availability != rooms.AvailNeedsChoice || snap.Room.Destination.Confirm() != rooms.ConfirmChoose {
+		t.Fatalf("unsaved dest %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	snap = app.Snapshot()
+	if !snap.Room.Choice.Open || len(snap.Room.Choice.Rows) != 2 {
+		t.Fatalf("must force a choice %+v", snap.Room.Choice)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "choice launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if !strings.Contains(strings.Join(h.launches, " "), "nes-smb-usa") {
+		t.Fatalf("launches %v", h.launches)
+	}
+	waitForPrefs(t, h, 1)
+	app.HandleCommand(CmdStop, now)
+	waitFor(t, app, "unpark", func(s Snapshot) bool { return !s.GPUParked })
+	app.Stop()
+
+	revisit := newRoomApp(t, h, index, true)
+	enterOverworldChoice(t, revisit, now)
+	snap = waitFor(t, revisit, "preferred dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady && s.Room.Destination.GameID == "nes-smb-usa"
+	})
+	if snap.Room.Choice.Open || snap.Room.Destination.Confirm() != rooms.ConfirmLaunch || snap.Room.Destination.Action != "Play" {
+		t.Fatalf("revisit must skip re-ask %+v choice=%+v", snap.Room.Destination, snap.Room.Choice)
+	}
+
+	revisit.HandleCommand(CmdDetails, now)
+	snap = revisit.Snapshot()
+	if !snap.Detail.Open || snap.Room.Choice.Open || snap.FocusDetail.Title == "" || !snap.Room.Open {
+		t.Fatalf("details with preference %+v choice=%+v room=%v title=%q", snap.Detail, snap.Room.Choice, snap.Room.Open, snap.FocusDetail.Title)
+	}
+	revisit.HandleCommand(CmdBack, now)
+	if revisit.Snapshot().Detail.Open || !revisit.Snapshot().Room.Open {
+		t.Fatal("Back must close Details and keep the room")
+	}
+	revisit.HandleCommand(CmdSettings, now)
+	if !revisit.Snapshot().Settings.Open || !revisit.Snapshot().Room.Open {
+		t.Fatal("system menu must still open over a room")
+	}
+	revisit.HandleCommand(CmdBack, now)
+
+	before := h.launchCount()
+	revisit.HandleCommand(CmdSelect, now)
+	waitFor(t, revisit, "preferred launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != before+1 {
+		t.Fatalf("confirm launches=%v", h.launches)
+	}
+	if !strings.Contains(h.launches[len(h.launches)-1], "nes-smb-usa") {
+		t.Fatalf("revisit launch %v", h.launches)
+	}
+}
