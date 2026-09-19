@@ -57,7 +57,7 @@ help:
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
-		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
+		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
@@ -328,10 +328,10 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
 		cores/fes-coleco/rtl/coleco_machine.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/coleco_video_720p.v \
@@ -396,10 +396,10 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board-oss" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
 		cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_video_720p.v \

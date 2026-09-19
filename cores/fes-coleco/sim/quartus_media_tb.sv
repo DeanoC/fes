@@ -6,15 +6,16 @@ module quartus_media_tb;
     reg [31:0] gpo = 0;
     wire [31:0] gpi;
     wire reset, ready;
-    wire [39:0] keyboard;
+    wire [15:0] controller_buttons;
+    wire [23:0] controller_keypad;
     wire [14:0] size;
     wire [13:0] address;
     wire [7:0] data, peek_data;
     reg [15:0] peek_addr = 16'h8000;
-    fes_computer_gp gp (.clk(clk), .gpo(gpo), .gpi(gpi), .build_id(128'b0),
-        .exec_reset(reset), .keyboard(keyboard), .media_ready(ready),
+    coleco_application_gp gp (.clk(clk), .gpo(gpo), .gpi(gpi), .build_id(128'b0),
+        .exec_reset(reset), .controller_buttons(controller_buttons), .controller_keypad(controller_keypad), .media_ready(ready),
         .media_size(size), .media_addr(address), .media_q(data));
-    coleco_machine machine (.clk_sys(clk), .reset(reset), .keyboard(keyboard),
+    coleco_machine machine (.clk_sys(clk), .reset(reset), .controller_buttons(controller_buttons), .controller_keypad(controller_keypad),
         .media_ready(ready), .media_size(size), .media_addr(address), .media_data(data),
         .peek_addr(peek_addr), .peek_data(peek_data));
     reg toggle = 0;

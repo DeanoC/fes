@@ -33,7 +33,7 @@ TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-coleco-quartus")
 RECIPE = "scripts/build_fes_coleco.py"
-ABI_DEFINITION = "cores/fes-coleco/generated/fes_simple_computer.vh"
+ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF_PINS = "cores/fes-coleco/constraints.qsf"
 SDC = "cores/fes-coleco/clocks.sdc"
 RESET_ROM_HEX = "cores/fes-coleco/rtl/coleco_reset_rom.hex"
@@ -41,7 +41,8 @@ RESET_ROM_MIF = "cores/fes-coleco/rtl/coleco_reset_rom.mif"
 VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/sys_pll.v",
     "cores/fes-coleco/rtl/pixel_pll.v",
-    "cores/fes-coleco/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_application_gp.v",
+    "cores/fes-coleco/rtl/coleco_application_gp.v",
     "cores/fes-coleco/rtl/coleco_dpram.v",
     "cores/fes-coleco/rtl/coleco_video_dpram.v",
     "cores/fes-coleco/rtl/coleco_vdp.sv",
@@ -202,7 +203,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         "set_global_assignment -name SEED 1",
         "set_global_assignment -name VERILOG_INPUT_VERSION SYSTEMVERILOG_2005",
         'set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"',
-        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-coleco/generated"',
+        f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_COLECO_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
@@ -316,7 +317,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "core": {
             "id": "fes.coleco",
             "name": "FES ColecoVision",
-            "description": "Quartus bring-up ColecoVision computer for the FES simple-computer ABI",
+            "description": "Quartus bring-up ColecoVision computer for the FES application ABI",
             "version": "1.0.0",
         },
         "target": {
@@ -325,9 +326,10 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "programming_profile": "fes-gp-v1",
         },
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
-        "abi": {"id": "fes.simple-computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
-            {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
         ],

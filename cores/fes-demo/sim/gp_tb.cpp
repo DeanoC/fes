@@ -52,7 +52,7 @@ struct Mailbox {
 };
 int main(int argc, char** argv) {
     Verilated::commandArgs(argc,argv);
-    if (argc == 2) {
+    if (argc >= 2) {
         Mailbox fixture;
         std::ifstream stream(argv[1]);
         require(bool(stream), "fixture missing");
@@ -62,13 +62,19 @@ int main(int argc, char** argv) {
             require((fields ^ request) == 0x80000000, "fixture framing");
             fixture.command((request >> 24) & 127, (request >> 16) & 255, request & 65535);
             require(fixture.dut.gpi == expected, "shared fixture response mismatch");
+            if (argc == 3) {
+                unsigned buttons0, buttons1, keypad0, keypad1;
+                require(bool(stream >> buttons0 >> buttons1 >> keypad0 >> keypad1), "missing state fixture");
+                require(fixture.dut.controller_buttons == (buttons0 | (buttons1 << 8)), "shared fixture buttons mismatch");
+                require(fixture.dut.controller_keypad == (keypad0 | (keypad1 << 12)), "shared fixture keypad mismatch");
+            }
             ++count;
         }
         require(count > 0, "empty shared fixture");
     }
     Mailbox m;
     require(m.dut.exec_reset && !m.dut.buttons && !m.dut.media_ready, "startup state");
-    const unsigned identity[] = {0x4546,0x3153,1,0,3,1,0,2|GAMEPAD|(MEDIA<<2)|(AUDIO<<4),
+    const unsigned identity[] = {0x4546,0x3153,1,0,3,1,0,2|GAMEPAD|(MEDIA<<2)|(AUDIO<<4)|(PORTS<<5)|(KEYPAD<<6),
         0x1100,0x3322,0x5544,0x7766,0x9988,0xbbaa,0xddcc,0xffee};
     for(unsigned i=0;i<16;++i) require(m.command(1,i,0)==identity[i], "identity mismatch");
     m.error(1,16,0,2); m.error(1,0,1,3); m.error(127,0,0,1);
@@ -78,6 +84,23 @@ int main(int argc, char** argv) {
         m.error(3,1,0,2); m.error(3,0,256,3);
         require(m.dut.buttons==0xa5,"invalid command changed buttons");
     } else m.error(3,0,1,1);
+    require(!m.dut.controller_buttons && !m.dut.controller_keypad, "ports start neutral");
+    if (PORTS) {
+        m.ok(13,0,0xa5); m.ok(13,1,0x5a);
+        require(m.dut.controller_buttons == 0x5aa5, "ports crossed");
+        m.error(13,2,0,2); m.error(13,255,0,2); m.error(13,1,256,3);
+        m.error(3,0,0,1);
+        require(m.dut.controller_buttons == 0x5aa5, "invalid write mutated ports");
+        m.ok(13,0,0); require(m.dut.controller_buttons == 0x5a00, "release affected other player");
+    } else m.error(13,0,1,1);
+    if (KEYPAD) {
+        m.ok(14,0,0x801); m.ok(14,1,0x402);
+        require(m.dut.controller_keypad == 0x402801, "keypad ports crossed");
+        m.error(14,2,0,2); m.error(14,255,0,2); m.error(14,0,4096,3);
+        require(m.dut.controller_keypad == 0x402801, "invalid write mutated keypads");
+    } else m.error(14,0,1,1);
+    m.ok(2,0,0);
+    require(!m.dut.controller_buttons && !m.dut.controller_keypad, "HOLD did not release all input");
     if (MEDIA) {
         m.error(2,0,1,4); // Cannot execute before first complete asset.
         m.error(4,0,0,3); m.error(4,0,16385,3);
@@ -86,9 +109,12 @@ int main(int argc, char** argv) {
         m.ok(5,0,0x3412);
         m.error(4,0,1,4); // Failed nested BEGIN preserves partial data.
         if (GAMEPAD) m.ok(3,0,0x18);
+        if (PORTS) { m.ok(13,0,0x11); m.ok(13,1,0x28); }
+        if (KEYPAD) { m.ok(14,0,1); m.ok(14,1,2048); }
         require(m.command(1,4,0)==3,"interleaved identity");
         m.ok(2,0,0); // HOLD preserves partial transfer and neutralizes input.
         require(!m.dut.buttons,"HOLD did not neutralize input");
+        require(!m.dut.controller_buttons && !m.dut.controller_keypad,"HOLD during media left controller state");
         m.error(2,0,1,4); m.error(6,0,0,4);
         m.error(5,1,0x100,3); m.ok(5,1,0x56); m.ok(6,0,0);
         require(m.bytes==std::vector<uint8_t>({0x12,0x34,0x56}),"interleaving corrupted media");

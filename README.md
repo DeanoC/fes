@@ -6,6 +6,9 @@ development possible with both the open-source Mistral toolchain and Quartus.
 
 ## What works now
 
+- Shared controller ports: Coleco uses the composable application endpoint
+  with two native digital gamepads and two twelve-key keypads.
+  `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.
 - Composable application reference RTL and simulations: `make sim-fes-demo`
   checks video-only, gamepad/palette-media, and gamepad/stereo-audio configurations.
   `make build-fes-demo`, `make build-fes-demo-media`, and `make build-fes-demo-audio` use the authenticated

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Reduced ColecoVision machine for the FES simple-computer bringup.
+// Reduced ColecoVision machine for the FES application interface.
 //
 // This is intentionally an adapter-sized machine rather than a claim of full
 // ColecoVision compatibility: the reset shim replaces the proprietary BIOS,
@@ -15,7 +15,8 @@
 module coleco_machine (
     input  wire        clk_sys,
     input  wire        reset,
-    input  wire [39:0] keyboard,
+    input  wire [15:0] controller_buttons,
+    input  wire [23:0] controller_keypad,
     input  wire        media_ready,
     input  wire [14:0] media_size,
     input  wire [7:0]  media_data,
@@ -115,31 +116,33 @@ module coleco_machine (
     function [3:0] keypad_code;
         input [11:0] keys;
         begin
-            if      (!keys[0])  keypad_code = 4'ha;
-            else if (!keys[1])  keypad_code = 4'hd;
-            else if (!keys[2])  keypad_code = 4'h7;
-            else if (!keys[3])  keypad_code = 4'hc;
-            else if (!keys[4])  keypad_code = 4'h2;
-            else if (!keys[5])  keypad_code = 4'h3;
-            else if (!keys[6])  keypad_code = 4'he;
-            else if (!keys[7])  keypad_code = 4'h5;
-            else if (!keys[8])  keypad_code = 4'h1;
-            else if (!keys[9])  keypad_code = 4'hb;
-            else if (!keys[10]) keypad_code = 4'h9;
-            else if (!keys[11]) keypad_code = 4'h6;
+            if      (keys[0])  keypad_code = 4'ha;
+            else if (keys[1])  keypad_code = 4'hd;
+            else if (keys[2])  keypad_code = 4'h7;
+            else if (keys[3])  keypad_code = 4'hc;
+            else if (keys[4])  keypad_code = 4'h2;
+            else if (keys[5])  keypad_code = 4'h3;
+            else if (keys[6])  keypad_code = 4'he;
+            else if (keys[7])  keypad_code = 4'h5;
+            else if (keys[8])  keypad_code = 4'h1;
+            else if (keys[9])  keypad_code = 4'hb;
+            else if (keys[10]) keypad_code = 4'h9;
+            else if (keys[11]) keypad_code = 4'h6;
             else               keypad_code = 4'hf;
         end
     endfunction
 
     // D7=0, D5/D4=1 for stationary standard controllers; no quadrature input.
-    // Existing first two rows retain directions/fire1; spare matrix bits carry
-    // fire2 and the two keypads. The FES keyboard wire contract is unchanged.
-    assign controller1_value = {1'b0, controller_joystick ? keyboard[4] : keyboard[10],
-                                2'b11, controller_joystick ? keyboard[3:0] :
-                                keypad_code(keyboard[23:12])};
-    assign controller2_value = {1'b0, controller_joystick ? keyboard[9] : keyboard[11],
-                                2'b11, controller_joystick ? keyboard[8:5] :
-                                keypad_code(keyboard[35:24])};
+    // Shared buttons are Up, Down, Left, Right, A, B, Select, Start.
+    // Standard Coleco maps A/B to fire buttons; Select/Start are unused.
+    assign controller1_value = {1'b0, ~(controller_joystick ? controller_buttons[4] : controller_buttons[5]),
+                                2'b11, controller_joystick ?
+                                ~{controller_buttons[2], controller_buttons[1], controller_buttons[3], controller_buttons[0]} :
+                                keypad_code(controller_keypad[11:0])};
+    assign controller2_value = {1'b0, ~(controller_joystick ? controller_buttons[12] : controller_buttons[13]),
+                                2'b11, controller_joystick ?
+                                ~{controller_buttons[10], controller_buttons[9], controller_buttons[11], controller_buttons[8]} :
+                                keypad_code(controller_keypad[23:12])};
 
     initial begin
         media_addr = 14'h0000;

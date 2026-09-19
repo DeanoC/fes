@@ -4,6 +4,8 @@
 // One-request-at-a-time HPS GPO/GPI mailbox for fes.application 1.0.
 module fes_application_gp #(
     parameter bit ENABLE_GAMEPAD = 0,
+    parameter bit ENABLE_CONTROLLER_PORTS = 0,
+    parameter bit ENABLE_KEYPAD_PORTS = 0,
     parameter bit ENABLE_MEDIA = 0,
     parameter bit ENABLE_AUDIO = 0
 ) (
@@ -13,6 +15,8 @@ module fes_application_gp #(
     output wire [31:0]  gpi,
     output reg          exec_reset,
     output reg [7:0]    buttons,
+    output reg [15:0]   controller_buttons,
+    output reg [23:0]   controller_keypad,
     output wire [13:0]  media_write_addr,
     output wire [15:0]  media_write_data,
     output wire [1:0]   media_write_enable,
@@ -25,6 +29,8 @@ module fes_application_gp #(
     localparam [31:0] CAPABILITIES =
         `FES_APPLICATION_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK |
         (ENABLE_GAMEPAD ? `FES_APPLICATION_INTERFACE_GAMEPAD_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_CONTROLLER_PORTS ? `FES_APPLICATION_INTERFACE_GAMEPAD_PORTS_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_KEYPAD_PORTS ? `FES_APPLICATION_INTERFACE_KEYPAD_PORTS_CAPABILITY_MASK : 32'd0) |
         (ENABLE_MEDIA ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK : 32'd0) |
         (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
@@ -126,6 +132,8 @@ module fes_application_gp #(
     endtask
 
     initial begin
+        if (ENABLE_GAMEPAD && ENABLE_CONTROLLER_PORTS) $error("gamepad interfaces are mutually exclusive");
+        if (ENABLE_KEYPAD_PORTS && !ENABLE_CONTROLLER_PORTS) $error("keypad requires controller ports");
         request_meta = 1'b0;
         request_sync = 1'b0;
         acknowledged_toggle = 1'b0;
@@ -141,6 +149,8 @@ module fes_application_gp #(
         media_byte1 = 8'h00;
         media_byte2 = 8'h00;
         buttons = 8'd0;
+        controller_buttons = 16'd0;
+        controller_keypad = 24'd0;
     end
 
     always @(posedge clk) begin
@@ -168,6 +178,8 @@ module fes_application_gp #(
                         exec_reset <= 1'b1;
                         // HOLD preserves staged media; BEGIN replaces it.
                         buttons <= 8'd0;
+                        controller_buttons <= 16'd0;
+                        controller_keypad <= 24'd0;
                     end else if (command_argument == `FES_APPLICATION_EXECUTION_RELEASE) begin
                         if (ENABLE_MEDIA && (!media_ready || media_open))
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
@@ -186,6 +198,30 @@ module fes_application_gp #(
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
                     else
                         buttons <= command_argument[7:0];
+                end
+                `FES_APPLICATION_OPCODE_CONTROLLER_BUTTONS: begin
+                    if (!ENABLE_CONTROLLER_PORTS)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (command_index >= `FES_APPLICATION_CONTROLLER_PORT_COUNT)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                    else if ((command_argument & ~`FES_APPLICATION_CONTROLLER_BUTTON_MASK) != 0)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                    else if (command_index == 0)
+                        controller_buttons[7:0] <= command_argument[7:0];
+                    else
+                        controller_buttons[15:8] <= command_argument[7:0];
+                end
+                `FES_APPLICATION_OPCODE_CONTROLLER_KEYPAD: begin
+                    if (!ENABLE_KEYPAD_PORTS)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (command_index >= `FES_APPLICATION_CONTROLLER_PORT_COUNT)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                    else if ((command_argument & ~`FES_APPLICATION_CONTROLLER_KEYPAD_MASK) != 0)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                    else if (command_index == 0)
+                        controller_keypad[11:0] <= command_argument[11:0];
+                    else
+                        controller_keypad[23:12] <= command_argument[11:0];
                 end
                 `FES_APPLICATION_OPCODE_MEDIA_BEGIN: begin
                     if (!ENABLE_MEDIA)

@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     Verilated::randSeed(0x9918);
     Vcoleco_machine dut;
     dut.clk_sys = 0; dut.reset = 1; dut.media_ready = 0;
-    dut.keyboard = 0xffffffffffULL; dut.peek_addr = 0; dut.media_data = 0;
+    dut.controller_buttons = 0; dut.controller_keypad = 0; dut.peek_addr = 0; dut.media_data = 0;
     dut.eval();
     for (int file = 1; file < argc; ++file) {
         std::ifstream input(argv[file], std::ios::binary);

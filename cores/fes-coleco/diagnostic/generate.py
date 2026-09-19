@@ -188,6 +188,10 @@ def main() -> None:
             return int(value, 16)
     parser.add_argument("--matrix", type=matrix_value, default=0xFFFFFFFFFF,
                         help="preview-only active-low 40-bit integer or hexadecimal matrix")
+    parser.add_argument("--buttons", type=matrix_value, nargs=2, metavar=("P1", "P2"),
+                        help="preview-only native active-high gamepad states (0..255)")
+    parser.add_argument("--keypads", type=matrix_value, nargs=2, metavar=("P1", "P2"),
+                        help="preview-only native active-high keypad states (0..4095)")
     parser.add_argument("--row0", type=int, default=31, help="preview-only active-low player 1 bits (0..31)")
     parser.add_argument("--row1", type=int, default=31, help="preview-only active-low player 2 bits (0..31)")
     args = parser.parse_args()
@@ -201,6 +205,20 @@ def main() -> None:
         parser.error("--matrix must fit 40 bits")
     if not args.controllers and args.matrix != 0xFFFFFFFFFF:
         parser.error("--matrix requires --controllers")
+    if args.buttons is not None or args.keypads is not None:
+        if not args.controllers or args.matrix != 0xFFFFFFFFFF:
+            parser.error("native states require --controllers and cannot mix with --matrix")
+        buttons, keypads = args.buttons or [0, 0], args.keypads or [0, 0]
+        if any(not 0 <= x <= 255 for x in buttons) or any(not 0 <= x <= 4095 for x in keypads):
+            parser.error("buttons must be 0..255 and keypads 0..4095")
+        # Reuse the independent historical CPU-bus oracle; no ROM bytes change.
+        pressed = 0
+        for p, pad in enumerate(buttons):
+            old = (pad & 1) | ((pad & 8) >> 2) | ((pad & 2) << 1) | ((pad & 4) << 1) | (pad & 16)
+            pressed |= old << (5*p)
+            pressed |= ((pad >> 5) & 1) << (10+p)
+            pressed |= keypads[p] << (12+12*p)
+        args.matrix = 0xFFFFFFFFFF ^ pressed
     data = cartridge(args.interactive, args.controllers)
     if args.pad_to is not None:
         if not len(data) <= args.pad_to <= 16384:

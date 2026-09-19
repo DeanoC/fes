@@ -20,6 +20,17 @@ gamepad and 1–16384-byte blob endpoints. Absent endpoint opcodes reject with
 invalid-opcode; stream opcodes are also rejected and stream capability is not
 advertised by this implementation. Successful mutations return zero.
 
+`ENABLE_CONTROLLER_PORTS` instead enables `fes.gamepad.ports` 1.0: exactly
+two eight-button logical ports, mutually exclusive with `ENABLE_GAMEPAD`.
+`ENABLE_KEYPAD_PORTS` additionally enables `fes.keypad.ports` 1.0 and requires
+controller ports. Opcodes 13/14 publish full active-high button/keypad states
+at index 0 or 1. Keypad bits 0..11 mean 0..9, *, #. Invalid ports, reserved bits
+and absent interfaces reject without state changes. HOLD clears both ports.
+`controller_buttons[7:0]` / `[15:8]` and `controller_keypad[11:0]` / `[23:12]`
+carry player 1 / player 2 in the endpoint clock domain. Reuse these vectors
+directly in custom applications; adapt button semantics only at the core edge.
+Zero states release a disconnected input source; hardware does not track devices.
+
 The endpoint starts held in reset with neutral buttons. Media BEGIN requires
 held execution and no open transfer, clears readiness and starts replacement.
 Pair writes are low byte first; the tail command accepts only the final odd
@@ -68,7 +79,7 @@ is required before synthesis and again before export. It produces ordinary
 format-2 packages under `build/packages/` after those checks, and never programs
 hardware. Parent image selection is a separate integrator action.
 
-`make sim-fes-demo` checks all four capability combinations, shared wire
+`make sim-fes-demo` checks eight capability combinations, shared wire
 fixtures, interleaved input/identity/HOLD during blob loading, invalid command
 isolation, full 16 KiB transfer and short replacement. It also checks three
 full video frames and both production tops with controllable board models:
@@ -1997,7 +2008,11 @@ game acceptance.
 `cores/fes-coleco` is the next FES emulator bring-up after Pong and ZX81. It
 uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
 as a system reference, but is a reduced Verilog-first adapter around the
-existing `fes.simple-computer` 1.0 mailbox. The first slice contains a TV80
+shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
+`fes.keypad.ports` 1.0, fixed video and blob media. A/B map to Fire 1/2; the
+twelve keypad bits represent 0..9, *, #. Each active-high full-state write
+addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
+staging RAM preserves registered media-copy timing. The first slice contains a TV80
 Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
 Graphics I and Graphics II video, two active-low controller views and the FES
 fixed-video shell. A raw 1–16 KiB cartridge image is mirrored through the

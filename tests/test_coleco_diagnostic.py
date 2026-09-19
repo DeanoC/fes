@@ -13,6 +13,18 @@ GENERATOR = Path(__file__).resolve().parents[1] / "cores/fes-coleco/diagnostic/g
 
 
 class ColecoDiagnosticTests(unittest.TestCase):
+    def test_native_controller_preview_matches_cpu_bus_oracle(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output, image = Path(directory) / "controller.rom", Path(directory) / "native.ppm"
+            legacy = Path(directory) / "oracle.ppm"
+            common = [sys.executable, str(GENERATOR), "--controllers", "--output", str(output)]
+            subprocess.run(common + ["--buttons", "0x11", "0x28", "--keypads", "1", "0x800", "--preview", str(image)], check=True)
+            raw = output.read_bytes()
+            matrix = ((1 << 40) - 1) ^ (1 << 0) ^ (1 << 4) ^ (1 << 6) ^ (1 << 11) ^ (1 << 12) ^ (1 << 35)
+            subprocess.run(common + ["--matrix", hex(matrix), "--preview", str(legacy)], check=True)
+            self.assertEqual(image.read_bytes(), legacy.read_bytes())
+            self.assertEqual(output.read_bytes(), raw)
+
     def test_controller_preview_raw_bus_and_preview_only_matrix(self) -> None:
         # Literal bus fixtures catch mode/fire selection, keypad encoding,
         # player crossing, priority, and accidental use of the unused bits.

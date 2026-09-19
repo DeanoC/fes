@@ -66,13 +66,14 @@ COLECO_TOOL_COMMITS = {
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
-ABI_DEFINITION = "cores/fes-coleco/generated/fes_simple_computer.vh"
+ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF = "cores/fes-coleco/constraints-oss.qsf"
 SDC = "cores/fes-coleco/clocks-oss.sdc"
 RTL_SOURCES = (
     "cores/fes-coleco/rtl/sys_pll.v",
     "cores/fes-coleco/rtl/pixel_pll.v",
-    "cores/fes-coleco/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/fes_application_gp.v",
+    "cores/fes-coleco/rtl/coleco_application_gp.v",
     "cores/fes-coleco/rtl/coleco_dpram.v",
     "cores/fes-coleco/rtl/coleco_video_dpram.v",
     "cores/fes-coleco/rtl/coleco_vdp.sv",
@@ -239,7 +240,7 @@ def build_commands(
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -I cores/fes-coleco/generated {sources}; "
+        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -I cores/fes-common/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
         f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
@@ -424,7 +425,7 @@ def _manifest(
         "core": {
             "id": "fes.coleco",
             "name": "FES ColecoVision",
-            "description": "Standalone fixed-720p ColecoVision slice for the FES simple-computer ABI (OSS)",
+            "description": "Standalone fixed-720p ColecoVision slice for the FES application ABI (OSS)",
             "version": "1.0.0",
         },
         "target": {
@@ -433,9 +434,10 @@ def _manifest(
             "programming_profile": "fes-gp-v1",
         },
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
-        "abi": {"id": "fes.simple-computer", "major": 1, "minor": 0},
+        "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
-            {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
         ],

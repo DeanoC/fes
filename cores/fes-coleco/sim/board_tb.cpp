@@ -263,7 +263,15 @@ struct Board {
 
     void row(bool &toggle, unsigned index, uint8_t value) {
         matrix = (matrix & ~(uint64_t(31) << (5 * index))) | (uint64_t(value) << (5 * index));
-        exchange(toggle, 3, index, value, response(!toggle, false, 0), "keyboard row");
+        for (unsigned p = 0; p < 2; ++p) {
+            const unsigned old = unsigned(~(matrix >> (5*p))) & 31;
+            const unsigned pad = (old & 1) | ((old & 2) << 2) | ((old & 4) >> 1) |
+                                 ((old & 8) >> 1) | (old & 16) |
+                                 (((~matrix >> (10+p)) & 1) << 5);
+            exchange(toggle, 13, p, pad, response(!toggle, false, 0), "controller buttons");
+            exchange(toggle, 14, p, (~matrix >> (12+12*p)) & 4095,
+                     response(!toggle, false, 0), "controller keypad");
+        }
     }
 
     std::array<uint8_t, 4> expected_banks() const {
@@ -468,9 +476,10 @@ int main(int argc, char **argv) {
 
     bool toggle = false;
     require(board.gpi() == 0xf5000000u, "initial mailbox signature");
-    board.exchange(toggle, 1, 4, 0, response(!toggle, false, 2), "identity tag");
-    board.exchange(toggle, 3, 0, 0x0011, response(!toggle, false, 0), "keyboard row");
-    board.exchange(toggle, 2, 0, 1, response(!toggle, false, 0), "release without media");
+    board.exchange(toggle, 1, 4, 0, response(!toggle, false, 3), "identity tag");
+    board.exchange(toggle, 1, 7, 0, response(!toggle, false, 102), "native controller capabilities");
+    board.row(toggle, 0, 0x11);
+    board.exchange(toggle, 2, 0, 1, response(!toggle, true, 4), "release without media");
     for (unsigned i = 0; i < 32; ++i) {
         require(!board.root.top__DOT__machine__DOT__cpu__DOT__RESET_n &&
                     board.root.top__DOT__machine__DOT__vdp__DOT__reset,
