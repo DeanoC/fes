@@ -7,6 +7,10 @@ whose video chip descends from the TMS9918. Rooms complement the flat library
 browser: the library is still there for "everything", rooms are for curated,
 styled slices.
 
+The intended explore-and-play experience is specified in
+[rooms-experience.md](rooms-experience.md). This page is the authoring
+and API guide.
+
 Rooms are Lua scripts plus data, run inside the launcher in a sandboxed
 [gopher-lua](https://github.com/yuin/gopher-lua) VM (`ui/rooms`). A script
 never touches the graphics device: each frame it records primitives into a
