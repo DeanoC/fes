@@ -646,7 +646,7 @@ std::vector<std::string> ApplicationResponseFixtures()
 			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"mister", 1, 0, {}}};
 	std::vector<std::string> lines;
-	for (unsigned mode = 0; mode < 5; ++mode) {
+	for (unsigned mode = 0; mode < 6; ++mode) {
 		status.generation = mode + 1;
 		descriptor.interfaces.clear();
 		status.capabilities.active_interfaces.clear();
@@ -661,9 +661,14 @@ std::vector<std::string> ApplicationResponseFixtures()
 			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
 			status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
 		}
-		if (mode == 4) {
+		if (mode >= 4) {
 			descriptor.interfaces.push_back({"fes.gamepad.ports", 1, 0, true});
 			descriptor.interfaces.push_back({"fes.keypad.ports", 1, 0, true});
+		}
+		if (mode == 5) {
+			descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
+			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
+			status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
 		}
 		descriptor.interfaces.push_back({"fes.video.fixed-720p60", 1, 0, true});
 		for (const auto& interface : descriptor.interfaces)

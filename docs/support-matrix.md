@@ -34,7 +34,7 @@ fixtures verify software mechanics and do not establish system support.
 | Explicit programming profiles | containment-first `mister-v1`, `fes-gp-v1`, and `development-contained-v1` manager recipes | software: yes | hardware: pending |
 | Described-core persistence | FES Pong 1.0 settings/progress codec, production-factory data operations, atomic records, library restore/flush, CAS and explicit failed-save resume | software: yes | hardware: pending |
 | FES GP core driver | production bounded GPO/GPI identity and controls, fixed ADV7513-only video, normalized generation-bound input | software: yes | hardware: pending |
-| FES application 1.0 | fixed video, optional stereo 48 kHz PCM audio, gamepad and blob/stream media composition; no keyboard masquerading | software: yes | hardware: pending |
+| FES application 1.0 | fixed video, optional stereo 48 kHz PCM audio, gamepad and blob/stream media composition, including two-port/keypad 32 KiB stream regressions; no keyboard masquerading | software: yes | hardware: pending |
 | FES controller ports 1.0 | two generation-bound digital controller snapshots, optional twelve-key numeric keypads, neutral Start/Stop and ordinary input-fault cleanup | software: yes | hardware: pending |
 | FES computer development media | filename-independent 1..16384-byte regular blob, bounded snapshot, hold/transfer/commit/release with no release on transfer failure | software: yes | hardware: pending |
 | FES computer stream media 1.0 | reset-held fresh activation until media commit, observed capacity, package/generation-bound private snapshot, 512-byte chunks, CRC32, bounded Abort and ambiguous-session rejection | software: yes | hardware: pending |

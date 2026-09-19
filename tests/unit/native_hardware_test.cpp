@@ -11,6 +11,7 @@
 #include "native/core_package.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
 #include "native/core_data.hpp"
@@ -2733,6 +2734,7 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 {
 	using namespace mister::native;
 	using namespace mister::native::generated;
+	for (const bool controller_ports : {false, true}) {
 	MediaReadyGate endpoint;
 	auto& mmio = endpoint.scripted;
 	FixedClock clock(100);
@@ -2741,8 +2743,10 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 	Fixture fixture(&driver);
 	TempDirectory package;
 	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
-	ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
-	ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
+	ReplaceAll(&manifest, "fes.simple-game", controller_ports ? "fes.application" : "fes.simple-computer");
+	ReplaceAll(&manifest, "fes.gamepad", controller_ports ? "fes.gamepad.ports" : "fes.keyboard");
+	if (controller_ports)
+		manifest += "\n[[interfaces]]\nid = \"fes.keypad.ports\"\nmajor = 1\nminor = 0\nrequired = true\n";
 	manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		"\n[[interfaces]]\nid = \"fes.media.blob-stream\"\nmajor = 1\nminor = 0\nrequired = true\n";
 	package.File("manifest.toml", manifest);
@@ -2753,8 +2757,8 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 	assert(fixture.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
 	assert(fixture.hardware.capabilities().media_stream.interface.id.empty());
 	auto words = FesGpIdentityWords();
-	words[FesGpIdentityAbiTagIndex] = FesSimpleComputerAbiTag;
-	words[FesGpIdentityCapabilitiesIndex] = 15;
+	words[FesGpIdentityAbiTagIndex] = controller_ports ? FesApplicationAbiTag : FesSimpleComputerAbiTag;
+	words[FesGpIdentityCapabilitiesIndex] = controller_ports ? 110 : 15;
 	ScriptFesGpIdentity(&mmio, words);
 	bool toggle = false;
 	auto reply = [&](std::uint16_t value = 0, bool failed = false) {
@@ -2762,7 +2766,7 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 		PushFesGpResponse(&mmio, toggle, value, failed);
 	};
 	for (auto value : {1, 0, 32768, 0, 512}) reply(value);
-	for (unsigned i = 0; i < 9; ++i) reply(); // keyboard neutral + hold, never release
+	for (unsigned i = 0; i < 9u; ++i) reply(); // neutral inputs + hold
 	const auto activated = fixture.hardware.LoadCore(std::move(admitted), 1);
 	if (!activated.error.ok()) fprintf(stderr, "fresh stream activation: %s\n", activated.error.message.c_str());
 	assert(activated.error.ok());
@@ -2781,21 +2785,38 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 		assert(mmio.writes.size() == before); // no hold, transfer or Abort on admission failure
 	}
 	assert(mmio.writes.size() == before);
-	for (unsigned i = 0; i < 12; ++i) reply();
+	for (unsigned i = 0; i < (controller_ports ? 16u : 12u); ++i) reply();
 	assert(fixture.hardware.LoadComputerMediaStream(media, 3).ok());
-	assert(mmio.writes.size() == before + 24);
+	assert(mmio.writes.size() == before + (controller_ports ? 32 : 24));
 	assert(!endpoint.reset_held && endpoint.ready && endpoint.releases == 1);
+	if (controller_ports) {
+		// The real native path snapshots and sends all 64 chunks, including upper ROM.
+		const auto full_media = package.File("full-media", std::string(32768, 'x'));
+		for (unsigned i = 0; i < 11 + 64 * (3 + 256); ++i) reply();
+		assert(fixture.hardware.LoadComputerMediaStream(full_media, 32768).ok());
+		assert(!endpoint.reset_held && endpoint.ready && endpoint.releases == 2);
+		reply(); reply();
+		assert(driver.SetController(1, 0x20, 0x800, 10000).ok());
+	}
+	// A rejected Commit (including endpoint CRC failure) must never release media.
+	const auto releases_before_rejection = endpoint.releases;
+	for (unsigned i = 0; i < (controller_ports ? 14u : 10u); ++i) reply();
+	reply(4, true);
+	reply(); // bounded Abort
+	assert(!fixture.hardware.LoadComputerMediaStream(media, 3).ok());
+	assert(endpoint.reset_held && !endpoint.ready);
+	assert(endpoint.releases == releases_before_rejection);
 	// Explicit data rejection causes one independently acknowledged Abort, no release.
-	for (unsigned i = 0; i < 8; ++i) reply();
+	for (unsigned i = 0; i < (controller_ports ? 12u : 8u); ++i) reply();
 	reply(4, true);
 	reply();
 	auto error = fixture.hardware.LoadComputerMediaStream(media, 3);
 	assert(!error.ok() && error.phase == "input");
 	assert(((mmio.writes.back().value >> 24) & 127) == FesSimpleComputerOpcodeMediaStreamAbort);
-	for (unsigned i = 0; i < 12; ++i) reply();
+	for (unsigned i = 0; i < (controller_ports ? 16u : 12u); ++i) reply();
 	assert(fixture.hardware.LoadComputerMediaStream(media, 3).ok());
 	// Abort failure retains pending ownership; retry cannot send Begin or legacy data.
-	for (unsigned i = 0; i < 8; ++i) reply();
+	for (unsigned i = 0; i < (controller_ports ? 12u : 8u); ++i) reply();
 	reply(4, true);
 	reply(4, true);
 	error = fixture.hardware.LoadComputerMediaStream(media, 3);
@@ -2804,9 +2825,11 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 	assert(!driver.LoadMedia({1}, 10000).ok());
 	assert(mmio.writes.size() == failed);
 	// Explicit Stop can establish a new programmed session outside the stream path.
+	if (controller_ports) for (unsigned i = 0; i < 4; ++i) reply();
 	reply(); // outgoing hold reset
 	assert(fixture.hardware.LoadIdle().error.ok());
 	assert(fixture.hardware.capabilities().media_stream.interface.id.empty());
+	}
 }
 
 int main()

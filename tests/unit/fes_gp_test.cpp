@@ -1017,20 +1017,24 @@ void TestApplicationAudioRequiresExactLiveCapability()
 
 void TestStreamTransferBoundariesAndCRC()
 {
-	for (const bool application : {false, true}) {
+	for (unsigned mode = 0; mode < 3; ++mode) {
 	for (auto size : {1u, 3u, 511u, 512u, 513u, 16385u, 32768u}) {
 		StreamFixture f;
-		if (application) {
+		if (mode != 0) {
 			f.descriptor.abi = {FesApplicationABIID, 1, 0};
-			f.descriptor.interfaces.push_back({FesApplicationInterfaceGamepadID, 1, 0, true});
+			f.descriptor.interfaces.push_back({mode == 1 ? FesApplicationInterfaceGamepadID :
+				FesApplicationInterfaceGamepadPortsID, 1, 0, true});
+			if (mode == 2)
+				f.descriptor.interfaces.push_back({FesApplicationInterfaceKeypadPortsID, 1, 0, true});
 			f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true});
 		}
-		assert(f.Identify().ok());
+		assert(f.Identify(1, 32768, 512, mode == 2 ? 110 : 15).ok());
 		StreamFile file(size);
 		mister::native::ComputerMediaSnapshot snapshot;
 		assert(snapshot.Prepare(file.path, 1, 32768, f.clock, 1000000).ok());
 		const auto start = f.mmio.writes.size();
 		f.Reply(); // hold reset
+		if (mode == 2) for (unsigned i = 0; i < 4; ++i) f.Reply();
 		for (unsigned i = 0; i < 4; ++i) f.Reply();
 		for (unsigned offset = 0; offset < size; offset += 512) {
 			for (unsigned i = 0; i < 3; ++i) f.Reply();
@@ -1046,6 +1050,10 @@ void TestStreamTransferBoundariesAndCRC()
 			cursor += 2;
 		};
 		expect(2, 0, 0);
+		if (mode == 2) for (unsigned port = 0; port < 2; ++port) {
+			expect(13, port, 0);
+			expect(14, port, 0);
+		}
 		expect(8, 0, size & 65535);
 		expect(8, 1, size >> 16);
 		expect(8, 2, snapshot.crc32() & 65535);

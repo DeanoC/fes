@@ -78,3 +78,16 @@ Tests cover canonical wire fixtures, CRC vectors, 32 KiB transfer, all 256 word
 ordinals, odd tails, capacity and binding rejection, snapshot mutation/deadlines,
 Abort/poison handling and Stop/relaunch. These are software evidence only.
 No physical SMS, mapper, throughput or target-execution acceptance is claimed.
+
+## Application controller composition
+
+The same stream interface and runtime path also serve `fes.application` with
+`fes.gamepad.ports` and `fes.keypad.ports`. No core-name routing or new local
+request is required. Software regressions exercise the real driver and native
+hardware facade with this composition, observed 32768-byte capacity, full
+32 KiB snapshot/CRC transfer, independent controller commands, reset-held
+activation, and synchronized Abort versus failed cleanup. Hold resets both
+controller snapshots before Begin; only successful Commit permits release.
+The legacy blob interface retains its 16 KiB limit. Existing generation-bound
+stream admission, busy ownership and terminal recovery rules apply unchanged.
+These tests do not add physical acceptance of a Coleco package or image.
