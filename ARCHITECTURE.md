@@ -1,5 +1,21 @@
 # Architecture
 
+## Composable application ABI
+
+`fes.application` 1.0 uses the existing `fes-gp-v1` lifecycle and GP transport,
+with identity tag 3 and independent video, gamepad and media capabilities.
+Admission requires fixed-720p60 video; known operational declarations must be
+required, while absent interfaces impose no requirement. Unknown optional
+interfaces are ignored. Blob-stream requires blob. See
+[application I/O](docs/application-io.md) for the complete runtime contract.
+
+The existing `FesGpCoreDriver` verifies application identity and capabilities,
+reuses the shared button/media codecs, and never issues keyboard commands to
+an application. Video-only loads do not open the input session. Media-bearing
+applications remain reset-held until successful media commit; other
+applications release immediately. Existing ABI startup and persistence remain
+unchanged. Custom video bring-up does not claim audio support.
+
 ## Current boundary
 
 This repository has one runtime implementation split across three narrow

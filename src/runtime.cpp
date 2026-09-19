@@ -408,7 +408,8 @@ public:
 			status_.active_package.package_id = info.package_id;
 			status_.active_package.descriptor = info.descriptor;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
-				info.descriptor.abi.id == "fes.simple-computer") {
+				info.descriptor.abi.id == "fes.simple-computer" ||
+				info.descriptor.abi.id == "fes.application") {
 				status_.active_package.observed.abi = info.descriptor.abi;
 				status_.active_package.observed.build_id = info.descriptor.build.id;
 			}

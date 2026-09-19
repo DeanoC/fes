@@ -8,6 +8,7 @@
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/hardware.hpp"
 #include "native/linux/mmio.hpp"
 
@@ -54,6 +55,23 @@ static_assert(FieldMaximum(FesGpArgumentMask) == 0xffffu,
 	"FES GP argument mask does not match its API type");
 static_assert(FesGpIdentityBuildIDStartIndex + 8u <= FesGpIdentityWordCount,
 	"FES GP generated identity layout cannot hold the build ID");
+
+// Application media deliberately reuses the computer codec, but never its
+// keyboard opcode or ABI identity. Detect contract drift before building a driver.
+static_assert(FesApplicationOpcodeIdentity == FesGpOpcodeIdentity &&
+	FesApplicationOpcodeExecution == FesGpOpcodeGameplay &&
+	FesApplicationOpcodeButtons == FesGpOpcodeButtons &&
+	FesApplicationButtonMask == FesGpButtonMask &&
+	FesApplicationOpcodeMediaBegin == FesSimpleComputerOpcodeMediaBegin &&
+	FesApplicationOpcodeMediaData == FesSimpleComputerOpcodeMediaData &&
+	FesApplicationOpcodeMediaCommit == FesSimpleComputerOpcodeMediaCommit &&
+	FesApplicationOpcodeMediaStreamInfo == FesSimpleComputerOpcodeMediaStreamInfo &&
+	FesApplicationOpcodeMediaStreamBegin == FesSimpleComputerOpcodeMediaStreamBegin &&
+	FesApplicationOpcodeMediaStreamChunk == FesSimpleComputerOpcodeMediaStreamChunk &&
+	FesApplicationOpcodeMediaStreamData == FesSimpleComputerOpcodeMediaStreamData &&
+	FesApplicationOpcodeMediaStreamCommit == FesSimpleComputerOpcodeMediaStreamCommit &&
+	FesApplicationOpcodeMediaStreamAbort == FesSimpleComputerOpcodeMediaStreamAbort,
+	"application codec requires matching shared control and media opcodes");
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -227,12 +245,25 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 	expected[FesGpIdentityTransportMinorIndex] =
 		static_cast<std::uint16_t>(FesGpTransportMinor);
 	const bool computer = descriptor.abi.id == FesSimpleComputerABIID;
+	const bool application = descriptor.abi.id == FesApplicationABIID;
 	expected[FesGpIdentityAbiTagIndex] = static_cast<std::uint16_t>(
-		computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
+		application ? FesApplicationAbiTag : computer ? FesSimpleComputerAbiTag : FesGpAbiTag);
 	expected[FesGpIdentityAbiMajorIndex] = static_cast<std::uint16_t>(descriptor.abi.major);
 	expected[FesGpIdentityAbiMinorIndex] = static_cast<std::uint16_t>(descriptor.abi.minor);
 	std::uint16_t capabilities = 0;
 	for (const CoreInterface& interface : descriptor.interfaces) {
+		if (application) {
+			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+			if (interface.id == FesApplicationInterfaceGamepadID)
+				capabilities |= FesApplicationCapabilityGamepad;
+			else if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)
+				capabilities |= FesApplicationCapabilityVideoFixed720p60;
+			else if (interface.id == FesApplicationInterfaceMediaBlobID)
+				capabilities |= FesApplicationCapabilityMediaBlob;
+			else if (interface.id == FesApplicationInterfaceMediaBlobStreamID)
+				capabilities |= FesApplicationCapabilityMediaBlobStream;
+			continue;
+		}
 		if (computer) {
 			if (interface.id == FesSimpleComputerInterfaceKeyboardID)
 				capabilities = static_cast<std::uint16_t>(capabilities |
@@ -271,7 +302,11 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		expected[FesGpIdentityBuildIDStartIndex + index] = build[index];
 	for (std::size_t index = 0; index < expected.size(); ++index) {
 		if (index == FesGpIdentityCapabilitiesIndex) {
-			if ((observed[index] & expected[index]) != expected[index])
+			const std::uint16_t application_mask = FesApplicationCapabilityGamepad |
+				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
+				FesApplicationCapabilityMediaBlobStream;
+			if ((application && (observed[index] & application_mask) != expected[index]) ||
+				(!application && (observed[index] & expected[index]) != expected[index]))
 				return Mismatch("live FES GP capabilities do not match package interfaces",
 					"capabilities=" + std::to_string(expected[index]),
 					"capabilities=" + std::to_string(observed[index]));
@@ -300,6 +335,9 @@ void FesGpCoreDriver::BeginSession()
 	reset_held_ = true;
 	freeze_attempted_ = false;
 	computer_ = false;
+	application_ = false;
+	media_ = false;
+	gamepad_ = false;
 	observed_capabilities_ = 0;
 	stream_info_ = {};
 	stream_verified_ = false;
@@ -330,13 +368,25 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	Error error = gp_.Identify(*context.descriptor, deadline, &safe_to_quiesce,
 		&observed_capabilities_);
 	computer_ = error.ok() && context.descriptor->abi.id == FesSimpleComputerABIID;
+	application_ = error.ok() && context.descriptor->abi.id == FesApplicationABIID;
+	media_ = computer_;
+	gamepad_ = error.ok() && context.descriptor->abi.id == FesGpABIID;
+	if (application_) {
+		for (const auto& interface : context.descriptor->interfaces) {
+			if (interface.major != 1 || interface.minor != 0) continue;
+			if (interface.id == FesApplicationInterfaceMediaBlobID)
+				media_ = (observed_capabilities_ & FesApplicationCapabilityMediaBlob) != 0;
+			if (interface.id == FesApplicationInterfaceGamepadID)
+				gamepad_ = (observed_capabilities_ & FesApplicationCapabilityGamepad) != 0;
+		}
+	}
 	bool stream_declared = false;
 	for (const auto& interface : context.descriptor->interfaces)
 		if (interface.id == FesSimpleComputerInterfaceMediaBlobStreamID &&
 			interface.major == FesSimpleComputerInterfaceMediaBlobStreamMajor &&
 			interface.minor == FesSimpleComputerInterfaceMediaBlobStreamMinor)
 			stream_declared = true;
-	if (computer_ && stream_declared &&
+	if (media_ && stream_declared &&
 		(observed_capabilities_ & FesSimpleComputerCapabilityMediaBlobStream)) {
 		// Query actual endpoint limits during discovery, separately from declarations.
 		std::uint16_t words[5] = {};
@@ -400,13 +450,15 @@ CoreDriverResult FesGpCoreDriver::NeutralizeButtons(
 CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
 	std::uint16_t map, std::uint64_t deadline)
 {
+	if (application_ && !gamepad_)
+		return {{ErrorCode::unsupported_interface, "application gamepad is inactive", "input"}, false, ""};
 	if ((map & ~static_cast<std::uint16_t>(FesGpButtonMask)) != 0)
 		return {{ErrorCode::invalid_request, "FES GP button mask is invalid"}, false, ""};
 	std::uint16_t response = 0;
 	const Error error = gp_.Exchange(static_cast<std::uint8_t>(FesGpOpcodeButtons),
 		static_cast<std::uint8_t>(FesGpControlIndex), map, deadline, &response);
 	if (!error.ok()) return {WithPhase(error, "input"), true, ""};
-	if (response != map)
+	if (response != (application_ ? 0 : map))
 		return {{ErrorCode::io_failed, "FES GP accepted button mask is invalid",
 			"input"}, true, ""};
 	return {{}, true, ""};
@@ -468,7 +520,7 @@ Error FesGpCoreDriver::LoadMedia(
 	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
 {
 	if (stream_pending_) return Io("media stream requires recovery before legacy media");
-	if (!computer_)
+	if (!media_)
 		return {ErrorCode::unsupported_interface, "FES computer media is inactive",
 			"input"};
 	if (bytes.size() < FesSimpleComputerMediaMinBytes ||
@@ -600,10 +652,10 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	if (computer_) {
 		CoreDriverResult neutralized = NeutralizeKeyboard(deadline);
 		if (!neutralized.error.ok()) return neutralized;
-		// Fresh stream endpoints have no committed media and reject release.
-		// Activation publishes the owned session; media commit releases it later.
-		if (stream_verified_) return Quiesce({}, deadline);
 	}
+	// Fresh stream endpoints and media-bearing applications reject release
+	// until media is committed. Activation publishes the reset-held session.
+	if (stream_verified_ || (application_ && media_)) return Quiesce({}, deadline);
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
 	if (result.error.ok())

@@ -74,6 +74,9 @@ private:
 	bool reset_held_ = true;
 	bool freeze_attempted_ = false;
 	bool computer_ = false;
+	bool media_ = false;
+	bool application_ = false;
+	bool gamepad_ = false;
 	std::uint16_t observed_capabilities_ = 0;
 	MediaStreamInfo stream_info_;
 	bool stream_verified_ = false;

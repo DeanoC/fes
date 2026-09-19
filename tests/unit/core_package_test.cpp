@@ -259,6 +259,36 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	assert(!mister::native::CheckCoreCompatibility(stream).ok()); // legacy remains required
 }
 
+void TestApplicationCompatibilityComposesInterfaces()
+{
+	mister::native::CoreDescriptor descriptor;
+	descriptor.target.platform = "de10_nano";
+	descriptor.target.device = "5CSEBA6U23I7";
+	descriptor.target.programming_profile = "fes-gp-v1";
+	descriptor.abi = {"fes.application", 1, 0};
+	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	auto optional = descriptor;
+	optional.interfaces.back().required = false;
+	assert(!mister::native::CheckCoreCompatibility(optional).ok());
+	descriptor.interfaces.push_back({"vendor.extension", 9, 9, false});
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.back().required = true;
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.pop_back();
+	descriptor.interfaces.push_back({"fes.keyboard", 1, 0, true});
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.pop_back();
+	descriptor.interfaces.erase(descriptor.interfaces.begin());
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+}
+
 void TestDirectoryAdmissionAndRetainedPayload()
 {
 	TempDirectory rooted = PackageFromFixture("valid-basic");
@@ -452,6 +482,7 @@ void TestMissingOrNonTableCoreIsRejectedWithoutChangingResult()
 
 int main()
 {
+	TestApplicationCompatibilityComposesInterfaces();
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();
 	TestDescriptorFieldsAndCompatibilityAreSeparate();

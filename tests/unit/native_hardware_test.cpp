@@ -2385,10 +2385,11 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	const mister::Capabilities capabilities = available.hardware.capabilities();
 	assert(capabilities.programming_profiles == std::vector<std::string>({
 		"development-contained-v1", "fes-gp-v1", "mister-v1"}));
-	assert(capabilities.abis.size() == 3);
-	assert(capabilities.abis[0].id == "fes.simple-computer");
-	assert(capabilities.abis[1].id == "fes.simple-game");
-	assert(capabilities.abis[2].id == "mister");
+	assert(capabilities.abis.size() == 4);
+	assert(capabilities.abis[0].id == "fes.application");
+	assert(capabilities.abis[1].id == "fes.simple-computer");
+	assert(capabilities.abis[2].id == "fes.simple-game");
+	assert(capabilities.abis[3].id == "mister");
 
 	Fixture unavailable;
 	assert(unavailable.hardware.InspectCorePackage(package.path, id,
@@ -2401,6 +2402,36 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(unavailable.hardware.InspectCorePackage(package.path,
 		std::string(64, '0'), &inspection).code ==
 		mister::ErrorCode::invalid_package);
+}
+
+void TestApplicationVideoOnlyLifecycleNeedsNoInput()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	TempDirectory package;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
+	const auto first = manifest.find("[[interfaces]]");
+	const auto second = manifest.find("[[interfaces]]", first + 1);
+	assert(first != std::string::npos && second != std::string::npos);
+	manifest.erase(first, second - first); // remove gamepad; retain fixed video
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	for (unsigned run = 0; run < 2; ++run) {
+		assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+		const auto status = fixture.runtime.status();
+		assert(status.active_package.observed.abi.id == "fes.application");
+		assert(status.active_package.observed.build_id == opened.descriptor.build.id);
+		assert(status.capabilities.active_interfaces.size() == 1);
+		assert(status.capabilities.active_interfaces[0].id == "fes.video.fixed-720p60");
+		assert(fixture.native.input.open_calls == 0);
+		assert(fixture.runtime.Stop().ok());
+		assert(fixture.runtime.status().state == mister::State::idle);
+	}
 }
 
 void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
@@ -2773,6 +2804,7 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 
 int main()
 {
+	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestPersistentReplacementRefreshAndSaveFailureResume();

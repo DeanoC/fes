@@ -603,14 +603,69 @@ void TestMediaStreamResponseFixtures()
 	assert(expected[2].find("\"media_stream\":") == std::string::npos);
 }
 
+std::vector<std::string> ApplicationResponseFixtures()
+{
+	Status status;
+	status.state = State::running_development;
+	status.execution = Execution::development;
+	status.core = "fes.application-demo";
+	status.active_package.package_id = std::string(64, 'a');
+	auto& descriptor = status.active_package.descriptor;
+	descriptor = FixtureDescriptor();
+	descriptor.core.id = status.core;
+	descriptor.core.name = "Synthetic FES application";
+	descriptor.abi = {"fes.application", 1, 0};
+	status.active_package.observed = {descriptor.abi, descriptor.build.id};
+	status.core_data.mode = "volatile";
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	status.capabilities.abis = {
+		{"fes.application", 1, 0, {{"fes.gamepad", 1, 0}, {"fes.media.blob", 1, 0},
+			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
+		{"fes.simple-computer", 1, 0, {{"fes.keyboard", 1, 0}, {"fes.media.blob", 1, 0},
+			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
+		{"fes.simple-game", 1, 0, {{"fes.gamepad", 1, 0}, {"fes.persistence.words", 1, 0},
+			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
+		{"mister", 1, 0, {}}};
+	std::vector<std::string> lines;
+	for (unsigned mode = 0; mode < 3; ++mode) {
+		status.generation = mode + 1;
+		descriptor.interfaces.clear();
+		status.capabilities.active_interfaces.clear();
+		if (mode > 0) {
+			descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
+			descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
+		}
+		if (mode == 2) {
+			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
+			status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
+		}
+		descriptor.interfaces.push_back({"fes.video.fixed-720p60", 1, 0, true});
+		for (const auto& interface : descriptor.interfaces)
+			status.capabilities.active_interfaces.push_back({interface.id, interface.major, interface.minor});
+		lines.push_back(mister::daemon::EncodeResponse(2, true, status, "fixture"));
+	}
+	return lines;
+}
+
+void TestApplicationResponseFixtures()
+{
+	assert(ReadLines("tests/fixtures/protocol-v2-application-responses.jsonl") ==
+		ApplicationResponseFixtures());
+}
+
 int main(int argc, char** argv)
 {
+	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
+		for (const auto& line : ApplicationResponseFixtures()) std::cout << line << '\n';
+		return 0;
+	}
 	// Emit with the production serializer; fixture updates are never hand JSON.
 	if (argc == 2 && std::string(argv[1]) == "--emit-media-stream-fixtures") {
 		for (const auto& line : MediaStreamResponseFixtures()) std::cout << line << '\n';
 		return 0;
 	}
 	assert(argc == 1);
+	TestApplicationResponseFixtures();
 	TestMediaStreamResponseFixtures();
 	TestMediaStreamRequestAndObservedResponse();
 	Request persistent;

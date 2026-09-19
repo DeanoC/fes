@@ -7,6 +7,7 @@
 #include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/hardware.hpp"
 #include "native/artifacts.hpp"
 
@@ -186,6 +187,76 @@ void TestReplaysSharedGoldenExchangeSequence()
 		assert(mmio.writes[index * 2].value == golden[index].settled);
 		assert(mmio.writes[index * 2 + 1].offset == kFpgaGpoAddress);
 		assert(mmio.writes[index * 2 + 1].value == golden[index].toggled);
+	}
+}
+
+void TestApplicationReplaysSharedWireFixturesThroughDriver()
+{
+	// Whitespace is irrelevant to this numeric fixture. Keep the same row codec
+	// as the existing game fixture, with independent toggle state per scenario.
+	const auto source = std::regex_replace(ReadFile(
+		"tests/fixtures/fes-application-v1/exchanges.json"), std::regex("[[:space:]]"), "");
+	const std::regex row(
+		"\\{\"name\":\"([^\"]+)\",\"gpo\":\\[([0-9]+),([0-9]+)\\],"
+		"\"gpi\":([0-9]+),\"data\":([0-9]+)\\}");
+	std::vector<std::vector<GoldenExchange>> scenarios;
+	for (std::sregex_iterator it(source.begin(), source.end(), row), end; it != end; ++it) {
+		const auto name = (*it)[1].str();
+		if (name == "identity-word-zero") scenarios.push_back({});
+		assert(!scenarios.empty());
+		scenarios.back().push_back({name,
+			static_cast<std::uint32_t>(std::stoul((*it)[2].str())),
+			static_cast<std::uint32_t>(std::stoul((*it)[3].str())),
+			static_cast<std::uint32_t>(std::stoul((*it)[4].str())),
+			static_cast<std::uint16_t>(std::stoul((*it)[5].str()))});
+	}
+	assert(scenarios.size() == 2 && scenarios[0].size() == 22 && scenarios[1].size() == 40);
+	for (unsigned scenario = 0; scenario < scenarios.size(); ++scenario) {
+		const auto& golden = scenarios[scenario];
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		auto descriptor = Descriptor("00112233445566778899aabbccddeeff");
+		descriptor.abi = {FesApplicationABIID, 1, 0};
+		descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true}};
+		if (scenario == 1) {
+			descriptor.interfaces.push_back({FesApplicationInterfaceGamepadID, 1, 0, true});
+			descriptor.interfaces.push_back({FesApplicationInterfaceMediaBlobID, 1, 0, true});
+		}
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		for (const auto& exchange : golden) {
+			const bool toggle = (exchange.gpi & FesGpAckMask) != 0;
+			mmio.PushRead(kSpiGpiAddress, (exchange.gpi & ~FesGpAckMask) |
+				(toggle ? 0u : FesGpAckMask));
+			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
+			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
+		}
+		assert(driver.Identify(context, 1000000).error.ok());
+		for (std::size_t i = FesGpIdentityWordCount; i < golden.size(); ++i) {
+			const auto& exchange = golden[i];
+			const auto opcode = static_cast<std::uint8_t>((exchange.toggled & FesGpOpcodeMask) >> 24);
+			const auto index = static_cast<std::uint8_t>((exchange.toggled & FesGpIndexMask) >> 16);
+			const auto argument = static_cast<std::uint16_t>(exchange.toggled & FesGpArgumentMask);
+			if (opcode == FesApplicationOpcodeButtons && !(exchange.gpi & FesGpErrorMask)) {
+				// Exercise driver acknowledgement semantics, not just transport.
+				assert(driver.SetButtons(context, argument, 1000000).error.ok());
+				assert(exchange.data == 0);
+			} else {
+				std::uint16_t response = 0xffff;
+				const auto error = gp.Exchange(opcode, index, argument, 1000000, &response);
+				assert(error.ok() == ((exchange.gpi & FesGpErrorMask) == 0));
+				assert(response == exchange.data);
+			}
+		}
+		assert(mmio.writes.size() == golden.size() * 2);
+		for (std::size_t i = 0; i < golden.size(); ++i) {
+			assert(mmio.writes[i * 2].offset == kFpgaGpoAddress);
+			assert(mmio.writes[i * 2].value == golden[i].settled);
+			assert(mmio.writes[i * 2 + 1].offset == kFpgaGpoAddress);
+			assert(mmio.writes[i * 2 + 1].value == golden[i].toggled);
+		}
 	}
 }
 
@@ -748,7 +819,8 @@ struct StreamFixture {
 		std::uint16_t chunk = 512, std::uint16_t caps = 15)
 	{
 		auto words = IdentityWords(descriptor.build.id);
-		words[FesGpIdentityAbiTagIndex] = FesSimpleComputerAbiTag;
+		words[FesGpIdentityAbiTagIndex] = descriptor.abi.id == FesApplicationABIID ?
+			FesApplicationAbiTag : FesSimpleComputerAbiTag;
 		words[FesGpIdentityCapabilitiesIndex] = caps;
 		for (auto word : words) Reply(word);
 		bool declared = false;
@@ -864,10 +936,77 @@ void TestStreamStartKeepsResetAndLegacyStillReleases()
 	}
 }
 
+void TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces()
+{
+	for (unsigned mode = 0; mode < 4; ++mode) {
+		StreamFixture f;
+		f.descriptor.abi = {FesApplicationABIID, 1, 0};
+		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true}};
+		if (mode >= 1)
+			f.descriptor.interfaces.push_back({FesApplicationInterfaceGamepadID, 1, 0, true});
+		if (mode >= 2)
+			f.descriptor.interfaces.push_back({FesApplicationInterfaceMediaBlobID, 1, 0, true});
+		if (mode == 3)
+			f.descriptor.interfaces.push_back({FesApplicationInterfaceMediaBlobStreamID, 1, 0, true});
+		const unsigned caps = mode == 0 ? 2 : mode == 1 ? 3 : mode == 2 ? 7 : 15;
+		assert(f.Identify(1, 32768, 512, caps).ok());
+		const auto before = f.mmio.writes.size();
+		f.Reply();
+		assert(f.driver.Start(f.context, 1000000).error.ok());
+		assert(f.mmio.writes.size() == before + 2); // no keyboard commands
+		assert((f.mmio.writes.back().value & ~FesGpRequestMask) ==
+			((FesApplicationOpcodeExecution << 24) | (mode >= 2 ? 0u : 1u)));
+		const auto after = f.mmio.writes.size();
+		assert(f.driver.SetKeyboardMatrix(0, 1000000).code == mister::ErrorCode::unsupported_interface);
+		assert(f.mmio.writes.size() == after);
+		if (mode == 0) {
+			assert(f.driver.SetButtons(f.context, 0, 1000000).error.code ==
+				mister::ErrorCode::unsupported_interface);
+			assert(f.driver.LoadMedia({1}, 1000000).code == mister::ErrorCode::unsupported_interface);
+			assert(f.mmio.writes.size() == after);
+		} else {
+			f.Reply();
+			assert(f.driver.SetButtons(f.context, FesGpButtonUp, 1000000).error.ok());
+		}
+		if (mode == 2) {
+			const auto media_start = f.mmio.writes.size();
+			for (unsigned i = 0; i < 6; ++i) f.Reply();
+			assert(f.driver.LoadMedia({0x12, 0x34, 0x56}, 1000000).ok());
+			const std::uint32_t expected[] = {0x02000000, 0x04000003, 0x05003412,
+				0x05010056, 0x06000000, 0x02000001};
+			assert(f.mmio.writes.size() == media_start + 12);
+			for (unsigned i = 0; i < 6; ++i)
+				assert((f.mmio.writes[media_start + 2 * i + 1].value & ~FesGpRequestMask) == expected[i]);
+		}
+		if (mode >= 1) {
+			f.Reply(FesGpButtonUp);
+			assert(f.driver.SetButtons(f.context, FesGpButtonUp, 1000000).error.code ==
+				mister::ErrorCode::io_failed);
+		}
+	}
+	StreamFixture missing;
+	missing.descriptor.abi = {FesApplicationABIID, 1, 0};
+	missing.descriptor.interfaces = {{FesApplicationInterfaceGamepadID, 1, 0, true}};
+	assert(missing.Identify(1, 32768, 512, 2).code == mister::ErrorCode::core_mismatch);
+	for (const unsigned extra : {1u, 4u, 8u}) {
+		StreamFixture f;
+		f.descriptor.abi = {FesApplicationABIID, 1, 0};
+		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+			{FesApplicationInterfaceGamepadID, 2, 0, false}};
+		assert(f.Identify(1, 32768, 512, 2 | extra).code == mister::ErrorCode::core_mismatch);
+	}
+}
+
 void TestStreamTransferBoundariesAndCRC()
 {
+	for (const bool application : {false, true}) {
 	for (auto size : {1u, 3u, 511u, 512u, 513u, 16385u, 32768u}) {
 		StreamFixture f;
+		if (application) {
+			f.descriptor.abi = {FesApplicationABIID, 1, 0};
+			f.descriptor.interfaces.push_back({FesApplicationInterfaceGamepadID, 1, 0, true});
+			f.descriptor.interfaces.push_back({FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true});
+		}
 		assert(f.Identify().ok());
 		StreamFile file(size);
 		mister::native::ComputerMediaSnapshot snapshot;
@@ -906,6 +1045,7 @@ void TestStreamTransferBoundariesAndCRC()
 		expect(11, 0, 0);
 		expect(2, 0, 1);
 		assert(cursor == f.mmio.writes.size());
+	}
 	}
 	StreamFixture f;
 	assert(f.Identify().ok());
@@ -973,6 +1113,8 @@ void TestStreamFailureAbortAndAmbiguousSession()
 
 int main()
 {
+	TestApplicationReplaysSharedWireFixturesThroughDriver();
+	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();

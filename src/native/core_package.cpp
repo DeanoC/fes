@@ -6,6 +6,7 @@
 #include "native/generated/de10_nano_programming.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/sha256.hpp"
 
 #include <toml.hpp>
@@ -708,6 +709,35 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required MiSTer interface is unsupported");
+		return {};
+	}
+	if (descriptor.abi.id == FesApplicationABIID &&
+		descriptor.abi.major == FesApplicationABIMajor) {
+		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())
+			return CompatibilityError(ErrorCode::unsupported_abi,
+				"unsupported FES application ABI or system declaration");
+		bool video = false, blob = false, stream = false;
+		for (const auto& interface : descriptor.interfaces) {
+			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
+				interface.id == FesApplicationInterfaceVideoFixed720p60ID ||
+				interface.id == FesApplicationInterfaceMediaBlobID ||
+				interface.id == FesApplicationInterfaceMediaBlobStreamID;
+			const bool supported = known && interface.major == 1 && interface.minor == 0;
+			if (!supported && interface.required)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"required application interface is unsupported");
+			if (!supported) continue;
+			if (!interface.required)
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"application operational interfaces must be required when declared");
+			if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)
+				video = interface.required;
+			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
+			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
+		}
+		if (!video || (stream && !blob))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"application requires fixed video and stream requires blob media");
 		return {};
 	}
 	if (descriptor.abi.id == FesSimpleComputerABIID &&

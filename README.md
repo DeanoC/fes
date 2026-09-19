@@ -1,5 +1,10 @@
 # libmister-runtime
 
+`fes.application` 1.0 adds composable fixed-video applications: no input,
+one gamepad, and optional blob/stream media by declaration. Existing game and
+computer ABIs remain unchanged. See [application I/O](docs/application-io.md)
+for admission, reset/media readiness and software-only support boundaries.
+
 The optional `fes.media.blob-stream` 1.0 computer interface supports bounded,
 generation-bound media delivery using observed endpoint capacity. See
 [stream media](docs/media-stream.md) for the protocol-2 request, deadlines and

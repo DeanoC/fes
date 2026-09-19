@@ -1,0 +1,579 @@
+{
+  "description": "Synthetic wire fixtures; never deploy.",
+  "scenarios": [
+    {
+      "name": "video-only",
+      "capabilities": 2,
+      "initial_request_toggle": false,
+      "build_id": "00112233445566778899aabbccddeeff",
+      "exchanges": [
+        {
+          "name": "identity-word-zero",
+          "gpo": [
+            16777216,
+            2164260864
+          ],
+          "gpi": 4118824262,
+          "data": 17734
+        },
+        {
+          "name": "identity-word-01",
+          "gpo": [
+            2164326400,
+            16842752
+          ],
+          "gpi": 4110430547,
+          "data": 12627
+        },
+        {
+          "name": "identity-word-02",
+          "gpo": [
+            16908288,
+            2164391936
+          ],
+          "gpi": 4118806529,
+          "data": 1
+        },
+        {
+          "name": "identity-word-03",
+          "gpo": [
+            2164457472,
+            16973824
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "identity-word-04",
+          "gpo": [
+            17039360,
+            2164523008
+          ],
+          "gpi": 4118806531,
+          "data": 3
+        },
+        {
+          "name": "identity-word-05",
+          "gpo": [
+            2164588544,
+            17104896
+          ],
+          "gpi": 4110417921,
+          "data": 1
+        },
+        {
+          "name": "identity-word-06",
+          "gpo": [
+            17170432,
+            2164654080
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "identity-word-07",
+          "gpo": [
+            2164719616,
+            17235968
+          ],
+          "gpi": 4110417922,
+          "data": 2
+        },
+        {
+          "name": "identity-word-08",
+          "gpo": [
+            17301504,
+            2164785152
+          ],
+          "gpi": 4118810880,
+          "data": 4352
+        },
+        {
+          "name": "identity-word-09",
+          "gpo": [
+            2164850688,
+            17367040
+          ],
+          "gpi": 4110431010,
+          "data": 13090
+        },
+        {
+          "name": "identity-word-10",
+          "gpo": [
+            17432576,
+            2164916224
+          ],
+          "gpi": 4118828356,
+          "data": 21828
+        },
+        {
+          "name": "identity-word-11",
+          "gpo": [
+            2164981760,
+            17498112
+          ],
+          "gpi": 4110448486,
+          "data": 30566
+        },
+        {
+          "name": "identity-word-12",
+          "gpo": [
+            17563648,
+            2165047296
+          ],
+          "gpi": 4118845832,
+          "data": 39304
+        },
+        {
+          "name": "identity-word-13",
+          "gpo": [
+            2165112832,
+            17629184
+          ],
+          "gpi": 4110465962,
+          "data": 48042
+        },
+        {
+          "name": "identity-word-14",
+          "gpo": [
+            17694720,
+            2165178368
+          ],
+          "gpi": 4118863308,
+          "data": 56780
+        },
+        {
+          "name": "identity-word-15",
+          "gpo": [
+            2165243904,
+            17760256
+          ],
+          "gpi": 4110483438,
+          "data": 65518
+        },
+        {
+          "name": "execution-hold",
+          "gpo": [
+            33554432,
+            2181038080
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "buttons-absent",
+          "gpo": [
+            2197815296,
+            50331648
+          ],
+          "gpi": 4114612225,
+          "data": 1
+        },
+        {
+          "name": "media-absent",
+          "gpo": [
+            67108867,
+            2214592515
+          ],
+          "gpi": 4123000833,
+          "data": 1
+        },
+        {
+          "name": "execution-release",
+          "gpo": [
+            2181038081,
+            33554433
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "execution-hold-again",
+          "gpo": [
+            33554432,
+            2181038080
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "invalid-opcode",
+          "gpo": [
+            4278190080,
+            2130706432
+          ],
+          "gpi": 4114612225,
+          "data": 1
+        }
+      ]
+    },
+    {
+      "name": "gamepad-video-blob",
+      "capabilities": 7,
+      "initial_request_toggle": false,
+      "build_id": "00112233445566778899aabbccddeeff",
+      "exchanges": [
+        {
+          "name": "identity-word-zero",
+          "gpo": [
+            16777216,
+            2164260864
+          ],
+          "gpi": 4118824262,
+          "data": 17734
+        },
+        {
+          "name": "identity-word-01",
+          "gpo": [
+            2164326400,
+            16842752
+          ],
+          "gpi": 4110430547,
+          "data": 12627
+        },
+        {
+          "name": "identity-word-02",
+          "gpo": [
+            16908288,
+            2164391936
+          ],
+          "gpi": 4118806529,
+          "data": 1
+        },
+        {
+          "name": "identity-word-03",
+          "gpo": [
+            2164457472,
+            16973824
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "identity-word-04",
+          "gpo": [
+            17039360,
+            2164523008
+          ],
+          "gpi": 4118806531,
+          "data": 3
+        },
+        {
+          "name": "identity-word-05",
+          "gpo": [
+            2164588544,
+            17104896
+          ],
+          "gpi": 4110417921,
+          "data": 1
+        },
+        {
+          "name": "identity-word-06",
+          "gpo": [
+            17170432,
+            2164654080
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "identity-word-07",
+          "gpo": [
+            2164719616,
+            17235968
+          ],
+          "gpi": 4110417927,
+          "data": 7
+        },
+        {
+          "name": "identity-word-08",
+          "gpo": [
+            17301504,
+            2164785152
+          ],
+          "gpi": 4118810880,
+          "data": 4352
+        },
+        {
+          "name": "identity-word-09",
+          "gpo": [
+            2164850688,
+            17367040
+          ],
+          "gpi": 4110431010,
+          "data": 13090
+        },
+        {
+          "name": "identity-word-10",
+          "gpo": [
+            17432576,
+            2164916224
+          ],
+          "gpi": 4118828356,
+          "data": 21828
+        },
+        {
+          "name": "identity-word-11",
+          "gpo": [
+            2164981760,
+            17498112
+          ],
+          "gpi": 4110448486,
+          "data": 30566
+        },
+        {
+          "name": "identity-word-12",
+          "gpo": [
+            17563648,
+            2165047296
+          ],
+          "gpi": 4118845832,
+          "data": 39304
+        },
+        {
+          "name": "identity-word-13",
+          "gpo": [
+            2165112832,
+            17629184
+          ],
+          "gpi": 4110465962,
+          "data": 48042
+        },
+        {
+          "name": "identity-word-14",
+          "gpo": [
+            17694720,
+            2165178368
+          ],
+          "gpi": 4118863308,
+          "data": 56780
+        },
+        {
+          "name": "identity-word-15",
+          "gpo": [
+            2165243904,
+            17760256
+          ],
+          "gpi": 4110483438,
+          "data": 65518
+        },
+        {
+          "name": "execution-hold",
+          "gpo": [
+            33554432,
+            2181038080
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "release-unready",
+          "gpo": [
+            2181038081,
+            33554433
+          ],
+          "gpi": 4114612228,
+          "data": 4
+        },
+        {
+          "name": "buttons-neutral",
+          "gpo": [
+            50331648,
+            2197815296
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "buttons-invalid-index",
+          "gpo": [
+            2197880832,
+            50397184
+          ],
+          "gpi": 4114612226,
+          "data": 2
+        },
+        {
+          "name": "buttons-invalid-mask",
+          "gpo": [
+            50331904,
+            2197815552
+          ],
+          "gpi": 4123000835,
+          "data": 3
+        },
+        {
+          "name": "media-data-before-begin",
+          "gpo": [
+            2231370241,
+            83886593
+          ],
+          "gpi": 4114612228,
+          "data": 4
+        },
+        {
+          "name": "media-begin-zero",
+          "gpo": [
+            67108864,
+            2214592512
+          ],
+          "gpi": 4123000835,
+          "data": 3
+        },
+        {
+          "name": "media-begin-three",
+          "gpo": [
+            2214592515,
+            67108867
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "media-begin-while-open",
+          "gpo": [
+            67108868,
+            2214592516
+          ],
+          "gpi": 4123000836,
+          "data": 4
+        },
+        {
+          "name": "media-tail-before-final-byte",
+          "gpo": [
+            2231435267,
+            83951619
+          ],
+          "gpi": 4114612227,
+          "data": 3
+        },
+        {
+          "name": "media-pair",
+          "gpo": [
+            83886593,
+            2231370241
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "hold-preserves-staging",
+          "gpo": [
+            2181038080,
+            33554432
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "release-incomplete",
+          "gpo": [
+            33554433,
+            2181038081
+          ],
+          "gpi": 4123000836,
+          "data": 4
+        },
+        {
+          "name": "commit-incomplete",
+          "gpo": [
+            2248146944,
+            100663296
+          ],
+          "gpi": 4114612228,
+          "data": 4
+        },
+        {
+          "name": "tail-invalid-padding",
+          "gpo": [
+            83955715,
+            2231439363
+          ],
+          "gpi": 4123000835,
+          "data": 3
+        },
+        {
+          "name": "media-tail",
+          "gpo": [
+            2231435267,
+            83951619
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "media-commit",
+          "gpo": [
+            100663296,
+            2248146944
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "execution-release",
+          "gpo": [
+            2181038081,
+            33554433
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "buttons-up-start",
+          "gpo": [
+            50331777,
+            2197815425
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "hold-neutralizes-buttons",
+          "gpo": [
+            2181038080,
+            33554432
+          ],
+          "gpi": 4110417920,
+          "data": 0
+        },
+        {
+          "name": "release-retains-media",
+          "gpo": [
+            33554433,
+            2181038081
+          ],
+          "gpi": 4118806528,
+          "data": 0
+        },
+        {
+          "name": "media-begin-released",
+          "gpo": [
+            2214592515,
+            67108867
+          ],
+          "gpi": 4114612228,
+          "data": 4
+        },
+        {
+          "name": "stream-absent",
+          "gpo": [
+            117440512,
+            2264924160
+          ],
+          "gpi": 4123000833,
+          "data": 1
+        },
+        {
+          "name": "invalid-opcode",
+          "gpo": [
+            4278190080,
+            2130706432
+          ],
+          "gpi": 4114612225,
+          "data": 1
+        }
+      ]
+    }
+  ]
+}

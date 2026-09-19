@@ -12,6 +12,7 @@
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 #include "native/input.hpp"
 #include "native/video.hpp"
 
@@ -574,6 +575,16 @@ Capabilities NativeHardware::capabilities() const
 		std::sort(computer.interfaces.begin(), computer.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer));
+		SupportedABI application;
+		application.id = generated::FesApplicationABIID;
+		application.major = generated::FesApplicationABIMajor;
+		application.minor = generated::FesApplicationABIMinor;
+		application.interfaces = {
+			{generated::FesApplicationInterfaceGamepadID, 1, 0},
+			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
+			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
+			{generated::FesApplicationInterfaceVideoFixed720p60ID, 1, 0}};
+		result.abis.insert(result.abis.begin(), std::move(application));
 		std::sort(result.abis.begin(), result.abis.end(),
 			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });
 		if (active_driver_ == fes_gp_driver_) {
