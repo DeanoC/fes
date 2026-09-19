@@ -1,8 +1,10 @@
 # Media blob stream 1.0
 
 This is the authoritative shared wire contract for `fes.media.blob-stream`
-1.0, an extension of `fes.simple-computer` ABI 1.0 (tag 2), not ABI 2.
-The YAML constants are in [fes_simple_computer.yaml](../packages/abi/fes_simple_computer.yaml).
+1.0, shared by `fes.simple-computer` ABI 1.0 (tag 2) and `fes.application`
+ABI 1.0 (tag 3). It does not change either ABI version. The matching YAML
+constants are in [fes_simple_computer.yaml](../packages/abi/fes_simple_computer.yaml)
+and [fes_application.yaml](../packages/abi/fes_application.yaml).
 Definitions and synthetic fixtures do not establish consumer implementation or
 hardware acceptance.
 
@@ -11,7 +13,11 @@ hardware acceptance.
 Live identity capability bit 3 advertises this interface. Existing keyboard,
 fixed video and blob 1.0 bits 0..2 and all identity/version words are unchanged.
 New SMS packages declare stream 1.0 **required**, alongside the existing required
-blob 1.0, keyboard 1.0 and fixed-video 1.0 interfaces. Old runtimes therefore
+blob 1.0, keyboard 1.0 and fixed-video 1.0 interfaces. Application packages
+likewise require stream 1.0 alongside blob 1.0; their input interfaces remain
+independent of media transport. For example, a Coleco application can compose
+controller ports, keypads and streaming without declaring a keyboard.
+Old runtimes therefore
 reject the unknown required interface before activation. This uses existing
 format-2 interface fields; no package format or seal interpretation changes.
 
