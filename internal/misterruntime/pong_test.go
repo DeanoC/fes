@@ -25,7 +25,7 @@ func TestPongNativeROMlessLaunchAndStop(t *testing.T) {
 		t.Fatal("Pong is not registered")
 	}
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none"), pongResponse("running_game")}, launch: pongResponse("running_game"), stop: runtimeResponse("idle", "none")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 	prepared, err := runtime.Prepare(spec, "")
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestPongNativeROMlessLaunchAndStop(t *testing.T) {
 func TestPongRejectsMediaBeforeRuntimeCalls(t *testing.T) {
 	spec := core.Spec{System: "pong", ExpectedCore: "Pong"}
 	control := &recordingControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 	if _, err := runtime.Prepare(spec, "/tmp/rom.bin"); err == nil {
 		t.Fatal("Pong accepted a ROM")
 	}
@@ -75,7 +75,7 @@ func TestPongLostLaunchMatchesOnlyRequestedIdentity(t *testing.T) {
 				terminal = runtimeResponse("running_game", "game")
 			}
 			control := &recordingControl{launchErr: errors.New("lost response"), statuses: []misterruntime.Response{runtimeResponse("idle", "none"), pongResponse("starting"), terminal}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 			prepared := mister.PreparedLaunch{Spec: core.Spec{System: "pong", ExpectedCore: "Pong"}}
 			var observed string
 			var attempted bool

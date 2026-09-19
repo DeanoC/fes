@@ -51,7 +51,7 @@ func TestNativeLaunchDispatchesAndDrainsRuntimeDumpJoinFields(t *testing.T) {
 		statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
 		launch:   runtimeResponse("running_game", "game"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithDiagnosticEventsPath(dump))
 	sink := &recordingSink{}
 	runtime.ConfigureDiagnostics(sink)
@@ -99,7 +99,7 @@ func TestNativeDrainOmitsJoinFieldsWhenTheDumpHasNone(t *testing.T) {
 	control := &recordingControl{
 		statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithDiagnosticEventsPath(dump))
 	sink := &recordingSink{}
 	runtime.ConfigureDiagnostics(sink)
@@ -123,7 +123,7 @@ func (c *diagnosticDataControl) Protocol2Stop(context.Context) (misterruntime.Pr
 func TestLibraryPersistenceDispatchKeepsDiagnostics(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &diagnosticDataControl{}
-	runtime := misterruntime.NewRuntime(control, "", 0, 0,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0,
 		misterruntime.WithCorePackageRoot(t.TempDir()),
 		misterruntime.WithDiagnosticEventsPath(filepath.Join(t.TempDir(), "absent.json")))
 	sink := &recordingSink{}

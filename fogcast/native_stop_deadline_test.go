@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -45,7 +46,8 @@ func TestNativeStopCompletingAfterTwoSecondTargetDeadlineReconcilesWithoutReplay
 	root := catalog.Root{ID: game.LibraryID, System: game.System, Path: "/private/library"}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	control := newDeadlineOwnedStopControl()
-	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "missing-boot-id"), 25*time.Millisecond, 250*time.Millisecond)
+	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "missing-boot-id"), 25*time.Millisecond, 250*time.Millisecond,
+		misterruntime.WithNativeCoreFS(fstest.MapFS{"usr/share/mister-runtime/cores/megadrive.rbf": &fstest.MapFile{Data: []byte("fixture RBF")}}))
 	cache, err := targetcache.Open(targetcache.Config{
 		Root: filepath.Join(t.TempDir(), "cache"), ActiveRecord: filepath.Join(t.TempDir(), "run", "active.json"), MaxBytes: 64 << 20,
 	}, core.DefaultRegistry(), targetcache.WithLogger(logger))

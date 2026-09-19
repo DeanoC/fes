@@ -331,8 +331,23 @@ no UI-specific launch coordinator is introduced. The native runtime is required.
 host direct-launch path to target `/v1/launch` with empty `rom_path`. Only the
 exact registered built-in can omit media; rooted games retain their existing
 source/cache admission. Configured Pong library roots are rejected. The Main
-backend explicitly rejects ROM-less profiles. Host discoverability does not
+backend explicitly rejects ROM-less profiles. Catalog presence alone does not
 establish that a selected target image contains the required Pong RBF.
+Native health advertises versioned `native_cores` availability from readable,
+nonempty regular files at the adapter's existing legacy core paths. An explicit
+empty list means no installed legacy cores; an absent field is an older or
+different backend, not an empty list. This is operational availability, separate
+from sealed artifact provenance and from described-package compatibility.
+Native Prepare and Launch also reject missing core files before calling the
+runtime, so a stale catalog cannot turn a missing file into a physical failure.
+The host copies this observation per configured target and uses it for the
+existing catalog `launchable` projection, including built-in Pong. Browsing
+does not probe the target per row. Native launch admission refreshes the
+observation for the session-bound target; an unavailable core is rejected
+before dispatch. Explicit host-only execution and described-package admission
+remain separate. Failed observations and malformed advertised versions do not
+grant native eligibility; older peers without the field retain their existing
+contract rather than being mistaken for a package-only image.
 
 ## Format-2 core package inspection and staging
 
@@ -1170,8 +1185,10 @@ token, or `FOGCAST_AUDIO_CHROME=1` without a meter paints a quiet attract-only
 packs keep the token false. Aspect-fit letterbox bars mix the system colour toward
 the theme label bar; focused cells add a 1px inner highlight. Header uses the title role, tile names use body, placeholder
 lettermarks use caption, and the footer uses status. They rasterize the
-embedded Go Regular face (no kit system fonts) and truncate with an ellipsis
-when the string exceeds the chrome or cell width. A paired, authenticated host listener
+embedded Go Regular face (no kit system fonts). Tile labels may truncate with
+an ellipsis; the Kit reserves bounded multiline footer space for the focused
+title and recovery instructions so the actionable text remains readable.
+A paired, authenticated host listener
 serves a restricted set of existing library, artwork, and session operations and a
 session-bound input stream. The host keeps target and input lease ownership; the
 adapter sends physical USB events through that stream to the retained virtual
@@ -1309,10 +1326,15 @@ such as a failed native core load. Coordinator Stop fast-paths only clean idle;
 it retries runtime Stop for idle-with-error and clears the error only after a
 confirmed clean idle response. A failed Stop keeps the recovery error visible.
 
-An idle menu therefore does not by itself establish launch readiness. A retained
-runtime error can reject admission of a different, valid package. Use the normal
-session Stop path to recover, then retry explicitly; clients do not silently
-replay a failed launch. Kit launch diagnostics record the submitted game ID and
+An idle menu therefore does not by itself establish launch readiness. A new
+explicit library launch can clear a retained idle legacy-launch error through
+one existing leased Stop request before its single activation. Source/media
+validation, target identity, API and ownership admission still apply. Cleanup
+must confirm clean idle; active sessions, save failures, attributed package
+failures and reboot-required states are not silently cleared. Cleanup failure
+blocks activation and remains visible. This does not replay the earlier failed
+launch or automatically reboot. Other recovery states still require explicit
+Stop or operator attention. Kit launch diagnostics record the submitted game ID and
 bounded result code, separately from the currently displayed selection, without
 logging credentials or raw response bodies.
 

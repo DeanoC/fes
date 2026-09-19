@@ -17,6 +17,10 @@ func Paint(d gfx.Device, g Grid) {
 		return
 	}
 	th := g.Theme.Complete()
+	if len(g.FooterLines) > 0 {
+		g.FooterH = readingFooterHeight(g.FooterLines, th)
+		g.layout()
+	}
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
@@ -60,7 +64,11 @@ func Paint(d gfx.Device, g Grid) {
 	statusSize := th.StatusPx()
 	statusW := th.StatusWeight()
 	status = gfx.FitTextWeight(status, statusSize, g.Width-16, statusW)
-	d.DrawTextWeight(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
+	if len(g.FooterLines) > 0 {
+		paintReadingFooter(d, g.FooterLines, g.Width, g.Height, th)
+	} else {
+		d.DrawTextWeight(8, chromeTextY(footerTop, g.Height-footerTop, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
+	}
 	paintLivingRoomChrome(d, g.Width, g.Height, g.HeaderH, g.FooterH, th, g.Session)
 	PaintAudioChrome(d, g.Width, g.Height, th, g.Audio)
 }

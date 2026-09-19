@@ -27,6 +27,10 @@ func SafeTargetDiagnostic(remote *protocol.APIError) (message, phase string) {
 		phase = remote.Phase
 	}
 	switch remote.Code {
+	case protocol.CodeUnsupportedOperation:
+		if remote.Phase == "admission" && (remote.Message == "legacy native core artifact is unavailable on this target" || remote.Message == "legacy native core is unavailable on the selected target; choose an installed FPGA package") {
+			return "Legacy core is unavailable on this target; choose an installed FPGA package.", "admission"
+		}
 	case protocol.CodeMiSTerUnavailable:
 		if phase == "admission" && remote.Message == targetRetainedErrorMessage {
 			return targetRetainedErrorMessage, phase

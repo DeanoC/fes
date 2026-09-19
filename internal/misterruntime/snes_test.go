@@ -35,7 +35,7 @@ func TestSNESNativeCartridgeLaunchKeepsMainIndex(t *testing.T) {
 		t.Fatalf("legacy Main SNES selector changed: %+v", spec)
 	}
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none"), snesResponse("running_game")}, launch: snesResponse("running_game"), stop: runtimeResponse("idle", "none")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 	rom := snesROM(t)
 	prepared, err := runtime.Prepare(spec, rom)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestSNESNativeCartridgeLaunchKeepsMainIndex(t *testing.T) {
 func TestSNESNativeRejectsWrongMediaBeforeDispatch(t *testing.T) {
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
 	control := &recordingControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 	md := writeNativeROM(t, ".md")
 	for _, path := range []string{"", "game.sfc", md} {
 		if _, err := runtime.Prepare(spec, path); err == nil {
@@ -85,7 +85,7 @@ func TestSNESLostLaunchMatchesRequestedIdentity(t *testing.T) {
 				terminal = runtimeResponse("running_game", "game")
 			}
 			control := &recordingControl{launchErr: errors.New("lost response"), statuses: []misterruntime.Response{runtimeResponse("idle", "none"), snesResponse("starting"), terminal}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 			prepared := mister.PreparedLaunch{Spec: core.Spec{System: protocol.SystemSNES, ExpectedCore: "SNES"}, AbsoluteROM: snesROM(t)}
 			var observed string
 			var attempted bool

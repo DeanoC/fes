@@ -21,7 +21,7 @@ func TestSaveFailureKeepsStopRetryableAndNeverReportsIdle(t *testing.T) {
 	failed := snesResponse("running_game")
 	failed.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "cannot save"}
 	control := &recordingControl{statuses: []misterruntime.Response{failed}, stop: failed}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	if !runtime.StopReady() {
 		t.Fatal("retained SNES save must permit Stop retry")
 	}
@@ -50,7 +50,7 @@ func TestSNESPersistentIdentitySurvivesCacheRelocationAndRuntimeRestart(t *testi
 	launch := func(id, rom string) string {
 		t.Helper()
 		control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}, launch: snesResponse("running_game")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
 		spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
 		prepared, err := runtime.Prepare(spec, rom)
 		if err != nil {
@@ -95,7 +95,7 @@ func TestSNESUnusableSaveRootFailsBeforeControlMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}, launch: snesResponse("running_game")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
 	_, attempted, err := runtime.Launch(context.Background(), mister.PreparedLaunch{Spec: spec, AbsoluteROM: snesROM(t), GameID: "test"})
 	if err == nil || attempted {
@@ -112,7 +112,7 @@ func TestSNESFailedSaveBlocksLeaseReleaseUntilStopRetry(t *testing.T) {
 	failed.OK = false
 	failed.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "disk full"}
 	control := &recordingControl{statuses: []misterruntime.Response{idle}, launch: snesResponse("running_game"), stop: failed}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(t.TempDir()))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(t.TempDir()))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	lease := kitlease.New(time.Minute, func(ctx context.Context) error {
 		status, err := coordinator.Stop(ctx)
@@ -204,7 +204,7 @@ func TestConfiguredSavesLeaveMegaDriveAndPongRequestsUnchanged(t *testing.T) {
 			response.System = &name
 			response.Core = &spec.ExpectedCore
 			control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}, launch: response}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(root))
 			rom := ""
 			if system == protocol.SystemMegaDrive {
 				rom = writeNativeROM(t, ".md")
@@ -222,7 +222,7 @@ func TestConfiguredSavesLeaveMegaDriveAndPongRequestsUnchanged(t *testing.T) {
 
 func TestSNESPersistentLostLaunchResponseDoesNotReplay(t *testing.T) {
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none"), snesResponse("running_game")}, launchErr: errors.New("response lost")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(t.TempDir()))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second, misterruntime.WithSaveRoot(t.TempDir()))
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
 	if _, attempted, err := runtime.LaunchOwned(context.Background(), context.Background(), context.Background(), mister.PreparedLaunch{Spec: spec, AbsoluteROM: snesROM(t), GameID: "snes-test"}); err != nil || !attempted {
 		t.Fatalf("lost response: %v %v", attempted, err)

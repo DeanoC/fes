@@ -632,6 +632,7 @@ func modelGrid(m kitlauncher.Model, width, height int, covers *shared.CoverCache
 		g.Focus = m.Focus - start
 	}
 	g.Footer = modelFooter(m)
+	g.SetFooterLines(modelReadingFooter(m, width, height, th))
 	if strings.TrimSpace(m.SearchQuery) != "" && len(m.Games) == 0 {
 		g.EmptyLabel = "No matches"
 	}
@@ -700,6 +701,7 @@ func modelDetailFrame(m kitlauncher.Model, covers *shared.CoverCache, presentati
 		Meta:         meta,
 		Description:  asciiLabel(detail.Summary),
 		Hint:         asciiLabel(detailFooter(m)),
+		FooterLines:  modelReadingFooter(m, width, height, th),
 		Theme:        th,
 		Color:        th.SystemColor(detail.Platform),
 		SeriesLabel:  asciiLabel(m.SeriesLabel),
@@ -898,6 +900,23 @@ func gameTileWithCoreStatus(game hostclient.Game, covers *shared.CoverCache, pre
 	return tile
 }
 
+func modelReadingFooter(m kitlauncher.Model, width, height int, th theme.Theme) []string {
+	title := ""
+	browseOnly := false
+	if game, ok := m.FocusedGame(); ok {
+		title = "Selected: " + asciiLabel(game.Title)
+		browseOnly = !game.LaunchEligible()
+	}
+	status := modelFooter(m)
+	if m.DetailOpen {
+		status = asciiLabel(detailFooter(m))
+	}
+	if browseOnly && strings.TrimSpace(m.Message) == "" {
+		status = strings.ReplaceAll(status, "A play", "Browse only")
+	}
+	return fbgrid.ReadingFooter(status, title, width, height, th)
+}
+
 func modelFooter(m kitlauncher.Model) string {
 	status := strings.TrimSpace(m.Message)
 	if status == "" {
@@ -920,24 +939,25 @@ func modelFooter(m kitlauncher.Model) string {
 			status = m.GridHint()
 		}
 	}
-	return truncateLabel(asciiLabel(status), chromeLabelMax)
+	return asciiLabel(status)
 }
 
 func modelWheelFrame(m kitlauncher.Model, covers, stills *shared.CoverCache, presentations *shared.PresentationCache, th theme.Theme, width, height int) fbgrid.WheelFrame {
 	th = th.Complete()
 	items := m.WheelItems()
 	frame := fbgrid.WheelFrame{
-		Width:    width,
-		Height:   height,
-		Header:   truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax),
-		Footer:   modelFooter(m),
-		Title:    asciiLabel(m.ShelfLabel()),
-		Stats:    asciiLabel(m.WheelStats()),
-		Featured: asciiLabel(m.WheelFeaturedTitle()),
-		Color:    th.SystemColor(m.Shelf),
-		Focus:    m.WheelIndex(),
-		Theme:    th,
-		Session:  m.SessionChrome(),
+		Width:       width,
+		Height:      height,
+		Header:      truncateLabel(asciiLabel(packHeader(m)), chromeLabelMax),
+		Footer:      modelFooter(m),
+		FooterLines: fbgrid.ReadingFooter(modelFooter(m), "", width, height, th),
+		Title:       asciiLabel(m.ShelfLabel()),
+		Stats:       asciiLabel(m.WheelStats()),
+		Featured:    asciiLabel(m.WheelFeaturedTitle()),
+		Color:       th.SystemColor(m.Shelf),
+		Focus:       m.WheelIndex(),
+		Theme:       th,
+		Session:     m.SessionChrome(),
 	}
 	frame.Items = make([]fbgrid.WheelItem, 0, len(items))
 	for _, item := range items {

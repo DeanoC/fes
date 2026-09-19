@@ -18,6 +18,7 @@ type DetailFrame struct {
 	Meta          string
 	Description   string
 	Hint          string
+	FooterLines   []string // Optional wrapped footer; nil preserves legacy chrome.
 	Cover         *image.RGBA
 	CoverKind     CoverKind
 	// Box is optional 3D box/cart art for the hero. Paint prefers it over Cover.
@@ -51,6 +52,9 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		return
 	}
 	th := f.Theme.Complete()
+	if len(f.FooterLines) > 0 {
+		th.FooterH = readingFooterHeight(f.FooterLines, th)
+	}
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
@@ -190,7 +194,11 @@ func PaintDetail(d gfx.Device, f DetailFrame) {
 		footerTop = 0
 	}
 	hint = gfx.FitTextWeight(hint, statusSize, f.Width-16, statusW)
-	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
+	if len(f.FooterLines) > 0 {
+		paintReadingFooter(d, f.FooterLines, f.Width, f.Height, th)
+	} else {
+		d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), hint, statusSize, statusW, th.Status)
+	}
 	paintDetailSeries(d, f, th)
 	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
 	PaintAudioChrome(d, f.Width, f.Height, th, f.Audio)

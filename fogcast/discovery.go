@@ -44,11 +44,12 @@ func (s *Service) refreshTargetConnection(ctx context.Context) (protocol.Health,
 	return s.refreshTargetConnectionWithBackoff(ctx, true)
 }
 
-func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respectBackoff bool) (protocol.Health, error) {
+func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respectBackoff bool) (result protocol.Health, resultErr error) {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
 	name := s.sessionTargetNameLocked()
 	selected := targetByName(s.targets, name)
+	defer func() { s.rememberNativeAvailability(selected, result, resultErr) }()
 	client, ok := s.selectedClientLocked()
 	concrete, realClient := client.(*targetclient.Client)
 	if !ok {
@@ -213,13 +214,15 @@ func (s *Service) refreshStopAdmission(ctx context.Context) (protocol.Health, er
 
 // Address-only mutation admission checks the contract without adding discovery,
 // status, or lease reconciliation to the existing execution path.
-func (s *Service) refreshTargetAdmission(ctx context.Context) (protocol.Health, error) {
+func (s *Service) refreshTargetAdmission(ctx context.Context) (result protocol.Health, resultErr error) {
 	if s.discoveryEnabled() {
 		return s.refreshTargetConnection(ctx)
 	}
 	s.targetMu.RLock()
 	client, ok := s.selectedClientLocked()
+	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	s.targetMu.RUnlock()
+	defer func() { s.rememberNativeAvailability(selected, result, resultErr) }()
 	if !ok {
 		return protocol.Health{}, errors.New("target unavailable")
 	}

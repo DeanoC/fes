@@ -1189,7 +1189,7 @@ func TestCoordinatorLaunchesMegaDriveThroughTheNativeRuntimeTranslation(t *testi
 		Protocol: 1, OK: true, State: "running_game", Execution: "game",
 		System: &system, Core: &coreName, Version: "test",
 	}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 
@@ -1411,7 +1411,7 @@ func TestCoordinatorStopsAnActiveNativeGameAndImmediatelyRelaunches(t *testing.T
 		t.Fatal(err)
 	}
 	control := &nativeLifecycleControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 	request := protocol.LaunchRequest{
@@ -1447,7 +1447,7 @@ func TestCoordinatorRecoversOperationalIdleWithRetainedErrorAndLaunches(t *testi
 	control := &nativeLifecycleControl{idleError: &misterruntime.RemoteError{
 		Code: "io_failed", Message: "private prior cleanup detail",
 	}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 
@@ -1478,7 +1478,7 @@ func TestCoordinatorRejectsLostSecondLaunchAgainstTheOldNativeSessionWithoutChan
 		t.Fatal(err)
 	}
 	control := &nativeLifecycleControl{subsequentLaunchErr: errors.New("busy response was lost")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	store := &recordingContentStore{}
 	agent.NewContentController(coordinator, store)
@@ -1804,7 +1804,7 @@ func TestCoordinatorRelaunchesAfterLostSuccessfulNativeStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := &lostStopLifecycleControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 	request := protocol.LaunchRequest{GameID: "recovery-game", System: protocol.SystemMegaDrive, ROMPath: rom}
@@ -1852,7 +1852,7 @@ func TestCoordinatorFailedNativeLaunchRecoveredToIdleAllowsNextLaunch(t *testing
 		t.Fatal(err)
 	}
 	control := &recoveredLaunchControl{fail: true}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t))
 	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 	request := protocol.LaunchRequest{GameID: "recovery", System: protocol.SystemMegaDrive, ROMPath: rom}
 	status, err := coordinator.Launch(context.Background(), request)
@@ -1876,7 +1876,7 @@ func TestFailedNativeLaunchClearsContentOnlyAfterConfirmedIdle(t *testing.T) {
 	for _, cleanupFails := range []bool{false, true} {
 		t.Run(fmt.Sprint("cleanupFails=", cleanupFails), func(t *testing.T) {
 			control := &recoveredLaunchControl{fail: true, failureCode: "invalid_request"}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, nativeCoreFixture(t, "pong"))
 			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
 			store := &recordingContentStore{pinned: true}
 			if cleanupFails {

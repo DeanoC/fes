@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -48,7 +49,8 @@ func TestCachedNativeLaunchCompletingAfterTransportObservationDeadlinesReconcile
 	root := catalog.Root{ID: game.LibraryID, System: game.System, Path: "/private/library"}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	control := newDeadlineOwnedLaunchControl()
-	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "missing-boot-id"), 25*time.Millisecond, healthTimeout)
+	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "missing-boot-id"), 25*time.Millisecond, healthTimeout,
+		misterruntime.WithNativeCoreFS(fstest.MapFS{"usr/share/mister-runtime/cores/megadrive.rbf": &fstest.MapFile{Data: []byte("fixture RBF")}}))
 	cache, err := targetcache.Open(targetcache.Config{
 		Root: filepath.Join(t.TempDir(), "cache"), ActiveRecord: filepath.Join(t.TempDir(), "run", "active.json"), MaxBytes: 64 << 20,
 	}, core.DefaultRegistry(), targetcache.WithLogger(logger))

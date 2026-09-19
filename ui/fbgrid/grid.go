@@ -89,6 +89,7 @@ type Grid struct {
 	Tiles          []Tile
 	Header         string
 	Footer         string
+	FooterLines    []string // Optional wrapped footer; nil preserves legacy chrome.
 	Columns        int
 	Width          int
 	Height         int

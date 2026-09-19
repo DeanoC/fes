@@ -3280,7 +3280,8 @@ func exerciseDetailGrid(d *gfx.LinuxFB, th theme.Theme) (string, error) {
 	logoRec := gfx.NewRecorder()
 	fbgrid.PaintDetail(logoRec, frame)
 	for _, c := range logoRec.Calls {
-		if c.Op == "DrawText" && c.Text == frame.Title {
+		// The logo replaces the hero title, not the readable footer identity.
+		if c.Op == "DrawText" && c.Text == frame.Title && c.SizePx == th.TitlePx() {
 			return b.String(), fmt.Errorf("detail logo still drew title text")
 		}
 	}

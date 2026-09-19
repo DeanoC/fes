@@ -182,15 +182,17 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset    func()
-	connectionMu   sync.Mutex
-	connection     TargetConnection
-	resolveTarget  func(context.Context, string) ([]string, error)
-	lookupCancel   context.CancelFunc
-	monitorCancel  context.CancelFunc
-	monitorDone    chan struct{}
-	nextLookup     time.Time
-	lookupFailures uint
+	nativeAvailabilityMu sync.RWMutex
+	nativeAvailability   map[nativeTargetKey]nativeObservation
+	targetReset          func()
+	connectionMu         sync.Mutex
+	connection           TargetConnection
+	resolveTarget        func(context.Context, string) ([]string, error)
+	lookupCancel         context.CancelFunc
+	monitorCancel        context.CancelFunc
+	monitorDone          chan struct{}
+	nextLookup           time.Time
+	lookupFailures       uint
 
 	stoppedKitLease         *targetclient.KitLease
 	closeKitLeases          func(context.Context) error
@@ -1223,7 +1225,14 @@ func (s *Service) QueryGames(ctx context.Context, query catalog.Query) (catalog.
 }
 
 func (s *Service) PlatformLaunchable(system protocol.System) bool {
-	return system == catalog.CorePlatform || catalog.Launchable(system) || s.hostLaunchable(system)
+	if system == catalog.CorePlatform {
+		return true
+	}
+	execution, err := s.resolveExecution(context.Background(), catalog.Game{System: system})
+	if err == nil && execution == ExecutionHostOnly {
+		return true
+	}
+	return catalog.Launchable(system) && s.nativeSystemAvailable(system, false)
 }
 
 func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error) {
@@ -1393,6 +1402,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		library, ok := client.(libraryCoreClient)
 		if !ok {
 			return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+		}
+		if retainedIdleLaunchRecoveryCandidate(prior) {
+			if err := s.validateLibraryCoreBeforeRecovery(ctx, selected.entry.PackageID, client); err != nil {
+				return protocol.Status{}, err
+			}
+		}
+		prior, err = s.recoverIdleLaunchError(ctx, client, prior)
+		if err != nil {
+			return protocol.Status{}, err
 		}
 		status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
 	} else {
@@ -1897,6 +1915,9 @@ func (s *Service) acquireLifecycle(ctx context.Context) (func(), error) {
 }
 
 func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
+	if err := s.nativeCatalogAdmission(ctx, game); err != nil {
+		return protocol.CachedLaunchResponse{}, false, err
+	}
 	if game.System == protocol.SystemPong || game.Kind == catalog.SourceKindBuiltin {
 		if !catalog.IsBuiltinPong(game) {
 			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeBadRequest, nil)
@@ -1904,7 +1925,7 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 		return s.launchFPGANative(ctx, game, "", progress)
 	}
 
-	if !s.PlatformLaunchable(game.System) {
+	if !catalog.Launchable(game.System) && !s.hostLaunchable(game.System) {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
 	}
 	root, ok := s.libraryRoot(game.LibraryID)

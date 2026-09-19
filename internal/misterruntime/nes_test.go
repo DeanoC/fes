@@ -35,12 +35,12 @@ func TestNESNativeCartridgeLaunchUsesIndexZeroAndRuntimeOwnedRBF(t *testing.T) {
 		t.Fatalf("NES registry entry is wrong: %+v", spec)
 	}
 	rom := nesROM(t)
-	prepared, err := misterruntime.NewRuntime(&recordingControl{}, "", time.Millisecond, 20*time.Millisecond).Prepare(spec, rom)
+	prepared, err := newRuntimeWithNativeCoreFixtures(t, &recordingControl{}, "", time.Millisecond, 20*time.Millisecond).Prepare(spec, rom)
 	if err != nil {
 		t.Fatal(err)
 	}
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}, launch: nesResponse("running_game"), stop: runtimeResponse("idle", "none")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 20*time.Millisecond)
 	observed, attempted, err := runtime.Launch(context.Background(), prepared)
 	if err != nil || !attempted || observed != "NES" {
 		t.Fatalf("launch: %q %v %v", observed, attempted, err)
@@ -54,7 +54,7 @@ func TestNESNativeCartridgeLaunchUsesIndexZeroAndRuntimeOwnedRBF(t *testing.T) {
 
 func TestNESNativeRejectsNonNESMediaBeforeDispatch(t *testing.T) {
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemNES)
-	runtime := misterruntime.NewRuntime(&recordingControl{}, "", time.Millisecond, 20*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, &recordingControl{}, "", time.Millisecond, 20*time.Millisecond)
 	for _, path := range []string{"", writeNativeROM(t, ".sfc"), writeNativeROM(t, ".unf"), "relative.nes"} {
 		if _, err := runtime.Prepare(spec, path); err == nil {
 			t.Fatalf("accepted %q", path)

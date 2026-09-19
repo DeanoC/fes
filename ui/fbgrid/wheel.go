@@ -30,6 +30,7 @@ type WheelFrame struct {
 	Width, Height int
 	Header        string
 	Footer        string
+	FooterLines   []string // Optional wrapped footer; nil preserves legacy chrome.
 	Title         string
 	Stats         string
 	Featured      string
@@ -58,6 +59,9 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 		return
 	}
 	th := f.Theme.Complete()
+	if len(f.FooterLines) > 0 {
+		th.FooterH = readingFooterHeight(f.FooterLines, th)
+	}
 	d.BeginFrame()
 	d.Clear(th.Background)
 	d.SetBlend(gfx.BlendNone)
@@ -168,7 +172,11 @@ func PaintWheel(d gfx.Device, f WheelFrame) {
 		footerTop = 0
 	}
 	status = gfx.FitTextWeight(status, statusSize, f.Width-16, statusW)
-	d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
+	if len(f.FooterLines) > 0 {
+		paintReadingFooter(d, f.FooterLines, f.Width, f.Height, th)
+	} else {
+		d.DrawTextWeight(8, chromeTextY(footerTop, footerH, gfx.TextHeightWeight(statusSize, statusW), false), status, statusSize, statusW, th.Status)
+	}
 	paintLivingRoomChrome(d, f.Width, f.Height, headerH, footerH, th, f.Session)
 	PaintAudioChrome(d, f.Width, f.Height, th, f.Audio)
 }

@@ -213,7 +213,7 @@ func TestNativeHealthIsReadyOnlyForControllableProductionStatesAndKeepsLegacyBoo
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			control := &recordingControl{statuses: []misterruntime.Response{test.response}}
-			runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "missing-boot-id"), time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, filepath.Join(t.TempDir(), "missing-boot-id"), time.Millisecond, time.Second)
 			health := runtime.Health("agent-test")
 			if health.APIVersion != "v1" || health.AgentVersion != "agent-test" || health.Ready != test.ready {
 				t.Fatalf("health = %#v", health)
@@ -265,7 +265,7 @@ func TestNativeStopReadinessAcceptsIdleExactMegaDriveOrDevelopment(t *testing.T)
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			control := &recordingControl{statuses: []misterruntime.Response{test.response}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			admission, ok := any(runtime).(stopReadyRuntime)
 			if !ok {
 				t.Fatal("native runtime has no operation-specific Stop readiness")
@@ -287,7 +287,7 @@ func TestNativeHealthRejectsOperationFailedIdleResponse(t *testing.T) {
 	response.OK = false
 	response.Error = &misterruntime.RemoteError{Code: "io_failed", Message: "private runtime detail"}
 	control := &recordingControl{statuses: []misterruntime.Response{response}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	health := runtime.Health("agent-test")
 	if health.Ready || health.APIVersion != "v1" || health.AgentVersion != "agent-test" || health.MiSTerProcess || health.CommandPipe {
 		t.Fatalf("health = %#v", health)
@@ -325,7 +325,7 @@ func (*blockingHealthControl) LoadDevelopmentRBF(context.Context, string) (miste
 func TestNativeHealthUsesSingleBoundedStatusCall(t *testing.T) {
 	t.Parallel()
 	control := &blockingHealthControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 10*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 10*time.Millisecond)
 	started := time.Now()
 	health := runtime.Health("test")
 	if health.Ready || control.statusCalls != 1 || !control.hadDeadline {
@@ -339,7 +339,7 @@ func TestNativeHealthUsesSingleBoundedStatusCall(t *testing.T) {
 func TestNativeReconcileMapsIdleWithoutIdentity(t *testing.T) {
 	t.Parallel()
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	status := runtime.Reconcile(context.Background())
 	if status.State != protocol.StateIdle || status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.Development || status.Recovery != "" || status.LastError != nil {
 		t.Fatalf("status = %#v", status)
@@ -349,7 +349,7 @@ func TestNativeReconcileMapsIdleWithoutIdentity(t *testing.T) {
 func TestNativeReconcilePreservesRetainedErrorFromOperationalIdle(t *testing.T) {
 	t.Parallel()
 	control := &recordingControl{statuses: []misterruntime.Response{retainedErrorIdleResponse()}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	status := runtime.Reconcile(context.Background())
 	if status.State != protocol.StateIdle || status.GameID != nil || status.System != nil ||
 		status.ExpectedCore != nil || status.ObservedCore != nil || status.Development || status.Recovery != "" {
@@ -366,7 +366,7 @@ func TestNativeReconcileRejectsMalformedRetainedError(t *testing.T) {
 	response := retainedErrorIdleResponse()
 	response.Error.Code = "unknown"
 	control := &recordingControl{statuses: []misterruntime.Response{response}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	status := runtime.Reconcile(context.Background())
 	assertUnavailableStatus(t, status)
 }
@@ -383,7 +383,7 @@ func TestNativeReconcileTreatsErrorBearingIdleAndStartingAsImmediateUnavailable(
 				response.System, response.Core = &system, &coreName
 			}
 			control := &recordingControl{statuses: []misterruntime.Response{response}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 			defer cancel()
 			status := runtime.Reconcile(ctx)
@@ -405,7 +405,7 @@ func TestNativeReconcileMapsRebootRequiredToFailedUnavailable(t *testing.T) {
 	response.OK = false
 	response.Error = &misterruntime.RemoteError{Code: "idle_failed", Message: "private hardware detail"}
 	control := &recordingControl{statuses: []misterruntime.Response{response}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	status := runtime.Reconcile(context.Background())
 	assertUnavailableStatus(t, status)
 	if strings.Contains(status.LastError.Message, "private") || strings.Contains(status.LastError.Message, "hardware") {
@@ -416,7 +416,7 @@ func TestNativeReconcileMapsRebootRequiredToFailedUnavailable(t *testing.T) {
 func TestNativeReconcileWaitsThroughStartingAndHonorsContext(t *testing.T) {
 	t.Run("starting", func(t *testing.T) {
 		control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("starting", "none")}}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
 		defer cancel()
 		status := runtime.Reconcile(ctx)
@@ -429,7 +429,7 @@ func TestNativeReconcileWaitsThroughStartingAndHonorsContext(t *testing.T) {
 
 	t.Run("socket unavailable", func(t *testing.T) {
 		client := misterruntime.NewClient(filepath.Join(t.TempDir(), "missing-runtime.sock"))
-		runtime := misterruntime.NewRuntime(client, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, client, "", time.Millisecond, time.Second)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
 		defer cancel()
 		status := runtime.Reconcile(ctx)
@@ -446,7 +446,7 @@ func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T) {
 				execution = "development"
 			}
 			control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse(state, execution)}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			status := runtime.Reconcile(context.Background())
 			assertUnavailableStatus(t, status)
 			if status.GameID != nil || status.System != nil || status.ExpectedCore != nil || status.ObservedCore != nil || status.Development {
@@ -457,7 +457,7 @@ func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T) {
 
 	t.Run("control failure", func(t *testing.T) {
 		control := &recordingControl{statusErr: errors.New("private socket path and protocol detail")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 		defer cancel()
 		status := runtime.Reconcile(ctx)
@@ -471,7 +471,7 @@ func TestNativeReconcileTreatsNonIdleStartupAsUnavailable(t *testing.T) {
 func TestNativePrepareAcceptsRegisteredNativeShapesAndAbsoluteROMs(t *testing.T) {
 	t.Parallel()
 	control := &recordingControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	spec, ok := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	if !ok {
 		t.Fatal("Mega Drive registry entry is missing")
@@ -524,7 +524,7 @@ func TestNativeLaunchMapsPreparedMegaDriveToTheExactRuntimeRequest(t *testing.T)
 		statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
 		launch:   runtimeResponse("running_game", "game"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -553,7 +553,7 @@ func TestNativeLaunchAdmitsRecoveredIdleWithRetainedError(t *testing.T) {
 		statuses: []misterruntime.Response{retainedErrorIdleResponse()},
 		launch:   runtimeResponse("running_game", "game"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -597,7 +597,7 @@ func (*blockingAdmissionControl) Stop(context.Context) (misterruntime.Response, 
 
 func TestNativeLaunchInitialAdmissionHonorsCallerCancellationWithoutDispatch(t *testing.T) {
 	control := &blockingAdmissionControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 500*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 500*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -653,7 +653,7 @@ func (*ownedLaunchContextControl) Stop(context.Context) (misterruntime.Response,
 
 func TestNativeOwnedLaunchKeepsAdmittedMutationOnProcessOwnerAfterObservationDeadline(t *testing.T) {
 	control := &ownedLaunchContextControl{launchStarted: make(chan struct{}), release: make(chan struct{})}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 25*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -839,7 +839,7 @@ func (c *operationDeadlineLaunchControl) counts() (launch, status int) {
 
 func TestNativeOwnedLaunchReconcilesTerminalAfterOperationDeadline(t *testing.T) {
 	control := newOperationDeadlineLaunchControl()
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 100*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 100*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -874,7 +874,7 @@ func TestNativeOwnedLaunchReconcilesTerminalAfterOperationDeadline(t *testing.T)
 func TestNativeOwnedLaunchReconcilesWhenDeadlineElapsedBeforeContextErrorPublication(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Millisecond)
 	control := &deadlinePublicationRaceControl{deadline: deadline}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 100*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 100*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -902,7 +902,7 @@ func TestNativeOwnedLaunchReconcilesWhenDeadlineElapsedBeforeContextErrorPublica
 
 func TestNativeOwnedLaunchTerminalReconciliationHonorsProcessShutdown(t *testing.T) {
 	control := newOperationDeadlineLaunchControl()
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -939,7 +939,7 @@ func TestNativeOwnedLaunchTerminalReconciliationHonorsProcessShutdown(t *testing
 
 func TestNativeOwnedLaunchTransfersOnlyPostAdmissionWorkToOperationContext(t *testing.T) {
 	control := &ownedLaunchContextControl{launchStarted: make(chan struct{}), release: make(chan struct{})}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 	if apiErr != nil {
@@ -971,7 +971,7 @@ func TestNativeOwnedLaunchHonorsAdmissionAndOperationCancellationBoundaries(t *t
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	t.Run("canceled admission never dispatches", func(t *testing.T) {
 		control := &blockingAdmissionControl{}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond)
 		prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 		if apiErr != nil {
 			t.Fatal(apiErr)
@@ -986,7 +986,7 @@ func TestNativeOwnedLaunchHonorsAdmissionAndOperationCancellationBoundaries(t *t
 
 	t.Run("operation owner cancellation stops waiting", func(t *testing.T) {
 		control := &ownedLaunchContextControl{launchStarted: make(chan struct{}), release: make(chan struct{})}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond)
 		prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
 		if apiErr != nil {
 			t.Fatal(apiErr)
@@ -1024,7 +1024,7 @@ func TestNativeOwnedLaunchReconcilesLostResponseWithinOperationAndTerminalBudget
 				runtimeResponse("running_game", "game"),
 			},
 		}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 500*time.Millisecond)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 500*time.Millisecond)
 		operation, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		observed, attempted, apiErr := runtime.LaunchOwned(context.Background(), operation, context.Background(), prepared)
@@ -1046,7 +1046,7 @@ func TestNativeOwnedLaunchReconcilesLostResponseWithinOperationAndTerminalBudget
 				runtimeResponse("starting", "game"),
 			},
 		}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 25*time.Millisecond)
 		operation, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
 		defer cancel()
 		started := time.Now()
@@ -1082,7 +1082,7 @@ func TestNativeLaunchRejectsPreparedValuesOutsideTheMegaDriveContractWithoutCont
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			control := &recordingControl{}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			_, attempted, apiErr := runtime.Launch(context.Background(), test.prepared)
 			if attempted || apiErr == nil || apiErr.Code != test.code {
 				t.Fatalf("Launch = attempted:%t error:%#v", attempted, apiErr)
@@ -1121,7 +1121,7 @@ func TestNativeLaunchMapsDaemonErrorsToStableFogCastErrors(t *testing.T) {
 				statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
 				launch:   response,
 			}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 			if observed != "" || !attempted || apiErr == nil || apiErr.Code != test.code ||
 				strings.Contains(apiErr.Message, "private") {
@@ -1160,7 +1160,7 @@ func TestNativeLaunchRejectsEverySuccessfulResponseExceptExactMegaDriveIdentity(
 				statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
 				launch:   test.response,
 			}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 			if observed != "" || !attempted || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
 				t.Fatalf("Launch = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
@@ -1182,7 +1182,7 @@ func TestNativeLaunchReconcilesALostResponseOnlyThroughStatus(t *testing.T) {
 				runtimeResponse("running_game", "game"),
 			},
 		}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 		if observed != "MegaDrive" || !attempted || apiErr != nil {
 			t.Fatalf("Launch = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
@@ -1202,7 +1202,7 @@ func TestNativeLaunchReconcilesALostResponseOnlyThroughStatus(t *testing.T) {
 				runtimeResponse("running_development", "development"),
 			},
 		}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 		if observed != "" || !attempted || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
 			t.Fatalf("Launch = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
@@ -1325,7 +1325,7 @@ func TestNativeLaunchReconcilesExpiredLostResponseThroughBoundedStatusOnly(t *te
 		`{"protocol":1,"ok":true,"state":"starting","execution":"game","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}`,
 	)
-	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared := mister.PreparedLaunch{Spec: spec, AbsoluteROM: writeNativeROM(t, ".bin")}
 
@@ -1347,7 +1347,7 @@ func TestNativeLaunchLostResponseProvisionalIdleReconciliationIsBounded(t *testi
 			runtimeResponse("idle", "none"),
 		},
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 15*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 15*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared := mister.PreparedLaunch{Spec: spec, AbsoluteROM: writeNativeROM(t, ".bin")}
 
@@ -1376,7 +1376,7 @@ func TestNativeLaunchLostResponseStartingReconciliationIsBounded(t *testing.T) {
 			runtimeResponse("starting", "game"),
 		},
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 15*time.Millisecond)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 15*time.Millisecond)
 	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
 	prepared := mister.PreparedLaunch{Spec: spec, AbsoluteROM: writeNativeROM(t, ".bin")}
 
@@ -1417,7 +1417,7 @@ func TestNativeLaunchLostResponseRejectsFailedOrInvalidTerminalStatus(t *testing
 					test.response,
 				},
 			}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 			observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 			if observed != "" || !attempted || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable ||
 				apiErr.Message != "target runtime is unavailable" {
@@ -1439,7 +1439,7 @@ func TestNativeLaunchRejectsAPreExistingActiveSessionBeforeDispatch(t *testing.T
 		statuses:  []misterruntime.Response{runtimeResponse("running_game", "game")},
 		launchErr: errors.New("busy response was lost"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 
 	observed, attempted, apiErr := runtime.Launch(context.Background(), prepared)
 	if observed != "" || attempted || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable ||
@@ -1487,7 +1487,7 @@ func TestNativeDevelopmentStagesBeforeOneIdleAdmissionAndOneDispatch(t *testing.
 		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
 		development: response,
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 25*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(stagedPath))
 	payload := []byte("exact development rbf")
 
@@ -1523,7 +1523,7 @@ func TestNativeDevelopmentSuccessfulProvisionalResponsesEnterStatusObservation(t
 				statuses:    []misterruntime.Response{runtimeResponse("idle", "none"), terminal},
 				development: test.response,
 			}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 				misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 			observed, attempted, apiErr := runtime.LoadDevelopmentRBF(
@@ -1558,7 +1558,7 @@ func TestNativeDevelopmentRejectsBeforeReadingOrDialing(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			control := &recordingControl{}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 				misterruntime.WithDevelopmentRBFPath(test.path))
 			body := &failOnRead{}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -1583,7 +1583,7 @@ func TestNativeDevelopmentRejectsBeforeReadingOrDialing(t *testing.T) {
 func TestNativeDevelopmentCancellationDuringStagingStopsBeforeAdmission(t *testing.T) {
 	control := &recordingControl{}
 	stagedPath := filepath.Join(t.TempDir(), "core.rbf")
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(stagedPath))
 	ctx, cancel := context.WithCancel(context.Background())
 	body := &cancelingDevelopmentBody{cancel: cancel}
@@ -1611,7 +1611,7 @@ func TestNativeDevelopmentReconcilesLostResponseThroughStatusOnly(t *testing.T) 
 		`{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`,
 	)
 	stagedPath := filepath.Join(t.TempDir(), "core.rbf")
-	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 100*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(stagedPath))
 
 	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, 3, bytes.NewReader([]byte("rbf")))
@@ -1631,7 +1631,7 @@ func TestNativeDevelopmentLostResponseRetainedErrorIdleIsFailure(t *testing.T) {
 		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"private primary error"},"version":"git-test"}`,
 	)
-	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 50*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(ctx, 3, bytes.NewReader([]byte("rbf")))
@@ -1651,7 +1651,7 @@ func TestNativeOwnedDevelopmentLoadPreservesRebootRequiredRecoveryMarker(t *test
 		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
 		development: response,
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	type recoveryLoader interface {
 		LoadDevelopmentRBFOwnedWithRecovery(context.Context, context.Context, context.Context, int64, io.Reader) (string, string, bool, *protocol.APIError)
@@ -1819,7 +1819,7 @@ func TestNativeOwnedDevelopmentUsesFreshProcessBoundWindowAfterObservationExpire
 	control := &ownedDevelopmentContextControl{
 		developmentStarted: make(chan struct{}), observation: observation, terminal: terminal,
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 	observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
@@ -1845,7 +1845,7 @@ func TestNativeOwnedDevelopmentDispatchesAfterStagingConsumesObservationWindow(t
 		statuses:    []misterruntime.Response{runtimeResponse("idle", "none")},
 		development: response,
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	body := &gatedDevelopmentBody{started: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan struct {
@@ -1885,7 +1885,7 @@ func TestNativeOwnedDevelopmentProvisionalAfterStagingObservationExpiryUsesFresh
 		observation: observation,
 		response:    runtimeResponse("idle", "none"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	body := &gatedDevelopmentBody{started: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan struct {
@@ -1923,7 +1923,7 @@ func TestNativeOwnedDevelopmentProvisionalAfterStagingObservationExpiryUsesFresh
 func TestNativeOwnedDevelopmentSuccessfulProvisionalResponsesUseStatusOnly(t *testing.T) {
 	t.Run("starting uses live observation", func(t *testing.T) {
 		control := &successfulProvisionalDevelopmentControl{response: runtimeResponse("starting", "development")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 			misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
@@ -1945,7 +1945,7 @@ func TestNativeOwnedDevelopmentSuccessfulProvisionalResponsesUseStatusOnly(t *te
 			observation: observation,
 			response:    runtimeResponse("idle", "none"),
 		}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 			misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 		observed, attempted, apiErr := runtime.LoadDevelopmentRBFOwned(
@@ -1964,7 +1964,7 @@ func TestNativeOwnedDevelopmentSuccessfulProvisionalResponsesUseStatusOnly(t *te
 
 func TestNativeOwnedDevelopmentSurvivesCallerCancellationAfterAdmission(t *testing.T) {
 	control := &admittedDevelopmentControl{started: make(chan struct{}), release: make(chan struct{})}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 50*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 50*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	admission, cancelAdmission := context.WithCancel(context.Background())
 	done := make(chan struct {
@@ -1998,7 +1998,7 @@ func TestNativeOwnedDevelopmentStopsWhenProcessOwnerIsCanceled(t *testing.T) {
 		developmentStarted: make(chan struct{}), observation: operationOwner,
 		terminal: runtimeResponse("running_development", "development"),
 	}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 25*time.Millisecond,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, 25*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	done := make(chan *protocol.APIError, 1)
 	go func() {
@@ -2022,7 +2022,7 @@ func TestNativeReconcileReconstructsDevelopmentWithoutReplay(t *testing.T) {
 		`{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unsupported_protocol","message":"unsupported protocol"},"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`,
 	)
-	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 
 	status := runtime.Reconcile(context.Background())
@@ -2040,7 +2040,7 @@ func TestNativeReconcileTreatsRuntimeRestartIdleAsIdleWithoutReplay(t *testing.T
 		`{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unsupported_protocol","message":"unsupported protocol"},"version":"git-test"}`,
 		`{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`,
 	)
-	runtime := misterruntime.NewRuntime(misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, misterruntime.NewClient(server.listener.Addr().String()), "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	status := runtime.Reconcile(context.Background())
 	operations := server.stop(t)
@@ -2070,7 +2070,7 @@ func TestNativeDevelopmentRejectsWrongIdentityBoundaries(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			control := &recordingControl{statuses: []misterruntime.Response{test.response}}
-			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 				misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 			status := runtime.Reconcile(context.Background())
 			assertUnavailableStatus(t, status)
@@ -2086,7 +2086,7 @@ func TestNativeReconcileRejectsDevelopmentStartingWithCoreIdentity(t *testing.T)
 	coreName := "MegaDrive"
 	response.Core = &coreName
 	control := &recordingControl{statuses: []misterruntime.Response{response}}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -2102,7 +2102,7 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 	t.Parallel()
 	t.Run("idle", func(t *testing.T) {
 		control := &recordingControl{stop: runtimeResponse("idle", "none")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, apiErr := runtime.Stop(context.Background())
 		if observed != "" || apiErr != nil {
 			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
@@ -2115,7 +2115,7 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 
 	t.Run("unavailable", func(t *testing.T) {
 		control := &recordingControl{stopErr: errors.New("private stop detail")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, apiErr := runtime.Stop(context.Background())
 		if observed != "" || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "target runtime is unavailable" {
 			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
@@ -2124,7 +2124,7 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 
 	t.Run("non idle result", func(t *testing.T) {
 		control := &recordingControl{stop: runtimeResponse("reboot_required", "none")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, apiErr := runtime.Stop(context.Background())
 		if observed != "" || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "target runtime is unavailable" {
 			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
@@ -2136,7 +2136,7 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 		response.OK = false
 		response.Error = &misterruntime.RemoteError{Code: "io_failed", Message: "private idle stop detail"}
 		control := &recordingControl{stop: response}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		observed, apiErr := runtime.Stop(context.Background())
 		if observed != "" || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Message != "target runtime is unavailable" {
 			t.Fatalf("stop = observed:%q error:%#v", observed, apiErr)
@@ -2150,7 +2150,7 @@ func TestNativeDirectStopTranslationMapsControlResultForLaterMilestone(t *testin
 func TestNativeOwnedStopPropagatesRebootRequiredRecovery(t *testing.T) {
 	t.Parallel()
 	control := &recordingControl{stop: runtimeResponse("reboot_required", "none")}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 
 	observed, recovery, apiErr := runtime.StopOwnedWithRecovery(context.Background(), context.Background())
 	if observed != "" || recovery != protocol.RecoveryRebootRequired || apiErr != nil {
@@ -2180,7 +2180,7 @@ func TestNativeDevelopmentRecoveryRequiresConfiguredExecutable(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+			runtime := newRuntimeWithNativeCoreFixtures(t, nil, "", time.Millisecond, time.Second,
 				misterruntime.WithRebootCommand(path))
 
 			_, apiErr := runtime.RecoverDevelopment(context.Background())
@@ -2202,7 +2202,7 @@ func TestNativeDevelopmentRecoveryHonorsCanceledContextBeforeStartingCommand(t *
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, nil, "", time.Millisecond, time.Second,
 		misterruntime.WithRebootCommand(reboot))
 
 	_, apiErr := runtime.RecoverDevelopment(ctx)
@@ -2223,7 +2223,7 @@ func TestNativeDevelopmentRecoveryStartsConfiguredCommand(t *testing.T) {
 	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, nil, "", time.Millisecond, time.Second,
 		misterruntime.WithRebootCommand(reboot))
 
 	observed, apiErr := runtime.RecoverDevelopment(context.Background())
@@ -2252,7 +2252,7 @@ func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testin
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	runtime := misterruntime.NewRuntime(nil, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, nil, "", time.Millisecond, time.Second,
 		misterruntime.WithRebootCommand(reboot))
 	if _, apiErr := runtime.RecoverDevelopment(ctx); apiErr != nil {
 		t.Fatalf("recovery error = %#v", apiErr)
@@ -2273,7 +2273,7 @@ func TestNativeDevelopmentRecoverySurvivesCallerCancellationAfterStart(t *testin
 func TestNativeOwnedStopKeepsAdmissionCallerBoundAndOperationOwnerBound(t *testing.T) {
 	t.Run("canceled admission does not dispatch", func(t *testing.T) {
 		control := &recordingControl{stop: runtimeResponse("idle", "none")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		admission, cancel := context.WithCancel(context.Background())
 		cancel()
 		_, apiErr := runtime.StopOwned(admission, context.Background())
@@ -2285,7 +2285,7 @@ func TestNativeOwnedStopKeepsAdmissionCallerBoundAndOperationOwnerBound(t *testi
 
 	t.Run("operation owner cancellation stops dispatched wait", func(t *testing.T) {
 		control := &blockingOwnedStopControl{started: make(chan struct{})}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		operation, cancel := context.WithCancel(context.Background())
 		done := make(chan *protocol.APIError, 1)
 		go func() {
@@ -2309,7 +2309,7 @@ func TestNativeOwnedStopKeepsAdmissionCallerBoundAndOperationOwnerBound(t *testi
 
 	t.Run("fast conclusive failure remains prompt", func(t *testing.T) {
 		control := &recordingControl{stopErr: errors.New("fast target failure")}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+		runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second)
 		started := time.Now()
 		_, apiErr := runtime.StopOwned(context.Background(), context.Background())
 		if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
@@ -2329,12 +2329,12 @@ func TestNativeHealthReadsBootIDWithoutLeakingReadErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := &recordingControl{statuses: []misterruntime.Response{runtimeResponse("idle", "none")}}
-	runtime := misterruntime.NewRuntime(control, bootIDFile, time.Millisecond, time.Second)
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, bootIDFile, time.Millisecond, time.Second)
 	if health := runtime.Health("test"); health.BootID != "boot-123" {
 		t.Fatalf("health = %#v", health)
 	}
 
-	missing := misterruntime.NewRuntime(control, filepath.Join(directory, "private-missing-boot-id"), time.Millisecond, time.Second)
+	missing := newRuntimeWithNativeCoreFixtures(t, control, filepath.Join(directory, "private-missing-boot-id"), time.Millisecond, time.Second)
 	health := missing.Health("test")
 	if health.BootID != "" || !health.Ready {
 		t.Fatalf("missing boot ID health = %#v", health)

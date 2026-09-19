@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,6 +25,7 @@ const unsupportedOperationMessage = "requested operation is unsupported"
 const unsupportedSystemMessage = "system is unsupported by target runtime"
 
 type Runtime struct {
+	nativeCoreFS       fs.FS
 	computerMu         sync.Mutex
 	keyboardMatrix     uint64
 	keyboardPackageID  string
@@ -547,7 +549,7 @@ func (r *Runtime) cleanupCorePackages() *protocol.APIError {
 }
 
 func (r *Runtime) Health(version string) protocol.Health {
-	health := protocol.Health{APIVersion: "v1", AgentVersion: version}
+	health := protocol.Health{APIVersion: "v1", AgentVersion: version, NativeCores: r.nativeCoreAvailability()}
 	if bootID, err := os.ReadFile(r.bootIDFile); err == nil {
 		health.BootID = strings.TrimSpace(string(bootID))
 	}
@@ -718,6 +720,9 @@ func (r *Runtime) Prepare(spec core.Spec, candidate string) (mister.PreparedLaun
 	if !validNativeSpec(spec) {
 		return mister.PreparedLaunch{}, unsupportedSystemError()
 	}
+	if !r.nativeCorePresent(spec.System) {
+		return mister.PreparedLaunch{}, missingNativeCoreError()
+	}
 	rom, apiErr := validateNativeMedia(spec, candidate)
 	if apiErr != nil {
 		return mister.PreparedLaunch{}, apiErr
@@ -740,6 +745,9 @@ func (r *Runtime) LaunchOwned(admission, observation, operationOwner context.Con
 func (r *Runtime) launch(admission, observation, operationOwner context.Context, prepared mister.PreparedLaunch, owned bool) (string, bool, *protocol.APIError) {
 	if !validNativeSpec(prepared.Spec) {
 		return "", false, unsupportedSystemError()
+	}
+	if !r.nativeCorePresent(prepared.Spec.System) {
+		return "", false, missingNativeCoreError()
 	}
 	if prepared.RelativeROM != "" || len(prepared.MGL) != 0 {
 		return "", false, invalidROMPathError()

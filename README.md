@@ -48,6 +48,16 @@ and content selection; the MiSTer is a small, directly controlled target.
   persistence support are checked by the corresponding operation. Different
   host, agent or runtime revisions alone do not require an image update.
 - Target-side content caching, input, stop, and active-core observation.
+- Native targets advertise installed legacy-core availability. The shared host
+  marks unavailable legacy platforms browse-only and rejects direct launch
+  requests before dispatch; described FPGA package entries retain their own
+  compatibility checks. Missing core files are also rejected by the agent
+  before runtime mutation. A new valid package-library launch can recover a
+  narrowly recognized retained idle launch error with one leased Stop, then
+  activate once. Save failures, foreign ownership and reboot-required states
+  remain explicit recovery failures; launches are never silently replayed.
+  Kit footer text wraps recovery instructions and the selected title instead
+  of cutting off the action the operator needs.
 - Stable target identity and local DNS-SD reconnection after reboot/address
   changes. `GET /api/v1/session` reports the host session `id` and the bound
   FPGA `target`. `POST /api/v1/session/launch` may set `target` to bind that

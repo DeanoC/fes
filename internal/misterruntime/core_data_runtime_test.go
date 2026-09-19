@@ -123,7 +123,7 @@ func TestCoreDataAdapterStagesExactArchiveAndCleansEveryResult(t *testing.T) {
 			}
 			control := &dataControl{}
 			barrier := &replacementBarrier{}
-			runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
+			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
 			inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 			if err != nil {
 				t.Fatal(err)
@@ -162,7 +162,7 @@ func TestCoreDataAdapterStagesExactArchiveAndCleansEveryResult(t *testing.T) {
 func TestLibraryCoreLoadIsExplicitAndDevelopmentRemainsVolatile(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{}
-	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
 	t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
 	inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
@@ -182,7 +182,7 @@ func TestCoreDataCleanupFailureRemainsOwnedAndVisible(t *testing.T) {
 	root := t.TempDir()
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{}
-	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
 	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if apiErr != nil {
 		t.Fatal(apiErr)
@@ -219,7 +219,7 @@ func TestRetiredCoreStagingDoesNotCaptureSNESStop(t *testing.T) {
 	root := t.TempDir()
 	archive := canonicalCoreArchive(t)
 	control := &leftoverNativeControl{}
-	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
 		misterruntime.WithCorePackageRoot(root),
 		misterruntime.WithSaveRoot(filepath.Join(t.TempDir(), "saves", "snes")))
 	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
@@ -286,7 +286,7 @@ func TestRetiredCoreStagingDoesNotCaptureSNESStop(t *testing.T) {
 func TestLibraryLoadRejectsReturnedPersistenceModeMismatch(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{wrongMode: true}
-	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
+	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
 	t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
 	inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {

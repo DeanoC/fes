@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +22,59 @@ import (
 	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
+
+func TestKitReadingFooterKeepsRecoveryInstructionsAndSelectedTitle(t *testing.T) {
+	m := kitlauncher.Model{Message: "Target retains an earlier error; use Stop to clear it, then retry."}
+	m.SetCatalog([]hostclient.Game{{ID: "fpga-pong", Title: "Verified FES Pong package 20260919", System: "fpga"}})
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
+	want := m.Message + " Selected: Verified FES Pong package 20260919"
+	if got := strings.Join(g.FooterLines, " "); got != want {
+		t.Fatalf("footer=%q", got)
+	}
+	if g.FooterH <= theme.Default().FooterH {
+		t.Fatal("wrapped footer has no reserved space")
+	}
+	f := modelDetailFrame(m, nil, nil, theme.Default(), 640, 480)
+	if got := strings.Join(f.FooterLines, " "); got != want {
+		t.Fatalf("detail footer=%q", got)
+	}
+}
+
+func TestKitReadingFooterSoftwareSnapshot(t *testing.T) {
+	m := kitlauncher.Model{Connected: true, TargetReady: true, ControllerConnected: true,
+		Message: "Target retains an earlier error; use Stop to clear it, then retry. (Launch Browser protocol smoke Pong 20260918)"}
+	m.SetCatalog([]hostclient.Game{
+		{ID: "fpga-verified-pong", Title: "Verified FES Pong package 20260919", System: "fpga", State: "available", RootOnline: true, Launchable: true},
+		{ID: "pong", Title: "Pong (legacy unavailable)", System: "pong"},
+	})
+	d, err := gfx.NewSoftware(640, 480)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := modelGrid(m, 640, 480, nil, nil, theme.Default())
+	fbgrid.Paint(d, g)
+	text := strings.Join(g.FooterLines, " ")
+	if !strings.Contains(text, m.Message) || !strings.Contains(text, "Selected: Verified FES Pong package 20260919") {
+		t.Fatal(text)
+	}
+	if path := os.Getenv("FOGCAST_READING_SCREENSHOT"); path != "" {
+		f, err := os.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = png.Encode(f, d.Snapshot())
+		closeErr := f.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("screenshot: %v %v", err, closeErr)
+		}
+	}
+	m.Message = ""
+	m.Focus = 1
+	lines := modelReadingFooter(m, 640, 480, theme.Default())
+	if got := strings.Join(lines, " "); !strings.Contains(got, "Browse only") || strings.Contains(got, "A play") {
+		t.Fatalf("disabled hint=%q", got)
+	}
+}
 
 func TestPadsSelftestReportsIdentityBeforeOpen(t *testing.T) {
 	r := inputmap.IdentityRemapper()

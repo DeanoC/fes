@@ -92,14 +92,23 @@ type CoreInspection struct {
 }
 
 type Health struct {
-	TargetID      string     `json:"target_id,omitempty"`
-	APIVersion    string     `json:"api_version"`
-	AgentVersion  string     `json:"agent_version"`
-	Ready         bool       `json:"ready"`
-	MiSTerProcess bool       `json:"mister_process"`
-	CommandPipe   bool       `json:"command_pipe"`
-	BootID        string     `json:"boot_id,omitempty"`
-	Artifacts     *Artifacts `json:"artifacts,omitempty"`
+	NativeCores   *NativeCoreAvailability `json:"native_cores,omitempty"`
+	TargetID      string                  `json:"target_id,omitempty"`
+	APIVersion    string                  `json:"api_version"`
+	AgentVersion  string                  `json:"agent_version"`
+	Ready         bool                    `json:"ready"`
+	MiSTerProcess bool                    `json:"mister_process"`
+	CommandPipe   bool                    `json:"command_pipe"`
+	BootID        string                  `json:"boot_id,omitempty"`
+	Artifacts     *Artifacts              `json:"artifacts,omitempty"`
+}
+
+// NativeCoreAvailability is a current native-backend file-presence observation,
+// not sealed artifact provenance or proof that a core will run. Nil Health.NativeCores
+// means unknown/older backend; version 1 with an empty Systems list means none.
+type NativeCoreAvailability struct {
+	Version int      `json:"version"`
+	Systems []System `json:"systems"`
 }
 
 // Artifacts is the closed identity of what a process was built or installed

@@ -138,18 +138,34 @@ func (s *Service) inspectInstalledCore(ctx context.Context, id string) (CoreComp
 	if err != nil {
 		return CoreCompatibility{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	result, err := inspector.InspectCore(ctx, int64(len(data)), bytes.NewReader(data))
+	result, err := inspectInstalledPackageForClient(ctx, value, data, inspector)
 	if err != nil {
-		return CoreCompatibility{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if result.PackageID != value.PackageID || !reflect.DeepEqual(result.Descriptor, value.Descriptor) || result.Compatible != (result.CompatibilityError == nil) || !validPersistenceLayout(result.Descriptor, result.PersistenceLayout) {
-		return CoreCompatibility{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+		return CoreCompatibility{}, err
 	}
 	state := "incompatible"
 	if result.Compatible {
 		state = "compatible"
 	}
 	return CoreCompatibility{CoreInspection: result, Target: s.selectedTarget, TargetID: health.TargetID, State: state}, nil
+}
+
+func (s *Service) inspectInstalledPackageForClient(ctx context.Context, id string, client coreInspectionClient) (protocol.CoreInspection, error) {
+	value, data, err := s.readInstalledCore(ctx, id)
+	if err != nil {
+		return protocol.CoreInspection{}, err
+	}
+	return inspectInstalledPackageForClient(ctx, value, data, client)
+}
+
+func inspectInstalledPackageForClient(ctx context.Context, value corepackage.Inspection, data []byte, client coreInspectionClient) (protocol.CoreInspection, error) {
+	result, err := client.InspectCore(ctx, int64(len(data)), bytes.NewReader(data))
+	if err != nil {
+		return protocol.CoreInspection{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	if result.PackageID != value.PackageID || !reflect.DeepEqual(result.Descriptor, value.Descriptor) || result.Compatible != (result.CompatibilityError == nil) || !validPersistenceLayout(result.Descriptor, result.PersistenceLayout) {
+		return protocol.CoreInspection{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	return result, nil
 }
 
 func (s *Service) CoreEntries(ctx context.Context) ([]catalog.CoreEntry, error) {
