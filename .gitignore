@@ -9,6 +9,7 @@ __pycache__/
 *.fst
 *.log
 *.json
+!cores/fes-common/generated/exchanges.json
 !cores/fes-pong/generated/exchanges.json
 !cores/fes-pong/generated/persistence-exchanges.json
 !cores/fes-zx81/generated/exchanges.json

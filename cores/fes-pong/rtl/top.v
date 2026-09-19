@@ -63,7 +63,7 @@ module fes_pong_core (
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
-    video_720p video (
+    fes_video_720p video (
         .pixel_clk(pixel_clk),
         .game_red(game_red),
         .game_green(game_green),

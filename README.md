@@ -6,6 +6,12 @@ development possible with both the open-source Mistral toolchain and Quartus.
 
 ## What works now
 
+- Composable application reference RTL and simulations: `make sim-fes-demo`
+  checks a video-only demo and an optional gamepad/palette-media configuration.
+  `make build-fes-demo` and `make build-fes-demo-media` use the authenticated
+  HIP producer and require clean committed inputs. These new recipes have
+  host simulation/recipe coverage; no routed-RBF or hardware acceptance is
+  claimed. See [application development](docs/architecture.md#composable-application-reference).
 - Verilator simulation for the included experiments.
 - A pinned repository-local Yosys, nextpnr-mistral, Mistral, and
   openFPGALoader toolchain.

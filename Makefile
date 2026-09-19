@@ -51,6 +51,9 @@ help:
 		"  doctor-strict  Require host and OSS readiness (Quartus/hardware optional)" \
 		"  sim        Simulate an experiment with the Verilator lane" \
 		"  sim-pong   Test the standalone Pong game logic (no board wrapper)" \
+		"  sim-fes-demo  Test composable application endpoints and reference demos" \
+		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
+		"  build-fes-demo-media  Seal gamepad/palette-media application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
@@ -149,6 +152,17 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong-video" cores/pong/rtl/pong_video.sv "$(CURDIR)/cores/pong/sim/video_tb.cpp"
 	@build/sim/pong-video/Vpong_video
 
+.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media
+sim-fes-demo:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_demo.py --verilator "$(VERILATOR)"
+
+build-fes-demo:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-demo-media:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py --media $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
 sim-fes-pong:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-pong-gp
@@ -161,7 +175,7 @@ sim-fes-pong:
 	$(VERILATOR) --cc --exe --build --top-module fes_pong_core -Wall \
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-video" \
-		cores/fes-pong/rtl/top.v cores/fes-pong/rtl/video_720p.v \
+		cores/fes-pong/rtl/top.v cores/fes-common/rtl/fes_video_720p.v \
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/video_tb.cpp"
 	@build/sim/fes-pong-video/Vfes_pong_core
 	@mkdir -p build/sim/fes-pong-board
@@ -169,7 +183,7 @@ sim-fes-pong:
 		-Icores/fes-pong/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-pong-board" \
 		cores/fes-pong/sim/board_models.v cores/fes-pong/rtl/top.v \
-		cores/fes-pong/rtl/fes_gp.v cores/fes-pong/rtl/video_720p.v \
+		cores/fes-pong/rtl/fes_gp.v cores/fes-common/rtl/fes_video_720p.v \
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/board_tb.cpp"
 	@build/sim/fes-pong-board/Vtop
 

@@ -2,7 +2,7 @@
 
 // Fixed CTA-770.3 1280x720p60 raster at a 74.25 MHz pixel clock.
 // A 320x240 game image is scaled 3x and centered between 160-pixel black bars.
-module video_720p (
+module fes_video_720p (
     input  wire        pixel_clk,
     input  wire [7:0]  game_red,
     input  wire [7:0]  game_green,

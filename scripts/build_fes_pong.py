@@ -42,7 +42,7 @@ RTL_SOURCES = (
     "cores/fes-pong/rtl/pixel_pll.v",
     "cores/fes-pong/rtl/top.v",
     "cores/fes-pong/rtl/fes_gp.v",
-    "cores/fes-pong/rtl/video_720p.v",
+    "cores/fes-common/rtl/fes_video_720p.v",
     "cores/pong/rtl/pong_game.sv",
 )
 PINNED_INPUTS = (
@@ -171,7 +171,7 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path) -> tuple[str, str]:
+def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str] = PINNED_INPUTS) -> tuple[str, str]:
     root = Path(root).resolve()
     actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
     if actual_root != root:
@@ -184,7 +184,7 @@ def _require_clean_source(root: Path) -> tuple[str, str]:
     repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
     if len(repositories) != 1:
         raise BuildError("source checkout must have exactly one origin URL")
-    for relative in PINNED_INPUTS:
+    for relative in pinned_inputs:
         _regular_input(root, relative)
         try:
             _git(root, "ls-files", "--error-unmatch", "--", relative)
@@ -507,8 +507,8 @@ def _write_atomic(path: Path, data: bytes) -> None:
             temporary.unlink()
 
 
-def _prepare_output(root: Path) -> Path:
-    output = root / OUTPUT_RELATIVE
+def _prepare_output(root: Path, *, relative: Path = OUTPUT_RELATIVE) -> Path:
+    output = root / relative
     build_root = root / "build"
     if build_root.is_symlink() or (build_root.exists() and not build_root.is_dir()):
         raise BuildError(f"build root must be a non-symlink directory: {build_root}")
@@ -524,7 +524,8 @@ def _prepare_output(root: Path) -> Path:
     return output
 
 
-def _run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
+def _run_tool(command: tuple[str, ...], cwd: Path, log: Path,
+              *, output_relative: Path = OUTPUT_RELATIVE) -> None:
     try:
         result = subprocess.run(
             list(command),
@@ -540,7 +541,7 @@ def _run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
         # nextpnr-mistral can emit an intermediate timing ERROR, retry, then
         # finish a passing route and still exit 1. Accept a finished route
         # with a payload; validate_build_evidence still requires final PASS.
-        routed = cwd / OUTPUT_RELATIVE / "core.rbf"
+        routed = cwd / output_relative / "core.rbf"
         if (
             Path(command[0]).name == "nextpnr-mistral"
             and b"Info: Program finished normally." in result.stdout

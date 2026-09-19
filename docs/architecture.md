@@ -5,6 +5,88 @@ deployment and target lifecycle are outside this repository.
 
 ## Build lanes
 
+### Composable application reference
+
+`cores/fes-common/rtl/fes_application_gp.v` implements the new
+`fes.application` 1.0 mailbox (ABI tag 3). It preserves the existing GPO/GPI
+framing but does not present a keyboard or Pong-specific persistence service.
+Its checked-in `generated/fes_application.vh` and `generated/exchanges.json`
+are unedited mister-packages outputs. Existing simple-game and simple-computer
+packages keep their own ABI and behavior.
+
+Video is mandatory for application v1. Parameters `ENABLE_GAMEPAD` and
+`ENABLE_MEDIA` independently enable the eight-button, single-controller
+gamepad and 1–16384-byte blob endpoints. Absent endpoint opcodes reject with
+invalid-opcode; stream opcodes are also rejected and stream capability is not
+advertised by this implementation. Successful mutations return zero.
+
+The endpoint starts held in reset with neutral buttons. Media BEGIN requires
+held execution and no open transfer, clears readiness and starts replacement.
+Pair writes are low byte first; the tail command accepts only the final odd
+byte. HOLD neutralizes buttons and preserves staged or committed media.
+RELEASE rejects until any required media has committed completely. Buttons
+and identity requests may interleave with the transfer without altering its
+state. The endpoint emits accepted byte writes at `media_write_addr`, with
+`media_write_enable[0]` for the low byte and `[1]` for the following high byte;
+applications own their storage. There is no implicit 16 KiB RAM allocation.
+The first three bytes are also cached for small asset consumers and cleared
+at each BEGIN. A consumer must honor execution hold/readiness while storage
+contains an incomplete replacement.
+
+`cores/fes-common/rtl/fes_video_720p.v` provides the proven fixed 1650×750
+raster and centered 3× 320×240 image mapping derived from the Pong shell.
+`cores/fes-demo/rtl/top.v` connects the application endpoint, HPS GP, fractional
+74.25 MHz PLL, HDMI RGB and open-drain HPS I2C bridge. The common endpoint and
+reference image operate in the same pixel domain; application reset does not
+stop video timing. Pong now uses this same video module; its timing and image
+mapping are unchanged, and its legacy mailbox remains separate.
+
+The same source produces two independently identified packages:
+
+| Command | Core ID | Required interfaces | Output |
+| --- | --- | --- | --- |
+| `make build-fes-demo` | `fes.demo` | fixed 720p video | `build/fes-demo/core.rbf` |
+| `make build-fes-demo-media` | `fes.demo-media` | fixed 720p video, gamepad, blob | `build/fes-demo-media/core.rbf` |
+
+The first animates without input or media. The second requires an asset before
+release, uses its first three bytes as RGB channel masks, and uses Left/Right
+to reverse/increase animation speed. Missing palette bytes are zero, and bytes
+after the first three are accepted but unused by this reference application.
+A white palette can be created with
+`python3 -c 'from pathlib import Path; Path("palette.rgb").write_bytes(bytes([255,255,255]))'`.
+This demonstrates composition without a new emulated-machine implementation
+or an application-name branch in host software.
+
+`scripts/build_fes_demo.py` reuses the existing board tool-authentication,
+timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records
+its own recipe, ABI definition and variant parameters in the build identity,
+pins the helper source, and includes the full input digests in build evidence.
+`CACHE_ROOT=/absolute/cache` selects the same root-lock HIP slot as Pong.
+Failed checks invalidate candidate artifacts; clean committed tracked source
+is required before synthesis and again before export. It produces ordinary
+format-2 packages under `build/packages/` after those checks, and never programs
+hardware. Parent image selection is a separate integrator action.
+
+`make sim-fes-demo` checks all four capability combinations, shared wire
+fixtures, interleaved input/identity/HOLD during blob loading, invalid command
+isolation, full 16 KiB transfer and short replacement. It also checks three
+full video frames and both production tops with controllable board models:
+pixel-clock isolation, I2C low-or-release/feedback, palette output and controller
+effect. These digital models do not prove PLL lock, electrical timing or actual
+HDMI output. This implementation has simulation and producer-unit-test evidence;
+new routed artifacts and exact-artifact hardware acceptance remain outstanding.
+
+To author another application, reuse the endpoint and fixed-video shell,
+implement its image/asset consumer, declare only implemented interfaces, and
+add a producer with tracked source closure and an exact manifest. Keep board
+control in the runtime, package schemas in mister-packages, and library/session
+context in FogCast. Shared RTL retains GPL-2.0-or-later notices from its source.
+Multiple controllers, alternative timings, durable data and audio are future
+contract work. Both demo variants are silent: no I2S/SPDIF pins, serializer or
+runtime audio setup is supplied or advertised by this slice.
+
+### Experiment lanes
+
 ```text
 experiment RTL + constraints
   |-- sim ----> Verilator result
@@ -2245,7 +2327,7 @@ positions to test final-edge freeze draining, immediate unfinished records,
 65535 saturation, both point events and unchanged decimal score wrap. These
 are digital host checks, not timing or physical acceptance.
 
-`cores/fes-pong/rtl/video_720p.v` advances one pixel on every supplied pixel
+`cores/fes-common/rtl/fes_video_720p.v` advances one pixel on every supplied pixel
 clock: 1280 active, 110 front porch, 40 positive-sync clocks and 220 back porch
 for a 1650-clock line; 720 active, 5 front-porch, 5 positive-sync and 20
 back-porch lines for a 750-line frame. It maps a 320x240 game image at 3x scale
@@ -2299,7 +2381,7 @@ RGB888, DE, sync, pixel-clock and I2C pins.
 
 `scripts/build_fes_pong.py`, invoked by `make build-fes-pong`, is the sole
 standalone recipe. Its source set is `pixel_pll.v`, `top.v`, `fes_gp.v`,
-`video_720p.v` and the existing `pong_game.sv`, with the generated ABI include
+the shared `fes_video_720p.v` and existing `pong_game.sv`, with the generated ABI include
 directory. Yosys receives the build-record-derived 128-bit `BUILD_ID` and
 forbids BRAM, LUTRAM and DSP inference. nextpnr targets `5CSEBA6U23I7` with
 seed 1, `--router gpu`, the task-local QSF, the 50 MHz board SDC and an
