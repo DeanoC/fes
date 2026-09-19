@@ -158,6 +158,44 @@ int main(int argc, char **argv) {
                 "diagnostic captured DC");
     }
 
+    if (argc > 2) {
+        FILE *rom = std::fopen(argv[2], "rb");
+        require(rom != nullptr, "cannot open controller diagnostic ROM");
+        std::vector<uint8_t> controller_diagnostic;
+        uint8_t byte = 0;
+        while (std::fread(&byte, 1, 1, rom) == 1)
+            controller_diagnostic.push_back(byte);
+        std::fclose(rom);
+        require(!controller_diagnostic.empty(), "empty controller diagnostic ROM");
+        dut.keyboard = 0xffffffffffull;
+        load_blob(dut, controller_diagnostic, registered_media_data);
+        dut.reset = 0;
+        auto wait_for_cache = [&](uint8_t expected_dc, uint8_t expected_dd,
+                                  const char *message) {
+            for (unsigned i = 0; i < 40000000; ++i) {
+                tick(dut, controller_diagnostic, registered_media_data);
+                if ((i & 1023) == 0 &&
+                    peek(dut, 0xc001, registered_media_data) == expected_dc &&
+                    peek(dut, 0xc002, registered_media_data) == expected_dd)
+                    return;
+            }
+            fail(message);
+        };
+
+        wait_for_cache(0xff, 0xff, "controller diagnostic neutral cache timeout");
+        require(uint8_t(dut.port_dc) == 0xff, "controller diagnostic neutral DC");
+        require(uint8_t(dut.port_dd) == 0xff, "controller diagnostic neutral DD");
+
+        dut.keyboard = 0xffffffffffull ^ 0x01ull ^ (0x01ull << 9);
+        wait_for_cache(0xfe, 0xfd, "controller diagnostic pressed cache timeout");
+        require(uint8_t(dut.port_dc) == 0xfe, "controller diagnostic pressed DC");
+        require(uint8_t(dut.port_dd) == 0xfd, "controller diagnostic pressed DD");
+        require(peek(dut, 0xc001, registered_media_data) == 0xfe,
+                "controller diagnostic cached pressed DC");
+        require(peek(dut, 0xc002, registered_media_data) == 0xfd,
+                "controller diagnostic cached pressed DD");
+    }
+
     std::cout << "FES SG-1000 machine checks passed\n";
     return 0;
 }

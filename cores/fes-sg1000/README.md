@@ -94,9 +94,17 @@ The emitter is BIOS-free and MIT-licensed. The image is entered at `0x0000`,
 uses RAM at `0xc000`, paints the same Coleco Graphics I border/checkerboard,
 stores `A5` at `C000`, captures port `DC` at `C001` and HALTs.
 
+The same target also emits `build/diagnostics/fes-sg1000/controller.rom` and
+`controller.ppm`. The controller image keeps the Graphics I shell alive and
+continuously renders the raw active-low `DC` and `DD` bytes as two rows of
+eight indicators. Pressed bits are orange and released bits are green; the
+cached bytes at `C001` and `C002` make the live polling path observable in
+simulation. Its preview accepts the unchanged 40-bit keyboard matrix with,
+for example, `--controllers --matrix 0xfffffffdfe`.
+
 `make sim-fes-sg1000` is the cheap Verilator machine check (media copy, RAM
-mirror, joystick ports, optional diagnostic ROM). It is host simulation, not
-hardware acceptance.
+mirror, joystick ports, Graphics I diagnostic and live controller diagnostic).
+It is host simulation, not hardware acceptance.
 
 `make sim-fes-sg1000-oss` compiles the same machine with
 `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1`. Registered media is gated on

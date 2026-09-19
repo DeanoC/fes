@@ -15,7 +15,7 @@ import hashlib
 from pathlib import Path
 
 
-def cartridge() -> bytes:
+def cartridge(controllers: bool = False) -> bytes:
     code = bytearray()
     tables: list[tuple[int, bytes]] = []
 
@@ -60,18 +60,42 @@ def cartridge() -> bytes:
     jr_nz(clear)
 
     square = bytes((0, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0))
-    copy(0x0800, bytes([0xFF] * 8) + square + square)
-    copy(0x2000, bytes((0xF1, 0xF1, 0x01)))
+    dynamic = controllers
+    copy(0x0800, bytes([0xFF] * 24) + bytes(8) if dynamic
+         else bytes([0xFF] * 8) + square + square)
+    copy(0x2000, bytes((0xF1, 0xF1, 0x01, 0x00)) if dynamic
+         else bytes((0xF1, 0xF1, 0x01)))
     copy(0x1B00, bytes((0xD0,)))
     names = bytes(
-        0 if col in (0, 31) or row in (0, 23) else 1 + ((col + row) & 1)
+        0 if col in (0, 31) or row in (0, 23) else 3 if dynamic
+        else 1 + ((col + row) & 1)
         for row in range(24) for col in range(32)
     )
     copy(0x0000, names)
     register(1, 0xC0)  # Graphics I, 16 KiB, display on, interrupts off
     emit(0x3E, 0xA5, 0x32, 0x00, 0xC0)  # LD A,A5; LD (C000),A
-    emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)  # IN A,(DC); LD (C001),A
-    emit(0x76, 0x18, 0xFD)  # HALT; JR back
+    if not dynamic:
+        emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)  # IN A,(DC); LD (C001),A
+        emit(0x76, 0x18, 0xFD)  # HALT; JR back
+    else:
+        emit(0xAF, 0x32, 0x01, 0xC0, 0x32, 0x02, 0xC0)
+        poll = len(code)
+        for bank, port in enumerate((0xDC, 0xDD)):
+            emit(0xDB, port, 0x5F)  # IN A,(port); LD E,A
+            emit(0x3A, 0x01 + bank, 0xC0, 0xBB)  # LD A,(cache); CP E
+            emit(0xCA, 0, 0)  # JP Z,next bank
+            skip = len(code) - 2
+            emit(0x7B, 0x32, 0x01 + bank, 0xC0)  # LD A,E; LD (cache),A
+            for bit in range(8):
+                emit(0x7B, 0xE6, 1 << bit)
+                emit(0x20, 0x04, 0x3E, 0x02, 0x18, 0x02, 0x3E, 0x01)
+                # Active-low: pressed is orange, released is green.
+                emit(0x57)  # LD D,A
+                for row in (4, 5) if bank == 0 else (8, 9):
+                    address(row * 32 + 4 + 3 * bit)
+                    emit(0x7A, 0xD3, 0xBE, 0x7A, 0xD3, 0xBE)
+            code[skip:skip + 2] = len(code).to_bytes(2, "little")
+        emit(0xC3, poll & 0xFF, poll >> 8)  # JP poll; never depends on interrupts
 
     for pointer, data in tables:
         location = len(code)
@@ -81,7 +105,20 @@ def cartridge() -> bytes:
     return bytes(code)
 
 
-def preview() -> bytes:
+def controller_ports(matrix: int) -> tuple[int, int]:
+    dc = 0xFF
+    dd = 0xFF
+    for port_bit, matrix_bit in ((0, 0), (1, 2), (2, 3), (3, 1),
+                                 (4, 4), (5, 5), (6, 7), (7, 8)):
+        if not matrix & (1 << matrix_bit):
+            dc &= ~(1 << port_bit)
+    for port_bit, matrix_bit in ((0, 6), (1, 9)):
+        if not matrix & (1 << matrix_bit):
+            dd &= ~(1 << port_bit)
+    return dc, dd
+
+
+def preview(controllers: bool = False, matrix: int = 0xFFFFFFFFFF) -> bytes:
     """720p PPM reference for the shared Coleco 720p shell, including read latency."""
     rows = bytearray()
     for y in range(720):
@@ -92,6 +129,13 @@ def preview() -> bytes:
                 col, row = lx // 8, ly // 8
                 if col in (0, 31) or row in (0, 23):
                     rgb = (0, 255, 64)
+                elif controllers:
+                    for bank, value in enumerate(controller_ports(matrix)):
+                        first_row = 4 if bank == 0 else 8
+                        if first_row <= row <= first_row + 1:
+                            for bit in range(8):
+                                if 4 + 3 * bit <= col <= 5 + 3 * bit:
+                                    rgb = (255, 64, 0) if not value & (1 << bit) else (0, 255, 64)
                 elif lx % 8 not in (0, 7) and ly % 8 not in (0, 7):
                     rgb = (0, 255, 64) if (col + row) % 2 == 0 else (255, 64, 0)
             rows.extend(rgb)
@@ -103,10 +147,23 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True, help="raw cartridge path")
     parser.add_argument("--preview", type=Path, help="optional expected 1280x720 PPM")
     parser.add_argument("--pad-to", type=int, help="pad with FF to this raw size, at most 16384")
+    parser.add_argument("--controllers", action="store_true",
+                        help="poll and display raw SG-1000 DC/DD controller ports")
+    def matrix_value(value: str) -> int:
+        try:
+            return int(value, 0)
+        except ValueError:
+            return int(value, 16)
+    parser.add_argument("--matrix", type=matrix_value, default=0xFFFFFFFFFF,
+                        help="preview-only active-low 40-bit keyboard matrix")
     args = parser.parse_args()
     if args.preview is not None and args.preview.resolve() == args.output.resolve():
         parser.error("cartridge and preview must have different paths")
-    data = cartridge()
+    if not 0 <= args.matrix <= 0xFFFFFFFFFF:
+        parser.error("--matrix must fit 40 bits")
+    if not args.controllers and args.matrix != 0xFFFFFFFFFF:
+        parser.error("--matrix requires --controllers")
+    data = cartridge(args.controllers)
     if args.pad_to is not None:
         if not len(data) <= args.pad_to <= 16384:
             parser.error(f"--pad-to must be {len(data)}..16384")
@@ -115,7 +172,7 @@ def main() -> None:
     args.output.write_bytes(data)
     if args.preview is not None:
         args.preview.parent.mkdir(parents=True, exist_ok=True)
-        args.preview.write_bytes(preview())
+        args.preview.write_bytes(preview(args.controllers, args.matrix))
     print(
         f"{args.output}: {len(data)} bytes, entry 0x0000, "
         f"sha256 {hashlib.sha256(data).hexdigest()}"
