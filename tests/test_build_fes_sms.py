@@ -321,6 +321,18 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(padded.read_bytes(), data + b"\xff" * (32768 - len(data)))
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+            header, _, pixels = preview.read_bytes().partition(b"\n255\n")
+            self.assertEqual(header, b"P6\n1280 720")
+            self.assertEqual(len(pixels), 1280 * 720 * 3)
+
+            def ppm_at(x: int, y: int) -> tuple[int, int, int]:
+                offset = (y * 1280 + x) * 3
+                return (pixels[offset], pixels[offset + 1], pixels[offset + 2])
+
+            # Logical (4,0) is an opaque plus pixel (white); (0,0) is transparent (black).
+            self.assertEqual(ppm_at(393, 168), (255, 255, 255))
+            self.assertEqual(ppm_at(385, 168), (0, 0, 0))
+            self.assertNotEqual(ppm_at(393, 168), (0, 255, 64))
             hil = Path(directory) / "hil.rom"
             subprocess.run(
                 [sys.executable, str(GENERATOR), "--output", str(hil), "--interactive"],

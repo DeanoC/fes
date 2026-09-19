@@ -178,8 +178,30 @@ def cartridge(interactive: bool = False) -> bytes:
     return bytes(image)
 
 
+def _cram_rgb(value: int) -> tuple[int, int, int]:
+    red = value & 3
+    green = (value >> 2) & 3
+    blue = (value >> 4) & 3
+
+    def expand(channel: int) -> int:
+        return (channel << 6) | (channel << 4) | (channel << 2) | channel
+
+    return (expand(red), expand(green), expand(blue))
+
+
+_PALETTE0 = (0x00, 0x07, 0x1C, 0x3F)
+_PALETTE1 = (0x00, 0x34, 0x0F, 0x3F)
+
+
+def _plus_color(px: int, py: int, hflip: bool, vflip: bool) -> int:
+    sample_x = 7 - px if hflip else px
+    sample_y = 7 - py if vflip else py
+    return 3 if PLUS[sample_y] & (0x80 >> sample_x) else 0
+
+
 def preview(interactive: bool = False) -> bytes:
-    """720p PPM reference for the shared Coleco 720p shell, including read latency."""
+    """720p PPM reference for the SMS 720p shell, including read latency."""
+    backdrop = _cram_rgb(_PALETTE1[0])
     rows = bytearray()
     for y in range(720):
         for x in range(1280):
@@ -188,19 +210,23 @@ def preview(interactive: bool = False) -> bytes:
                 lx, ly = max(0, x - 385) // 2, (y - 168) // 2
                 col, row = lx // 8, ly // 8
                 px, py = lx % 8, ly % 8
+                palette = _PALETTE0
+                color = 0
                 if col in (0, 31) or row in (0, 23):
-                    rgb = (0, 255, 64)
+                    color = _plus_color(px, py, False, False)
                 elif col in (15, 16) and row in (11, 12):
-                    if PLUS[py] & (0x80 >> px):
-                        rgb = (0, 255, 64)
+                    color = _plus_color(px, py, col == 16, row == 12)
+                    if row == 12 and col == 16:
+                        palette = _PALETTE1
                 elif interactive and row == 5 and 4 <= col <= 11:
-                    rgb = (255, 64, 0)
+                    color = 2
                 elif interactive and row == 7 and 4 <= col <= 5:
-                    rgb = (255, 64, 0)
+                    color = 2
                 elif px not in (0, 7) and py not in (0, 7):
-                    rgb = (0, 255, 64) if (col + row) % 2 == 0 else (255, 64, 0)
+                    color = 1 + ((col + row) & 1)
+                rgb = backdrop if color == 0 else _cram_rgb(palette[color])
             rows.extend(rgb)
-    return b"P6\n1280 720\n255\n" + rows
+    return b"P6\n1280 720\n255\n" + bytes(rows)
 
 
 def main() -> None:

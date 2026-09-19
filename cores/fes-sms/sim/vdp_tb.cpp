@@ -175,6 +175,27 @@ int main(int argc, char **argv) {
     require((io_read(dut, 0xbf) & 0x80) != 0, "VBlank status was not reported");
     require(dut.irq_n == 1, "status read did not clear VBlank interrupt");
 
+    write_register(dut, 0, 0x84);
+    write_register(dut, 9, 0x08);
+    for (unsigned plane = 0; plane != 32; ++plane) {
+        write_vram(dut, uint16_t(0x0020 + plane), plane % 4 == 0 ? 0xff : 0x00);
+        write_vram(dut, uint16_t(0x0040 + plane), plane % 4 == 1 ? 0xff : 0x00);
+    }
+    write_vram(dut, 0x382e, 0x01);
+    write_vram(dut, 0x382f, 0x00);
+    write_vram(dut, 0x3830, 0x01);
+    write_vram(dut, 0x3831, 0x00);
+    write_vram(dut, 0x386e, 0x02);
+    write_vram(dut, 0x386f, 0x00);
+    write_vram(dut, 0x3870, 0x02);
+    write_vram(dut, 0x3871, 0x00);
+    write_cram(dut, 1, 0x07);
+    write_cram(dut, 2, 0x1c);
+    require(sample_pixel(dut, 184, 0, 3) == 0x1c,
+            "scrolled playfield column did not use vertical scroll");
+    require(sample_pixel(dut, 192, 0, 3) == 0x07,
+            "rightmost eight tile columns did not inhibit vertical scroll");
+
     std::cout << "FES SMS Mode 4 VDP checks passed\n";
     return EXIT_SUCCESS;
 }

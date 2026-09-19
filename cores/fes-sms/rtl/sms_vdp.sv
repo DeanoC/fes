@@ -217,7 +217,7 @@ module sms_mode4_vdp (
     wire [8:0] bg_y_sum = {1'b0, build_target_y} + {1'b0, vdp_reg[9]};
     wire [7:0] bg_scrolled_y = bg_y_sum >= 9'd224 ? bg_y_sum - 9'd224 :
                                bg_y_sum[7:0];
-    wire [7:0] bg_source_y = (vdp_reg[0][7] && build_x >= 8'd248) ?
+    wire [7:0] bg_source_y = (vdp_reg[0][7] && build_x >= 8'd192) ?
                              build_target_y : bg_scrolled_y;
     wire [7:0] bg_source_x = (vdp_reg[0][6] && build_target_y < 8'd16) ?
                              build_x : build_x - vdp_reg[8];
