@@ -3030,7 +3030,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 			break
 		}
 	}
-	queue = a.queueRoomDetailWorkLocked(queue)
+	queue = a.queueRoomDetailWorkLocked(now, queue)
 	queue = a.queueFocusedScreenshotsLocked(queue)
 	a.evictCoversLocked()
 	a.evictShotsLocked()

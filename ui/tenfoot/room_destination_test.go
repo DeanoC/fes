@@ -174,6 +174,44 @@ func TestRoomDetailsOpensSharedPanelAndKeepsContext(t *testing.T) {
 	app.HandleCommand(CmdBack, now)
 }
 
+func TestRoomDetailsLoadsCoverArtworkOffGrid(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+		testRoomPack(t, "nested", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "ready dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+
+	app.HandleCommand(CmdSortCycle, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := app.Snapshot()
+	if !snap.Room.Choice.Open || len(snap.Room.Choice.Rows) == 0 {
+		t.Fatalf("choice overlay %+v", snap.Room.Choice)
+	}
+	offGridID := snap.Room.Choice.Rows[0].ID
+	for _, game := range snap.Games {
+		if game.ID == offGridID {
+			t.Fatalf("%s is already on the browse grid", offGridID)
+		}
+	}
+
+	app.HandleCommand(CmdDetails, now)
+	snap = app.Snapshot()
+	if !snap.Detail.Open || snap.FocusDetail.Title == "" || !snap.Room.Open {
+		t.Fatalf("details %+v room=%v title=%q", snap.Detail, snap.Room.Open, snap.FocusDetail.Title)
+	}
+	waitFor(t, app, "off-grid cover", func(s Snapshot) bool {
+		return s.Detail.Open && s.Covers[offGridID] != nil
+	})
+}
+
 func TestRoomAttractStaysOffWhileFocused(t *testing.T) {
 	h := newRoomHost(t)
 	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "overworld", destRoomScript)})

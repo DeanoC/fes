@@ -2,6 +2,7 @@ package tenfoot
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/rooms"
@@ -306,7 +307,7 @@ func roomChoiceHint(kind InputKind) string {
 	return selectWord(kind) + " choose  " + detailsWord(kind) + " details  " + backWord(kind) + " close"
 }
 
-func (a *App) queueRoomDetailWorkLocked(queue []pendingWork) []pendingWork {
+func (a *App) queueRoomDetailWorkLocked(now time.Time, queue []pendingWork) []pendingWork {
 	if a.room == nil || !a.detailOpen || a.roomDetail.ID == "" || a.gpuParked {
 		return queue
 	}
@@ -323,11 +324,26 @@ func (a *App) queueRoomDetailWorkLocked(queue []pendingWork) []pendingWork {
 		}
 		a.covers[game.ID] = slot
 	}
-	if _, have := a.details[game.ID]; !have {
-		if _, busy := a.inflight[game.ID]; !busy {
+	if _, have := a.details[game.ID]; !have && slot.phase != coverIdle && slot.phase != coverArtwork {
+		if _, busy := a.inflight[game.ID]; !busy && !now.Before(slot.detailNext) {
 			a.inflight[game.ID] = workPresentation
 			return append(queue, pendingWork{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 		}
+	}
+	if _, busy := a.inflight[game.ID]; busy {
+		return queue
+	}
+	switch slot.phase {
+	case coverIdle:
+		a.inflight[game.ID] = workPresentation
+		return append(queue, pendingWork{item: workItem{kind: workPresentation, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
+	case coverArtwork:
+		if slot.handle == "" {
+			slot.phase = coverMissing
+			return queue
+		}
+		a.inflight[game.ID] = workArtwork
+		return append(queue, pendingWork{item: workItem{kind: workArtwork, gameID: game.ID, handle: slot.handle, gen: a.loadGen}, key: game.ID})
 	}
 	return queue
 }
