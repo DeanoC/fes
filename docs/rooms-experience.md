@@ -212,12 +212,12 @@ See companion section below (also summarised in chat). Update status here as ite
 | 5 | Target setup for launch smoke | **STATUS done** (2026-09-19): Coleco Confirm→Play (`example.coleco-arcade`) smoked on tip ~32996fe direct kit. The kit image lacked Mushroom Kingdom legacy cores, so Coleco was the Ready path | Deano / kit+host |
 | 6 | Launch overlay + duplicate prevention + honest failure | **STATUS done** (2026-09-19): tenfoot FES overlay on Confirm; second Confirm does not double-POST; TRANSFER_FAILED-style failure keeps the selected location and offers Retry / Back to room. Hosted by rooms chrome, not room Lua. Tests cover overlay + duplicate guard + focus retention | Host/session (Kepler or Caster) + Luna chrome |
 | 7 | Return restores room, location, history; failed save visible | **STATUS done** (2026-09-19): successful Stop restores the same room, selected location, and parent stack; a game launched inside a nested room returns there; SAVE_FAILED stays on failed-save chrome (not Now playing / Completed) until retry Stop succeeds | Host/session + Luna |
-| 8 | Home surface: pinned / recent / installed rooms / library | §1 Home (can phase after core room loop) | Luna / UI |
+| 8 | Home surface: pinned / recent / installed rooms / library | **STATUS done** (2026-09-19): tenfoot Home overlay lists pinned rooms, recently played games, every installed room, and the full library. Settings Confirm goes Home; Y/`i` pins rooms into `tenfoot.json`. Selecting a room keeps first-entry vs later-visit restore. Discovery/download remains out of scope | Luna / UI |
 | 9 | Edition preference remembered for household | Storage owner chosen; choice persists | Host profile / FES |
 | 10 | Accessibility pass | Reduced motion, contrast, non-colour focus; Back + system menu always reachable | Luna |
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 8–12. (0–7 are done.)
+**Recommended sequence for starting now:** 9–12. (0–8 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).

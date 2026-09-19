@@ -471,9 +471,11 @@ make tenfoot-smoke
 
 Rooms are creator-defined, scripted menu screens (a Mario overworld, a
 console room, an AmigaOS desktop) that sit beside the library browser.
-Press **h**/Home or **hold B** for the picker (hold B is a shortcut; GUIDE
-or `o` opens Settings, which has a Home row); `-home rooms` (or Settings ›
-Home) starts there. Room logical-action bindings live in
+Press **h**/Home or **hold B** for Home (hold B is a shortcut; GUIDE
+or `o` opens Settings, whose Home row Confirm goes Home now). Home lists
+pinned rooms, recently played games, installed rooms, and the full
+library; `-home rooms` (or Settings › Home Left/Right) starts there.
+Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`
 `rooms_dir`, or `<config>/FogCast/rooms`; the embedded `example.*` rooms

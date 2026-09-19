@@ -391,22 +391,27 @@ type App struct {
 	devLoadPhase           string
 	devLoadMessage         string
 
-	roomsIndex      *rooms.Index
-	roomsDir        string
-	homeRooms       bool
-	room            *rooms.Instance
-	roomStack       []*rooms.Instance
-	roomFrame       rooms.Frame
-	roomErr         string
-	roomWasParked   bool
-	roomPickerOpen  bool
-	roomPickerIndex int
-	roomCoverSem    chan struct{}
-	roomDetail      hostclient.Game
-	roomChoiceOpen  bool
-	roomChoiceIndex int
-	roomChoice      []hostclient.Game
-	roomPicks       map[string]string
+	roomsIndex        *rooms.Index
+	roomsDir          string
+	homeRooms         bool
+	pinnedRooms       []string
+	homeRecents       []hostclient.Game
+	homeRecentsErr    string
+	homeRecentsLoaded bool
+	homeRecentsGen    int
+	room              *rooms.Instance
+	roomStack         []*rooms.Instance
+	roomFrame         rooms.Frame
+	roomErr           string
+	roomWasParked     bool
+	roomPickerOpen    bool
+	roomPickerIndex   int
+	roomCoverSem      chan struct{}
+	roomDetail        hostclient.Game
+	roomChoiceOpen    bool
+	roomChoiceIndex   int
+	roomChoice        []hostclient.Game
+	roomPicks         map[string]string
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -531,6 +536,7 @@ func (a *App) Start(parent context.Context) {
 	a.loadGen++
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
+	a.loadPinnedRoomsLocked()
 	a.showHomeLocked()
 	a.mu.Unlock()
 	for i := 0; i < coverWorkers; i++ {
@@ -628,7 +634,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.handleSettingsLocked(cmd)
 		return
 	}
-	if a.roomPickerOpen {
+	if a.roomPickerOpen && !a.sessionStopOfferedLocked() {
 		a.handleRoomPickerLocked(cmd)
 		return
 	}

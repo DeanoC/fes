@@ -33,12 +33,18 @@ Rooms live one directory each under the rooms directory:
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
 
-Open the picker with **h** / **Home** on a keyboard, or **hold B** on a
-gamepad (a shortcut, not the only Home route). Settings has a **Home** row
-(`library` or `rooms`, persisted as `home` in `tenfoot.json`, or `-home`)
-that chooses what appears at start; **GUIDE/o** opens that system menu as a
-tap. In a room, **B/Esc** goes back (closes Details first, then the parent
-room, then the picker), **Y/`i`** opens Details, **GUIDE/o** still opens
+Open **Home** with **h** / **Home** on a keyboard, or **hold B** on a
+gamepad (a shortcut, not the only Home route). Home lists pinned rooms,
+recently played games, every installed room, and the full library.
+Selecting a room opens it (first visit uses the authored start; later
+visits restore the last valid location). Settings has a **Home** row:
+Left/Right chooses the start screen (`library` or `rooms`, persisted as
+`home` in `tenfoot.json`, or `-home`); Confirm goes Home now. Details /
+**Y** / `i` pins or unpins the focused room (`pinned_rooms` in
+`tenfoot.json`). **GUIDE/o** opens that system menu as a tap.
+
+In a room, **B/Esc** goes back (closes Details first, then the parent
+room, then Home), **Y/`i`** opens Details, **GUIDE/o** still opens
 settings, and safe-area nudges still work. Direction, Confirm, and the
 other face/shoulder buttons are delivered to the script unless the
 launcher owns Confirm/Details for a published destination. Confirm on a
@@ -54,7 +60,7 @@ chord-only; see
 [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 A room that fails to compile or errors at runtime shows a Go-drawn error
-panel with the message; Back returns to the picker. A room can never wedge
+panel with the message; Back returns to Home. A room can never wedge
 the launcher: each script call has a deadline, frames have an op cap, and
 images have a pixel budget (see Budgets).
 

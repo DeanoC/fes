@@ -586,8 +586,9 @@ responses. Focus and nav stamps, plus a copy of launch/stop actions, go to
 by `flight_id` when it is present. Token-like detail keys are dropped.
 
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
-attract on/off gate, the look name, and the optional debug HUD are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` and optional `tenfoot.json` prefs). There is no host
+attract on/off gate, the look name, the optional debug HUD, and Home
+(`home` start screen plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` and optional `tenfoot.json` prefs). The Home overlay lists pinned rooms, recently played games, installed rooms, and the library. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are

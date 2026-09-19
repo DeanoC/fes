@@ -79,6 +79,8 @@ type roomHost struct {
 	stopStatus   int
 	stopBody     string
 	stops        int
+	recents      []hostclient.Game
+	recentsGate  chan struct{}
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -89,6 +91,20 @@ func newRoomHost(t *testing.T) *roomHost {
 	h.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			if r.URL.Query().Get("collection") == "recents" {
+				h.mu.Lock()
+				gate := h.recentsGate
+				recents := append([]hostclient.Game(nil), h.recents...)
+				h.mu.Unlock()
+				if gate != nil {
+					<-gate
+				}
+				if recents == nil {
+					recents = []hostclient.Game{}
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"games": recents})
+				return
+			}
 			games := []hostclient.Game{
 				availableGame("snes-mario", "Mario", "snes"),
 				availableGame("snes-zelda", "Zelda", "snes"),
@@ -212,8 +228,8 @@ func TestRoomPickerOpensRoomAndLaunchesThroughHost(t *testing.T) {
 	now := time.Now()
 
 	snap := waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
-	if len(snap.RoomPicker.Rows) != 3 || !snap.RoomPicker.Rows[0].Library || snap.RoomPicker.Rows[1].ID != "arcade" {
-		t.Fatalf("picker rows %+v", snap.RoomPicker.Rows)
+	if !homeHasRow(snap, HomeKindRecents, "recents") || !homeHasRow(snap, HomeKindRoom, "arcade") || !homeHasRow(snap, HomeKindLibrary, "") {
+		t.Fatalf("home rows %+v", snap.RoomPicker.Rows)
 	}
 	if snap.HeaderHint() == "" {
 		t.Fatal("picker hint missing")
@@ -347,6 +363,30 @@ func TestRoomPickerOpensRoomAndLaunchesThroughHost(t *testing.T) {
 func luaGlobalNumber(app *App, name string) float64 {
 	n, _ := app.room.GlobalNumber(name)
 	return n
+}
+
+func homeHasRow(snap Snapshot, kind, id string) bool {
+	for _, row := range snap.RoomPicker.Rows {
+		if row.Kind == kind && row.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func focusHomeRow(t *testing.T, app *App, kind, id string) RoomPickerRow {
+	t.Helper()
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	rows := app.roomPickerRowsLocked()
+	for i, row := range rows {
+		if row.Kind == kind && row.ID == id {
+			app.roomPickerIndex = i
+			return row
+		}
+	}
+	t.Fatalf("home row kind=%s id=%q missing from %+v", kind, id, rows)
+	return RoomPickerRow{}
 }
 
 func TestRoomOpenLibraryAndBrokenRoom(t *testing.T) {

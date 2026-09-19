@@ -410,8 +410,10 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		}
 	case settingsRowHome:
 		switch cmd {
-		case CmdLeft, CmdRight, CmdSelect:
+		case CmdLeft, CmdRight:
 			a.toggleHomePrefLocked()
+		case CmdSelect:
+			a.goHomeNowLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {
@@ -1483,6 +1485,9 @@ func (a *App) settingsHintLocked() string {
 		return ""
 	}
 	kind := a.affinity.current.Kind
+	if a.settingsIndex == settingsRowHome {
+		return settingsActionHint(kind, "go home", "Left/Right start screen")
+	}
 	targetKind, targetIndex, field := a.settingsTargetRowLocked()
 	if targetIndex >= 0 {
 		switch field {

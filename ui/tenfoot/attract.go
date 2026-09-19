@@ -116,6 +116,9 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.AttractEnabled = boolPtr(a.attractPrefEnabled)
 	case "home":
 		existing.Home = homePrefValue(a.homeRooms)
+	case "pinned_rooms":
+		existing.PinnedRooms = append([]string(nil), a.pinnedRooms...)
+		existing.Home = homePrefValue(a.homeRooms)
 	default:
 		return
 	}
