@@ -96,10 +96,15 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 	default:
 		if d.Kind == "" {
 			d.Kind = KindUnresolved
-		}
-		if d.Availability == "" {
+			if d.Availability == "" {
+				d.Availability = AvailChecking
+			}
+		} else if d.Kind != KindUnresolved && d.Availability == "" {
 			d.Availability = AvailChecking
 		}
+		// Explicit unresolved without resolving/missing is a non-game
+		// location (platform row, empty list). Leave availability empty so
+		// Confirm stays with the room.
 	}
 	if d.Kind == KindGame && d.System == "" && d.Platform != "" {
 		d.System = d.Platform

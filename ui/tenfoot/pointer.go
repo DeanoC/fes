@@ -20,6 +20,7 @@ const (
 	PointerRoom
 	PointerRoomPicker
 	PointerRoomChoice
+	PointerRoomDestination
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -57,6 +58,8 @@ func (k PointerKind) String() string {
 		return "room-picker"
 	case PointerRoomChoice:
 		return "room-choice"
+	case PointerRoomDestination:
+		return "room-destination"
 	default:
 		return "none"
 	}
@@ -156,6 +159,9 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 				}
 			}
 			return PointerHit{Kind: PointerBackdrop}
+		}
+		if pane, ok := roomDestGeom(snap); ok && pane.contains(x, y) {
+			return PointerHit{Kind: PointerRoomDestination}
 		}
 		if hit, ok := snap.Room.Frame.HitAt(float32(x-snap.Room.OffsetX), float32(y-snap.Room.OffsetY)); ok {
 			return PointerHit{Kind: PointerRoom, KeyID: hit.ID}
@@ -345,6 +351,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 				a.applyRoomDestinationConfirmLocked()
 			}
 		}
+	case PointerRoomDestination:
+		a.openRoomDetailsLocked()
 	case PointerBackdrop:
 		a.pointerBackdropLocked(now)
 	}

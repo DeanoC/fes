@@ -48,7 +48,7 @@ buttons after that step; GUIDE / `CmdSettings` is not remapped.
 | --- | --- | --- | --- |
 | Direction | `CmdUp` `CmdDown` `CmdLeft` `CmdRight` | `up` `down` `left` `right` | Yes (d-pad, left stick, arrows) |
 | Confirm | `CmdSelect` | `select` | Yes (South / Enter / primary click on a hit) |
-| Details | `CmdDetails` (Y / North also treated as Details while a room is focused) | `details` | Yes (North / Y / Triangle / `NORTH`; keyboard `i`) |
+| Details | `CmdDetails` (Y / North also treated as Details while a room is focused) | `details` | Yes (North / Y / Triangle / `NORTH`; keyboard `i`; pointer tap on the compact destination strip) |
 | Back | `CmdBack` | `back` (unconsumed Back leaves the room) | Yes (East / Esc) |
 | System menu | `CmdSettings` | not delivered (launcher owns it) | Yes (GUIDE / `o`) |
 
@@ -73,7 +73,7 @@ Nintendo A = Confirm.
 | --- | --- | --- | --- | --- | --- |
 | Direction | D-pad or left stick | D-pad or left stick | `DPAD_*` or left stick past the gate | Arrows; `W`/`A`/`D` (`S` is **Stop**, not Down) | Hover a room hit region |
 | Confirm | **A** (bottom) | **Cross** (bottom) | `SOUTH` | Enter or Space | Primary click on a room hit region |
-| Details | **Y** (North) | **Triangle** | `NORTH` | `i` | **not wired** (compact panel / Details tap) |
+| Details | **Y** (North) | **Triangle** | `NORTH` | `i` | Compact selected-destination strip |
 | Back | **B** | **Circle** | `EAST` | Esc or Backspace | **no room route** (overlays: click empty) |
 | System menu | **Xbox / Guide** | **PS button** | `GUIDE` | `o` | **no pointer route** |
 
@@ -98,11 +98,12 @@ shoulder buttons that are not Back / Home / Settings are passed through:
 | hold B | rooms picker (`CmdHome`; not delivered) |
 
 Example rooms today: Confirm performs the destination’s primary action
-(Play / enter room / honest next action). Y / North opens Details for a
-matched game. `example.console-snes` still hands off to the library on
-`search` / `tab`; Y is Details, so that hand-off is Tab (or keyboard `/`
-outside a room). Mushroom Kingdom publishes the selected destination and
-does not consume `search`.
+(Play / enter room / honest next action). Y / North / a pointer tap on the
+compact strip opens Details for a matched game. `example.console-snes`
+still hands off to the library on `search` / `tab`; Y is Details, so that
+hand-off is Tab (or keyboard `/` outside a room). Mushroom Kingdom, Lobby,
+Workbench, and TMS9918 Family publish the selected destination. SNES and
+Sports Island publish the focused title.
 
 ---
 
@@ -126,15 +127,17 @@ a controller-only player can reach Home without holding B.
 
 ## Gaps / follow-ups (not fixed in this pass)
 
-Cheap sofa/room input already matches Direction, Confirm, Back, and System
-menu on keyboard and a standard gamepad. The remaining gaps need a dedicated
-change (task #3 and later), not a binding drive-by:
+Cheap sofa/room input already matches Direction, Confirm, Back, Details,
+and System menu on keyboard, a standard gamepad, and pointer Details on
+the compact strip. The remaining gaps need a dedicated change, not a
+binding drive-by:
 
-1. **Details tap is wired (task #3).** North / Y / Triangle / `NORTH` and
-   keyboard `i` open the shared game-info panel while a room is focused.
-   Rooms that previously used Y as `search` (library hand-off) should use
-   Tab; `example.console-snes` documents that. Pointer Details remains a
-   follow-up.
+1. **Details tap is wired (task #3 and the #273 follow-up).** North / Y /
+   Triangle / `NORTH`, keyboard `i`, and a pointer tap on the compact
+   selected-destination strip open the shared game-info panel while a room
+   is focused. Strip taps do not steal Direction, Confirm, Back, or the
+   system menu. Rooms that previously used Y as `search` (library hand-off)
+   should use Tab; `example.console-snes` documents that.
 2. **Pointer-only Back and System menu.** Room empty-space clicks are a
    no-op (so clicking the map does not leave). Overlay “click empty” Back
    does not apply inside an open room. No on-screen settings control.
@@ -156,5 +159,6 @@ change (task #3 and later), not a binding drive-by:
 | `ui/tenfoot/keyboard.go` | `CommandFromKey` |
 | `ui/tenfoot/sdl.go` | `SDL_GAMEPAD_BUTTON_GUIDE` → `CmdSettings` |
 | `ui/tenfoot/room.go` | room delivery; Home vs unconsumed Back |
+| `ui/tenfoot/pointer.go` | compact destination strip hit → Details |
 | `ui/tenfoot/hints.go` | affinity prompt words (A / B / GUIDE / Enter / Esc) |
 | `ui/inputmap` | optional `swap-ab` and JSON remaps |

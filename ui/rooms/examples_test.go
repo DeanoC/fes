@@ -39,6 +39,79 @@ func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 	}
 }
 
+func examplePack(t *testing.T, id string) Pack {
+	t.Helper()
+	for _, p := range Examples() {
+		if p.ID == id {
+			return p
+		}
+	}
+	t.Fatalf("%s missing", id)
+	return Pack{}
+}
+
+func TestLobbyWorkbenchTMSPublishDestination(t *testing.T) {
+	packs := Examples()
+	index := NewIndex(packs)
+
+	lobby := newRoom(t, examplePack(t, "example.lobby"), Options{Services: &fakeServices{}, Index: index, Width: 1280, Height: 720})
+	if err := lobby.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, lobby, func(Frame) bool { return lobby.Destination().Kind == KindLibrary })
+	if got := lobby.Destination(); got.Label != "Library" || got.Confirm() != ConfirmOpenLibraryBrowse {
+		t.Fatalf("lobby library dest %+v", got)
+	}
+	if !lobby.Input("down") {
+		t.Fatal("lobby down")
+	}
+	lobby.Step(time.Unix(2, 0))
+	if got := lobby.Destination(); got.Kind != KindRoom || got.RoomID == "" || got.Action != "Enter room." {
+		t.Fatalf("lobby room dest %+v", got)
+	}
+
+	svc := &fakeServices{
+		games: []hostclient.Game{
+			{ID: "coleco-dk", Title: "Donkey Kong", System: "coleco", Genre: "Action", State: "available", RootOnline: true, Launchable: true},
+			{ID: "snes-wars", Title: "Wars", System: "snes", Genre: "Strategy", State: "available", RootOnline: true, Launchable: true},
+		},
+		platforms: []hostclient.Platform{
+			{ID: "coleco", Label: "ColecoVision", Tags: []string{"vdp:tms9918-family", "cpu:z80"}},
+			{ID: "snes", Label: "SNES", Tags: []string{"cpu:65c816"}},
+		},
+	}
+	bench := newRoom(t, examplePack(t, "example.workbench"), Options{Services: svc, Index: index, Width: 1280, Height: 720})
+	if err := bench.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := bench.Destination(); got.Kind != KindUnresolved || !got.Set() {
+		t.Fatalf("workbench loading dest %+v", got)
+	}
+	stepUntil(t, bench, func(Frame) bool {
+		d := bench.Destination()
+		return d.Kind == KindGame && d.GameID != ""
+	})
+	if got := bench.Destination(); got.Label == "" || got.Availability == AvailChecking {
+		t.Fatalf("workbench game dest %+v", got)
+	}
+
+	tms := newRoom(t, examplePack(t, "example.tms-vdp"), Options{Services: svc, Index: index, Width: 1280, Height: 720})
+	if err := tms.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, tms, func(Frame) bool {
+		d := tms.Destination()
+		return d.Kind == KindUnresolved && d.Label == "ColecoVision" && d.Availability != AvailChecking
+	})
+	if !tms.Input("right") {
+		t.Fatal("tms right")
+	}
+	tms.Step(time.Unix(3, 0))
+	if got := tms.Destination(); got.Kind != KindGame || got.Label != "Donkey Kong" || got.GameID != "coleco-dk" {
+		t.Fatalf("tms game dest %+v", got)
+	}
+}
+
 func TestMushroomKingdomPlayedIsNotCompleted(t *testing.T) {
 	var pack Pack
 	for _, p := range Examples() {

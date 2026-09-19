@@ -117,6 +117,20 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			action:  "Wait — still checking.",
 			confirm: ConfirmWait,
 		},
+		{
+			name:    "library",
+			dest:    Destination{Kind: KindLibrary, Label: "Library"},
+			status:  "Browse the full library.",
+			action:  "Open library.",
+			confirm: ConfirmOpenLibraryBrowse,
+		},
+		{
+			name:    "unresolved location",
+			dest:    Destination{Kind: KindUnresolved, Label: "ColecoVision"},
+			status:  "Choose a title from this location.",
+			action:  "Open the title list.",
+			confirm: ConfirmNone,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,7 +142,7 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			if d.Action != tc.action {
 				t.Fatalf("action %q want %q", d.Action, tc.action)
 			}
-			if d.Confirm() != tc.confirm || d.Confirm() == ConfirmNone {
+			if d.Confirm() != tc.confirm {
 				t.Fatalf("confirm %v want %v", d.Confirm(), tc.confirm)
 			}
 		})

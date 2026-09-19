@@ -226,8 +226,13 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	if meta == "" {
 		meta = strings.ToUpper(strings.TrimSpace(d.Platform))
 	}
-	if d.Kind == rooms.KindRoom {
+	switch d.Kind {
+	case rooms.KindRoom:
 		meta = "ROOM"
+	case rooms.KindLibrary:
+		meta = "LIBRARY"
+	case rooms.KindUnresolved:
+		meta = "UNRESOLVED"
 	}
 	if hist := strings.TrimSpace(d.History.Line()); hist != "" {
 		if meta != "" {

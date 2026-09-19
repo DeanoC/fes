@@ -34,7 +34,10 @@ function on_input(cmd)
   if cmd == "filter_next" then focus = "unavailable" publish() return true end
   return false
 end
-function draw() gfx.rect(0, 0, 10, 10, "#fff") end
+function draw()
+  gfx.rect(0, 0, 10, 10, "#fff")
+  gfx.hit("map", 0, 0, room.width, room.height)
+end
 `
 
 func TestRoomDestinationPanelAndConfirmStates(t *testing.T) {
@@ -311,5 +314,74 @@ func TestRoomDestinationPlayedIsNotCompleted(t *testing.T) {
 	}
 	if !snap.Room.Destination.History.Played || snap.Room.Destination.History.Line() != "Played" {
 		t.Fatalf("launch return should stay Played: %+v", snap.Room.Destination.History)
+	}
+}
+
+func TestRoomDestinationStripPointerOpensDetails(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+		testRoomPack(t, "nested", "function draw() gfx.rect(0,0,10,10,'#fff') end"),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := waitFor(t, app, "ready dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+	pane, ok := roomDestGeom(snap)
+	if !ok {
+		t.Fatal("compact destination strip missing")
+	}
+	cx, cy := pane.X+pane.W/2, pane.Y+pane.H/2
+	if got := HitTest(snap, cx, cy); got.Kind != PointerRoomDestination {
+		t.Fatalf("strip hit %+v", got)
+	}
+
+	before := h.launchCount()
+	app.PointerClick(cx, cy, now)
+	snap = app.Snapshot()
+	if !snap.Detail.Open || !snap.Room.Open || snap.FocusDetail.Title != "Mario" {
+		t.Fatalf("strip details %+v room=%v title=%q", snap.Detail, snap.Room.Open, snap.FocusDetail.Title)
+	}
+	if h.launchCount() != before || snap.Launch.Phase == "ok" {
+		t.Fatalf("strip click must not Confirm: launches=%v phase=%s", h.launches, snap.Launch.Phase)
+	}
+	app.HandleCommand(CmdBack, now)
+	if app.Snapshot().Detail.Open || !app.Snapshot().Room.Open {
+		t.Fatal("Back must close Details and keep the room")
+	}
+
+	app.HandleCommand(CmdDetails, now)
+	if !app.Snapshot().Detail.Open || !app.Snapshot().Room.Open {
+		t.Fatal("keyboard Details must still open the shared panel")
+	}
+	app.HandleCommand(CmdBack, now)
+
+	app.HandleCommand(CmdRight, now)
+	snap = app.Snapshot()
+	if snap.Room.Destination.Kind != rooms.KindRoom {
+		t.Fatalf("island dest %+v", snap.Room.Destination)
+	}
+	pane, ok = roomDestGeom(snap)
+	if !ok {
+		t.Fatal("room dest strip missing")
+	}
+	app.PointerClick(pane.X+pane.W/2, pane.Y+pane.H/2, now)
+	snap = app.Snapshot()
+	if snap.Room.ID != "overworld" || snap.RoomPicker.Open {
+		t.Fatalf("strip click must not enter a room dest: %+v", snap.Room)
+	}
+
+	app.HandleCommand(CmdLeft, now)
+	waitFor(t, app, "ready again", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "confirm launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != before+1 {
+		t.Fatalf("Confirm must still launch, launches=%v", h.launches)
 	}
 }
