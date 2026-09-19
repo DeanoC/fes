@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build two composable application examples through the authenticated HIP lane.
+"""Build composable application examples through the authenticated HIP lane.
 
 The shared Pong producer supplies the identical board/tool/electrical evidence
 checks. This recipe owns application RTL, synthesis parameters and manifests;
@@ -29,16 +29,48 @@ RTL_SOURCES = (
     "cores/fes-demo/rtl/fes_demo_core.v",
     "cores/fes-demo/rtl/top.v",
 )
+AUDIO_SOURCES = ("cores/fes-common/rtl/fes_audio_pll.v", "cores/fes-common/rtl/fes_audio_i2s.v",
+                 "cores/fes-demo/rtl/fes_demo_audio.v")
+AUDIO_QSF = "cores/fes-demo/constraints-audio.qsf"
+AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
+              "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
 PINNED_INPUTS = (
     RECIPE, "scripts/build_fes_pong.py", ABI_DEFINITION, "toolchain.lock",
     board.QSF, board.SDC, *RTL_SOURCES,
 )
 
-def output_relative(media: bool) -> Path:
+def output_relative(media: bool, audio: bool = False) -> Path:
+    if media and audio:
+        raise board.BuildError("media and audio are separate demo variants")
+    if audio:
+        return Path("build/fes-demo-audio")
     return Path("build/fes-demo-media" if media else "build/fes-demo")
 
+def audio_pin_evidence(root: Path, output: Path) -> None:
+    expected = (root / board.QSF).read_text() + "\n# ADV7513 stereo I2S; Template_MiSTer sys/sys.tcl pin mapping.\n"
+    for port, pin in AUDIO_PINS.items():
+        expected += f'set_location_assignment {pin} -to {port}\n'
+        expected += f'set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to {port}\n'
+    if (root / AUDIO_QSF).read_text() != expected:
+        raise board.BuildError("audio constraints must preserve the video pins and exact I2S pins")
+    module = board._read_json(output / "routed.json", "audio pin evidence")["modules"]["top"]
+    for port, pin in AUDIO_PINS.items():
+        entry = module.get("ports", {}).get(port, {})
+        pads = [cell for cell in module["cells"].values()
+                if cell.get("type") == "MISTRAL_OB"
+                and cell.get("connections", {}).get("PAD") == entry.get("bits")]
+        if entry.get("direction") != "output" or len(pads) != 1:
+            raise board.BuildError(f"audio output {port} must have exactly one output pad")
+        cell = pads[0]
+        if (cell.get("attributes", {}).get("LOC") != pin
+                or cell.get("attributes", {}).get("IO_STANDARD") != "3.3-V LVTTL"
+                or not cell.get("attributes", {}).get("NEXTPNR_BEL", "").startswith("MISTRAL_IO.")
+                or len(cell.get("connections", {}).get("I", [])) != 1
+                or type(cell["connections"]["I"][0]) is not int):
+            raise board.BuildError(f"audio output {port} has incorrect routing or electrical constraints")
+
 def create_build_record(root: Path, repository: str, revision: str,
-                        identities: dict[str, str], *, media: bool = False) -> bytes:
+                        identities: dict[str, str], *, media: bool = False, audio: bool = False) -> bytes:
     return encode_build_record({
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
@@ -50,19 +82,24 @@ def create_build_record(root: Path, repository: str, revision: str,
             "gpu_backend": "hip", "router": "gpu", "seed": 1, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
             "pll_fractional_vco_multiplier": True,
-            "enable_gamepad": media, "enable_media": media,
+            "enable_gamepad": media or audio, "enable_media": media,
+            "enable_audio": audio,
+            **({"audio_clock_hz": 12_288_000, "audio_sample_hz": 48_000,
+                "audio_slot_bits": 32, "audio_sample_bits": 16} if audio else {}),
         },
     })
 
-def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False):
+def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False, audio: bool = False):
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
-    output = output_relative(media).as_posix()
+    output = output_relative(media, audio).as_posix()
+    sources = (*RTL_SOURCES, *AUDIO_SOURCES) if audio else RTL_SOURCES
+    define = "-D FES_DEMO_AUDIO " if audio else ""
     program = (
-        f"read_verilog -sv -I cores/fes-common/generated {' '.join(RTL_SOURCES)}; "
-        f"chparam -set BUILD_ID 128'h{build_id} -set ENABLE_GAMEPAD {int(media)} "
+        f"read_verilog -sv {define}-I cores/fes-common/generated {' '.join(sources)}; "
+        f"chparam -set BUILD_ID 128'h{build_id} -set ENABLE_GAMEPAD {int(media or audio)} "
         f"-set ENABLE_MEDIA {int(media)} top; "
         "synth_intel_alm -nobram -nolutram -nodsp -top top; "
         f"stat; write_json {output}/synth.json"
@@ -70,7 +107,7 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: 
     return (
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
-         "--device", board.TARGET, "--qsf", board.QSF, "--sdc", board.SDC,
+         "--device", board.TARGET, "--qsf", AUDIO_QSF if audio else board.QSF, "--sdc", board.SDC,
          "--freq", "74.25", "--seed", "1", "--router", "gpu",
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
@@ -78,16 +115,18 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: 
     )
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str,
-             identities: dict[str, str], *, media: bool = False) -> bytes:
+             identities: dict[str, str], *, media: bool = False, audio: bool = False) -> bytes:
     interface_ids = ["fes.video.fixed-720p60"]
     if media:
         interface_ids += ["fes.gamepad", "fes.media.blob"]
+    if audio:
+        interface_ids += ["fes.gamepad", "fes.audio.pcm-s16-stereo-48k"]
     return encode_manifest({
         "format": 2,
         "core": {
-            "id": "fes.demo-media" if media else "fes.demo",
-            "name": "FES Palette Demo" if media else "FES Autonomous Demo",
-            "description": "Procedural fixed-720p application reference; silent output",
+            "id": "fes.demo-audio" if audio else "fes.demo-media" if media else "fes.demo",
+            "name": "FES Stereo Tone Demo" if audio else "FES Palette Demo" if media else "FES Autonomous Demo",
+            "description": "Fixed-720p stereo tone application" if audio else "Procedural fixed-720p application reference; silent output",
             "version": "1.0.0",
         },
         "target": {"platform": "de10_nano", "device": board.TARGET,
@@ -101,32 +140,37 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
                   "toolchain": "; ".join(f"{key} {identities[key]}" for key in sorted(identities))},
     })
 
-def build(root: Path = ROOT, *, media: bool = False, cache_root: Path | None = None) -> Path:
+def build(root: Path = ROOT, *, media: bool = False, audio: bool = False, cache_root: Path | None = None) -> Path:
     root = Path(root).resolve()
-    repository, revision = board._require_clean_source(root, pinned_inputs=PINNED_INPUTS)
+    relative = output_relative(media, audio)
+    pinned_inputs = (*PINNED_INPUTS, AUDIO_QSF, *AUDIO_SOURCES) if audio else PINNED_INPUTS
+    repository, revision = board._require_clean_source(root, pinned_inputs=pinned_inputs)
     authenticated = board._authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    record = create_build_record(root, repository, revision, identities, media=media)
-    output = board._prepare_output(root, relative=output_relative(media))
+    record = create_build_record(root, repository, revision, identities, media=media, audio=audio)
+    output = board._prepare_output(root, relative=relative)
     board._write_atomic(output / "build-inputs.json", record)
     try:
         commands = build_commands(root, build_identity(record),
-            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, media=media)
+            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, media=media, audio=audio)
         board._run_tool(commands[0], root, output / "yosys.log")
         board._run_tool(commands[1], root, output / "nextpnr.log",
-                        output_relative=output_relative(media))
-        evidence = board.validate_build_evidence(output, root)
+                        output_relative=relative)
+        evidence = board.validate_build_evidence(output, root, audio=audio)
+        if audio:
+            audio_pin_evidence(root, output)
+            evidence["audio_pins"] = {"status": "pass", "pins": AUDIO_PINS}
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
-                         "inputs": {p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
+                         "inputs": {p: board._sha256(root / p) for p in sorted(pinned_inputs)},
                          "tools": identities, "top": "top"})
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
-        encoded = manifest(record, evidence, repository, revision, identities, media=media)
+        encoded = manifest(record, evidence, repository, revision, identities, media=media, audio=audio)
         board._write_atomic(output / "manifest.toml", encoded)
         final_tools = board._authenticate_tools(root, cache_root=cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise board.BuildError("authenticated tool identity changed during build")
-        if board._require_clean_source(root, pinned_inputs=PINNED_INPUTS) != (repository, revision):
+        if board._require_clean_source(root, pinned_inputs=pinned_inputs) != (repository, revision):
             raise board.BuildError("source identity changed during build")
         return export_package(encoded, output / "core.rbf", root / "build/packages")
     except Exception:
@@ -137,10 +181,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
-    parser.add_argument("--media", action="store_true", help="gamepad + RGB palette asset variant")
+    variant = parser.add_mutually_exclusive_group()
+    variant.add_argument("--media", action="store_true", help="gamepad + RGB palette asset variant")
+    variant.add_argument("--audio", action="store_true", help="gamepad + stereo I2S tone variant")
     args = parser.parse_args()
     try:
-        print(build(args.root, media=args.media, cache_root=args.cache_root))
+        print(build(args.root, media=args.media, audio=args.audio, cache_root=args.cache_root))
     except (board.BuildError, ValueError) as exc:
         print(f"FES demo: {exc}", file=sys.stderr)
         return 1

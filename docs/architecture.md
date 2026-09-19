@@ -41,12 +41,13 @@ reference image operate in the same pixel domain; application reset does not
 stop video timing. Pong now uses this same video module; its timing and image
 mapping are unchanged, and its legacy mailbox remains separate.
 
-The same source produces two independently identified packages:
+The same source produces three independently identified packages:
 
 | Command | Core ID | Required interfaces | Output |
 | --- | --- | --- | --- |
 | `make build-fes-demo` | `fes.demo` | fixed 720p video | `build/fes-demo/core.rbf` |
 | `make build-fes-demo-media` | `fes.demo-media` | fixed 720p video, gamepad, blob | `build/fes-demo-media/core.rbf` |
+| `make build-fes-demo-audio` | `fes.demo-audio` | fixed 720p video, gamepad, stereo audio | `build/fes-demo-audio/core.rbf` |
 
 The first animates without input or media. The second requires an asset before
 release, uses its first three bytes as RGB channel masks, and uses Left/Right
@@ -81,9 +82,52 @@ implement its image/asset consumer, declare only implemented interfaces, and
 add a producer with tracked source closure and an exact manifest. Keep board
 control in the runtime, package schemas in mister-packages, and library/session
 context in FogCast. Shared RTL retains GPL-2.0-or-later notices from its source.
-Multiple controllers, alternative timings, durable data and audio are future
-contract work. Both demo variants are silent: no I2S/SPDIF pins, serializer or
-runtime audio setup is supplied or advertised by this slice.
+Multiple controllers, alternative timings and durable data are future contract
+work. The autonomous and palette variants remain silent and keep their existing
+single-PLL configuration and board ports.
+
+### Shared application audio
+
+The audio variant declares required `fes.audio.pcm-s16-stereo-48k` 1.0 and
+advertises application capability bit 4. It uses the existing execution hold
+and gamepad commands; no audio mailbox opcode or host sample transport exists.
+The producer's `FES_DEMO_AUDIO` define includes the four physical audio ports
+and second PLL only for this variant. Media is not required or advertised.
+
+`cores/fes-common/rtl/fes_audio_i2s.v` consumes signed 16-bit stereo PCM in its
+12.288 MHz audio domain. It emits 3.072 MHz BCLK, 48 kHz LRCLK, 32-bit slots,
+MSB-first data one BCLK after each LRCLK transition, and zero padding. LRCLK
+low denotes left. `sample_tick` is high in the final MCLK cycle of a stereo
+frame; at the next rising MCLK edge both input samples are captured together
+for the next frame. A consumer advances its samples on that edge for the
+following tick. Inputs from other domains need their own coherent CDC.
+
+`fes_demo_audio.v` generates left 1000 Hz and right 500 Hz square waves at
+signed amplitude 4096. Right doubles both frequencies. Hold and the used
+controller bit cross from the pixel domain through two registers. Hold replaces
+both samples with zero by the next stereo frame after synchronization while
+MCLK/BCLK/LRCLK continue. PLL unlock asynchronously resets the framing and gates
+serial data low even if the clock stops; release waits for two new audio edges.
+This digital behavior does not establish the HDMI receiver's analog silence or
+clock-loss holdover latency. Runtime transmitter mute remains its own lifecycle
+responsibility.
+
+`fes_audio_pll.v` uses the checked fractional 50-to-12.288 MHz profile. The demo
+combines it with the separate 74.25 MHz video PLL. `constraints-audio.qsf`
+preserves the Pong video/I2C pins and adds MCLK U11, BCLK T12, LRCLK T11 and
+I2S data T13 at 3.3-V LVTTL, matching the authoritative shared board definition
+and [MiSTer board mapping](https://github.com/MiSTer-devel/Template_MiSTer/blob/3ea1134cf05d62c2b1db30362277a823d739ced2/sys/sys.tcl).
+
+The producer explicitly validates both PLL parameter sets, routed clock
+evidence, both Fmax domains and every audio output pad's pin and electrical
+standard. The original single-PLL validator remains the default. Source
+closure includes the audio RTL and constraints. `make sim-fes-demo` decodes
+actual serialized sample pairs, checks atomic updates, padding, clock ratios,
+mute and stopped-clock reset; it measures both tone frequencies before and
+after controller input and simulates the complete board with independent
+pixel/audio clocks and real GP commands. The audio extension currently has
+simulation and producer-test evidence; combined HIP routing and hardware
+audio capture remain outstanding.
 
 ### Experiment lanes
 

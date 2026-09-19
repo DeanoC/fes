@@ -611,7 +611,7 @@ def _frequency_rows(fmax: object, expected: float, label: str) -> tuple[str, flo
     return name, constraint, achieved
 
 
-def _pll_cell_parameters(design: dict, label: str) -> None:
+def _pll_cell_parameters(design: dict, label: str, *, audio: bool = False) -> None:
     modules = design.get("modules")
     top = modules.get(TOP) if isinstance(modules, dict) else None
     cells = top.get("cells") if isinstance(top, dict) else None
@@ -620,11 +620,15 @@ def _pll_cell_parameters(design: dict, label: str) -> None:
         for cell in cells.values()
         if isinstance(cell, dict) and cell.get("type") == "altera_pll"
     ] if isinstance(cells, dict) else []
-    if len(matches) != 1 or matches[0].get("parameters") != PLL_PARAMETERS:
+    expected = [PLL_PARAMETERS]
+    if audio:
+        expected.append({**PLL_PARAMETERS, "output_clock_frequency0": "12.288 MHz"})
+    frequency = lambda item: item.get("output_clock_frequency0", "")
+    if sorted((cell.get("parameters", {}) for cell in matches), key=frequency) != sorted(expected, key=frequency):
         raise BuildError(f"{label} PLL parameters do not match the fixed 50-to-74.25 MHz profile")
 
 
-def _reference_clock_evidence(source_root: Path, route_text: str) -> dict[str, object]:
+def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool = False) -> dict[str, object]:
     sdc = _regular_input(source_root, SDC)
     if sdc.read_bytes() != REFERENCE_SDC_BYTES:
         raise BuildError("tracked SDC does not contain the exact FPGA_CLK1_50 20.000 ns constraint")
@@ -632,6 +636,8 @@ def _reference_clock_evidence(source_root: Path, route_text: str) -> dict[str, o
         raise BuildError("route log must apply the FPGA_CLK1_50 50.00 MHz constraint exactly once")
     if route_text.count(PLL_ROUTE_LOG) != 1:
         raise BuildError("route log does not contain the expected fixed fractional PLL mapping")
+    if audio and len(re.findall(r"Info: PLL 'audio_clock.pll': 50 MHz -> 12\.288 MHz, direct, .*bel altera_pll\.[0-9.]+", route_text)) != 1:
+        raise BuildError("route log must contain the exact 12.288 MHz audio PLL mapping")
     return {
         "clock": "FPGA_CLK1_50",
         "constraint_mhz": 50.0,
@@ -687,7 +693,7 @@ def _i2c_evidence(design: dict, label: str) -> None:
             raise BuildError(f"routed HDMI I2C {name} must use {pin}")
 
 
-def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
+def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False) -> dict:
     output = Path(output)
     source_root = Path(source_root)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -695,12 +701,13 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     routed_modules = routed.get("modules")
     if not isinstance(routed_modules, dict) or not isinstance(routed_modules.get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
-    _pll_cell_parameters(synthesis, "synthesized")
-    _pll_cell_parameters(routed, "routed")
+    _pll_cell_parameters(synthesis, "synthesized", audio=audio)
+    _pll_cell_parameters(routed, "routed", audio=audio)
     _i2c_evidence(synthesis, "synthesized")
     _i2c_evidence(routed, "routed")
     counts = _cell_counts(synthesis)
-    for name, expected in REQUIRED_RESOURCES.items():
+    required_resources = {**REQUIRED_RESOURCES, "altera_pll": 2 if audio else 1}
+    for name, expected in required_resources.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
     for name in FORBIDDEN_RESOURCES:
@@ -714,13 +721,15 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    reference = _reference_clock_evidence(source_root, route_text)
+    reference = _reference_clock_evidence(source_root, route_text, audio=audio)
 
     timing = _read_json(output / "timing.json", "timing report")
     fmax = timing.get("fmax")
-    if not isinstance(fmax, dict) or len(fmax) != 1:
-        raise BuildError("timing report must contain the single pixel sequential domain")
+    if not isinstance(fmax, dict) or len(fmax) != (2 if audio else 1):
+        raise BuildError("timing report must contain exactly the pixel and audio sequential domains" if audio
+                         else "timing report must contain the single pixel sequential domain")
     pixel = _frequency_rows(fmax, 74.25, "pixel clock")
+    audio_timing = _frequency_rows(fmax, 12.288, "audio clock") if audio else None
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
         raise BuildError("timing report has no structured utilization data")
@@ -749,7 +758,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         ):
             raise BuildError(f"malformed resource counts: {name}")
         resources[name] = {"available": available, "used": used}
-    for name, expected in REQUIRED_RESOURCES.items():
+    for name, expected in required_resources.items():
         if name not in resources or resources[name]["used"] != expected:
             actual = "missing" if name not in resources else str(resources[name]["used"])
             raise BuildError(f"resource {name} must be exactly {expected}, got {actual}")
@@ -768,6 +777,9 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         "status": "pass",
         "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
+            **({"audio": {"clock": audio_timing[0], "constraint_mhz": audio_timing[1],
+                           "requested_mhz": 12.288, "achieved_mhz": audio_timing[2],
+                           "status": "pass"}} if audio_timing else {}),
             "pixel": {
                 "clock": pixel[0],
                 "constraint_mhz": pixel[1],

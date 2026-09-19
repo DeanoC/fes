@@ -4,7 +4,8 @@
 // One-request-at-a-time HPS GPO/GPI mailbox for fes.application 1.0.
 module fes_application_gp #(
     parameter bit ENABLE_GAMEPAD = 0,
-    parameter bit ENABLE_MEDIA = 0
+    parameter bit ENABLE_MEDIA = 0,
+    parameter bit ENABLE_AUDIO = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -24,7 +25,8 @@ module fes_application_gp #(
     localparam [31:0] CAPABILITIES =
         `FES_APPLICATION_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK |
         (ENABLE_GAMEPAD ? `FES_APPLICATION_INTERFACE_GAMEPAD_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_MEDIA ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK : 32'd0);
+        (ENABLE_MEDIA ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_APPLICATION_IDENTITY_TRANSPORT_MAJOR_INDEX;

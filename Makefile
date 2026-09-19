@@ -54,6 +54,7 @@ help:
 		"  sim-fes-demo  Test composable application endpoints and reference demos" \
 		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
 		"  build-fes-demo-media  Seal gamepad/palette-media application with HIP nextpnr" \
+		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
@@ -162,6 +163,10 @@ build-fes-demo:
 
 build-fes-demo-media:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py --media $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+.PHONY: build-fes-demo-audio
+build-fes-demo-audio:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_demo.py --audio $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
 
 sim-fes-pong:
 	$(require_local_sim)

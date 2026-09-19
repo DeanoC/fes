@@ -13,6 +13,12 @@ module top #(
     output wire        HDMI_TX_VS,
     inout  wire        HDMI_I2C_SCL,
     inout  wire        HDMI_I2C_SDA
+`ifdef FES_DEMO_AUDIO
+    ,output wire HDMI_MCLK,
+    output wire HDMI_SCLK,
+    output wire HDMI_LRCLK,
+    output wire HDMI_I2S
+`endif
 );
     wire hdmi_scl_in;
     wire hdmi_sda_in;
@@ -46,7 +52,12 @@ module top #(
         .gp_out(hps_to_fpga)
     );
 
-    fes_application_gp #(.ENABLE_GAMEPAD(ENABLE_GAMEPAD), .ENABLE_MEDIA(ENABLE_MEDIA)) endpoint (
+`ifdef FES_DEMO_AUDIO
+    localparam bit ENABLE_AUDIO = 1;
+`else
+    localparam bit ENABLE_AUDIO = 0;
+`endif
+    fes_application_gp #(.ENABLE_GAMEPAD(ENABLE_GAMEPAD), .ENABLE_MEDIA(ENABLE_MEDIA), .ENABLE_AUDIO(ENABLE_AUDIO)) endpoint (
         .clk(pixel_clk),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
@@ -72,4 +83,13 @@ module top #(
     );
 
     assign HDMI_TX_CLK = pixel_clk;
+`ifdef FES_DEMO_AUDIO
+    wire audio_clk, audio_locked;
+    fes_audio_pll audio_clock (.refclk(FPGA_CLK1_50), .clk(audio_clk), .locked(audio_locked));
+    fes_demo_audio audio (
+        .clk(audio_clk), .locked(audio_locked), .exec_reset(mailbox_reset),
+        .buttons(mailbox_buttons), .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+    );
+    assign HDMI_MCLK = audio_clk;
+`endif
 endmodule

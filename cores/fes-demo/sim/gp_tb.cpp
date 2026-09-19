@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     }
     Mailbox m;
     require(m.dut.exec_reset && !m.dut.buttons && !m.dut.media_ready, "startup state");
-    const unsigned identity[] = {0x4546,0x3153,1,0,3,1,0,2|GAMEPAD|(MEDIA<<2),
+    const unsigned identity[] = {0x4546,0x3153,1,0,3,1,0,2|GAMEPAD|(MEDIA<<2)|(AUDIO<<4),
         0x1100,0x3322,0x5544,0x7766,0x9988,0xbbaa,0xddcc,0xffee};
     for(unsigned i=0;i<16;++i) require(m.command(1,i,0)==identity[i], "identity mismatch");
     m.error(1,16,0,2); m.error(1,0,1,3); m.error(127,0,0,1);
