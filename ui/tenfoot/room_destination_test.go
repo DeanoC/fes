@@ -277,6 +277,17 @@ func TestRoomDestinationPlayedIsNotCompleted(t *testing.T) {
 		t.Fatalf("availability copy used Completed: %+v", snap.Room.Destination)
 	}
 
+	app.HandleCommand(CmdDetails, now)
+	snap = app.Snapshot()
+	if !snap.Detail.Open || !snap.Room.Open {
+		t.Fatalf("details %+v room=%v", snap.Detail, snap.Room.Open)
+	}
+	if snap.Room.Destination.History.Completed || snap.Room.Destination.History.Line() != "Played" {
+		t.Fatalf("details claimed Completed: %+v", snap.Room.Destination.History)
+	}
+	app.HandleCommand(CmdBack, now)
+	waitFor(t, app, "details closed", func(s Snapshot) bool { return s.Room.Open && !s.Detail.Open })
+
 	app.HandleCommand(CmdRight, now)
 	snap = app.Snapshot()
 	if snap.Room.Destination.History.Played || snap.Room.Destination.History.Completed || snap.Room.Destination.History.Line() != "" {

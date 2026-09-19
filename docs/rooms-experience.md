@@ -143,7 +143,7 @@ These flags are household play-history chrome. They must not be inferred from fo
 
 **Insufficient for Completed:** returning from Confirm→Play, `play_count`, `last_played_at`, session idle, or presentation metadata `completion` (catalog/provider copy such as `"100%"`, not household completion).
 
-`ui/rooms.ClassifyHistory` is the shared classifier. Rooms Lua sees `played` / `completed` on game tables and `destination.play_history`. Tenfoot paints `History.Line()` on the compact destination panel (`Played`, or `Played  ·  Completed` only when an explicit record exists). Nodemap `played` and `done` are those two states; `done` must not be set from play activity or `on_resume`.
+Tenfoot paints `History.Line()` on the compact destination panel and on room Details (`Played`, or `Played  ·  Completed` only when an explicit record exists). Nodemap `played` and `done` are those two states; `done` must not be set from play activity or `on_resume`.
 
 **Follow-up (not this task):** when a household completion store lands, pass that explicit record into `ClassifyHistory`. Do not add inference from launch return.
 

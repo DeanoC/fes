@@ -179,7 +179,9 @@ Needs a choice opens an edition list, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). Details
 (Y / `i`) opens the shared game-info panel with Play as primary; a room
 `note` is attributed as “Note from <author>”. Esc/B closes Details and
-keeps the room.
+keeps the room. Played vs Completed copy on the compact panel and Details
+comes from `destination.play_history` / `ClassifyHistory`; returning from
+a launch is not Completed.
 
 ### `session`, `rooms`, `store`, `log`
 
