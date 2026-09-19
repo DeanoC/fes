@@ -66,6 +66,7 @@ static_assert(FesApplicationSignature == FesGpSignature, "shared framing");
 static_assert(FesApplicationOpcodeButtons == 3, "buttons");
 static_assert(FesApplicationCapabilityGamepad == 1, "gamepad");
 static_assert(FesApplicationCapabilityMediaBlobStream == 8, "stream");
+static_assert(FesApplicationCapabilityAudioPcmS16Stereo48k == 16, "audio");
 `
 	path := filepath.Join(dir, "test.cpp")
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {

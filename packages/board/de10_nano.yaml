@@ -14,3 +14,19 @@ pins:
     pin: W15
     standard: 3.3-V LVTTL
     direction: output
+  - name: HDMI_I2S
+    pin: T13
+    standard: 3.3-V LVTTL
+    direction: output
+  - name: HDMI_LRCLK
+    pin: T11
+    standard: 3.3-V LVTTL
+    direction: output
+  - name: HDMI_MCLK
+    pin: U11
+    standard: 3.3-V LVTTL
+    direction: output
+  - name: HDMI_SCLK
+    pin: T12
+    standard: 3.3-V LVTTL
+    direction: output

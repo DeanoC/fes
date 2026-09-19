@@ -332,6 +332,10 @@ See [application I/O](application-io.md) for composable interface admission,
 wire semantics and lifecycle. This adds one registry pair without changing
 the legacy ABI definitions or the manifest schema.
 
+Application audio `fes.audio.pcm-s16-stereo-48k` 1.0 is an additive required-when-
+present interface using capability bit 4. It needs no manifest-schema change;
+older runtimes reject its required declaration through normal registry admission.
+
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
 legacy required interfaces. See [the authoritative stream contract](media-stream.md).

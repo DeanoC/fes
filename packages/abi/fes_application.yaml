@@ -3,7 +3,7 @@ kind: abi
 id: fes.application
 description: >-
   Composable FES application mailbox. Video is required by v1 admission;
-  gamepad and media are independently declared capabilities.
+  gamepad, media and fixed stereo PCM audio are independently declared capabilities.
 major: 1
 minor: 0
 tag: 3
@@ -177,3 +177,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 3
+  - id: fes.audio.pcm-s16-stereo-48k
+    major: 1
+    minor: 0
+    capability_bit: 4

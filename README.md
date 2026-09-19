@@ -121,7 +121,8 @@ default `c++`) for generated-header syntax tests.
 
 The additive [application I/O contract](docs/application-io.md) defines
 `fes.application` 1.0 (tag 3) on `fes-gp-v1`, composing fixed video with optional
-gamepad and media. Legacy ABI definitions remain unchanged.
+gamepad, media and fixed 48 kHz stereo PCM audio. Audio uses capability bit 4
+and no new mailbox command. Legacy ABI definitions remain unchanged.
 
 The canonical [media stream 1.0 contract](docs/media-stream.md) extends the
 simple-computer ABI without widening legacy blob 1.0. YAML constants and
