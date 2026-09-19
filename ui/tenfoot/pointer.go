@@ -19,6 +19,7 @@ const (
 	PointerBackdrop
 	PointerRoom
 	PointerRoomPicker
+	PointerRoomChoice
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -54,6 +55,8 @@ func (k PointerKind) String() string {
 		return "room"
 	case PointerRoomPicker:
 		return "room-picker"
+	case PointerRoomChoice:
+		return "room-choice"
 	default:
 		return "none"
 	}
@@ -134,6 +137,26 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 		return PointerHit{Kind: PointerBackdrop}
 	}
 	if snap.Room.Open {
+		if panel, ok := roomChoicePanel(snap); ok {
+			if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.Room.Choice.Rows) {
+				return PointerHit{Kind: PointerRoomChoice, Index: idx}
+			}
+			if panel.contains(x, y) {
+				return PointerHit{}
+			}
+			return PointerHit{Kind: PointerBackdrop}
+		}
+		if snap.Detail.Open {
+			if geom, ok := detailGeomOf(snap); ok {
+				if geom.Carousel.contains(x, y) {
+					return PointerHit{Kind: PointerCarousel}
+				}
+				if geom.Pane.contains(x, y) {
+					return PointerHit{Kind: PointerDetail}
+				}
+			}
+			return PointerHit{Kind: PointerBackdrop}
+		}
 		if hit, ok := snap.Room.Frame.HitAt(float32(x-snap.Room.OffsetX), float32(y-snap.Room.OffsetY)); ok {
 			return PointerHit{Kind: PointerRoom, KeyID: hit.ID}
 		}
@@ -269,6 +292,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 		if hit.Index >= 0 {
 			a.roomPickerIndex = hit.Index
 		}
+	case PointerRoomChoice:
+		if hit.Index >= 0 && hit.Index < len(a.roomChoice) {
+			a.roomChoiceIndex = hit.Index
+		}
 	case PointerRoom:
 		if a.room != nil && hit.KeyID != "" && a.room.Err() == nil {
 			a.room.Hover(hit.KeyID)
@@ -280,6 +307,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 	switch hit.Kind {
 	case PointerCatalog, PointerDetail:
+		if a.room != nil && a.detailOpen {
+			a.applyRoomDestinationConfirmLocked()
+			return
+		}
 		if a.detailOpen && hit.Kind == PointerCatalog {
 			a.closeDetailLocked()
 		}
@@ -304,10 +335,15 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleViewPickerLocked(CmdSelect)
 	case PointerRoomPicker:
 		a.handleRoomPickerLocked(CmdSelect)
+	case PointerRoomChoice:
+		a.handleRoomChoiceLocked(CmdSelect)
 	case PointerRoom:
 		if a.room != nil && hit.KeyID != "" && a.room.Err() == nil {
 			a.room.Activate(hit.KeyID)
 			a.applyRoomActionsLocked()
+			if a.room != nil {
+				a.applyRoomDestinationConfirmLocked()
+			}
 		}
 	case PointerBackdrop:
 		a.pointerBackdropLocked(now)
@@ -330,5 +366,7 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 		a.handleSettingsLocked(CmdBack)
 	case a.filtersOpen:
 		a.handleFiltersLocked(CmdBack)
+	case a.roomChoiceOpen, a.detailOpen && a.room != nil:
+		a.closeRoomOverlaysLocked()
 	}
 }

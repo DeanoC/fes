@@ -26,6 +26,7 @@ func TestCommandFromKeyBrowseNav(t *testing.T) {
 		"shift-tab": CmdTabPrev,
 		"/":         CmdSearch,
 		"f":         CmdSearch,
+		"i":         CmdDetails,
 		"o":         CmdSettings,
 		"g":         CmdFilters,
 		"l":         CmdLayoutCycle,

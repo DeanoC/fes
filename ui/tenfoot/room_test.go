@@ -39,7 +39,7 @@ function on_input(cmd)
     if g then session.launch(g.id) end
     return true
   end
-  if cmd == "search" then rooms.open_library{ platform = "megadrive", layout = "shelf" } return true end
+  if cmd == "search" or cmd == "tab" then rooms.open_library{ platform = "megadrive", layout = "shelf" } return true end
   if cmd == "sort" then rooms.open("nested") return true end
   return false
 end
@@ -330,7 +330,7 @@ func TestRoomOpenLibraryAndBrokenRoom(t *testing.T) {
 	app.HandleCommand(CmdDown, now)
 	app.HandleCommand(CmdSelect, now)
 	waitFor(t, app, "arcade", func(s Snapshot) bool { return s.Room.Open && len(s.Room.Frame.Hits) >= 2 })
-	app.HandleCommand(CmdSearch, now)
+	app.HandleCommand(CmdTab, now)
 	snap := waitFor(t, app, "library from room", func(s Snapshot) bool {
 		return !s.Room.Open && s.PlatformID == "megadrive" && len(s.Games) == 1
 	})

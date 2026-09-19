@@ -129,6 +129,7 @@ type Instance struct {
 	loaded       bool
 	sessionState string
 	roomTable    *lua.LTable
+	dest         Destination
 }
 
 type asyncResult struct {

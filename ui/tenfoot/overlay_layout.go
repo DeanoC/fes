@@ -92,6 +92,71 @@ func detailGeomOf(snap Snapshot) (detailGeom, bool) {
 	return g, true
 }
 
+func roomDestGeom(snap Snapshot) (rectI, bool) {
+	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open {
+		return rectI{}, false
+	}
+	if !snap.Room.Destination.Set() {
+		return rectI{}, false
+	}
+	pad := 16
+	h := 118
+	w := snap.Room.Width - 2*pad
+	if w < 120 {
+		return rectI{}, false
+	}
+	x := snap.Room.OffsetX + pad
+	y := snap.Room.OffsetY + snap.Room.Height - h - 8
+	if y < snap.Room.OffsetY+48 {
+		y = snap.Room.OffsetY + 48
+		h = snap.Room.OffsetY + snap.Room.Height - 8 - y
+	}
+	if h < 72 {
+		return rectI{}, false
+	}
+	return rectI{X: x, Y: y, W: w, H: h}, true
+}
+
+func roomChoicePanel(snap Snapshot) (listPanel, bool) {
+	if !snap.Room.Choice.Open {
+		return listPanel{}, false
+	}
+	rows := len(snap.Room.Choice.Rows)
+	if rows < 1 {
+		rows = 1
+	}
+	g := snap.Grid
+	panelW := 640
+	if max := g.contentWidth() - 48; panelW > max {
+		panelW = max
+	}
+	if panelW < 280 {
+		panelW = g.contentWidth()
+	}
+	headerH, footerH, rowH := 48, 36, 44
+	visible := rows
+	if visible > 6 {
+		visible = 6
+	}
+	panelH := headerH + footerH + visible*rowH + 8
+	x := g.contentLeft() + (g.contentWidth()-panelW)/2
+	y := g.contentTop() + (g.contentHeight()-panelH)/2
+	if y < g.contentTop()+8 {
+		y = g.contentTop() + 8
+	}
+	start := snap.Room.Choice.Index - visible/2
+	if start < 0 {
+		start = 0
+	}
+	if start > rows-visible {
+		start = rows - visible
+	}
+	if start < 0 {
+		start = 0
+	}
+	return listPanel{X: x, Y: y, W: panelW, H: panelH, HeaderH: headerH, FooterH: footerH, RowH: rowH, Start: start, Visible: visible}, true
+}
+
 func viewPickerRows(snap Snapshot) []LibraryView {
 	rows := snap.PickerRows
 	if len(rows) == 0 {

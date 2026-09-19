@@ -253,7 +253,7 @@ func (a *App) attractBlockedLocked() bool {
 	if a.developmentLoadingLocked() {
 		return true
 	}
-	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.filtersOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen || a.detailOpen || a.roomPickerOpen
+	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.filtersOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen || a.detailOpen || a.roomPickerOpen || a.room != nil
 }
 
 func (a *App) tickAttractLocked(now time.Time) {

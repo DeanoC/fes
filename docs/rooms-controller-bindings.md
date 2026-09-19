@@ -48,7 +48,7 @@ buttons after that step; GUIDE / `CmdSettings` is not remapped.
 | --- | --- | --- | --- |
 | Direction | `CmdUp` `CmdDown` `CmdLeft` `CmdRight` | `up` `down` `left` `right` | Yes (d-pad, left stick, arrows) |
 | Confirm | `CmdSelect` | `select` | Yes (South / Enter / primary click on a hit) |
-| Details | none | none | **Gap** — see below |
+| Details | `CmdDetails` (Y / North also treated as Details while a room is focused) | `details` | Yes (North / Y / Triangle / `NORTH`; keyboard `i`) |
 | Back | `CmdBack` | `back` (unconsumed Back leaves the room) | Yes (East / Esc) |
 | System menu | `CmdSettings` | not delivered (launcher owns it) | Yes (GUIDE / `o`) |
 
@@ -73,7 +73,7 @@ Nintendo A = Confirm.
 | --- | --- | --- | --- | --- | --- |
 | Direction | D-pad or left stick | D-pad or left stick | `DPAD_*` or left stick past the gate | Arrows; `W`/`A`/`D` (`S` is **Stop**, not Down) | Hover a room hit region |
 | Confirm | **A** (bottom) | **Cross** (bottom) | `SOUTH` | Enter or Space | Primary click on a room hit region |
-| Details | **not wired** (proposed: **Y**) | **not wired** (proposed: **Triangle**) | **not wired** (proposed: `NORTH`) | **not wired** (library browse uses last-row Down) | **not wired** |
+| Details | **Y** (North) | **Triangle** | `NORTH` | `i` | **not wired** (compact panel / Details tap) |
 | Back | **B** | **Circle** | `EAST` | Esc or Backspace | **no room route** (overlays: click empty) |
 | System menu | **Xbox / Guide** | **PS button** | `GUIDE` | `o` | **no pointer route** |
 
@@ -90,16 +90,19 @@ shoulder buttons that are not Back / Home / Settings are passed through:
 | A / South | `select` |
 | B / East | `back` |
 | X / West | `sort` |
-| Y / North | `search` |
+| Y / North | `details` (launcher opens the shared game-info panel; not delivered as `search`) |
 | LB / RB | `filter_prev` / `filter_next` |
 | Select / View / `BACK` | `layout_cycle` |
 | Start / Menu | `quit` (launcher; not a room action) |
 | Guide | settings overlay (not delivered) |
 | hold B | rooms picker (`CmdHome`; not delivered) |
 
-Example rooms today: Confirm (`select`) launches or enters a nested room.
-`example.console-snes` uses `search` (Y) to hand off to the library, not to
-open Details. Mushroom Kingdom does not handle `search` / Details.
+Example rooms today: Confirm performs the destination’s primary action
+(Play / enter room / honest next action). Y / North opens Details for a
+matched game. `example.console-snes` still hands off to the library on
+`search` / `tab`; Y is Details, so that hand-off is Tab (or keyboard `/`
+outside a room). Mushroom Kingdom publishes the selected destination and
+does not consume `search`.
 
 ---
 
@@ -127,11 +130,11 @@ Cheap sofa/room input already matches Direction, Confirm, Back, and System
 menu on keyboard and a standard gamepad. The remaining gaps need a dedicated
 change (task #3 and later), not a binding drive-by:
 
-1. **Details has no tap binding in rooms.** Proposed physical: North / Y /
-   Triangle / a keyboard letter (library last-row Down is not a room Details
-   route). Needs a room command (new `details`, or a dedicated use of
-   `search`) plus the shared info panel in task #3. Do not steal Y from
-   rooms that already use `search` without an authoring note.
+1. **Details tap is wired (task #3).** North / Y / Triangle / `NORTH` and
+   keyboard `i` open the shared game-info panel while a room is focused.
+   Rooms that previously used Y as `search` (library hand-off) should use
+   Tab; `example.console-snes` documents that. Pointer Details remains a
+   follow-up.
 2. **Pointer-only Back and System menu.** Room empty-space clicks are a
    no-op (so clicking the map does not leave). Overlay “click empty” Back
    does not apply inside an open room. No on-screen settings control.

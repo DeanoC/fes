@@ -14,6 +14,7 @@ func (r *Instance) installAPI() {
 	L.SetGlobal("rooms", r.installRooms())
 	L.SetGlobal("session", r.installSession())
 	L.SetGlobal("store", r.installStore())
+	L.SetGlobal("destination", r.installDestination())
 	L.SetGlobal("room", r.installRoom())
 }
 

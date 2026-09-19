@@ -415,6 +415,39 @@ end`
 	}
 }
 
+func TestDestinationClassifyAndPublish(t *testing.T) {
+	svc := &fakeServices{
+		games: []hostclient.Game{
+			{ID: "nes-smb-usa", Title: "Super Mario Bros.", System: "nes", State: "available", RootOnline: true, Launchable: true},
+			{ID: "nes-smb-jp", Title: "Super Mario Bros.", System: "nes", State: "available", RootOnline: true, Launchable: true},
+		},
+	}
+	src := `
+result = nil
+function load()
+  library.query({ q = "Super Mario Bros." }, function(games, err)
+    result = destination.classify(games, { q = "Super Mario Bros." })
+    destination.set{ kind = "game", label = "Super Mario Bros.", query = "Super Mario Bros.", matches = games }
+  end)
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "dest", src, nil), Options{Services: svc})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.L.GetGlobal("result").Type().String() == "table" })
+	d := r.Destination()
+	if d.Availability != AvailNeedsChoice || d.Confirm() != ConfirmChoose {
+		t.Fatalf("dest %+v", d)
+	}
+	if d.Status != "Several editions match. Choose one." || d.Action != "Choose an edition." {
+		t.Fatalf("copy %q %q", d.Status, d.Action)
+	}
+	if err := r.CheckGlobal("result.state == 'needs_choice' and #result.matches == 2"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAssetImageDecodeAndBudget(t *testing.T) {
 	var buf bytes.Buffer
 	im := image.NewRGBA(image.Rect(0, 0, 8, 4))

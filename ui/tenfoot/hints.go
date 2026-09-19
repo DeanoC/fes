@@ -228,7 +228,20 @@ func (s Snapshot) HeaderHint() string {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"
 		}
-		return backWord(kind) + " back  " + homeWord(kind) + " rooms  " + settingsWord(kind) + " settings"
+		if s.Room.Choice.Open {
+			if h := strings.TrimSpace(s.Room.Choice.Hint); h != "" {
+				return h
+			}
+			return roomChoiceHint(kind)
+		}
+		if s.Detail.Open {
+			return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+		}
+		action := strings.TrimSpace(s.Room.Destination.Action)
+		if action == "" {
+			action = "confirm"
+		}
+		return selectWord(kind) + " " + strings.ToLower(action) + "  " + detailsWord(kind) + " details  " + backWord(kind) + " back  " + homeWord(kind) + " rooms  " + settingsWord(kind) + " settings"
 	}
 	if s.Detail.Open {
 		if h := strings.TrimSpace(s.Detail.Hint); h != "" {

@@ -198,10 +198,14 @@ func TestServerRejectsStaleFrameAndCountsSequenceGap(t *testing.T) {
 		}
 	}
 	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) && s.Metrics().Snapshot()["applied"] < 2 {
+	var metrics map[string]uint64
+	for time.Now().Before(deadline) {
+		metrics = s.Metrics().Snapshot()
+		if metrics["applied"] == 2 && metrics["sequence_gaps"] == 1 && metrics["rejected"] == 1 {
+			break
+		}
 		time.Sleep(time.Millisecond)
 	}
-	metrics := s.Metrics().Snapshot()
 	if metrics["applied"] != 2 || metrics["sequence_gaps"] != 1 || metrics["rejected"] != 1 {
 		t.Fatalf("metrics=%v", metrics)
 	}

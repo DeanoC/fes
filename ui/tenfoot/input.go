@@ -37,6 +37,7 @@ const (
 	CmdTab
 	CmdTabPrev
 	CmdHome
+	CmdDetails
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -415,6 +416,8 @@ func (c Command) String() string {
 		return "tab-prev"
 	case CmdHome:
 		return "home"
+	case CmdDetails:
+		return "details"
 	default:
 		return "none"
 	}

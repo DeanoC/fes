@@ -37,10 +37,12 @@ Open the picker with **h** / **Home** on a keyboard, or **hold B** on a
 gamepad (a shortcut, not the only Home route). Settings has a **Home** row
 (`library` or `rooms`, persisted as `home` in `tenfoot.json`, or `-home`)
 that chooses what appears at start; **GUIDE/o** opens that system menu as a
-tap. In a room, **B/Esc** goes back (to the parent room, then to the
-picker), **GUIDE/o** still opens settings, and safe-area nudges still work.
-Everything else (d-pad, A, X, Y, shoulders, Tab, SELECT) is delivered to
-the script. No essential room action is long-press-only or chord-only; see
+tap. In a room, **B/Esc** goes back (closes Details first, then the parent
+room, then the picker), **Y/`i`** opens Details, **GUIDE/o** still opens
+settings, and safe-area nudges still work. Direction, Confirm, and the
+other face/shoulder buttons are delivered to the script unless the
+launcher owns Confirm/Details for a published destination. No essential
+room action is long-press-only or chord-only; see
 [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 A room that fails to compile or errors at runtime shows a Go-drawn error
@@ -94,8 +96,10 @@ Define any of these globals:
 
 Command names: `up down left right select back stop search tab tab_prev
 filter_prev filter_next sort favorite view_prev view_next view_picker
-layout_cycle filters`. There is no `details` command yet; Y / North arrives
-as `search`. See [rooms-controller-bindings.md](rooms-controller-bindings.md).
+layout_cycle filters details`. While a room is focused, Y / North is Details
+(the launcher opens the shared game-info panel) and is not delivered as
+`search`. Keyboard `i` is Details. `search` still arrives from `/` or `f`
+when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 ## API
 
@@ -150,6 +154,26 @@ Platform `tags` classify hardware (`cpu:z80`, `vdp:tms9918-family`,
 `handheld`, ...) from `internal/systems/table.go`; they also appear in
 `GET /api/v1/platforms`.
 
+### `destination`
+
+The selected location the launcher uses for the compact info panel, Confirm,
+and Details. Loading results must not move the player’s selection; publish
+the current node after a match lands, do not refocus.
+
+`destination.set{kind, label, system, game_id, room_id, query, platform,
+matches, resolving, missing, note, note_by}` publishes one location.
+`kind` is `game`, `room`, `library`, or `unresolved`. Omit availability to
+let the host classify `matches` into Checking / Missing / Needs a choice /
+Unavailable / Ready. `destination.classify(games, {q=})` returns that
+result without changing focus. `destination.get()` / `destination.clear()`.
+
+Confirm never silently no-ops: Ready plays, a room destination enters,
+Needs a choice opens an edition list, Missing opens the library, Checking
+and Unavailable show honest copy (Unavailable also opens Details). Details
+(Y / `i`) opens the shared game-info panel with Play as primary; a room
+`note` is attributed as “Note from <author>”. Esc/B closes Details and
+keeps the room.
+
 ### `session`, `rooms`, `store`, `log`
 
 - `session.launch(game_id)` launches through the ordinary host path (the
@@ -184,9 +208,9 @@ directory separators inside the pack (`require "lib.paths"` →
 | id | shows |
 | --- | --- |
 | `example.lobby` | every installed room in a list; a minimal starting point |
-| `example.mario-world` | nodemap overworld; nodes resolved by search across arcade/NES/GB/SNES; `store` remembers the node; the island opens a nested room |
-| `example.mario-sports` | nested room; client-side keyword filter over a cross-system query |
-| `example.console-snes` | one platform, themed header, `rooms.open_library` hand-off |
+| `example.mario-world` | nodemap overworld; nodes resolved by search across arcade/NES/GB/SNES; five availability states on the compact panel; `store` remembers the node; the island opens a nested room |
+| `example.mario-sports` | nested room; client-side keyword filter over a cross-system query; publishes the focused title |
+| `example.console-snes` | one platform, themed header; Tab (`search`) hands off to the library shelf; Y is Details |
 | `example.tms-vdp` | platform tags → two-pane platform/game browser |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback |
 

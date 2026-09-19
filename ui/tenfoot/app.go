@@ -400,6 +400,11 @@ type App struct {
 	roomPickerOpen  bool
 	roomPickerIndex int
 	roomCoverSem    chan struct{}
+	roomDetail      hostclient.Game
+	roomChoiceOpen  bool
+	roomChoiceIndex int
+	roomChoice      []hostclient.Game
+	roomPicks       map[string]string
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -655,7 +660,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdDetails, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
 		}
 	}
@@ -687,6 +692,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.cycleSortLocked()
 	case CmdSearch, CmdTab:
 		a.openSearchLocked()
+	case CmdDetails:
+		a.openDetailLocked()
 	case CmdViewPrev:
 		a.cycleViewLocked(-1)
 	case CmdViewNext:
@@ -1548,10 +1555,16 @@ func (a *App) Selected() (hostclient.Game, bool) {
 }
 
 func (a *App) focusDetailLocked() shared.FocusDetail {
+	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
+		return a.detailForGameLocked(a.roomDetail)
+	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
 		return shared.FocusDetail{}
 	}
-	game := a.games[a.grid.Focus]
+	return a.detailForGameLocked(a.games[a.grid.Focus])
+}
+
+func (a *App) detailForGameLocked(game hostclient.Game) shared.FocusDetail {
 	detail := shared.FocusDetail{
 		Title:    game.Title,
 		Platform: a.platformLabelLocked(game.System),
@@ -3017,6 +3030,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 			break
 		}
 	}
+	queue = a.queueRoomDetailWorkLocked(now, queue)
 	queue = a.queueFocusedScreenshotsLocked(queue)
 	a.evictCoversLocked()
 	a.evictShotsLocked()
@@ -3044,6 +3058,9 @@ func (a *App) prefetchSpanLocked() (int, int) {
 }
 
 func (a *App) inPrefetchLocked(gameID string) bool {
+	if a.room != nil && a.detailOpen && a.roomDetail.ID == gameID {
+		return true
+	}
 	start, end := a.prefetchSpanLocked()
 	for i := start; i < end; i++ {
 		if a.games[i].ID == gameID {
@@ -3058,6 +3075,9 @@ func (a *App) evictCoversLocked() {
 	keep := make(map[string]struct{}, end-start)
 	for i := start; i < end; i++ {
 		keep[a.games[i].ID] = struct{}{}
+	}
+	if a.room != nil && a.detailOpen && a.roomDetail.ID != "" {
+		keep[a.roomDetail.ID] = struct{}{}
 	}
 	for id := range a.covers {
 		if _, ok := keep[id]; ok {

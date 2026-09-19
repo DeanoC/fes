@@ -16,6 +16,13 @@ local function spinoff(g)
   return false
 end
 
+local function publish()
+  if not grid then destination.clear() return end
+  local g = grid:selected()
+  if not g then destination.clear() return end
+  destination.set{ kind = "game", label = g.title, system = g.system, game_id = g.id, matches = { g } }
+end
+
 function load()
   library.query({ q = "Mario", limit = 400 }, function(games, err)
     if err then status = err return end
@@ -30,21 +37,17 @@ function load()
     grid = Grid.new{ id = "sports", x = 24, y = 96, w = room.width - 48, h = room.height - 130, cell_w = 150, cell_h = 210, gap = 18, items = items }
     status = #items .. " spin-offs found"
     if #items == 0 then status = "no Mario spin-offs in the library yet" end
+    publish()
   end)
 end
 
 function on_input(cmd)
-  if grid and grid:input(cmd) then return true end
-  if cmd == "select" and grid then
-    local g = grid:selected()
-    if g then session.launch(g.id) end
-    return true
-  end
+  if grid and grid:input(cmd) then publish() return true end
   return false
 end
 
-function on_hover(id) if grid then grid:on_hover(id) end end
-function on_activate(id) if grid and grid:on_activate(id) then on_input("select") end end
+function on_hover(id) if grid then grid:on_hover(id) publish() end end
+function on_activate(id) if grid and grid:on_activate(id) then publish() end end
 
 function draw()
   gfx.clear(room.theme.background)
@@ -55,4 +58,5 @@ function draw()
   if grid then
     grid:draw{ cover = function(item) return item.cover end, plate = color.shade(room.theme.background, 0.6), label = function(g) return g.title end }
   end
+  publish()
 end
