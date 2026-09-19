@@ -16,6 +16,8 @@ GENERATED = (
     ('emit-cpp', 'packages/system/nes.yaml', 'libmister-runtime', 'src/native/generated/nes.hpp'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
+    ('emit-cpp', 'packages/abi/fes_application.yaml', 'libmister-runtime', 'src/native/generated/fes_application.hpp'),
+    ('emit-verilog', 'packages/abi/fes_application.yaml', 'misteross', 'cores/fes-common/generated/fes_application.vh'),
     ('emit-verilog', 'packages/abi/fes_simple_game.yaml', 'misteross', 'cores/fes-pong/generated/fes_gp.vh'),
     ('emit-cpp', 'packages/abi/fes_simple_computer.yaml', 'libmister-runtime', 'src/native/generated/fes_simple_computer.hpp'),
     ('emit-go', 'packages/abi/fes_simple_computer.yaml', 'FogCast', 'protocol/internal/generated/fes_simple_computer.go'),
@@ -32,6 +34,9 @@ COPIED_TREES = (
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
 )
 COPIED_FILES = (
+    ('testdata/fes-application-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-application-v1/exchanges.json'),
+    ('testdata/fes-application-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/exchanges.json'),
+    ('testdata/fes-application-v1/controllers.json', 'misteross', 'cores/fes-common/generated/controller-exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'FogCast', 'protocol/testdata/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-sms/generated/stream-exchanges.json'),
@@ -43,6 +48,8 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-application-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-application-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-media-stream-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-media-stream-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
