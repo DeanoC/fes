@@ -233,6 +233,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | `example.mario-sports` | nested room; client-side keyword filter over a cross-system query; publishes the focused title |
 | `example.console-snes` | one platform, themed header; Tab (`search`) hands off to the library shelf; Y is Details |
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
+| `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
 
 Run them against a host:
