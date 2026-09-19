@@ -67,6 +67,11 @@ static_assert(FesApplicationOpcodeButtons == 3, "buttons");
 static_assert(FesApplicationCapabilityGamepad == 1, "gamepad");
 static_assert(FesApplicationCapabilityMediaBlobStream == 8, "stream");
 static_assert(FesApplicationCapabilityAudioPcmS16Stereo48k == 16, "audio");
+static_assert(FesApplicationCapabilityGamepadPorts == 32, "controller ports");
+static_assert(FesApplicationCapabilityKeypadPorts == 64, "keypad ports");
+static_assert(FesApplicationOpcodeControllerButtons == 13, "controller opcode");
+static_assert(FesApplicationOpcodeControllerKeypad == 14, "keypad opcode");
+static_assert(FesApplicationControllerPortCount == 2, "port count");
 `
 	path := filepath.Join(dir, "test.cpp")
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {

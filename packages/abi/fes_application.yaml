@@ -160,6 +160,16 @@ constants:
     value: 0xedb88320
   - name: FesApplicationMediaStreamCRC32FinalXor
     value: 0xffffffff
+  - name: FesApplicationOpcodeControllerButtons
+    value: 13
+  - name: FesApplicationOpcodeControllerKeypad
+    value: 14
+  - name: FesApplicationControllerPortCount
+    value: 2
+  - name: FesApplicationControllerButtonMask
+    value: 255
+  - name: FesApplicationControllerKeypadMask
+    value: 4095
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -181,3 +191,11 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 4
+  - id: fes.gamepad.ports
+    major: 1
+    minor: 0
+    capability_bit: 5
+  - id: fes.keypad.ports
+    major: 1
+    minor: 0
+    capability_bit: 6

@@ -16,6 +16,8 @@ fixtures do not establish consumer or hardware acceptance.
 | fes.media.blob | 2 | Sequential bounded media upload |
 | fes.media.blob-stream | 3 | Chunked CRC32 upload; requires blob |
 | fes.audio.pcm-s16-stereo-48k | 4 | Fixed 48 kHz stereo signed 16-bit PCM output |
+| fes.gamepad.ports | 5 | Two independently addressed eight-button controllers |
+| fes.keypad.ports | 6 | Twelve numeric keypad keys on each controller port |
 
 V1 runtime admission requires video. Gamepad and media are independently
 composable: a video-only autonomous demo is valid, as is video with gamepad
@@ -28,7 +30,8 @@ must be declared required=true; composition is by omission. Recognized supported
 optional declarations are rejected, while unknown or unsupported optional
 declarations are ignored. Stream requires a required blob declaration. Library
 launch with blob requires selected media; development may load held and upload
-later. No keyboard, multiple-player,
+later. `fes.gamepad.ports` and the legacy one-player `fes.gamepad` are mutually
+exclusive. `fes.keypad.ports` requires `fes.gamepad.ports`. No general keyboard,
 analog input, persistence or save-layout contract is defined here. A familiar
 package name is not evidence of any of these capabilities.
 
@@ -63,6 +66,47 @@ eight-bit mask: Up/Down/Left/Right/A/B/Select/Start are bits 0..7. Both press an
 release send the full current mask. Writes are valid while held or released.
 Higher bits are invalid arguments. These bits have no core-specific keyboard
 translation. Missing gamepad means no neutral input transaction is needed.
+
+## Controller ports and keypads
+
+`fes.gamepad.ports` 1.0 declares exactly two logical ports, numbered 0 and 1.
+It does not change `fes.gamepad` 1.0, opcode 3 or the application ABI version.
+Old runtimes reject the new required interface before programming. A core
+declares either controller interface, never both. These are logical endpoints;
+physical device selection and stable assignment belong to FogCast.
+
+ControllerButtons opcode 13 uses the index as port and the argument as the
+complete eight-bit active-high button mask. Bit meanings are the existing
+Up/Down/Left/Right/A/B/Select/Start order. Each write replaces only the selected
+port. ControllerKeypad opcode 14 similarly replaces a twelve-bit active-high
+key mask: bits 0 through 9 are digits 0 through 9, bit 10 is star, and bit 11
+is hash. It requires `fes.keypad.ports` 1.0. A zero mask releases every control
+of that kind on that port. Multiple keys may be held simultaneously; any
+hardware-specific key priority or electrical encoding belongs in the core
+adapter, not the host or shared endpoint.
+
+Both commands acknowledge success with zero and are valid while held or
+released. An absent capability returns invalid opcode; an index outside 0..1
+returns invalid index; reserved argument bits return invalid argument. Rejected
+requests must not alter either port. Initial reset and Execution Hold clear
+both button masks and both keypad masks. The new ports-only core rejects old
+Buttons opcode 3 because the old gamepad capability is absent.
+
+Runtime serializes controller delivery with lifecycle operations, validates
+the entire submitted state before a write, and binds it to the active package
+and generation. A controller snapshot containing both masks entails two ordered
+GP transactions (buttons then keypad); it is not an atomic cross-command
+hardware update. An ambiguous transport failure is contained through the
+existing runtime lifecycle, never blindly replayed. Stop, input detach and
+lost input ownership neutralize both ports. Physical disconnect releases only
+that device's assigned port; surviving devices are not renumbered. A new
+assignment starts neutral and must not inherit held controls from its previous
+owner. Reconnect snapshots retain the logical port of each state.
+
+The Coleco adapter maps A/B to its two fire buttons, ignores Select/Start, and
+encodes keypad masks in priority order 0..9,star,hash. Its CPU/controller
+electrical model remains core-owned. These definitions do not imply spinner,
+analog, general keyboard or more-than-two-player support.
 
 ## Media
 
@@ -134,3 +178,7 @@ never-deployed wire examples, not RBFs. Tests check framing, identities, errors
 and lifecycle. Existing generic emitters generate C++14, Go and Verilog.
 Consumers own their implementations and focused tests; FES selects reviewed
 component revisions before integration or exact-artifact hardware acceptance.
+
+[Controller exchanges](../testdata/fes-application-v1/controllers.json) add exact
+wire and post-ack state vectors for port isolation, keypad masks, invalid
+requests and Hold clearing. They are also synthetic, never-deployed fixtures.

@@ -1,0 +1,194 @@
+{
+  "description": "Synthetic never-deployed controller port GP exchanges; capability mask video+ports+keypad. State expectations are post-ack.",
+  "capabilities": 98,
+  "initial_request_toggle": false,
+  "exchanges": [
+    {
+      "name": "capabilities",
+      "gpo": [
+        17235968,
+        2164719616
+      ],
+      "gpi": 4118806626,
+      "data": 98,
+      "buttons": [
+        0,
+        0
+      ],
+      "keypad": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "left-up-fire",
+      "gpo": [
+        2365587473,
+        218103825
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "buttons": [
+        17,
+        0
+      ],
+      "keypad": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "right-right-fire",
+      "gpo": [
+        218169384,
+        2365653032
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "left-star",
+      "gpo": [
+        2382365696,
+        234882048
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        0
+      ]
+    },
+    {
+      "name": "right-hash",
+      "gpo": [
+        234948608,
+        2382432256
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "bad-port",
+      "gpo": [
+        2365718783,
+        218235135
+      ],
+      "gpi": 4114612226,
+      "data": 2,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "reserved-buttons",
+      "gpo": [
+        218104064,
+        2365587712
+      ],
+      "gpi": 4123000835,
+      "data": 3,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "reserved-keypad",
+      "gpo": [
+        2382434304,
+        234950656
+      ],
+      "gpi": 4114612227,
+      "data": 3,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "legacy-buttons-absent",
+      "gpo": [
+        50331649,
+        2197815297
+      ],
+      "gpi": 4123000833,
+      "data": 1,
+      "buttons": [
+        17,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "release-left-buttons",
+      "gpo": [
+        2365587456,
+        218103808
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "buttons": [
+        0,
+        40
+      ],
+      "keypad": [
+        1024,
+        2048
+      ]
+    },
+    {
+      "name": "hold-clears-both",
+      "gpo": [
+        33554432,
+        2181038080
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "buttons": [
+        0,
+        0
+      ],
+      "keypad": [
+        0,
+        0
+      ]
+    }
+  ]
+}

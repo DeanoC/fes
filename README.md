@@ -123,6 +123,9 @@ The additive [application I/O contract](docs/application-io.md) defines
 `fes.application` 1.0 (tag 3) on `fes-gp-v1`, composing fixed video with optional
 gamepad, media and fixed 48 kHz stereo PCM audio. Audio uses capability bit 4
 and no new mailbox command. Legacy ABI definitions remain unchanged.
+The additive `fes.gamepad.ports` and `fes.keypad.ports` interfaces define two
+logical digital controller ports and optional twelve-key keypads, using bits
+5/6 and opcodes 13/14. They preserve the existing one-player interface.
 
 The canonical [media stream 1.0 contract](docs/media-stream.md) extends the
 simple-computer ABI without widening legacy blob 1.0. YAML constants and

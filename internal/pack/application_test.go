@@ -32,7 +32,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k"}
+	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports"}
 	if len(app.Interfaces) != len(want) {
 		t.Fatal("interface count")
 	}
@@ -41,7 +41,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			t.Fatalf("interface %d: %#v", i, iface)
 		}
 	}
-	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12} {
+	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12, "OpcodeControllerButtons": 13, "OpcodeControllerKeypad": 14, "ControllerPortCount": 2, "ControllerButtonMask": 255, "ControllerKeypadMask": 4095} {
 		got, ok := app.Constant("FesApplication" + name)
 		if !ok || got != want {
 			t.Fatalf("%s=%d", name, got)
@@ -180,5 +180,52 @@ func TestApplicationGoldenExchanges(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestControllerPortGoldenFraming(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(repoRoot(t), "testdata/fes-application-v1/controllers.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Capabilities uint16
+		Exchanges    []struct {
+			Name    string
+			GPO     []uint32
+			GPI     uint32
+			Data    uint16
+			Buttons [2]uint16
+			Keypad  [2]uint16
+		}
+	}
+	if err := json.Unmarshal(data, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if fixture.Capabilities != 98 || len(fixture.Exchanges) != 11 {
+		t.Fatal("controller fixture identity")
+	}
+	requests := []uint32{0x01070000, 0x0d000011, 0x0d010028, 0x0e000400, 0x0e010800, 0x0d0200ff, 0x0d000100, 0x0e011000, 0x03000001, 0x0d000000, 0x02000000}
+	responses := []uint16{98, 0, 0, 0, 0, 2, 3, 3, 1, 0, 0}
+	for i, x := range fixture.Exchanges {
+		oldToggle := uint32(i%2) << 31
+		newToggle := oldToggle ^ 0x80000000
+		if len(x.GPO) != 2 || x.GPO[0] != requests[i]|oldToggle || x.GPO[1] != requests[i]|newToggle {
+			t.Fatalf("%s framing", x.Name)
+		}
+		want := uint32(0xf5000000) | newToggle>>8 | uint32(responses[i])
+		if i >= 5 && i <= 8 {
+			want |= 0x400000
+		}
+		if x.GPI != want || x.Data != responses[i] {
+			t.Fatalf("%s response", x.Name)
+		}
+		if i >= 4 && i <= 8 && (x.Buttons != [2]uint16{17, 40} || x.Keypad != [2]uint16{1024, 2048}) {
+			t.Fatalf("%s isolated state", x.Name)
+		}
+	}
+	last := fixture.Exchanges[10]
+	if last.Buttons != [2]uint16{} || last.Keypad != [2]uint16{} {
+		t.Fatal("Hold must clear both ports")
 	}
 }
