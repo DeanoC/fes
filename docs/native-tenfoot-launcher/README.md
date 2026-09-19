@@ -471,13 +471,16 @@ make tenfoot-smoke
 
 Rooms are creator-defined, scripted menu screens (a Mario overworld, a
 console room, an AmigaOS desktop) that sit beside the library browser.
-Press **h**/Home or **hold B** for the picker; `-home rooms` (or Settings ›
-Home) starts there. Packs are one directory each under `-rooms DIR`,
-`FOGCAST_ROOMS`, `tenfoot.json` `rooms_dir`, or `<config>/FogCast/rooms`;
-the embedded `example.*` rooms are always available. Scripts are sandboxed
-Lua that record a display list replayed through `gfx.Device`, so rooms work
-on every backend. See [rooms](../rooms.md) for the pack format, Lua API,
-stdlib widgets and budgets.
+Press **h**/Home or **hold B** for the picker (hold B is a shortcut; GUIDE
+or `o` opens Settings, which has a Home row); `-home rooms` (or Settings ›
+Home) starts there. Room logical-action bindings live in
+[rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
+one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`
+`rooms_dir`, or `<config>/FogCast/rooms`; the embedded `example.*` rooms
+are always available. Scripts are sandboxed Lua that record a display list
+replayed through `gfx.Device`, so rooms work on every backend. See
+[rooms](../rooms.md) for the pack format, Lua API, stdlib widgets and
+budgets.
 
 ## Library views
 
