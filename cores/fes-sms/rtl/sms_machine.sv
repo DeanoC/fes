@@ -8,8 +8,9 @@
 // 0x0000-0x7fff (legacy blob 1.0 still 1-16 KiB), 8 KiB RAM at c000 mirrored
 // at e000, and wires the VDP interrupt to Z80 INT rather than NMI. There is
 // no BIOS shim; the cartridge occupies 0x0000. The SMS-owned VDP adds Mode 4
-// while retaining the legacy modes. Audio, mappers, banked 48 KiB images and
-// pause-NMI remain outside this slice.
+// while retaining the legacy modes. The SN76489 is write-only on ports
+// 0x7E/0x7F. Mappers, banked 48 KiB images and pause-NMI remain outside this
+// slice.
 
 `ifdef FES_SMS_OSS
 `define FES_SMS_REGISTERED_MEDIA
@@ -37,7 +38,14 @@ module sms_machine (
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
-    output wire        cpu_halt_n
+    output wire        cpu_halt_n,
+    output wire [9:0]  psg_tone0_period,
+    output wire [3:0]  psg_tone0_atten,
+    output wire [3:0]  psg_tone1_atten,
+    output wire [3:0]  psg_tone2_atten,
+    output wire [3:0]  psg_noise_atten,
+    output wire        psg_tone0,
+    output wire signed [15:0] psg_sample
 );
     localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
@@ -175,6 +183,24 @@ module sms_machine (
         .status_overflow(vdp_status_overflow),
         .status_fifth_index(vdp_status_fifth_index),
         .irq_n(vdp_irq_n)
+    );
+
+    sms_psg psg (
+        .clk(clk_sys),
+        .reset(machine_reset),
+        .ce(ce_vdp),
+        .cpu_ce(vdp_bus_ce),
+        .cpu_iorq_n(nIORQ),
+        .cpu_wr_n(nWR),
+        .cpu_a(cpu_addr[7:0]),
+        .cpu_din(cpu_dout),
+        .tone0_period(psg_tone0_period),
+        .tone0_atten(psg_tone0_atten),
+        .tone1_atten(psg_tone1_atten),
+        .tone2_atten(psg_tone2_atten),
+        .noise_atten(psg_noise_atten),
+        .tone0(psg_tone0),
+        .sample(psg_sample)
     );
 
     wire cpu_mem_read = !nMREQ && !nRD;

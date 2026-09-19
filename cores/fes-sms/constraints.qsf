@@ -1,5 +1,6 @@
-# DE10-Nano 50 MHz reference and ADV7513 RGB888 interface.
-# HDMI I2C uses the same HPS site as FES Pong (X52/Y60).
+# DE10-Nano 50 MHz reference and ADV7513 RGB888 plus I2S audio interface.
+# HDMI I2C uses the same HPS site as FES Pong (X52/Y60). I2S pins match the
+# Terasic HDMI transmitter (I2S0/MCLK/LRCLK/SCLK).
 set_location_assignment PIN_V11 -to FPGA_CLK1_50
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
 
@@ -31,12 +32,20 @@ set_location_assignment PIN_AF9 -to HDMI_TX_D[22]
 set_location_assignment PIN_AE8 -to HDMI_TX_D[23]
 set_location_assignment PIN_T8 -to HDMI_TX_HS
 set_location_assignment PIN_V13 -to HDMI_TX_VS
+set_location_assignment PIN_T13 -to HDMI_I2S0
+set_location_assignment PIN_U11 -to HDMI_MCLK
+set_location_assignment PIN_T11 -to HDMI_LRCLK
+set_location_assignment PIN_T12 -to HDMI_SCLK
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_CLK
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_DE
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_D[*]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_HS
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_VS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2S0
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_MCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_LRCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_SCLK
 
 set_location_assignment PIN_U10 -to HDMI_I2C_SCL
 set_location_assignment PIN_AA4 -to HDMI_I2C_SDA

@@ -72,7 +72,7 @@ help:
 		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
 		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
 		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
-		"  sim-fes-sms  Test the FES SMS blob-stream mailbox and 32KiB fixed-map machine (fes.sms)" \
+		"  sim-fes-sms  Test the FES SMS blob-stream mailbox, 32KiB map, SN76489 and HDMI I2S (fes.sms)" \
 		"  sim-fes-sms-oss  Test OSS-conditional SMS registered media, RAM and VDP" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
@@ -540,6 +540,22 @@ sim-fes-sms: sms-diagnostic
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp/Vsms_vdp
+	@mkdir -p build/sim/fes-sms-psg
+	$(VERILATOR) --cc --exe --build --top-module sms_psg -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-psg" \
+		cores/fes-sms/rtl/sms_psg.sv \
+		"$(CURDIR)/cores/fes-sms/sim/psg_tb.cpp"
+	@build/sim/fes-sms-psg/Vsms_psg
+	@mkdir -p build/sim/fes-sms-i2s
+	$(VERILATOR) --cc --exe --build --top-module sms_hdmi_i2s -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-i2s" \
+		cores/fes-sms/rtl/sms_hdmi_i2s.v \
+		"$(CURDIR)/cores/fes-sms/sim/i2s_tb.cpp"
+	@build/sim/fes-sms-i2s/Vsms_hdmi_i2s
 	@mkdir -p build/sim/fes-sms-machine
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
@@ -550,6 +566,7 @@ sim-fes-sms: sms-diagnostic
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
@@ -596,6 +613,7 @@ sim-fes-sms-oss: sms-diagnostic
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \

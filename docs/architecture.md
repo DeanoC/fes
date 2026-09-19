@@ -2132,27 +2132,32 @@ the `fes.simple-computer` mailbox and both PLL wrappers. The SMS-specific RTL is
 the Mode 4 VDP and six-bit 720p video shell plus the memory map (32 KiB fixed
 cartridge at `0x0000–0x7fff`,
 unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
-joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, and the
-stream-enabled `fes.simple-computer` mailbox (`ENABLE_MEDIA_STREAM=1`). Legacy
-blob 1.0 stays 1–16 KiB. Stream 1.0 admits 1–32 KiB. After a commit of length
-N, mapped addresses N..0x7fff read `0xff`. HoldReset aborts an incomplete
-legacy blob even when stream is enabled (`media_open`/`media_ptr` cleared) and
-leaves in-progress stream staging in place. There is no BIOS shim. Mode 4
-implements 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling,
-8×8/8×16 zoomable sprites with collision/eight-sprite overflow, line interrupts
-and VBlank interrupts in the 256×192 NTSC logical raster. SN76489 audio,
-mappers, banked/48 KiB retail images, 224/240-line modes, PAL timing and
-cycle-perfect raster effects remain outside this slice.
+joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, the SN76489
+on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the stream-enabled
+`fes.simple-computer` mailbox (`ENABLE_MEDIA_STREAM=1`). Legacy blob 1.0 stays
+1–16 KiB. Stream 1.0 admits 1–32 KiB. After a commit of length N, mapped
+addresses N..0x7fff read `0xff`. HoldReset aborts an incomplete legacy blob
+even when stream is enabled (`media_open`/`media_ptr` cleared) and leaves
+in-progress stream staging in place. There is no BIOS shim. Mode 4 implements
+16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
+zoomable sprites with collision/eight-sprite overflow, line interrupts and
+VBlank interrupts in the 256×192 NTSC logical raster. The PSG mix is a signed
+16-bit sample; HDMI I2S0 is 16-bit 48 kHz against the existing runtime ADV7513
+program (N=6144, CTS=74250). There is no host `fes.audio` mailbox. Mappers,
+banked/48 KiB retail images, 224/240-line modes, PAL timing and cycle-perfect
+raster effects remain outside this slice.
 
 `make sms-diagnostic` emits a 32 KiB-capable Mode 4 cartridge that jumps
-from `0x0000` to code at `0x4000`. The sim image HALTs after the RAM
-signature; the HIL image (`--interactive`) keeps the controller poll loop.
+from `0x0000` to code at `0x4000` and programs an SN76489 square wave. The sim
+image HALTs after the RAM signature; the HIL image (`--interactive`) keeps the
+controller poll loop with the tone running.
 `make sim-fes-sms` is the default Verilator check (`-DTV80_REFRESH=1` only):
 the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
 unit covers VRAM buffering, CRAM color, tile priority/palette, sprite collision,
-line IRQ and VBlank IRQ, and the machine covers the 32 KiB map,
-long-then-short `0xff` tails, and CPU execution of that diagnostic (not
-reset-only peeks).
+line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
+square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
+32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic
+(not reset-only peeks).
 `make sim-fes-sms-oss` is the OSS-conditional check
 (`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`). Both are host simulation, not hardware
 acceptance. SMS format-2 packages declare `fes.media.blob-stream` 1.0 required
@@ -2165,12 +2170,14 @@ and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
 (`scripts/build_fes_sms_oss.py`). It uses `cores/fes-sms/toolchain.lock`
-(Coleco compatibility pin as a byte copy), `constraints-oss.qsf`, and
-`clocks-oss.sdc`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
-`FES_COLECO_OSS=1`. `--synth-only` runs Yosys without a clean tree and does
-not seal. The producer uses `--router gpu` and seed 1 with a live HIP
-backend required. Final structured `clk_sys` and `pixel_clk` rows must
-meet 52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
+(Coleco compatibility pin as a byte copy), SMS `constraints-oss.qsf` (Coleco
+video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
+`TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
+Yosys without a clean tree and does not seal. The producer uses `--router gpu`
+and a first-pass HIP seed/weight search (starts at seed 10 / HeAP 1000,
+then the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
+`pixel_clk` rows must meet 52 MHz and 74.25 MHz. FES parent pin and kit
+HDMI-audio HIL remain later jobs.
 See
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`,
 `docs/validation/2026-09-17-sms-32k-fixed-map.md`, and

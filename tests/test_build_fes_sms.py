@@ -18,6 +18,9 @@ from scripts.build_fes_sms import (
 from scripts.build_fes_sms_oss import (
     OUTPUT_RELATIVE as OSS_OUTPUT,
     PINNED_INPUTS as OSS_PINNED_INPUTS,
+    PLACER_QOR_BUDGET,
+    PLACER_SEEDS,
+    PLACER_TIMING_WEIGHTS,
     RTL_SOURCES as OSS_RTL_SOURCES,
     SEED,
     SMS_GPU_ARCHITECTURES,
@@ -67,8 +70,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("sms_machine", result.stdout)
         self.assertIn("sms_vdp", result.stdout)
+        self.assertIn("sms_psg", result.stdout)
+        self.assertIn("sms_hdmi_i2s", result.stdout)
         self.assertIn("fes-sms-machine", result.stdout)
         self.assertIn("fes-sms-vdp", result.stdout)
+        self.assertIn("fes-sms-psg", result.stdout)
+        self.assertIn("fes-sms-i2s", result.stdout)
         self.assertIn("fes-sms-gp", result.stdout)
         self.assertIn("stream-exchanges.json", result.stdout)
         self.assertIn("ENABLE_MEDIA_STREAM=1", result.stdout)
@@ -119,6 +126,8 @@ class BuildFesSmsTests(unittest.TestCase):
         program = yosys[2]
         self.assertIn("sms_machine.sv", program)
         self.assertIn("sms_vdp.sv", program)
+        self.assertIn("sms_psg.sv", program)
+        self.assertIn("sms_hdmi_i2s.v", program)
         self.assertIn("sms_video_720p.v", program)
         self.assertIn("cores/fes-sms/rtl/top.v", program)
         self.assertIn("tv80_core.v", program)
@@ -131,8 +140,10 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("sg1000_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 1)
+        self.assertEqual(SEED, 10)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "1000")
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-critexp") + 1], "5")
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
         self.assertIn("--timing-allow-fail", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)
@@ -157,10 +168,18 @@ class BuildFesSmsTests(unittest.TestCase):
             (ROOT / "cores/fes-sms/clocks-oss.sdc").read_bytes(),
             (ROOT / "cores/fes-coleco/clocks-oss.sdc").read_bytes(),
         )
-        self.assertEqual(
-            (ROOT / "cores/fes-sms/constraints-oss.qsf").read_bytes(),
-            (ROOT / "cores/fes-coleco/constraints-oss.qsf").read_bytes(),
-        )
+        sms_pins = (ROOT / "cores/fes-sms/constraints-oss.qsf").read_text(encoding="utf-8")
+        coleco_pins = (ROOT / "cores/fes-coleco/constraints-oss.qsf").read_text(encoding="utf-8")
+        self.assertNotEqual(sms_pins, coleco_pins)
+        self.assertIn("HDMI_I2S0", sms_pins)
+        self.assertIn("PIN_T13", sms_pins)
+        self.assertIn("HDMI_MCLK", sms_pins)
+        self.assertIn("PIN_U11", sms_pins)
+        self.assertIn("HDMI_LRCLK", sms_pins)
+        self.assertIn("PIN_T11", sms_pins)
+        self.assertIn("HDMI_SCLK", sms_pins)
+        self.assertIn("PIN_T12", sms_pins)
+        self.assertNotIn("HDMI_I2S0", coleco_pins)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
         self.assertEqual(global_pins["nextpnr"].commit, "0fad53a75a0218941c417ec6bb58bdede9070987")
@@ -171,6 +190,9 @@ class BuildFesSmsTests(unittest.TestCase):
             {"yosys": "test"},
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
+        self.assertEqual(PLACER_QOR_BUDGET, len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS))
+        self.assertGreater(PLACER_QOR_BUDGET, len(PLACER_SEEDS))
+        self.assertIn(f'"placer_qor_budget":{PLACER_QOR_BUDGET}'.encode(), record)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
         self.assertIn(SMS_GPU_ARCHITECTURES.encode(), record)
@@ -184,6 +206,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn('VERILOG_MACRO "FES_SMS_BUILD_ID=', qsf)
         self.assertIn("cores/fes-sms/rtl/sms_machine.sv", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_vdp.sv", qsf)
+        self.assertIn("cores/fes-sms/rtl/sms_psg.sv", qsf)
+        self.assertIn("cores/fes-sms/rtl/sms_hdmi_i2s.v", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_video_720p.v", qsf)
         self.assertIn("cores/fes-sms/rtl/top.v", qsf)
         self.assertIn("cores/fes-coleco/rtl/tv80/tv80_core.v", qsf)
@@ -202,6 +226,12 @@ class BuildFesSmsTests(unittest.TestCase):
         machine = (ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text(encoding="utf-8")
         vdp = (ROOT / "cores/fes-sms/rtl/sms_vdp.sv").read_text(encoding="utf-8")
         self.assertIn("sms_vdp", machine)
+        self.assertIn("sms_psg", machine)
+        self.assertIn("8'h7e", (ROOT / "cores/fes-sms/rtl/sms_psg.sv").read_text(encoding="utf-8"))
+        self.assertIn("8'h7f", (ROOT / "cores/fes-sms/rtl/sms_psg.sv").read_text(encoding="utf-8"))
+        top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
+        self.assertIn("sms_hdmi_i2s", top)
+        self.assertIn("HDMI_I2S0", top)
         self.assertIn("sms_mode4_vdp", vdp)
         self.assertIn("coleco_vdp", vdp)
         self.assertIn("cram [0:31]", vdp)
@@ -239,7 +269,7 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertIn(b'id = "fes.sms"', manifest)
         self.assertIn(b"FES Master System", manifest)
-        self.assertIn(b'version = "1.1.0"', manifest)
+        self.assertIn(b'version = "1.2.0"', manifest)
         self.assertIn(b"fes.simple-computer", manifest)
         self.assertIn(b'id = "fes.media.blob-stream"', manifest)
         self.assertIn(b"fes.media.blob", manifest)
@@ -268,6 +298,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("blob-stream", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("Mode 4", readme)
+        self.assertIn("SN76489", readme)
+        self.assertIn("0x7E", readme)
+        self.assertIn("I2S", readme)
+        for text in (readme, architecture, root_readme):
+            self.assertIn("first-pass", text)
+            self.assertIn("HeAP 1000", text)
         self.assertIn("e2d425de", readme)
         self.assertIn("later jobs", readme.lower())
 
@@ -289,6 +325,8 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(data[4:7], bytes((0xC3, 0x00, 0x40)))  # JP 4000
             self.assertIn(b"\x31\xf0\xdf", data)  # LD SP,DFF0
             self.assertIn(b"\x32\x00\xc0", data)
+            self.assertIn(b"\xd3\x7f", data)
+            self.assertIn(b"\xd3\x7e", data)
             self.assertGreater(len(data), 16384)
             self.assertLessEqual(len(data), 32768)
             self.assertNotEqual(data[0x4000], 0xFF)

@@ -473,32 +473,35 @@ jobs.
 a bounded Master System machine (`fes.sms`, not `fes.mastersystem`) with a
 32 KiB fixed cartridge map at `0x0000–0x7fff` (`0x8000–0xbfff` unmapped), 8 KiB
 RAM at `0xc000` mirrored at `0xe000`, legacy TMS modes plus an SMS Mode 4 VDP
-on Z80 INT, six-bit CRAM video, SMS 8255 joystick ports `0xdc`/`0xdd`, and
-required `fes.media.blob-stream` 1.0. The mailbox sim consumes
+on Z80 INT, six-bit CRAM video, SN76489 on ports `0x7E`/`0x7F`, FPGA→ADV7513
+I2S, SMS 8255 joystick ports `0xdc`/`0xdd`, and required `fes.media.blob-stream`
+1.0. The mailbox sim consumes
 `cores/fes-sms/generated/stream-exchanges.json`.
 After a commit of length N, unused mapped bytes read `0xff`. HoldReset aborts
 an incomplete legacy blob when stream is enabled. `make sms-diagnostic` emits
-a 32 KiB-capable image that jumps to `0x4000` (sim HALT vs HIL interactive).
-It is simulation, not a Quartus RBF or kit evidence. `make sim-fes-sms-oss`
-compiles the registered-media, legacy VDP and Mode 4 line-renderer branches with
-`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`.
+a 32 KiB-capable image that jumps to `0x4000` and programs a square wave (sim
+HALT vs HIL interactive). It is simulation, not a Quartus RBF or kit evidence.
+`make sim-fes-sms-oss` compiles the registered-media, legacy VDP and Mode 4
+line-renderer branches with `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for package `fes.sms` 1.1.0. It reuses Coleco TV80, legacy VDP, GP, RAM and PLL
-modules plus the SMS-owned Mode 4 VDP and video shell; it is not a nextpnr
-fallback. Set
+for package `fes.sms` 1.2.0. It reuses Coleco TV80, legacy VDP, GP, RAM and PLL
+modules plus the SMS-owned Mode 4 VDP, SN76489, HDMI I2S and video shell; it is
+not a nextpnr fallback. Set
 `QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. The recipe
 requires a clean committed tree to seal a format-2 package; `--compile-only`
 produces the RBF and timing evidence without sealing. This does not program
 hardware.
 
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral recipe. It copies the
-Coleco lock (Yosys `e2d425de`, nextpnr `0fad53a7`, Mistral `b28e30a`) and the
-Coleco OSS constraint subset. Yosys must define both `FES_SMS_OSS=1` and
-`FES_COLECO_OSS=1`. `--synth-only` is the dirty-tree synth probe and does
-not seal. The producer uses `--router gpu` and seed 1 with a live HIP
-backend required. Final structured `clk_sys` and `pixel_clk` rows must meet
-52 MHz and 74.25 MHz. FES parent pin and kit HIL remain later jobs.
+Coleco lock (Yosys `e2d425de`, nextpnr `0fad53a7`, Mistral `b28e30a`) and Coleco
+`clocks-oss.sdc`, and uses SMS `constraints-oss.qsf` (video/I2C plus ADV7513
+I2S). Yosys must define both `FES_SMS_OSS=1` and `FES_COLECO_OSS=1`.
+`--synth-only` is the dirty-tree synth probe and does not seal. The producer
+uses `--router gpu` and a first-pass HIP seed/weight search (starts at
+seed 10 / HeAP 1000, then the remaining `PLACER_SEEDS` and weight 300). Final
+structured `clk_sys` and `pixel_clk` rows must meet 52 MHz and 74.25 MHz. FES
+parent pin and kit HDMI-audio HIL remain later jobs.
 
 `make build-fes-coleco-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
 for `fes.coleco` 1.0.0; it is not a nextpnr fallback. `make build-fes-coleco`
