@@ -55,6 +55,11 @@ type Options struct {
 	// back to tenfoot.json home, then library.
 	Home    string
 	HomeSet bool
+	// ReducedMotion skips decorative room animation. Empty falls back to
+	// FOGCAST_TENFOOT_REDUCED_MOTION / FOGCAST_REDUCED_MOTION, then
+	// tenfoot.json reduced_motion.
+	ReducedMotion    bool
+	ReducedMotionSet bool
 }
 
 func defaultRoomsDir(prefsPath string) string {
@@ -158,6 +163,13 @@ func (o Options) normalized() Options {
 		o.Home = homePrefValue(rooms)
 	} else {
 		o.Home = homePrefValue(false)
+	}
+	if envTruthy(os.Getenv("FOGCAST_TENFOOT_REDUCED_MOTION")) || envTruthy(os.Getenv("FOGCAST_REDUCED_MOTION")) {
+		o.ReducedMotion = true
+		o.ReducedMotionSet = true
+	}
+	if !o.ReducedMotionSet && prefsErr == nil {
+		o.ReducedMotion = prefs.ReducedMotion
 	}
 	return o
 }

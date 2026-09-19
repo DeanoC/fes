@@ -721,3 +721,44 @@ func TestFailedRoomDropsDeliveries(t *testing.T) {
 		t.Fatal("failed room must drop deliveries")
 	}
 }
+
+func TestReservedCommandsAreNotDeliveredToScripts(t *testing.T) {
+	src := `
+saw = {}
+function on_input(cmd)
+  saw[#saw + 1] = cmd
+  return true
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "reserved", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if r.Input("settings") || r.Input("home") {
+		t.Fatal("settings/home must not be consumed by a room")
+	}
+	if !r.Input("back") {
+		t.Fatal("back is still delivered so rooms.back() can run")
+	}
+	if err := r.CheckGlobal("#saw == 1 and saw[1] == 'back'"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReducedMotionFlagRoundTrip(t *testing.T) {
+	src := `function draw() end`
+	r := newRoom(t, memPack(t, "motion", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal("room.reduced_motion == false"); err != nil {
+		t.Fatal(err)
+	}
+	r.SetReducedMotion(true)
+	if !r.ReducedMotion() {
+		t.Fatal("SetReducedMotion")
+	}
+	if err := r.CheckGlobal("room.reduced_motion == true"); err != nil {
+		t.Fatal(err)
+	}
+}

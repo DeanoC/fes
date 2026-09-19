@@ -151,6 +151,16 @@ function Grid:draw(opts)
       local art_h = self.cell_h - self.label_h
       if focused then
         gfx.rect(cx - 4, cy - 4, self.cell_w + 8, self.cell_h + 8, accent)
+        local m = opts.marker_color or "#ffffff"
+        local t = 10
+        gfx.rect(cx - 4, cy - 4, t, 3, m)
+        gfx.rect(cx - 4, cy - 4, 3, t, m)
+        gfx.rect(cx + self.cell_w + 4 - t, cy - 4, t, 3, m)
+        gfx.rect(cx + self.cell_w + 1, cy - 4, 3, t, m)
+        gfx.rect(cx - 4, cy + self.cell_h + 1, t, 3, m)
+        gfx.rect(cx - 4, cy + self.cell_h + 4 - t, 3, t, m)
+        gfx.rect(cx + self.cell_w + 4 - t, cy + self.cell_h + 1, t, 3, m)
+        gfx.rect(cx + self.cell_w + 1, cy + self.cell_h + 4 - t, 3, t, m)
       end
       gfx.rect(cx, cy, self.cell_w, art_h, plate)
       local img = opts.cover and opts.cover(item, i)

@@ -26,6 +26,7 @@ func (r *Instance) installRoom() *lua.LTable {
 	t.RawSetString("width", lua.LNumber(r.opts.Width))
 	t.RawSetString("height", lua.LNumber(r.opts.Height))
 	t.RawSetString("time", lua.LNumber(0))
+	t.RawSetString("reduced_motion", lua.LBool(r.opts.ReducedMotion))
 	th := r.opts.Theme
 	colors := L.NewTable()
 	background := FormatHexColor(th.SofaBackground)

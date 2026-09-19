@@ -248,6 +248,7 @@ type Snapshot struct {
 	DebugHUD        DebugHUDSnapshot
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
+	ReducedMotion   bool
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -395,6 +396,7 @@ type App struct {
 	roomsDir          string
 	homeRooms         bool
 	pinnedRooms       []string
+	reducedMotion     bool
 	homeRecents       []hostclient.Game
 	homeRecentsErr    string
 	homeRecentsLoaded bool
@@ -1287,6 +1289,7 @@ func (a *App) Snapshot() Snapshot {
 		DebugHUD:        a.debugHUDSnapshotLocked(),
 		Room:            a.roomSnapshotLocked(true),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		ReducedMotion:   a.reducedMotion,
 	}
 }
 
