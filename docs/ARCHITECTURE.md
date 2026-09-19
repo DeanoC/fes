@@ -499,7 +499,7 @@ is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
 integration operations. The FogCast native input lock selects runtime
-`8c4b690964ca2af06581e4cf11df22d33f48e1e0` for reproducible image assembly;
+`cbf884753bf3f5eee66de5604c057e0c5f77f77c` for reproducible image assembly;
 live compatibility is determined by protocol and operation contracts.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle

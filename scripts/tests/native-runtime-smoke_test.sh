@@ -171,7 +171,7 @@ chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep" \
 expected_inputs=$fixture/expected-build-inputs
 cat > "$expected_inputs" <<'EOF'
 format=1
-mister_runtime_commit=8c4b690964ca2af06581e4cf11df22d33f48e1e0
+mister_runtime_commit=cbf884753bf3f5eee66de5604c057e0c5f77f77c
 mister_agent_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
 idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
