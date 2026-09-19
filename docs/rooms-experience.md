@@ -180,8 +180,10 @@ Tip smoke (2026-09-19): attract was not observed while Mushroom Kingdom was load
 - Nested map nav (Mushroom Kingdom → Sports Island → return): **pass**
 - Keyboard + mouse: **pass** (gamepad not connected)
 - Settings / system key: **pass**
-- Launch / return after play: **blocked** (target setup)
+- Launch / return after play: Confirm→Play **pass** on Coleco (task #5); return-from-play remains task #7
 - Attract in Mushroom Kingdom: **not observed** (see policy above)
+- Coleco Confirm→Play (`example.coleco-arcade`, tip ~32996fe, direct kit): **pass** — kit image lacked Mushroom Kingdom legacy cores
+- Launch overlay / duplicate Confirm / failure keeps focus: **host tests** (task #6)
 
 ---
 
@@ -206,8 +208,8 @@ See companion section below (also summarised in chat). Update status here as ite
 | 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Pointer Details on the compact strip landed as a #273 follow-up | Luna / UI |
 | 3 | Info panel: five availability states | **STATUS done** (2026-09-19): compact selected-destination panel plus Details tap; Checking/Missing/Needs a choice/Unavailable/Ready have distinct copy and Confirm never no-ops. Lobby / Workbench / TMS9918 Family publish destinations; pointer tap on the strip is Details | Luna / UI (host match hooks as needed) |
 | 4 | Played vs Completed data contract | **STATUS done** (2026-09-19): §7 contract; `ClassifyHistory` + rooms/tenfoot chrome; Played from `play_count` / `last_played_at`; Completed never inferred (no completion store yet) | Kepler or host owner + Luna |
-| 5 | Target setup for launch smoke | Can Confirm→Play on at least one Ready title from Mushroom Kingdom | Deano / kit+host |
-| 6 | Launch overlay + duplicate prevention + honest failure | §5 behaviour; acceptance 1 & 5 | Host/session (Kepler or Caster) + Luna chrome |
+| 5 | Target setup for launch smoke | **STATUS done** (2026-09-19): Coleco Confirm→Play (`example.coleco-arcade`) smoked on tip ~32996fe direct kit. The kit image lacked Mushroom Kingdom legacy cores, so Coleco was the Ready path | Deano / kit+host |
+| 6 | Launch overlay + duplicate prevention + honest failure | **STATUS done** (2026-09-19): tenfoot FES overlay on Confirm; second Confirm does not double-POST; TRANSFER_FAILED-style failure keeps the selected location and offers Retry / Back to room. Hosted by rooms chrome, not room Lua. Tests cover overlay + duplicate guard + focus retention; kit play-through remains task #7 | Host/session (Kepler or Caster) + Luna chrome |
 | 7 | Return restores room, location, history; failed save visible | §5 return path | Host/session + Luna |
 | 8 | Home surface: pinned / recent / installed rooms / library | §1 Home (can phase after core room loop) | Luna / UI |
 | 9 | Edition preference remembered for household | Storage owner chosen; choice persists | Host profile / FES |
@@ -215,6 +217,6 @@ See companion section below (also summarised in chat). Update status here as ite
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 5 whenever target is ready, then 6–7, then 8–12. (0–4 are done.)
+**Recommended sequence for starting now:** 7, then 8–12. (0–6 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).

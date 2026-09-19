@@ -21,6 +21,7 @@ const (
 	PointerRoomPicker
 	PointerRoomChoice
 	PointerRoomDestination
+	PointerLaunchOverlay
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -60,6 +61,8 @@ func (k PointerKind) String() string {
 		return "room-choice"
 	case PointerRoomDestination:
 		return "room-destination"
+	case PointerLaunchOverlay:
+		return "launch-overlay"
 	default:
 		return "none"
 	}
@@ -140,6 +143,12 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 		return PointerHit{Kind: PointerBackdrop}
 	}
 	if snap.Room.Open {
+		if panel, ok := launchOverlayPanel(snap); ok {
+			if panel.contains(x, y) {
+				return PointerHit{Kind: PointerLaunchOverlay}
+			}
+			return PointerHit{Kind: PointerBackdrop}
+		}
 		if panel, ok := roomChoicePanel(snap); ok {
 			if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.Room.Choice.Rows) {
 				return PointerHit{Kind: PointerRoomChoice, Index: idx}
@@ -252,6 +261,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		PickerRows:      a.pickerRowsLocked(),
 		CollectionMenu:  a.collectionMenuSnapshotLocked(),
 		GPUParked:       a.gpuParked,
+		Launch:          a.launch,
 		Attract:         AttractSnapshot{Active: a.attractActive},
 		Settings:        a.settingsSnapshotLocked(),
 		Filters:         a.filtersSnapshotLocked(),
@@ -343,7 +353,12 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleRoomPickerLocked(CmdSelect)
 	case PointerRoomChoice:
 		a.handleRoomChoiceLocked(CmdSelect)
+	case PointerLaunchOverlay:
+		a.handleLaunchOverlayLocked(CmdSelect)
 	case PointerRoom:
+		if a.launchOverlayActiveLocked() {
+			return
+		}
 		if a.room != nil && hit.KeyID != "" && a.room.Err() == nil {
 			a.room.Activate(hit.KeyID)
 			a.applyRoomActionsLocked()
@@ -374,6 +389,8 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 		a.handleSettingsLocked(CmdBack)
 	case a.filtersOpen:
 		a.handleFiltersLocked(CmdBack)
+	case a.launchOverlayActiveLocked():
+		a.handleLaunchOverlayLocked(CmdBack)
 	case a.roomChoiceOpen, a.detailOpen && a.room != nil:
 		a.closeRoomOverlaysLocked()
 	}

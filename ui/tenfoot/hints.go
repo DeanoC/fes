@@ -228,6 +228,15 @@ func (s Snapshot) HeaderHint() string {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"
 		}
+		if copy := launchOverlayCopy(s); copy.Visible {
+			if h := strings.TrimSpace(copy.Hint); h != "" {
+				return h
+			}
+			if copy.Failed {
+				return launchOverlayFailHint(kind)
+			}
+			return launchOverlayBusyHint(kind)
+		}
 		if s.Room.Choice.Open {
 			if h := strings.TrimSpace(s.Room.Choice.Hint); h != "" {
 				return h
