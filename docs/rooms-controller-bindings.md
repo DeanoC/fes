@@ -52,8 +52,8 @@ buttons after that step; GUIDE / `CmdSettings` is not remapped.
 | Back | `CmdBack` | `back` (unconsumed Back leaves the room) | Yes (East / Esc) |
 | System menu | `CmdSettings` | not delivered (launcher owns it) | Yes (GUIDE / `o`) |
 
-`CmdHome` (rooms picker) is **not** an essential action. It is a shortcut to
-the picker; the essential route Home is **System menu → Home**.
+`CmdHome` (Home overlay) is **not** an essential action. It is a shortcut to
+Home; the essential route Home is **System menu → Home**.
 
 While a room is focused, the launcher hold-gate is off for Confirm / Search /
 Sort so those buttons fire on tap. Back still accepts an optional long-press
@@ -120,8 +120,9 @@ essential action.
 | Filters | hold West / X (library browse only) | Filter overlay |
 | Stop a live session | East / B, or `s`, while now-playing | Session Stop (not a room explore action) |
 
-System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row, so
-a controller-only player can reach Home without holding B.
+System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row:
+Left/Right still chooses the start screen; Confirm goes Home now, so a
+controller-only player can reach Home without holding B.
 
 ---
 

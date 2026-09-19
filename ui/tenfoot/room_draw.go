@@ -393,7 +393,11 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
 	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
 	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
-	drawLabel(dev, labels, used, "rooms-title", x+20, y+14, panelW-40, 22, "Rooms")
+	drawLabel(dev, labels, used, "rooms-title", x+20, y+14, panelW-40, 22, "Home")
+	currentRoom := ""
+	if snap.Room.Open {
+		currentRoom = snap.Room.ID
+	}
 	for i := 0; i < panel.Visible; i++ {
 		idx := panel.Start + i
 		if idx >= len(rows) {
@@ -404,13 +408,7 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		if idx == snap.RoomPicker.Index {
 			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
 		}
-		label := row.Label
-		if row.Invalid {
-			label = label + "  (unavailable)"
-		}
-		if snap.Room.Open && !row.Library && row.ID == snap.Room.ID {
-			label = label + "  *"
-		}
+		label := homeRowLabel(row, currentRoom)
 		drawLabel(dev, labels, used, fmt.Sprintf("rooms-%d", idx), x+24, rowY+4, panelW-48, 18, label)
 		if detail := strings.TrimSpace(row.Detail); detail != "" {
 			drawLabel(dev, labels, used, fmt.Sprintf("rooms-%d-detail", idx), x+24, rowY+26, panelW-48, 13, detail)
