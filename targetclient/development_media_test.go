@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -87,5 +88,20 @@ func TestDevelopmentMediaClientRequiresExistingLeaseAndSendsBinding(t *testing.T
 	got, err = client.LoadDevelopmentMedia(context.Background(), 3, strings.NewReader(payload), b)
 	if err != nil || !b.Matches(got) || !got.CorePackage.Gamepad || calls != 4 {
 		t.Fatalf("ports media completion calls=%d error=%v status=%+v", calls, err, got)
+	}
+	wantPath, payload = "/v1/development/media-stream", strings.Repeat("x", 32768)
+	b.Stream = true
+	status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.MediaStreamInterface().ID, Major: 1})
+	status.CorePackage.MediaStream = &protocol.MediaStreamCapability{Interface: protocol.MediaStreamInterface(), MinBytes: 1, MaxBytes: 32768, ChunkBytes: 512}
+	sort.Slice(status.CorePackage.ActiveInterfaces, func(i, j int) bool {
+		return status.CorePackage.ActiveInterfaces[i].ID < status.CorePackage.ActiveInterfaces[j].ID
+	})
+	got, err = client.LoadDevelopmentMedia(context.Background(), int64(len(payload)), strings.NewReader(payload), b)
+	if err != nil || !b.AcceptsSize(got, int64(len(payload))) || !got.CorePackage.Gamepad || calls != 5 {
+		t.Fatalf("ports stream completion calls=%d error=%v status=%+v", calls, err, got)
+	}
+	redirect = true
+	if _, err = client.LoadDevelopmentMedia(context.Background(), int64(len(payload)), strings.NewReader(payload), b); err == nil || calls != 6 {
+		t.Fatalf("ports stream redirect replayed: calls=%d err=%v", calls, err)
 	}
 }

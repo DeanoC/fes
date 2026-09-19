@@ -34,6 +34,10 @@ func (c *defaultMediaPackageClient) LoadDevelopmentMedia(ctx context.Context, _ 
 }
 
 func colecoLibraryPackageFixture(t *testing.T) []byte {
+	return colecoLibraryPackageContractsFixture(t, "fes.simple-computer", "")
+}
+
+func colecoLibraryPackageContractsFixture(t *testing.T, abi, interfaces string) []byte {
 	t.Helper()
 	base := "../corepackage/testdata/core-bundle-v2/"
 	manifest, err := os.ReadFile(base + "manifests/valid-basic.toml")
@@ -42,8 +46,9 @@ func colecoLibraryPackageFixture(t *testing.T) []byte {
 	}
 	manifest = bytes.Replace(manifest, []byte(`id = "fes.pong"`), []byte(`id = "fes.coleco"`), 1)
 	manifest = bytes.Replace(manifest, []byte(`name = "FES Pong"`), []byte(`name = "FES ColecoVision"`), 1)
-	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "fes.simple-computer"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "`+abi+`"`), 1)
 	manifest = bytes.Replace(manifest, []byte(`id = "fes.gamepad"`), []byte(`id = "fes.media.blob"`), 1)
+	manifest = append(manifest, []byte(interfaces)...)
 	payload, err := os.ReadFile(base + "payloads/fes-fixture.rbf")
 	if err != nil {
 		t.Fatal(err)

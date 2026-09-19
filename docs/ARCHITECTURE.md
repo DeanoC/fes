@@ -499,7 +499,7 @@ is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
 integration operations. The FogCast native input lock selects runtime
-`cbf884753bf3f5eee66de5604c057e0c5f77f77c` for reproducible image assembly;
+`079b4548d5ab84c094686e00df4fbbe658f4f613` for reproducible image assembly;
 live compatibility is determined by protocol and operation contracts.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle
@@ -1325,7 +1325,10 @@ a live target observation. Unknown versions expose no supported roles, and
 optional interfaces still require active runtime support at launch.
 
 Legacy target delivery accepts role `blob`, 1..16384 bytes, for declared
-`fes.simple-computer` 1.0 and `fes.media.blob` 1.0 capabilities. A package with
+`fes.simple-computer` 1.0 or `fes.application` 1.0 and `fes.media.blob` 1.0
+capabilities. Application controller ports and keypads compose with either
+media transport; they do not change the selected transport or its size limit.
+A package with
 both required `fes.media.blob` 1.0 and required `fes.media.blob-stream` 1.0
 uses the explicit stream transport. Its offline declared safe range is
 1..32768 bytes (32 KiB), not the host's 32 MiB import capacity. No core-ID
