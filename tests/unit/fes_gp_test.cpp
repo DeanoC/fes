@@ -1127,10 +1127,109 @@ void TestStreamFailureAbortAndAmbiguousSession()
 	assert(f.mmio.writes.size() == before);
 }
 
+void TestControllerPortsValidateAndNeutralize()
+{
+	for (const unsigned live : {2u, 34u, 66u, 98u}) {
+		StreamFixture f;
+		f.descriptor.abi = {FesApplicationABIID, 1, 0};
+		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+			{FesApplicationInterfaceGamepadPortsID, 1, 0, true}};
+		const auto error = f.Identify(1, 32768, 512, live);
+		assert(live == 34 ? error.ok() : error.code == mister::ErrorCode::core_mismatch);
+	}
+	for (bool keypad : {false, true}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		const std::string build(32, '0');
+		auto descriptor = Descriptor(build);
+		descriptor.abi = {FesApplicationABIID, 1, 0};
+		descriptor.interfaces[0].id = FesApplicationInterfaceGamepadPortsID;
+		if (keypad) descriptor.interfaces.push_back({FesApplicationInterfaceKeypadPortsID, 1, 0, true});
+		auto words = IdentityWords(build);
+		words[FesGpIdentityAbiTagIndex] = FesApplicationAbiTag;
+		words[FesGpIdentityCapabilitiesIndex] = 2 | 32 | (keypad ? 64 : 0);
+		ScriptIdentity(&mmio, words);
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		assert(driver.Identify(context, 10000).error.ok());
+		const auto before = mmio.writes.size();
+		assert(!driver.SetController(2, 0, 0, 10000).ok());
+		assert(!driver.SetController(0, 256, 0, 10000).ok());
+		assert(!driver.SetController(0, 0, 4096, 10000).ok());
+		if (!keypad) assert(!driver.SetController(0, 1, 1, 10000).ok());
+		assert(mmio.writes.size() == before);
+		bool toggle = false;
+		auto reply = [&] { toggle = !toggle; PushCompleted(&mmio, toggle, 0); };
+		for (unsigned port = 0; port < 2; ++port) {
+			reply(); if (keypad) reply();
+			const auto offset = mmio.writes.size();
+			assert(driver.SetController(port, 0xa5, keypad ? 0x801 : 0, 10000).ok());
+			assert((mmio.writes[offset].value & ~FesGpRequestMask) == (13u << 24 | port << 16 | 0xa5));
+			if (keypad) assert((mmio.writes[offset + 2].value & ~FesGpRequestMask) == (14u << 24 | port << 16 | 0x801));
+		}
+		// Start neutralizes both ports before release; Quiesce holds first and
+		// explicitly clears both ports before the next core can be programmed.
+		auto check_word = [&](std::size_t offset, unsigned opcode, unsigned port, unsigned value) {
+			assert((mmio.writes[offset].value & ~FesGpRequestMask) ==
+				((opcode << 24) | (port << 16) | value));
+		};
+		const auto start_offset = mmio.writes.size();
+		for (unsigned i = 0; i < (keypad ? 5u : 3u); ++i) reply();
+		assert(driver.Start(context, 10000).error.ok());
+		std::size_t cursor = start_offset;
+		for (unsigned port = 0; port < 2; ++port) {
+			check_word(cursor, 13, port, 0); cursor += 2;
+			if (keypad) { check_word(cursor, 14, port, 0); cursor += 2; }
+		}
+		check_word(cursor, 2, 0, 1); cursor += 2;
+		assert(cursor == mmio.writes.size());
+		for (unsigned i = 0; i < (keypad ? 5u : 3u); ++i) reply();
+		assert(driver.Quiesce(context, 10000).error.ok());
+		check_word(cursor, 2, 0, 0); cursor += 2;
+		for (unsigned port = 0; port < 2; ++port) {
+			check_word(cursor, 13, port, 0); cursor += 2;
+			if (keypad) { check_word(cursor, 14, port, 0); cursor += 2; }
+		}
+		assert(cursor == mmio.writes.size());
+	}
+}
+
+void TestControllerPartialDeliveryNeverRetries()
+{
+	for (const bool timeout : {false, true}) {
+		StreamFixture f;
+		f.descriptor.abi = {FesApplicationABIID, 1, 0};
+		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+			{FesApplicationInterfaceGamepadPortsID, 1, 0, true},
+			{FesApplicationInterfaceKeypadPortsID, 1, 0, true}};
+		assert(f.Identify(1, 32768, 512, 98).ok());
+		f.Reply(); // digital command completes
+		if (!timeout) f.Reply(1); // keypad acknowledgement must be zero
+		const auto before = f.mmio.writes.size();
+		assert(f.driver.SetController(1, 16, 2048, 1000000).code == mister::ErrorCode::io_failed);
+		assert(f.mmio.writes.size() == before + 4); // exactly one of each command
+		if (timeout) {
+			assert(!f.driver.SetController(1, 16, 2048, 1000000).ok());
+			assert(!f.driver.Quiesce(f.context, 1000000).error.ok());
+			assert(f.mmio.writes.size() == before + 4); // poisoned mailbox never replays
+		} else {
+			// A malformed semantic response has stable transport; lifecycle can
+			// still hold and neutralize safely, without replaying the snapshot.
+			for (unsigned i = 0; i < 5; ++i) f.Reply();
+			assert(f.driver.Quiesce(f.context, 1000000).error.ok());
+			assert(f.mmio.writes.size() == before + 14);
+		}
+	}
+}
+
 } // namespace
 
 int main()
 {
+	TestControllerPortsValidateAndNeutralize();
+	TestControllerPartialDeliveryNeverRetries();
 	TestApplicationReplaysSharedWireFixturesThroughDriver();
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
 	TestApplicationAudioRequiresExactLiveCapability();

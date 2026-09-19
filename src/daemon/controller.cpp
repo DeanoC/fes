@@ -62,6 +62,10 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::set_keyboard:
 		result = runtime_.SetComputerKeyboard(request.keyboard_matrix);
 		break;
+	case Operation::set_controller:
+		result = runtime_.SetController(request.package_id, request.expected_generation,
+			request.controller_port, request.controller_buttons, request.controller_keypad);
+		break;
 	case Operation::load_media:
 		result = runtime_.LoadComputerMedia(request.media_path);
 		break;

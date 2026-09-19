@@ -8,6 +8,7 @@
 
 #include "daemon/json.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 
 namespace mister {
 namespace daemon {
@@ -548,6 +549,31 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.expected_revision = *revision;
 				parsed.paddle_speed = static_cast<std::uint16_t>(speed->integer_value);
 			}
+		} else if (operation->string_value == "set_controller") {
+			const char* const fields[] = {"protocol", "operation", "package_id",
+				"expected_generation", "port", "buttons", "keypad"};
+			if (!HasOnly(root, fields, 7, &error)) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "package_id", &package, &error)) return error;
+			const auto* generation = Find(root, "expected_generation");
+			const auto* port = Find(root, "port");
+			const auto* buttons = Find(root, "buttons");
+			const auto* keypad = Find(root, "keypad");
+			using namespace native::generated;
+			if (!PackageID(*package) || !generation || generation->type != json::Type::integer ||
+				generation->integer_value <= 0 || !port || port->type != json::Type::integer ||
+				port->integer_value < 0 || port->integer_value >= FesApplicationControllerPortCount ||
+				!buttons || buttons->type != json::Type::integer || buttons->integer_value < 0 ||
+				buttons->integer_value > FesApplicationControllerButtonMask ||
+				!keypad || keypad->type != json::Type::integer || keypad->integer_value < 0 ||
+				keypad->integer_value > FesApplicationControllerKeypadMask)
+				return Invalid("invalid controller snapshot");
+			parsed.operation = Operation::set_controller;
+			parsed.package_id = *package;
+			parsed.expected_generation = static_cast<std::uint64_t>(generation->integer_value);
+			parsed.controller_port = static_cast<std::uint8_t>(port->integer_value);
+			parsed.controller_buttons = static_cast<std::uint16_t>(buttons->integer_value);
+			parsed.controller_keypad = static_cast<std::uint16_t>(keypad->integer_value);
 		} else if (operation->string_value == "set_keyboard") {
 			const char* const fields[] = {"protocol", "operation", "matrix"};
 			if (!HasOnly(root, fields, 3, &error)) return error;

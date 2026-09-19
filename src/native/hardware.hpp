@@ -87,6 +87,8 @@ public:
 	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile,
 		std::uint64_t generation = 0);
 	Error SetComputerKeyboard(std::uint64_t matrix) override;
+	Error SetController(std::uint8_t port, std::uint16_t buttons,
+		std::uint16_t keypad) override;
 	Error LoadComputerMedia(const std::string& path) override;
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
 

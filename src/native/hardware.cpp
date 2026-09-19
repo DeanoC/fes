@@ -582,6 +582,8 @@ Capabilities NativeHardware::capabilities() const
 		application.interfaces = {
 			{generated::FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadID, 1, 0},
+			{generated::FesApplicationInterfaceGamepadPortsID, 1, 0},
+			{generated::FesApplicationInterfaceKeypadPortsID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
 			{generated::FesApplicationInterfaceVideoFixed720p60ID, 1, 0}};
@@ -602,6 +604,15 @@ Capabilities NativeHardware::capabilities() const
 		}
 	}
 	return result;
+}
+
+Error NativeHardware::SetController(std::uint8_t port, std::uint16_t buttons,
+	std::uint16_t keypad)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->SetController(
+		port, buttons, keypad, Deadline(clock_, timeouts_.core_io_ms));
 }
 
 Error NativeHardware::SetComputerKeyboard(std::uint64_t matrix)

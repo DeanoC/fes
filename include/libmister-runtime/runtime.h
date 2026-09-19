@@ -386,6 +386,10 @@ public:
 			"contained development loading is unavailable", "compatibility"},
 			false, ""};
 	}
+	virtual Error SetController(std::uint8_t, std::uint16_t, std::uint16_t)
+	{
+		return {ErrorCode::unsupported_interface, "controller ports are unavailable", "input"};
+	}
 	virtual Error SetComputerKeyboard(std::uint64_t)
 	{
 		return {ErrorCode::unsupported_interface,
@@ -422,6 +426,8 @@ public:
 	Error LoadDevelopmentRBF(const std::string&);
 	Error LoadContainedDevelopmentRBF(const std::string&);
 	Error SetComputerKeyboard(std::uint64_t matrix);
+	Error SetController(const std::string& package_id, std::uint64_t generation,
+		std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad);
 	Error LoadComputerMedia(const std::string& path);
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,

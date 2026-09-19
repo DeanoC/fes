@@ -57,6 +57,8 @@ public:
 		std::uint64_t) override;
 	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
 	Error SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t deadline);
+	Error SetController(std::uint8_t port, std::uint16_t buttons,
+		std::uint16_t keypad, std::uint64_t deadline);
 	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
@@ -66,6 +68,7 @@ public:
 private:
 	CoreDriverResult Gameplay(std::uint16_t, std::uint64_t);
 	CoreDriverResult NeutralizeKeyboard(std::uint64_t deadline);
+	Error NeutralizeControllers(std::uint64_t deadline);
 	Error DataControl(std::uint16_t, std::uint64_t);
 	Error StreamCommand(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t deadline);
@@ -77,6 +80,8 @@ private:
 	bool media_ = false;
 	bool application_ = false;
 	bool gamepad_ = false;
+	bool controller_ports_ = false;
+	bool keypad_ports_ = false;
 	std::uint16_t observed_capabilities_ = 0;
 	MediaStreamInfo stream_info_;
 	bool stream_verified_ = false;

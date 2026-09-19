@@ -291,6 +291,33 @@ void TestValidationPrecedesHardwareMutation()
 	assert(fixture.hardware.launch_calls == 0);
 }
 
+void TestControllerSnapshotBindingAndFaultCleanup()
+{
+	Fixture f;
+	Start(f);
+	const std::string id(64, 'a');
+	assert(f.runtime.LoadCore("/packages/custom", id).ok());
+	const auto generation = f.runtime.status().generation;
+	assert(f.runtime.SetController(id, generation + 1, 0, 0, 0).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetController(std::string(64, 'b'), generation, 0, 0, 0).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetController(id, generation, 2, 0, 0).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetController(id, generation, 0, 256, 0).code == ErrorCode::invalid_request);
+	assert(f.runtime.SetController(id, generation, 0, 0, 4096).code == ErrorCode::invalid_request);
+	assert(f.hardware.controller_calls == 0);
+	f.hardware.on_controller = [&] { assert(f.runtime.Stop().code == ErrorCode::busy); };
+	assert(f.runtime.SetController(id, generation, 1, 255, 4095).ok());
+	assert(f.hardware.controller_snapshot == std::vector<std::uint16_t>({1, 255, 4095}));
+	f.hardware.controller_result = {ErrorCode::unsupported_interface, "unsupported"};
+	assert(!f.runtime.SetController(id, generation, 0, 0, 0).ok());
+	assert(f.runtime.status().state == State::running_development);
+	f.hardware.controller_result = {ErrorCode::io_failed, "partial snapshot", "input"};
+	assert(!f.runtime.SetController(id, generation, 0, 0, 0).ok());
+	assert(f.hardware.WaitForIdleCalls(2));
+	assert(WaitForState(f.runtime, State::idle));
+	assert(f.runtime.status().error.message == "partial snapshot");
+	assert(f.runtime.SetController(id, generation, 0, 0, 0).code == ErrorCode::busy);
+}
+
 void TestUnsupportedPackageLeavesRunningSessionExactlyUntouched()
 {
 	Fixture fixture;
@@ -981,6 +1008,7 @@ void TestStreamBindingCapacityOwnershipAndStop()
 
 int main()
 {
+	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
 	TestInputFaultDuringRestoreIsOwnedByRestoredGeneration();

@@ -717,8 +717,11 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"unsupported FES application ABI or system declaration");
 		bool video = false, blob = false, stream = false;
+		bool gamepad = false, ports = false, keypad = false;
 		for (const auto& interface : descriptor.interfaces) {
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
+				interface.id == FesApplicationInterfaceGamepadPortsID ||
+				interface.id == FesApplicationInterfaceKeypadPortsID ||
 				interface.id == FesApplicationInterfaceVideoFixed720p60ID ||
 				interface.id == FesApplicationInterfaceMediaBlobID ||
 				interface.id == FesApplicationInterfaceMediaBlobStreamID ||
@@ -735,7 +738,13 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				video = interface.required;
 			if (interface.id == FesApplicationInterfaceMediaBlobID) blob = true;
 			if (interface.id == FesApplicationInterfaceMediaBlobStreamID) stream = true;
+			if (interface.id == FesApplicationInterfaceGamepadID) gamepad = true;
+			if (interface.id == FesApplicationInterfaceGamepadPortsID) ports = true;
+			if (interface.id == FesApplicationInterfaceKeypadPortsID) keypad = true;
 		}
+		if ((gamepad && ports) || (keypad && !ports))
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"controller ports exclude single gamepad and keypad requires ports");
 		if (!video || (stream && !blob))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"application requires fixed video and stream requires blob media");

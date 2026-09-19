@@ -228,6 +228,11 @@ public:
 	{
 		return hardware_.LoadContainedDevelopmentRBF(path, generation);
 	}
+	Error SetController(std::uint8_t port, std::uint16_t buttons,
+		std::uint16_t keypad) override
+	{
+		return hardware_.SetController(port, buttons, keypad);
+	}
 	Error SetComputerKeyboard(std::uint64_t matrix) override
 	{
 		return hardware_.SetComputerKeyboard(matrix);

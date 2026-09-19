@@ -2406,6 +2406,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 
 void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 {
+	for (const bool ports : {false, true}) {
 	for (const bool audio : {false, true}) {
 	std::vector<std::string> events;
 	RecordingDriver gp(events);
@@ -2418,6 +2419,7 @@ void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 	const auto second = manifest.find("[[interfaces]]", first + 1);
 	assert(first != std::string::npos && second != std::string::npos);
 	manifest.erase(first, second - first); // remove gamepad; retain fixed video
+	if (ports) manifest += "\n[[interfaces]]\nid = \"fes.gamepad.ports\"\nmajor = 1\nminor = 0\nrequired = true\n";
 	if (audio) manifest += "\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n";
 	package.File("manifest.toml", manifest);
 	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
@@ -2428,12 +2430,13 @@ void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 		const auto status = fixture.runtime.status();
 		assert(status.active_package.observed.abi.id == "fes.application");
 		assert(status.active_package.observed.build_id == opened.descriptor.build.id);
-		assert(status.capabilities.active_interfaces.size() == (audio ? 2u : 1u));
+		assert(status.capabilities.active_interfaces.size() == 1u + (audio ? 1u : 0u) + (ports ? 1u : 0u));
 		assert(status.capabilities.active_interfaces.back().id == "fes.video.fixed-720p60");
 		if (audio) assert(status.capabilities.active_interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
 		assert(fixture.native.input.open_calls == 0);
 		assert(fixture.runtime.Stop().ok());
 		assert(fixture.runtime.status().state == mister::State::idle);
+	}
 	}
 	}
 }

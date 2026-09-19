@@ -268,6 +268,15 @@ void TestApplicationCompatibilityComposesInterfaces()
 	descriptor.abi = {"fes.application", 1, 0};
 	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	{
+		auto ports = descriptor;
+		ports.interfaces.push_back({"fes.keypad.ports", 1, 0, true});
+		assert(!mister::native::CheckCoreCompatibility(ports).ok());
+		ports.interfaces.push_back({"fes.gamepad.ports", 1, 0, true});
+		assert(mister::native::CheckCoreCompatibility(ports).ok());
+		ports.interfaces.push_back({"fes.gamepad", 1, 0, true});
+		assert(!mister::native::CheckCoreCompatibility(ports).ok());
+	}
 	descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 	descriptor.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});

@@ -7,7 +7,8 @@ Existing `fes.simple-game` and `fes.simple-computer` packages retain their
 existing requirements, wire identities and startup behavior.
 
 Every admitted application declares required `fes.video.fixed-720p60` 1.0.
-It may additionally declare `fes.audio.pcm-s16-stereo-48k`, `fes.gamepad`, `fes.media.blob` and
+It may additionally declare `fes.audio.pcm-s16-stereo-48k`, `fes.gamepad`,
+`fes.gamepad.ports`, `fes.keypad.ports`, `fes.media.blob` and
 `fes.media.blob-stream` 1.0. Stream requires blob. Supported operational
 declarations must be required; optionality is expressed by omission. Unknown
 or unsupported-version optional declarations are ignored. Required unknown
@@ -17,7 +18,8 @@ Identity, ABI and build identity are verified before input or execution
 commands. Registered live capability bits must exactly match supported declared
 interfaces; an undeclared live media endpoint cannot silently change startup.
 Capability bits 0 through 3 are gamepad,
-video, blob and stream; bit 4 is stereo PCM audio. Opcodes 1/2/3 are identity/execution/buttons; 4 through
+video, blob and stream; bit 4 is stereo PCM audio, bit 5 is controller ports and
+bit 6 is keypad ports. Opcodes 1/2/3 are identity/execution/buttons; 4 through
 6 use the existing blob codec and 7 through 12 use the existing stream codec.
 This map is distinct from the older game ABI's persistence opcodes.
 
@@ -46,8 +48,36 @@ verified interfaces determine availability, not a display name or core ID.
 Host tests cover admission, tag/capability discovery, no-keyboard startup,
 video-only load/Stop/reload without input, media readiness and shared stream
 transfer boundaries. No new physical support is claimed. Variable video
-timings, keyboard/mouse, multiplayer and persistence layouts are outside this
+timings, keyboard/mouse and persistence layouts are outside this
 application ABI slice.
+
+## Logical controller ports
+
+`fes.gamepad.ports` 1.0 supplies exactly two digital ports, numbered 0 and 1,
+with the existing eight gamepad bits. It excludes `fes.gamepad` 1.0.
+`fes.keypad.ports` 1.0 requires controller ports and adds twelve bits per port:
+bits 0–9 are digits 0–9, bit 10 is star and bit 11 is hash. Each interface is
+required when present. GP opcode 13 writes a complete digital mask; opcode 14
+writes a complete keypad mask. Both use the port as index and acknowledge zero.
+
+The local protocol-2 operation is:
+
+```json
+{"protocol":2,"operation":"set_controller","package_id":"<64 lowercase hex>","expected_generation":1,"port":0,"buttons":0,"keypad":0}
+```
+
+Every field is required. Masks are bounded to eight/twelve bits and the entire
+request is validated before its first exchange. A zero keypad is permitted for
+digital-only ports; a nonzero keypad requires the declared live interface.
+The existing lifecycle busy boundary serializes each snapshot against media,
+Stop and replacement. Package and generation must match the active session.
+The two GP writes are sequential, not atomic, and partial delivery failure uses
+the ordinary one-shot input-fault cleanup. No retry or separate input lifecycle
+is introduced. These packages do not open the legacy virtual-gamepad evdev
+worker. FogCast owns physical source assignment and sends neutral snapshots on
+disconnect/release. The runtime neutralizes both ports before Start and after
+holding execution during Stop/replacement. Existing one-gamepad packages retain
+their worker and wire commands unchanged.
 
 ## Shared HDMI audio
 

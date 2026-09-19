@@ -17,6 +17,20 @@ applications release immediately. Existing ABI startup and persistence remain
 unchanged. Application stereo 48 kHz PCM audio is software-supported through
 the shared ADV7513 path; physical audio acceptance remains pending.
 
+Two logical controller ports use required `fes.gamepad.ports` 1.0; optional
+`fes.keypad.ports` 1.0 adds twelve keys per port. The former excludes the old
+single-gamepad interface, and the latter requires controller ports. These
+applications never open the evdev worker. Protocol-2 `set_controller` carries
+`package_id`, `expected_generation`, `port` (0 or 1), `buttons` (8 bits), and
+`keypad` (12 bits). Complete snapshots are validated before hardware access;
+nonzero keypad state requires the declared keypad interface. The existing busy
+boundary serializes delivery and rejects stale session identity. Digital and
+keypad commands are sequential, not an atomic fabric update. An exchange failure
+retires the generation through the existing input-fault cleanup. Start clears
+both ports before release; Quiesce holds execution then explicitly clears both
+ports before replacement. FogCast owns source assignment and disconnect release.
+Physical controller acceptance remains pending.
+
 ## Current boundary
 
 This repository has one runtime implementation split across three narrow

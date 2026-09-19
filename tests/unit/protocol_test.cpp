@@ -45,6 +45,23 @@ void ExpectError(const std::string& text, ErrorCode code)
 	assert(Parse(text, &request).code == code);
 }
 
+void TestControllerSnapshotRequest()
+{
+	const std::string prefix = "{\"protocol\":2,\"operation\":\"set_controller\",\"package_id\":\"" + std::string(64, 'a') + "\",\"expected_generation\":7,";
+	Request request;
+	assert(Parse(prefix + "\"port\":1,\"buttons\":255,\"keypad\":4095}", &request).ok());
+	assert(request.operation == Operation::set_controller && request.controller_port == 1);
+	assert(request.controller_buttons == 255 && request.controller_keypad == 4095);
+	assert(request.expected_generation == 7);
+	for (const auto& fields : {"\"port\":2,\"buttons\":0,\"keypad\":0}",
+		"\"port\":0,\"buttons\":256,\"keypad\":0}",
+		"\"port\":0,\"buttons\":0,\"keypad\":4096}",
+		"\"port\":-1,\"buttons\":0,\"keypad\":0}",
+		"\"port\":0,\"buttons\":0}",
+		"\"port\":0,\"buttons\":0,\"keypad\":0,\"extra\":1}"})
+		ExpectError(prefix + fields, ErrorCode::invalid_request);
+}
+
 void TestOptionalSavePath()
 {
 	Request request;
@@ -620,7 +637,8 @@ std::vector<std::string> ApplicationResponseFixtures()
 	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
 	status.capabilities.abis = {
 		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
-			{"fes.gamepad", 1, 0}, {"fes.media.blob", 1, 0},
+			{"fes.gamepad", 1, 0}, {"fes.gamepad.ports", 1, 0},
+			{"fes.keypad.ports", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"fes.simple-computer", 1, 0, {{"fes.keyboard", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
@@ -628,20 +646,24 @@ std::vector<std::string> ApplicationResponseFixtures()
 			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"mister", 1, 0, {}}};
 	std::vector<std::string> lines;
-	for (unsigned mode = 0; mode < 4; ++mode) {
+	for (unsigned mode = 0; mode < 5; ++mode) {
 		status.generation = mode + 1;
 		descriptor.interfaces.clear();
 		status.capabilities.active_interfaces.clear();
 		status.capabilities.media_stream = {};
 		if (mode == 3)
 			descriptor.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
-		if (mode > 0) {
+		if (mode > 0 && mode < 4) {
 			descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
 			if (mode < 3) descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
 		}
 		if (mode == 2) {
 			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
 			status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
+		}
+		if (mode == 4) {
+			descriptor.interfaces.push_back({"fes.gamepad.ports", 1, 0, true});
+			descriptor.interfaces.push_back({"fes.keypad.ports", 1, 0, true});
 		}
 		descriptor.interfaces.push_back({"fes.video.fixed-720p60", 1, 0, true});
 		for (const auto& interface : descriptor.interfaces)
@@ -669,6 +691,7 @@ int main(int argc, char** argv)
 		return 0;
 	}
 	assert(argc == 1);
+	TestControllerSnapshotRequest();
 	TestApplicationResponseFixtures();
 	TestMediaStreamResponseFixtures();
 	TestMediaStreamRequestAndObservedResponse();

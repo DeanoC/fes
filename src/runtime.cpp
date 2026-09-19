@@ -4,6 +4,7 @@
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_simple_computer.hpp"
+#include "native/generated/fes_application.hpp"
 
 #include <algorithm>
 #include <condition_variable>
@@ -518,6 +519,40 @@ public:
 		return FinishLaunchFailure("load_development_rbf", "", "", result);
 	}
 
+	Error SetController(const std::string& package_id, std::uint64_t generation,
+		std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad)
+	{
+		using namespace native::generated;
+		if (!ValidPackageId(package_id) || generation == 0 ||
+			port >= FesApplicationControllerPortCount ||
+			(buttons & ~FesApplicationControllerButtonMask) != 0 ||
+			(keypad & ~FesApplicationControllerKeypadMask) != 0)
+			return Invalid("invalid controller snapshot");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
+				return Busy("controller session is not available");
+			if (generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("controller package or generation changed");
+			busy_ = true;
+		}
+		const Error error = hardware_.SetController(port, buttons, keypad);
+		// Invalid snapshots and absent interfaces cannot mutate the fabric. A
+		// failed exchange may have applied half a snapshot: retire this generation
+		// through the same one-shot input fault cleanup used by evdev delivery.
+		if (!error.ok() && error.code != ErrorCode::invalid_request &&
+			error.code != ErrorCode::unsupported_interface)
+			ReportHardwareFault({generation, error});
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		return error;
+	}
+
 	Error SetComputerKeyboard(std::uint64_t matrix)
 	{
 		{
@@ -880,6 +915,12 @@ Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
 }
+Error Runtime::SetController(const std::string& package_id, std::uint64_t generation,
+	std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad)
+{
+	return impl_->SetController(package_id, generation, port, buttons, keypad);
+}
+
 Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
 {
 	return impl_->SetComputerKeyboard(matrix);

@@ -264,6 +264,10 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesApplicationCapabilityMediaBlobStream;
 			else if (interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID)
 				capabilities |= FesApplicationCapabilityAudioPcmS16Stereo48k;
+			else if (interface.id == FesApplicationInterfaceGamepadPortsID)
+				capabilities |= FesApplicationCapabilityGamepadPorts;
+			else if (interface.id == FesApplicationInterfaceKeypadPortsID)
+				capabilities |= FesApplicationCapabilityKeypadPorts;
 			continue;
 		}
 		if (computer) {
@@ -306,7 +310,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (index == FesGpIdentityCapabilitiesIndex) {
 			const std::uint16_t application_mask = FesApplicationCapabilityGamepad |
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
-				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k;
+				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k |
+				FesApplicationCapabilityGamepadPorts | FesApplicationCapabilityKeypadPorts;
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
 				(!application && (observed[index] & expected[index]) != expected[index]))
 				return Mismatch("live FES GP capabilities do not match package interfaces",
@@ -340,6 +345,8 @@ void FesGpCoreDriver::BeginSession()
 	application_ = false;
 	media_ = false;
 	gamepad_ = false;
+	controller_ports_ = false;
+	keypad_ports_ = false;
 	observed_capabilities_ = 0;
 	stream_info_ = {};
 	stream_verified_ = false;
@@ -351,8 +358,10 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 {
 	CoreDriverResult result = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayHoldReset), deadline);
-	if (result.error.ok())
+	if (result.error.ok()) {
 		reset_held_ = true;
+		result.error = NeutralizeControllers(deadline);
+	}
 	result.error = WithPhase(std::move(result.error), "quiesce");
 	return result;
 }
@@ -380,6 +389,10 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 				media_ = (observed_capabilities_ & FesApplicationCapabilityMediaBlob) != 0;
 			if (interface.id == FesApplicationInterfaceGamepadID)
 				gamepad_ = (observed_capabilities_ & FesApplicationCapabilityGamepad) != 0;
+			if (interface.id == FesApplicationInterfaceGamepadPortsID)
+				controller_ports_ = (observed_capabilities_ & FesApplicationCapabilityGamepadPorts) != 0;
+			if (interface.id == FesApplicationInterfaceKeypadPortsID)
+				keypad_ports_ = (observed_capabilities_ & FesApplicationCapabilityKeypadPorts) != 0;
 		}
 	}
 	bool stream_declared = false;
@@ -464,6 +477,41 @@ CoreDriverResult FesGpCoreDriver::SetButtons(const CoreDriverContext&,
 		return {{ErrorCode::io_failed, "FES GP accepted button mask is invalid",
 			"input"}, true, ""};
 	return {{}, true, ""};
+}
+
+Error FesGpCoreDriver::SetController(std::uint8_t port, std::uint16_t buttons,
+	std::uint16_t keypad, std::uint64_t deadline)
+{
+	if (!application_ || !controller_ports_)
+		return {ErrorCode::unsupported_interface, "controller ports are inactive", "input"};
+	if (port >= FesApplicationControllerPortCount ||
+		(buttons & ~FesApplicationControllerButtonMask) != 0 ||
+		(keypad & ~FesApplicationControllerKeypadMask) != 0)
+		return {ErrorCode::invalid_request, "invalid controller snapshot", "input"};
+	if (keypad != 0 && !keypad_ports_)
+		return {ErrorCode::unsupported_interface, "keypad ports are inactive", "input"};
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(FesApplicationOpcodeControllerButtons, port,
+		buttons, deadline, &response);
+	if (error.ok() && response != 0)
+		error = {ErrorCode::io_failed, "invalid controller acknowledgement", "input"};
+	if (error.ok() && keypad_ports_) {
+		error = gp_.Exchange(FesApplicationOpcodeControllerKeypad, port,
+			keypad, deadline, &response);
+		if (error.ok() && response != 0)
+			error = {ErrorCode::io_failed, "invalid keypad acknowledgement", "input"};
+	}
+	return WithPhase(error, "input");
+}
+
+Error FesGpCoreDriver::NeutralizeControllers(std::uint64_t deadline)
+{
+	if (!controller_ports_) return {};
+	for (std::uint8_t port = 0; port < FesApplicationControllerPortCount; ++port) {
+		const Error error = SetController(port, 0, 0, deadline);
+		if (!error.ok()) return error;
+	}
+	return {};
 }
 
 CoreDriverResult FesGpCoreDriver::Gameplay(std::uint16_t argument,
@@ -651,6 +699,8 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
 	if (stream_pending_) return {Io("incomplete media stream cannot start"), false, ""};
+	const Error controller_neutral = NeutralizeControllers(deadline);
+	if (!controller_neutral.ok()) return {controller_neutral, true, ""};
 	if (computer_) {
 		CoreDriverResult neutralized = NeutralizeKeyboard(deadline);
 		if (!neutralized.error.ok()) return neutralized;

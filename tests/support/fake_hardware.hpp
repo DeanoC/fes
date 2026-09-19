@@ -33,6 +33,18 @@ public:
 	mister::Error InspectCorePackage(const std::string&, const std::string&,
 		mister::CorePackageInspection*) override;
 	mister::Capabilities capabilities() const override { return supported; }
+	mister::Error SetController(std::uint8_t port, std::uint16_t buttons,
+		std::uint16_t keypad) override
+	{
+		++controller_calls;
+		controller_snapshot = {port, buttons, keypad};
+		if (on_controller) on_controller();
+		return controller_result;
+	}
+	int controller_calls = 0;
+	std::vector<std::uint16_t> controller_snapshot;
+	std::function<void()> on_controller;
+	mister::Error controller_result;
 	mister::Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
 	{
 		++media_stream_calls;

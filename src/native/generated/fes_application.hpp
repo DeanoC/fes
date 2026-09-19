@@ -92,6 +92,11 @@ constexpr std::uint32_t FesApplicationMediaStreamChunkLengthIndex = 0x2u;
 constexpr std::uint32_t FesApplicationMediaStreamCRC32Initial = 0xffffffffu;
 constexpr std::uint32_t FesApplicationMediaStreamCRC32Polynomial = 0xedb88320u;
 constexpr std::uint32_t FesApplicationMediaStreamCRC32FinalXor = 0xffffffffu;
+constexpr std::uint32_t FesApplicationOpcodeControllerButtons = 0xdu;
+constexpr std::uint32_t FesApplicationOpcodeControllerKeypad = 0xeu;
+constexpr std::uint32_t FesApplicationControllerPortCount = 0x2u;
+constexpr std::uint32_t FesApplicationControllerButtonMask = 0xffu;
+constexpr std::uint32_t FesApplicationControllerKeypadMask = 0xfffu;
 constexpr const char* FesApplicationInterfaceGamepadID = "fes.gamepad";
 constexpr std::uint16_t FesApplicationInterfaceGamepadMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceGamepadMinor = 0u;
@@ -112,6 +117,14 @@ constexpr const char* FesApplicationInterfaceAudioPcmS16Stereo48kID = "fes.audio
 constexpr std::uint16_t FesApplicationInterfaceAudioPcmS16Stereo48kMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceAudioPcmS16Stereo48kMinor = 0u;
 constexpr std::uint32_t FesApplicationCapabilityAudioPcmS16Stereo48k = 0x10u;
+constexpr const char* FesApplicationInterfaceGamepadPortsID = "fes.gamepad.ports";
+constexpr std::uint16_t FesApplicationInterfaceGamepadPortsMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceGamepadPortsMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityGamepadPorts = 0x20u;
+constexpr const char* FesApplicationInterfaceKeypadPortsID = "fes.keypad.ports";
+constexpr std::uint16_t FesApplicationInterfaceKeypadPortsMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceKeypadPortsMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityKeypadPorts = 0x40u;
 
 } // namespace generated
 } // namespace native
