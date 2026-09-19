@@ -55,7 +55,7 @@ A compact information panel identifies the selected destination:
 
 The map remains legible when artwork is absent. Long titles stay readable in the information panel.
 
-Paths express relationships and navigation. They do **not** imply unlock gates unless the author explicitly introduces an unlocking mechanic.
+Paths express relationships and navigation. They do **not** imply unlock gates unless the author explicitly introduces an unlocking mechanic. Authoring note: [`docs/rooms.md`](rooms.md).
 
 ---
 
@@ -218,8 +218,8 @@ See companion section below (also summarised in chat). Update status here as ite
 | 9 | Edition preference remembered for household | **STATUS done** (2026-09-19): household `libraryuser.edition_preference`; host GET/PUT `/api/v1/library/edition-preferences`; Confirm/Details skip the re-ask when the saved edition is still a match | Host profile / FES |
 | 10 | Accessibility pass | **STATUS done** (2026-09-19): tenfoot `reduced_motion` pref (settings + `tenfoot.json` / `FOGCAST_REDUCED_MOTION`); rooms read `room.reduced_motion`; nodemap/list/grid keep focus markers that are not colour-only; destination Played/Completed text kept and extended onto focused map labels; Back and system menu stay FES-owned (scripts cannot suppress them) | Luna |
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
-| 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
+| 12 | Authoring note: paths ≠ unlocks | **STATUS done** (2026-09-19): short note in [`docs/rooms.md`](rooms.md) — nodemap edges are navigation relationships, not unlock gates, unless the author adds unlocking | Doc / authoring |
 
-**Recommended sequence for starting now:** 11–12. (0–10 are done.)
+**Recommended sequence for starting now:** 11. (0–10 and 12 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).
