@@ -184,8 +184,10 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 		id := optString(row, "id")
 		if id != "" {
 			if g, cached := r.games[id]; cached {
-				g = applyPlayFacts(g, row)
-				r.games[id] = g
+				// Host catalog play facts stay authoritative. gameTable always
+				// emits play_count and last_played_at (including zeros), so
+				// copying them from a republished match table would freeze the
+				// script snapshot and discard later host values.
 				out = append(out, g)
 				return
 			}
@@ -242,6 +244,9 @@ func (r *Instance) historyTable(h History) *lua.LTable {
 	return t
 }
 
+// applyPlayFacts copies play_count / last_played_at from a Lua row onto a
+// game that is not already in the host catalog cache. Cached rows keep the
+// host values; Lua is not the household play store.
 func applyPlayFacts(g hostclient.Game, row *lua.LTable) hostclient.Game {
 	if row == nil {
 		return g

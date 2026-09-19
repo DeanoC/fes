@@ -167,8 +167,10 @@ the current node after a match lands, do not refocus.
 matches, resolving, missing, note, note_by}` publishes one location.
 `kind` is `game`, `room`, `library`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
-Unavailable / Ready. `destination.classify(games, {q=})` returns that
-result without changing focus. `destination.play_history(game_or_facts)`
+Unavailable / Ready. Republishing `matches` does not overwrite host
+`play_count` or `last_played_at` on catalog rows the room already cached.
+`destination.classify(games, {q=})` returns that result without changing
+focus. `destination.play_history(game_or_facts)`
 returns `{played, completed, line}` from play facts; `completed` is true
 only when the facts include an explicit completion record. Published
 destinations expose the same `played` / `completed` / `history` fields.

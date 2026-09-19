@@ -501,6 +501,49 @@ function draw() end`
 	}
 }
 
+func TestLuaMatchRepublishKeepsHostPlayFacts(t *testing.T) {
+	host := hostclient.Game{ID: "nes-smb", Title: "Super Mario Bros.", System: "nes", State: "available", RootOnline: true, Launchable: true, PlayCount: 2, LastPlayedAt: 50}
+	svc := &fakeServices{games: []hostclient.Game{host}}
+	src := `
+snap = nil
+function load()
+  library.query({ q = "Super Mario" }, function(games, err)
+    snap = games[1]
+    destination.set{ kind = "game", label = snap.title, game_id = snap.id, matches = { snap } }
+  end)
+end
+function draw() end
+function republish_stale()
+  snap.play_count = 0
+  snap.last_played_at = 0
+  destination.set{ kind = "game", label = snap.title, game_id = snap.id, matches = { snap } }
+end`
+	r := newRoom(t, memPack(t, "hist-cache", src, nil), Options{Services: svc})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.L.GetGlobal("snap").Type().String() == "table" })
+
+	host.PlayCount = 7
+	host.LastPlayedAt = 200
+	r.games[host.ID] = host
+	if err := r.callGlobal("republish_stale", r.budget.Input); err != nil {
+		t.Fatal(err)
+	}
+
+	g, ok := r.CachedGame(host.ID)
+	if !ok || g.PlayCount != 7 || g.LastPlayedAt != 200 {
+		t.Fatalf("cached play facts %+v want count=7 last=200", g)
+	}
+	d := r.Destination()
+	if len(d.Matches) != 1 || d.Matches[0].PlayCount != 7 || d.Matches[0].LastPlayedAt != 200 {
+		t.Fatalf("published matches %+v", d.Matches)
+	}
+	if !d.History.Played || d.History.Completed || d.History.Line() != "Played" {
+		t.Fatalf("published dest %+v", d.History)
+	}
+}
+
 func TestAssetImageDecodeAndBudget(t *testing.T) {
 	var buf bytes.Buffer
 	im := image.NewRGBA(image.Rect(0, 0, 8, 4))
