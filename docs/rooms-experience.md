@@ -128,16 +128,15 @@ Text size, contrast, controller prompts, and reduced motion remain usable across
 
 ---
 
-## Attract (policy — open until decided)
+## Attract (policy — decided 2026-09-19)
 
-Tip smoke (2026-09-19): attract was not observed while Mushroom Kingdom was loaded.
+**Attract policy (decided):**
 
-**Decision needed (pick one and implement):**
+- Default: attract is **off** while a room is the focused surface.
+- Per-room opt-in: a room author may enable attract for that room if desired. Opt-in is customizable per room and may provide a **custom attract** defined by the room author, not merely a boolean on/off of the global attract.
+- When attract runs (only if the room opted in): it must not steal focus, move the player’s selection, or block Direction/Confirm/Details/Back/System menu.
 
-- A) Attract may run in-room without stealing focus or moving selection; or
-- B) Attract is suspended while a room is the focused home surface.
-
-Until decided, do not treat missing attract-in-room as a regression against this doc.
+Tip smoke (2026-09-19): attract was not observed while Mushroom Kingdom was loaded. That is consistent with default-off.
 
 ---
 
@@ -178,7 +177,7 @@ See companion section below (also summarised in chat). Update status here as ite
 | # | Task | Goal / done when | Suggested owner |
 | --- | --- | --- | --- |
 | 0 | Land this doc in-repo (`docs/rooms-experience.md`) | Merged; linked from `docs/rooms.md` | Bot team (doc PR) |
-| 1 | Decide attract-in-room policy (A or B above) | Written decision in this doc | Deano (+ Foggy) |
+| 1 | Decide attract-in-room policy | **STATUS done / decided** (2026-09-19): default off while a room is focused; per-room opt-in with optional custom attract | Deano (+ Foggy) |
 | 2 | Logical action ↔ controller binding table | Documented bindings for common pads; no essential long-press-only | Luna / UI |
 | 3 | Info panel: five availability states | Checking/Missing/Needs choice/Unavailable/Ready with distinct copy + Confirm never no-op | Luna / UI (host match hooks as needed) |
 | 4 | Played vs Completed data contract | Written contract + UI uses it (no false “completed”) | Kepler or host owner + Luna |
@@ -191,6 +190,6 @@ See companion section below (also summarised in chat). Update status here as ite
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 0 → 1 → 2 → 3, with 5 in parallel whenever target is ready, then 6–7, then 8–12.
+**Recommended sequence for starting now:** 2 → 3, with 5 in parallel whenever target is ready, then 6–7, then 8–12. (0 and 1 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).
