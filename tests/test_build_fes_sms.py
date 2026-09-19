@@ -66,7 +66,9 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("sms_machine", result.stdout)
+        self.assertIn("sms_vdp", result.stdout)
         self.assertIn("fes-sms-machine", result.stdout)
+        self.assertIn("fes-sms-vdp", result.stdout)
         self.assertIn("fes-sms-gp", result.stdout)
         self.assertIn("stream-exchanges.json", result.stdout)
         self.assertIn("ENABLE_MEDIA_STREAM=1", result.stdout)
@@ -116,6 +118,8 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         program = yosys[2]
         self.assertIn("sms_machine.sv", program)
+        self.assertIn("sms_vdp.sv", program)
+        self.assertIn("sms_video_720p.v", program)
         self.assertIn("cores/fes-sms/rtl/top.v", program)
         self.assertIn("tv80_core.v", program)
         self.assertIn("coleco_vdp.sv", program)
@@ -179,6 +183,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn('VERILOG_MACRO "FES_SMS_BUILD_ID=', qsf)
         self.assertIn("cores/fes-sms/rtl/sms_machine.sv", qsf)
+        self.assertIn("cores/fes-sms/rtl/sms_vdp.sv", qsf)
+        self.assertIn("cores/fes-sms/rtl/sms_video_720p.v", qsf)
         self.assertIn("cores/fes-sms/rtl/top.v", qsf)
         self.assertIn("cores/fes-coleco/rtl/tv80/tv80_core.v", qsf)
         self.assertIn("cores/fes-coleco/rtl/coleco_vdp.sv", qsf)
@@ -192,9 +198,13 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertIn(relative, QUARTUS_PINNED_INPUTS)
         self.assertTrue(all("reset_rom" not in item for item in QUARTUS_PINNED_INPUTS))
 
-    def test_machine_uses_sms_map_int_and_coleco_vdp(self) -> None:
+    def test_machine_uses_sms_map_int_and_mode4_vdp(self) -> None:
         machine = (ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text(encoding="utf-8")
-        self.assertIn("coleco_vdp", machine)
+        vdp = (ROOT / "cores/fes-sms/rtl/sms_vdp.sv").read_text(encoding="utf-8")
+        self.assertIn("sms_vdp", machine)
+        self.assertIn("sms_mode4_vdp", vdp)
+        self.assertIn("coleco_vdp", vdp)
+        self.assertIn("cram [0:31]", vdp)
         self.assertIn("coleco_dpram", machine)
         self.assertIn("ADDRWIDTH(15)", machine)
         self.assertIn("NUMWORDS(32768)", machine)
@@ -229,6 +239,7 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertIn(b'id = "fes.sms"', manifest)
         self.assertIn(b"FES Master System", manifest)
+        self.assertIn(b'version = "1.1.0"', manifest)
         self.assertIn(b"fes.simple-computer", manifest)
         self.assertIn(b'id = "fes.media.blob-stream"', manifest)
         self.assertIn(b"fes.media.blob", manifest)
@@ -256,13 +267,14 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("32 KiB", readme)
         self.assertIn("blob-stream", readme)
         self.assertIn("FES_COLECO_OSS", readme)
+        self.assertIn("Mode 4", readme)
         self.assertIn("e2d425de", readme)
         self.assertIn("later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "graphics-i.rom"
-            preview = Path(directory) / "graphics-i.ppm"
+            output = Path(directory) / "mode4.rom"
+            preview = Path(directory) / "mode4.ppm"
             first = subprocess.run(
                 [sys.executable, str(GENERATOR), "--output", str(output), "--preview", str(preview)],
                 cwd=ROOT,
@@ -309,6 +321,18 @@ class BuildFesSmsTests(unittest.TestCase):
             self.assertEqual(padded.read_bytes(), data + b"\xff" * (32768 - len(data)))
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
+            header, _, pixels = preview.read_bytes().partition(b"\n255\n")
+            self.assertEqual(header, b"P6\n1280 720")
+            self.assertEqual(len(pixels), 1280 * 720 * 3)
+
+            def ppm_at(x: int, y: int) -> tuple[int, int, int]:
+                offset = (y * 1280 + x) * 3
+                return (pixels[offset], pixels[offset + 1], pixels[offset + 2])
+
+            # Logical (4,0) is an opaque plus pixel (white); (0,0) is transparent (black).
+            self.assertEqual(ppm_at(393, 168), (255, 255, 255))
+            self.assertEqual(ppm_at(385, 168), (0, 0, 0))
+            self.assertNotEqual(ppm_at(393, 168), (0, 255, 64))
             hil = Path(directory) / "hil.rom"
             subprocess.run(
                 [sys.executable, str(GENERATOR), "--output", str(hil), "--interactive"],

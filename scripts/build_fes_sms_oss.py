@@ -63,7 +63,8 @@ RTL_SOURCES = (
     "cores/fes-coleco/rtl/coleco_dpram.v",
     "cores/fes-coleco/rtl/coleco_video_dpram.v",
     "cores/fes-coleco/rtl/coleco_vdp.sv",
-    "cores/fes-coleco/rtl/coleco_video_720p.v",
+    "cores/fes-sms/rtl/sms_vdp.sv",
+    "cores/fes-sms/rtl/sms_video_720p.v",
     "cores/fes-sms/rtl/sms_machine.sv",
     "cores/fes-coleco/rtl/t80pa.v",
     "cores/fes-coleco/rtl/tv80/tv80_core.v",
@@ -399,7 +400,7 @@ def _manifest(
             "id": "fes.sms",
             "name": "FES Master System",
             "description": "Standalone fixed-720p Master System slice for the FES simple-computer ABI (OSS)",
-            "version": "1.0.0",
+            "version": "1.1.0",
         },
         "target": {
             "platform": "de10_nano",

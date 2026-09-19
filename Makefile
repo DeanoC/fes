@@ -71,7 +71,7 @@ help:
 		"  sim-fes-sms  Test the FES SMS blob-stream mailbox and 32KiB fixed-map machine (fes.sms)" \
 		"  sim-fes-sms-oss  Test OSS-conditional SMS registered media, RAM and VDP" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
-		"  sms-diagnostic  Generate the open Master System Graphics I cartridge and reference image" \
+		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
 		"  build-fes-sms-quartus  Quartus 17.0.2 oracle package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
@@ -476,22 +476,22 @@ build-fes-sg1000:
 sms-diagnostic:
 	@mkdir -p build/diagnostics/fes-sms
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py \
-		--output build/diagnostics/fes-sms/graphics-i.rom \
-		--preview build/diagnostics/fes-sms/graphics-i.ppm
+		--output build/diagnostics/fes-sms/mode4.rom \
+		--preview build/diagnostics/fes-sms/mode4.ppm
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --pad-to 32768 \
-		--output build/diagnostics/fes-sms/graphics-i-32k.rom
+		--output build/diagnostics/fes-sms/mode4-32k.rom
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive \
-		--output build/diagnostics/fes-sms/graphics-i-hil.rom \
-		--preview build/diagnostics/fes-sms/graphics-i-hil.ppm
+		--output build/diagnostics/fes-sms/mode4-hil.rom \
+		--preview build/diagnostics/fes-sms/mode4-hil.ppm
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive --pad-to 32768 \
-		--output build/diagnostics/fes-sms/graphics-i-hil-32k.rom
+		--output build/diagnostics/fes-sms/mode4-hil-32k.rom
 
 sim-fes-sms: sms-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
-		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
+		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
 		-GENABLE_MEDIA_STREAM=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp" \
@@ -499,23 +499,35 @@ sim-fes-sms: sms-diagnostic
 		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
 	@build/sim/fes-sms-gp/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
+	@mkdir -p build/sim/fes-sms-vdp
+	$(VERILATOR) --cc --exe --build --top-module sms_vdp -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-vdp" \
+		cores/fes-sms/rtl/sms_vdp.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
+	@build/sim/fes-sms-vdp/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT -Wno-SIMILARNAME \
+		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine/Vsms_machine \
-		build/diagnostics/fes-sms/graphics-i.rom
+		build/diagnostics/fes-sms/mode4.rom
 
 sim-fes-sms-oss: sms-diagnostic
 	$(require_local_sim)
@@ -523,7 +535,7 @@ sim-fes-sms-oss: sms-diagnostic
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \
 		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
-		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
+		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
 		-GENABLE_MEDIA_STREAM=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-oss" \
@@ -531,6 +543,18 @@ sim-fes-sms-oss: sms-diagnostic
 		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
 	@build/sim/fes-sms-gp-oss/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
+	@mkdir -p build/sim/fes-sms-vdp-oss
+	$(VERILATOR) --cc --exe --build --top-module sms_vdp -Wall \
+		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-vdp-oss" \
+		cores/fes-sms/rtl/sms_vdp.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
+	@build/sim/fes-sms-vdp-oss/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 \
@@ -538,17 +562,18 @@ sim-fes-sms-oss: sms-diagnostic
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT -Wno-SIMILARNAME \
+		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
 		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine-oss/Vsms_machine \
-		build/diagnostics/fes-sms/graphics-i.rom
+		build/diagnostics/fes-sms/mode4.rom
 
 .PHONY: sim-fes-sms-quartus
 sim-fes-sms-quartus:

@@ -36,7 +36,8 @@ RECIPE = "scripts/build_fes_sms.py"
 ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
 QSF_PINS = "cores/fes-sms/constraints.qsf"
 SDC = "cores/fes-sms/clocks.sdc"
-# Shared Coleco sibling modules. SMS does not fork TV80, VDP, video, GP or PLL.
+# Shared Coleco sibling modules. SMS owns Mode 4 and six-bit video while
+# retaining the Coleco legacy VDP, TV80, GP, RAM and PLL modules.
 VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/sys_pll.v",
     "cores/fes-coleco/rtl/pixel_pll.v",
@@ -44,7 +45,7 @@ VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/coleco_dpram.v",
     "cores/fes-coleco/rtl/coleco_video_dpram.v",
     "cores/fes-coleco/rtl/coleco_vdp.sv",
-    "cores/fes-coleco/rtl/coleco_video_720p.v",
+    "cores/fes-sms/rtl/sms_video_720p.v",
     "cores/fes-coleco/rtl/t80pa.v",
     "cores/fes-coleco/rtl/tv80/tv80_core.v",
     "cores/fes-coleco/rtl/tv80/tv80_alu.v",
@@ -53,6 +54,7 @@ VERILOG_SOURCES = (
     "cores/fes-sms/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-sms/rtl/sms_vdp.sv",
     "cores/fes-sms/rtl/sms_machine.sv",
 )
 PINNED_INPUTS = (
@@ -311,7 +313,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             "id": "fes.sms",
             "name": "FES Master System",
             "description": "Quartus bring-up Master System computer for the FES simple-computer ABI",
-            "version": "1.0.0",
+            "version": "1.1.0",
         },
         "target": {
             "platform": "de10_nano",

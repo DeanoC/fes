@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 FES contributors
-"""BIOS-free Master System Graphics I diagnostic; see LICENSE for source/output.
+"""BIOS-free Master System Mode 4 diagnostic; see LICENSE for source/output.
 
 The annotated instruction emitter below is the cartridge source. It needs only
 Python's standard library, not an assembler or downloaded ROM. Reset enters
@@ -51,6 +51,10 @@ def cartridge(interactive: bool = False) -> bytes:
         out(0xBF, value & 0xFF)
         out(0xBF, 0x40 | (value >> 8))
 
+    def cram_address(value: int) -> None:
+        out(0xBF, value & 0x1F)
+        out(0xBF, 0xC0)
+
     def jr_nz(target: int) -> None:
         displacement = target - (pc() + 2)
         assert -128 <= displacement <= 127
@@ -80,12 +84,25 @@ def cartridge(interactive: bool = False) -> bytes:
         emit(0x20, 4)  # JR NZ, released
         emit(0x3E, 1, 0x18, 2)  # LD A,1; JR paint
         emit(0x3E, 2)  # released: LD A,2
-        emit(0xD3, 0xBE)  # paint: OUT (BE),A
+        emit(0xD3, 0xBE, 0xAF, 0xD3, 0xBE)  # paint tile then zero attribute
         emit(0xCB, 0x39)  # SRL C
         djnz(loop)
 
+    def mode4_tile(rows: tuple[tuple[int, ...], ...]) -> bytes:
+        assert len(rows) == 8 and all(len(row) == 8 for row in rows)
+        encoded = bytearray()
+        for row in rows:
+            for plane in range(4):
+                value = 0
+                for pixel, color in enumerate(row):
+                    value |= ((color >> plane) & 1) << (7 - pixel)
+                encoded.append(value)
+        return bytes(encoded)
+
     emit(0xDB, 0xBF)  # IN A,(BF): clear the control latch and VBlank
-    for index, value in enumerate((0x00, 0x80, 0x00, 0x80, 0x01, 0x36, 0x03, 0x01)):
+    for index, value in enumerate(
+        (0x04, 0x00, 0x0E, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00, 0xFF)
+    ):
         register(index, value)
 
     address(0x0000)
@@ -94,19 +111,44 @@ def cartridge(interactive: bool = False) -> bytes:
     emit(0xAF, 0xD3, 0xBE, 0x0B, 0x78, 0xB1)
     jr_nz(clear)
 
-    square = bytes((0, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0))
-    copy(0x0800, bytes([0xFF] * 8) + square + square + PLUS)
-    copy(0x2000, bytes((0xF1, 0xF1, 0x01, 0xF1)))
-    copy(0x1B00, bytes((0xD0,)))
-    names = bytearray(
-        0 if col in (0, 31) or row in (0, 23) else 1 + ((col + row) & 1)
-        for row in range(24) for col in range(32)
+    blank = tuple(tuple(0 for _ in range(8)) for _ in range(8))
+    square1 = tuple(
+        tuple(1 if x not in (0, 7) and y not in (0, 7) else 0 for x in range(8))
+        for y in range(8)
     )
+    square2 = tuple(
+        tuple(2 if x not in (0, 7) and y not in (0, 7) else 0 for x in range(8))
+        for y in range(8)
+    )
+    plus = tuple(
+        tuple(3 if PLUS[y] & (0x80 >> x) else 0 for x in range(8))
+        for y in range(8)
+    )
+    copy(0x0000, b"".join(mode4_tile(tile) for tile in (blank, square1, square2, plus)))
+    cram_address(0)
+    palette = bytes((0x00, 0x07, 0x1C, 0x3F) + (0x00,) * 12 +
+                    (0x00, 0x34, 0x0F, 0x3F) + (0x00,) * 12)
+    emit(0x21, 0, 0)
+    tables.append((len(code) - 2, palette))
+    emit(0x11, len(palette), 0x00)
+    palette_loop = pc()
+    emit(0x7E, 0xD3, 0xBE, 0x23, 0x1B, 0x7A, 0xB3)
+    jr_nz(palette_loop)
+    names = bytearray()
+    for row in range(24):
+        for col in range(32):
+            tile = 3 if col in (0, 31) or row in (0, 23) else 1 + ((col + row) & 1)
+            names.extend((tile, 0))
     for row in (11, 12):
         for col in (15, 16):
-            names[row * 32 + col] = 3
-    copy(0x0000, bytes(names))
-    register(1, 0xC0)  # Graphics I, 16 KiB, display on, interrupts off
+            attribute = ((col - 15) << 1) | ((row - 11) << 2)
+            if row == 12 and col == 16:
+                attribute |= 0x18
+            offset = (row * 32 + col) * 2
+            names[offset : offset + 2] = bytes((3, attribute))
+    copy(0x3800, bytes(names))
+    copy(0x3F00, bytes((0xD0,)))
+    register(1, 0x40)
     emit(0x3E, 0xA5, 0x32, 0x00, 0xC0)  # LD A,A5; LD (C000),A
     emit(0x3A, 0, 0)  # LD A,(upper mark)
     marker_ptr = len(code) - 2
@@ -115,9 +157,9 @@ def cartridge(interactive: bool = False) -> bytes:
     if interactive:
         poll = pc()
         emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)
-        paint_bits(0x00A4, 0xC001, 8)
+        paint_bits(0x3948, 0xC001, 8)
         emit(0xDB, 0xDD, 0x32, 0x03, 0xC0)
-        paint_bits(0x00E4, 0xC003, 2)
+        paint_bits(0x39C8, 0xC003, 2)
         emit(0xC3, poll & 0xFF, poll >> 8)
     else:
         emit(*HALT_TAIL)
@@ -136,8 +178,30 @@ def cartridge(interactive: bool = False) -> bytes:
     return bytes(image)
 
 
+def _cram_rgb(value: int) -> tuple[int, int, int]:
+    red = value & 3
+    green = (value >> 2) & 3
+    blue = (value >> 4) & 3
+
+    def expand(channel: int) -> int:
+        return (channel << 6) | (channel << 4) | (channel << 2) | channel
+
+    return (expand(red), expand(green), expand(blue))
+
+
+_PALETTE0 = (0x00, 0x07, 0x1C, 0x3F)
+_PALETTE1 = (0x00, 0x34, 0x0F, 0x3F)
+
+
+def _plus_color(px: int, py: int, hflip: bool, vflip: bool) -> int:
+    sample_x = 7 - px if hflip else px
+    sample_y = 7 - py if vflip else py
+    return 3 if PLUS[sample_y] & (0x80 >> sample_x) else 0
+
+
 def preview(interactive: bool = False) -> bytes:
-    """720p PPM reference for the shared Coleco 720p shell, including read latency."""
+    """720p PPM reference for the SMS 720p shell, including read latency."""
+    backdrop = _cram_rgb(_PALETTE1[0])
     rows = bytearray()
     for y in range(720):
         for x in range(1280):
@@ -146,19 +210,23 @@ def preview(interactive: bool = False) -> bytes:
                 lx, ly = max(0, x - 385) // 2, (y - 168) // 2
                 col, row = lx // 8, ly // 8
                 px, py = lx % 8, ly % 8
+                palette = _PALETTE0
+                color = 0
                 if col in (0, 31) or row in (0, 23):
-                    rgb = (0, 255, 64)
+                    color = _plus_color(px, py, False, False)
                 elif col in (15, 16) and row in (11, 12):
-                    if PLUS[py] & (0x80 >> px):
-                        rgb = (0, 255, 64)
+                    color = _plus_color(px, py, col == 16, row == 12)
+                    if row == 12 and col == 16:
+                        palette = _PALETTE1
                 elif interactive and row == 5 and 4 <= col <= 11:
-                    rgb = (255, 64, 0)
+                    color = 2
                 elif interactive and row == 7 and 4 <= col <= 5:
-                    rgb = (255, 64, 0)
+                    color = 2
                 elif px not in (0, 7) and py not in (0, 7):
-                    rgb = (0, 255, 64) if (col + row) % 2 == 0 else (255, 64, 0)
+                    color = 1 + ((col + row) & 1)
+                rgb = backdrop if color == 0 else _cram_rgb(palette[color])
             rows.extend(rgb)
-    return b"P6\n1280 720\n255\n" + rows
+    return b"P6\n1280 720\n255\n" + bytes(rows)
 
 
 def main() -> None:

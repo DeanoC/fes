@@ -207,6 +207,21 @@ int main(int argc, char **argv) {
                 "diagnostic captured DC");
         require(peek(dut, 0xc002, registered_media_data) == 0x18,
                 "diagnostic upper-half data signature");
+        unsigned mode4_samples = 0;
+        bool at_mode4_sample = false;
+        bool saw_mode4_color = false;
+        for (cycles = 0; cycles < 3000000 && !saw_mode4_color; ++cycles) {
+            tick(dut, diagnostic, registered_media_data);
+            const bool sample = !dut.logical_blank && dut.logical_x == 9 &&
+                                dut.logical_y == 9;
+            if (sample && !at_mode4_sample) {
+                ++mode4_samples;
+            }
+            if (sample && mode4_samples >= 2 && dut.logical_pixel == 0x07)
+                saw_mode4_color = true;
+            at_mode4_sample = sample;
+        }
+        require(saw_mode4_color, "diagnostic Mode 4 CRAM pixel was not rendered");
     }
 
     std::cout << "FES SMS machine checks passed\n";
