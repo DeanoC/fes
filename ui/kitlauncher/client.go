@@ -171,6 +171,18 @@ func (p *CorePackageSession) HasKeyboard() bool {
 	return false
 }
 
+func (p *CorePackageSession) HasControllerPorts() bool {
+	if p == nil {
+		return false
+	}
+	for _, contract := range p.ActiveInterfaces {
+		if contract.ID == "fes.gamepad.ports" && contract.Major == 1 && contract.Minor == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Client) Session(ctx context.Context) (Session, error) {
 	result, err := hostclient.GetSession(ctx, c.HTTP, c.config.API, 1<<20)
 	session := adaptSession(result)

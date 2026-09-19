@@ -36,6 +36,8 @@ type TargetController struct {
 	uinputPath    string
 	persistent    bridge.Sink
 	keyboard      *KeyboardSink
+	ports         *controllerPortsSink
+	portsBinding  func(context.Context) (*ControllerBinding, error)
 	needsRelease  bool
 	closed        bool
 	pending       *lease
@@ -71,9 +73,19 @@ func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*Tar
 		return nil, err
 	}
 	keys := NewKeyboardSink()
-	controller := newTargetControllerWithSink(listenAddress, muxSink{keys: keys, pads: pads})
+	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: pads}}
+	controller := newTargetControllerWithSink(listenAddress, ports)
+	controller.ports = ports
 	controller.keyboard = keys
 	return controller, nil
+}
+
+func (c *TargetController) ConfigureControllerPorts(binding func(context.Context) (*ControllerBinding, error), poster ControllerPoster) {
+	if c == nil || c.ports == nil {
+		return
+	}
+	c.portsBinding = binding
+	c.ports.poster = poster
 }
 
 func (c *TargetController) SetKeyboardPoster(poster func(uint64) error) {
@@ -137,6 +149,15 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 
 	var sink bridge.Sink
+	if c.ports != nil && c.portsBinding != nil {
+		binding, err := c.portsBinding(ctx)
+		if err != nil {
+			return err
+		}
+		if err := c.ports.bind(binding); err != nil {
+			return err
+		}
+	}
 	if c.persistent != nil {
 		sink = retainedSink{Sink: c.persistent}
 	} else {

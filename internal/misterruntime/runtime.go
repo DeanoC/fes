@@ -410,7 +410,7 @@ func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor
 		activation.ObservedCore = *response.Core
 	}
 	for _, contract := range activation.ActiveInterfaces {
-		if contract.ID == "fes.gamepad" && contract.Major == 1 && contract.Minor == 0 {
+		if (contract.ID == "fes.gamepad" || contract.ID == "fes.gamepad.ports") && contract.Major == 1 && contract.Minor == 0 {
 			activation.Gamepad = true
 		}
 	}

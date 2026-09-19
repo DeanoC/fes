@@ -159,6 +159,39 @@ func TestClientDevelopmentCoreStreamsLeasedPackageAndRequiresCustomStatus(t *tes
 	}
 }
 
+func TestClientPortsStatusSurvivesTargetHTTPValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		minor   int
+		gamepad bool
+		valid   bool
+	}{
+		{"negotiated ports", 0, true, true},
+		{"ports falsely missing gamepad", 0, false, false},
+		{"unknown minor is not gamepad", 1, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7, ABI: protocol.RuntimeContract{ID: "fes.application", Major: 1}, BuildID: strings.Repeat("b", 32), ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1, Minor: uint16(tc.minor)}, {ID: "fes.keypad.ports", Major: 1}, {ID: "fes.video.fixed-720p60", Major: 1}}, Gamepad: tc.gamepad}})
+			}))
+			defer server.Close()
+			baseURL, _ := url.Parse(server.URL)
+			client := targetclient.NewClient(baseURL, "test", server.Client())
+			_, err := client.LoadCore(context.Background(), 5, strings.NewReader("fcore"))
+			if (err == nil) != tc.valid {
+				t.Fatalf("LoadCore error=%v valid=%v", err, tc.valid)
+			}
+			if tc.valid {
+				status, statusErr := client.Status(context.Background())
+				if statusErr != nil || status.CorePackage == nil || !status.CorePackage.Gamepad {
+					t.Fatalf("Status=%+v error=%v", status, statusErr)
+				}
+			}
+		})
+	}
+}
+
 func TestClientDevelopmentCoreInspectionStreamsWithoutKitLease(t *testing.T) {
 	payload := []byte("fcore")
 	want := protocol.CoreInspection{PackageID: strings.Repeat("a", 64),

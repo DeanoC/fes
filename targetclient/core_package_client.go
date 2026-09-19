@@ -125,7 +125,7 @@ func validCorePackageStatus(status protocol.Status) bool {
 			(index > 0 && value.ActiveInterfaces[index-1].ID == contract.ID) {
 			return false
 		}
-		if contract.ID == "fes.gamepad" && contract.Major == 1 && contract.Minor == 0 {
+		if (contract.ID == "fes.gamepad" || contract.ID == "fes.gamepad.ports") && contract.Major == 1 && contract.Minor == 0 {
 			gamepad = true
 		}
 	}

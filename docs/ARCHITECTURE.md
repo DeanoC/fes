@@ -1222,8 +1222,65 @@ never core ID. Library launches requiring application blob media reject a missin
 selection before package activation; entry creation and development package load
 remain possible before choosing/uploading media. Development loads with media
 remain held until commit. Existing simple-game/computer behavior is unchanged.
-These software contracts do not establish hardware acceptance, audio support,
-general keyboard/mouse support or multiplayer.
+These software contracts do not establish exact-image hardware acceptance or
+general keyboard/mouse support. Shared controller ports are described below.
+
+### Shared controller ports
+
+An observed `fes.gamepad.ports` 1.0 interface attaches the ordinary host session
+input stream and reports `core_package.gamepad: true`. It has two digital ports;
+optional `fes.keypad.ports` 1.0 adds a twelve-key mask on each port. Attachment
+uses exact observed interface versions, not a core-ID allowlist. A migrated
+Coleco package omits `fes.keyboard`, so its pad does not pass through the old
+controller-to-ZX81-matrix translation. Existing simple-computer Coleco and SMS
+packages retain that translation.
+
+`remoteinput.Event.Player` and the existing binary frame's `Player` carry port
+0 or 1. Omitting the JSON field preserves port 0. The public
+`POST /api/v1/session/input/event` and paired launcher's existing NDJSON stream
+carry the same event. For example, this presses player 2 Right; changing
+`Action` to 0 releases it:
+
+```json
+{"event":{"Player":1,"Device":1,"Kind":1,"Action":1,"Code":103,"Value":0}}
+```
+
+Gamepad codes 100–107 remain Up, Down, Left, Right, A, B, Start, Select.
+Keypad codes 120–129 mean digits 0–9; 130 means `*` and 131 means `#`.
+These are semantic gamepad-button events, independent of a keyboard layout.
+Input profiles can bind spare physical controls to `keypad-0` through
+`keypad-9`, `keypad-star`, and `keypad-hash`. Keypad events require the observed
+keypad interface. Host snapshots and reconnect replay retain each player's
+buttons and axes separately. Axis directions use an 8000 deadzone and combine
+with held digital directions, so centering a stick cannot release a held D-pad.
+
+`ui/kitlauncher/controller.Hub` assigns the lowest free port in stable device-ID
+order, never renumbers a surviving controller, and emits releases and zero axes
+for an unplugged pad before recycling its port. At most two pads contribute.
+The kit keeps Select+Start stop chords separate per controller. When the active
+core has only the legacy single-pad contract, the kit retains the prior merged
+port-0 behavior, including input from a surviving second physical pad. Browser
+and SDL physical-device assignment are unchanged; clients can submit explicit
+players through the shared API without room or renderer changes.
+
+The native target controller selects `controllerPortsSink` from a fresh runtime
+capability observation under its existing input lifecycle lock. For ports cores
+it bypasses uinput and sends the local protocol-2 `set_controller` full snapshot:
+`package_id`, `expected_generation`, `port`, `buttons`, and `keypad`. Digital
+bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`, `#`.
+The runtime validates the complete request and owns the physical GP writes.
+There is no additional network input endpoint or virtual-device discovery rule.
+Other cores retain the single virtual gamepad and keyboard sink.
+
+Disconnect, detach, source handoff and Stop neutralize both dirty ports. A failed
+write remains dirty because delivery may have happened. Cleanup attempts both
+ports and propagates failures. A reconnect cannot publish its replay until the
+old stream finishes releasing input. Core replacement uses the existing input
+barrier; every cleanup retains its original package and generation. A failed
+zero request may retire old local state only after a fresh runtime observation
+proves clean idle or a different active generation. Same-generation failures,
+unavailable observations and reboot-required states remain errors; cleanup never
+zeros a replacement core. New generations begin with empty host and target state.
 
 The host package store validates and atomically publishes immutable archives by
 package ID. Catalog schema v8 associates each stable game entry with an

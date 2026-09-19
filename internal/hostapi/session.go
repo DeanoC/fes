@@ -1275,7 +1275,12 @@ func inputBindingForStatus(status protocol.Status) sessionInputBinding {
 func (s *sessionCoordinator) attachInputForStatus(ctx context.Context, status protocol.Status) error {
 	core := sessionCore(status)
 	var err error
-	if attacher, ok := s.remoteInput.(remoteInputCapabilityAttacher); ok {
+	if attacher, ok := s.remoteInput.(interface {
+		AttachWithControllerPorts(context.Context, string, bool, bool, bool) error
+	}); ok {
+		ports, keypad := protocol.ControllerPorts(status.CorePackage)
+		err = attacher.AttachWithControllerPorts(ctx, core, corePackageHasKeyboard(status), ports, keypad)
+	} else if attacher, ok := s.remoteInput.(remoteInputCapabilityAttacher); ok {
 		err = attacher.AttachWithCapabilities(ctx, core, corePackageHasKeyboard(status))
 	} else {
 		err = s.remoteInput.Attach(ctx, core)

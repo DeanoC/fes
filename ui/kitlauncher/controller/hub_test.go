@@ -40,6 +40,9 @@ func TestHubMergesTwoPadsInIDOrder(t *testing.T) {
 	if len(got) != 2 || got[0].Code != remoteinput.ButtonDPadRight || got[1].Code != remoteinput.ButtonA {
 		t.Fatalf("merge %+v", got)
 	}
+	if got[0].Player != 0 || got[1].Player != 1 {
+		t.Fatalf("players %+v", got)
+	}
 	devs := h.Devices()
 	if len(devs) != 2 {
 		t.Fatalf("devices %d", len(devs))

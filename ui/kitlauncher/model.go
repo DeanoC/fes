@@ -28,7 +28,7 @@ type Model struct {
 	DetailOpen                                                      bool
 	WheelOpen                                                       bool
 	fromWheel                                                       bool
-	chord                                                           controller.Chord
+	chord                                                           [2]controller.Chord
 	presentationID                                                  string
 	presentation                                                    hostclient.Presentation
 	shotIndex                                                       int
@@ -110,14 +110,14 @@ func formatCacheBytes(n int64) string {
 	}
 }
 
-func (m *Model) ResetControls() { m.chord = controller.Chord{}; m.axisX = 0; m.axisY = 0 }
+func (m *Model) ResetControls() { m.chord = [2]controller.Chord{}; m.axisX = 0; m.axisY = 0 }
 func (m *Model) Input(e remoteinput.Event, now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
 	if sessionCanStop(m.Session.State) {
-		if e.Kind == remoteinput.KindButton {
-			m.chord.Update(e.Code, e.Action == remoteinput.ActionPress, now)
+		if e.Kind == remoteinput.KindButton && e.Player < 2 {
+			m.chord[e.Player].Update(e.Code, e.Action == remoteinput.ActionPress, now)
 		}
 		return ""
 	}
@@ -239,8 +239,12 @@ func (m *Model) Tick(now time.Time) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	if sessionCanStop(m.Session.State) && !m.Busy && m.chord.Ready(now) {
-		return "stop"
+	if sessionCanStop(m.Session.State) && !m.Busy {
+		for i := range m.chord {
+			if m.chord[i].Ready(now) {
+				return "stop"
+			}
+		}
 	}
 	m.tickAttract(now)
 	m.tickPreview(now)

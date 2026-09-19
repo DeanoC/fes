@@ -220,6 +220,9 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 }
 
 func launcherPlayHIDEvent(e remoteinput.Event) bool {
+	if e.Player > 1 || (e.Player != 0 && e.Device != remoteinput.DeviceGamepad) {
+		return false
+	}
 	if launcherKeyboardEvent(e) {
 		return true
 	}
@@ -242,6 +245,9 @@ func launcherGamepadEvent(e remoteinput.Event) bool {
 	}
 	if e.Kind != remoteinput.KindButton || (e.Action != remoteinput.ActionPress && e.Action != remoteinput.ActionRelease) || e.Value != 0 {
 		return false
+	}
+	if e.Code >= remoteinput.Keypad0 && e.Code <= remoteinput.KeypadHash {
+		return true
 	}
 	switch e.Code {
 	case remoteinput.ButtonDPadUp, remoteinput.ButtonDPadDown, remoteinput.ButtonDPadLeft, remoteinput.ButtonDPadRight, remoteinput.ButtonA, remoteinput.ButtonB, remoteinput.ButtonC, remoteinput.ButtonX, remoteinput.ButtonY, remoteinput.ButtonL, remoteinput.ButtonR, remoteinput.ButtonStart, remoteinput.ButtonSelect:

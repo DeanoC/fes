@@ -476,6 +476,14 @@ func playHIDStreamKey(m Model) string {
 }
 
 func encodePlayHIDEvent(session Session, e remoteinput.Event) (remoteinput.Event, bool) {
+	if e.Player > 1 {
+		return remoteinput.Event{}, false
+	}
+	// Legacy cores retain their single merged pad, including a surviving second
+	// physical controller. Only the negotiated ports contract preserves identity.
+	if !session.CorePackage.HasControllerPorts() {
+		e.Player = 0
+	}
 	return playhid.StreamEvent(e, session.CorePackage.HasKeyboard())
 }
 

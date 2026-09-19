@@ -75,4 +75,17 @@ func TestDevelopmentMediaClientRequiresExistingLeaseAndSendsBinding(t *testing.T
 	if _, err = client.LoadDevelopmentMedia(context.Background(), int64(len(payload)), strings.NewReader(payload), b); err == nil || calls != 3 {
 		t.Fatalf("redirect replayed: calls=%d err=%v", calls, err)
 	}
+	// Coleco application media completion carries the negotiated ports gamepad
+	// projection. The real hardware regression rejected this successful reply.
+	redirect = false
+	wantPath, payload = "/v1/development/media", "raw"
+	b.Stream = false
+	status.CorePackage.ABI = protocol.RuntimeContract{ID: "fes.application", Major: 1}
+	status.CorePackage.Gamepad = true
+	status.CorePackage.MediaStream = nil
+	status.CorePackage.ActiveInterfaces = []protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keypad.ports", Major: 1}, {ID: "fes.media.blob", Major: 1}, {ID: "fes.video.fixed-720p60", Major: 1}}
+	got, err = client.LoadDevelopmentMedia(context.Background(), 3, strings.NewReader(payload), b)
+	if err != nil || !b.Matches(got) || !got.CorePackage.Gamepad || calls != 4 {
+		t.Fatalf("ports media completion calls=%d error=%v status=%+v", calls, err, got)
+	}
 }

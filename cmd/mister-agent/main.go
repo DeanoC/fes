@@ -144,6 +144,39 @@ func runtimeDependencies(backend runtimeBackend, nativeControl misterruntime.Con
 			return errors.New("native input controller cannot fence core replacement")
 		}
 		nativeRuntime.ConfigureCoreReplacementBarrier(barrier)
+		if ports, ok := controller.(interface {
+			ConfigureControllerPorts(func(context.Context) (*input.ControllerBinding, error), input.ControllerPoster)
+		}); ok {
+			ports.ConfigureControllerPorts(func(ctx context.Context) (*input.ControllerBinding, error) {
+				status, err := nativeRuntime.ControllerStatus(ctx)
+				if err != nil {
+					return nil, err
+				}
+				var enabled, keypad bool
+				for _, contract := range status.Capabilities.ActiveInterfaces {
+					if contract.Major != 1 || contract.Minor != 0 {
+						continue
+					}
+					if contract.ID == "fes.gamepad.ports" {
+						enabled = true
+					}
+					if contract.ID == "fes.keypad.ports" {
+						keypad = true
+					}
+				}
+				if !enabled {
+					return nil, nil
+				}
+				if !status.OK || status.State != "running_development" || status.ActivePackage == nil || status.Generation == nil || *status.Generation == 0 {
+					return nil, errors.New("controller package is not active")
+				}
+				return &input.ControllerBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation, Keypad: keypad}, nil
+			}, func(packageID string, generation uint64, port, buttons uint8, keypad uint16) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				return nativeRuntime.SetController(ctx, misterruntime.ControllerRequest{PackageID: packageID, Generation: generation, Port: port, Buttons: buttons, Keypad: keypad})
+			})
+		}
 		if keys, ok := controller.(interface {
 			SetKeyboardPoster(func(uint64) error)
 		}); ok {

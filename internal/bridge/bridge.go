@@ -216,7 +216,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 		return
 	}
 	s.activeMu.Lock()
-	if s.active {
+	if s.active || s.recordedReleaseError() != nil {
 		s.activeMu.Unlock()
 		s.metrics.Rejected.Add(1)
 		return
@@ -225,11 +225,13 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	s.activeConn = conn
 	s.activeMu.Unlock()
 	defer func() {
+		// Keep the old connection as owner until its releases finish. Otherwise
+		// a reconnect can replay held state and then be erased by old cleanup.
+		_ = s.releaseAll()
 		s.activeMu.Lock()
 		s.active = false
 		s.activeConn = nil
 		s.activeMu.Unlock()
-		_ = s.releaseAll()
 		if s.cfg.OnDisconnect != nil {
 			s.cfg.OnDisconnect()
 		}

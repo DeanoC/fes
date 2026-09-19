@@ -16,6 +16,26 @@ type capabilityAttach struct {
 	keyboard bool
 }
 
+type portsRemoteInput struct {
+	fakeRemoteInput
+	keyboard, ports, keypad bool
+}
+
+func (r *portsRemoteInput) AttachWithControllerPorts(ctx context.Context, core string, keyboard, ports, keypad bool) error {
+	r.keyboard, r.ports, r.keypad = keyboard, ports, keypad
+	return r.fakeRemoteInput.Attach(ctx, core)
+}
+
+func TestSessionBindsColecoPortsWithoutKeyboardMapping(t *testing.T) {
+	core := "fes.coleco"
+	status := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3, Gamepad: true, ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.gamepad.ports", Major: 1}, {ID: "fes.keypad.ports", Major: 1}}}}
+	input := &portsRemoteInput{fakeRemoteInput: fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputDetached}}}
+	response := serve(t, hostapi.New(&fakeService{status: status}, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")
+	if response.Code != http.StatusOK || !input.ports || !input.keypad || input.keyboard {
+		t.Fatalf("response=%d binding=%+v", response.Code, input)
+	}
+}
+
 type capabilityRemoteInput struct {
 	fakeRemoteInput
 	capabilities []capabilityAttach

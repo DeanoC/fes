@@ -8,7 +8,7 @@ import (
 
 func TestApplicationDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2-application-responses.jsonl")
-	if len(lines) != 4 {
+	if len(lines) != 5 {
 		t.Fatalf("application fixture rows=%d", len(lines))
 	}
 	for mode, line := range lines {
@@ -19,6 +19,10 @@ func TestApplicationDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 		p := response.ActivePackage
 		activation := activationFromProtocol2(p.PackageID, p.Descriptor, response)
 		status := corePackageStatus(activation)
+		ports, keypad := protocol.ControllerPorts(status)
+		if ports != (mode == 4) || keypad != (mode == 4) {
+			t.Fatalf("mode %d ports projection %+v", mode, status)
+		}
 		media := mode == 1 || mode == 2
 		if activation.Gamepad != (mode > 0) || protocol.DevelopmentMediaCapable(status) != media || protocol.MediaStreamCapable(status) != (mode == 2) {
 			t.Fatalf("mode %d capability projection: %+v", mode, status)

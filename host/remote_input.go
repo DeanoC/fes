@@ -142,6 +142,8 @@ type RemoteInput struct {
 	sequence         uint32
 	inputState       remoteinput.State
 	keyboard         bool
+	controllerPorts  bool
+	keypadPorts      bool
 	colecoOutput     map[remoteinput.Code]bool
 	source           string
 	sourceGeneration uint64
@@ -201,17 +203,21 @@ func (r *RemoteInput) Status() RemoteInputStatus {
 }
 
 func (r *RemoteInput) Attach(ctx context.Context, core string) error {
-	return r.attach(ctx, core, false)
+	return r.attach(ctx, core, false, false, false)
 }
 
 // AttachWithCapabilities attaches one session with the exact capabilities
 // established by the host session coordinator. keyboard is true only for the
 // fes.keyboard 1.0 interface.
 func (r *RemoteInput) AttachWithCapabilities(ctx context.Context, core string, keyboard bool) error {
-	return r.attach(ctx, core, keyboard)
+	return r.attach(ctx, core, keyboard, false, false)
 }
 
-func (r *RemoteInput) attach(ctx context.Context, core string, keyboard bool) error {
+func (r *RemoteInput) AttachWithControllerPorts(ctx context.Context, core string, keyboard, ports, keypad bool) error {
+	return r.attach(ctx, core, keyboard, ports, keypad)
+}
+
+func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, keypad bool) error {
 	if err := validateBridgeCore(core); err != nil {
 		return ErrRemoteInputInvalid
 	}
@@ -243,6 +249,8 @@ func (r *RemoteInput) attach(ctx context.Context, core string, keyboard bool) er
 	r.token = token
 	r.core = core
 	r.keyboard = keyboard
+	r.controllerPorts = ports
+	r.keypadPorts = keypad
 
 	bridge, err := r.starter.Start(ctx, BridgeSpec{Session: session, Token: append([]byte(nil), token...), Core: core})
 	if err != nil || bridge == nil {
@@ -327,6 +335,10 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 }
 
 func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
+	if event.Player > 1 || (event.Player != 0 && !r.controllerPorts) ||
+		(event.Code >= remoteinput.Keypad0 && event.Code <= remoteinput.KeypadHash && !r.keypadPorts) {
+		return ErrRemoteInputInvalid
+	}
 	if r.closed {
 		return ErrRemoteInputClosed
 	}
@@ -597,25 +609,29 @@ func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
 		r.colecoOutput = desired
 		return nil
 	}
-	snapshot := r.inputState.Snapshot()
-	pressed := append([]remoteinput.Code(nil), snapshot.Pressed...)
-	sort.Slice(pressed, func(i, j int) bool { return pressed[i] < pressed[j] })
-	for _, code := range pressed {
-		event := eventForCode(code, remoteinput.ActionPress)
-		if err := r.writeFrameLocked(ctx, r.frameForEventLocked(event, r.now()), r.now()); err != nil {
-			return err
+	for player := uint8(0); player < 2; player++ {
+		snapshot := r.inputState.SnapshotForPlayer(player)
+		pressed := append([]remoteinput.Code(nil), snapshot.Pressed...)
+		sort.Slice(pressed, func(i, j int) bool { return pressed[i] < pressed[j] })
+		for _, code := range pressed {
+			event := eventForCode(code, remoteinput.ActionPress)
+			event.Player = player
+			if err := r.writeFrameLocked(ctx, r.frameForEventLocked(event, r.now()), r.now()); err != nil {
+				return err
+			}
 		}
-	}
-	codes := make([]remoteinput.Code, 0, len(snapshot.Axes))
-	for code := range snapshot.Axes {
-		codes = append(codes, code)
-	}
-	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
-	for _, code := range codes {
-		event := eventForCode(code, remoteinput.ActionAbsolute)
-		event.Value = int32(snapshot.Axes[code])
-		if err := r.writeFrameLocked(ctx, r.frameForEventLocked(event, r.now()), r.now()); err != nil {
-			return err
+		codes := make([]remoteinput.Code, 0, len(snapshot.Axes))
+		for code := range snapshot.Axes {
+			codes = append(codes, code)
+		}
+		sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
+		for _, code := range codes {
+			event := eventForCode(code, remoteinput.ActionAbsolute)
+			event.Player = player
+			event.Value = int32(snapshot.Axes[code])
+			if err := r.writeFrameLocked(ctx, r.frameForEventLocked(event, r.now()), r.now()); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -743,6 +759,7 @@ func (r *RemoteInput) frameForEventLocked(event remoteinput.Event, capturedAt ti
 		Header:       protocol.InputHeader{Type: protocol.InputTypeInput, Session: r.session},
 		Seq:          r.sequence,
 		ClientMonoNS: uint64(capturedAt.UnixNano()),
+		Player:       event.Player,
 		Device:       uint8(event.Device),
 		Kind:         uint8(event.Kind),
 		Action:       uint8(event.Action),

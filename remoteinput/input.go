@@ -57,9 +57,16 @@ const (
 
 	AxisLeftX Code = 200
 	AxisLeftY Code = 201
+
+	Keypad0    Code = 120
+	Keypad9    Code = 129
+	KeypadStar Code = 130
+	KeypadHash Code = 131
 )
 
 type Event struct {
+	// Player is a zero-based logical controller port. Omitted means port 0.
+	Player uint8
 	Device Device
 	Kind   Kind
 	Action Action
@@ -71,11 +78,22 @@ type Snapshot struct {
 	Axes    map[Code]int16
 }
 type State struct {
+	second  *State
 	pressed map[Code]bool
 	axes    map[Code]int16
 }
 
 func (s *State) Apply(e Event) error {
+	if e.Player > 1 || (e.Player != 0 && e.Device != DeviceGamepad) {
+		return fmt.Errorf("unsupported controller port")
+	}
+	if e.Player == 1 {
+		if s.second == nil {
+			s.second = &State{}
+		}
+		e.Player = 0
+		return s.second.Apply(e)
+	}
 	if e.Device > DeviceGamepad || e.Kind > KindAxis || e.Action > ActionAbsolute {
 		return fmt.Errorf("unsupported input event")
 	}
@@ -105,7 +123,20 @@ func (s *State) Apply(e Event) error {
 	return nil
 }
 func (s *State) Pressed(c Code) bool { return s.pressed[c] }
-func (s *State) ReleaseAll()         { s.pressed = make(map[Code]bool); s.axes = make(map[Code]int16) }
+func (s *State) ReleaseAll() {
+	s.pressed = make(map[Code]bool)
+	s.axes = make(map[Code]int16)
+	s.second = nil
+}
+func (s *State) SnapshotForPlayer(player uint8) Snapshot {
+	if player == 0 {
+		return s.Snapshot()
+	}
+	if player == 1 && s.second != nil {
+		return s.second.Snapshot()
+	}
+	return Snapshot{}
+}
 func (s *State) Snapshot() Snapshot {
 	p := make([]Code, 0, len(s.pressed))
 	for c := range s.pressed {

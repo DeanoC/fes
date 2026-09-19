@@ -29,6 +29,7 @@ type Hub struct {
 	mux       *inputmap.Mux
 	remap     *inputmap.Remapper
 	holds     map[string]*padHold
+	ports     map[string]uint8
 	clock     func() time.Time
 	lastScan  time.Time
 	scanEvery time.Duration
@@ -45,6 +46,7 @@ func NewHub(remap *inputmap.Remapper, pads []padSource) *Hub {
 		mux:       inputmap.NewMux(remap),
 		remap:     remap,
 		holds:     map[string]*padHold{},
+		ports:     map[string]uint8{},
 		clock:     time.Now,
 		scanEvery: time.Second,
 	}
@@ -70,9 +72,6 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 		sources = append(sources, inputmap.Source{ID: id, Name: name, Events: events, Err: err})
 	}
 	sourced, live := h.mux.Merge(sources)
-	for _, s := range sourced {
-		h.remember(s.DeviceID, s.Event)
-	}
 	liveIDs := make(map[string]struct{}, len(live))
 	for _, src := range live {
 		liveIDs[src.ID] = struct{}{}
@@ -87,15 +86,48 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 		}
 		released = append(released, h.release(id)...)
 		_ = p.Close()
+		delete(h.ports, id)
 	}
 	h.pads = next
+	// Assign only free slots, in stable device order. Surviving pads never move.
+	for _, src := range live {
+		if _, ok := h.ports[src.ID]; ok {
+			continue
+		}
+		for port := uint8(0); port < 2; port++ {
+			used := false
+			for _, assigned := range h.ports {
+				if assigned == port {
+					used = true
+				}
+			}
+			if !used {
+				h.ports[src.ID] = port
+				break
+			}
+		}
+	}
+	out := released
+	for _, source := range sourced {
+		port, ok := h.ports[source.DeviceID]
+		if !ok {
+			continue
+		}
+		source.Event.Player = port
+		h.remember(source.DeviceID, source.Event)
+		out = append(out, source.Event)
+	}
 	if len(h.pads) == 0 {
+		// Deliver final releases first; the next poll reports the empty hub.
+		if len(out) != 0 {
+			return out, nil
+		}
 		if firstErr != nil {
 			return nil, firstErr
 		}
 		return nil, errors.New("connect a USB gamepad")
 	}
-	return append(inputmap.Events(sourced), released...), nil
+	return out, nil
 }
 
 // Devices lists pads that last Poll kept live. Before the first Poll it is
@@ -125,6 +157,7 @@ func (h *Hub) Close() error {
 	}
 	h.pads = nil
 	h.holds = nil
+	h.ports = nil
 	return err
 }
 
@@ -184,7 +217,9 @@ func (h *Hub) release(id string) []remoteinput.Event {
 	sort.Slice(codes, func(i, j int) bool { return codes[i] < codes[j] })
 	out := make([]remoteinput.Event, 0, len(codes)+len(st.axes))
 	for _, c := range codes {
-		out = append(out, releaseEvent(c))
+		event := releaseEvent(c)
+		event.Player = h.ports[id]
+		out = append(out, event)
 	}
 	var axes []remoteinput.Code
 	for c, v := range st.axes {
@@ -194,7 +229,7 @@ func (h *Hub) release(id string) []remoteinput.Event {
 	}
 	sort.Slice(axes, func(i, j int) bool { return axes[i] < axes[j] })
 	for _, c := range axes {
-		out = append(out, remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: c, Value: 0})
+		out = append(out, remoteinput.Event{Player: h.ports[id], Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindAxis, Action: remoteinput.ActionAbsolute, Code: c, Value: 0})
 	}
 	return out
 }
