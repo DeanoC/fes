@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include <cstdint>
+#include <map>
 
 namespace {
 
@@ -49,12 +50,41 @@ void TestNamedFieldsMatchProgrammingGuideBytes()
 	assert(kCscRgbIdentityUpper == 0xa8);
 }
 
+void TestApplicationAudioProgrammingGuideValues()
+{
+	const auto recipe = mister::native::adv7513::ApplicationAudio48k();
+	std::map<unsigned, unsigned> registers;
+	std::vector<unsigned> updates;
+	for (const auto& write : recipe) {
+		registers[write.address] = write.value;
+		if (write.address == 0x4a) updates.push_back(write.value);
+	}
+	// Literal guide values independently pin the hardware contract rather than
+	// comparing the recipe to constants used to construct it.
+	assert(registers.at(0x0a) == 0x01); // automatic CTS, I2S, 256*Fs
+	assert(registers.at(0x0b) == 0x2e); // external MCLK, sample rising SCLK
+	assert(registers.at(0x0c) == 0x84); // I2C Fs, I2S0, standard one-bit delay
+	assert(registers.at(0x0e) == 0x01); // left/right I2S0 mapping
+	assert(registers.at(0x12) == 0x00); // consumer linear PCM
+	assert(registers.at(0x14) == 0x02); // 16-bit word length
+	assert(registers.at(0x15) == 0x20); // 48 kHz and RGB input
+	assert(registers.at(0x01) == 0x00 && registers.at(0x02) == 0x18 &&
+		registers.at(0x03) == 0x00); // N=6144
+	assert(registers.at(0x47) == 0x00); // valid sample subpackets
+	assert(registers.at(0x73) == 0x01); // two channels
+	assert(registers.at(0x74) == 0x00 && registers.at(0x75) == 0x00);
+	assert(registers.at(0x76) == 0x00 && registers.at(0x77) == 0x00); // FL/FR, 0dB
+	assert(updates == std::vector<unsigned>({0xa0, 0x80}));
+	assert(registers.count(0x44) == 0); // setup must not enable packets
+}
+
 } // namespace
 
 int main()
 {
 	TestDeGeneratorPacks720pFields();
 	TestNamedFieldsMatchProgrammingGuideBytes();
+	TestApplicationAudioProgrammingGuideValues();
 	puts("adv7513_test: named register packing passed");
 	return 0;
 }

@@ -262,6 +262,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesApplicationCapabilityMediaBlob;
 			else if (interface.id == FesApplicationInterfaceMediaBlobStreamID)
 				capabilities |= FesApplicationCapabilityMediaBlobStream;
+			else if (interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID)
+				capabilities |= FesApplicationCapabilityAudioPcmS16Stereo48k;
 			continue;
 		}
 		if (computer) {
@@ -304,7 +306,7 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 		if (index == FesGpIdentityCapabilitiesIndex) {
 			const std::uint16_t application_mask = FesApplicationCapabilityGamepad |
 				FesApplicationCapabilityVideoFixed720p60 | FesApplicationCapabilityMediaBlob |
-				FesApplicationCapabilityMediaBlobStream;
+				FesApplicationCapabilityMediaBlobStream | FesApplicationCapabilityAudioPcmS16Stereo48k;
 			if ((application && (observed[index] & application_mask) != expected[index]) ||
 				(!application && (observed[index] & expected[index]) != expected[index]))
 				return Mismatch("live FES GP capabilities do not match package interfaces",

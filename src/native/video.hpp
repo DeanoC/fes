@@ -46,7 +46,7 @@ class FixedVideoBringup final {
 public:
 	FixedVideoBringup(Spi&, I2c&, Clock&, LogSink&, const VideoRecipe&);
 	VideoResult BringUp(std::uint64_t absolute_deadline_ms);
-	VideoResult BringUpCustom(std::uint64_t absolute_deadline_ms);
+	VideoResult BringUpCustom(std::uint64_t absolute_deadline_ms, bool audio = false);
 	VideoQuiesceResult Quiesce(std::uint64_t absolute_deadline_ms);
 
 private:

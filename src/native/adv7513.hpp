@@ -53,6 +53,7 @@ constexpr std::uint8_t kVicManual = 0x3c;
 constexpr std::uint8_t kPacketEnable0 = 0x40;
 constexpr std::uint8_t kPower = 0x41;
 constexpr std::uint8_t kStatus = 0x42;
+constexpr std::uint8_t kPacketEnable1 = 0x44;
 constexpr std::uint8_t kPacketI2cAddr = 0x45;
 constexpr std::uint8_t kVideoInputCfg3 = 0x48;
 constexpr std::uint8_t kInfoframeUpdate = 0x4a;
@@ -161,8 +162,13 @@ constexpr std::uint8_t kSync720p16x9 =
 // 0x48: [4:3] = 01 right-justified (used for 4:2:2; ignored for 4:4:4).
 constexpr std::uint8_t kDataRightJustified = 1u << 3; // 0x08
 
-// 0x4A bit 7: update AVI InfoFrame from the buffered registers.
-constexpr std::uint8_t kInfoframeUpdateEnable = 1u << 7;
+// 0x4A bit 7 enables automatic checksums, bit 5 holds audio InfoFrame updates.
+constexpr std::uint8_t kInfoframeAutoChecksum = 1u << 7;
+constexpr std::uint8_t kAudioInfoframeUpdate = 1u << 5;
+// 0x44: AVI and HDMI packet-memory read mode; optionally N/CTS, samples,
+// and audio InfoFrames. Explicitly restore these after a silent application.
+constexpr std::uint8_t kPacketsVideoOnly = 0x11;
+constexpr std::uint8_t kPacketsVideoAudio = 0x79;
 
 // 0x3B Pixel repetition. [6:5] 00 auto, 10 manual. Init table uses bit 7 as
 // well (Main's software path); the 720p mode write then selects manual x1.
@@ -288,6 +294,7 @@ inline std::vector<RegisterWrite> Menu720p60Initialization()
 	Encode20Bit(kAudioCts74250kHz, &cts_hi, &cts_mid, &cts_lo);
 
 	return {
+		Wr(reg::kPacketEnable1, kPacketsVideoAudio),
 		Wr(adi_required::kReg98, adi_required::kVal98),
 		Wr(reg::kPower2, kPower2HpdAlwaysHigh),
 		Wr(reg::kPower, kPowerUp),
@@ -310,7 +317,7 @@ inline std::vector<RegisterWrite> Menu720p60Initialization()
 		Wr(reg::kVideoInputCfg3, kDataRightJustified),
 		Wr(adi_required::kReg49, adi_required::kVal49),
 		Wr(reg::kPacketEnable0, 0x00),
-		Wr(reg::kInfoframeUpdate, kInfoframeUpdateEnable),
+		Wr(reg::kInfoframeUpdate, kInfoframeAutoChecksum),
 		Wr(adi_required::kReg4c, adi_required::kVal4c),
 		Wr(reg::kAviInfoframe + 0, kAviRgbActiveFormat),
 		Wr(reg::kAviInfoframe + 1, kAviRSameAsPicture),
@@ -400,6 +407,33 @@ inline std::vector<RegisterWrite> HdmiWake()
 		Wr(reg::kEdidReadCtrl, kEdidReadEnable),
 		Wr(reg::kEdidReadCtrl, kEdidReadTrigger),
 		Wr(reg::kEdidReadCtrl, kEdidReadEnable),
+	};
+}
+
+// Application PCM: external 256*Fs MCLK, automatic CTS measured from the
+// actual clocks, standard I2S0, signed 16-bit stereo in 32-bit slots. The
+// transmitter samples on rising SCLK. Guide Rev B sections 4.4.1-4.4.4.
+// Call with sample packets disabled; enable only after link verification.
+inline std::vector<RegisterWrite> ApplicationAudio48k()
+{
+	return {
+		Wr(reg::kAudioSource, 0x01), // I2S, automatic CTS, MCLK=256*Fs
+		Wr(reg::kAudioConfig, 0x2e), // external MCLK, rising SCLK
+		Wr(reg::kI2sConfig, 0x84), // I2C sample rate, I2S0 only, standard I2S
+		Wr(0x0e, 0x01), // subpacket zero: left/right I2S0
+		Wr(0x12, 0x00), // consumer linear PCM
+		Wr(0x13, 0x00), // channel status category/source defaults
+		Wr(reg::kAudioCfg3, kAudioWordLength16),
+		Wr(reg::kI2cFreqIdCfg, kI2cFreqId48kRgb444),
+		Wr(reg::kAudioN19_16, 0x00), Wr(reg::kAudioN15_8, 0x18),
+		Wr(reg::kAudioN7_0, 0x00),
+		Wr(0x47, 0x00), // all sample subpackets valid
+		Wr(reg::kInfoframeUpdate, kInfoframeAutoChecksum | kAudioInfoframeUpdate),
+		Wr(reg::kAudioInfoframeCc, kAudioInfoframeTwoChannels),
+		Wr(0x74, 0x00), Wr(0x75, 0x00), Wr(0x76, 0x00), // FL/FR
+		Wr(0x77, 0x00), Wr(0x78, 0x00), Wr(0x79, 0x00),
+		Wr(0x7a, 0x00), Wr(0x7b, 0x00), Wr(0x7c, 0x00),
+		Wr(reg::kInfoframeUpdate, kInfoframeAutoChecksum),
 	};
 }
 

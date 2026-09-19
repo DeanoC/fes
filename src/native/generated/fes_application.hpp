@@ -108,6 +108,10 @@ constexpr const char* FesApplicationInterfaceMediaBlobStreamID = "fes.media.blob
 constexpr std::uint16_t FesApplicationInterfaceMediaBlobStreamMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceMediaBlobStreamMinor = 0u;
 constexpr std::uint32_t FesApplicationCapabilityMediaBlobStream = 0x8u;
+constexpr const char* FesApplicationInterfaceAudioPcmS16Stereo48kID = "fes.audio.pcm-s16-stereo-48k";
+constexpr std::uint16_t FesApplicationInterfaceAudioPcmS16Stereo48kMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceAudioPcmS16Stereo48kMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityAudioPcmS16Stereo48k = 0x10u;
 
 } // namespace generated
 } // namespace native

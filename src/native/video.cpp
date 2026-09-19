@@ -60,13 +60,15 @@ void PhaseSuccess(const char* phase, VideoResult* result, LogSink& log)
 }
 
 Error InitializeAdv(I2c& i2c, const VideoRecipe& recipe,
-	std::uint64_t deadline, VideoResult* result)
+	std::uint64_t deadline, VideoResult* result, bool custom = false)
 {
 	Error error = i2c.SelectFirst(adv7513::kMainMapAddress7Bit, adv7513::reg::kPower,
 		deadline, &result->selected_bus, &result->power_before);
 	if (!error.ok()) return error;
 	for (const RegisterWrite& write : recipe.adv_initialization) {
-		error = i2c.WriteByte(write.address, write.value, deadline);
+		const auto value = custom && write.address == adv7513::reg::kPacketEnable1 ?
+			adv7513::kPacketsVideoOnly : write.value;
+		error = i2c.WriteByte(write.address, value, deadline);
 		if (!error.ok()) return error;
 	}
 	return i2c.ReadByte(adv7513::reg::kPower, &result->power_after, deadline);
@@ -207,15 +209,22 @@ VideoResult FixedVideoBringup::BringUp(std::uint64_t deadline)
 	return result;
 }
 
-VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline)
+VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline, bool audio)
 {
 	VideoResult result;
 	if (clock_.NowMs() >= deadline)
 		return PhaseFailure("hdmi_init",
 			{ErrorCode::io_failed, "deadline exceeded"}, result);
-	Error error = InitializeAdv(i2c_, recipe_, deadline, &result);
+	Error error = InitializeAdv(i2c_, recipe_, deadline, &result, true);
 	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
 	PhaseSuccess("hdmi_init", &result, log_);
+	if (audio) {
+		for (const auto& write : adv7513::ApplicationAudio48k()) {
+			error = i2c_.WriteByte(write.address, write.value, deadline);
+			if (!error.ok()) return PhaseFailure("audio_setup", error, result);
+		}
+		PhaseSuccess("audio_setup", &result, log_);
+	}
 	error = ApplyFixedMode(i2c_, recipe_, deadline);
 	if (!error.ok()) return PhaseFailure("video_timing", error, result);
 	PhaseSuccess("video_timing", &result, log_);
@@ -224,6 +233,13 @@ VideoResult FixedVideoBringup::BringUpCustom(std::uint64_t deadline)
 	PhaseSuccess("hdmi_wake", &result, log_);
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);
+	if (audio) {
+		// The identified core remains held and supplies zero samples until Start.
+		error = i2c_.WriteByte(adv7513::reg::kPacketEnable1,
+			adv7513::kPacketsVideoAudio, deadline);
+		if (!error.ok()) return PhaseFailure("audio_enable", error, result);
+		PhaseSuccess("audio_enable", &result, log_);
+	}
 	CompleteVideo(recipe_, &result, log_);
 	return result;
 }

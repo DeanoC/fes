@@ -721,7 +721,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
 				interface.id == FesApplicationInterfaceVideoFixed720p60ID ||
 				interface.id == FesApplicationInterfaceMediaBlobID ||
-				interface.id == FesApplicationInterfaceMediaBlobStreamID;
+				interface.id == FesApplicationInterfaceMediaBlobStreamID ||
+				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID;
 			const bool supported = known && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,

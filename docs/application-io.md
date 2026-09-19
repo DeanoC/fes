@@ -7,17 +7,17 @@ Existing `fes.simple-game` and `fes.simple-computer` packages retain their
 existing requirements, wire identities and startup behavior.
 
 Every admitted application declares required `fes.video.fixed-720p60` 1.0.
-It may additionally declare `fes.gamepad`, `fes.media.blob` and
+It may additionally declare `fes.audio.pcm-s16-stereo-48k`, `fes.gamepad`, `fes.media.blob` and
 `fes.media.blob-stream` 1.0. Stream requires blob. Supported operational
 declarations must be required; optionality is expressed by omission. Unknown
 or unsupported-version optional declarations are ignored. Required unknown
-interfaces, keyboard, persistence and audio are rejected before programming.
+interfaces, keyboard and persistence are rejected before programming.
 
 Identity, ABI and build identity are verified before input or execution
 commands. Registered live capability bits must exactly match supported declared
 interfaces; an undeclared live media endpoint cannot silently change startup.
 Capability bits 0 through 3 are gamepad,
-video, blob and stream. Opcodes 1/2/3 are identity/execution/buttons; 4 through
+video, blob and stream; bit 4 is stereo PCM audio. Opcodes 1/2/3 are identity/execution/buttons; 4 through
 6 use the existing blob codec and 7 through 12 use the existing stream codec.
 This map is distinct from the older game ABI's persistence opcodes.
 
@@ -45,6 +45,31 @@ verified interfaces determine availability, not a display name or core ID.
 
 Host tests cover admission, tag/capability discovery, no-keyboard startup,
 video-only load/Stop/reload without input, media readiness and shared stream
-transfer boundaries. No new physical support is claimed. Audio, variable video
+transfer boundaries. No new physical support is claimed. Variable video
 timings, keyboard/mouse, multiplayer and persistence layouts are outside this
 application ABI slice.
+
+## Shared HDMI audio
+
+The required-when-present audio interface adds signed 16-bit stereo samples at
+48 kHz. It uses standard I2S with a one-bit delay and 32-bit slots, continuous
+3.072 MHz BCLK and 12.288 MHz MCLK. Execution hold emits zero samples by the
+next stereo frame after the hold reaches the audio clock domain, retaining
+clocks. It requires no additional GP command, host audio stream or mixer.
+
+After verified identity, the runtime disables audio packets before waking or
+configuring the ADV7513. It selects I2S0, external 256*Fs MCLK, automatic CTS,
+N=6144, PCM channel status and stereo InfoFrame mapping. Only successful link
+verification enables audio packets; the core is still held until the ordinary
+Start/media-commit release. Setup/link failures never release execution. Stop
+powers down the transmitter, then holds the outgoing core; both steps precede
+FPGA replacement.
+Silent applications explicitly leave audio packets disabled. Legacy launches
+restore packet enables and their existing I2S configuration, so launching a
+silent application does not suppress subsequent legacy audio.
+
+Register meanings follow the [ADV7513 Programming Guide Rev B](https://www.analog.com/media/en/technical-documentation/user-guides/ADV7513_Programming_Guide.pdf),
+sections 4.4.1–4.4.4. The existing 0x4A bit7 is automatic checksum enable;
+audio InfoFrame updates use bit5. Software tests cover capability admission,
+identity mismatch, silent/audio/legacy transitions, bounded setup failures and
+hold/release. Audible HDMI output remains pending exact-artifact kit capture.

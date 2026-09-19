@@ -988,12 +988,30 @@ void TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces()
 	missing.descriptor.abi = {FesApplicationABIID, 1, 0};
 	missing.descriptor.interfaces = {{FesApplicationInterfaceGamepadID, 1, 0, true}};
 	assert(missing.Identify(1, 32768, 512, 2).code == mister::ErrorCode::core_mismatch);
-	for (const unsigned extra : {1u, 4u, 8u}) {
+	for (const unsigned extra : {1u, 4u, 8u, 16u}) {
 		StreamFixture f;
 		f.descriptor.abi = {FesApplicationABIID, 1, 0};
 		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
 			{FesApplicationInterfaceGamepadID, 2, 0, false}};
 		assert(f.Identify(1, 32768, 512, 2 | extra).code == mister::ErrorCode::core_mismatch);
+	}
+}
+
+void TestApplicationAudioRequiresExactLiveCapability()
+{
+	for (const bool present : {false, true}) {
+		StreamFixture f;
+		f.descriptor.abi = {FesApplicationABIID, 1, 0};
+		f.descriptor.interfaces = {{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+			{FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0, true}};
+		const auto error = f.Identify(1, 32768, 512, present ? 18 : 2);
+		assert(present ? error.ok() : error.code == mister::ErrorCode::core_mismatch);
+		if (present) {
+			f.Reply(0);
+			assert(f.driver.Start(f.context, 1000000).error.ok());
+			f.Reply(0);
+			assert(f.driver.Quiesce(f.context, 1000000).error.ok());
+		}
 	}
 }
 
@@ -1115,6 +1133,7 @@ int main()
 {
 	TestApplicationReplaysSharedWireFixturesThroughDriver();
 	TestApplicationStartsWithoutKeyboardAndGatesUndeclaredInterfaces();
+	TestApplicationAudioRequiresExactLiveCapability();
 	TestSharedStreamWireFixtures();
 	TestStreamIdentityRequiresObservedCapacityAndDeclaration();
 	TestStreamTransferBoundariesAndCRC();

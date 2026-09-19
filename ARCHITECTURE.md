@@ -14,7 +14,8 @@ reuses the shared button/media codecs, and never issues keyboard commands to
 an application. Video-only loads do not open the input session. Media-bearing
 applications remain reset-held until successful media commit; other
 applications release immediately. Existing ABI startup and persistence remain
-unchanged. Custom video bring-up does not claim audio support.
+unchanged. Application stereo 48 kHz PCM audio is software-supported through
+the shared ADV7513 path; physical audio acceptance remains pending.
 
 ## Current boundary
 
@@ -115,7 +116,11 @@ reads all 16 identity words under a two-second deadline, with each exchange
 bounded to 100 ms. It sends no destination control until the descriptor ABI,
 capabilities, and build ID match. The fixed custom video path configures and
 validates the ADV7513 entirely over I2C, without issuing a MiSTer SPI timing or
-audio command. It then sends a neutral normalized button map, releases
+audio command. Application audio declarations select the I2S stereo recipe;
+undeclared audio packets stay disabled. The recipe uses external 256*Fs MCLK
+and automatic CTS, and enables samples only after link verification while the
+core remains held. Legacy bring-up explicitly restores packet enables after
+silent applications. It then sends a neutral normalized button map, releases
 gameplay, and starts the input worker with the activation generation. Stop
 retires and joins that worker, sends its final neutral map, and only then asks
 the outgoing driver to hold gameplay reset. Opposite directions resolve to a

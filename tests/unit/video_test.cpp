@@ -9,6 +9,7 @@
 #include "native/video.hpp"
 #include "native/framebuffer.hpp"
 #include "native/video_recipe.hpp"
+#include "native/adv7513.hpp"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -29,9 +30,9 @@
 namespace {
 
 const std::uint64_t kDeadline = 100;
-// Selection, 92 initialization writes, the power read, three mode writes, and
+// Selection, 93 initialization writes, the power read, three mode writes, and
 // five ADV EDID wake writes.
-const std::size_t kLinkReadCallBegin = 102;
+const std::size_t kLinkReadCallBegin = 103;
 std::size_t scenarios = 0;
 
 class SequenceClock final : public mister::native::Clock {
@@ -1149,12 +1150,12 @@ void TestPostProgramComponentsUseExactMegaDriveChronologyWithoutRelease()
 		"audio.volume:0",
 	};
 	assert(fixture.ledger == expected);
-	assert(fixture.i2c.writes.size() == 100);
+	assert(fixture.i2c.writes.size() == 101);
 	const std::vector<mister::native::RegisterWrite> expected_wake = {
 		{0x96, 0x04}, {0xc4, 0x00}, {0xc9, 0x03},
 		{0xc9, 0x13}, {0xc9, 0x03}};
 	for (std::size_t index = 0; index < expected_wake.size(); ++index) {
-		const auto& actual = fixture.i2c.writes[95 + index];
+		const auto& actual = fixture.i2c.writes[96 + index];
 		assert(actual.address == expected_wake[index].address);
 		assert(actual.value == expected_wake[index].value);
 	}
@@ -1223,6 +1224,80 @@ void TestFixedVideoRequiresBothHpdAndMonitorSenseBeforeReady()
 	++scenarios;
 }
 
+void TestApplicationAudioPolicyAndFailureOrdering()
+{
+	using namespace mister::native;
+	using Type = mister_test::FakeI2c::CallType;
+	Fixture fixture;
+	FixedVideoBringup video(fixture.spi, fixture.i2c, fixture.clock,
+		fixture.log, Menu720p60Recipe());
+	assert(video.BringUpCustom(kDeadline, true).error.ok());
+	const auto& calls = fixture.i2c.calls;
+	assert(calls[1].address == 0x44 && calls[1].value == 0x11);
+	assert(calls[calls.size()-2].type == Type::read &&
+		calls[calls.size()-2].address == 0x42);
+	assert(calls.back().address == 0x44 && calls.back().value == 0x79);
+	assert(fixture.spi.calls.empty());
+	const std::size_t enabled_calls = calls.size();
+	assert(video.Quiesce(kDeadline).error.ok());
+	assert(calls.back().address == 0x41 && (calls.back().value & 0x40));
+	assert(video.BringUpCustom(kDeadline).error.ok());
+	for (std::size_t i = enabled_calls; i < calls.size(); ++i)
+		if (calls[i].type == Type::write && calls[i].address == 0x44)
+			assert(calls[i].value == 0x11);
+	assert(video.BringUpCustom(kDeadline, true).error.ok());
+	assert(calls.back().address == 0x44 && calls.back().value == 0x79);
+	// Legacy launch explicitly restores packets after a silent application.
+	assert(video.BringUpCustom(kDeadline).error.ok());
+	const auto legacy_begin = calls.size();
+	assert(video.BringUp(kDeadline).error.ok());
+	assert(calls[legacy_begin+1].address == 0x44 && calls[legacy_begin+1].value == 0x79);
+	// Direct audio-to-legacy transition must also restore its clock source.
+	assert(video.BringUpCustom(kDeadline, true).error.ok());
+	const auto clock_restore_begin = calls.size();
+	assert(video.BringUp(kDeadline).error.ok());
+	unsigned restored = 0;
+	for (std::size_t i = clock_restore_begin; i < calls.size(); ++i) {
+		if (calls[i].type != Type::write) continue;
+		if (calls[i].address == 0x0a) { assert(calls[i].value == 0x00); restored |= 1; }
+		if (calls[i].address == 0x0b) { assert(calls[i].value == 0x0e); restored |= 2; }
+		if (calls[i].address == 0x0c) { assert(calls[i].value == 0x04); restored |= 4; }
+	}
+	assert(restored == 7);
+	// Every setup write failure is bounded; none enables sample packets.
+	const auto init_count = Menu720p60Recipe().adv_initialization.size();
+	for (std::size_t i = 0; i < adv7513::ApplicationAudio48k().size(); ++i) {
+		Fixture failed;
+		failed.i2c.fail_write_index = init_count + i;
+		FixedVideoBringup attempt(failed.spi, failed.i2c, failed.clock,
+			failed.log, Menu720p60Recipe());
+		const auto result = attempt.BringUpCustom(kDeadline, true);
+		assert(!result.error.ok() && result.phase == "audio_setup");
+		for (const auto& call : failed.i2c.calls)
+			if (call.type == Type::write && call.address == 0x44)
+				assert(call.value == 0x11);
+	}
+	Fixture failed_link;
+	failed_link.i2c.link_read_error = {mister::ErrorCode::io_failed, "link failed"};
+	FixedVideoBringup attempt(failed_link.spi, failed_link.i2c, failed_link.clock,
+		failed_link.log, Menu720p60Recipe());
+	assert(attempt.BringUpCustom(kDeadline, true).phase == "hdmi_verify");
+	for (const auto& call : failed_link.i2c.calls)
+		if (call.type == Type::write && call.address == 0x44) assert(call.value == 0x11);
+	Fixture failed_enable;
+	failed_enable.i2c.fail_write_index = init_count + adv7513::ApplicationAudio48k().size() +
+		Menu720p60Recipe().adv_mode.size() + adv7513::HdmiWake().size();
+	FixedVideoBringup enable(failed_enable.spi, failed_enable.i2c, failed_enable.clock,
+		failed_enable.log, Menu720p60Recipe());
+	const auto enable_result = enable.BringUpCustom(kDeadline, true);
+	assert(!enable_result.error.ok() && enable_result.phase == "audio_enable");
+	assert(failed_enable.i2c.calls.back().address == 0x44);
+	// An ambiguous enable failure still permits the ordinary bounded power-down.
+	assert(enable.Quiesce(kDeadline).error.ok());
+	assert(failed_enable.i2c.calls.back().address == 0x41);
+	++scenarios;
+}
+
 void TestCustomFixedVideoUsesOnlyAdvI2c()
 {
 	Fixture fixture;
@@ -1239,6 +1314,7 @@ void TestCustomFixedVideoUsesOnlyAdvI2c()
 int main()
 {
 	TestCustomFixedVideoUsesOnlyAdvI2c();
+	TestApplicationAudioPolicyAndFailureOrdering();
  TestIdleEnablesFramebufferOnEveryBringup();
  TestFramebufferFailurePreventsIdleVerification();
 	TestQuiesceUsesOneReadModifyWriteWithTheCallerDeadline();

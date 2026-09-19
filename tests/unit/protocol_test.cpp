@@ -619,7 +619,8 @@ std::vector<std::string> ApplicationResponseFixtures()
 	status.core_data.mode = "volatile";
 	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
 	status.capabilities.abis = {
-		{"fes.application", 1, 0, {{"fes.gamepad", 1, 0}, {"fes.media.blob", 1, 0},
+		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
+			{"fes.gamepad", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"fes.simple-computer", 1, 0, {{"fes.keyboard", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
@@ -627,13 +628,16 @@ std::vector<std::string> ApplicationResponseFixtures()
 			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"mister", 1, 0, {}}};
 	std::vector<std::string> lines;
-	for (unsigned mode = 0; mode < 3; ++mode) {
+	for (unsigned mode = 0; mode < 4; ++mode) {
 		status.generation = mode + 1;
 		descriptor.interfaces.clear();
 		status.capabilities.active_interfaces.clear();
+		status.capabilities.media_stream = {};
+		if (mode == 3)
+			descriptor.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
 		if (mode > 0) {
 			descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
-			descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
+			if (mode < 3) descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
 		}
 		if (mode == 2) {
 			descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});

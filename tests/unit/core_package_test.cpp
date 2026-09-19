@@ -270,6 +270,16 @@ void TestApplicationCompatibilityComposesInterfaces()
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 	descriptor.interfaces.push_back({"fes.gamepad", 1, 0, true});
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.back().required = false;
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.back().required = true;
+	descriptor.interfaces.back().minor = 1;
+	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.back().required = false;
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.pop_back();
 	descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
 	assert(!mister::native::CheckCoreCompatibility(descriptor).ok());
 	descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});

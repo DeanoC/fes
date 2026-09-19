@@ -580,6 +580,7 @@ Capabilities NativeHardware::capabilities() const
 		application.major = generated::FesApplicationABIMajor;
 		application.minor = generated::FesApplicationABIMinor;
 		application.interfaces = {
+			{generated::FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
@@ -755,8 +756,15 @@ HardwareResult NativeHardware::LoadCore(
 	if (fes_gp) {
 		if (identity_verified)
 			identity_verified->store(true);
+		bool audio = false;
+		if (admitted->opened_.descriptor.abi.id == generated::FesApplicationABIID)
+			for (const auto& interface : admitted->opened_.descriptor.interfaces)
+				if (interface.id == generated::FesApplicationInterfaceAudioPcmS16Stereo48kID &&
+					interface.required && interface.major == 1 && interface.minor == 0)
+					audio = true;
+		// Identity already proved the exact declared/live capability set.
 		const VideoResult video = game_video_.BringUpCustom(
-			Deadline(clock_, timeouts_.video_ms));
+			Deadline(clock_, timeouts_.video_ms), audio);
 		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
 			identified.observed_core, "video", video.error});
 		if (!video.error.ok()) {
