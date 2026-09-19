@@ -411,7 +411,7 @@ func (a *App) resolveRoomLaunch(ctx context.Context, gameID string) {
 		return
 	}
 	if err != nil {
-		a.launch = LaunchSnapshot{Phase: "error", Message: "launch failed: " + err.Error()}
+		a.launch = LaunchSnapshot{GameID: gameID, Phase: "error", Message: "launch failed: " + err.Error(), ErrorMessage: err.Error()}
 		return
 	}
 	a.launch = LaunchSnapshot{Phase: "idle"}

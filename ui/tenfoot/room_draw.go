@@ -310,10 +310,12 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		}
 		line += lease
 	}
-	switch snap.Launch.Phase {
-	case "launching", "error", "host":
-		if msg := strings.TrimSpace(snap.Launch.Message); msg != "" {
-			line = msg
+	if !launchOverlayVisible(snap) {
+		switch snap.Launch.Phase {
+		case "launching", "error", "host":
+			if msg := strings.TrimSpace(snap.Launch.Message); msg != "" {
+				line = msg
+			}
 		}
 	}
 	if strings.TrimSpace(snap.Status) != "" && strings.HasPrefix(snap.Status, "room failed") {
@@ -324,6 +326,42 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 	}
 	hint := snap.HeaderHint()
 	drawDebug(dev, x+w-8*len(hint)-8, y+4, hint, 1)
+}
+
+func drawLaunchOverlay(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	panel, ok := launchOverlayPanel(snap)
+	if !ok {
+		return
+	}
+	copy := launchOverlayCopy(snap)
+	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
+	borderR, borderG, borderB := uint8(255), uint8(184), uint8(48)
+	if copy.Failed {
+		borderR, borderG, borderB = 200, 64, 48
+	}
+	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), borderR, borderG, borderB, 255)
+	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	drawLabel(dev, labels, used, "launch-ov-head", x+20, y+16, panelW-40, 20, copy.Heading)
+	if copy.Title != "" {
+		drawLabel(dev, labels, used, "launch-ov-title", x+20, y+44, panelW-40, 18, copy.Title)
+	}
+	bodyY := y + 72
+	if phase := strings.TrimSpace(copy.Phase); phase != "" && phase != copy.Title {
+		drawLabel(dev, labels, used, "launch-ov-phase", x+20, bodyY, panelW-40, 16, phase)
+		bodyY += 24
+	}
+	if reason := strings.TrimSpace(copy.Reason); reason != "" && reason != copy.Phase {
+		drawLabel(dev, labels, used, "launch-ov-reason", x+20, bodyY, panelW-40, 16, reason)
+	}
+	hint := strings.TrimSpace(copy.Hint)
+	if hint == "" {
+		if copy.Failed {
+			hint = launchOverlayFailHint(snap.Affinity)
+		} else {
+			hint = launchOverlayBusyHint(snap.Affinity)
+		}
+	}
+	drawLabel(dev, labels, used, "launch-ov-hint", x+20, y+panelH-28, panelW-40, 14, hint)
 }
 
 func drawRoomError(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {

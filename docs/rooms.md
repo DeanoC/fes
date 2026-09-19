@@ -41,7 +41,10 @@ tap. In a room, **B/Esc** goes back (closes Details first, then the parent
 room, then the picker), **Y/`i`** opens Details, **GUIDE/o** still opens
 settings, and safe-area nudges still work. Direction, Confirm, and the
 other face/shoulder buttons are delivered to the script unless the
-launcher owns Confirm/Details for a published destination. Pointer tap on
+launcher owns Confirm/Details for a published destination. Confirm on a
+Ready game shows a FES launch overlay immediately; a second Confirm
+does not POST again while that launch is in flight. Launch failure keeps
+the selected location and offers Retry or Back to room. Pointer tap on
 the compact selected-destination strip is Details (same path as Y / `i`)
 when the destination is a game; it does not Confirm. No essential
 room action is long-press-only or chord-only; see

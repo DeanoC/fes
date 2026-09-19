@@ -150,6 +150,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 			drawDetail(dev, snap, labels, used, textures)
 		}
 		drawRoomChoice(dev, snap, labels, used)
+		drawLaunchOverlay(dev, snap, labels, used)
 	} else {
 		dev.Clear(drawTheme(snap).SofaBackground)
 		drawHeader(dev, snap, labels, used)

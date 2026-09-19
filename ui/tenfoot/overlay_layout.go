@@ -92,8 +92,33 @@ func detailGeomOf(snap Snapshot) (detailGeom, bool) {
 	return g, true
 }
 
+func launchOverlayPanel(snap Snapshot) (rectI, bool) {
+	if !launchOverlayVisible(snap) {
+		return rectI{}, false
+	}
+	g := snap.Grid
+	panelW := 640
+	if max := g.contentWidth() - 48; panelW > max {
+		panelW = max
+	}
+	if panelW < 280 {
+		panelW = g.contentWidth()
+	}
+	copy := launchOverlayCopy(snap)
+	panelH := 148
+	if copy.Failed {
+		panelH = 196
+	}
+	x := g.contentLeft() + (g.contentWidth()-panelW)/2
+	y := g.contentTop() + (g.contentHeight()-panelH)/2
+	if y < g.contentTop()+8 {
+		y = g.contentTop() + 8
+	}
+	return rectI{X: x, Y: y, W: panelW, H: panelH}, true
+}
+
 func roomDestGeom(snap Snapshot) (rectI, bool) {
-	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open {
+	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || launchOverlayVisible(snap) {
 		return rectI{}, false
 	}
 	if !snap.Room.Destination.Set() {

@@ -1675,6 +1675,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 	a.clearStaleDevelopmentLoadLocked()
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
+		if a.room != nil {
+			a.closeRoomOverlaysLocked()
+		}
 		return
 	}
 	a.sessionTitle = game.Title
@@ -1682,6 +1685,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		GameID:  game.ID,
 		Phase:   "launching",
 		Message: "launching " + game.Title,
+	}
+	if a.room != nil {
+		a.closeRoomOverlaysLocked()
 	}
 	a.hold.Clear()
 	a.closeFiltersLocked()
@@ -1729,7 +1735,7 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	if err != nil {
 		a.launch.Phase = "error"
 		a.launch.Message = "launch failed: " + err.Error()
-		a.launch.GameID = ""
+		a.launch.ErrorMessage = err.Error()
 		return
 	}
 	a.launch.HTTPStatus = result.HTTPStatus
@@ -1739,7 +1745,6 @@ func (a *App) doLaunch(ctx context.Context, game hostclient.Game, stamp ClientSt
 	if result.ErrorCode != "" {
 		a.launch.Phase = "host"
 		a.launch.Message = fmt.Sprintf("host launch %d %s: %s", result.HTTPStatus, result.ErrorCode, result.ErrorMessage)
-		a.launch.GameID = ""
 		return
 	}
 	a.launch.Phase = "ok"

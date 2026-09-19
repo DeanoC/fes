@@ -84,6 +84,10 @@ func (a *App) handleRoomLocked(cmd Command) {
 		}
 		return
 	}
+	if a.launchOverlayActiveLocked() {
+		a.handleLaunchOverlayLocked(cmd)
+		return
+	}
 	if a.roomChoiceOpen {
 		a.handleRoomChoiceLocked(cmd)
 		return
@@ -204,6 +208,9 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 		a.openRoomDetailsLocked()
 		return true
 	case rooms.ConfirmLaunch:
+		if a.launch.Phase == "launching" {
+			return true
+		}
 		if game, ok := dest.Game(); ok {
 			a.startLaunchGameLocked(game)
 			return true

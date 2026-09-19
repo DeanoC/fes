@@ -73,7 +73,9 @@ type roomHost struct {
 	server   *httptest.Server
 	// launchGate, when set, holds the launch response until it is closed so
 	// tests can observe the "launching" phase.
-	launchGate chan struct{}
+	launchGate   chan struct{}
+	launchStatus int
+	launchBody   string
 }
 
 func newRoomHost(t *testing.T) *roomHost {
@@ -106,14 +108,29 @@ func newRoomHost(t *testing.T) *roomHost {
 			raw, _ := io.ReadAll(r.Body)
 			h.mu.Lock()
 			gate := h.launchGate
+			status := h.launchStatus
+			body := h.launchBody
 			h.mu.Unlock()
 			if gate != nil {
 				<-gate
 			}
 			h.mu.Lock()
 			h.launches = append(h.launches, string(raw))
-			h.state = "active"
+			if status == 0 {
+				h.state = "active"
+			}
 			h.mu.Unlock()
+			if status != 0 {
+				if status == http.StatusOK {
+					status = http.StatusInternalServerError
+				}
+				w.WriteHeader(status)
+				if body == "" {
+					body = `{"error":{"code":"TRANSFER_FAILED","message":"content transfer failed"}}`
+				}
+				_, _ = io.WriteString(w, body)
+				return
+			}
 			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario"}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
 			h.mu.Lock()
