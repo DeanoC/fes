@@ -459,6 +459,12 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		drawLabel(dev, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
 	}
 	lineY := y + 68
+	if snap.Room.Open {
+		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" {
+			drawLabel(dev, labels, used, "d-history", x+pad, lineY, textW, 16, hist)
+			lineY += 22
+		}
+	}
 	summaryLines := 2
 	if snap.Detail.Open {
 		summaryLines = detailSummaryLines

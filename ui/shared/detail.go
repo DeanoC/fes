@@ -30,6 +30,8 @@ type FocusDetail struct {
 // MetaFacts joins admitted catalog/presentation facts for the detail strip.
 // Empty fields are omitted. Play-count and last-played stay off this pane;
 // the kit platform wheel rolls them up when the games payload carries them.
+// Household Played vs Completed is rooms.ClassifyHistory, never inferred
+// here from play activity or presentation.completion.
 func (d FocusDetail) MetaFacts() string {
 	parts := make([]string, 0, 6)
 	for _, part := range []string{d.Platform, d.Year, d.Genre, d.Studio, d.Players, d.Region, d.Cached} {

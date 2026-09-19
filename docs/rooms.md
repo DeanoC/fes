@@ -146,7 +146,10 @@ cover. Handles expose `ready`, `w`, `h`, `err`. Draw nothing until `ready`.
 
 Game tables: `id, title, system, genre, year, region, state, series,
 launchable, launch_block, favorite, play_count, last_played_at,
-collections`. Game ids are derived from library path and title, so resolve
+played, completed, collections`. `played` is FES recorded play activity
+(`play_count` or `last_played_at`). `completed` is an explicit completion
+record only and is false today (no household completion store). Returning
+from a launch is not Completed. Game ids are derived from library path and title, so resolve
 titles by search (`q`) at load rather than hard-coding ids; `pong` and core
 entries are the stable exceptions.
 
@@ -165,14 +168,20 @@ matches, resolving, missing, note, note_by}` publishes one location.
 `kind` is `game`, `room`, `library`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
 Unavailable / Ready. `destination.classify(games, {q=})` returns that
-result without changing focus. `destination.get()` / `destination.clear()`.
+result without changing focus. `destination.play_history(game_or_facts)`
+returns `{played, completed, line}` from play facts; `completed` is true
+only when the facts include an explicit completion record. Published
+destinations expose the same `played` / `completed` / `history` fields.
+`destination.get()` / `destination.clear()`.
 
 Confirm never silently no-ops: Ready plays, a room destination enters,
 Needs a choice opens an edition list, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). Details
 (Y / `i`) opens the shared game-info panel with Play as primary; a room
 `note` is attributed as “Note from <author>”. Esc/B closes Details and
-keeps the room.
+keeps the room. Played vs Completed copy on the compact panel and Details
+comes from `destination.play_history` / `ClassifyHistory`; returning from
+a launch is not Completed.
 
 ### `session`, `rooms`, `store`, `log`
 
@@ -199,7 +208,7 @@ directory separators inside the pack (`require "lib.paths"` →
 | --- | --- |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
-| `widgets.nodemap` | overworld graph: `new{nodes={{id,x,y,label,icon,done,color}}, edges={{a,b}}, radius}`, d-pad follows edges (falls back to the nearest node in that direction), `focused()`, `draw{edge_color, node_color, done_color, focus_color, path_width, labels_focused_only}` |
+| `widgets.nodemap` | overworld graph: `new{nodes={{id,x,y,label,icon,played,done,color}}, edges={{a,b}}, radius}`, d-pad follows edges (falls back to the nearest node in that direction), `focused()`, `draw{edge_color, node_color, played_color, done_color, focus_color, path_width, labels_focused_only}`. `played` is recorded play; `done` is Completed only |
 | `util.color` | `parse`, `rgba`, `with_alpha`, `mix`, `shade` |
 | `util.ease` | easing curves, `pulse(time, period)`, `tween(from, to, duration)` |
 

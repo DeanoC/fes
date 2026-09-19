@@ -43,6 +43,7 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 						d.Availability = rooms.AvailUnavailable
 					}
 					d.FillCopy()
+					d.FillHistory()
 					return d
 				}
 			}

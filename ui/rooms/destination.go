@@ -56,6 +56,7 @@ type Destination struct {
 	Query        string
 	Platform     string
 	Matches      []hostclient.Game
+	History      History
 }
 
 // ClassifyGames maps a library result set onto Missing, Needs a choice,

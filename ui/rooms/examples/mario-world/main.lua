@@ -62,7 +62,9 @@ local function resolve(node)
     node.missing = result.state == "missing"
     node.game = result.game
     if result.game then
-      node.done = (result.game.play_count or 0) > 0
+      local h = destination.play_history(result.game)
+      node.played = h.played
+      node.done = h.completed
       node.icon = image.cover(result.game.id)
     end
     publish()
@@ -116,8 +118,14 @@ function on_activate(id)
 end
 
 function on_resume()
+  -- Returning from a launch (or a nested room) is not Completed.
+  -- Refresh Played from recorded play facts only.
   local node = map:focused()
-  if node and node.game then node.done = true end
+  if node and node.game then
+    local h = destination.play_history(node.game)
+    node.played = h.played
+    node.done = h.completed
+  end
   publish()
 end
 
@@ -141,6 +149,6 @@ function draw()
   local status = resolving > 0 and "finding levels..." or ("select a level  ·  " .. (#LEVELS - 1) .. " levels")
   gfx.text(status, w - 24, 20, { size = 16, align = "right", color = "#ffffff" })
 
-  map:draw{ edge_color = "#f4e6b4", node_color = "#e84a3a", done_color = "#2fb457", focus_color = room.theme.accent, path_width = 8, labels_focused_only = true, label_color = "#ffffff" }
+  map:draw{ edge_color = "#f4e6b4", node_color = "#e84a3a", played_color = "#d4a017", done_color = "#2fb457", focus_color = room.theme.accent, path_width = 8, labels_focused_only = true, label_color = "#ffffff" }
   publish()
 end
