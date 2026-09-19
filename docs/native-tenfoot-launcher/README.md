@@ -278,6 +278,9 @@ Local prefs write immediately to `tenfoot.json`:
 - Safe-area inset
 - Attract on/off (local gate only). `-no-attract` and
   `FOGCAST_TENFOOT_NO_ATTRACT` still force attract off for debug and smoke.
+- Reduced motion on/off. `FOGCAST_TENFOOT_REDUCED_MOTION` /
+  `FOGCAST_REDUCED_MOTION` honour an existing preference and freeze
+  decorative room animation (focus pulse, tweens, drifting art).
 
 Host fields load from `GET /api/v1/library/settings` and save with
 `PATCH /api/v1/library/settings` on confirm: attract idle seconds, preferred

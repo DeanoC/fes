@@ -83,6 +83,10 @@ type Options struct {
 	Services      Services
 	Index         *Index
 	Theme         theme.Theme
+	// ReducedMotion skips decorative room animation (focus pulse, tweens,
+	// drifting art). The launcher owns the preference; scripts read
+	// room.reduced_motion.
+	ReducedMotion bool
 	// StorePath is the per-room JSON persistence file; empty disables store.
 	StorePath string
 	Budget    Budget
@@ -305,10 +309,24 @@ func (r *Instance) Step(now time.Time) Frame {
 	return frame
 }
 
+// reservedRoomCommand is owned by FES. Scripts may style prompts; they must
+// not swallow Back's host binding or the system menu.
+func reservedRoomCommand(cmd string) bool {
+	switch strings.TrimSpace(strings.ToLower(cmd)) {
+	case "settings", "home":
+		return true
+	default:
+		return false
+	}
+}
+
 // Input forwards a launcher command name. It reports whether the script
-// consumed it.
+// consumed it. Settings and Home are never delivered.
 func (r *Instance) Input(cmd string) bool {
 	if r.fatal != nil || !r.loaded {
+		return false
+	}
+	if reservedRoomCommand(cmd) {
 		return false
 	}
 	fn, ok := r.L.GetGlobal("on_input").(*lua.LFunction)
@@ -376,6 +394,20 @@ func (r *Instance) Resize(width, height int) {
 
 // SetSessionState is the launcher's current play-session state string.
 func (r *Instance) SetSessionState(state string) { r.sessionState = state }
+
+// SetReducedMotion updates room.reduced_motion on a live instance (settings).
+func (r *Instance) SetReducedMotion(on bool) {
+	if r == nil || r.roomTable == nil {
+		return
+	}
+	r.opts.ReducedMotion = on
+	r.roomTable.RawSetString("reduced_motion", lua.LBool(on))
+}
+
+// ReducedMotion reports the launcher preference currently exposed to the script.
+func (r *Instance) ReducedMotion() bool {
+	return r != nil && r.opts.ReducedMotion
+}
 
 // TakeActions returns and clears launcher requests made by the script.
 func (r *Instance) TakeActions() []Action {

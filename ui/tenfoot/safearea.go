@@ -93,6 +93,8 @@ type tenfootPrefs struct {
 	Home string `json:"home,omitempty"`
 	// PinnedRooms is the local Home pin list (room ids).
 	PinnedRooms []string `json:"pinned_rooms,omitempty"`
+	// ReducedMotion skips decorative room animation.
+	ReducedMotion bool `json:"reduced_motion,omitempty"`
 	// RoomsDir overrides the room pack directory.
 	RoomsDir string `json:"rooms_dir,omitempty"`
 }

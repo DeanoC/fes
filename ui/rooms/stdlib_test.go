@@ -1,6 +1,7 @@
 package rooms
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -250,5 +251,157 @@ end`
 	}
 	if r.Err() != nil {
 		t.Fatal(r.Err())
+	}
+}
+
+func rectSizeSig(f Frame) string {
+	var b strings.Builder
+	for _, op := range f.Ops {
+		if op.Kind != OpRect {
+			continue
+		}
+		fmt.Fprintf(&b, "%s:%.1fx%.1f;", FormatHexColor(op.Color), op.W, op.H)
+	}
+	return b.String()
+}
+
+func TestNodeMapReducedMotionFreezesFocusHalo(t *testing.T) {
+	src := `
+local Map = require "widgets.nodemap"
+map = Map.new{
+  id = "m",
+  nodes = { { id = "a", x = 80, y = 80, label = "A" } },
+  edges = {},
+  radius = 12,
+}
+function draw() map:draw{ focus_color = "#ffd200", outline_color = "#ffffff" } end`
+	now := func() time.Time { return time.Unix(0, 0) }
+	moving := newRoom(t, memPack(t, "pulse", src, nil), Options{Now: now})
+	if err := moving.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f1 := moving.Step(time.Unix(0, 250*int64(time.Millisecond)))
+	f2 := moving.Step(time.Unix(0, 750*int64(time.Millisecond)))
+	if rectSizeSig(f1) == rectSizeSig(f2) {
+		t.Fatal("focus halo should pulse when reduced motion is off")
+	}
+
+	still := newRoom(t, memPack(t, "still", src, nil), Options{Now: now, ReducedMotion: true})
+	if err := still.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if err := still.CheckGlobal("room.reduced_motion == true"); err != nil {
+		t.Fatal(err)
+	}
+	s1 := still.Step(time.Unix(0, 250*int64(time.Millisecond)))
+	s2 := still.Step(time.Unix(0, 750*int64(time.Millisecond)))
+	if rectSizeSig(s1) != rectSizeSig(s2) {
+		t.Fatalf("reduced motion must freeze the focus halo\n%s\n%s", rectSizeSig(s1), rectSizeSig(s2))
+	}
+	if !hasFocusOutline(s1) {
+		t.Fatal("focus must still have an outline marker")
+	}
+}
+
+func hasFocusOutline(f Frame) bool {
+	var sawOutline, sawTick bool
+	for _, op := range f.Ops {
+		if op.Kind != OpRect || FormatHexColor(op.Color) != "#ffffff" {
+			continue
+		}
+		if op.W > 24 && op.H > 24 {
+			sawOutline = true
+		}
+		if op.W == 10 && op.H == 8 {
+			sawTick = true
+		}
+	}
+	return sawOutline && sawTick
+}
+
+func TestNodeMapFocusOutlineAndHistoryText(t *testing.T) {
+	src := `
+local Map = require "widgets.nodemap"
+map = Map.new{
+  id = "m",
+  nodes = {
+    { id = "p", x = 80, y = 80, label = "P", played = true },
+  },
+  edges = {},
+  radius = 10,
+}
+function draw()
+  map:draw{ node_color = "#ff0000", played_color = "#d4a017", focus_color = "#ffd200", outline_color = "#ffffff", labels_focused_only = true }
+end`
+	r := newRoom(t, memPack(t, "hist-a11y", src, nil), Options{ReducedMotion: true})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := r.Step(time.Unix(1, 0))
+	if !hasFocusOutline(f) {
+		t.Fatal("focused node must use an outline marker as well as colour")
+	}
+	var sawFill bool
+	var texts []string
+	for _, op := range f.Ops {
+		if op.Kind == OpText {
+			texts = append(texts, op.Text)
+		}
+		if op.Kind == OpRect && op.W == 20 && op.H == 20 && FormatHexColor(op.Color) == "#d4a017" {
+			sawFill = true
+		}
+	}
+	if !sawFill {
+		t.Fatal("played node missing fill")
+	}
+	joined := strings.Join(texts, " | ")
+	if !strings.Contains(joined, "Played") {
+		t.Fatalf("focused played node must carry Played as text, got %q", joined)
+	}
+	if strings.Contains(joined, "Completed") {
+		t.Fatalf("played-only node claimed Completed: %q", joined)
+	}
+}
+
+func TestListFocusHasMarkerBar(t *testing.T) {
+	src := `
+local List = require "widgets.list"
+list = List.new{ id = "l", x = 10, y = 10, w = 200, h = 80, row_h = 40, items = { { title = "One" }, { title = "Two" } } }
+function draw() list:draw{ focus_color = "#ffd200", marker_color = "#ffffff" } end`
+	r := newRoom(t, memPack(t, "list-a11y", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := r.Step(time.Unix(1, 0))
+	found := false
+	for _, op := range f.Ops {
+		if op.Kind == OpRect && op.W == 6 && FormatHexColor(op.Color) == "#ffffff" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("focused list row must have a non-colour marker bar")
+	}
+}
+
+func TestGridFocusHasCornerMarks(t *testing.T) {
+	src := `
+local Grid = require "widgets.grid"
+grid = Grid.new{ id = "g", x = 0, y = 0, w = 400, h = 300, cell_w = 80, cell_h = 100, items = { { title = "A" } } }
+function draw() grid:draw{ focus_color = "#ffd200", marker_color = "#ffffff" } end`
+	r := newRoom(t, memPack(t, "grid-a11y", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := r.Step(time.Unix(1, 0))
+	ticks := 0
+	for _, op := range f.Ops {
+		if op.Kind == OpRect && FormatHexColor(op.Color) == "#ffffff" && (op.W == 10 || op.H == 10) {
+			ticks++
+		}
+	}
+	if ticks < 8 {
+		t.Fatalf("focused grid cell must have corner marks, got %d", ticks)
 	}
 }

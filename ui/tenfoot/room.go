@@ -32,6 +32,8 @@ type RoomSnapshot struct {
 	// Parents is the nested-room stack under the current room (root first).
 	// Return-from-play must keep this stack; Back still pops one parent.
 	Parents []string
+	// ReducedMotion is the launcher preference currently exposed to the script.
+	ReducedMotion bool
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -184,12 +186,13 @@ func (a *App) openRoomLocked(id string) {
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
 	inst, err := rooms.New(pack, rooms.Options{
-		Width:     a.grid.contentWidth(),
-		Height:    a.grid.contentHeight(),
-		Services:  roomServices{client: a.client},
-		Index:     a.roomsIndex,
-		Theme:     a.theme,
-		StorePath: a.roomStorePathLocked(pack.ID),
+		Width:         a.grid.contentWidth(),
+		Height:        a.grid.contentHeight(),
+		Services:      roomServices{client: a.client},
+		Index:         a.roomsIndex,
+		Theme:         a.theme,
+		ReducedMotion: a.reducedMotion,
+		StorePath:     a.roomStorePathLocked(pack.ID),
 	})
 	if err != nil {
 		a.roomErr = err.Error()
@@ -455,7 +458,8 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Height:      a.grid.contentHeight(),
 		Destination: a.roomDestinationLocked(),
 		Choice:      a.roomChoiceSnapshotLocked(),
-		Parents:     a.roomParentIDsLocked(),
+		Parents:       a.roomParentIDsLocked(),
+		ReducedMotion: a.room.ReducedMotion(),
 	}
 	if withImages {
 		snap.Images = a.room.Images()

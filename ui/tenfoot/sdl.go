@@ -306,6 +306,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
 	app.SetSafeAreaPct(opts.SafeAreaPct)
+	app.SetReducedMotion(opts.ReducedMotion)
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	if opts.Smoke {
 		var cancel context.CancelFunc

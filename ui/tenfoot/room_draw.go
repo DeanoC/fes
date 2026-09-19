@@ -275,6 +275,8 @@ func drawRoomChoice(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		rowY := panel.rowY(i)
 		if idx == snap.Room.Choice.Index {
 			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
+			th := drawTheme(snap)
+			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
 		}
 		label := strings.TrimSpace(rows[idx].Title)
 		if label == "" {
@@ -407,6 +409,8 @@ func drawRoomPicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		rowY := panel.rowY(i)
 		if idx == snap.RoomPicker.Index {
 			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
+			th := drawTheme(snap)
+			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
 		}
 		label := homeRowLabel(row, currentRoom)
 		drawLabel(dev, labels, used, fmt.Sprintf("rooms-%d", idx), x+24, rowY+4, panelW-48, 18, label)

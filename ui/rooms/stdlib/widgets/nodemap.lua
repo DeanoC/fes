@@ -12,7 +12,8 @@
 -- Played and Completed are separate. node.played is FES play activity;
 -- node.done is an explicit completion record only. Returning from a launch
 -- is not done. draw uses played_color vs done_color so the two never share
--- one "cleared" fill.
+-- one "cleared" fill. Focus is an outline ring plus a tick, not colour
+-- alone; the focused label also carries Played/Completed as text.
 local Map = {}
 Map.__index = Map
 local M = {}
@@ -135,6 +136,7 @@ function Map:draw(opts)
   local played_color = opts.played_color or "#d4a017"
   local done_color = opts.done_color or "#3aa655"
   local focus_color = opts.focus_color or room.theme.accent
+  local outline_color = opts.outline_color or room.theme.label or "#ffffff"
   local r = self.radius
   for _, e in ipairs(self.edges) do
     local a, b = self.nodes[e[1]], self.nodes[e[2]]
@@ -146,8 +148,12 @@ function Map:draw(opts)
     local x, y = n.x + ox, n.y + oy
     local focused = (id == self.focus)
     if focused then
+      -- Marker ring plus a tick, not colour alone. Reduced motion keeps the
+      -- ring at rest (ease.pulse returns 0).
       local halo = r + 6 + pulse * 4
+      gfx.rect(x - halo - 3, y - halo - 3, (halo + 3) * 2, (halo + 3) * 2, outline_color)
       gfx.rect(x - halo, y - halo, halo * 2, halo * 2, focus_color)
+      gfx.rect(x - 5, y - halo - 10, 10, 8, outline_color)
     end
     local fill = n.color or node_color
     if not n.color then
@@ -162,10 +168,24 @@ function Map:draw(opts)
       gfx.image(n.icon, x - r + 3, y - r + 3, r * 2 - 6, r * 2 - 6)
     end
     if n.label and (focused or not opts.labels_focused_only) then
-      gfx.text(n.label, x - 120, y + r + 6, { size = opts.label_size or 18, align = "center", max_w = 240, bold = focused, color = opts.label_color or room.theme.label })
+      local text = n.label
+      if focused then
+        local hist = M.history_line(n)
+        if hist ~= "" then text = text .. "  ·  " .. hist end
+      end
+      gfx.text(text, x - 120, y + r + 6, { size = opts.label_size or 18, align = "center", max_w = 240, bold = focused, color = opts.label_color or room.theme.label })
     end
     gfx.hit(self:hit_id(id), x - r - 6, y - r - 6, (r + 6) * 2, (r + 6) * 2)
   end
+end
+
+-- history_line matches FES destination chrome: Played and Completed as text.
+function M.history_line(n)
+  if not n then return "" end
+  if n.played and n.done then return "Played  ·  Completed" end
+  if n.done then return "Completed" end
+  if n.played then return "Played" end
+  return ""
 end
 
 return M

@@ -118,6 +118,7 @@ function List:draw(opts)
     local focused = (i == self.focus)
     if focused then
       gfx.rect(self.x, y, self.w, self.row_h, accent)
+      gfx.rect(self.x, y, 6, self.row_h, opts.marker_color or "#ffffff")
     elseif opts.row_color then
       gfx.rect(self.x, y, self.w, self.row_h, opts.row_color)
     end

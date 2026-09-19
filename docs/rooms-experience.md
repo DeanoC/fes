@@ -216,10 +216,10 @@ See companion section below (also summarised in chat). Update status here as ite
 | 7 | Return restores room, location, history; failed save visible | **STATUS done** (2026-09-19): successful Stop restores the same room, selected location, and parent stack; a game launched inside a nested room returns there; SAVE_FAILED stays on failed-save chrome (not Now playing / Completed) until retry Stop succeeds | Host/session + Luna |
 | 8 | Home surface: pinned / recent / installed rooms / library | **STATUS done** (2026-09-19): tenfoot Home overlay lists pinned rooms, recently played games, every installed room, and the full library. Settings Confirm goes Home; Y/`i` pins rooms into `tenfoot.json`. Selecting a room keeps first-entry vs later-visit restore. Discovery/download remains out of scope | Luna / UI |
 | 9 | Edition preference remembered for household | **STATUS done** (2026-09-19): household `libraryuser.edition_preference`; host GET/PUT `/api/v1/library/edition-preferences`; Confirm/Details skip the re-ask when the saved edition is still a match | Host profile / FES |
-| 10 | Accessibility pass | Reduced motion, contrast, non-colour focus; Back + system menu always reachable | Luna |
+| 10 | Accessibility pass | **STATUS done** (2026-09-19): tenfoot `reduced_motion` pref (settings + `tenfoot.json` / `FOGCAST_REDUCED_MOTION`); rooms read `room.reduced_motion`; nodemap/list/grid keep focus markers that are not colour-only; destination Played/Completed text kept and extended onto focused map labels; Back and system menu stay FES-owned (scripts cannot suppress them) | Luna |
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 10–12. (0–9 are done.)
+**Recommended sequence for starting now:** 11–12. (0–10 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).

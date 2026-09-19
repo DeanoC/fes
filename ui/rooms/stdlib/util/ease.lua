@@ -18,7 +18,9 @@ function M.out_back(t)
   return 1 + c3 * t * t * t + c1 * t * t
 end
 -- pulse(time, period) -> 0..1 sine pulse for focus glows.
+-- Reduced motion freezes the glow at rest so focus still has a marker.
 function M.pulse(time, period)
+  if room and room.reduced_motion then return 0 end
   period = period or 1.2
   return 0.5 + 0.5 * math.sin(time * 2 * math.pi / period)
 end
@@ -39,6 +41,12 @@ function Tween:retarget(to, from)
 end
 
 function Tween:update(dt)
+  if room and room.reduced_motion then
+    self.t = self.duration
+    self.done = true
+    self.value = self.to
+    return self.value
+  end
   if self.done then return self.value end
   self.t = self.t + dt
   local k = self.t / self.duration

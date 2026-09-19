@@ -44,7 +44,8 @@ Left/Right chooses the start screen (`library` or `rooms`, persisted as
 `tenfoot.json`). **GUIDE/o** opens that system menu as a tap.
 
 In a room, **B/Esc** goes back (closes Details first, then the parent
-room, then Home), **Y/`i`** opens Details, **GUIDE/o** still opens
+room, then Home). Rooms cannot suppress **Back** or the **system menu**.
+**Y/`i`** opens Details, **GUIDE/o** still opens
 settings, and safe-area nudges still work. Direction, Confirm, and the
 other face/shoulder buttons are delivered to the script unless the
 launcher owns Confirm/Details for a published destination. Confirm on a
@@ -102,7 +103,7 @@ Define any of these globals:
 | `load()` | once, after the file has run; start `library.*` queries here |
 | `update(dt)` | every tick before `draw`; `dt` in seconds (clamped to 0.1) |
 | `draw()` | every tick; the only place `gfx.*` drawing calls are allowed |
-| `on_input(cmd) -> bool` | a command name (below); return `true` when consumed. Unconsumed `back` leaves the room |
+| `on_input(cmd) -> bool` | a command name (below); return `true` when consumed. `settings` and `home` are never delivered. FES owns **Back** after overlays (Details / choice / launch); unconsumed `back` is not required for leave |
 | `on_hover(id)` / `on_activate(id)` | pointer over / primary click on a region registered with `gfx.hit` |
 | `on_resume()` | when the launcher returns to this room after a play session or a nested room (the room instance is suspended, not reloaded, while a nested room is open) |
 | `on_resize(w, h)` | when the safe content box changes (safe-area nudge); `room.width`/`room.height` are already updated |
@@ -122,7 +123,8 @@ when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bi
 
 `room.id`, `room.title`, `room.width`, `room.height` (logical pixels of the
 safe content area; `0,0` is its top-left), `room.time` (seconds since
-load), `room.theme` (hex strings: `background`, `accent`, `highlight`,
+load), `room.reduced_motion` (boolean; the launcher reduced-motion
+preference), `room.theme` (hex strings: `background`, `accent`, `highlight`,
 `flash`, `label`, `label_bar`, `status`, `header`, `header_bar`,
 `footer_bar`, `cover_frame`).
 

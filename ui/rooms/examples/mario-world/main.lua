@@ -88,6 +88,7 @@ function load()
 end
 
 function update(dt)
+  if room.reduced_motion then return end
   for _, c in ipairs(clouds) do
     c.x = c.x + c.speed * dt
     if c.x > room.width + c.w then c.x = -c.w end

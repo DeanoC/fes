@@ -119,6 +119,8 @@ func (a *App) persistPrefsLocked(field string) {
 	case "pinned_rooms":
 		existing.PinnedRooms = append([]string(nil), a.pinnedRooms...)
 		existing.Home = homePrefValue(a.homeRooms)
+	case "reduced-motion":
+		existing.ReducedMotion = a.reducedMotion
 	default:
 		return
 	}

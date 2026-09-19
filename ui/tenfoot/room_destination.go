@@ -140,17 +140,18 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
-	handled := a.room.Input(roomCommandName(cmd))
-	a.applyRoomActionsLocked()
-	if a.room == nil {
-		return
-	}
-	if !handled && cmd == CmdBack {
+	if cmd == CmdBack {
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
 			return
 		}
 		a.leaveRoomLocked()
+		return
+	}
+	_ = a.room.Input(roomCommandName(cmd))
+	a.applyRoomActionsLocked()
+	if a.room == nil {
+		return
 	}
 }
 

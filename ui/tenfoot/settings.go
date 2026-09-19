@@ -19,6 +19,7 @@ const (
 	settingsRowTarget
 	settingsRowPrepareTarget
 	settingsRowHome
+	settingsRowReducedMotion
 	settingsRowFixedCount
 )
 
@@ -154,6 +155,10 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	case !a.attractPrefEnabled || a.attractDisabled:
 		attract = "Off"
 	}
+	motion := "Off"
+	if a.reducedMotion {
+		motion = "On"
+	}
 	idle := "—"
 	if a.settingsHydrated {
 		idle = fmt.Sprintf("%ds", a.settingsDraftIdle)
@@ -181,6 +186,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "target", Label: "Target", Value: target},
 		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
 		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
+		{ID: "reduced-motion", Label: "Reduced motion", Value: motion},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -414,6 +420,11 @@ func (a *App) handleSettingsLocked(cmd Command) {
 			a.toggleHomePrefLocked()
 		case CmdSelect:
 			a.goHomeNowLocked()
+		}
+	case settingsRowReducedMotion:
+		switch cmd {
+		case CmdLeft, CmdRight, CmdSelect:
+			a.toggleReducedMotionLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {
@@ -1488,6 +1499,9 @@ func (a *App) settingsHintLocked() string {
 	if a.settingsIndex == settingsRowHome {
 		return settingsActionHint(kind, "go home", "Left/Right start screen")
 	}
+	if a.settingsIndex == settingsRowReducedMotion {
+		return settingsActionHint(kind, "toggle", "Left/Right")
+	}
 	targetKind, targetIndex, field := a.settingsTargetRowLocked()
 	if targetIndex >= 0 {
 		switch field {
@@ -1692,4 +1706,40 @@ func (a *App) toggleHomePrefLocked() {
 	a.homeRooms = !a.homeRooms
 	a.persistPrefsLocked("home")
 	a.status = "home: " + homePrefValue(a.homeRooms)
+}
+
+func (a *App) toggleReducedMotionLocked() {
+	a.setReducedMotionLocked(!a.reducedMotion, true)
+}
+
+func (a *App) setReducedMotionLocked(on bool, persist bool) {
+	a.reducedMotion = on
+	if persist {
+		a.persistPrefsLocked("reduced-motion")
+	}
+	if a.room != nil {
+		a.room.SetReducedMotion(on)
+	}
+	for _, parent := range a.roomStack {
+		if parent != nil {
+			parent.SetReducedMotion(on)
+		}
+	}
+	if on {
+		a.status = "reduced motion on"
+		return
+	}
+	a.status = "reduced motion off"
+}
+
+func (a *App) SetReducedMotion(on bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.setReducedMotionLocked(on, false)
+}
+
+func (a *App) ReducedMotion() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.reducedMotion
 }
