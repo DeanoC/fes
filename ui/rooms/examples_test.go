@@ -11,8 +11,11 @@ import (
 // host without a script error.
 func TestEmbeddedExamplesLoadAndDraw(t *testing.T) {
 	packs := Examples()
-	if len(packs) < 5 {
+	if len(packs) < 6 {
 		t.Fatalf("expected the sample rooms, got %d", len(packs))
+	}
+	if !examplePack(t, "example.coleco-arcade").Valid() {
+		t.Fatal("example.coleco-arcade missing")
 	}
 	svc := &fakeServices{}
 	index := NewIndex(packs)
@@ -109,6 +112,69 @@ func TestLobbyWorkbenchTMSPublishDestination(t *testing.T) {
 	tms.Step(time.Unix(3, 0))
 	if got := tms.Destination(); got.Kind != KindGame || got.Label != "Donkey Kong" || got.GameID != "coleco-dk" {
 		t.Fatalf("tms game dest %+v", got)
+	}
+}
+
+func TestColecoArcadeResolvesBySearchAndSkipsMissing(t *testing.T) {
+	pack := examplePack(t, "example.coleco-arcade")
+	svc := &fakeServices{
+		games: []hostclient.Game{
+			{ID: "coleco-dk", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: true},
+			{ID: "coleco-zaxxon", Title: "Zaxxon", System: "coleco", State: "available", RootOnline: true, Launchable: true},
+			{ID: "arcade-dk", Title: "Donkey Kong", System: "arcade", State: "available", RootOnline: true, Launchable: true},
+			{ID: "snes-mario", Title: "Super Mario World", System: "snes", State: "available", RootOnline: true, Launchable: true},
+		},
+	}
+	r := newRoom(t, pack, Options{Services: svc, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool {
+		d := r.Destination()
+		return d.Kind == KindGame && d.GameID != "" && d.Availability != AvailChecking
+	})
+	wantQ := map[string]bool{"Donkey Kong": true, "Carnival": true, "Zaxxon": true, "Congo Bongo": true, "Frogger": true}
+	for _, q := range svc.recorded() {
+		if q.Platform != "coleco" {
+			t.Fatalf("query platform %q want coleco", q.Platform)
+		}
+		if q.Q == "" {
+			t.Fatal("query missing q")
+		}
+		if !wantQ[q.Q] {
+			t.Fatalf("unexpected q %q", q.Q)
+		}
+		delete(wantQ, q.Q)
+	}
+	if len(wantQ) != 0 {
+		t.Fatalf("missing title searches %v", wantQ)
+	}
+	got := r.Destination()
+	if got.Kind != KindGame || got.Label != "Donkey Kong" || got.GameID != "coleco-dk" || got.Platform != "coleco" || got.Query != "Donkey Kong" {
+		t.Fatalf("focused dest %+v", got)
+	}
+	if got.Availability != AvailReady || got.Confirm() != ConfirmLaunch {
+		t.Fatalf("ready dest %+v confirm %v", got, got.Confirm())
+	}
+	if !r.Input("down") {
+		t.Fatal("down")
+	}
+	r.Step(time.Unix(3, 0))
+	got = r.Destination()
+	if got.Label != "Zaxxon" || got.GameID != "coleco-zaxxon" {
+		t.Fatalf("skipped missing titles; next dest %+v", got)
+	}
+
+	empty := newRoom(t, pack, Options{Services: &fakeServices{}, Width: 1280, Height: 720})
+	if err := empty.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, empty, func(Frame) bool {
+		d := empty.Destination()
+		return d.Kind == KindUnresolved && d.Availability != AvailChecking
+	})
+	if got := empty.Destination(); got.Label != "ColecoVision Arcade" || got.GameID != "" {
+		t.Fatalf("empty library dest %+v", got)
 	}
 }
 
