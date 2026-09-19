@@ -419,6 +419,11 @@ sg1000-diagnostic:
 		--preview build/diagnostics/fes-sg1000/graphics-i.ppm
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --pad-to 16384 \
 		--output build/diagnostics/fes-sg1000/graphics-i-16k.rom
+	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --controllers \
+		--output build/diagnostics/fes-sg1000/controller.rom \
+		--preview build/diagnostics/fes-sg1000/controller.ppm
+	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --controllers --pad-to 16384 \
+		--output build/diagnostics/fes-sg1000/controller-16k.rom
 
 sim-fes-sg1000: sg1000-diagnostic
 	$(require_local_sim)
@@ -428,7 +433,7 @@ sim-fes-sg1000: sg1000-diagnostic
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
+		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
@@ -438,7 +443,8 @@ sim-fes-sg1000: sg1000-diagnostic
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine/Vsg1000_machine \
-		build/diagnostics/fes-sg1000/graphics-i.rom
+		build/diagnostics/fes-sg1000/graphics-i.rom \
+		build/diagnostics/fes-sg1000/controller.rom
 
 sim-fes-sg1000-oss: sg1000-diagnostic
 	$(require_local_sim)
@@ -449,7 +455,7 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
+		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
 		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
@@ -459,7 +465,8 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		cores/fes-coleco/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine-oss/Vsg1000_machine \
-		build/diagnostics/fes-sg1000/graphics-i.rom
+		build/diagnostics/fes-sg1000/graphics-i.rom \
+		build/diagnostics/fes-sg1000/controller.rom
 
 .PHONY: sim-fes-sg1000-quartus
 sim-fes-sg1000-quartus:
