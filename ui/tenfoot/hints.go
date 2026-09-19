@@ -67,11 +67,11 @@ func layoutWord(kind InputKind) string {
 func browseHint(kind InputKind) string {
 	switch kind {
 	case InputKeyboard:
-		return "[ ] platform  x sort  g filter  Tab search  Enter launch  v fav  l layout  o settings"
+		return "[ ] platform  x sort  g filter  Tab search  Enter launch  v fav  l layout  h rooms  o settings"
 	case InputMouse:
 		return "move focus  click launch"
 	default:
-		return "LB/RB platform  X sort  hold X filter  Y search  hold A view  hold Y fav  SELECT layout  GUIDE settings"
+		return "LB/RB platform  X sort  hold X filter  Y search  hold A view  hold Y fav  SELECT layout  hold B rooms  GUIDE settings"
 	}
 }
 
@@ -220,6 +220,15 @@ func (s Snapshot) HeaderHint() string {
 	}
 	if s.ViewPicker {
 		return viewPickerHint(kind)
+	}
+	if s.RoomPicker.Open {
+		return roomPickerHint(kind)
+	}
+	if s.Room.Open {
+		if s.Room.Err != "" {
+			return backWord(kind) + " home"
+		}
+		return backWord(kind) + " back  " + homeWord(kind) + " rooms  " + settingsWord(kind) + " settings"
 	}
 	if s.Detail.Open {
 		if h := strings.TrimSpace(s.Detail.Hint); h != "" {

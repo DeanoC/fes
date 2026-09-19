@@ -50,6 +50,8 @@ func CommandFromKey(name string) Command {
 		return CmdSettings
 	case "g":
 		return CmdFilters
+	case "h", "home":
+		return CmdHome
 	default:
 		return CmdNone
 	}

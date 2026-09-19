@@ -241,3 +241,29 @@ func TestFPGAExtensionAndCoverRows(t *testing.T) {
 		}
 	}
 }
+
+func TestTagsAreClassifiedAndCopied(t *testing.T) {
+	row, ok := Lookup(protocol.SystemColecoVision)
+	if !ok {
+		t.Fatal("colecovision missing")
+	}
+	want := map[string]bool{"cpu:z80": true, "vdp:tms9918": true, "vdp:tms9918-family": true}
+	for _, tag := range row.Tags {
+		delete(want, tag)
+	}
+	if len(want) != 0 {
+		t.Fatalf("colecovision missing tags %v (have %v)", want, row.Tags)
+	}
+	row.Tags[0] = "mutated"
+	again, _ := Lookup(protocol.SystemColecoVision)
+	if again.Tags[0] == "mutated" {
+		t.Fatal("Lookup must return a defensive copy of Tags")
+	}
+	for _, r := range Rows() {
+		for _, tag := range r.Tags {
+			if !strings.Contains(tag, ":") && tag != "handheld" && tag != "discrete-logic" {
+				t.Errorf("%s: tag %q should be namespaced", r.PlatformID, tag)
+			}
+		}
+	}
+}

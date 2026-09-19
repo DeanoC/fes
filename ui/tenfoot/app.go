@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/inputmap"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 	"github.com/DeanoC/FogCast/ui/theme"
 )
@@ -244,6 +245,8 @@ type Snapshot struct {
 	Preview         PreviewSnapshot
 	Theme           theme.Theme
 	DebugHUD        DebugHUDSnapshot
+	Room            RoomSnapshot
+	RoomPicker      RoomPickerSnapshot
 }
 
 // DebugHUDSnapshot is the optional corner overlay (off by default).
@@ -386,6 +389,18 @@ type App struct {
 	devLoadPhase           string
 	devLoadMessage         string
 
+	roomsIndex      *rooms.Index
+	roomsDir        string
+	homeRooms       bool
+	room            *rooms.Instance
+	roomStack       []*rooms.Instance
+	roomFrame       rooms.Frame
+	roomErr         string
+	roomWasParked   bool
+	roomPickerOpen  bool
+	roomPickerIndex int
+	roomCoverSem    chan struct{}
+
 	safeAreaPct        float64
 	prefsPath          string
 	attractDisabled    bool
@@ -509,6 +524,7 @@ func (a *App) Start(parent context.Context) {
 	a.loadGen++
 	gen := a.loadGen
 	loadCtx := a.replaceLoadContextLocked()
+	a.showHomeLocked()
 	a.mu.Unlock()
 	for i := 0; i < coverWorkers; i++ {
 		go a.worker(ctx)
@@ -525,6 +541,7 @@ func (a *App) Stop() {
 	a.mu.Lock()
 	a.hideAttractLocked()
 	a.stopPreviewLocked()
+	a.closeAllRoomsLocked()
 	a.attractClosed = true
 	cancel := a.cancel
 	a.mu.Unlock()
@@ -551,6 +568,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
+	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked()
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -561,7 +579,20 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
 	case CmdLayoutCycle:
+		if roomOwnsInput {
+			a.handleRoomLocked(cmd)
+			return
+		}
 		a.cycleLayoutLocked()
+		return
+	case CmdHome:
+		if a.settingsOSKOpenLocked() || a.settingsOpen || a.searchOpen || a.nameEntryOpenLocked() {
+			return
+		}
+		if a.sessionStopOfferedLocked() {
+			return
+		}
+		a.toggleRoomPickerLocked()
 		return
 	case CmdSettings:
 		if a.settingsOpen {
@@ -571,6 +602,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	case CmdFilters:
+		if roomOwnsInput {
+			a.handleRoomLocked(cmd)
+			return
+		}
 		if a.filtersOpen {
 			a.closeFiltersLocked()
 		} else {
@@ -584,6 +619,14 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
+		return
+	}
+	if a.roomPickerOpen {
+		a.handleRoomPickerLocked(cmd)
+		return
+	}
+	if a.room != nil && !a.sessionStopOfferedLocked() {
+		a.handleRoomLocked(cmd)
 		return
 	}
 	if a.filtersOpen {
@@ -1106,6 +1149,9 @@ func (a *App) Tick(now time.Time) Command {
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()
+	if !a.attractActive {
+		a.tickRoomLocked(now)
+	}
 	a.mu.Unlock()
 	a.queueVisibleWork(now)
 	if a.ForwardsPlayHID() {
@@ -1223,6 +1269,8 @@ func (a *App) Snapshot() Snapshot {
 		Preview:         a.previewSnapshotLocked(),
 		Theme:           a.theme.Complete(),
 		DebugHUD:        a.debugHUDSnapshotLocked(),
+		Room:            a.roomSnapshotLocked(true),
+		RoomPicker:      a.roomPickerSnapshotLocked(),
 	}
 }
 

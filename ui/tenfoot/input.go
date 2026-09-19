@@ -36,6 +36,7 @@ const (
 	CmdFilters
 	CmdTab
 	CmdTabPrev
+	CmdHome
 )
 
 // Button is a gamepad-first control, independent of SDL.
@@ -308,7 +309,9 @@ func isHoldable(cmd Command) bool {
 // navigation repeat continues (Repeater tracks only one command). Re-arm does
 // not call Press: that would walk focus and restart repeat after South/East.
 func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool {
-	gate := !app.SearchOpen() && !app.ViewPickerOpen() && !app.SettingsOpen() && !app.FiltersOpen() && !app.AttractActive() && !app.OSKOpen() && !app.CollectionMenuOpen() && app.browseHoldEnabled()
+	// Rooms own Select/X/Y, so only Back keeps its long-press (Home) there.
+	gateBack := !app.SearchOpen() && !app.ViewPickerOpen() && !app.SettingsOpen() && !app.FiltersOpen() && !app.AttractActive() && !app.OSKOpen() && !app.CollectionMenuOpen() && !app.RoomPickerOpen() && app.browseHoldEnabled()
+	gate := gateBack && !app.RoomOpen()
 	for cmd := range held {
 		if !pressed[cmd] {
 			if app.AttractActive() {
@@ -338,7 +341,11 @@ func applyPressed(app *App, pressed, held map[Command]bool, now time.Time) bool 
 		if cmd == CmdQuit {
 			return true
 		}
-		if app.hold.Begin(cmd, now, gate) {
+		holdGate := gate
+		if cmd == CmdBack {
+			holdGate = gateBack
+		}
+		if app.hold.Begin(cmd, now, holdGate) {
 			app.NoteActivity(now)
 			held[cmd] = true
 			continue
@@ -406,6 +413,8 @@ func (c Command) String() string {
 		return "tab"
 	case CmdTabPrev:
 		return "tab-prev"
+	case CmdHome:
+		return "home"
 	default:
 		return "none"
 	}
@@ -419,6 +428,8 @@ func longPressCommand(cmd Command) Command {
 		return CmdFavorite
 	case CmdSortCycle:
 		return CmdFilters
+	case CmdBack:
+		return CmdHome
 	default:
 		return CmdNone
 	}

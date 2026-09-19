@@ -1,0 +1,9 @@
+id = "console-snes"
+title = "Super Nintendo"
+author = "FogCast"
+description = "One console, its whole library, in its own colours."
+main = "main.lua"
+
+[theme]
+background = "#3b3b47"
+accent = "#8b5cf6"

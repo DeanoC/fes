@@ -18,6 +18,7 @@ const (
 	settingsRowRegions
 	settingsRowTarget
 	settingsRowPrepareTarget
+	settingsRowHome
 	settingsRowFixedCount
 )
 
@@ -179,6 +180,7 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 		{ID: "regions", Label: "Regions", Value: regions},
 		{ID: "target", Label: "Target", Value: target},
 		{ID: "prepare-target", Label: "Prepare target", Value: "A generate identity"},
+		{ID: "home", Label: "Home", Value: a.settingsHomeValueLocked()},
 	}
 	for i, draft := range a.settingsDraftTargets {
 		name := strings.TrimSpace(draft.Name)
@@ -405,6 +407,11 @@ func (a *App) handleSettingsLocked(cmd Command) {
 		switch cmd {
 		case CmdLeft, CmdRight, CmdSelect:
 			a.toggleAttractPrefLocked()
+		}
+	case settingsRowHome:
+		switch cmd {
+		case CmdLeft, CmdRight, CmdSelect:
+			a.toggleHomePrefLocked()
 		}
 	case settingsRowIdle:
 		if !a.settingsHydrated {
@@ -1656,4 +1663,28 @@ func prefsAttractEnabled(prefs tenfootPrefs) bool {
 		return true
 	}
 	return *prefs.AttractEnabled
+}
+
+func (a *App) settingsHomeValueLocked() string {
+	if !a.roomsAvailableLocked() {
+		return "Library (no rooms installed)"
+	}
+	if a.homeRooms {
+		return fmt.Sprintf("Rooms (%d)", a.roomsIndex.ValidCount())
+	}
+	return "Library"
+}
+
+func (a *App) toggleHomePrefLocked() {
+	if !a.roomsAvailableLocked() {
+		a.settingsStatus = "no rooms installed"
+		if dir := strings.TrimSpace(a.roomsDir); dir != "" {
+			a.settingsStatus = "no rooms in " + dir
+		}
+		a.status = a.settingsStatus
+		return
+	}
+	a.homeRooms = !a.homeRooms
+	a.persistPrefsLocked("home")
+	a.status = "home: " + homePrefValue(a.homeRooms)
 }

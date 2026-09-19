@@ -212,6 +212,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -294,6 +295,13 @@ func runWindow(ctx context.Context, opts Options) error {
 		return fmt.Errorf("theme: %w", err)
 	}
 	app.SetTheme(look)
+	roomIndex, roomErr := loadRoomIndex(opts)
+	if roomErr != nil {
+		fmt.Fprintf(os.Stderr, "tenfoot: %v\n", roomErr)
+	}
+	app.SetRooms(roomIndex, opts.RoomsDir)
+	homeRooms, _ := parseHomePref(opts.Home)
+	app.SetHomeRooms(homeRooms)
 	app.SetDebugHUD(opts.DebugHUD)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))
@@ -1172,6 +1180,10 @@ func sdlKeyName(code C.int) string {
 		return "down"
 	case C.SDLK_S:
 		return "s"
+	case C.SDLK_H:
+		return "h"
+	case C.SDLK_HOME:
+		return "home"
 	case C.SDLK_LEFT:
 		return "left"
 	case C.SDLK_A:

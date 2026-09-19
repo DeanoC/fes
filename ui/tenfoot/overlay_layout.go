@@ -394,3 +394,54 @@ func oskLayout(snap Snapshot) (oskGeom, []oskKeyRect, bool) {
 	}
 	return geom, keys, true
 }
+
+func roomPickerPanel(snap Snapshot) (listPanel, bool) {
+	rows := snap.RoomPicker.Rows
+	if !snap.RoomPicker.Open || len(rows) == 0 {
+		return listPanel{}, false
+	}
+	g := snap.Grid
+	contentW := g.contentWidth()
+	contentH := g.contentHeight()
+	panelW := 640
+	if panelW > contentW-48 {
+		panelW = contentW - 48
+	}
+	if panelW < 240 {
+		panelW = contentW - 24
+	}
+	rowH := 48
+	headerH := 52
+	footerH := 28
+	maxRows := (contentH - 24 - headerH - footerH) / rowH
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	if maxRows > 8 {
+		maxRows = 8
+	}
+	if maxRows > len(rows) {
+		maxRows = len(rows)
+	}
+	panelH := headerH + maxRows*rowH + footerH
+	x := g.contentLeft() + (contentW-panelW)/2
+	y := g.contentTop() + (contentH-panelH)/2
+	if y < g.contentTop() {
+		y = g.contentTop()
+	}
+	start := snap.RoomPicker.Index - maxRows/2
+	if start < 0 {
+		start = 0
+	}
+	if start+maxRows > len(rows) {
+		start = len(rows) - maxRows
+	}
+	if start < 0 {
+		start = 0
+	}
+	return listPanel{
+		X: x, Y: y, W: panelW, H: panelH,
+		HeaderH: headerH, FooterH: footerH, RowH: rowH,
+		Start: start, Visible: maxRows,
+	}, true
+}

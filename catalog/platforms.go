@@ -15,6 +15,7 @@ type Platform struct {
 	Label        string
 	Extensions   map[string]struct{}
 	LaunchSystem protocol.System
+	Tags         []string
 }
 
 type PlatformRegistry struct {
@@ -32,6 +33,7 @@ func DefaultPlatforms() PlatformRegistry {
 	for _, row := range rows {
 		platform := Platform{ID: row.PlatformID, Label: row.Label, Extensions: platformExtensions(row.Extensions...)}
 		platform.LaunchSystem = row.LaunchSystem
+		platform.Tags = append([]string(nil), row.Tags...)
 		platforms = append(platforms, platform)
 	}
 	platforms = append(platforms, Platform{ID: CorePlatform, Label: "FPGA cores", Extensions: platformExtensions()})
@@ -82,12 +84,21 @@ func PlatformLabel(id protocol.System) string {
 	return strings.TrimSpace(string(id))
 }
 
+// PlatformTags are the hardware classification tags for a platform.
+func PlatformTags(id protocol.System) []string {
+	if platform, ok := DefaultPlatforms().Lookup(id); ok && len(platform.Tags) > 0 {
+		return platform.Tags
+	}
+	return nil
+}
+
 func clonePlatform(platform Platform) Platform {
 	copy := platform
 	copy.Extensions = make(map[string]struct{}, len(platform.Extensions))
 	for extension := range platform.Extensions {
 		copy.Extensions[extension] = struct{}{}
 	}
+	copy.Tags = append([]string(nil), platform.Tags...)
 	return copy
 }
 

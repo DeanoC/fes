@@ -35,3 +35,23 @@ func TestScannerRejectsUnknownPlatforms(t *testing.T) {
 		t.Fatal("Scan(unknown platform) succeeded")
 	}
 }
+
+func TestPlatformTagsFlowFromSystemsTable(t *testing.T) {
+	tags := PlatformTags("sms")
+	found := false
+	for _, tag := range tags {
+		if tag == "vdp:tms9918-family" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("sms tags %v should include the TMS9918 family", tags)
+	}
+	if PlatformTags(CorePlatform) != nil {
+		t.Fatal("the synthetic FPGA platform has no hardware tags")
+	}
+	tags[0] = "mutated"
+	if PlatformTags("sms")[0] == "mutated" {
+		t.Fatal("PlatformTags must not expose registry storage")
+	}
+}

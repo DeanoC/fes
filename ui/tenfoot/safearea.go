@@ -89,6 +89,28 @@ type tenfootPrefs struct {
 	AttractEnabled *bool   `json:"attract_enabled,omitempty"`
 	Theme          string  `json:"theme,omitempty"`
 	DebugHUD       bool    `json:"debug_hud,omitempty"`
+	// Home is "library" or "rooms": the screen shown at start.
+	Home string `json:"home,omitempty"`
+	// RoomsDir overrides the room pack directory.
+	RoomsDir string `json:"rooms_dir,omitempty"`
+}
+
+func homePrefValue(rooms bool) string {
+	if rooms {
+		return "rooms"
+	}
+	return "library"
+}
+
+func parseHomePref(s string) (rooms bool, ok bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "rooms", "room":
+		return true, true
+	case "library", "grid":
+		return false, true
+	default:
+		return false, false
+	}
 }
 
 func defaultPrefsPath() string {

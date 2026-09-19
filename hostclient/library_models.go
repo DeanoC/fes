@@ -239,11 +239,12 @@ func (p Presentation) AttributionLabel() string {
 
 // Platform is one row from GET /api/v1/platforms.
 type Platform struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	GameCount  int    `json:"game_count"`
-	Online     bool   `json:"online"`
-	Launchable bool   `json:"launchable"`
+	ID         string   `json:"id"`
+	Label      string   `json:"label"`
+	GameCount  int      `json:"game_count"`
+	Online     bool     `json:"online"`
+	Launchable bool     `json:"launchable"`
+	Tags       []string `json:"tags,omitempty"`
 }
 
 // Collection is one custom shelf from GET /api/v1/library/collections.

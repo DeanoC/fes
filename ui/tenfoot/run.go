@@ -2,10 +2,13 @@ package tenfoot
 
 import (
 	"context"
-	"github.com/DeanoC/FogCast/hostclient"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 // Options configure the native launcher window.
@@ -44,6 +47,21 @@ type Options struct {
 	// FOGCAST_DEBUG_HUD.
 	DebugHUD    bool
 	DebugHUDSet bool
+	// RoomsDir holds room packs (one directory per room with room.toml).
+	// Empty falls back to tenfoot.json rooms_dir, FOGCAST_ROOMS, then
+	// <config>/FogCast/rooms.
+	RoomsDir string
+	// Home is "library" or "rooms": the screen shown at start. Empty falls
+	// back to tenfoot.json home, then library.
+	Home    string
+	HomeSet bool
+}
+
+func defaultRoomsDir(prefsPath string) string {
+	if strings.TrimSpace(prefsPath) == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(prefsPath), "rooms")
 }
 
 func (o Options) prefsPath() string {
@@ -122,7 +140,36 @@ func (o Options) normalized() Options {
 	if !o.DebugHUDSet && prefsErr == nil && prefs.DebugHUD {
 		o.DebugHUD = true
 	}
+	if strings.TrimSpace(o.RoomsDir) == "" && prefsErr == nil {
+		o.RoomsDir = strings.TrimSpace(prefs.RoomsDir)
+	}
+	if strings.TrimSpace(o.RoomsDir) == "" {
+		o.RoomsDir = strings.TrimSpace(os.Getenv("FOGCAST_ROOMS"))
+	}
+	if strings.TrimSpace(o.RoomsDir) == "" {
+		o.RoomsDir = defaultRoomsDir(o.prefsPath())
+	}
+	if !o.HomeSet && prefsErr == nil {
+		if _, ok := parseHomePref(prefs.Home); ok {
+			o.Home = strings.ToLower(strings.TrimSpace(prefs.Home))
+		}
+	}
+	if rooms, ok := parseHomePref(o.Home); ok {
+		o.Home = homePrefValue(rooms)
+	} else {
+		o.Home = homePrefValue(false)
+	}
 	return o
+}
+
+// loadRoomIndex discovers room packs for opts, merging the embedded
+// examples first so a user pack with the same id wins.
+func loadRoomIndex(opts Options) (*rooms.Index, error) {
+	packs, err := rooms.LoadDir(opts.RoomsDir)
+	if err != nil {
+		return rooms.NewIndex(rooms.Examples()), err
+	}
+	return rooms.NewIndex(rooms.Examples(), packs), nil
 }
 
 func (o Options) attractForced() bool {

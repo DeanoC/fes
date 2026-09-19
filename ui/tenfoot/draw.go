@@ -62,6 +62,7 @@ func applyGPUPark(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 		return true
 	}
 	syncTextures(dev, snap, textures)
+	syncRoomTextures(dev, snap, textures)
 	drawFrame(dev, snap, textures, labels)
 	return false
 }
@@ -113,7 +114,7 @@ func syncTextures(dev gfx.Device, snap Snapshot, textures map[string]gpuTexture)
 		textures[id] = tex
 	}
 	for id, item := range textures {
-		if id == "attract" || id == "preview" {
+		if id == "attract" || id == "preview" || strings.HasPrefix(id, roomTexturePrefix) {
 			continue
 		}
 		if _, ok := needed[id]; ok {
@@ -142,17 +143,22 @@ func drawTheme(snap Snapshot) theme.Theme {
 
 func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTexture) {
 	dev.BeginFrame()
-	dev.Clear(drawTheme(snap).SofaBackground)
 	used := map[string]struct{}{}
-	drawHeader(dev, snap, labels, used)
-	if snap.Grid.Mode == LayoutList {
-		drawListRows(dev, snap, textures, labels, used)
+	if snap.Room.Open {
+		drawRoom(dev, snap, textures, labels, used)
 	} else {
-		drawCoverCells(dev, snap, textures, labels, used)
+		dev.Clear(drawTheme(snap).SofaBackground)
+		drawHeader(dev, snap, labels, used)
+		if snap.Grid.Mode == LayoutList {
+			drawListRows(dev, snap, textures, labels, used)
+		} else {
+			drawCoverCells(dev, snap, textures, labels, used)
+		}
+		drawDetail(dev, snap, labels, used, textures)
+		drawViewPicker(dev, snap, labels, used)
+		drawCollectionMenu(dev, snap, labels, used)
 	}
-	drawDetail(dev, snap, labels, used, textures)
-	drawViewPicker(dev, snap, labels, used)
-	drawCollectionMenu(dev, snap, labels, used)
+	drawRoomPicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)

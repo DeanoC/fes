@@ -72,6 +72,7 @@ func (a *App) setSafeAreaPctLocked(pct float64, persist bool) {
 	a.safeAreaPct = pct
 	a.grid.Safe = insetsFromPct(a.grid.Width, a.grid.Height, pct)
 	a.grid.Layout(a.grid.Width, a.grid.Height)
+	a.resizeRoomsLocked()
 	if persist {
 		a.persistPrefsLocked("safe-area")
 	}
@@ -113,6 +114,8 @@ func (a *App) persistPrefsLocked(field string) {
 		existing.Layout = a.grid.Mode.String()
 	case "attract":
 		existing.AttractEnabled = boolPtr(a.attractPrefEnabled)
+	case "home":
+		existing.Home = homePrefValue(a.homeRooms)
 	default:
 		return
 	}
@@ -250,7 +253,7 @@ func (a *App) attractBlockedLocked() bool {
 	if a.developmentLoadingLocked() {
 		return true
 	}
-	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.filtersOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen || a.detailOpen
+	return a.attractDisabled || a.stopPhase == "stopping" || a.inputBusy || a.searchOpen || a.viewPickerOpen || a.settingsOpen || a.filtersOpen || a.nameEntryOpenLocked() || a.collectionManageOpen || a.collectionConfirmOpen || a.detailOpen || a.roomPickerOpen
 }
 
 func (a *App) tickAttractLocked(now time.Time) {

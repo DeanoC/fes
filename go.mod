@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/mdns v1.0.6
 	github.com/pelletier/go-toml/v2 v2.4.3
+	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/image v0.31.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/text v0.40.0

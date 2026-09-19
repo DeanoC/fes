@@ -67,6 +67,7 @@ type PlatformInfo struct {
 	GameCount  int             `json:"game_count"`
 	Online     bool            `json:"online"`
 	Launchable bool            `json:"launchable"`
+	Tags       []string        `json:"tags,omitempty"`
 }
 
 type FacetValues struct {

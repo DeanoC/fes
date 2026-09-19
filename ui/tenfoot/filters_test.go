@@ -207,8 +207,11 @@ func TestFilterBindingDoesNotCollideWithCoreCommands(t *testing.T) {
 	if longPressCommand(CmdSortCycle) != CmdFilters {
 		t.Fatal("hold west should open filters")
 	}
-	if longPressCommand(CmdFilters) != CmdNone || longPressCommand(CmdLayoutCycle) != CmdNone || longPressCommand(CmdBack) != CmdNone {
+	if longPressCommand(CmdFilters) != CmdNone || longPressCommand(CmdLayoutCycle) != CmdNone {
 		t.Fatal("filters must not steal other holds")
+	}
+	if longPressCommand(CmdBack) != CmdHome {
+		t.Fatal("hold back should open the room picker")
 	}
 }
 

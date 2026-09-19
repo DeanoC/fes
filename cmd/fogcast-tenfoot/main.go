@@ -63,6 +63,8 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	themeSpec := fs.String("theme", "", "classic/default, neon/arcade, sofa-dim/night, or JSON/TOML path (default classic)")
 	gfxName := fs.String("gfx", envOr("TENFOOT_GFX", ""), "sdl (default), software, fpga, or fpga-stub")
 	debugHUD := fs.Bool("debug-hud", envTruthy("FOGCAST_DEBUG_HUD"), "paint the optional corner overlay (flight, lease gen/ttl, last error)")
+	roomsDir := fs.String("rooms", envOr("FOGCAST_ROOMS", ""), "room pack directory (default <config>/FogCast/rooms; embedded examples are always available)")
+	home := fs.String("home", "", "screen shown at start: library or rooms (default tenfoot.json home, else library)")
 	if err := fs.Parse(args); err != nil {
 		return tenfoot.Options{}, err
 	}
@@ -70,6 +72,7 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 	layoutSet := false
 	noAttractSet := envNoAttract
 	debugHUDSet := envTruthy("FOGCAST_DEBUG_HUD")
+	homeSet := false
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "safe-area" {
 			safeAreaSet = true
@@ -82,6 +85,9 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		}
 		if f.Name == "debug-hud" {
 			debugHUDSet = true
+		}
+		if f.Name == "home" {
+			homeSet = true
 		}
 	})
 	return tenfoot.Options{
@@ -104,6 +110,9 @@ func parseArgs(args []string) (tenfoot.Options, error) {
 		GFX:          *gfxName,
 		DebugHUD:     *debugHUD,
 		DebugHUDSet:  debugHUDSet,
+		RoomsDir:     *roomsDir,
+		Home:         *home,
+		HomeSet:      homeSet,
 	}, nil
 }
 

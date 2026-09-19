@@ -258,6 +258,19 @@ func (c *Client) ListGames(ctx context.Context, query GameListQuery) ([]Game, st
 	return page.Games, page.NextCursor, nil
 }
 
+// Game loads one catalog row from GET /api/v1/games/{id}.
+func (c *Client) Game(ctx context.Context, id string) (Game, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return Game{}, fmt.Errorf("hostclient: game id is required")
+	}
+	var game Game
+	if err := c.getJSON(ctx, "/api/v1/games/"+url.PathEscape(id), &game); err != nil {
+		return Game{}, err
+	}
+	return preferLaunchable(game), nil
+}
+
 // CoreLibrary loads the selected core entries and the installed package
 // inventory. Both reads are required for a truthful selected-package status.
 func (c *Client) CoreLibrary(ctx context.Context) (CoreLibrary, error) {

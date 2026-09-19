@@ -1,0 +1,9 @@
+id = "workbench"
+title = "Workbench"
+author = "FogCast"
+description = "An AmigaOS-style desktop of strategy games in a drawer window."
+main = "main.lua"
+
+[theme]
+background = "#0055aa"
+accent = "#ff8800"

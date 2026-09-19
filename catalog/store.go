@@ -794,6 +794,7 @@ func (s *Store) Platforms(ctx context.Context) ([]PlatformInfo, error) {
 		info.Label = PlatformLabel(info.ID)
 		info.Online = online != 0
 		info.Launchable = Launchable(info.ID)
+		info.Tags = PlatformTags(info.ID)
 		platforms = append(platforms, info)
 	}
 	if err := rows.Err(); err != nil {
