@@ -237,9 +237,14 @@ directory separators inside the pack (`require "lib.paths"` →
 | --- | --- |
 | `widgets.list` | focusable scrolling rows: `new{x,y,w,h,row_h,items,id}`, `input(cmd)`, `selected()`, `set_items`, `on_hover/on_activate(id)`, `draw{label=, background=, focus_color=}` |
 | `widgets.grid` | cover/icon grid with the library's focus rules: `new{x,y,w,h,cell_w,cell_h,gap,items,id}`, same methods, `draw{cover=fn(item), label=fn(item), plate=, hide_labels=}` |
-| `widgets.nodemap` | overworld graph: `new{nodes={{id,x,y,label,icon,played,done,color}}, edges={{a,b}}, radius}`, d-pad follows edges (falls back to the nearest node in that direction), `focused()`, `draw{edge_color, node_color, played_color, done_color, focus_color, path_width, labels_focused_only}`. `played` is recorded play; `done` is Completed only |
+| `widgets.nodemap` | overworld graph: `new{nodes={{id,x,y,label,icon,played,done,color}}, edges={{a,b}}, radius}`, d-pad follows edges (falls back to the nearest node in that direction), `focused()`, `draw{edge_color, node_color, played_color, done_color, focus_color, path_width, labels_focused_only}`. `played` is recorded play; `done` is Completed only. Edges are navigation, not unlock gates |
 | `util.color` | `parse`, `rgba`, `with_alpha`, `mix`, `shade` |
 | `util.ease` | easing curves, `pulse(time, period)`, `tween(from, to, duration)` |
+
+Nodemap `edges` (the drawn paths between locations) express relationships
+and navigation. They do not lock or unlock destinations. A path on the map
+is not a gate unless the room script adds that mechanic itself. See
+[rooms-experience.md](rooms-experience.md) §2.
 
 ## Examples (`ui/rooms/examples`)
 

@@ -14,6 +14,7 @@
 -- is not done. draw uses played_color vs done_color so the two never share
 -- one "cleared" fill. Focus is an outline ring plus a tick, not colour
 -- alone; the focused label also carries Played/Completed as text.
+-- Edges are navigation relationships, not unlock gates.
 local Map = {}
 Map.__index = Map
 local M = {}
