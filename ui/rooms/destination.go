@@ -141,6 +141,12 @@ func (d *Destination) FillCopy() {
 		d.Status = "Browse the full library."
 		d.Action = "Open library."
 		return
+	case KindUnresolved:
+		if d.Availability == "" {
+			d.Status = "Choose a title from this location."
+			d.Action = "Open the title list."
+			return
+		}
 	}
 	switch d.Availability {
 	case AvailChecking:
@@ -197,7 +203,7 @@ func (d Destination) Confirm() ConfirmIntent {
 	case AvailReady:
 		return ConfirmLaunch
 	default:
-		if d.Kind == KindUnresolved {
+		if d.Kind == KindUnresolved && d.Availability != "" {
 			return ConfirmWait
 		}
 		return ConfirmNone

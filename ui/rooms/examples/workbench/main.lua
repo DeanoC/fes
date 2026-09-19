@@ -1,22 +1,39 @@
 -- Workbench: the classic four-colour Amiga desktop. A drawer window holds
 -- the games as icons; the games come from a "strategy" collection when one
--- exists, otherwise from the Strategy genre across every system.
+-- exists, otherwise from the Strategy genre across every system. The
+-- launcher paints the compact selected-destination strip.
 local Grid = require "widgets.grid"
 
 local BLUE, WHITE, BLACK, ORANGE = "#0055aa", "#ffffff", "#000020", "#ff8800"
+local DEST = 130
 local grid
 local win = {}
 local status = "loading drawer..."
 local drawer = "Strategy"
 
+local function publish()
+  if not grid then
+    destination.set{ kind = "unresolved", label = drawer, resolving = true }
+    return
+  end
+  local g = grid:selected()
+  if not g then
+    destination.set{ kind = "game", label = drawer, query = drawer, missing = true }
+    return
+  end
+  destination.set{ kind = "game", label = g.title, system = g.system, game_id = g.id, matches = { g } }
+end
+
 local function fill(games)
   for _, g in ipairs(games) do g.cover = image.cover(g.id) end
   grid = Grid.new{ id = "icons", x = win.x + 8, y = win.y + 24, w = win.w - 16, h = win.h - 32, cell_w = 128, cell_h = 132, gap = 12, label_h = 34, size = 14, items = games }
   status = #games .. " items"
+  publish()
 end
 
 function load()
-  win = { x = 32, y = 60, w = room.width - 64, h = room.height - 110 }
+  win = { x = 32, y = 60, w = room.width - 64, h = math.max(80, room.height - 60 - DEST) }
+  publish()
   library.collections(function(list, err)
     local found
     for _, c in ipairs(list or {}) do
@@ -25,12 +42,12 @@ function load()
     if found then
       drawer = found.name
       library.query({ collection = found.id, sort = "title", limit = 200 }, function(games, e)
-        if e then status = e return end
+        if e then status = e destination.set{ kind = "unresolved", label = drawer, resolving = true } return end
         fill(games)
       end)
     else
       library.query({ genre = "Strategy", sort = "title", limit = 200 }, function(games, e)
-        if e then status = e return end
+        if e then status = e destination.set{ kind = "unresolved", label = drawer, resolving = true } return end
         fill(games)
       end)
     end
@@ -38,17 +55,12 @@ function load()
 end
 
 function on_input(cmd)
-  if grid and grid:input(cmd) then return true end
-  if cmd == "select" and grid then
-    local g = grid:selected()
-    if g then session.launch(g.id) end
-    return true
-  end
+  if grid and grid:input(cmd) then publish() return true end
   return false
 end
 
-function on_hover(id) if grid then grid:on_hover(id) end end
-function on_activate(id) if grid and grid:on_activate(id) then on_input("select") end end
+function on_hover(id) if grid then grid:on_hover(id) publish() end end
+function on_activate(id) if grid and grid:on_activate(id) then publish() end end
 
 local function bevel(x, y, w, h, light, dark)
   gfx.rect(x, y, w, 2, light)
@@ -105,4 +117,5 @@ function draw()
   -- right-hand scroll gadget
   gfx.rect(win.x + win.w - 18, win.y + 20, 16, win.h - 22, BLACK)
   gfx.rect(win.x + win.w - 16, win.y + 24, 12, 40, ORANGE)
+  publish()
 end

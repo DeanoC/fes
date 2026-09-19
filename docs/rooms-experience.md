@@ -50,6 +50,7 @@ A compact information panel identifies the selected destination:
 | --- | --- |
 | Game | Title, system, availability, primary action |
 | Room | Destination name and “Enter room.” |
+| Library | Destination name and “Open library.” |
 | Unresolved | Honest loading or matching message |
 
 The map remains legible when artwork is absent. Long titles stay readable in the information panel.
@@ -76,7 +77,8 @@ Physical bindings for Xbox-style, PlayStation-style, generic SDL, keyboard,
 and pointer are in
 [rooms-controller-bindings.md](rooms-controller-bindings.md). Tip tenfoot
 already has tap routes for Direction, Confirm, Back, System menu, and
-Details (task #3: North / Y / Triangle / `NORTH`, keyboard `i`). Hold-B
+Details (task #3: North / Y / Triangle / `NORTH`, keyboard `i`, pointer
+tap on the compact selected-destination strip). Hold-B
 rooms picker is a shortcut; Home is also reachable through the system menu.
 
 ---
@@ -201,8 +203,8 @@ See companion section below (also summarised in chat). Update status here as ite
 | --- | --- | --- | --- |
 | 0 | Land this doc in-repo (`docs/rooms-experience.md`) | Merged; linked from `docs/rooms.md` | Bot team (doc PR) |
 | 1 | Decide attract-in-room policy | **STATUS done / decided** (2026-09-19): default off while a room is focused; per-room opt-in with optional custom attract | Deano (+ Foggy) |
-| 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Details tap binding remains a follow-up with task #3 | Luna / UI |
-| 3 | Info panel: five availability states | **STATUS done** (2026-09-19): compact selected-destination panel plus Details tap; Checking/Missing/Needs a choice/Unavailable/Ready have distinct copy and Confirm never no-ops | Luna / UI (host match hooks as needed) |
+| 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Pointer Details on the compact strip landed as a #273 follow-up | Luna / UI |
+| 3 | Info panel: five availability states | **STATUS done** (2026-09-19): compact selected-destination panel plus Details tap; Checking/Missing/Needs a choice/Unavailable/Ready have distinct copy and Confirm never no-ops. Lobby / Workbench / TMS9918 Family publish destinations; pointer tap on the strip is Details | Luna / UI (host match hooks as needed) |
 | 4 | Played vs Completed data contract | **STATUS done** (2026-09-19): §7 contract; `ClassifyHistory` + rooms/tenfoot chrome; Played from `play_count` / `last_played_at`; Completed never inferred (no completion store yet) | Kepler or host owner + Luna |
 | 5 | Target setup for launch smoke | Can Confirm→Play on at least one Ready title from Mushroom Kingdom | Deano / kit+host |
 | 6 | Launch overlay + duplicate prevention + honest failure | §5 behaviour; acceptance 1 & 5 | Host/session (Kepler or Caster) + Luna chrome |

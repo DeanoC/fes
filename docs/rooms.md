@@ -41,7 +41,9 @@ tap. In a room, **B/Esc** goes back (closes Details first, then the parent
 room, then the picker), **Y/`i`** opens Details, **GUIDE/o** still opens
 settings, and safe-area nudges still work. Direction, Confirm, and the
 other face/shoulder buttons are delivered to the script unless the
-launcher owns Confirm/Details for a published destination. No essential
+launcher owns Confirm/Details for a published destination. Pointer tap on
+the compact selected-destination strip is Details (same path as Y / `i`)
+when the destination is a game; it does not Confirm. No essential
 room action is long-press-only or chord-only; see
 [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
@@ -98,7 +100,8 @@ Command names: `up down left right select back stop search tab tab_prev
 filter_prev filter_next sort favorite view_prev view_next view_picker
 layout_cycle filters details`. While a room is focused, Y / North is Details
 (the launcher opens the shared game-info panel) and is not delivered as
-`search`. Keyboard `i` is Details. `search` still arrives from `/` or `f`
+`search`. Keyboard `i` is Details. A pointer tap on the compact destination
+strip is the same Details path. `search` still arrives from `/` or `f`
 when those keys are used. See [rooms-controller-bindings.md](rooms-controller-bindings.md).
 
 ## API
@@ -161,14 +164,19 @@ Platform `tags` classify hardware (`cpu:z80`, `vdp:tms9918-family`,
 
 The selected location the launcher uses for the compact info panel, Confirm,
 and Details. Loading results must not move the player’s selection; publish
-the current node after a match lands, do not refocus.
+the current node after a match lands, do not refocus. Lobby, Workbench, and
+TMS9918 Family publish too, so the strip is present in those rooms as well
+as Mushroom Kingdom.
 
 `destination.set{kind, label, system, game_id, room_id, query, platform,
 matches, resolving, missing, note, note_by}` publishes one location.
 `kind` is `game`, `room`, `library`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
-Unavailable / Ready. Republishing `matches` does not overwrite host
-`play_count` or `last_played_at` on catalog rows the room already cached.
+Unavailable / Ready. `resolving=true` is Checking. Unresolved without a
+match probe is a non-game location (a platform row, an empty list): the
+strip shows **Unresolved** and Confirm stays with the room. Republishing
+`matches` does not overwrite host `play_count` or `last_played_at` on
+catalog rows the room already cached.
 `destination.classify(games, {q=})` returns that result without changing
 focus. `destination.play_history(game_or_facts)`
 returns `{played, completed, line}` from play facts; `completed` is true
@@ -179,8 +187,10 @@ destinations expose the same `played` / `completed` / `history` fields.
 Confirm never silently no-ops: Ready plays, a room destination enters,
 Needs a choice opens an edition list, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). Details
-(Y / `i`) opens the shared game-info panel with Play as primary; a room
-`note` is attributed as “Note from <author>”. Esc/B closes Details and
+(Y / `i`, or a pointer tap on the compact strip) opens the shared
+game-info panel with Play as primary; a room `note` is attributed as
+“Note from <author>”. Strip taps do not steal Direction, Confirm, Back, or
+the system menu. Esc/B closes Details and
 keeps the room. Played vs Completed copy on the compact panel and Details
 comes from `destination.play_history` / `ClassifyHistory`; returning from
 a launch is not Completed.
@@ -218,12 +228,12 @@ directory separators inside the pack (`require "lib.paths"` →
 
 | id | shows |
 | --- | --- |
-| `example.lobby` | every installed room in a list; a minimal starting point |
+| `example.lobby` | every installed room in a list; publishes Library / room destinations for the compact strip |
 | `example.mario-world` | nodemap overworld; nodes resolved by search across arcade/NES/GB/SNES; five availability states on the compact panel; `store` remembers the node; the island opens a nested room |
 | `example.mario-sports` | nested room; client-side keyword filter over a cross-system query; publishes the focused title |
 | `example.console-snes` | one platform, themed header; Tab (`search`) hands off to the library shelf; Y is Details |
-| `example.tms-vdp` | platform tags → two-pane platform/game browser |
-| `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback |
+| `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
+| `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
 
 Run them against a host:
 
