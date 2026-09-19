@@ -18,7 +18,8 @@ database writer and publishes its SHA-addressed object atomically. Existing
 inline assets and library identities remain valid. These storage chunks are
 not FPGA transfer packets, and 32 MiB is not an advertised cartridge capacity.
 
-The existing `fes.simple-computer` 1.0 + `fes.media.blob` 1.0 transport still
+The existing `fes.media.blob` 1.0 transport under `fes.simple-computer` 1.0
+or `fes.application` 1.0 still
 accepts exactly 1..16384 bytes. Larger assets can be retained, but selection and
 launch reject them for that contract before programming the FPGA. Unknown
 contract versions expose no supported media roles; optional interfaces still
@@ -31,12 +32,17 @@ wire, shared ABI, runtime or FPGA. Its legacy SMS package remains limited to
 ## Versioned larger-media integration
 
 The shared `fes.media.blob-stream` 1.0 wire contract is published in
-[mister-packages](https://github.com/DeanoC/mister-packages/blob/fdc4ece2e1fa87035ddca8cd147c621e7edcce3b/docs/media-stream.md).
+[mister-packages](https://github.com/DeanoC/mister-packages/blob/41f4d9406955bed7abf318e1a14fde44e500dc92/docs/media-stream.md).
 Runtime and host software are merged and selected for integration. They
 use 32-bit lengths and offsets, ordered 512-byte chunks and CRC32/IEEE, while
 keeping legacy blob 1.0 unchanged. The stream contract guarantees 1..32768
 bytes; the runtime separately checks the active endpoint's observed capacity.
 The concrete SMS target is a 32 KiB fixed map, not general mapper support.
+The selected Coleco application uses the same stream contract with two
+controller ports and keypads. Its 32 KiB cartridge aperture maps CPU addresses
+`0x8000–0xffff`; images above 16 KiB return `0xff` beyond their committed size.
+See the [Coleco integration record](coleco-stream-32k.md) for exact revisions
+and the distinction between component diagnostics and image validation.
 
 The corrected SMS RTL is merged and its HIP-sealed package is handed off.
 Combined-source verification and exact-artifact hardware acceptance are tracked in the

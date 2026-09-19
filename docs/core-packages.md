@@ -8,8 +8,9 @@ selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
 package set, while focused profiles may select a smaller package set.
 `fes.sms` is registered for package-only host-library acceptance. Its
 selection filename is `fes-sms.package-selection.toml`. It is not in the
-factory image closed set. The current misteross pin is `ea1fd3e…`, including
-recipe-clock timing scoring, Coleco/ZX81 placer search and two-HIP-device search.
+factory image closed set. The selected misteross pin is `10eaac1…`, including
+recipe-clock timing scoring, Coleco/ZX81 placer search, two-HIP-device search
+and Coleco 32 KiB application streaming.
 The earlier `0825da5f…` selection records the sealed 32 KiB fixed-map SMS
 HIP/nextpnr producer; its historical seed and timing evidence do not establish
 fresh artifact acceptance for the current selection. See the
@@ -189,10 +190,14 @@ role, format, minimum/maximum size and transport, with target compatibility
 explicitly unknown. Unknown interface versions do not inherit larger capacity.
 
 The legacy `fes.media.blob` 1.0 target transport accepts 1 through 16,384 bytes
-(16 KiB), requiring `fes.simple-computer` 1.0. That limit is unchanged. The
+(16 KiB), with either `fes.simple-computer` 1.0 or `fes.application` 1.0.
+That limit is unchanged. The
 implemented `fes.media.blob-stream` 1.0 transport is a distinct interface, not
 a widening of legacy blob 1.0. Stream-enabled SMS supports 1 through 32,768
-bytes (32 KiB) on its fixed `0x0000–0x7fff` map. Both transports use the library
+bytes (32 KiB) on its fixed `0x0000–0x7fff` map. The selected Coleco application
+package also supports streamed media up to 32 KiB, mapped at `0x8000–0xffff`.
+Coleco images of at most 16 KiB retain the existing mirroring; larger images
+return `0xff` beyond the committed length. Both transports use the library
 media role `blob`; the role alone does not identify the transport or capacity.
 Stream delivery requires verified active stream support and checks the endpoint's
 observed capacity separately from the offline declaration and host storage limit.
