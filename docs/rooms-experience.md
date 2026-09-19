@@ -103,6 +103,8 @@ Missing locations remain on the authored map so structure survives. Confirm must
 
 Remember edition choices for the household; do not re-ask every visit.
 
+**Storage:** household `libraryuser` table `edition_preference` in `library-user.sqlite3` (same store as favorites and play counts). Tenfoot loads `GET /api/v1/library/edition-preferences` at start and writes `PUT /api/v1/library/edition-preferences` when Confirm or Details chooses an edition. A saved `game_id` that is still among the current matches makes Needs a choice Ready (or Unavailable), so Confirm launches and Details opens the shared game panel. A stale or missing preference still forces a clear choice. Back and the system menu stay reachable.
+
 ---
 
 ## 5. Launch and return
@@ -213,11 +215,11 @@ See companion section below (also summarised in chat). Update status here as ite
 | 6 | Launch overlay + duplicate prevention + honest failure | **STATUS done** (2026-09-19): tenfoot FES overlay on Confirm; second Confirm does not double-POST; TRANSFER_FAILED-style failure keeps the selected location and offers Retry / Back to room. Hosted by rooms chrome, not room Lua. Tests cover overlay + duplicate guard + focus retention | Host/session (Kepler or Caster) + Luna chrome |
 | 7 | Return restores room, location, history; failed save visible | **STATUS done** (2026-09-19): successful Stop restores the same room, selected location, and parent stack; a game launched inside a nested room returns there; SAVE_FAILED stays on failed-save chrome (not Now playing / Completed) until retry Stop succeeds | Host/session + Luna |
 | 8 | Home surface: pinned / recent / installed rooms / library | **STATUS done** (2026-09-19): tenfoot Home overlay lists pinned rooms, recently played games, every installed room, and the full library. Settings Confirm goes Home; Y/`i` pins rooms into `tenfoot.json`. Selecting a room keeps first-entry vs later-visit restore. Discovery/download remains out of scope | Luna / UI |
-| 9 | Edition preference remembered for household | Storage owner chosen; choice persists | Host profile / FES |
+| 9 | Edition preference remembered for household | **STATUS done** (2026-09-19): household `libraryuser.edition_preference`; host GET/PUT `/api/v1/library/edition-preferences`; Confirm/Details skip the re-ask when the saved edition is still a match | Host profile / FES |
 | 10 | Accessibility pass | Reduced motion, contrast, non-colour focus; Back + system menu always reachable | Luna |
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 9–12. (0–8 are done.)
+**Recommended sequence for starting now:** 10–12. (0–9 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).

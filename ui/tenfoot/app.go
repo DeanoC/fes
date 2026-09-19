@@ -544,6 +544,7 @@ func (a *App) Start(parent context.Context) {
 	}
 	go a.loadPlatforms(ctx)
 	go a.loadCollections(ctx)
+	go a.loadEditionPreferences(ctx)
 	go a.pollSession(ctx)
 	go a.loadLibrary(loadCtx, gen)
 	go a.hydrateAttractIdle(ctx)

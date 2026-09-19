@@ -172,3 +172,40 @@ func TestClassifyDoesNotPreferLaterContainsOverExact(t *testing.T) {
 		t.Fatalf("got %s %+v", state, matches)
 	}
 }
+
+func TestApplyEditionPreferenceSkipsReaskWhenSavedMatchExists(t *testing.T) {
+	t.Parallel()
+	usa := readyGame("nes-smb-usa", "Super Mario Bros.", "nes")
+	jp := readyGame("nes-smb-jp", "Super Mario Bros.", "nes")
+	dest := Destination{
+		Kind: KindGame, Label: "Super Mario Bros.", Query: "Super Mario Bros.", Platform: "nes",
+		Availability: AvailNeedsChoice, Matches: []hostclient.Game{usa, jp},
+	}
+	dest.FillCopy()
+	if dest.Confirm() != ConfirmChoose {
+		t.Fatalf("unsaved confirm %v", dest.Confirm())
+	}
+	applied := ApplyEditionPreference(dest, "nes-smb-usa")
+	if applied.Availability != AvailReady || applied.Confirm() != ConfirmLaunch || applied.GameID != "nes-smb-usa" {
+		t.Fatalf("saved ready %+v confirm=%v", applied, applied.Confirm())
+	}
+	if applied.Action != "Play" || len(applied.Matches) != 1 {
+		t.Fatalf("saved panel %+v", applied)
+	}
+	stale := ApplyEditionPreference(dest, "nes-missing")
+	if stale.Availability != AvailNeedsChoice || stale.Confirm() != ConfirmChoose {
+		t.Fatalf("stale must still force a choice %+v", stale)
+	}
+	blocked := blockedGame("nes-smb-usa", "Super Mario Bros.", "nes", hostclient.LaunchBrowseOnly)
+	unavail := Destination{
+		Kind: KindGame, Query: "Super Mario Bros.", Platform: "nes",
+		Availability: AvailNeedsChoice, Matches: []hostclient.Game{blocked, jp},
+	}
+	got := ApplyEditionPreference(unavail, "nes-smb-usa")
+	if got.Availability != AvailUnavailable || got.Confirm() != ConfirmExplain {
+		t.Fatalf("preferred unavailable %+v confirm=%v", got, got.Confirm())
+	}
+	if DestinationPreferenceKey(dest) != "super mario bros|nes" {
+		t.Fatalf("key %q", DestinationPreferenceKey(dest))
+	}
+}

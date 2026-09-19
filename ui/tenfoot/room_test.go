@@ -81,11 +81,12 @@ type roomHost struct {
 	stops        int
 	recents      []hostclient.Game
 	recentsGate  chan struct{}
+	prefs        map[string]hostclient.EditionPreference
 }
 
 func newRoomHost(t *testing.T) *roomHost {
 	t.Helper()
-	h := &roomHost{state: "idle"}
+	h := &roomHost{state: "idle", prefs: map[string]hostclient.EditionPreference{}}
 	handle := strings.Repeat("ab", 32)
 	pngBytes := mustPNG(t, 8, 12, color.RGBA{R: 200, G: 40, B: 40, A: 255})
 	h.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +118,31 @@ func newRoomHost(t *testing.T) *roomHost {
 			_ = json.NewEncoder(w).Encode(map[string]any{"platforms": []hostclient.Platform{{ID: "snes", Label: "SNES"}}})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/collections":
 			_ = json.NewEncoder(w).Encode(map[string]any{"collections": []hostclient.Collection{}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/edition-preferences":
+			h.mu.Lock()
+			listed := make([]hostclient.EditionPreference, 0, len(h.prefs))
+			for _, pref := range h.prefs {
+				listed = append(listed, pref)
+			}
+			h.mu.Unlock()
+			_ = json.NewEncoder(w).Encode(map[string]any{"preferences": listed})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/library/edition-preferences":
+			var body hostclient.EditionPreference
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if strings.TrimSpace(body.Query) == "" || strings.TrimSpace(body.GameID) == "" {
+				http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"edition preference request is invalid"}}`, http.StatusBadRequest)
+				return
+			}
+			h.mu.Lock()
+			if h.prefs == nil {
+				h.prefs = map[string]hostclient.EditionPreference{}
+			}
+			key := rooms.DestinationPreferenceKey(rooms.Destination{Query: body.Query, Platform: body.Platform})
+			body.Query = strings.TrimSpace(body.Query)
+			body.ChosenAt = time.Now().UnixNano()
+			h.prefs[key] = body
+			h.mu.Unlock()
+			_ = json.NewEncoder(w).Encode(body)
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/presentation/games/"):
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/presentation/games/")
 			_ = json.NewEncoder(w).Encode(hostclient.Presentation{GameID: id, State: "ready", Presentation: &hostclient.PresentationInfo{CoverArtworkID: handle}})
@@ -189,6 +215,24 @@ func (h *roomHost) launchCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return len(h.launches)
+}
+
+func (h *roomHost) preferenceCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.prefs)
+}
+
+func waitForPrefs(t *testing.T, h *roomHost, n int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if h.preferenceCount() >= n {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d edition preferences, have %d", n, h.preferenceCount())
 }
 
 func newRoomApp(t *testing.T, h *roomHost, index *rooms.Index, homeRooms bool) *App {

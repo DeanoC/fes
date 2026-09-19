@@ -771,6 +771,68 @@ func TestLibrarySettingsLegacyPutPreservesConcurrentExtendedUpdate(t *testing.T)
 	}
 }
 
+type editionPrefFake struct {
+	fakeService
+	prefs map[string]libraryuser.EditionPreference
+}
+
+func (s *editionPrefFake) SetEditionPreference(_ context.Context, query, platform, gameID string) (libraryuser.EditionPreference, error) {
+	pref := libraryuser.EditionPreference{
+		Query:    libraryuser.CanonicalEditionQuery(query),
+		Platform: libraryuser.CanonicalEditionPlatform(platform),
+		GameID:   gameID,
+		ChosenAt: 42,
+	}
+	if pref.Query == "" {
+		return libraryuser.EditionPreference{}, libraryuser.ErrInvalid
+	}
+	if protocol.ValidateGameID(gameID) != nil {
+		return libraryuser.EditionPreference{}, libraryuser.ErrInvalid
+	}
+	if s.prefs == nil {
+		s.prefs = map[string]libraryuser.EditionPreference{}
+	}
+	s.prefs[libraryuser.EditionKey(query, platform)] = pref
+	return pref, nil
+}
+
+func (s *editionPrefFake) EditionPreferences(context.Context) ([]libraryuser.EditionPreference, error) {
+	out := make([]libraryuser.EditionPreference, 0, len(s.prefs))
+	for _, pref := range s.prefs {
+		out = append(out, pref)
+	}
+	return out, nil
+}
+
+func TestEditionPreferenceSaveAndLoad(t *testing.T) {
+	service := &editionPrefFake{}
+	handler := hostapi.New(service)
+	empty := serve(t, handler, http.MethodGet, "/api/v1/library/edition-preferences")
+	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"preferences"`) {
+		t.Fatalf("empty = %d %s", empty.Code, empty.Body.String())
+	}
+	saved := serveBody(t, handler, http.MethodPut, "/api/v1/library/edition-preferences", `{"query":"Super Mario Bros.","platform":"NES","game_id":"nes-smb-usa"}`)
+	if saved.Code != http.StatusOK || !strings.Contains(saved.Body.String(), `"game_id":"nes-smb-usa"`) || !strings.Contains(saved.Body.String(), `"query":"super mario bros"`) {
+		t.Fatalf("put = %d %s", saved.Code, saved.Body.String())
+	}
+	listed := serve(t, handler, http.MethodGet, "/api/v1/library/edition-preferences")
+	if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"nes-smb-usa"`) {
+		t.Fatalf("list = %d %s", listed.Code, listed.Body.String())
+	}
+	bad := serveBody(t, handler, http.MethodPut, "/api/v1/library/edition-preferences", `{"query":"Mario","platform":"nes","game_id":"Not A Game"}`)
+	if bad.Code != http.StatusBadRequest || !strings.Contains(bad.Body.String(), `"BAD_REQUEST"`) {
+		t.Fatalf("invalid = %d %s", bad.Code, bad.Body.String())
+	}
+	missing := serveBody(t, hostapi.New(&fakeService{}), http.MethodPut, "/api/v1/library/edition-preferences", `{"query":"Mario","platform":"nes","game_id":"nes-smb-usa"}`)
+	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"EDITION_PREFERENCE_UNAVAILABLE"`) {
+		t.Fatalf("unavailable = %d %s", missing.Code, missing.Body.String())
+	}
+	plain := serve(t, hostapi.New(&fakeService{}), http.MethodGet, "/api/v1/library/edition-preferences")
+	if plain.Code != http.StatusOK || !strings.Contains(plain.Body.String(), `"preferences"`) {
+		t.Fatalf("plain get = %d %s", plain.Code, plain.Body.String())
+	}
+}
+
 func serveBody(t *testing.T, handler http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	request := httptest.NewRequest(method, path, strings.NewReader(body))

@@ -254,6 +254,15 @@ type Collection struct {
 	CreatedAt int64  `json:"created_at,omitempty"`
 }
 
+// EditionPreference is one household edition choice from
+// GET /api/v1/library/edition-preferences.
+type EditionPreference struct {
+	Query    string `json:"query"`
+	Platform string `json:"platform,omitempty"`
+	GameID   string `json:"game_id"`
+	ChosenAt int64  `json:"chosen_at,omitempty"`
+}
+
 const (
 	defaultAttractLimit       = 24
 	defaultAttractIdleSeconds = 60

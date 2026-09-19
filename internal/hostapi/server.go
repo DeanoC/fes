@@ -76,6 +76,13 @@ type collectionResult struct {
 	CreatedAt int64  `json:"created_at,omitempty"`
 }
 
+type editionPreferenceResult struct {
+	Query    string `json:"query"`
+	Platform string `json:"platform,omitempty"`
+	GameID   string `json:"game_id"`
+	ChosenAt int64  `json:"chosen_at,omitempty"`
+}
+
 type healthResult struct {
 	Ready  bool         `json:"ready"`
 	Host   hostIdentity `json:"host"`
@@ -410,6 +417,12 @@ func New(service Service, options ...ServerOption) http.Handler {
 	})
 	mux.HandleFunc("GET /api/v1/library/collections", func(w http.ResponseWriter, r *http.Request) {
 		handleCollections(w, r, service)
+	})
+	mux.HandleFunc("GET /api/v1/library/edition-preferences", func(w http.ResponseWriter, r *http.Request) {
+		handleEditionPreferences(w, r, service)
+	})
+	mux.HandleFunc("PUT /api/v1/library/edition-preferences", func(w http.ResponseWriter, r *http.Request) {
+		handleSetEditionPreference(w, r, service)
 	})
 	mux.HandleFunc("PUT /api/v1/library/collections/{id}/{gameId}", func(w http.ResponseWriter, r *http.Request) {
 		handleCollectionMember(w, r, service, true)
