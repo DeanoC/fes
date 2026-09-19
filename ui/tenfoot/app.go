@@ -145,6 +145,7 @@ type SessionSnapshot struct {
 	Stopping          bool
 	RetryStop         bool
 	RetryHint         string
+	RetryCode         string
 	LaunchLocked      bool
 	Events            []string
 	DevelopmentActive bool
@@ -377,6 +378,7 @@ type App struct {
 	stopQueued             bool
 	retryStopLock          bool
 	retryStopHint          string
+	retryStopCode          string
 	sessionEvents          []hostclient.SessionEvent
 	sessionEventAfter      uint64
 	flightID               string
@@ -1505,8 +1507,9 @@ func (s Snapshot) NowPlayingLine() string {
 	if s.Session.Diagnostic {
 		return diagnosticNowPlayingLine(s.Session)
 	}
+	heading := nowPlayingHeading(s)
 	parts := make([]string, 0, 6)
-	parts = append(parts, "Now playing")
+	parts = append(parts, heading)
 	title := strings.TrimSpace(s.Session.Title)
 	if title == "" {
 		title = strings.TrimSpace(s.Session.GameID)
@@ -1542,6 +1545,39 @@ func (s Snapshot) NowPlayingLine() string {
 		parts = append(parts, hint)
 	}
 	return strings.Join(parts, "  ·  ")
+}
+
+const (
+	nowPlayingHeadingPlay = "Now playing"
+	nowPlayingHeadingSave = "Save failed"
+	nowPlayingHeadingStop = "Stop failed"
+)
+
+// nowPlayingHeading is the living-room label for the parked session surface.
+// A failed save must not read as Now playing or Completed.
+func nowPlayingHeading(s Snapshot) string {
+	if s.Session.Diagnostic {
+		return diagnosticLabel
+	}
+	if s.Session.RetryStop || strings.TrimSpace(s.Session.Chrome) == sessionChromeFailed {
+		if sessionSaveFailedVisible(s) {
+			return nowPlayingHeadingSave
+		}
+		return nowPlayingHeadingStop
+	}
+	return nowPlayingHeadingPlay
+}
+
+func sessionSaveFailedVisible(s Snapshot) bool {
+	blob := strings.ToLower(strings.Join([]string{
+		s.Session.RetryCode,
+		s.Session.RetryHint,
+		s.Status,
+		s.Session.Progress,
+	}, " "))
+	return strings.Contains(blob, "save_failed") ||
+		strings.Contains(blob, "save could not") ||
+		strings.Contains(blob, "save fail")
 }
 
 // Selected returns the focused game, if any.
@@ -1811,6 +1847,7 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	}
 	a.retryStopLock = false
 	a.retryStopHint = ""
+	a.retryStopCode = ""
 	a.stopPhase = "ok"
 	a.stopMessage = ""
 	a.applySessionLocked(result)
@@ -1820,6 +1857,7 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 func (a *App) lockRetryStopLocked(code, message string) {
 	a.retryStopLock = true
 	a.retryStopHint = retryStopStatus(code, message)
+	a.retryStopCode = strings.TrimSpace(code)
 }
 
 func (a *App) ForwardsCoreKeyboard() bool {
@@ -2320,6 +2358,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		Stopping:          a.stopPhase == "stopping",
 		RetryStop:         retry,
 		RetryHint:         strings.TrimSpace(a.retryStopHint),
+		RetryCode:         strings.TrimSpace(a.retryStopCode),
 		LaunchLocked:      a.sessionStopOfferedLocked() || a.launch.Phase == "launching" || a.developmentLoadingLocked(),
 		Events:            events,
 		DevelopmentActive: devActive,

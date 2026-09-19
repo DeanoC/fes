@@ -29,6 +29,9 @@ type RoomSnapshot struct {
 	Width, Height    int
 	Destination      rooms.Destination
 	Choice           RoomChoiceSnapshot
+	// Parents is the nested-room stack under the current room (root first).
+	// Return-from-play must keep this stack; Back still pops one parent.
+	Parents []string
 }
 
 // RoomPickerRow is one entry of the home picker.
@@ -364,6 +367,16 @@ func (a *App) applyRoomActionsLocked() {
 	}
 }
 
+// dropRoomNavActionsLocked discards launcher requests queued by on_resume
+// after a play session. Nested Back still uses leaveRoomLocked; that path
+// applies parent actions normally.
+func (a *App) dropRoomNavActionsLocked() {
+	if a.room == nil {
+		return
+	}
+	_ = a.room.TakeActions()
+}
+
 func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 	a.closeAllRoomsLocked()
 	a.roomPickerOpen = false
@@ -432,7 +445,10 @@ func (a *App) tickRoomLocked(now time.Time) {
 	if a.roomWasParked {
 		a.roomWasParked = false
 		a.room.Resume()
-		a.applyRoomActionsLocked()
+		// on_resume may refresh Played chrome. It must not navigate: a game
+		// launched inside a nested room returns there (§5, §6), not to the
+		// parent or picker.
+		a.dropRoomNavActionsLocked()
 		if a.room == nil {
 			return
 		}
@@ -513,11 +529,29 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		Height:      a.grid.contentHeight(),
 		Destination: a.roomDestinationLocked(),
 		Choice:      a.roomChoiceSnapshotLocked(),
+		Parents:     a.roomParentIDsLocked(),
 	}
 	if withImages {
 		snap.Images = a.room.Images()
 	}
 	return snap
+}
+
+func (a *App) roomParentIDsLocked() []string {
+	if len(a.roomStack) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(a.roomStack))
+	for _, parent := range a.roomStack {
+		if parent == nil {
+			continue
+		}
+		ids = append(ids, parent.ID())
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return ids
 }
 
 func (a *App) roomHintLocked() string {

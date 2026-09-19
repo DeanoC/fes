@@ -952,6 +952,10 @@ func TestAppSaveFailedStopLockoutRetryAndClear(t *testing.T) {
 	if !strings.Contains(snap.Session.RetryHint, "retry Stop") {
 		t.Fatalf("retry hint = %q", snap.Session.RetryHint)
 	}
+	line := snap.NowPlayingLine()
+	if !strings.Contains(line, "Save failed") || strings.Contains(line, "Now playing") || strings.Contains(line, "Completed") {
+		t.Fatalf("save-failed chrome %q", line)
+	}
 	mu.Lock()
 	sessionJSON = `{"state":"idle"}`
 	launchCount := launches
