@@ -311,6 +311,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if inspection.Descriptor.Core.ID != entry.CoreID {
 			return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
 		}
+		if protocol.RequiresCoreMedia(inspection.Descriptor) && entry.MediaID == "" {
+			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
+				Message: "application requires selected library media before launch"}
+		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
 			return coreLoadSource{}, err

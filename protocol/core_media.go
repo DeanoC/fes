@@ -28,8 +28,12 @@ type CoreMediaCapability struct {
 // support at launch.
 func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMediaCapability {
 	result := make([]CoreMediaCapability, 0)
-	if descriptor.ABI.ID != "fes.simple-computer" || descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
+	if !supportsBlobABI(descriptor.ABI.ID, descriptor.ABI.Major, descriptor.ABI.Minor) {
 		return result
+	}
+	transport := "fes-simple-computer-mailbox"
+	if descriptor.ABI.ID == "fes.application" {
+		transport = "fes-application-mailbox"
 	}
 	legacyRequired, streamRequired := false, false
 	for _, contract := range descriptor.Interfaces {
@@ -41,16 +45,35 @@ func DeclaredCoreMediaCapabilities(descriptor corepackage.Descriptor) []CoreMedi
 	if legacyRequired && streamRequired {
 		return append(result, CoreMediaCapability{Role: "blob", Format: "raw", MinBytes: 1,
 			MaxBytes: MaxDeclaredMediaStreamBytes, Interface: MediaStreamInterface(),
-			Transport: "fes-simple-computer-mailbox-stream-v1"})
+			Transport: transport + "-stream-v1"})
 	}
 	for _, contract := range descriptor.Interfaces {
-		if contract.ID == "fes.media.blob" && contract.Major == 1 && contract.Minor == 0 {
+		if contract.ID == "fes.media.blob" && contract.Major == 1 && contract.Minor == 0 &&
+			(descriptor.ABI.ID != "fes.application" || contract.Required) {
 			return append(result, CoreMediaCapability{
 				Role: "blob", Format: "raw", MinBytes: 1, MaxBytes: MaxDevelopmentMediaBytes,
 				Interface: RuntimeContract{ID: contract.ID, Major: 1, Minor: 0},
-				Transport: "fes-simple-computer-mailbox-v1",
+				Transport: transport + "-v1",
 			})
 		}
 	}
 	return result
+}
+
+func supportsBlobABI(id string, major, minor int64) bool {
+	return (id == "fes.simple-computer" || id == "fes.application") && major == 1 && minor == 0
+}
+
+// RequiresCoreMedia applies the application's explicit startup contract. Legacy
+// computer packages retain their existing package-only launch behavior.
+func RequiresCoreMedia(descriptor corepackage.Descriptor) bool {
+	if descriptor.ABI.ID != "fes.application" || descriptor.ABI.Major != 1 || descriptor.ABI.Minor != 0 {
+		return false
+	}
+	for _, contract := range descriptor.Interfaces {
+		if contract.ID == "fes.media.blob" && contract.Major == 1 && contract.Minor == 0 && contract.Required {
+			return true
+		}
+	}
+	return false
 }

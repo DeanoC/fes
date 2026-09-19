@@ -1210,6 +1210,21 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
+`fes.application` 1.0 packages compose fixed 720p60 video with optional presence
+of normalized gamepad and raw blob/stream media interfaces. Each implemented
+operational interface is declared required; omitting input creates an autonomous
+demo. The runtime remains the compatibility authority through its negotiated ABI
+registry. Host session input attachment follows observed gamepad/keyboard
+capabilities, so an application without input does not attach a controller and
+an application gamepad does not pass through legacy Coleco/SMS keyboard mapping.
+The host recognizes the application media transport by ABI and interface version,
+never core ID. Library launches requiring application blob media reject a missing
+selection before package activation; entry creation and development package load
+remain possible before choosing/uploading media. Development loads with media
+remain held until commit. Existing simple-game/computer behavior is unchanged.
+These software contracts do not establish hardware acceptance, audio support,
+general keyboard/mouse support or multiplayer.
+
 The host package store validates and atomically publishes immutable archives by
 package ID. Catalog schema v8 associates each stable game entry with an
 explicit package ID and optional media role/digest. Multiple titles can use

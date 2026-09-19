@@ -1362,6 +1362,12 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 
 // Caller holds lifecycle admission through package and optional media delivery.
 func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
+	// Resolve and validate the requested immutable package/media before even a
+	// recovery Stop: an invalid next launch must preserve the retained owner.
+	selected, err := source(ctx)
+	if err != nil {
+		return protocol.Status{}, corePackageRequestFailure(err)
+	}
 	s.executionMu.Lock()
 	pendingRejection := s.packageRejection != nil
 	s.executionMu.Unlock()
@@ -1369,10 +1375,6 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if status, err := s.stopRejectedCore(ctx); err != nil {
 			return status, err
 		}
-	}
-	selected, err := source(ctx)
-	if err != nil {
-		return protocol.Status{}, corePackageRequestFailure(err)
 	}
 	size, content := selected.size, selected.body
 	if s.protocolAdmissionEnabled() {

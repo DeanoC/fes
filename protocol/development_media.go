@@ -39,7 +39,7 @@ func (b DevelopmentMediaBinding) Matches(s Status) bool {
 		s.CorePackage != nil && s.CorePackage.PackageID == b.PackageID && s.CorePackage.Generation == b.Generation && DevelopmentMediaCapable(s.CorePackage) && (!b.Stream || MediaStreamCapable(s.CorePackage))
 }
 func DevelopmentMediaCapable(p *CorePackageStatus) bool {
-	if p == nil || p.ABI.ID != "fes.simple-computer" || p.ABI.Major != 1 || p.ABI.Minor != 0 {
+	if p == nil || !supportsBlobABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
 		return false
 	}
 	for _, i := range p.ActiveInterfaces {
@@ -72,7 +72,7 @@ func DevelopmentMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "development media requires 1..16384 bytes and a package generation", Phase: "request"}
 }
 func DevelopmentMediaIdentityError() *APIError {
-	return &APIError{Code: CodeBusy, Message: "development media requires the current active fes.simple-computer media package generation", Phase: "admission"}
+	return &APIError{Code: CodeBusy, Message: "development media requires the current active media-capable package generation", Phase: "admission"}
 }
 
 // ReadDevelopmentMedia snapshots and validates the entire bounded body before mutation.
