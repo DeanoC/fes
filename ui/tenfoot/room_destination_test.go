@@ -228,3 +228,77 @@ func TestRoomAttractStaysOffWhileFocused(t *testing.T) {
 		t.Fatal("attract must stay off while a room is the focused surface")
 	}
 }
+
+const playHistoryRoomScript = `
+focus = "played"
+states = {
+  played = { kind = "game", label = "Mario", game_id = "snes-mario", system = "snes", matches = {
+    { id = "snes-mario", title = "Mario", system = "snes", launchable = true, state = "available", play_count = 3, last_played_at = 99 },
+  }},
+  unplayed = { kind = "game", label = "Yoshi", game_id = "snes-yoshi", system = "snes", matches = {
+    { id = "snes-yoshi", title = "Yoshi", system = "snes", launchable = true, state = "available" },
+  }},
+  resume = { kind = "game", label = "Mario", game_id = "snes-mario", system = "snes", matches = {
+    { id = "snes-mario", title = "Mario", system = "snes", launchable = true, state = "available", play_count = 3, last_played_at = 99 },
+  }},
+}
+function publish()
+  destination.set(states[focus])
+end
+function load() publish() end
+function on_input(cmd)
+  if cmd == "right" then focus = "unplayed" publish() return true end
+  if cmd == "left" then focus = "played" publish() return true end
+  return false
+end
+function on_resume()
+  -- Same facts as after a launch return: Played stays Played, never Completed.
+  focus = "resume"
+  publish()
+end
+function draw() gfx.rect(0, 0, 10, 10, "#fff") end
+`
+
+func TestRoomDestinationPlayedIsNotCompleted(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{testRoomPack(t, "history", playHistoryRoomScript)})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	snap := waitFor(t, app, "played dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.History.Played
+	})
+	if snap.Room.Destination.History.Completed || snap.Room.Destination.History.Line() != "Played" {
+		t.Fatalf("played dest claimed Completed: %+v", snap.Room.Destination.History)
+	}
+	if snap.Room.Destination.Status == "Completed" || strings.Contains(snap.Room.Destination.Action, "Completed") {
+		t.Fatalf("availability copy used Completed: %+v", snap.Room.Destination)
+	}
+
+	app.HandleCommand(CmdRight, now)
+	snap = app.Snapshot()
+	if snap.Room.Destination.History.Played || snap.Room.Destination.History.Completed || snap.Room.Destination.History.Line() != "" {
+		t.Fatalf("unplayed dest %+v", snap.Room.Destination.History)
+	}
+
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	app.HandleCommand(CmdStop, now)
+	waitFor(t, app, "unpark", func(s Snapshot) bool { return !s.GPUParked })
+	app.mu.Lock()
+	if app.room != nil {
+		app.room.Resume()
+	}
+	app.mu.Unlock()
+	snap = waitFor(t, app, "resume dest", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Label == "Mario"
+	})
+	if snap.Room.Destination.History.Completed || snap.Room.Destination.History.Line() == "Completed" {
+		t.Fatalf("launch return claimed Completed: %+v", snap.Room.Destination.History)
+	}
+	if !snap.Room.Destination.History.Played || snap.Room.Destination.History.Line() != "Played" {
+		t.Fatalf("launch return should stay Played: %+v", snap.Room.Destination.History)
+	}
+}

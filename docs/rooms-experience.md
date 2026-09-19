@@ -131,7 +131,23 @@ Focus, availability, and recorded play history are **separate** visual states.
 - **Played** = FES recorded play activity.
 - **Completed** = explicit completion record; returning from a launch is insufficient.
 
-Text size, contrast, controller prompts, and reduced motion remain usable across room styles. Important information must not rely on colour alone.
+### Played vs Completed (data contract)
+
+These flags are household play-history chrome. They must not be inferred from focus, destination availability, or a launch overlay returning to the room.
+
+| State | Meaning | Source on tip |
+| --- | --- | --- |
+| Unplayed | No FES play activity recorded | `play_count == 0` and `last_played_at == 0` |
+| Played | FES recorded play activity | `play_count > 0` or `last_played_at > 0` (`libraryuser.RecordPlay` after a successful host launch) |
+| Completed | Explicit completion record | **Not stored yet.** Always false on catalog rows. |
+
+**Insufficient for Completed:** returning from Confirm→Play, `play_count`, `last_played_at`, session idle, or presentation metadata `completion` (catalog/provider copy such as `"100%"`, not household completion).
+
+`ui/rooms.ClassifyHistory` is the shared classifier. Rooms Lua sees `played` / `completed` on game tables and `destination.play_history`. Tenfoot paints `History.Line()` on the compact destination panel (`Played`, or `Played  ·  Completed` only when an explicit record exists). Nodemap `played` and `done` are those two states; `done` must not be set from play activity or `on_resume`.
+
+**Follow-up (not this task):** when a household completion store lands, pass that explicit record into `ClassifyHistory`. Do not add inference from launch return.
+
+Text size, contrast, controller prompts, and reduced motion remain usable across room styles. Important information must not rely on colour alone. The destination panel carries Played/Completed as text so map colour is not the only channel.
 
 ---
 
@@ -187,7 +203,7 @@ See companion section below (also summarised in chat). Update status here as ite
 | 1 | Decide attract-in-room policy | **STATUS done / decided** (2026-09-19): default off while a room is focused; per-room opt-in with optional custom attract | Deano (+ Foggy) |
 | 2 | Logical action ↔ controller binding table | **STATUS done** (2026-09-19): table in `docs/rooms-controller-bindings.md`; no essential long-press-only or chord-only. Details tap binding remains a follow-up with task #3 | Luna / UI |
 | 3 | Info panel: five availability states | **STATUS done** (2026-09-19): compact selected-destination panel plus Details tap; Checking/Missing/Needs a choice/Unavailable/Ready have distinct copy and Confirm never no-ops | Luna / UI (host match hooks as needed) |
-| 4 | Played vs Completed data contract | Written contract + UI uses it (no false “completed”) | Kepler or host owner + Luna |
+| 4 | Played vs Completed data contract | **STATUS done** (2026-09-19): §7 contract; `ClassifyHistory` + rooms/tenfoot chrome; Played from `play_count` / `last_played_at`; Completed never inferred (no completion store yet) | Kepler or host owner + Luna |
 | 5 | Target setup for launch smoke | Can Confirm→Play on at least one Ready title from Mushroom Kingdom | Deano / kit+host |
 | 6 | Launch overlay + duplicate prevention + honest failure | §5 behaviour; acceptance 1 & 5 | Host/session (Kepler or Caster) + Luna chrome |
 | 7 | Return restores room, location, history; failed save visible | §5 return path | Host/session + Luna |
@@ -197,6 +213,6 @@ See companion section below (also summarised in chat). Update status here as ite
 | 11 | Controller-only acceptance pass | Scenario 1 green on real pad | Luna + Deano smoke |
 | 12 | Authoring note: paths ≠ unlocks | Short note in `docs/rooms.md` | Doc / authoring |
 
-**Recommended sequence for starting now:** 5 whenever target is ready, then 6–7, then 8–12. (0–3 are done.)
+**Recommended sequence for starting now:** 5 whenever target is ready, then 6–7, then 8–12. (0–4 are done.)
 
 **Do not start yet:** discovery/download, authoring tools, LAN routing (explicitly out of scope).

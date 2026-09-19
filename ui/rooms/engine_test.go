@@ -448,6 +448,59 @@ function draw() end`
 	}
 }
 
+func TestPlayHistoryLuaDoesNotConflatePlayedAndCompleted(t *testing.T) {
+	svc := &fakeServices{
+		games: []hostclient.Game{
+			{ID: "nes-smb", Title: "Super Mario Bros.", System: "nes", State: "available", RootOnline: true, Launchable: true, PlayCount: 2, LastPlayedAt: 99},
+			{ID: "nes-smb3", Title: "Super Mario Bros. 3", System: "nes", State: "available", RootOnline: true, Launchable: true},
+		},
+	}
+	src := `
+played = nil
+unplayed = nil
+resume = nil
+explicit = nil
+function load()
+  library.query({ q = "Super Mario" }, function(games, err)
+    for _, g in ipairs(games) do
+      if g.id == "nes-smb" then
+        played = destination.play_history(g)
+        destination.set{ kind = "game", label = g.title, game_id = g.id, matches = { g } }
+      elseif g.id == "nes-smb3" then
+        unplayed = destination.play_history(g)
+      end
+    end
+    resume = destination.play_history({ id = "nes-smb3", play_count = 0, last_played_at = 0 })
+    explicit = destination.play_history({ play_count = 1, completed = true })
+  end)
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "hist", src, nil), Options{Services: svc})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.L.GetGlobal("played").Type().String() == "table" })
+	d := r.Destination()
+	if !d.History.Played || d.History.Completed || d.History.Line() != "Played" {
+		t.Fatalf("published dest %+v", d.History)
+	}
+	if err := r.CheckGlobal("played.played == true and played.completed == false and played.line == 'Played'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal("unplayed.played == false and unplayed.completed == false and unplayed.line == ''"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal("resume.played == false and resume.completed == false"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal("explicit.played == true and explicit.completed == true and explicit.line == 'Played  ·  Completed'"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.CheckGlobal("destination.get().played == true and destination.get().completed == false"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAssetImageDecodeAndBudget(t *testing.T) {
 	var buf bytes.Buffer
 	im := image.NewRGBA(image.Rect(0, 0, 8, 4))

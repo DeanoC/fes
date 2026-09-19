@@ -184,3 +184,71 @@ function draw() map:draw{} end`
 		t.Fatal(r.Err())
 	}
 }
+
+func TestNodeMapPlayedAndCompletedUseDistinctFills(t *testing.T) {
+	src := `
+local Map = require "widgets.nodemap"
+map = Map.new{
+  id = "m",
+  nodes = {
+    { id = "u", x = 40, y = 40, label = "U" },
+    { id = "p", x = 120, y = 40, label = "P", played = true },
+    { id = "c", x = 200, y = 40, label = "C", done = true },
+    { id = "b", x = 280, y = 40, label = "B", played = true, done = true },
+  },
+  edges = {},
+  radius = 10,
+}
+function draw()
+  map:draw{ node_color = "#ff0000", played_color = "#d4a017", done_color = "#2fb457" }
+end`
+	r := newRoom(t, memPack(t, "map-hist", src, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := r.Step(time.Unix(1, 0))
+	want := map[string]string{
+		"u": "#ff0000",
+		"p": "#d4a017",
+		"c": "#2fb457",
+		"b": "#2fb457",
+	}
+	for id, hex := range want {
+		wantC, err := ParseHexColor(hex)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, op := range f.Ops {
+			if op.Kind != OpRect || op.W != 20 || op.H != 20 {
+				continue
+			}
+			if FormatHexColor(op.Color) != FormatHexColor(wantC) {
+				continue
+			}
+			hit, ok := f.HitAt(op.X+10, op.Y+10)
+			if ok && hit.ID == "m:"+id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("node %s missing fill %s", id, hex)
+		}
+	}
+	for _, op := range f.Ops {
+		if op.Kind != OpRect || op.W != 20 || op.H != 20 {
+			continue
+		}
+		hit, ok := f.HitAt(op.X+10, op.Y+10)
+		if !ok || hit.ID != "m:p" {
+			continue
+		}
+		if FormatHexColor(op.Color) == "#2fb457" {
+			t.Fatal("played node used completed fill")
+		}
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+}

@@ -12,10 +12,11 @@ func (r *Instance) installDestination() *lua.LTable {
 	L := r.L
 	t := L.NewTable()
 	L.SetFuncs(t, map[string]lua.LGFunction{
-		"set":      r.destinationSet,
-		"clear":    r.destinationClear,
-		"get":      r.destinationGet,
-		"classify": r.destinationClassify,
+		"set":          r.destinationSet,
+		"clear":        r.destinationClear,
+		"get":          r.destinationGet,
+		"classify":     r.destinationClassify,
+		"play_history": r.destinationPlayHistory,
 	})
 	return t
 }
@@ -104,6 +105,7 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		d.System = d.Platform
 	}
 	d.FillCopy()
+	d.FillHistory()
 	r.dest = d
 	return 0
 }
@@ -133,6 +135,7 @@ func (r *Instance) destinationClassify(L *lua.LState) int {
 		d.Label = matches[0].Title
 	}
 	d.FillCopy()
+	d.FillHistory()
 	L.Push(r.destinationTable(d))
 	return 1
 }
@@ -153,6 +156,9 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	t.RawSetString("note_by", lua.LString(d.NoteBy))
 	t.RawSetString("query", lua.LString(d.Query))
 	t.RawSetString("platform", lua.LString(d.Platform))
+	t.RawSetString("played", lua.LBool(d.History.Played))
+	t.RawSetString("completed", lua.LBool(d.History.Completed))
+	t.RawSetString("history", lua.LString(d.History.Line()))
 	matches := L.NewTable()
 	for _, g := range d.Matches {
 		matches.Append(r.gameTable(g))
@@ -178,6 +184,8 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 		id := optString(row, "id")
 		if id != "" {
 			if g, cached := r.games[id]; cached {
+				g = applyPlayFacts(g, row)
+				r.games[id] = g
 				out = append(out, g)
 				return
 			}
@@ -193,6 +201,7 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			Launchable: optBool(row, "launchable"),
 			RootOnline: true,
 		}
+		g = applyPlayFacts(g, row)
 		if g.State == "" && g.Launchable {
 			g.State = "available"
 		}
@@ -204,6 +213,46 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 		}
 	})
 	return out
+}
+
+func (r *Instance) destinationPlayHistory(L *lua.LState) int {
+	opts := L.OptTable(1, nil)
+	playCount := optInt64(opts, "play_count")
+	lastPlayed := optInt64(opts, "last_played_at")
+	completed := optBool(opts, "completed")
+	if id := optString(opts, "id"); id != "" {
+		if g, ok := r.games[id]; ok {
+			if opts == nil || opts.RawGetString("play_count") == lua.LNil {
+				playCount = g.PlayCount
+			}
+			if opts == nil || opts.RawGetString("last_played_at") == lua.LNil {
+				lastPlayed = g.LastPlayedAt
+			}
+		}
+	}
+	L.Push(r.historyTable(ClassifyHistory(playCount, lastPlayed, completed)))
+	return 1
+}
+
+func (r *Instance) historyTable(h History) *lua.LTable {
+	t := r.L.NewTable()
+	t.RawSetString("played", lua.LBool(h.Played))
+	t.RawSetString("completed", lua.LBool(h.Completed))
+	t.RawSetString("line", lua.LString(h.Line()))
+	return t
+}
+
+func applyPlayFacts(g hostclient.Game, row *lua.LTable) hostclient.Game {
+	if row == nil {
+		return g
+	}
+	if row.RawGetString("play_count") != lua.LNil {
+		g.PlayCount = optInt64(row, "play_count")
+	}
+	if row.RawGetString("last_played_at") != lua.LNil {
+		g.LastPlayedAt = optInt64(row, "last_played_at")
+	}
+	return g
 }
 
 func parseKind(s string) Kind {

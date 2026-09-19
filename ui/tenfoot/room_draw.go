@@ -229,6 +229,13 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 	if d.Kind == rooms.KindRoom {
 		meta = "ROOM"
 	}
+	if hist := strings.TrimSpace(d.History.Line()); hist != "" {
+		if meta != "" {
+			meta = meta + "  ·  " + hist
+		} else {
+			meta = hist
+		}
+	}
 	if meta != "" {
 		drawLabel(dev, labels, used, "rd-sys", x+pad, y+42, w-2*pad, 16, meta)
 	}

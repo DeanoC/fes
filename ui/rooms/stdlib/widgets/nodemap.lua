@@ -8,6 +8,11 @@
 --   map:input(cmd)      -- up/down/left/right follows edges (or nearest node in that direction)
 --   map:focused()       -- node
 --   map:draw{ ... }
+--
+-- Played and Completed are separate. node.played is FES play activity;
+-- node.done is an explicit completion record only. Returning from a launch
+-- is not done. draw uses played_color vs done_color so the two never share
+-- one "cleared" fill.
 local Map = {}
 Map.__index = Map
 local M = {}
@@ -127,6 +132,7 @@ function Map:draw(opts)
   local ox, oy = self.ox, self.oy
   local edge_color = opts.edge_color or "#e8dcc0"
   local node_color = opts.node_color or "#d8443c"
+  local played_color = opts.played_color or "#d4a017"
   local done_color = opts.done_color or "#3aa655"
   local focus_color = opts.focus_color or room.theme.accent
   local r = self.radius
@@ -143,7 +149,14 @@ function Map:draw(opts)
       local halo = r + 6 + pulse * 4
       gfx.rect(x - halo, y - halo, halo * 2, halo * 2, focus_color)
     end
-    local fill = n.color or (n.done and done_color or node_color)
+    local fill = n.color or node_color
+    if not n.color then
+      if n.done then
+        fill = done_color
+      elseif n.played then
+        fill = played_color
+      end
+    end
     gfx.rect(x - r, y - r, r * 2, r * 2, fill)
     if n.icon and n.icon.ready then
       gfx.image(n.icon, x - r + 3, y - r + 3, r * 2 - 6, r * 2 - 6)

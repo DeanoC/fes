@@ -51,6 +51,16 @@ func optInt(t *lua.LTable, key string, def int) int {
 	return def
 }
 
+func optInt64(t *lua.LTable, key string) int64 {
+	if t == nil {
+		return 0
+	}
+	if v, ok := t.RawGetString(key).(lua.LNumber); ok {
+		return int64(v)
+	}
+	return 0
+}
+
 // library.query({platform, collection, q, sort, genre, year, region,
 // hide_prerelease, hide_hacks, limit}, function(games, err) end)
 func (r *Instance) libraryQuery(L *lua.LState) int {
@@ -166,6 +176,9 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 	t.RawSetString("favorite", lua.LBool(g.Favorite))
 	t.RawSetString("play_count", lua.LNumber(g.PlayCount))
 	t.RawSetString("last_played_at", lua.LNumber(g.LastPlayedAt))
+	h := GameHistory(g)
+	t.RawSetString("played", lua.LBool(h.Played))
+	t.RawSetString("completed", lua.LBool(h.Completed))
 	if block := g.LaunchBlock(); block != "" {
 		t.RawSetString("launch_block", lua.LString(string(block)))
 	}
