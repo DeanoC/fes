@@ -274,7 +274,7 @@ func TestLoadProgrammingProfilesKeepsDiagnosticProfileUnpaired(t *testing.T) {
 				t.Fatalf("mister profile = %#v", profile)
 			}
 		case "fes-gp-v1":
-			if profile.DiagnosticOnly || len(profile.ABIs) != 2 {
+			if profile.DiagnosticOnly || len(profile.ABIs) != 3 {
 				t.Fatalf("FES GP profile = %#v", profile)
 			}
 			if profile.ABIs[0].ID != "fes.simple-game" || profile.ABIs[0].Major != 1 {
@@ -282,6 +282,9 @@ func TestLoadProgrammingProfilesKeepsDiagnosticProfileUnpaired(t *testing.T) {
 			}
 			if profile.ABIs[1].ID != "fes.simple-computer" || profile.ABIs[1].Major != 1 {
 				t.Fatalf("FES GP computer pairing = %#v", profile.ABIs[1])
+			}
+			if profile.ABIs[2].ID != "fes.application" || profile.ABIs[2].Major != 1 {
+				t.Fatalf("FES GP application pairing = %#v", profile.ABIs[2])
 			}
 		case "development-contained-v1":
 			if !profile.DiagnosticOnly || len(profile.ABIs) != 0 {

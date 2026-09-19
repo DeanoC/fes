@@ -303,8 +303,8 @@ func TestGenerateProgrammingProfilesPreservesDiagnosticWithoutABI(t *testing.T) 
 	}
 	source := `#include "programming.hpp"
 using namespace mister::native::generated;
-static_assert(kDe10NanoProgrammingProfilePairCount == 4, "registry rows");
-static_assert(kDe10NanoProgrammingProfilePairs[3].diagnostic_only, "diagnostic");
+static_assert(kDe10NanoProgrammingProfilePairCount == 5, "registry rows");
+static_assert(kDe10NanoProgrammingProfilePairs[4].diagnostic_only, "diagnostic");
 `
 	if err := os.WriteFile(filepath.Join(dir, "test.cpp"), []byte(source), 0600); err != nil {
 		t.Fatal(err)

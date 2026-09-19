@@ -19,6 +19,8 @@ profiles:
         major: 1
       - id: fes.simple-computer
         major: 1
+      - id: fes.application
+        major: 1
   - id: development-contained-v1
     diagnostic_only: true
     abis: []

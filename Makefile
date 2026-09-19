@@ -12,6 +12,7 @@ SNES_CORE_SOURCE ?= packages/source/snes_mister.yaml
 NES_CORE_SOURCE ?= packages/source/nes_mister.yaml
 FES_SIMPLE_GAME_ABI ?= packages/abi/fes_simple_game.yaml
 FES_SIMPLE_COMPUTER_ABI ?= packages/abi/fes_simple_computer.yaml
+FES_APPLICATION_ABI ?= packages/abi/fes_application.yaml
 MISTER_ABI ?= packages/abi/mister.yaml
 PROGRAMMING_PROFILES ?= packages/programming/de10_nano.yaml
 CORE_SOURCE_ORACLE ?= testdata/oracles/megadrive-core-source.yaml
@@ -37,6 +38,7 @@ test:
 	$(GO) run ./cmd/mister-packages validate $(NES_CORE_SOURCE)
 	$(GO) run ./cmd/mister-packages validate $(FES_SIMPLE_GAME_ABI)
 	$(GO) run ./cmd/mister-packages validate $(FES_SIMPLE_COMPUTER_ABI)
+	$(GO) run ./cmd/mister-packages validate $(FES_APPLICATION_ABI)
 	$(GO) run ./cmd/mister-packages validate $(MISTER_ABI)
 	$(GO) run ./cmd/mister-packages validate $(PROGRAMMING_PROFILES)
 	$(GO) run ./cmd/mister-packages diff-oracle $(CORE_SOURCE) $(CORE_SOURCE_ORACLE)

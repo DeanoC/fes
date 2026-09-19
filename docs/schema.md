@@ -326,6 +326,12 @@ is the contiguous golden mailbox sequence for that ABI.
 
 ## programming_profiles
 
+`packages/abi/fes_application.yaml` adds ABI `fes.application` 1.0, tag 3,
+on `fes-gp-v1`. It uses generic emitters with the `FesApplication` prefix.
+See [application I/O](application-io.md) for composable interface admission,
+wire semantics and lifecycle. This adds one registry pair without changing
+the legacy ABI definitions or the manifest schema.
+
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
 legacy required interfaces. See [the authoritative stream contract](media-stream.md).
