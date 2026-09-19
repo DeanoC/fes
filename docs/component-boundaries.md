@@ -104,7 +104,7 @@ current profile is package-only and installs the ordered closed
 `fes.pong`, `fes.zx81` and `fes.coleco` set through the HIP/nextpnr route.
 
 `make check` validates source identity and cleanliness, the FogCast runtime
-lock, package YAML, twenty generated consumer files and nineteen shared fixture
+lock, package YAML, twenty generated consumer files and twenty shared fixture
 copies. It regenerates to temporary files and never edits consumers. The package
 definitions are the actual runtime C++ ABI/programming consumers and misteross
 Verilog ABI consumer. FogCast uses the

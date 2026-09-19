@@ -40,6 +40,7 @@ COPIED_FILES = (
     ('testdata/fes-media-stream-v1/exchanges.json', 'FogCast', 'protocol/testdata/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-sms/generated/stream-exchanges.json'),
+    ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/stream-exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
     ('testdata/fes-simple-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-simple-computer-v1/exchanges.json'),

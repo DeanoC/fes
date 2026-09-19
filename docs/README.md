@@ -39,6 +39,8 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [Coleco 32 KiB streaming](coleco-stream-32k.md): component tests and bounded
+  HDMI diagnostics, with separate parent integration status and artifact IDs.
 - [SMS 32 KiB stream diagnostic](validation/2026-09-18-sms-stream-start-diagnostic.md):
   corrected startup/input, physical diagnostic display/controls/menu return and
   three UI relaunches; full-image verification is separate from kit acceptance.
