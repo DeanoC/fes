@@ -1,10 +1,15 @@
 import copy
+from contextlib import ExitStack
 import json
 from pathlib import Path
+import subprocess
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from scripts import build_fes_zx81_oss as producer
+from scripts import build_zx81_ram_expansion as cart_producer
 from scripts import zx81_expansion as expansion
 
 
@@ -71,6 +76,94 @@ class ZX81SocketProducerTests(unittest.TestCase):
         fixed, _ = producer.build_commands(root, root / producer.OUTPUT_RELATIVE, "a" * 32, tools)
         self.assertNotIn("chparam -set EXPANSION_SOCKET", fixed[-1])
         self.assertIn("build/fes-zx81-oss/synth.json", fixed[-1])
+
+
+class ZX81CartPublicationTests(unittest.TestCase):
+    def setUp(self):
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        self.shell = self.root / "frozen-shell"
+        self.shell.mkdir()
+        for relative in cart_producer.INPUTS:
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("committed input")
+        for name, data in (("manifest.toml", b"manifest"), ("core.rbf", b"shell"),
+                           ("routed.json", b"{}"), ("socket.qsf", b"pins")):
+            (self.shell / name).write_bytes(data)
+        package = SimpleNamespace(manifest_bytes=b"manifest", payload_bytes=b"shell",
+            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-ram",
+            "major": 1, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
+        tools = {name: SimpleNamespace(path=Path("/tools") / name, identity={"name": name})
+                 for name in ("yosys", "nextpnr-mistral")}
+        for name, value in (("_require_clean_source", ("repository", "c" * 40)),
+                            ("_authenticate_tools", tools), ("read_package", package),
+                            ("rbf_load", SimpleNamespace(header=b"header")),
+                            ("classify_cram_diff", {"bits_outside_slot": 0}),
+                            ("overlay_cram", object()), ("rbf_save", b"linked")):
+            self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
+        self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
+        self.mode = "valid"
+        self.calls = []
+        self.output = None
+
+    def run_tool(self, command, **kwargs):
+        synthesis = Path(command[0]).name == "yosys"
+        name = "synthesis" if synthesis else "route"
+        self.calls.append(name)
+        if synthesis:
+            netlist = Path(command[-1].rsplit("write_json ", 1)[1])
+            self.output = netlist.parent
+            # Previous publications/evidence must be gone before the first tool.
+            self.assertFalse(list(self.output.glob("*.tar")))
+            for old in ("cart.rbf", "cart-routed.json", "timing.json", "linked.rbf", "build-summary.json"):
+                self.assertFalse((self.output / old).exists(), old)
+            if self.mode != "missing_synthesis":
+                netlist.write_text("{}")
+        elif self.mode != "missing_route":
+            (self.output / "cart.rbf").write_bytes(b"fresh cart")
+            (self.output / "cart-routed.json").write_text("{}")
+            (self.output / "timing.json").write_text(json.dumps({"fmax": {
+                "clk_sys": {"achieved": 60, "constraint": 52}}}))
+        log = kwargs["stdout"]
+        if self.mode == name + "_error":
+            log.write("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
+        else:
+            log.write("Info: 0 errors, 1 warning\nInfo: Program finished normally.\n")
+        if self.mode == "nonzero_route" and not synthesis:
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(command, 0)
+
+    def build(self):
+        return cart_producer.build(self.root, self.shell, self.root / "package", 0)
+
+    def test_valid_tools_publish_current_artifacts(self):
+        result = self.build()
+        self.assertTrue(result.is_file())
+        self.assertEqual(self.calls, ["synthesis", "route"])
+        self.assertEqual((self.output / "linked.rbf").read_bytes(), b"linked")
+        self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
+
+    def test_failed_retries_cannot_publish_or_reuse_previous_outputs(self):
+        for mode in ("route_error", "synthesis_error", "missing_route", "missing_synthesis", "nonzero_route"):
+            with self.subTest(mode=mode):
+                self.mode = "valid"
+                previous = self.build()
+                self.assertTrue(previous.is_file())
+                self.mode = mode
+                self.calls.clear()
+                with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+                    self.build()
+                self.assertFalse(previous.exists())
+                self.assertFalse((self.output / "linked.rbf").exists())
+                self.assertFalse((self.output / "build-summary.json").exists())
+                if mode.endswith("synthesis") or mode.startswith("synthesis"):
+                    self.assertEqual(self.calls, ["synthesis"])
+                else:
+                    self.assertEqual(self.calls, ["synthesis", "route"])
+                if mode.endswith("_error"):
+                    self.assertIn("ERROR:", (self.output / (self.calls[-1] + ".log")).read_text())
 
 
 if __name__ == "__main__":

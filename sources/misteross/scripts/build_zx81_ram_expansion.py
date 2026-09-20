@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -19,12 +20,14 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
-from scripts.fes_build_common import _authenticate_tools, _require_clean_source
+from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
 INPUTS = SOURCES + ("scripts/build_zx81_ram_expansion.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
+                 "linked.rbf", "build-summary.json", "synthesis.log", "route.log")
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -49,7 +52,11 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-ram.socket/1"}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/zx81-ram-expansion" / recipe_sha
-    output.mkdir(parents=True, exist_ok=True)
+    # A recipe directory can be retried. Remove both intermediate evidence and
+    # prior publications before invoking either compiler, never after failure.
+    publications = tuple(path.name for path in output.glob("*.tar"))
+    _prepare_output(root, relative=output.relative_to(root),
+                    build_outputs=BUILD_OUTPUTS + publications)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
@@ -60,8 +67,18 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
     for name, command in zip(("synthesis", "route"), commands):
-        with (output / (name + ".log")).open("w") as log:
+        log_path = output / (name + ".log")
+        with log_path.open("w") as log:
             subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        # Some nextpnr failures return zero. Exit status alone cannot admit an
+        # artifact; keep the failing log but never publish its output.
+        if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
+            raise ValueError(f"{name} reported an error; see {log_path}")
+        required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")
+        for artifact in required:
+            path = output / artifact
+            if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+                raise ValueError(f"{name} did not produce nonempty {artifact}")
     timing = json.loads((output / "timing.json").read_text())
     failures = {name: value for name, value in timing.get("fmax", {}).items() if value["achieved"] < value["constraint"]}
     if failures or not timing.get("fmax"):
