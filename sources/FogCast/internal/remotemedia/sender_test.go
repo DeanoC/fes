@@ -178,12 +178,16 @@ func TestSenderIdleRepeatsOnlyDecoderSafeIDRWithTruthfulMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- sender.Run(ctx) }()
-	defer func() {
-		cancel()
-		if err := <-done; !errors.Is(err, context.Canceled) {
-			t.Fatalf("sender result = %v", err)
-		}
-	}()
+	var stopOnce sync.Once
+	stop := func() {
+		stopOnce.Do(func() {
+			cancel()
+			if err := <-done; !errors.Is(err, context.Canceled) {
+				t.Errorf("sender result = %v", err)
+			}
+		})
+	}
+	defer stop()
 
 	var accessUnits []struct {
 		timestamp uint32
@@ -225,6 +229,23 @@ func TestSenderIdleRepeatsOnlyDecoderSafeIDRWithTruthfulMetrics(t *testing.T) {
 	}
 	if accessUnits[2].timestamp <= accessUnits[1].timestamp {
 		t.Fatalf("idle RTP timestamp = %d, want after %d", accessUnits[2].timestamp, accessUnits[1].timestamp)
+	}
+	// Receiving a UDP packet does not synchronize with the sender's subsequent
+	// metric update. Join it before inspecting counters, then account for any
+	// additional idle packets already queued before cancellation was observed.
+	stop()
+	if err := udp.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		_, _, err := udp.ReadFromUDP(wire)
+		if err != nil {
+			if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+				break
+			}
+			t.Fatalf("drain transmitted RTP: %v", err)
+		}
+		packetCount++
 	}
 	snapshot := metrics.Snapshot(time.Now(), 0, 0)
 	if snapshot.EncodedFrames != 2 || snapshot.EncodedBytes != uint64(len(idr.AVCC)+len(pFrame.AVCC)) {
@@ -374,8 +395,11 @@ func TestSenderStopsWhenControlConnectionCloses(t *testing.T) {
 			accepted <- conn
 		}
 	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := make(chan error, 1)
 	done := make(chan error, 1)
-	go func() { done <- sender.Run(context.Background()) }()
+	go func() { done <- sender.RunReady(ctx, func(err error) { ready <- err }) }()
 	var controlConn net.Conn
 	select {
 	case controlConn = <-accepted:
@@ -384,6 +408,16 @@ func TestSenderStopsWhenControlConnectionCloses(t *testing.T) {
 	}
 	if _, err := ReadControlMessage(controlConn); err != nil {
 		t.Fatalf("read MEDIA_HELLO: %v", err)
+	}
+	// MEDIA_HELLO precedes UDP setup. Wait for startup to finish so this
+	// tests loss of an established control connection, not a canceled dial.
+	select {
+	case err := <-ready:
+		if err != nil {
+			t.Fatalf("sender startup: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("sender did not finish startup")
 	}
 	if err := controlConn.Close(); err != nil {
 		t.Fatalf("close control connection: %v", err)

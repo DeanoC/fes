@@ -567,14 +567,28 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 		control := &packageControl{lostReply: true, preserveOnLost: true, status2ErrAfterLoad: io.EOF}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Millisecond,
 			misterruntime.WithCorePackageRoot(root))
-		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), ctx, context.Background(), int64(len(archive)), bytes.NewReader(archive))
-		if apiErr == nil || !attempted {
-			t.Fatalf("attempted=%t error=%#v", attempted, apiErr)
+		var dispatchedPath string
+		control.beforeReply = func(path string) {
+			dispatchedPath = path
+			// Exhaust observation after dispatch, not while admission is staging
+			// the archive on a contended CI filesystem.
+			cancel()
 		}
+		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), ctx, context.Background(), int64(len(archive)), bytes.NewReader(archive))
+		if apiErr == nil || !attempted || control.loadCalls != 1 {
+			t.Fatalf("attempted=%t loads=%d error=%#v", attempted, control.loadCalls, apiErr)
+		}
+		if _, err := os.Stat(dispatchedPath); err != nil {
+			t.Fatalf("unresolved dispatched package was not retained: %v", err)
+		}
+		control.beforeReply = nil
 		control.lostReply, control.preserveOnLost, control.status2ErrAfterLoad = false, false, nil
 		_, _ = runtime.Stop(context.Background())
+		if _, err := os.Stat(dispatchedPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("resolved idle did not clean retained package: %v", err)
+		}
 	})
 
 	t.Run("same package requires a new generation", func(t *testing.T) {
