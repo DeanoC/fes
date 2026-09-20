@@ -10,6 +10,21 @@
 
 namespace {
 
+// Historical independent CPU oracle vectors translated only at test stimulus.
+void set_controller_state(Vcoleco_machine &dut, uint64_t matrix) {
+    uint16_t buttons = 0;
+    for (unsigned p = 0; p < 2; ++p) {
+        const unsigned old = unsigned(~(matrix >> (5*p))) & 31;
+        const unsigned pad = (old & 1) | ((old & 2) << 2) | ((old & 4) >> 1) |
+                             ((old & 8) >> 1) | (old & 16) |
+                             (((~matrix >> (10+p)) & 1) << 5);
+        buttons |= pad << (8*p);
+    }
+    dut.controller_buttons = buttons;
+    dut.controller_keypad = (~matrix >> 12) & 0xffffff;
+}
+
+
 [[noreturn]] void fail(const char *message) {
     std::cerr << "FES Coleco machine: " << message << '\n';
     std::exit(EXIT_FAILURE);
@@ -103,7 +118,7 @@ void controller_reads(uint64_t matrix) {
     out(0xc0, 0); // leave joystick selected so the second reset must clear it
     program.push_back(0x76);
     Vcoleco_machine dut;
-    dut.clk_sys = 0; dut.reset = 1; dut.keyboard = matrix;
+    dut.clk_sys = 0; dut.reset = 1; set_controller_state(dut, matrix);
     dut.media_ready = 1; dut.media_size = program.size();
     dut.media_data = 0; dut.peek_addr = 0;
     dut.eval();
@@ -156,7 +171,7 @@ int main(int argc, char **argv) {
     Vcoleco_machine dut;
     dut.clk_sys = 0;
     dut.reset = 1;
-    dut.keyboard = 0xffffffffffull & ~0x01ull;
+    set_controller_state(dut, 0xffffffffffull & ~0x01ull);
     dut.media_ready = 1;
     dut.media_size = uint16_t(cartridge.size());
     dut.media_data = 0;

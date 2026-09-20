@@ -57,7 +57,7 @@ help:
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
-		"  sim-fes-coleco  Test the FES simple-computer ColecoVision slice and 720p shell" \
+		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
@@ -72,7 +72,7 @@ help:
 		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
 		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
 		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
-		"  sim-fes-sms  Test the FES SMS blob-stream mailbox and 32KiB fixed-map machine (fes.sms)" \
+		"  sim-fes-sms  Test the FES SMS blob-stream mailbox, 32KiB map, SN76489 and HDMI I2S (fes.sms)" \
 		"  sim-fes-sms-oss  Test OSS-conditional SMS registered media, RAM and VDP" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
@@ -281,7 +281,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
-sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
+sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-oss sim-fes-coleco-vdp-io
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -328,10 +328,10 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
 		cores/fes-coleco/rtl/coleco_machine.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/coleco_video_720p.v \
@@ -341,6 +341,8 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
+	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/stream-32k.rom \
+		build/diagnostics/fes-coleco/stream-24k.rom build/diagnostics/fes-coleco/stream-odd.rom build/diagnostics/fes-coleco/graphics-i.rom
 	@build/sim/fes-coleco-board/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
 		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 	@build/sim/fes-coleco-board/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
@@ -350,7 +352,7 @@ sim-fes-coleco: sim-fes-coleco-oss sim-fes-coleco-vdp-io
 	@build/sim/fes-coleco-board/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
-sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
+sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-diagnostic sim-fes-coleco-vdp-io-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -396,10 +398,10 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board-oss" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
 		cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_video_720p.v \
@@ -409,6 +411,8 @@ sim-fes-coleco-oss: coleco-diagnostic sim-fes-coleco-vdp-io-oss
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
+	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/stream-32k.rom \
+		build/diagnostics/fes-coleco/stream-24k.rom build/diagnostics/fes-coleco/stream-odd.rom build/diagnostics/fes-coleco/graphics-i.rom
 	@build/sim/fes-coleco-board-oss/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
 		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
 	@build/sim/fes-coleco-board-oss/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
@@ -536,6 +540,22 @@ sim-fes-sms: sms-diagnostic
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp/Vsms_vdp
+	@mkdir -p build/sim/fes-sms-psg
+	$(VERILATOR) --cc --exe --build --top-module sms_psg -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-psg" \
+		cores/fes-sms/rtl/sms_psg.sv \
+		"$(CURDIR)/cores/fes-sms/sim/psg_tb.cpp"
+	@build/sim/fes-sms-psg/Vsms_psg
+	@mkdir -p build/sim/fes-sms-i2s
+	$(VERILATOR) --cc --exe --build --top-module sms_hdmi_i2s -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-BLKSEQ \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-i2s" \
+		cores/fes-sms/rtl/sms_hdmi_i2s.v \
+		"$(CURDIR)/cores/fes-sms/sim/i2s_tb.cpp"
+	@build/sim/fes-sms-i2s/Vsms_hdmi_i2s
 	@mkdir -p build/sim/fes-sms-machine
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
 		-DTV80_REFRESH=1 \
@@ -546,6 +566,7 @@ sim-fes-sms: sms-diagnostic
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
@@ -592,6 +613,7 @@ sim-fes-sms-oss: sms-diagnostic
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-coleco/rtl/coleco_vdp.sv \
 		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
 		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
@@ -704,3 +726,21 @@ clean:
 .PHONY: kit-session
 kit-session:
 	$(PYTHON) scripts/kit.py session --owner "$${KIT_OWNER:?set KIT_OWNER}" --purpose "$${KIT_PURPOSE:?set KIT_PURPOSE}"
+
+.PHONY: sim-fes-coleco-stream sim-fes-coleco-stream-oss
+sim-fes-coleco-stream sim-fes-coleco-stream-oss:
+	$(require_local_sim)
+	@mkdir -p build/sim/$@
+	$(VERILATOR) --cc --exe --build --top-module coleco_application_gp -Wall \
+		$(if $(findstring -oss,$@),-DFES_COLECO_OSS=1,) \
+		-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL --public-flat-rw \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v \
+		cores/fes-coleco/rtl/coleco_dpram.v "$(CURDIR)/cores/fes-coleco/sim/stream_tb.cpp"
+	@build/sim/$@/Vcoleco_application_gp cores/fes-common/generated/stream-exchanges.json
+
+.PHONY: coleco-stream-diagnostic
+coleco-stream-diagnostic:
+	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 24576 --output build/diagnostics/fes-coleco/stream-24k.rom
+	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 32767 --output build/diagnostics/fes-coleco/stream-odd.rom
+	python3 cores/fes-coleco/diagnostic/generate.py --stream-size 32768 --output build/diagnostics/fes-coleco/stream-32k.rom --preview build/diagnostics/fes-coleco/stream-pass.ppm

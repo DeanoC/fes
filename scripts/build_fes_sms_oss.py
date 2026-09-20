@@ -28,16 +28,24 @@ from scripts.build_fes_pong import (
 )
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.search_placer_qor import SearchError, route_after_synth
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-# Seed 1 is the fes.sms production seed. Coleco / SG-1000 remain seed 4.
-# A sealed BUILD_ID changes the placement search space; re-check after
-# format-2 seal.
-SEED = 1
+# First-pass starts at seed 10 / HeAP 1000 (55.38 MHz on the previous
+# sealed netlist). A new BUILD_ID can miss; the remaining seeds/weights
+# stay in evidence, not rewritten into this constant.
+PLACER_SEEDS = (10, 12, 1, 2, 3, 4, 5, 7)
+SEED = PLACER_SEEDS[0]
+PLACER_TIMING_WEIGHT = 1000
+PLACER_TIMING_WEIGHTS = (1000, 300)
+PLACER_CRITICALITY_EXPONENT = 5
+# first-pass walks every seed at each weight; size the budget for that product.
+PLACER_QOR_BUDGET = len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS)
+PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
 SMS_GPU_BACKEND = "hip"
 SMS_GPU_ROUTER = "HIP"
 SMS_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -64,7 +72,9 @@ RTL_SOURCES = (
     "cores/fes-coleco/rtl/coleco_video_dpram.v",
     "cores/fes-coleco/rtl/coleco_vdp.sv",
     "cores/fes-sms/rtl/sms_vdp.sv",
+    "cores/fes-sms/rtl/sms_psg.sv",
     "cores/fes-sms/rtl/sms_video_720p.v",
+    "cores/fes-sms/rtl/sms_hdmi_i2s.v",
     "cores/fes-sms/rtl/sms_machine.sv",
     "cores/fes-coleco/rtl/t80pa.v",
     "cores/fes-coleco/rtl/tv80/tv80_core.v",
@@ -192,7 +202,12 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_000_000,
             "reference_clock_hz": 50_000_000,
-            "seed": SEED,
+            "seed": PLACER_SEEDS[0],
+            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
+            "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
+            "placer_heap_timingweights": ",".join(str(weight) for weight in PLACER_TIMING_WEIGHTS),
+            "placer_qor_budget": PLACER_QOR_BUDGET,
+            "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "router": ROUTER,
             "toolchain_lock": SMS_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, SMS_TOOLCHAIN_LOCK)),
@@ -236,6 +251,8 @@ def build_commands(
         # both clock constraints. Timing-driven rip-up is intentionally
         # not enabled. A sealed BUILD_ID changes placement.
         "--seed", str(SEED),
+        "--placer-heap-timingweight", str(PLACER_TIMING_WEIGHT),
+        "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", ROUTER,
         "--timing-allow-fail",
         "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
@@ -400,7 +417,7 @@ def _manifest(
             "id": "fes.sms",
             "name": "FES Master System",
             "description": "Standalone fixed-720p Master System slice for the FES simple-computer ABI (OSS)",
-            "version": "1.1.0",
+            "version": "1.2.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -446,8 +463,29 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         _run_tool(commands[0], root, output / "yosys.log")
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        _run_tool(commands[1], root, output / "nextpnr.log")
+        try:
+            winner = route_after_synth(
+                nextpnr=authenticated["nextpnr-mistral"].path,
+                fixture=output / "synth.json",
+                dest=output,
+                device=TARGET,
+                qsf=root / QSF,
+                sdc=root / SDC,
+                freq="74.25",
+                seeds=PLACER_SEEDS,
+                weights=PLACER_TIMING_WEIGHTS,
+                critexp=PLACER_CRITICALITY_EXPONENT,
+                budget=PLACER_QOR_BUDGET,
+                mode="first-pass",
+                extra=("--router", ROUTER),
+                required=PLACER_QOR_CLOCKS,
+            )
+        except SearchError as exc:
+            raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
+        evidence["route"]["placer_seed"] = winner.seed
+        evidence["route"]["placer_heap_timingweight"] = winner.weight
+        evidence["route"]["placer_qor_mode"] = "first-pass"
         evidence.update(
             {
                 "build_id": build_id,

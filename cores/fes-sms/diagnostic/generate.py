@@ -6,8 +6,10 @@
 The annotated instruction emitter below is the cartridge source. It needs only
 Python's standard library, not an assembler or downloaded ROM. Reset enters
 0x0000, then jumps to code at 0x4000 so a 32 KiB image actually executes in
-the upper half. Default output HALTs after the RAM signature (simulation).
---interactive keeps the controller poll loop for HIL display+USB checks.
+the upper half. After the Mode 4 picture it programs an SN76489 square wave
+on ports 0x7E/0x7F. Default output HALTs after the RAM signature (simulation).
+--interactive keeps the controller poll loop for HIL display+USB+HDMI-audio
+checks.
 """
 
 from __future__ import annotations
@@ -154,6 +156,13 @@ def cartridge(interactive: bool = False) -> bytes:
     marker_ptr = len(code) - 2
     emit(0x32, 0x02, 0xC0)  # LD (C002),A
     emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)  # IN A,(DC); LD (C001),A
+    # SN76489 tone 0 period 256 (~400 Hz), max volume; other channels silent.
+    out(0x7F, 0x80)
+    out(0x7E, 0x10)
+    out(0x7F, 0x90)
+    out(0x7F, 0xBF)
+    out(0x7F, 0xDF)
+    out(0x7F, 0xFF)
     if interactive:
         poll = pc()
         emit(0xDB, 0xDC, 0x32, 0x01, 0xC0)

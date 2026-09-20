@@ -53,7 +53,7 @@ def main() -> None:
             command = [args.iverilog]
             if args.iverilog_base:
                 command += ["-B", args.iverilog_base]
-            command += ["-g2012", "-DQUARTUS=1", "-I", str(root / "cores/fes-coleco/generated"),
+            command += ["-g2012", "-DQUARTUS=1", "-I", str(root / "cores/fes-common/generated"),
                         "-s", test, "-o", str(binary),
                         str(root / f"cores/fes-coleco/sim/{test}.sv"),
                         *map(str, selected), str(model)]

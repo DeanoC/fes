@@ -17,6 +17,10 @@ module top #(
     output wire [23:0] HDMI_TX_D,
     output wire        HDMI_TX_HS,
     output wire        HDMI_TX_VS,
+    output wire        HDMI_I2S0,
+    output wire        HDMI_MCLK,
+    output wire        HDMI_LRCLK,
+    output wire        HDMI_SCLK,
     inout  wire        HDMI_I2C_SCL,
     inout  wire        HDMI_I2C_SDA
 );
@@ -34,6 +38,7 @@ module top #(
     wire [7:0] logical_y;
     wire [5:0] logical_color;
     wire logical_blank;
+    wire signed [15:0] psg_sample;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -120,7 +125,14 @@ module top #(
         .logical_blank(logical_blank),
         .vdp_status(),
         .cpu_addr_debug(),
-        .cpu_halt_n()
+        .cpu_halt_n(),
+        .psg_tone0_period(),
+        .psg_tone0_atten(),
+        .psg_tone1_atten(),
+        .psg_tone2_atten(),
+        .psg_noise_atten(),
+        .psg_tone0(),
+        .psg_sample(psg_sample)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
@@ -139,6 +151,15 @@ module top #(
         .hsync(HDMI_TX_HS),
         .vsync(HDMI_TX_VS),
         .frame_tick()
+    );
+
+    sms_hdmi_i2s hdmi_audio (
+        .pixel_clk(pixel_clk),
+        .sample(psg_sample),
+        .mclk(HDMI_MCLK),
+        .sclk(HDMI_SCLK),
+        .lrclk(HDMI_LRCLK),
+        .i2s(HDMI_I2S0)
     );
 
     assign HDMI_TX_CLK = pixel_clk;

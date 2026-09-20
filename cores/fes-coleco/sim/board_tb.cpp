@@ -162,6 +162,32 @@ struct Board {
 
     void upload(bool &toggle, const std::vector<uint8_t> &cartridge) {
         hold(toggle);
+        if (cartridge.size() > 16384) {
+            uint32_t crc = 0xffffffff;
+            for (uint8_t byte : cartridge) {
+                crc ^= byte;
+                for (int bit = 0; bit < 8; ++bit)
+                    crc = (crc & 1) ? (crc >> 1) ^ 0xedb88320u : crc >> 1;
+            }
+            crc ^= 0xffffffff;
+            const uint32_t total = cartridge.size();
+            const uint16_t begin[] = {uint16_t(total), uint16_t(total >> 16), uint16_t(crc), uint16_t(crc >> 16)};
+            for (unsigned i = 0; i < 4; ++i)
+                exchange(toggle, 8, i, begin[i], response(!toggle, false, 0), "stream begin");
+            for (size_t offset = 0; offset < cartridge.size();) {
+                const size_t length = std::min(size_t(512), cartridge.size() - offset);
+                exchange(toggle, 9, 0, offset, response(!toggle, false, 0), "chunk offset lo");
+                exchange(toggle, 9, 1, offset >> 16, response(!toggle, false, 0), "chunk offset hi");
+                exchange(toggle, 9, 2, length, response(!toggle, false, 0), "chunk length");
+                for (size_t i = 0; i < length; i += 2) {
+                    const uint16_t data = cartridge[offset+i] |
+                        (i+1 < length ? uint16_t(cartridge[offset+i+1]) << 8 : 0);
+                    exchange(toggle, 10, i/2, data, response(!toggle, false, 0), "stream data");
+                }
+                offset += length;
+            }
+            exchange(toggle, 11, 0, 0, response(!toggle, false, 0), "stream commit");
+        } else {
         exchange(toggle, 4, 0, uint16_t(cartridge.size()),
                  response(!toggle, false, 0), "media begin");
         size_t offset = 0;
@@ -174,6 +200,7 @@ struct Board {
             exchange(toggle, 5, 1, cartridge[offset],
                      response(!toggle, false, 0), "media tail");
         exchange(toggle, 6, 0, 0, response(!toggle, false, 0), "media commit");
+        }
         require(root.top__DOT__machine__DOT__nHALT, "CPU not reset before reload");
         release_and_check_copy(toggle, cartridge);
     }
@@ -226,6 +253,9 @@ struct Board {
             sys_tick();
         }
         require(cycles < 20000000, "diagnostic CPU did not reach HALT");
+        if (root.top__DOT__media_size > 16384)
+            require(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[0] == 0xa5,
+                    "upper-ROM CPU diagnostic did not publish pass marker");
         if (vdp_io) {
             require(root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[0] == 0xa5 &&
                     root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[1] == 2 &&
@@ -263,7 +293,15 @@ struct Board {
 
     void row(bool &toggle, unsigned index, uint8_t value) {
         matrix = (matrix & ~(uint64_t(31) << (5 * index))) | (uint64_t(value) << (5 * index));
-        exchange(toggle, 3, index, value, response(!toggle, false, 0), "keyboard row");
+        for (unsigned p = 0; p < 2; ++p) {
+            const unsigned old = unsigned(~(matrix >> (5*p))) & 31;
+            const unsigned pad = (old & 1) | ((old & 2) << 2) | ((old & 4) >> 1) |
+                                 ((old & 8) >> 1) | (old & 16) |
+                                 (((~matrix >> (10+p)) & 1) << 5);
+            exchange(toggle, 13, p, pad, response(!toggle, false, 0), "controller buttons");
+            exchange(toggle, 14, p, (~matrix >> (12+12*p)) & 4095,
+                     response(!toggle, false, 0), "controller keypad");
+        }
     }
 
     std::array<uint8_t, 4> expected_banks() const {
@@ -433,8 +471,8 @@ int main(int argc, char **argv) {
         require(input.good(), "cannot open generated cartridge");
         cartridges.emplace_back(std::istreambuf_iterator<char>(input),
                                 std::istreambuf_iterator<char>());
-        require(!input.bad() && !cartridges.back().empty() && cartridges.back().size() <= 16384,
-                "cartridge must contain 1..16384 raw bytes");
+        require(!input.bad() && !cartridges.back().empty() && cartridges.back().size() <= 32768,
+                "cartridge must contain 1..32768 raw bytes");
     }
     // Exercise the intentionally uninitialized RAMs with nonzero power-up data.
     Verilated::randReset(2);
@@ -468,9 +506,10 @@ int main(int argc, char **argv) {
 
     bool toggle = false;
     require(board.gpi() == 0xf5000000u, "initial mailbox signature");
-    board.exchange(toggle, 1, 4, 0, response(!toggle, false, 2), "identity tag");
-    board.exchange(toggle, 3, 0, 0x0011, response(!toggle, false, 0), "keyboard row");
-    board.exchange(toggle, 2, 0, 1, response(!toggle, false, 0), "release without media");
+    board.exchange(toggle, 1, 4, 0, response(!toggle, false, 3), "identity tag");
+    board.exchange(toggle, 1, 7, 0, response(!toggle, false, 110), "native controller and stream capabilities");
+    board.row(toggle, 0, 0x11);
+    board.exchange(toggle, 2, 0, 1, response(!toggle, true, 4), "release without media");
     for (unsigned i = 0; i < 32; ++i) {
         require(!board.root.top__DOT__machine__DOT__cpu__DOT__RESET_n &&
                     board.root.top__DOT__machine__DOT__vdp__DOT__reset,

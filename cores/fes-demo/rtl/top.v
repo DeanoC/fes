@@ -63,7 +63,7 @@ module top #(
         .build_id(BUILD_ID),
         .gpi(fpga_to_hps),
         .exec_reset(mailbox_reset),
-        .buttons(mailbox_buttons),
+        .buttons(mailbox_buttons), .controller_buttons(), .controller_keypad(),
         .media_ready(), .media_size(),
         .media_byte0(palette_red), .media_byte1(palette_green), .media_byte2(palette_blue),
         .media_write_addr(), .media_write_data(), .media_write_enable()

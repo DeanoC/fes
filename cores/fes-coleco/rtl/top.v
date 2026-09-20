@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-`include "fes_simple_computer.vh"
+`include "fes_application.vh"
 `ifndef FES_COLECO_BUILD_ID
 `define FES_COLECO_BUILD_ID 128'h00000000000000000000000000000000
 `endif
@@ -24,10 +24,11 @@ module top #(
     wire [31:0] fpga_to_hps;
     wire [31:0] hps_to_fpga;
     wire exec_reset;
-    wire [39:0] keyboard;
+    wire [15:0] controller_buttons;
+    wire [23:0] controller_keypad;
     wire media_ready;
-    wire [14:0] media_size;
-    wire [13:0] media_addr;
+    wire [15:0] media_size;
+    wire [14:0] media_addr;
     wire [7:0] media_data;
     wire [7:0] logical_x;
     wire [7:0] logical_y;
@@ -82,18 +83,16 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    fes_computer_gp mailbox (
+    coleco_application_gp mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
         .gpi(fpga_to_hps),
         .exec_reset(exec_reset),
-        .keyboard(keyboard),
+        .controller_buttons(controller_buttons),
+        .controller_keypad(controller_keypad),
         .media_ready(media_ready),
         .media_size(media_size),
-        .media_byte0(),
-        .media_byte1(),
-        .media_byte2(),
         .media_addr(media_addr),
         .media_q(media_data)
     );
@@ -102,7 +101,8 @@ module top #(
     coleco_machine machine (
         .clk_sys(clk_sys),
         .reset(exec_reset),
-        .keyboard(keyboard),
+        .controller_buttons(controller_buttons),
+        .controller_keypad(controller_keypad),
         .media_ready(media_ready),
         .media_size(media_size),
         .media_data(media_data),

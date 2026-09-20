@@ -440,6 +440,15 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertIn(b"gpu-router=HIP", manifest)
         self.assertIn(COLECO_GPU_ARCHITECTURES.encode(), manifest)
+        import tomllib
+        fields = tomllib.loads(manifest.decode())
+        self.assertEqual(fields["abi"], {"id": "fes.application", "major": 1, "minor": 0})
+        self.assertEqual({i["id"] for i in fields["interfaces"]},
+                         {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60"})
+        self.assertTrue(all(i["required"] for i in fields["interfaces"]))
+        self.assertIn("cores/fes-common/rtl/fes_application_gp.v", RTL_SOURCES)
+        self.assertIn("cores/fes-coleco/rtl/coleco_application_gp.v", RTL_SOURCES)
+        self.assertNotIn("cores/fes-coleco/rtl/fes_computer_gp.v", RTL_SOURCES)
 
     def test_coleco_gpu_configuration_constants_are_consistent(self) -> None:
         self.assertEqual(COLECO_GPU_BACKEND, "hip")
@@ -455,7 +464,7 @@ class BuildFesColecoTests(unittest.TestCase):
         for text in (readme, architecture):
             self.assertIn("fes-coleco", text)
             self.assertIn("16 KiB", text)
-            self.assertIn("fes.simple-computer", text)
+            self.assertIn("fes.application", text)
             self.assertIn("build-fes-coleco-quartus", text)
             self.assertIn("build-fes-coleco", text)
             self.assertIn("TV80_REFRESH", text)

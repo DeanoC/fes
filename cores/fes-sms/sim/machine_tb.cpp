@@ -222,6 +222,20 @@ int main(int argc, char **argv) {
             at_mode4_sample = sample;
         }
         require(saw_mode4_color, "diagnostic Mode 4 CRAM pixel was not rendered");
+        require(dut.psg_tone0_period == 256, "diagnostic tone0 period");
+        require(dut.psg_tone0_atten == 0, "diagnostic tone0 volume");
+        require(dut.psg_tone1_atten == 0xF, "diagnostic tone1 silent");
+        require(dut.psg_tone2_atten == 0xF, "diagnostic tone2 silent");
+        require(dut.psg_noise_atten == 0xF, "diagnostic noise silent");
+        const int first_tone = dut.psg_tone0;
+        bool saw_tone_edge = false;
+        for (cycles = 0; cycles < 400000 && !saw_tone_edge; ++cycles) {
+            tick(dut, diagnostic, registered_media_data);
+            if (dut.psg_tone0 != first_tone)
+                saw_tone_edge = true;
+        }
+        require(saw_tone_edge, "diagnostic PSG tone0 did not toggle");
+        require(int16_t(dut.psg_sample) != 0, "diagnostic PSG mix is silent");
     }
 
     std::cout << "FES SMS machine checks passed\n";

@@ -15,7 +15,7 @@ import hashlib
 from pathlib import Path
 
 
-def cartridge(interactive: bool = False, controllers: bool = False) -> bytes:
+def cartridge(interactive: bool = False, controllers: bool = False, stream_size: int = 0) -> bytes:
     dynamic = interactive or controllers
     code = bytearray()
     tables: list[tuple[int, bytes]] = []
@@ -49,6 +49,20 @@ def cartridge(interactive: bool = False, controllers: bool = False) -> bytes:
         # LD A,(HL); OUT (BE),A; INC HL; DEC DE; LD A,D; OR E
         jr_nz(loop)
 
+    if stream_size:
+        assert stream_size in (24576, 32767, 32768) and not dynamic
+        # Read independent upper-half sentinels through the actual CPU bus.
+        # Failure loops before any video initialization; it can never paint pass.
+        probes = [(0x4000, 0x5A), (0x4001, 0xC3), (stream_size - 1, 0xA7)]
+        if stream_size < 32768:
+            probes.append((stream_size, 0xFF))
+            probes.append((32767, 0xFF))  # old long-image tail must be inaccessible
+        for offset, value in probes:
+            addr = 0x8000 + offset
+            emit(0x3A, addr & 255, addr >> 8, 0xFE, value)  # LD A,(addr); CP value
+            here = 0x8000 + len(code)
+            emit(0xC2, here & 255, here >> 8)  # JP NZ,self (no pass frame)
+        emit(0x3E, 0xA5, 0x32, 0x00, 0x60)  # RAM pass marker
     emit(0xF3)  # DI: no BIOS or interrupt service dependencies
     emit(0x31, 0x00, 0x64)  # LD SP,6400 (no CALL, PUSH or RAM reads)
     emit(0xDB, 0xBF)  # IN A,(BF): clear the control latch and VBlank
@@ -125,6 +139,11 @@ def cartridge(interactive: bool = False, controllers: bool = False) -> bytes:
     if dynamic and len(code) % 2 == 0:
         emit(0xFF)  # unused odd tail exercises the single-byte GP transfer
     assert 1 <= len(code) <= 16384
+    if stream_size:
+        code.extend(bytes([0xFF]) * (stream_size - len(code)))
+        code[0x4000] = 0x5A
+        code[0x4001] = 0xC3
+        code[-1] = 0xA7
     return bytes(code)
 
 
@@ -181,6 +200,8 @@ def main() -> None:
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--interactive", action="store_true", help="poll two joystick rows continuously")
     modes.add_argument("--controllers", action="store_true", help="display both players' raw joystick/keypad bytes")
+    modes.add_argument("--stream-size", type=int, choices=(24576, 32767, 32768), default=0,
+                       help="CPU-check upper ROM bytes then paint Graphics I pass frame")
     def matrix_value(value: str) -> int:
         try:
             return int(value, 0)
@@ -188,6 +209,10 @@ def main() -> None:
             return int(value, 16)
     parser.add_argument("--matrix", type=matrix_value, default=0xFFFFFFFFFF,
                         help="preview-only active-low 40-bit integer or hexadecimal matrix")
+    parser.add_argument("--buttons", type=matrix_value, nargs=2, metavar=("P1", "P2"),
+                        help="preview-only native active-high gamepad states (0..255)")
+    parser.add_argument("--keypads", type=matrix_value, nargs=2, metavar=("P1", "P2"),
+                        help="preview-only native active-high keypad states (0..4095)")
     parser.add_argument("--row0", type=int, default=31, help="preview-only active-low player 1 bits (0..31)")
     parser.add_argument("--row1", type=int, default=31, help="preview-only active-low player 2 bits (0..31)")
     args = parser.parse_args()
@@ -201,7 +226,21 @@ def main() -> None:
         parser.error("--matrix must fit 40 bits")
     if not args.controllers and args.matrix != 0xFFFFFFFFFF:
         parser.error("--matrix requires --controllers")
-    data = cartridge(args.interactive, args.controllers)
+    if args.buttons is not None or args.keypads is not None:
+        if not args.controllers or args.matrix != 0xFFFFFFFFFF:
+            parser.error("native states require --controllers and cannot mix with --matrix")
+        buttons, keypads = args.buttons or [0, 0], args.keypads or [0, 0]
+        if any(not 0 <= x <= 255 for x in buttons) or any(not 0 <= x <= 4095 for x in keypads):
+            parser.error("buttons must be 0..255 and keypads 0..4095")
+        # Reuse the independent historical CPU-bus oracle; no ROM bytes change.
+        pressed = 0
+        for p, pad in enumerate(buttons):
+            old = (pad & 1) | ((pad & 8) >> 2) | ((pad & 2) << 1) | ((pad & 4) << 1) | (pad & 16)
+            pressed |= old << (5*p)
+            pressed |= ((pad >> 5) & 1) << (10+p)
+            pressed |= keypads[p] << (12+12*p)
+        args.matrix = 0xFFFFFFFFFF ^ pressed
+    data = cartridge(args.interactive, args.controllers, args.stream_size)
     if args.pad_to is not None:
         if not len(data) <= args.pad_to <= 16384:
             parser.error(f"--pad-to must be {len(data)}..16384")

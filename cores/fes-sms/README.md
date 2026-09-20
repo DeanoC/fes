@@ -10,8 +10,9 @@ SMS). Do not use `fes.mastersystem`.
 Master System is a Coleco / SG-1000 sibling, not a second console stack.
 TV80, the legacy TMS9918-style VDP, dual-port RAM wrappers, the GP mailbox and
 both PLL wrappers remain Coleco modules. This tree supplies the SMS memory map,
-Mode 4 VDP and six-bit video shell, the 8255 joystick ports, VDP-to-INT wiring,
-the board top, Quartus pins and the oracle recipe.
+Mode 4 VDP and six-bit video shell, the SN76489 on ports `0x7E`/`0x7F`, HDMI
+I2S into the ADV7513, the 8255 joystick ports, VDP-to-INT wiring, the board
+top, Quartus pins and the oracle recipe.
 
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
@@ -38,10 +39,18 @@ pin and kit HIL remain later jobs.
   existing 40-bit keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing, with
   the SMS two-bit-per-channel CRAM expanded to 24-bit HDMI RGB.
+- SN76489-compatible PSG on I/O `0x7E`/`0x7F` (write-only; both ports). Tone,
+  noise and 2 dB attenuation follow the Sega PSG latch/data protocol. The mix
+  is a signed 16-bit sample in the 52 MHz domain.
+- FPGA→ADV7513 I2S0 on the Terasic HDMI pins (`HDMI_I2S0`, `HDMI_SCLK`,
+  `HDMI_LRCLK`, `HDMI_MCLK`). The native runtime already programs the
+  transmitter for 16-bit I2S at 48 kHz (N=6144, CTS=74250). There is no host
+  `fes.audio` mailbox.
 
-Audio (SN76489), Sega mappers, banked/48 KiB cartridges, expansion hardware,
-224/240-line modes, PAL timing, cycle-perfect raster effects and native
-FogCast/runtime selection remain outside this slice. Kit HIL is a later job.
+Sega mappers, banked/48 KiB cartridges, expansion hardware, 224/240-line
+modes, PAL timing, cycle-perfect raster effects and native FogCast/runtime
+selection remain outside this slice. FES parent pin and kit HDMI-audio HIL
+remain later jobs.
 
 ## Memory and host interfaces
 
@@ -51,6 +60,7 @@ FogCast/runtime selection remain outside this slice. Kit HIL is a later job.
 | `0x8000–0xbfff` | unmapped; reads `ff` |
 | `0xc000–0xdfff` | 8 KiB CPU RAM |
 | `0xe000–0xffff` | mirror of the 8 KiB CPU RAM |
+| I/O `0x7e`/`0x7f` | SN76489 write (both ports; reads stay `ff`) |
 | I/O `0xbe` | VDP data |
 | I/O `0xbf` | VDP control/status |
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
@@ -112,19 +122,23 @@ The emitter is BIOS-free and MIT-licensed. Reset enters `0x0000` and jumps to
 code at `0x4000`. Upper-half code initializes Mode 4 VRAM, both CRAM palettes,
 the `0x3800` name table and `0x3f00` SAT, then paints the border/checkerboard
 plus a flipped, priority-marked and alternate-palette plus tile. It writes `A5`
-at `C000`, captures port `DC` at `C001`, and stores distinctive upper-half data
-`0x18` at `C002`. `mode4.rom` is the sim regression image and HALTs after that
-signature. `mode4-hil.rom` (`--interactive`) keeps the controller poll loop on
-`DC`/`DD` so a HIL display+USB check can Stop/relaunch; it does not HALT
-forever. `--pad-to` admits 32 KiB. This is a bounded diagnostic, not a mapper
-or retail claim. Kit HIL remains later.
+at `C000`, captures port `DC` at `C001`, stores distinctive upper-half data
+`0x18` at `C002`, and programs SN76489 tone 0 (period 256, max volume) on
+ports `0x7F`/`0x7E` with the other channels silent. `mode4.rom` is the sim
+regression image and HALTs after that signature. `mode4-hil.rom`
+(`--interactive`) keeps the controller poll loop on `DC`/`DD` so a HIL
+display+USB+HDMI-audio check can Stop/relaunch; it does not HALT forever.
+`--pad-to` admits 32 KiB. This is a bounded diagnostic, not a mapper or retail
+claim. Kit HDMI-audio HIL remains later.
 
 `make sim-fes-sms` is the cheap Verilator check: the stream-enabled mailbox
 consumes `cores/fes-sms/generated/stream-exchanges.json`; the focused VDP unit
 checks Mode 4 VRAM buffering, CRAM color, tile priority/palette, sprite
-collision, line IRQ and VBlank IRQ; then the machine checks 32 KiB fixed-map
-copy, 8 KiB RAM mirror, joystick ports, long-then-short `0xff` tails and the
-diagnostic ROM. It is host simulation, not hardware acceptance.
+collision, line IRQ and VBlank IRQ; the PSG unit checks register writes on
+`0x7E`/`0x7F` and the tone-0 square wave; HDMI I2S checks 16-bit 48 kHz frames;
+then the machine checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick
+ports, long-then-short `0xff` tails and the diagnostic ROM (including the
+programmed tone). It is host simulation, not hardware acceptance.
 
 `make sim-fes-sms-oss` compiles the registered-media machine and the Coleco
 registered VDP/RAM wrappers with `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`. The
@@ -135,16 +149,18 @@ shared `coleco_dpram` / `coleco_vdp` mappers key off `FES_COLECO_OSS`, not
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe
-for `fes.sms` 1.1.0. It requires a clean committed tree, writes
+for `fes.sms` 1.2.0. It requires a clean committed tree, writes
 `build/fes-sms-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. `--compile-only` produces the RBF and
 timing evidence without sealing. It does not program hardware.
 
 `make build-fes-sms` is the OSS recipe (`scripts/build_fes_sms_oss.py`).
-It copies Coleco `constraints-oss.qsf`, `clocks-oss.sdc`, and
-`toolchain.lock`. Yosys defines `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and
-`FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
-seal. The producer uses `--router gpu` and seed 1 with a live HIP backend
-required. Final structured `clk_sys` and `pixel_clk` rows must meet 52 MHz
-and 74.25 MHz. FES parent pin and kit HIL remain later jobs. The gap inventory lives in
+It copies Coleco `clocks-oss.sdc` and `toolchain.lock`, and uses the SMS
+`constraints-oss.qsf` (Coleco video/I2C pins plus ADV7513 I2S). Yosys defines
+`TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
+Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and
+a first-pass HIP seed/weight search (starts at seed 10 / HeAP 1000, then
+the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
+`pixel_clk` rows must meet 52 MHz and 74.25 MHz. FES parent pin and kit
+HDMI-audio HIL remain later jobs. The gap inventory lives in
 `docs/validation/2026-09-17-sms-oss-gap-ladder.md`.

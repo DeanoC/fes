@@ -2,7 +2,7 @@
 
 This directory contains the next FES emulator bring-up after Pong and ZX81.
 It is a reduced ColecoVision-compatible console slice that uses the existing
-`fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell. The
+`fes.application` 1.0 mailbox and the DE10-Nano fixed 720p shell. The
 reference system is the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer),
 but this package does not copy the MiSTer framework and does not claim full
 retail-game compatibility.
@@ -11,7 +11,9 @@ retail-game compatibility.
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain.
-- Raw 1–16 KiB mailbox media blob, mirrored through `0x8000–0xffff`.
+- Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
+  16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
+  Legacy `fes.media.blob` remains bounded to 1–16 KiB.
 - Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
   proprietary ColecoVision BIOS is embedded.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
@@ -20,12 +22,12 @@ retail-game compatibility.
   buffered VRAM reads, bounded Graphics II sprites, VBlank status and enabled
   VBlank NMI delivery.
 - Two standard controllers with joystick/keypad mode selection, twelve encoded
-  keypad keys and two fire buttons, adapted from the existing keyboard matrix.
+  keypad keys and two fire buttons through shared native controller ports.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Audio, BIOS services, expansion hardware, bank switching, full VDP modes,
-cycle-perfect clocking, and native FogCast/runtime selection remain outside
-this first slice. Graphics II is intentionally bounded to the implemented
+and cycle-perfect clocking remain outside this first slice. Native host/runtime
+selection follows the declared interfaces. Graphics II is intentionally bounded to the implemented
 sprite path: normal 8x8/16x16 sprites, magnification, early-clock positioning,
 clipping, transparency/priority, four visible sprites per line, collision and
 fifth-sprite status. The raw media limit and reset shim are deliberate
@@ -37,14 +39,16 @@ compatibility boundaries.
 | --- | --- |
 | `0x0000–0x1fff` | open reset ROM; reset jumps to `0x8000`, NMI at `0x0066` jumps to `0x8066` |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
-| `0x8000–0xffff` | mirrored 16 KiB cartridge aperture |
+| `0x8000–0xffff` | fixed 32 KiB cartridge aperture; images up to 16 KiB mirror at C000 |
 | I/O `0xbe` | VDP data |
 | I/O `0xbf` | VDP control/status |
 | I/O writes `0x80–0x9f` / `0xc0–0xdf` | select keypad / joystick mode for both players |
 | I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
-The mailbox, keyboard rows, media handshake, build identity, and fixed-video
-interfaces are byte-for-byte the existing `fes.simple-computer` boundary.
+The application mailbox advertises fixed video, blob media, blob-stream media, `fes.gamepad.ports`
+1.0 and `fes.keypad.ports` 1.0. It does not advertise keyboard or legacy gamepad.
+The common endpoint supplies accepted writes to a console-owned 32 KiB staging
+RAM; `coleco_application_gp` preserves the machine's registered cartridge-copy path.
 The host holds execution reset while uploading and commits media before
 releasing it. GP commit acknowledges publication of the mailbox blob; the
 machine then copies it into cartridge RAM. CPU and VDP reset remain asserted
@@ -52,6 +56,26 @@ until `media_ready && media_loaded`, even if the host releases immediately
 after the commit ACK. Both compiler lanes' final registered write completes before
 `media_loaded` permits execution. No host delay or new mailbox operation is
 required. A release without committed media also keeps CPU and VDP in reset.
+
+Stream media uses the existing opcodes 7–12, reflected IEEE CRC32, ordered
+32-bit begin/chunk fields and chunks of at most 512 bytes. This endpoint reports
+1..32768 bytes. Commit requires the entire declared length and matching CRC;
+failed, partial or aborted streams cannot release execution. Abort invalidates
+staging; HOLD preserves staging and neutralizes controllers. The shared endpoint
+keeps streaming optional and disabled by default for existing applications.
+For images larger than 16 KiB, CPU and peek reads past the committed length return
+FF, including after a longer image was previously loaded. There is no bank mapper.
+
+`make coleco-stream-diagnostic` generates original MIT-licensed 24 KiB, 32767-byte
+and 32 KiB ROMs. Their real CPU reads C000, C001 and the final valid byte; shorter
+images also check the first out-of-range address and FFFF for FF. Failure loops
+before video initialization. Success stores A5 at RAM 6000 and paints the existing
+Graphics I frame (`stream-pass.ppm`). `make sim-fes-coleco` transfers these through
+the real mailbox, verifies reset through the final registered copy, checks every
+cartridge byte and exact HDMI frame, and reloads 32 KiB → 24 KiB → 32767 → legacy.
+Both conditional lanes run these checks. Shared golden stream vectors additionally
+exercise CRC errors, incomplete transfers, invalid sequencing, abort, oversize,
+odd chunks and odd-address RAM pairs. Hardware acceptance is a separate FES step.
 
 The machine adapter qualifies each held CPU `OUT` cycle into one VDP write
 strobe. TV80 holds IORQ/WR low across multiple CPU enables; passing every enable
@@ -171,14 +195,10 @@ no spinner), bits 5/4=1, bit 6=active-low Fire 1 in joystick mode or Fire 2 in
 keypad mode. Bits 3..0 contain active-low Left/Down/Right/Up in joystick mode,
 or an encoded keypad value. Neutral is `7f` in either mode.
 
-| Keyboard matrix bits | Function | Host keys in index order |
-| --- | --- | --- |
-| 0..4 | Player 1 Up/Right/Down/Left/Fire 1 | Shift, Z, X, C, V |
-| 5..9 | Player 2 Up/Right/Down/Left/Fire 1 | A, S, D, F, G |
-| 10 / 11 | Player 1 / Player 2 Fire 2 | Q / W |
-| 12..23 | Player 1 keypad 0..9, *, # | E, R, T, 1, 2, 3, 4, 5, 0, 9, 8, 7 |
-| 24..35 | Player 2 keypad 0..9, *, # | 6, P, O, I, U, Y, Enter, L, K, J, H, Space |
-| 36..39 | Unused | Period, M, N, B |
+Both ports accept full active-high states. Gamepad bits 0..7 are Up, Down,
+Left, Right, A, B, Select, Start; A/B map to Fire 1/2. Select/Start are unused.
+Each keypad has twelve bits: digits 0..9 followed by * and #. The mailbox port
+index is 0 for player 1 and 1 for player 2. No keyboard emulation is involved.
 
 Keypad keys `0 1 2 3 4 5 6 7 8 9 * #` return CPU low nibbles
 `a d 7 c 2 3 e 5 1 b 9 6`; no key returns `f`. Multiple pressed keys use
@@ -188,14 +208,12 @@ the lowest index in that order. This follows the standard-controller path in
 `ColecoVision.sv`); it does not model electrical multi-key combinations,
 spinner quadrature or Super Action extras.
 
-The matrix remains the unchanged 40-bit active-low `fes.simple-computer`
-keyboard transport. These unusual host keys are diagnostic mappings, not a
-new physical-gamepad API. The CPU regression executes actual IN/OUT instructions
-over both mode-select ranges and every read alias, with neutral, every one-hot
-matrix bit, mixed/all-pressed states, unrelated writes and reset-only reruns.
-This is functional controller RTL, not a compiler workaround, and needs newly
-built FPGA packages. The original static 989-byte diagnostic stays unchanged;
-regenerate the interactive cartridge for the new controller bit layout.
+The CPU regression executes actual IN/OUT instructions over both mode-select
+ranges and every read alias, with neutral, every control, mixed/all-pressed
+states, unrelated writes and reset-only reruns. Historical matrix-shaped vectors
+remain only in the independent test oracle; test stimulus converts them to the
+new native states. Existing sealed simple-computer packages retain their old
+runtime support. The legacy GP source remains because SG-1000 and SMS use it.
 
 ## Open Graphics I diagnostic
 
@@ -289,16 +307,9 @@ Two rows of five solid panels show controller 1 (top) and controller 2
 Released panels are orange, pressed panels green; the surround is black with
 a green border. This view shows joystick directions and Fire 1 only.
 
-| Player | Keyboard matrix row | Keys for Up / Right / Down / Left / Fire |
-| --- | --- | --- |
-| 1 | 0 | Shift / Z / X / C / V |
-| 2 | 1 | A / S / D / F / G |
-
-The unusual keys deliberately reuse the existing ZX81 keyboard transport;
-there is no new host mapping, physical gamepad support, or wire contract.
-Rows 2..7 do not affect these panels. `--row0` and `--row1` accept active-low
-0..31 values **for the preview only**; they do not change cartridge bytes or
-send input. Use the normal leased FogCast keyboard event path for live input.
+`--row0` and `--row1` retain active-low preview-only panel states for old
+reference images. Live input uses native controller ports. For keypad and both
+fire buttons use the complete controller diagnostic below.
 
 The BIOS-free CPU initializes all VRAM and both previous-input bytes in CPU
 RAM, selects joystick mode through C0, then continuously polls ports FC and FF.
@@ -309,12 +320,9 @@ and 15..18. Input is active-low; no HALT, interrupt handler or RAM power-up
 contents are required. As with the static diagnostic, initialization can be
 visible briefly before the display settles.
 
-GP HOLD clears keyboard rows during upload. Board tests exercise that neutral
-state and explicit restoration after a held-key reload; FogCast's existing
-runtime adapter restores its package/generation-bound held matrix after media
-commit. Detaching host input must release the keys. This updated cartridge
-requires the standard-controller RTL above; historical five-bit-adapter FPGA
-packages are not compatible with its Fire 1 mapping.
+GP HOLD clears both gamepad and keypad ports. Board tests exercise neutral
+state and explicit restoration after held-input reload. Input detachment must
+publish zero states through the normal runtime path.
 
 ### Joystick/keypad byte diagnostic
 
@@ -330,13 +338,15 @@ green border retain the static diagnostic's geometry and framebuffer latency.
 python3 cores/fes-coleco/diagnostic/generate.py --controllers \
   --output build/diagnostics/fes-coleco/controller.rom \
   --preview build/diagnostics/fes-coleco/controller-mixed.ppm \
-  --matrix 0xffffffffff
+  --buttons 0x11 0x28 --keypads 0x001 0x800
 ```
 
-`--matrix` selects a 40-bit active-low expected state for the preview only;
-it does not change ROM bytes or send input. The CPU switches modes and polls
-both players, repainting only changed banks. Its four cached bytes initialize
-to FF, outside the valid controller range, so every bank is painted initially.
+`--buttons` and `--keypads` accept the two players' active-high native states
+for the preview only; they do not change ROM bytes or send input. The older
+`--matrix` preview option remains for existing reference images and cannot mix
+with native states. The CPU switches modes and polls both players, repainting
+only changed banks. Its four cached bytes initialize to FF, outside the valid
+controller range, so every bank is painted initially.
 Board simulation observes actual CPU VRAM writes for all 40 matrix bits and
 checks complete HDMI frames for representative mixed states and reloads in
 both lanes; it does not inject controller values into the CPU or prefill VRAM.
