@@ -35,6 +35,11 @@ func (c *dataController) LoadLibraryCore(ctx context.Context, n int64, r io.Read
 	c.id = id
 	return c.LoadCore(ctx, n, r)
 }
+func (c *dataController) LoadComposedCore(ctx context.Context, n int64, r io.Reader, id string) (protocol.Status, *protocol.APIError) {
+	c.id = id
+	c.dataCalls++
+	return protocol.Status{State: protocol.StateActive}, nil
+}
 func TestCoreDataRoutesRequireLeaseOnlyForWritesAndRejectRemotePaths(t *testing.T) {
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	defer manager.Close()
@@ -48,6 +53,9 @@ func TestCoreDataRoutesRequireLeaseOnlyForWritesAndRejectRemotePaths(t *testing.
 		{"/v1/library/core/data/inspect", "", "", 200},
 		{"/v1/library/core/settings", "", "", 403},
 		{"/v1/library/core/load", "", "", 403},
+		{"/v1/library/core/compose", "", "", 403},
+		{"/v1/library/core/compose", grant.Token, "", 200},
+		{"/v1/library/core/compose", grant.Token, "?payload_path=/tmp/other", 400},
 		{"/v1/library/core/settings", grant.Token, "", 200},
 		{"/v1/library/core/data/inspect", "", "?data_root=/tmp/other", 400},
 	} {
@@ -64,7 +72,7 @@ func TestCoreDataRoutesRequireLeaseOnlyForWritesAndRejectRemotePaths(t *testing.
 			t.Fatalf("%s code=%d body=%s", tc.path+tc.query, out.Code, out.Body)
 		}
 	}
-	if c.dataCalls != 2 || c.coreCalls != 0 {
+	if c.dataCalls != 3 || c.coreCalls != 0 {
 		t.Fatalf("data calls=%d loads=%d", c.dataCalls, c.coreCalls)
 	}
 }

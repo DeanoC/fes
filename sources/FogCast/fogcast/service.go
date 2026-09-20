@@ -1414,7 +1414,17 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+		if selected.composition != nil {
+			composed, ok := client.(interface {
+				LoadComposedCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
+			})
+			if !ok {
+				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+			}
+			status, err = composed.LoadComposedCore(ctx, size, content, selected.entry.PackageID)
+		} else {
+			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+		}
 	} else {
 		status, err = loader.LoadCore(ctx, size, content)
 	}
@@ -1434,7 +1444,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 
-	if selected.entry != nil && status.CorePackage.PackageID != selected.entry.PackageID {
+	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !reflect.DeepEqual(status.CorePackage.Composition, selected.composition)) {
 		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
 		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
 		recovered, stopErr := client.Stop(recoveryCtx)

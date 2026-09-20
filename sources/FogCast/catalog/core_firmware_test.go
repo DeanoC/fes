@@ -16,7 +16,7 @@ func TestSchemaNineAddsFirmwareSlot(t *testing.T) {
 	ctx := context.Background()
 	s, _ := mediaTestStore(t)
 	var version int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 9 {
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 10 {
 		t.Fatalf("user_version = %d, %v", version, err)
 	}
 	graphics, err := s.CreateCoreEntry(ctx, "Graphics I", "fes.coleco", strings.Repeat("a", 64))

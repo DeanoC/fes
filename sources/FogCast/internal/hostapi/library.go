@@ -683,6 +683,8 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		game.FirmwareRequired = comp.FirmwareRequired
 		if comp.FirmwareRequired {
 			game.FirmwareReady = comp.FirmwareReady
+			game.ExpansionID = comp.ExpansionID
+			game.ExpansionReady = comp.ExpansionReady
 		}
 	}
 	for i := range games {

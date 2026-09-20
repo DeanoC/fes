@@ -62,13 +62,21 @@ func validCoreInspection(inspection protocol.CoreInspection) bool {
 func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (protocol.Status, error) {
 	return c.loadCore(ctx, size, content, "")
 }
-func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string) (protocol.Status, error) {
-	if size < 1 || size > corepackage.MaxArchiveSize || content == nil {
+func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, error) {
+	composed := len(composition) == 1 && composition[0]
+	limit := int64(corepackage.MaxArchiveSize)
+	if composed {
+		limit = corepackage.MaxCompositionArchiveSize
+	}
+	if size < 1 || size > limit || content == nil {
 		return protocol.Status{}, fmt.Errorf("development core input is invalid")
 	}
 	path := "/v1/development/core"
 	if libraryID != "" {
 		path = "/v1/library/core/load"
+	}
+	if composed {
+		path = "/v1/library/core/compose"
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		c.endpoint(path, nil).String(), readOnlyReader{Reader: content})
@@ -96,7 +104,7 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if err := decodeResponse(response, &status); err != nil {
 		return protocol.Status{}, err
 	}
-	if !validCorePackageStatus(status) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	if !validCorePackageStatus(status) || ((status.CorePackage != nil && status.CorePackage.Composition != nil) != composed) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil
@@ -146,4 +154,11 @@ func lowerHex(value string, size int) bool {
 		}
 	}
 	return true
+}
+
+func (c *Client) LoadComposedCore(ctx context.Context, size int64, body io.Reader, id string) (protocol.Status, error) {
+	if !lowerHex(id, 64) {
+		return protocol.Status{}, fmt.Errorf("invalid package identity")
+	}
+	return c.loadCore(ctx, size, body, id, true)
 }

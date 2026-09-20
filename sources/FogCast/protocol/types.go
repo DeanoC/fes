@@ -1,6 +1,9 @@
 package protocol
 
-import "github.com/DeanoC/FogCast/corepackage"
+import (
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/misteross/expansion"
+)
 
 const MaxDevelopmentRBFBytes int64 = 32 << 20
 
@@ -140,6 +143,7 @@ type RuntimeInterface struct {
 }
 
 type CorePackageStatus struct {
+	Composition      *expansion.Composition `json:"composition,omitempty"`
 	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`
 	PersistenceMode  string                 `json:"persistence_mode,omitempty"`
 	PackageID        string                 `json:"package_id"`

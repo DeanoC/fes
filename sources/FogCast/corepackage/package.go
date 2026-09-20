@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/DeanoC/misteross/expansion"
 	"io"
 	"net"
 	"os"
@@ -90,18 +91,29 @@ type Build struct {
 }
 
 type Staged struct {
-	Directory       string     `json:"directory"`
-	PackageID       string     `json:"package_id"`
-	Descriptor      Descriptor `json:"descriptor"`
-	root            string
-	rootInfo        os.FileInfo
-	publication     string
-	publicationInfo os.FileInfo
+	Composition        *expansion.Composition `json:"composition,omitempty"`
+	ExpansionDirectory string                 `json:"expansion_directory,omitempty"`
+	PayloadPath        string                 `json:"payload_path,omitempty"`
+	companions         []Staged
+	Directory          string     `json:"directory"`
+	PackageID          string     `json:"package_id"`
+	Descriptor         Descriptor `json:"descriptor"`
+	root               string
+	rootInfo           os.FileInfo
+	publication        string
+	publicationInfo    os.FileInfo
 }
 
 // Cleanup removes this caller-owned private publication through its retained
 // staging root. It is safe to call again after successful removal.
 func (s Staged) Cleanup() error {
+	var companionErrors []error
+	for _, companion := range s.companions {
+		companionErrors = append(companionErrors, companion.Cleanup())
+	}
+	if err := errors.Join(companionErrors...); err != nil {
+		return err
+	}
 	if s.root == "" || s.rootInfo == nil || s.publication == "" ||
 		s.publicationInfo == nil {
 		return errors.New("core package: staged package has no cleanup ownership")
@@ -224,6 +236,9 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 			PackageID: packageID, Descriptor: inspection.Descriptor,
 			root: root, rootInfo: openedRoot, publication: name,
 			publicationInfo: publicationInfo})
+		if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
+			return nil, err
+		}
 	}
 	return adopted, nil
 }

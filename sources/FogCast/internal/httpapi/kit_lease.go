@@ -121,7 +121,7 @@ func guardKitLease(next http.Handler, token string, manager *internallease.Manag
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v1/development/media-stream", "/v1/development/media", "/v1/development/firmware", "/v1/library/core/load", "/v1/library/core/settings", "/v1/launch", "/v1/stop", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/kit/debug/snapshot-before-reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/update/stage", "/v1/update/activate", "/v1/update/rollback", "/v1/update/confirm":
+		case "/v1/development/media-stream", "/v1/development/media", "/v1/development/firmware", "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v1/stop", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/kit/debug/snapshot-before-reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/update/stage", "/v1/update/activate", "/v1/update/rollback", "/v1/update/confirm":
 			guarded.ServeHTTP(w, r)
 		default:
 			next.ServeHTTP(w, r)

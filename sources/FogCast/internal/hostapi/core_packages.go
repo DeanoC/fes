@@ -29,6 +29,7 @@ var corePackageIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	registerCoreMediaLibrary(mux, service)
 	registerCoreFirmwareLibrary(mux, service)
+	registerCoreExpansions(mux, service)
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(coreLibraryService)
@@ -107,11 +108,11 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	}))
 	mux.HandleFunc("POST /api/v1/library/core-entries", withService(func(w http.ResponseWriter, r *http.Request, s coreLibraryService) {
 		var request struct {
-			Title             string `json:"title"`
-			PackageID         string `json:"package_id"`
-			MediaRole         string `json:"media_role"`
-			MediaID           string `json:"media_id"`
-			FirmwareRequired  bool   `json:"firmware_required"`
+			Title            string `json:"title"`
+			PackageID        string `json:"package_id"`
+			MediaRole        string `json:"media_role"`
+			MediaID          string `json:"media_id"`
+			FirmwareRequired bool   `json:"firmware_required"`
 		}
 		if decodeSingleJSON(w, r, &request) != nil {
 			return

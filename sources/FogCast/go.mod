@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/DeanoC/FogCast/appliance v0.0.0
+	github.com/DeanoC/misteross/expansion v0.0.0
 	github.com/brutella/dnssd v1.2.14
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/mdns v1.0.6
@@ -17,6 +18,8 @@ require (
 )
 
 replace github.com/DeanoC/FogCast/appliance => ./appliance
+
+replace github.com/DeanoC/misteross/expansion => ../misteross/expansion
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

@@ -7,25 +7,27 @@ import (
 
 // Game is one catalog row from GET /api/v1/games.
 type Game struct {
-	ID           string   `json:"id"`
-	Title        string   `json:"title"`
-	System       string   `json:"system"`
-	Cover        string   `json:"cover,omitempty"`
-	Genre        string   `json:"genre,omitempty"`
-	Year         string   `json:"year,omitempty"`
-	Region       string   `json:"region,omitempty"`
-	State        string   `json:"state"`
-	RootOnline   bool     `json:"root_online"`
-	Launchable   bool     `json:"launchable"`
-	ROMCached    *bool    `json:"rom_cached,omitempty"`
-	Favorite     bool     `json:"favorite,omitempty"`
-	PlayCount    int64    `json:"play_count,omitempty"`
-	LastPlayedAt int64    `json:"last_played_at,omitempty"`
-	Collections  []string `json:"collections,omitempty"`
-	Series       string   `json:"series,omitempty"`
-	Variants     []Game   `json:"variants,omitempty"`
-	FirmwareRequired bool `json:"firmware_required,omitempty"`
-	FirmwareReady    bool `json:"firmware_ready,omitempty"`
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	System           string   `json:"system"`
+	Cover            string   `json:"cover,omitempty"`
+	Genre            string   `json:"genre,omitempty"`
+	Year             string   `json:"year,omitempty"`
+	Region           string   `json:"region,omitempty"`
+	State            string   `json:"state"`
+	RootOnline       bool     `json:"root_online"`
+	Launchable       bool     `json:"launchable"`
+	ROMCached        *bool    `json:"rom_cached,omitempty"`
+	Favorite         bool     `json:"favorite,omitempty"`
+	PlayCount        int64    `json:"play_count,omitempty"`
+	LastPlayedAt     int64    `json:"last_played_at,omitempty"`
+	Collections      []string `json:"collections,omitempty"`
+	Series           string   `json:"series,omitempty"`
+	Variants         []Game   `json:"variants,omitempty"`
+	FirmwareRequired bool     `json:"firmware_required,omitempty"`
+	ExpansionID      string   `json:"expansion_id,omitempty"`
+	ExpansionReady   bool     `json:"expansion_ready,omitempty"`
+	FirmwareReady    bool     `json:"firmware_ready,omitempty"`
 }
 
 // LaunchBlock is why a catalog row is ineligible for POST /api/v1/session/launch.
@@ -38,6 +40,7 @@ const (
 	LaunchUnreadable       LaunchBlock = "unreadable"
 	LaunchNotReady         LaunchBlock = "not_ready"
 	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
+	LaunchMissingExpansion LaunchBlock = "missing_expansion"
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
@@ -54,6 +57,9 @@ func (g Game) LaunchBlock() LaunchBlock {
 	}
 	if g.State != "available" {
 		return LaunchNotReady
+	}
+	if g.ExpansionID != "" && !g.ExpansionReady {
+		return LaunchMissingExpansion
 	}
 	if g.FirmwareRequired && !g.FirmwareReady {
 		return LaunchMissingFirmware
