@@ -120,6 +120,20 @@ are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
 
+CI simulations use Verilator 5.032 at source commit
+`8ff77e9d47351b0a59114929880687839a51840b`, selected by
+[`scripts/ci_verilator.sh`](../scripts/ci_verilator.sh). This simulation baseline
+is independent of the synthesis toolchain locks; neither Ubuntu's older default
+Verilator nor a development snapshot is substituted automatically. CI caches the
+installation by host architecture and bootstrap-script digest. To reproduce it
+locally, install Git, a C++ compiler, Make, Autoconf, Bison, Flex, help2man and the
+Flex/zlib development libraries, then run:
+
+```sh
+bash scripts/ci_verilator.sh "$PWD/out/tools/ci-verilator" "$PWD/out/work/ci-verilator"
+make -C sources/misteross VERILATOR="$PWD/out/tools/ci-verilator/bin/verilator" sim-fes-demo
+```
+
 ## Incremental native image
 
 Run `make dev` for the selected `native-integration-dev` revisions. It publishes

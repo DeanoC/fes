@@ -96,11 +96,25 @@ jobs:
         run: |
           python3 -m pip install -r sources/mister-packages/requirements-test.txt
           make -C sources/mister-packages test
-      - name: FPGA producer tests and shared endpoint simulation
+      - name: Simulation build dependencies
         if: fromJSON(needs.plan.outputs.lanes).fpga
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator strace
+          sudo apt-get install -y autoconf bison flex g++ make help2man libfl-dev zlib1g-dev strace
+      - name: Cache pinned simulation compiler
+        if: fromJSON(needs.plan.outputs.lanes).fpga
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/fes-verilator
+          key: fes-verilator-ubuntu24-${{ runner.arch }}-${{ hashFiles('scripts/ci_verilator.sh') }}
+      - name: Select pinned simulation compiler
+        if: fromJSON(needs.plan.outputs.lanes).fpga
+        run: |
+          bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
+          echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
+      - name: FPGA producer tests and shared endpoint simulation
+        if: fromJSON(needs.plan.outputs.lanes).fpga
+        run: |
           cd sources/misteross
           python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
           python3 -m unittest discover -s tests -p 'test_functional_identity.py' -v
