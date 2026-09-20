@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"reflect"
 	"regexp"
 	"sort"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 var errProtocol2Unsupported = errors.New("runtime protocol 2 is unsupported")
@@ -109,6 +111,16 @@ func (client *Client) loadCoreOperation(ctx context.Context, path, id, root stri
 	return response, err
 }
 func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, root string) (Protocol2Response, Protocol2Response, error) {
+	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil)
+}
+func (client *Client) LoadComposedCore(ctx context.Context, path, packageID, expansionPath, payloadPath string, composition expansion.Composition) (Protocol2Response, error) {
+	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	response, _, err := client.loadCoreWithComposition(ctx, path, packageID, "", expansionPath, payloadPath, &composition)
+	return response, err
+}
+func (client *Client) loadCoreWithComposition(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition) (Protocol2Response, Protocol2Response, error) {
 	if !validRuntimePath(path) || !protocol2Hex64.MatchString(packageID) {
 		return Protocol2Response{}, Protocol2Response{}, errInvalidRuntimeRequest
 	}
@@ -117,16 +129,22 @@ func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, roo
 		return Protocol2Response{}, Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
 	}
 	operation := "load_core"
+	if composition != nil {
+		operation = "load_composed_core"
+	}
 	if root != "" {
 		operation = "load_library_core"
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
-		Protocol    int    `json:"protocol"`
-		Operation   string `json:"operation"`
-		PackagePath string `json:"package_path"`
-		PackageID   string `json:"package_id"`
-		DataRoot    string `json:"data_root,omitempty"`
-	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root})
+		Protocol      int                    `json:"protocol"`
+		Operation     string                 `json:"operation"`
+		PackagePath   string                 `json:"package_path"`
+		PackageID     string                 `json:"package_id"`
+		DataRoot      string                 `json:"data_root,omitempty"`
+		ExpansionPath string                 `json:"expansion_path,omitempty"`
+		PayloadPath   string                 `json:"payload_path,omitempty"`
+		Composition   *expansion.Composition `json:"composition,omitempty"`
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition})
 	if err != nil {
 		return Protocol2Response{}, before, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -139,7 +157,7 @@ func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, roo
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID) {
+		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
 		return Protocol2Response{}, before, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, before, nil
@@ -286,7 +304,7 @@ func validateProtocol2Shape(line []byte) error {
 		return err
 	}
 	if !isNull(object["active_package"]) {
-		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, []string{"persistence_mode"})
+		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, []string{"persistence_mode", "composition"})
 		if err != nil {
 			return err
 		}
@@ -295,6 +313,15 @@ func validateProtocol2Shape(line []byte) error {
 			"observed": rawObject,
 		}); err != nil {
 			return err
+		}
+		if value, ok := active["composition"]; ok && !isNull(value) {
+			tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansion_id", "shell_sha256", "payload_sha256", "payload_size"}, nil)
+			if err != nil {
+				return err
+			}
+			if err := requireRawKinds(tuple, map[string]rawKind{"composition_id": rawString, "package_id": rawString, "expansion_id": rawString, "shell_sha256": rawString, "payload_sha256": rawString, "payload_size": rawUnsigned}); err != nil {
+				return err
+			}
 		}
 		if mode, ok := active["persistence_mode"]; ok {
 			var value string
@@ -756,6 +783,20 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if c := active.Composition; c != nil {
+		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" || active.Descriptor.ABI.ID != "fes.simple-computer" || active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+			return false
+		}
+		socket := false
+		for _, i := range active.Descriptor.Interfaces {
+			if i.ID == "fes.expansion.zx81-ram" && i.Major == 1 && i.Minor == 0 && !i.Required {
+				socket = true
+			}
+		}
+		if !socket {
+			return false
+		}
+	}
 	if !protocol2Hex64.MatchString(active.PackageID) || !validDescriptor(active.Descriptor) {
 		return false
 	}
@@ -909,4 +950,9 @@ func protocol2MutationAttempted(err error) bool {
 
 func protocol2Identity(system, core *string) identityShape {
 	return responseIdentity(Response{System: system, Core: core})
+}
+
+func validComposition(c expansion.Composition, packageID string) bool {
+	id, err := expansion.CompositionID(c.PackageID, c.ExpansionID, c.PayloadSHA256)
+	return err == nil && id == c.ID && c.PackageID == packageID && protocol2Hex64.MatchString(c.ShellSHA256) && c.PayloadSize >= 40408 && c.PayloadSize <= corepackage.MaxPayloadSize
 }
