@@ -1801,7 +1801,23 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	}
 	s.executionMu.Unlock()
 	stage = "target_stop"
-	status, err := client.Stop(ctx)
+	var status protocol.Status
+	var err error
+	idleWithoutLease := false
+	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
+		if lease := leased.KitLease(); lease != nil && !lease.Held() {
+			// A launch rejected before dispatch has no grant to stop with.
+			// Confirm clean idle without claiming the kit or mutating a peer's
+			// session. Unreachable, active or recovery states still fail closed.
+			status, err = client.Status(ctx)
+			idleWithoutLease = err == nil && status.State == protocol.StateIdle &&
+				status.LastError == nil && status.Recovery == "" && !status.Development &&
+				status.CorePackage == nil
+		}
+	}
+	if !idleWithoutLease {
+		status, err = client.Stop(ctx)
+	}
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
 		if targetDeadlineExpired && ambiguousTargetMutationError(err) && activeExecution != ExecutionFPGADevelopment {

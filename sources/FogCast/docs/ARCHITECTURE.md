@@ -176,6 +176,11 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
+If the host holds no kit lease (for example after firmware admission rejects a
+launch), it first reads target status and accepts only clean idle with no
+development, package, error or recovery state. It does not claim ownership or
+send a target Stop merely to acknowledge idle; active or uncertain state still
+requires the existing ownership and recovery path.
 The native adapter admits Mega Drive, ordinary SNES and NES cartridges, and the
 registered ROM-less Pong profile.
 Mega Drive validates an absolute staged ROM and sends one local request using
