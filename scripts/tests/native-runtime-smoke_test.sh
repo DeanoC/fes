@@ -11,6 +11,11 @@ smoke=$repo/scripts/native-runtime-smoke.sh
   exit 1
 }
 
+NATIVE_RUNTIME_INPUT_LOCK=$fixture/native-runtime.inputs.lock.toml
+export NATIVE_RUNTIME_INPUT_LOCK
+awk '{ print; if ($0 == "[mister_runtime]") print "commit = \0471111111111111111111111111111111111111111\047" }' \
+  "$repo/scripts/tests/fixtures/native-runtime-inputs.toml" > "$NATIVE_RUNTIME_INPUT_LOCK"
+
 fake_bin=$fixture/bin
 mkdir -p "$fake_bin"
 
@@ -171,7 +176,7 @@ chmod 0755 "$fake_bin/curl" "$fake_bin/sshpass" "$fake_bin/sleep" \
 expected_inputs=$fixture/expected-build-inputs
 cat > "$expected_inputs" <<'EOF'
 format=1
-mister_runtime_commit=079b4548d5ab84c094686e00df4fbbe658f4f613
+mister_runtime_commit=1111111111111111111111111111111111111111
 mister_agent_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
 idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01

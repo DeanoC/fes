@@ -498,8 +498,7 @@ For a separately started diagnostic host on port 8797, the operator sequence
 is `fogcast --api http://127.0.0.1:8797 core-load PACKAGE.fcore`, then
 `fogcast --api http://127.0.0.1:8797 core-media MEDIA.rom`. Starting that host,
 deploying its matching agent/runtime, and hardware validation are separate
-integration operations. The FogCast native input lock selects runtime
-`079b4548d5ab84c094686e00df4fbbe658f4f613` for reproducible image assembly;
+integration operations. FES selects the runtime revision and generates the concrete assembly lock;
 live compatibility is determined by protocol and operation contracts.
 
 Focused tests cover admission, existing leases, update exclusion, lifecycle
@@ -761,7 +760,11 @@ They do not establish physical watchdog reset or exact-image kit acceptance.
 
 Native Buildroot and rootfs assembly live in the FES `image/` recipe.
 FogCast supplies the agent, kit, extra-core selector (`cmd/target-image-lock`,
-`internal/targetimage`) and `build/native-runtime.inputs.lock.toml`.
+`internal/targetimage`) while FES owns external-artifact policy in
+`image/build/native-inputs.toml`. FES adds its selected runtime revision to a
+disposable assembly copy;
+FogCast has no expected-runtime SHA constant. The legacy smoke diagnostic accepts
+that concrete copy through `NATIVE_RUNTIME_INPUT_LOCK`.
 FES produces:
 
 - `image/build/output/target-image/native-dev/linux.img`: the reproducible native

@@ -36,7 +36,8 @@ The development image includes SSH and curl. The production image does not;
 capture and decoding tools run on the host.
 
 Build and inspect the native-runtime image from FES with a clean runtime
-checkout at the commit pinned by `build/native-runtime.inputs.lock.toml`:
+checkout at the runtime gitlink selected by FES. FES generates the concrete
+assembly lock from that selection; the FogCast policy does not pin runtime source:
 
 ```sh
 make build

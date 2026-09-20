@@ -2,7 +2,7 @@
 set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
-lock=$repo/build/native-runtime.inputs.lock.toml
+lock=${NATIVE_RUNTIME_INPUT_LOCK:?set NATIVE_RUNTIME_INPUT_LOCK to the concrete FES assembly lock}
 [ "$#" -le 1 ] || {
   printf '%s\n' 'usage: native-runtime-smoke.sh [MEGADRIVE_SELECTION_FILE]' >&2
   exit 2

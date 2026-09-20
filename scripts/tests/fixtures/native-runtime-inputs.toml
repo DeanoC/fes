@@ -1,7 +1,6 @@
 format = 1
 
 [mister_runtime]
-commit = '079b4548d5ab84c094686e00df4fbbe658f4f613'
 mount_path = '/runtime-source'
 
 [idle_rbf]

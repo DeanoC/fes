@@ -550,6 +550,9 @@ Pong/SNES/NES source bundles through the same builder and verifier. See the
 [image development guide](docs/DEVELOPMENT.md#optional-pong-snes-and-nes-image-cores).
 
 Native image assembly lives in the FES `image/` recipe. FogCast supplies the
-agent, kit launcher, extra-core selector (`cmd/target-image-lock`) and
-`build/native-runtime.inputs.lock.toml`. `TARGET_IMAGE_LOCK_BIN` remains an
+agent, kit launcher, extra-core selector (`cmd/target-image-lock`) while FES owns external-artifact policy in
+`image/build/native-inputs.toml`. FES alone
+selects the runtime source revision and generates its assembly lock. The legacy
+smoke runner requires that concrete lock via `NATIVE_RUNTIME_INPUT_LOCK`.
+`TARGET_IMAGE_LOCK_BIN` remains an
 explicit verifier override.
