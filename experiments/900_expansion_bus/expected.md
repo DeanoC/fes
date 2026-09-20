@@ -4,7 +4,9 @@ Independent `cart` top. One BEL-locked slot cell at `MISTRAL_M10K.26.1.0`
 with the closed INIT oracle. Plug names `plug_addr` / `plug_rdata` match
 the 901 empty socket. Signature stays in the shell.
 
-Synth-only (`make sim EXP=900_expansion_bus`). Compose with:
+Synth-only (`make oss EXP=900_expansion_bus`). Verilator:
+`make sim EXP=900_expansion_bus`. Compose with a nextpnr that has
+`--fes-scaffold`/`--fes-cart` (`NEXTPNR_MISTRAL=...`):
 
 ```
 python3 scripts/build_fes_slot.py \

@@ -386,8 +386,10 @@ development possible with both the open-source Mistral toolchain and Quartus.
   `make sim EXP=890_slot_m10k` and the base/cart siblings. Overlay with
   `python3 scripts/link_static_rbf.py`. Quartus comparison is not implemented.
 - `900_expansion_bus`, independent cart A (`cart` top) with one BEL-locked
-  slot cell and the INIT oracle. Synth-only: `make sim EXP=900_expansion_bus`.
-  Compose onto the 901 shell with `scripts/build_fes_slot.py`.
+  slot cell and the INIT oracle. Synth-only: `make oss EXP=900_expansion_bus`.
+  Verilator: `make sim EXP=900_expansion_bus`. Compose onto the 901 shell with
+  `NEXTPNR_MISTRAL=/path/to/feat/fes-reserved-bels/nextpnr-mistral`
+  `scripts/build_fes_slot.py` (locked nextpnr `0fad53a7` lacks `--fes-scaffold`).
 - `901_plugged_base`, empty socket (`0xD901`) with locked `MISTRAL_FF` plugs
   outside reserved rect `25 1 27 16` (addr column 24, rdata 28.1–28.10).
   Overlay tile-column CRAM 21–33 with

@@ -9,8 +9,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from experiment_policy import PolicyError, policy_for
-from link_static_rbf import overlay_files
+try:  # Imports work both as ``scripts.build_fes_slot`` and as a CLI script.
+    from .experiment_policy import PolicyError, policy_for
+    from .link_static_rbf import overlay_files
+except ImportError:  # pragma: no cover - exercised by the script entry point.
+    from experiment_policy import PolicyError, policy_for
+    from link_static_rbf import overlay_files
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +44,27 @@ def _toolchain_bin(name: str) -> Path:
         return _require_file(Path(env))
     install = Path(os.environ.get("TOOLCHAIN_INSTALL", ROOT / "build/toolchain/install"))
     return _require_file(install / "bin" / name)
+
+
+def _require_scaffold_nextpnr(nextpnr: Path) -> None:
+    try:
+        result = subprocess.run(
+            [str(nextpnr), "--help"],
+            cwd=str(ROOT),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise SlotBuildError(f"cannot execute {nextpnr}: {exc}") from exc
+    help_text = f"{result.stdout}\n{result.stderr}"
+    if "--fes-scaffold" not in help_text or "--fes-cart" not in help_text:
+        raise SlotBuildError(
+            f"{nextpnr} does not provide --fes-scaffold/--fes-cart; "
+            "set NEXTPNR_MISTRAL to a DeanoC/nextpnr feat/fes-reserved-bels binary "
+            "(https://github.com/DeanoC/nextpnr/pull/72). "
+            "toolchain.lock remains 0fad53a7 until that revision is selected."
+        )
 
 
 def synth_cart(experiment: str, output: Path) -> Path:
@@ -92,6 +117,7 @@ def place_cart(
     router: str,
 ) -> None:
     nextpnr = _toolchain_bin("nextpnr-mistral")
+    _require_scaffold_nextpnr(nextpnr)
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_rbf.parent.mkdir(parents=True, exist_ok=True)
     command = [

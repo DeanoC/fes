@@ -1,6 +1,9 @@
+import stat
+import tempfile
 import unittest
 from pathlib import Path
 
+from scripts.build_fes_slot import SlotBuildError, _require_scaffold_nextpnr
 from scripts.experiment_policy import policy_for
 
 
@@ -22,6 +25,11 @@ class ExpansionBusTests(unittest.TestCase):
         self.assertEqual(policy.yosys_post_synth, "setattr -set FES_SLOT 1 c:*")
         self.assertEqual(dict(policy.required_synth_cells), {"MISTRAL_M10K": 1})
         self.assertFalse(policy.m10k_async_readonly)
+        self.assertFalse((ROOT / "experiments/900_expansion_bus/hardware/probe.sh").exists())
+        cart_probe = (ROOT / "experiments/901_plugged_base/hardware/probe_cart.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("55553", cart_probe)
 
     def test_empty_socket_has_primitive_plugs(self) -> None:
         rtl = (ROOT / "experiments/901_plugged_base/rtl/top.v").read_text(encoding="utf-8")
@@ -59,3 +67,17 @@ class ExpansionBusTests(unittest.TestCase):
         self.assertEqual(dict(policy.required_synth_cells), {"MISTRAL_M10K": 4})
         self.assertFalse(policy.m10k_async_readonly)
         self.assertEqual(policy.yosys_post_synth, "setattr -set FES_SLOT 1 c:*")
+
+    def test_compose_rejects_nextpnr_without_scaffold_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fake = Path(temporary) / "nextpnr-mistral"
+            fake.write_text("#!/bin/sh\necho 'Usage: nextpnr-mistral [options]'\n", encoding="utf-8")
+            fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+            with self.assertRaisesRegex(SlotBuildError, "--fes-scaffold/--fes-cart"):
+                _require_scaffold_nextpnr(fake)
+
+    def test_readme_points_cart_a_at_oss_synth(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("`make oss EXP=900_expansion_bus`", readme)
+        self.assertIn("NEXTPNR_MISTRAL", readme)
+        self.assertNotIn("Synth-only: `make sim EXP=900_expansion_bus`", readme)
