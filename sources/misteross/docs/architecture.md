@@ -89,6 +89,15 @@ claimed by these host-side identity and exporter tests.
 
 ### Composable application reference
 
+`fes.catch` is an original ROM-less application using the same shell and ABI.
+`fes_catch_game.v` advances paddle/target/score/lives state only on the shared
+video frame tick; `fes_catch_core.v` supplies the shared raster. A synchronized
+event toggle triggers a bounded stereo chime in `fes_catch_audio.v`, which
+uses `fes_audio_i2s.v` and the existing audio PLL. The Catch producer reuses
+the demo's board command/electrical checks and seals a functional-identity v2
+package. `make sim-fes-demo` covers gameplay, event audio and board mailbox
+integration. It adds no host/runtime core allowlist or factory package.
+
 `cores/fes-common/rtl/fes_application_gp.v` implements the new
 `fes.application` 1.0 mailbox (ABI tag 3). It preserves the existing GPO/GPI
 framing but does not present a keyboard or Pong-specific persistence service.

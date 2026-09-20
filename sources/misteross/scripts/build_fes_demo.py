@@ -123,14 +123,21 @@ def create_build_record(root: Path, repository: str, revision: str,
         },
     })
 
-def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False, audio: bool = False):
+def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False, audio: bool = False, catch: bool = False):
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
-    output = output_relative(media, audio).as_posix()
+    if catch and (media or not audio):
+        raise board.BuildError("Catch requires audio and no media")
+    output = "build/fes-catch" if catch else output_relative(media, audio).as_posix()
     sources = (*RTL_SOURCES, *AUDIO_SOURCES) if audio else RTL_SOURCES
     define = "-D FES_DEMO_AUDIO " if audio else ""
+    if catch:
+        sources = tuple(s for s in sources if not s.endswith(("fes_demo_core.v", "fes_demo_audio.v"))) + (
+            "cores/fes-demo/rtl/fes_catch_game.v", "cores/fes-demo/rtl/fes_catch_core.v",
+            "cores/fes-demo/rtl/fes_catch_audio.v")
+        define += "-D FES_CATCH "
     program = (
         f"read_verilog -sv {define}-I cores/fes-common/generated {' '.join(sources)}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set ENABLE_GAMEPAD {int(media or audio)} "

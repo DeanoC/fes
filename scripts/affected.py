@@ -22,6 +22,7 @@ FPGA_SOFTWARE_TESTS = (
     'test_coleco_sim_shards.py',
 )
 FPGA_PRODUCER_HELPERS = {
+    'build_fes_catch.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'legacy_source.py', 'functional_execution.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py',

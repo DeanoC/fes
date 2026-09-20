@@ -31,6 +31,12 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
   `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.
 - Composable application reference RTL and simulations: `make sim-fes-demo`
   checks video-only, gamepad/palette-media, and gamepad/stereo-audio configurations.
+  It also tests the original ROM-less FES Catch game, including shared mailbox
+  input, fixed video and stereo catch feedback. Build its sealed package with
+  `python3 scripts/build_fes_catch.py` (or FES `make core-dev` with
+  `--core fes.catch`); output is `build/fes-catch/core.rbf` plus the immutable
+  archive in `build/packages/`. See the FES
+  [custom application workflow](../../docs/core-development.md#build-and-play-an-original-application-fes-catch).
   `make build-fes-demo`, `make build-fes-demo-media`, and `make build-fes-demo-audio` use the authenticated
   HIP producer and require clean committed inputs. These new recipes have
   host simulation/recipe coverage; no routed-RBF or hardware acceptance is
