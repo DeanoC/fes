@@ -338,6 +338,7 @@ sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
 		-Icores/fes-coleco/generated -Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/$@" \
 		cores/fes-coleco/sim/firmware_model.sv \
+		cores/fes-common/rtl/fes_sn76489.sv \
 		cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \

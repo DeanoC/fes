@@ -27,7 +27,7 @@ module firmware_model (
         .peek_addr(peek_addr), .peek_data(peek_data),
         .controller1_value(), .controller2_value(), .logical_x(), .logical_y(),
         .logical_pixel(), .logical_blank(), .vdp_status(), .cpu_addr_debug(),
-        .cpu_halt_n(cpu_halt_n), .firmware_we_a(firmware_we[0]),
+        .cpu_halt_n(cpu_halt_n), .audio_sample(), .firmware_we_a(firmware_we[0]),
         .firmware_we_b(firmware_we[1]), .firmware_addr(firmware_addr),
         .firmware_data(firmware_data)
     );
