@@ -1215,6 +1215,11 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
+Proposed work for multi-slot launch composition (firmware, expansions, and
+later removable media) is labelled in
+[launch composition](launch-composition.md). It does not change the working
+path below.
+
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented
 operational interface is declared required; omitting input creates an autonomous

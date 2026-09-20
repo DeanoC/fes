@@ -4,7 +4,7 @@
 
 **Reference room:** Mushroom Kingdom (with nested Mario Sports / Sports Island).
 
-**Related:** FogCast `docs/rooms.md` (authoring). Tip pin: FES #85 / FogCast `690b51a` (rooms selected for tenfoot).
+**Related:** FogCast `docs/rooms.md` (authoring). Tip pin: FES #85 / FogCast `690b51a` (rooms selected for tenfoot). Proposed launch-slot readiness (core-present is not composition-ready): [`launch-composition.md`](launch-composition.md).
 
 **Out of scope here (separate specs later):** room discovery/download UI, room authoring tools, automatic routing across LAN machines. This flow must accommodate those later without rewriting the core model.
 
