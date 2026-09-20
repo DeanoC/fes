@@ -126,7 +126,7 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     # Extract and compare the factory's idle bytes to the selected native lock.
     idle=scratch/'idle.rbf'
     runner.disk(['debugfs','-R',f'dump /usr/share/mister-runtime/idle.rbf "{runner.path(idle)}"',runner.path(expected_release.image)])
-    idle_lock=tomllib.loads((fogcast/'build/native-runtime.inputs.lock.toml').read_text())['idle_rbf']
+    idle_lock=tomllib.loads((root/'image/build/native-inputs.toml').read_text())['idle_rbf']
     if idle_lock['install_path']!='/usr/share/mister-runtime/idle.rbf':raise ValueError('selected idle install path differs')
     verify_file(idle,idle_lock['size'],idle_lock['sha256'],'selected factory idle')
     kernel_copy=scratch/'kernel';shutil.copyfile(kernel,kernel_copy)

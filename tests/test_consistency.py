@@ -58,8 +58,8 @@ class ConsistencyTest(unittest.TestCase):
         self.core = self.sources['misteross'] / 'cores.lock'
         self.core.write_text('[core.megadrive]\nrepo="https://example.org/core"\ncommit="abc"\nrbf_path="releases/core.rbf"\nrbf_sha256="def"\nrbf_size=123\nproject="MegaDrive.qpf"\n')
         self.core.write_text(self.core.read_text() + self.core.read_text().replace('[core.megadrive]', '[core.snes]').replace('MegaDrive.qpf', 'SNES.qpf') + self.core.read_text().replace('[core.megadrive]', '[core.nes]').replace('MegaDrive.qpf', 'NES.qpf'))
-        self.fog = self.sources['FogCast'] / 'build/native-runtime.inputs.lock.toml'
-        self.fog.parent.mkdir()
+        self.fog = self.root / 'image/build/native-inputs.toml'
+        self.fog.parent.mkdir(parents=True)
         self.fog.write_text('[megadrive_rbf]\nrepository="https://example.org/core"\ncommit="abc"\npath="releases/core.rbf"\nsha256="def"\nsize=123\n')
         self.calls = []
         def run(packages, command, source):

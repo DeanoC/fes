@@ -150,7 +150,7 @@ class MediaTests(unittest.TestCase):
         (self.image / 'build/cache/target-image/native').mkdir(parents=True)
         (self.image / 'build/cache/target-image/native/idle.rbf').write_bytes(b'idle')
         (self.fogcast / 'build').mkdir(parents=True, exist_ok=True)
-        (self.fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+        (self.root / 'image/build/native-inputs.toml').write_text(
             '[idle_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
             'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + hashlib.sha256(b'idle').hexdigest()
             + '"\ninstall_path="/usr/share/mister-runtime/idle.rbf"\n')

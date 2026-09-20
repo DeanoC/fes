@@ -329,6 +329,18 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(first_info['fpga_packages'],
                          [package['inputs'] for package in packages])
 
+    def test_external_native_policy_is_part_of_image_recipe_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            policy = root / 'image/build/native-inputs.toml'
+            policy.parent.mkdir(parents=True)
+            policy.write_text('[idle_rbf]\nsha256="old"\n')
+            files = build.image_recipe_files(root)
+            self.assertIn(policy, files)
+            before = build.digest(policy)
+            policy.write_text('[idle_rbf]\nsha256="new"\n')
+            self.assertNotEqual(before, build.digest(policy))
+
     def test_clean_package_only_image_fetch_passes_complete_package_tuple(self):
         packages = tuple({
             'directory': Path('/packages') / core_id,
@@ -379,6 +391,8 @@ class CoreBuildTest(unittest.TestCase):
                         Path(args[0]).name == 'target-image-container.sh' and
                         args[1:3] == ['fetch', '/work/scripts/fetch-target-image-sources.sh']):
                     captured['env'] = kwargs['env']
+                    captured['assembly_lock'] = real_tomllib_loads(
+                        (fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
                     raise StopAfterFetch
                 return subprocess.CompletedProcess(args, 0)
 
@@ -403,7 +417,10 @@ class CoreBuildTest(unittest.TestCase):
                                  ['build.py', 'image', '--profile', 'native-integration-dev']), \
                     patch.object(build, 'validate', return_value=revisions), \
                     patch.object(build, 'source_checkout', side_effect=fake_checkout), \
-                    patch.object(build, 'git', return_value='module test\n'), \
+                    patch.object(build, 'git', side_effect=lambda root, *args:
+                                 "[mister_runtime]\nmount_path = '/runtime-source'\n"
+                                 if args[-1] == 'HEAD:build/native-runtime.inputs.lock.toml'
+                                 else 'module test\n'), \
                     patch.object(build.tomllib, 'loads', side_effect=fake_loads), \
                     patch.object(build.subprocess, 'check_output',
                                  side_effect=lambda args, **kwargs:
@@ -429,6 +446,9 @@ class CoreBuildTest(unittest.TestCase):
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
+        self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], '2' * 40)
+        self.assertEqual(captured['assembly_lock']['idle_rbf'],
+                         tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])
         self.assertEqual(captured['env']['FES_PACKAGE_IDS'],
                          'fes.pong,fes.zx81,fes.coleco')
         for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco'):

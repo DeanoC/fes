@@ -29,8 +29,8 @@ def base_key(image, fogcast):
         or (name.startswith('scripts/') and not name.startswith('scripts/tests/'))
         or name in ('Makefile', 'build/target-image.sources.lock.toml',
                     'build/target-image-container-packages.sha256'))}
-    native = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())
-    native['mister_runtime'].pop('commit')
+    native = tomllib.loads((image / 'build/native-inputs.toml').read_text())
+    native['mister_runtime'].pop('commit', None)
     # Source changes are handled by dirclean; all other locked policy stays in key.
     data = {'files': files, 'native_policy': native, 'runner': digest(Path(__file__)),
             'uid': os.getuid(), 'gid': os.getgid()}

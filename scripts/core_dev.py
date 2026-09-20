@@ -81,6 +81,44 @@ print(json.dumps(archive))
         cwd=source, env=recipes.producer_environment(recipe=recipe), text=True))
 
 
+def reconstruct_archive(source, directory, destination, recipe, record):
+    """Repackage original sealed members with the selected canonical exporter."""
+    directory, destination = Path(directory), Path(destination)
+    metadata = directory.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_mode & 0o222:
+        raise ValueError("cached package directory must be sealed and not linked")
+    snapshot(directory / "manifest.toml", limit=65536, sealed=True,
+             expected=record["manifest_sha256"])
+    snapshot(directory / "core.rbf", limit=32 << 20, sealed=True,
+             expected=record["core_rbf_sha256"])
+    temporary = destination.with_name("." + destination.name + ".tmp")
+    program = '''
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from scripts.core_package import read_package
+from scripts.export_core_package import _archive_bytes
+package = read_package(Path(sys.argv[2]))
+data = _archive_bytes(package.manifest_bytes, package.payload_bytes)
+if not 1 <= len(data) <= int(sys.argv[4]):
+    raise ValueError('reconstructed archive exceeds size bound')
+with open(sys.argv[3], 'xb') as stream:
+    stream.write(data)
+    stream.flush()
+    os.fsync(stream.fileno())
+'''
+    try:
+        subprocess.run([sys.executable, "-I", "-c", program, str(source), str(directory),
+                        str(temporary), str(MAX_ARCHIVE_BYTES)], cwd=source,
+                       env=recipes.producer_environment(recipe=recipe), check=True)
+        archive = snapshot(temporary, limit=MAX_ARCHIVE_BYTES)
+        temporary.chmod(0o444)
+        temporary.replace(destination)
+        return archive
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def prepare(core_id, output, library_media=None, expected_media_sha256=None):
     recipe = recipes.recipe_for(core_id)
     output = Path(output).absolute()
@@ -122,8 +160,11 @@ def prepare(core_id, output, library_media=None, expected_media_sha256=None):
             package_id = record["selection"]["package_id"]
             if re.fullmatch(r"[0-9a-f]{64}", package_id) is None:
                 raise ValueError("resolved package ID is invalid")
-            archive = snapshot(source / "build/packages" / (package_id + ".fcore"),
-                               output / "core.fcore", limit=MAX_ARCHIVE_BYTES, sealed=True)
+            if recipe.identity_version == 2:
+                archive = reconstruct_archive(source, resolved["directory"], output / "core.fcore", recipe, record)
+            else:
+                archive = snapshot(source / "build/packages" / (package_id + ".fcore"),
+                                   output / "core.fcore", limit=MAX_ARCHIVE_BYTES, sealed=True)
             inspected = inspect_archive(source, output / "core.fcore",
                                         resolved["directory"], recipe)
             expected = dict(package_id=package_id, core_id=core_id,
@@ -138,6 +179,16 @@ def prepare(core_id, output, library_media=None, expected_media_sha256=None):
                                "path": recipe.selection_filename, "sha256": record["selection_sha256"],
                                "manifest_sha256": record["manifest_sha256"],
                                "payload_sha256": record["core_rbf_sha256"]})
+            if recipe.identity_version == 2:
+                provenance = record.get("source_selection")
+                if not isinstance(provenance, dict):
+                    raise ValueError("v2 package selection lacks source provenance")
+                encoded = json.dumps(provenance, sort_keys=True, indent=2).encode() + b"\n"
+                sidecar = selection_path.with_suffix(".provenance.json")
+                observed = snapshot(sidecar, limit=65536, sealed=True,
+                                    expected=hashlib.sha256(encoded).hexdigest())
+                receipt["format"] = 2
+                receipt["source_selection"] = {"path": sidecar.name, "sha256": observed["sha256"]}
             if media is not None:
                 receipt["library_media"] = media
             for name in ("core.fcore", recipe.selection_filename, "media.bin"):
@@ -149,6 +200,10 @@ def prepare(core_id, output, library_media=None, expected_media_sha256=None):
             temporary.replace(output / "prepared.json")
             return receipt
         except Exception as error:
+            if recipe.identity_version == 2:
+                for name in ("core.fcore", ".core.fcore.tmp", ".prepared.json.tmp",
+                             Path(recipe.selection_filename).with_suffix(".provenance.json").name):
+                    (output / name).unlink(missing_ok=True)
             (output / "failure.json").write_text(json.dumps({
                 "format": 1, "status": "failed", "error": str(error)}, indent=2) + "\n")
             raise

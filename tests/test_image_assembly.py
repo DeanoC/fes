@@ -1,4 +1,4 @@
-"""FES image/ is the native image recipe; FogCast supplies lock, agent and kit."""
+"""FES image/ is the native image recipe; FogCast supplies agent and kit."""
 from pathlib import Path
 import tomllib
 import unittest
@@ -17,12 +17,13 @@ RECIPE = (
     'scripts/qemu-smoke-target-image.sh',
     'scripts/native-extra-cores.sh',
     'build/target-image.sources.lock.toml',
+    'build/native-inputs.toml',
     'buildroot',
     'containers/target-image',
 )
 FOGCAST_INPUTS = (
     'cmd/target-image-lock',
-    'build/native-runtime.inputs.lock.toml',
+
 )
 
 
@@ -32,7 +33,7 @@ class ImageAssemblyTest(unittest.TestCase):
             path = IMAGE / relative
             self.assertTrue(path.exists(), f'missing image recipe {relative}')
 
-    def test_fogcast_keeps_selector_and_runtime_lock(self):
+    def test_fogcast_keeps_selector(self):
         for relative in FOGCAST_INPUTS:
             path = FOGCAST / relative
             self.assertTrue(path.exists(), f'missing FogCast image input {relative}')

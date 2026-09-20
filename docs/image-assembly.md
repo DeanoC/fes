@@ -2,8 +2,9 @@
 
 FES is the parent image command and the authoritative **recipe** for
 Buildroot, rootfs layout and native image scripts. FogCast supplies the
-agent, kit launcher, extra-core selector and native-runtime lock as
-inputs through `FOGCAST_DIR`.
+agent, kit launcher and extra-core selector through `FOGCAST_DIR`. FES owns
+external-artifact policy in `image/build/native-inputs.toml` and derives the
+runtime revision from its source selection.
 
 Do not invoke FogCast `make target-image-native` as a second builder.
 
@@ -37,6 +38,7 @@ them is an image-recipe change:
 - `image/scripts/qemu-smoke-target-image.sh`
 - `image/scripts/native-extra-cores.sh`
 - `image/build/target-image.sources.lock.toml`
+- `image/build/native-inputs.toml`
 - `image/buildroot/`
 - `image/containers/target-image/`
 
@@ -48,7 +50,6 @@ The selected FogCast gitlink still owns:
 
 - `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
 - `cmd/target-image-lock` (extra-core selector / lock verifier)
-- `build/native-runtime.inputs.lock.toml` (runtime and idle policy)
 - public `appliance` schema/store module consumed by FES `platform/`
 
 FES `platform/` owns `fes-boot`. Appliance bootstrap assembly builds that
@@ -56,3 +57,10 @@ module against the selected FogCast `appliance` checkout through a temporary
 Go workspace; it does not build FogCast `cmd/fes-boot`.
 
 FPGA cores enter as sealed bundles / packages, not as a second image builder.
+
+FES writes a concrete `build/native-runtime.inputs.lock.toml` inside its disposable
+FogCast assembly checkout. This generated overlay contains the selected runtime
+revision and FES external-artifact policy; it is not a FogCast source input.
+The staging path restores/removes only this declared overlay before reuse and
+continues to reject unrelated changes. Legacy smoke diagnostics receive the
+concrete generated lock explicitly through `NATIVE_RUNTIME_INPUT_LOCK`.

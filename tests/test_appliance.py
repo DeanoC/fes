@@ -225,9 +225,34 @@ class VerificationBoundaryTests(unittest.TestCase):
         import media
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            with mock.patch.object(media.cold_build,'git',return_value=''), mock.patch.object(media,'select',return_value=('image-fingerprint','host-fingerprint',root/'fogcast',[],{})):
+            with mock.patch.object(media.cold_build,'git',return_value=''), mock.patch.object(media,'select',return_value=('image-fingerprint','host-fingerprint',root/'fogcast',{})):
                 with self.assertRaisesRegex(ValueError,'cold image receipt'):
                     appliance.verified_inputs(root,'native-integration-dev')
+
+    def test_verified_inputs_consumes_real_media_selection_shape(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        import media
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            (root/'profiles').mkdir()
+            (root/'profiles/native-integration-dev.toml').write_text('version = "test"\n')
+            revisions={'FogCast':'a'*40,'libmister-runtime':'b'*40}
+            def git_output(_root,*args):
+                return '' if args[0]=='status' else 'module example.invalid/fixture\ngo 1.26.5'
+            with mock.patch.object(media.cold_build,'git',side_effect=git_output), \
+                 mock.patch.object(media.cold_build,'validate',return_value=revisions), \
+                 mock.patch.object(media.cold_build,'native_image_mode',return_value='package-only'), \
+                 mock.patch.object(media.cold_build,'selected_packages',return_value=('fes.coleco',)), \
+                 mock.patch.object(media.subprocess,'check_output',return_value='go version test'), \
+                 mock.patch.object(media.cold_build,'build_fingerprint',return_value=('image-fingerprint',{})), \
+                 mock.patch.object(media.cold_build,'host_fingerprint',return_value=('host-fingerprint',{})), \
+                 mock.patch.object(media.cold_build,'source_checkout',return_value=root/'fogcast'), \
+                 mock.patch.object(media.cold_build,'load_verified_image',side_effect=ValueError('verified image boundary')) as verify:
+                # Keep select() real: mocking its tuple hid the previous five/four mismatch.
+                with self.assertRaisesRegex(ValueError,'verified image boundary'):
+                    appliance.verified_inputs(root,'native-integration-dev')
+                verify.assert_called_once_with(root/'out/native-integration-dev','image-fingerprint')
 
     def test_ext4_rejects_new_kernel_features_and_symlink(self):
         with tempfile.TemporaryDirectory() as temporary:

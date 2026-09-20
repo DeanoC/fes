@@ -56,7 +56,7 @@ runtime-advertised ABI registry without a second static Go allowlist. misteross
 produces the FES package set. FES selects component commits, checks that their
 definitions and locks agree, then invokes the FES `image/` recipe to assemble
 the agent, runtime, libraries and ordered package set. FogCast remains an input
-(agent, kit, extra-core selector and native-runtime lock) via `FOGCAST_DIR`.
+(agent, kit and extra-core selector) via `FOGCAST_DIR`.
 
 ## Directory guide
 

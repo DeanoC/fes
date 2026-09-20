@@ -53,7 +53,7 @@ make host
 
 For an existing checkout, inspect local changes before running
 `git submodule update --init --recursive`; preserve component work first.
-`make check` verifies clean pinned sources, the runtime lock, package YAML,
+`make check` verifies clean pinned sources, package YAML,
 twenty generated consumers, twenty shared fixture copies and copied source
 pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
@@ -135,6 +135,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | Command | Result |
 | --- | --- |
 | `make test` | Parent regression tests; no components or external services required |
+| `make source-status` | Read-only selected revisions, local changes and observed remote main freshness |
 | `make check` | Current component and shared-definition consistency |
 | `make doctor` | Selected pins/lock, Linux architecture, Go and container availability |
 | `make host` | Linux API server and CLI |

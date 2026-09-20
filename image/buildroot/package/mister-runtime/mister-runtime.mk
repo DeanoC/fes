@@ -4,7 +4,8 @@
 #
 ################################################################################
 
-MISTER_RUNTIME_SITE = /runtime-source
+FES_RUNTIME_SOURCE_PATH ?= .
+MISTER_RUNTIME_SITE = /runtime-source/$(FES_RUNTIME_SOURCE_PATH)
 MISTER_RUNTIME_SITE_METHOD = local
 MISTER_RUNTIME_LICENSE = GPL-3.0-or-later
 MISTER_RUNTIME_LICENSE_FILES = LICENSE

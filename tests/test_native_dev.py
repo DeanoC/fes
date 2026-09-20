@@ -45,12 +45,12 @@ class NativeDevTest(unittest.TestCase):
             (fogcast / 'build').mkdir(parents=True)
             (fogcast / 'cmd/mister-agent').mkdir(parents=True)
             (fogcast / 'cmd/mister-agent/main.go').write_text('agent')
-            (fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+            (image / 'build/native-inputs.toml').write_text(
                 '[mister_runtime]\ncommit="old"\nrepository="repo"\n')
             subprocess.run(['git', '-C', str(image), 'add', '.'], check=True)
             before = native_dev.base_key(image, fogcast)
             (fogcast / 'cmd/mister-agent/main.go').write_text('changed')
-            (fogcast / 'build/native-runtime.inputs.lock.toml').write_text(
+            (image / 'build/native-inputs.toml').write_text(
                 '[mister_runtime]\ncommit="new"\nrepository="repo"\n')
             self.assertEqual(before, native_dev.base_key(image, fogcast))
             for name in ('buildroot/configs/native', 'containers/target-image/Dockerfile',

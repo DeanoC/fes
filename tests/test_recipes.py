@@ -402,3 +402,17 @@ class RecipeResolverTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CacheLocationTest(unittest.TestCase):
+    def test_image_verifier_without_git_can_import_recipes(self):
+        import recipes
+        from unittest.mock import patch
+        with patch.dict(os.environ, {}, clear=True), patch.object(recipes.subprocess, 'run', side_effect=FileNotFoundError):
+            self.assertEqual(recipes.shared_cache_root(), Path(recipes.__file__).resolve().parents[1] / 'out/cache')
+
+    def test_explicit_cache_location_does_not_require_git(self):
+        import recipes
+        from unittest.mock import patch
+        with patch.dict(os.environ, {'FES_CACHE_ROOT': '/shared/fes-cache'}), patch.object(recipes.subprocess, 'run', side_effect=AssertionError):
+            self.assertEqual(recipes.shared_cache_root(), Path('/shared/fes-cache'))

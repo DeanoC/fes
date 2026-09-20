@@ -136,7 +136,7 @@ parent selection; `make check` detects drift.
 
 Whole-system Buildroot/image configuration and final SD-card assembly live in
 FES `image/`. Component compilation remains component-owned. FogCast keeps the
-agent, kit, extra-core selector and native-runtime lock; FES invokes
+agent, kit and extra-core selector; FES owns native artifact policy and invokes
 `make -C image FOGCAST_DIR=...`. Do not restore FogCast `target-image-native`
 as a second builder. The recipe list and operator path are in
 [image assembly ownership](image-assembly.md).

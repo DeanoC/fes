@@ -9,6 +9,37 @@ that owns the behavior, then read its instructions, README and current
 architecture before editing. FES coordinates compatible revisions; each
 component keeps its own implementation and focused development loop.
 
+## Inspect source freshness
+
+Run `make source-status` before selecting updates. It observes remote `main` for
+FES and each component without fetching, changing refs, selecting pins or writing
+Git indexes. Component `selected` is the index gitlink used by integration; a
+staged selection is shown separately from the committed gitlink. Checkout HEAD,
+branch, dirty paths and selection mismatches remain visible.
+
+```sh
+make source-status
+make source-status SOURCE_STATUS_ARGS='--offline'
+make source-status SOURCE_STATUS_ARGS='--json --timeout 5'
+```
+
+Online observations include UTC timestamps. `equal` means the selected SHA matches
+the observed remote main. `behind`, `ahead` and `diverged` use available local
+history; `different-history-unavailable` means the SHAs differ but the command
+cannot safely determine ancestry without fetching. Offline, failed and timed-out
+queries remain unknown. No cached remote-tracking ref is presented as a fresh
+remote observation. Uninitialized components are reported and their configured
+`.gitmodules` URL can still be queried; initialized checkouts use their `origin`.
+All project repositories currently use `main`; this command deliberately compares
+that integration branch, not the developer branch's configured upstream.
+
+The JSON schema includes full SHAs and lossless Git porcelain change records.
+The report exits zero when inspection succeeds, even for dirty/stale/unknown
+sources; it is informational, not an integration gate. Invalid invocation or
+local inspection failure exits 2. It does not establish compatibility, CI success,
+build completion, hardware qualification or deployed state. Continue to use
+`make check` for selected-source consistency.
+
 ## Isolate component work
 
 From the FES root, create a worktree from the selected clean component HEAD.
@@ -45,8 +76,8 @@ make host
 ```
 
 Replace the uppercase placeholders with full reviewed commit IDs. If a worker
-used another clone, fetch its branch into the component repository first. The
-runtime commit must match FogCast's native input lock. Stage package or FPGA
+used another clone, fetch its branch into the component repository first. FES
+selects the runtime independently and generates the concrete assembly lock. Stage package or FPGA
 gitlinks in the same way when they change. These staged gitlinks are what the
 parent validates, so the candidate can be built before a parent commit or PR.
 Before publishing the parent, ensure each selected commit is available from the
@@ -238,8 +269,9 @@ The exact disposable kit and its operating instructions are in the selected
 FogCast [development guide](../sources/FogCast/docs/DEVELOPMENT.md), alongside
 its [working policy](../sources/FogCast/AGENTS.md). Use that designation;
 an arbitrary reachable device is not authorized by a successful build.
-One operator owns the kit for the duration of a test. Arrange handoff before
-another worker deploys, reboots or runs diagnostics.
+One lease holder owns the kit for the duration of a test. The lease is sufficient
+for ordinary diagnostics; coordinate disruptive deployment, service replacement
+or reboot separately.
 
 Report component work with this short handoff:
 
@@ -256,3 +288,25 @@ the artifacts actually exercised. Name the selected component commits and
 receipt hashes; an uncommitted worktree is not those artifacts. See
 [artifact identities](artifacts.md). Whole-system image assembly is already
 owned by FES `image/`; see [current refactor status](fes-structure.md).
+
+## Contract generation and shared build caches
+
+`make check-generated` verifies generated consumers and copied conformance data.
+After repository import, `make generate` regenerates these outputs in one working
+tree, including the known copied external-core pins. It refuses writes while
+components remain gitlinks, preserving the old pinned integration inputs.
+Canonical package definitions and runtime fixtures remain owner-maintained inputs.
+
+Compiler caches and functional core artifacts use the primary Git checkout's
+`out/cache/`, shared across its worktrees. `FES_CACHE_ROOT=/absolute/path` selects
+another stable cache explicitly. Relocating an authenticated compiler installation
+is not supported by merely copying its directory; build/authenticate a new slot.
+Mutable source builds stay in individual snapshots. Cached packages retain their
+original manifests and records; a separate `.provenance.json` selection receipt
+identifies selected versus original source and the exact payload digest.
+
+Functional record version 2 is opt-in per recipe until its representative build
+and hardware gate pass. Version 1 retains exact-record selection. A changed commit
+with the same verified functional inputs can reuse the original version-2 artifact;
+unavailable historical evidence fails closed. Core-local source closure remains
+conservative, so edits within an owning core directory can invalidate that core.

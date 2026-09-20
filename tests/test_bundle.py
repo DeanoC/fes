@@ -1,5 +1,7 @@
 import importlib.util
 import hashlib
+import json
+from dataclasses import replace
 import os
 from pathlib import Path
 import subprocess
@@ -30,6 +32,19 @@ class BundleTest(unittest.TestCase):
             self.assertEqual(subprocess.check_output(
                 ['git', '-C', source, 'remote', 'get-url', '--all', 'origin'], text=True).strip(),
                 module.MISTEROSS_REPOSITORY)
+
+    def test_monorepo_origin_is_preserved_without_claiming_child_repository(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'sources/misteross'
+            source.mkdir(parents=True)
+            subprocess.run(['git', 'init', '-q', root], check=True)
+            origin = module.FES_REPOSITORY.removesuffix('.git')
+            subprocess.run(['git', '-C', root, 'remote', 'add', 'origin', origin], check=True)
+            module.authenticate_misteross_origin(source)
+            self.assertEqual(subprocess.check_output(
+                ['git', '-C', root, 'remote', 'get-url', 'origin'], text=True).strip(), origin)
 
     def test_package_resolution_reuses_only_one_matching_validated_candidate(self):
         module = self.module()
@@ -182,7 +197,9 @@ inspect.signature(getattr(producer, sys.argv[2])).bind(
                 subprocess.run(
                     [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate],
                     cwd=source, check=True, capture_output=True, text=True, timeout=30)
-        self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, root / 'out/cache/misteross-toolchains')
+        common = Path(subprocess.check_output(
+            ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())
+        self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, common.parent / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
@@ -378,3 +395,54 @@ inspect.signature(getattr(producer, sys.argv[2])).bind(
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FunctionalReuseTest(unittest.TestCase):
+    def test_new_revision_reuses_original_bytes_and_records_both_sources(self):
+        import artifact_cache
+        import bundle
+        from recipes import recipe_for
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'selected'
+            source.mkdir()
+            package = root / ('a' * 64)
+            package.mkdir()
+            (package / 'manifest.toml').write_bytes(b'original manifest')
+            (package / 'core.rbf').write_bytes(b'original payload')
+            original = {'format': 2, 'repository': 'https://example.invalid/fes',
+                        'revision': '1' * 40, 'source_path': 'sources/misteross',
+                        'source_inputs': {'rtl/top.v': 'b' * 64}, 'parameters': {'clock': 52}}
+            selected = dict(original, revision='2' * 40)
+            encoded = lambda fields: (json.dumps(fields, sort_keys=True, separators=(',', ':')) + '\n').encode()
+            record_path = root / 'original.build-inputs.json'
+            record_path.write_bytes(encoded(original))
+            cache = root / 'cache'
+            cached = artifact_cache.publish(cache, record_path, package)
+            staging = artifact_cache.store_for(cache, encoded(selected)) / '.publish-in-progress'
+            staging.mkdir()
+            (staging / 'build-inputs.json').write_bytes(encoded(original))
+            payload_sha = hashlib.sha256(b'original payload').hexdigest()
+            inspected = {'package_id': package.name,
+                         'manifest': {'core': {'id': 'fes.pong'}, 'payload': {'sha256': payload_sha},
+                                      'build': {'revision': original['revision']}},
+                         'manifest_sha256': hashlib.sha256(b'original manifest').hexdigest(),
+                         'core_rbf_sha256': payload_sha}
+            recipe = replace(recipe_for('fes.pong'), identity_version=2)
+            with patch.object(bundle, 'ARTIFACT_CACHE_ROOT', cache), \
+                 patch.object(bundle, 'canonical_package_record', return_value=encoded(selected)), \
+                 patch.object(bundle, '_inspect_package_candidate', return_value=inspected) as inspect, \
+                 patch.object(bundle, '_build_package', side_effect=AssertionError('unnecessary FPGA rebuild')):
+                result = bundle.resolve_core_package(source, '3' * 40, root / 'selection.toml', recipe=recipe)
+            self.assertEqual(result['directory'], cached)
+            self.assertEqual(inspect.call_args.args[2].read_bytes(), encoded(original))
+            self.assertEqual((cached / 'manifest.toml').read_bytes(), b'original manifest')
+            self.assertEqual((cached / 'core.rbf').read_bytes(), b'original payload')
+            receipt = json.loads((root / 'selection.provenance.json').read_bytes())
+            self.assertEqual(receipt['original_revision'], original['revision'])
+            self.assertEqual(receipt['selected_revision'], selected['revision'])
+            self.assertEqual(result['inputs']['source_selection'], receipt)
+            self.assertEqual(result['inputs']['selection']['misteross_revision'], original['revision'])
+            for directory in sorted(cache.rglob('*'), key=lambda p: len(p.parts), reverse=True):
+                if directory.is_dir():
+                    directory.chmod(0o755)

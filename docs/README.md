@@ -38,7 +38,17 @@ catalog, including exact NES video and native session lifecycle acceptance, is
 recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
 and is not current-profile acceptance.
 
+## Proposals
+
+- [Development ease and repository migration](development-ease.md): investigated
+  update friction, recommended module/repository boundaries and staged migration.
+  The direction is approved; current development instructions describe what has landed.
+
 ## What has been verified
+
+- [Functional FPGA identity](validation/2026-09-20-functional-core-identity.md):
+  real Coleco compiler signoff and exact-artifact reuse after a documentation-only
+  commit; hardware and imported-image qualification remain outstanding.
 
 - [Coleco 32 KiB streaming](coleco-stream-32k.md): component tests and bounded
   HDMI diagnostics, with separate parent integration status and artifact IDs.

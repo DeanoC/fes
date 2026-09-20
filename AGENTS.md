@@ -28,7 +28,8 @@ See [the documentation index](docs/README.md) to distinguish them.
 Main_MiSTer is a comparison reference, not a production dependency. Keep
 physical transitions in the runtime and network/session coordination in the
 FogCast agent. Image assembly lives in FES `image/`; FogCast supplies agent,
-kit and lock inputs through `FOGCAST_DIR`.
+kit and selector inputs through `FOGCAST_DIR`. FES owns external artifact policy
+in `image/build/native-inputs.toml` and derives runtime source selection itself.
 
 For described-core settings or progress, read the [core persistence guide](docs/core-persistence.md).
 Keep the data layout and wire contract in mister-packages, capture and durable

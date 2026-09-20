@@ -64,8 +64,8 @@ Do not claim that `make dev` exercised an unselected worktree change.
 
 The integrator inspects worker results, checks overlapping changes, selects the
 compatible component commits and stages the parent gitlinks. Follow the
-[selection example](development.md#isolate-component-work). FogCast's runtime
-lock must match the selected runtime commit; package-definition changes must
+[selection example](development.md#isolate-component-work). FES generates the concrete
+runtime assembly lock from its selected runtime; package-definition changes must
 include matching generated consumers and copied source pins.
 
 Run `make check`, then the build appropriate to the change: `make host` for

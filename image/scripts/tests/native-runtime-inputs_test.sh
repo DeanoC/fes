@@ -142,3 +142,71 @@ if NATIVE_RUNTIME_MODE=unsupported sh "$repo/scripts/verify-native-runtime-input
   fail 'verifier accepted an unsupported runtime mode'
 fi
 printf '%s\n' 'native runtime package-only inputs passed'
+
+# Real Git provenance: standalone checkouts and full-FES module snapshots.
+standalone=$fixture/runtime
+mono=$fixture/fes
+mkdir -p "$standalone" "$mono/sources/libmister-runtime" "$mono/sources/FogCast/build"
+printf '%s\n' runtime > "$standalone/README"
+printf '%s\n' runtime > "$mono/sources/libmister-runtime/README"
+printf '%s\n' host > "$mono/sources/FogCast/README"
+for tree in "$standalone" "$mono"; do
+  git -C "$tree" init -q
+  git -C "$tree" -c user.name=Test -c user.email=test@example.invalid add .
+  git -C "$tree" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
+done
+cat > "$fake_bin/container" <<'CONTAINER'
+#!/bin/sh
+set -eu
+if [ "$1" = run ]; then printf '%s\n' "$@" > "$CONTAINER_ARGS"; fi
+CONTAINER
+chmod +x "$fake_bin/container"
+export CONTAINER_ARGS="$fixture/container-args"
+for source in "$standalone" "$mono/sources/libmister-runtime"; do
+  actual_commit=$(git -C "$source" rev-parse HEAD)
+  sed "s/$runtime_commit/$actual_commit/" "$lock" > "$fixture/selected.lock"
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf"
+  if [ "$source" = "$standalone" ]; then
+    selected_fogcast=$fogcast
+    expected_mount=$standalone
+    expected_prefix=.
+    expected_fogcast_mount=$fogcast
+    expected_fogcast_path=/fogcast
+  else
+    selected_fogcast=$mono/sources/FogCast
+    expected_mount=$mono
+    expected_prefix=sources/libmister-runtime
+    expected_fogcast_mount=$mono
+    expected_fogcast_path=/fogcast/sources/FogCast
+    # Generated host overlay does not dirty runtime scope.
+    printf '%s\n' overlay > "$mono/sources/FogCast/build/generated"
+    sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf"
+  fi
+  FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUNTIME_DIR="$source" \
+    NATIVE_RUNTIME_INPUT_LOCK="$fixture/selected.lock" NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \
+    TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" TARGET_IMAGE_DEV_CONTAINER=1 \
+    sh "$repo/scripts/target-image-container.sh" run /bin/true
+  grep -Fxq "$expected_mount:/runtime-source:ro" "$CONTAINER_ARGS" || fail 'runtime Git root was not mounted'
+  grep -Fxq "FES_RUNTIME_SOURCE_PATH=$expected_prefix" "$CONTAINER_ARGS" || fail 'runtime module path missing'
+  grep -Fxq "$expected_fogcast_mount:/fogcast:ro" "$CONTAINER_ARGS" || fail 'FogCast Git root was not mounted'
+  grep -Fxq "FOGCAST_DIR=$expected_fogcast_path" "$CONTAINER_ARGS" || fail 'FogCast module path missing'
+  printf '%s\n' dirty > "$source/README"
+  if sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf" > /dev/null 2>&1; then
+    fail 'dirty runtime module was accepted'
+  fi
+  git -C "$source" restore README
+done
+mkdir -p "$mono/other-runtime"
+if sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$mono/other-runtime" "$cache/idle.rbf" > /dev/null 2>&1; then
+  fail 'arbitrary nested runtime path was accepted'
+fi
+printf '%s\n' 'standalone and monorepo runtime verification/container mounts passed'
+cat > "$fixture/site.mk" <<EOF
+include $repo/buildroot/package/mister-runtime/mister-runtime.mk
+print-site:
+	@printf '%s\n' '\$(MISTER_RUNTIME_SITE)'
+EOF
+for prefix in . sources/libmister-runtime; do
+  site=$(FES_RUNTIME_SOURCE_PATH="$prefix" make -s -f "$fixture/site.mk" print-site)
+  test "$site" = "/runtime-source/$prefix" || fail 'Buildroot SITE differs from mounted module'
+done

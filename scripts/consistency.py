@@ -76,6 +76,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
         sources = {name: root / 'sources' / name for name in
                    ('FogCast', 'libmister-runtime', 'misteross', 'mister-packages')}
     sources = {name: Path(path) for name, path in sources.items()}
+    sources["FES"] = root
     packages = sources['mister-packages']
     for source in sorted({item[1] for item in GENERATED} | {f'packages/source/{core}_mister.yaml' for core in CORE_SOURCES}):
         _run(packages, 'validate', source)
@@ -126,7 +127,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
               'rbf_sha256': 'rbf_sha256', 'rbf_size': 'rbf_size', 'project': 'project'}),
         ]
         if core == 'megadrive':
-            copies.append(('FogCast', 'build/native-runtime.inputs.lock.toml', ('megadrive_rbf',),
+            copies.append(('FES', 'image/build/native-inputs.toml', ('megadrive_rbf',),
              {'repository': 'repository', 'commit': 'commit', 'rbf_path': 'path',
               'rbf_sha256': 'sha256', 'rbf_size': 'size'}))
         for component, filename, sections, fields in copies:

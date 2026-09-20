@@ -3,10 +3,52 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  merge_group:
 permissions:
   contents: read
+concurrency:
+  group: fes-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      lanes: ${{ steps.plan.outputs.lanes }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Plan from merge base
+        id: plan
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then BASE=0000000000000000000000000000000000000000; fi
+          python3 scripts/affected.py --base "$BASE" --head "$HEAD" --output /tmp/affected.json
+          python3 - <<'PYCODE'
+          import json, os
+          plan = json.load(open('/tmp/affected.json'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
+          PYCODE
+      - name: Always-run planner and metadata checks
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+        run: |
+          python3 -m unittest tests.test_affected -v
+          if [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
+            git show --format= --check "$HEAD"
+          else
+            git diff --check "$(git merge-base "$BASE" "$HEAD")" "$HEAD"
+          fi
   parent-tests:
+    needs: plan
     runs-on: ubuntu-24.04
     steps:
       - name: Require component read access
@@ -30,6 +72,7 @@ jobs:
             sources/FogCast/go.sum
             platform/go.sum
       - name: Provision pinned boot-media test container
+        if: fromJSON(needs.plan.outputs.lanes).parent
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -39,9 +82,12 @@ jobs:
 
           ensure_media_container(Path('.'), 'docker', MediaLock.load(Path('boot-media.lock.toml')))
           PY
-      - run: make platform-provision
-      - run: make test
+      - if: fromJSON(needs.plan.outputs.lanes).parent
+        run: make platform-provision
+      - if: fromJSON(needs.plan.outputs.lanes).parent
+        run: make test
   components:
+    needs: plan
     runs-on: ubuntu-24.04
     steps:
       - name: Require component read access
@@ -64,5 +110,47 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - run: make check
-      - run: make host
+      - if: fromJSON(needs.plan.outputs.lanes).parent
+        run: make check
+      - if: fromJSON(needs.plan.outputs.lanes).host
+        run: make host
+      - name: Runtime software tests
+        if: fromJSON(needs.plan.outputs.lanes).runtime
+        run: make -C sources/libmister-runtime -j2 test
+      - name: Shared contract tests
+        if: fromJSON(needs.plan.outputs.lanes).contracts
+        run: |
+          python3 -m pip install jsonschema pyyaml
+          make -C sources/mister-packages test
+      - name: FPGA producer tests and shared endpoint simulation
+        if: fromJSON(needs.plan.outputs.lanes).fpga
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+          cd sources/misteross
+          python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
+          make sim-fes-demo
+      - name: Report software lane limits
+        if: always()
+        env:
+          LANES: ${{ needs.plan.outputs.lanes }}
+        run: |
+          echo "Selected software lanes: $LANES" >> "$GITHUB_STEP_SUMMARY"
+          echo 'False lanes were skipped. FPGA coverage is producer tests and shared endpoint simulation only; per-core execution, synthesis, image builds and hardware acceptance were not run.' >> "$GITHUB_STEP_SUMMARY"
+  integration:
+    if: always()
+    needs: [plan, parent-tests, components]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every planned check to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYCODE'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = {name: job['result'] for name, job in results.items() if job['result'] != 'success'}
+          if failed:
+              raise SystemExit('Required CI failed or did not run: ' + str(failed))
+          print('All planned software checks passed; omitted lanes are reported in the plan.')
+          PYCODE
