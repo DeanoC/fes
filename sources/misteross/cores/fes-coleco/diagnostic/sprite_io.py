@@ -90,11 +90,12 @@ def cartridge() -> bytes:
     # Sprite pattern 3 is deliberately stored at 0800; 16x16 mode ignores
     # its low two name bits. Pattern row 0 has one set bit at its left edge.
     copy(0x0800, bytes((0x80, 0x00)))
-    # Background name 0 is a solid green border; name 1 is transparent black.
-    copy(0x1000, bytes((0xff,) * 8 + (0x00,) * 8))
-    copy(0x2000, bytes((0xf1, 0x00)))
+    # Background name 0 is a solid green border; name 8 is black (a separate Graphics I color group).
+    copy(0x1000, bytes((0xff,) * 8))
+    copy(0x1040, bytes(8))
+    copy(0x2000, bytes((0x21, 0x11)))
     names = bytes(
-        0 if col in (0, 31) or row in (0, 23) else 1
+        0 if col in (0, 31) or row in (0, 23) else 8
         for row in range(24) for col in range(32)
     )
     copy(0x3c00, names)
@@ -102,10 +103,10 @@ def cartridge() -> bytes:
     # Five visible 8x8 sprites: 0/1 overlap for collision, 4 is the first
     # suppressed sprite and must report index 4 in status bits 4..0.
     initial_sprites = bytes((
-        40, 48, 0, 0x01,
+        40, 48, 0, 0x06,
         40, 48, 0, 0x02,
         40, 80, 0, 0x02,
-        40, 112, 0, 0x01,
+        40, 112, 0, 0x06,
         40, 144, 0, 0x02,
         0xd0, 0, 0, 0,
     ))
@@ -128,10 +129,10 @@ def cartridge() -> bytes:
 
     # Publish the final static picture after the status sample. The two first
     # sprites exercise early-clock and right-edge clipping; the third is green
-    # at x=10 so the image exposes a non-orange sprite as well.
+    # at x=10 so the image exposes a non-red sprite as well.
     final_sprites = bytes((
-        80, 220, 3, 0x81,
-        100, 255, 3, 0x01,
+        80, 220, 3, 0x86,
+        100, 255, 3, 0x06,
         130, 10, 3, 0x02,
         0xd0, 0, 0, 0,
     ))
@@ -170,13 +171,13 @@ def preview() -> bytes:
                     (188, 81), (189, 81), (188, 82), (189, 82),
                     (255, 101), (255, 102),
                 }:
-                    rgb = (255, 64, 0)  # sprite color 1 / pixel 1
+                    rgb = (212, 82, 77)  # sprite color 6 / pixel 6
                 elif (logical_x, logical_y) in {
                     (10, 131), (11, 131), (10, 132), (11, 132),
                 }:
-                    rgb = (0, 255, 64)  # sprite color 2 / pixel 2
+                    rgb = (33, 200, 66)  # sprite color 2 / pixel 2
                 elif col in (0, 31) or row in (0, 23):
-                    rgb = (0, 255, 64)  # Graphics I pixel 2
+                    rgb = (33, 200, 66)  # Graphics I pixel 2
             pixels.extend(rgb)
     return b"P6\n1280 720\n255\n" + pixels
 

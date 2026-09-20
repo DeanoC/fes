@@ -30,7 +30,7 @@ module sg1000_machine (
     output wire [7:0]  port_dd,
     output wire [7:0]  logical_x,
     output wire [7:0]  logical_y,
-    output wire [1:0]  logical_pixel,
+    output wire [3:0]  logical_pixel,
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
@@ -69,7 +69,7 @@ module sg1000_machine (
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
     wire [7:0] vdp_raster_x;
-    wire [1:0] vdp_raster_pixel;
+    wire [3:0] vdp_raster_pixel;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
     wire       vdp_status_overflow;

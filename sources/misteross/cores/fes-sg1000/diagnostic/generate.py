@@ -59,16 +59,19 @@ def cartridge(controllers: bool = False) -> bytes:
     emit(0xAF, 0xD3, 0xBE, 0x0B, 0x78, 0xB1)
     jr_nz(clear)
 
+    # Graphics I shares a color byte across each group of eight names.
+    # Border, green, red and blank therefore use names 0, 8, 16 and 24.
     square = bytes((0, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0))
     dynamic = controllers
-    copy(0x0800, bytes([0xFF] * 24) + bytes(8) if dynamic
-         else bytes([0xFF] * 8) + square + square)
-    copy(0x2000, bytes((0xF1, 0xF1, 0x01, 0x00)) if dynamic
-         else bytes((0xF1, 0xF1, 0x01)))
+    copy(0x0800, bytes([0xFF] * 8))
+    copy(0x0840, bytes([0xFF] * 8) if dynamic else square)
+    copy(0x0880, bytes([0xFF] * 8) if dynamic else square)
+    copy(0x08C0, bytes(8))
+    copy(0x2000, bytes((0x21, 0x21, 0x61, 0x11)))
     copy(0x1B00, bytes((0xD0,)))
     names = bytes(
-        0 if col in (0, 31) or row in (0, 23) else 3 if dynamic
-        else 1 + ((col + row) & 1)
+        0 if col in (0, 31) or row in (0, 23) else 24 if dynamic
+        else 8 + 8 * ((col + row) & 1)
         for row in range(24) for col in range(32)
     )
     copy(0x0000, names)
@@ -88,8 +91,8 @@ def cartridge(controllers: bool = False) -> bytes:
             emit(0x7B, 0x32, 0x01 + bank, 0xC0)  # LD A,E; LD (cache),A
             for bit in range(8):
                 emit(0x7B, 0xE6, 1 << bit)
-                emit(0x20, 0x04, 0x3E, 0x02, 0x18, 0x02, 0x3E, 0x01)
-                # Active-low: pressed is orange, released is green.
+                emit(0x20, 0x04, 0x3E, 0x10, 0x18, 0x02, 0x3E, 0x08)
+                # Active-low: pressed is red, released is green.
                 emit(0x57)  # LD D,A
                 for row in (4, 5) if bank == 0 else (8, 9):
                     address(row * 32 + 4 + 3 * bit)
@@ -128,16 +131,16 @@ def preview(controllers: bool = False, matrix: int = 0xFFFFFFFFFF) -> bytes:
                 lx, ly = max(0, x - 385) // 2, (y - 168) // 2
                 col, row = lx // 8, ly // 8
                 if col in (0, 31) or row in (0, 23):
-                    rgb = (0, 255, 64)
+                    rgb = (33, 200, 66)
                 elif controllers:
                     for bank, value in enumerate(controller_ports(matrix)):
                         first_row = 4 if bank == 0 else 8
                         if first_row <= row <= first_row + 1:
                             for bit in range(8):
                                 if 4 + 3 * bit <= col <= 5 + 3 * bit:
-                                    rgb = (255, 64, 0) if not value & (1 << bit) else (0, 255, 64)
+                                    rgb = (212, 82, 77) if not value & (1 << bit) else (33, 200, 66)
                 elif lx % 8 not in (0, 7) and ly % 8 not in (0, 7):
-                    rgb = (0, 255, 64) if (col + row) % 2 == 0 else (255, 64, 0)
+                    rgb = (33, 200, 66) if (col + row) % 2 == 0 else (212, 82, 77)
             rows.extend(rgb)
     return b"P6\n1280 720\n255\n" + rows
 

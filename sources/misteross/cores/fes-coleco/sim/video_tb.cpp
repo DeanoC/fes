@@ -30,6 +30,15 @@ int main(int argc, char **argv) {
     dut.logical_pixel = 1;
     dut.logical_blank = 0;
     dut.eval();
+    // Fill all sixteen palette codes through the real dual-clock framebuffer.
+    dut.raster_ce = 1;
+    for (unsigned y=0; y<192; ++y) for (unsigned x=0; x<256; ++x) {
+        dut.logical_x=x; dut.logical_y=y; dut.logical_pixel=x/16;
+        dut.clk_sys=1; dut.eval(); dut.clk_sys=0; dut.eval();
+    }
+    dut.raster_ce = 0;
+    const uint32_t palette[] = {0,0,0x21c842,0x5edc78,0x5455ed,0x7d76fc,0xd4524d,0x42ebf5,
+                               0xfc5554,0xff7978,0xd4c154,0xe6ce80,0x21b03b,0xc95bba,0xcccccc,0xffffff};
 
     unsigned hs_rises = 0;
     unsigned vs_rises = 0;
@@ -41,6 +50,11 @@ int main(int argc, char **argv) {
     bool old_vs = false;
     const unsigned cycles = 1650 * 751;
     for (unsigned i = 0; i != cycles; ++i) {
+        const unsigned x=i%1650, y=(i/1650)%750;
+        if (y>=168 && y<552 && x>=385 && x<896) {
+            const uint32_t rgb=(uint32_t(dut.red)<<16)|(uint32_t(dut.green)<<8)|dut.blue;
+            require(rgb==palette[((x-385)/2)/16], "full TMS palette did not survive framebuffer/HDMI");
+        }
         dut.logical_x = uint8_t(i & 0xff);
         dut.logical_y = uint8_t((i >> 8) % 192);
         dut.clk_sys = 1;

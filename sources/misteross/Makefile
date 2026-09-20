@@ -130,7 +130,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-graphics sim-fes-coleco-graphics-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -250,7 +250,19 @@ coleco-diagnostic:
 	$(PYTHON) cores/fes-coleco/diagnostic/generate.py --controllers --pad-to 16384 \
 		--output build/diagnostics/fes-coleco/controller-16k.rom
 
-.PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss
+.PHONY: coleco-vdp-diagnostic sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-coleco-graphics sim-fes-coleco-graphics-oss
+sim-fes-coleco-graphics sim-fes-coleco-graphics-oss:
+	$(require_local_sim)
+	@mkdir -p build/sim/$@
+	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
+		$(if $(filter %-oss,$@),-DFES_COLECO_OSS=1,) \
+		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
+		--Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		"$(CURDIR)/cores/fes-coleco/sim/graphics_tb.cpp"
+	@build/sim/$@/Vcoleco_vdp
+
 coleco-sprite-diagnostic:
 	$(PYTHON) cores/fes-coleco/diagnostic/sprite_io.py \
 		--output build/diagnostics/fes-coleco/sprites.rom \
@@ -283,7 +295,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
-sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-oss sim-fes-coleco-vdp-io
+sim-fes-coleco: sim-fes-coleco-graphics coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-oss sim-fes-coleco-vdp-io
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -354,7 +366,7 @@ sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-os
 	@build/sim/fes-coleco-board/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
-sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-diagnostic sim-fes-coleco-vdp-io-oss
+sim-fes-coleco-oss: sim-fes-coleco-graphics-oss coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-diagnostic sim-fes-coleco-vdp-io-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \

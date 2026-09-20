@@ -335,7 +335,7 @@ class BuildFesColecoTests(unittest.TestCase):
         vdp = (ROOT / "cores/fes-common/rtl/coleco_vdp.sv").read_text(encoding="utf-8")
         self.assertIn('ramstyle = "M10K"', vdp)
         self.assertIn("raster_y", vdp)
-        self.assertIn("DATAWIDTH(4)", vdp)
+        self.assertIn("DATAWIDTH(6)", vdp)
         self.assertIn("SPRITE_RENDER_READ", vdp)
 
     def test_quartus_vdp_uses_the_registered_multi_read_shape(self) -> None:

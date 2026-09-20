@@ -2170,17 +2170,31 @@ fixed-video shell. A raw 1–32 KiB cartridge image uses the fixed
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
 publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
-holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio, BIOS services, expansion hardware, bank
+holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio, expansion hardware, bank
 switching, full VDP modes, cycle-perfect timing and retail-cartridge
 compatibility remain outside this slice.
 
-Graphics II covers normal 8x8/16x16 sprites, magnification, early-clock
+Graphics I groups color entries by eight character patterns. Graphics II uses
+screen-third pattern/color addressing and the register masks for table mirroring.
+Both paths carry four-bit foreground, background and sprite colors through the
+framebuffer to the TMS palette; color zero resolves to the backdrop and display
+disable suppresses the playfield. The sprite renderer covers normal 8x8/16x16 sprites, magnification, early-clock
 positioning, signed/clipped X coordinates, transparency/priority, four visible
 sprites per line, collision and fifth-sprite status. The VDP uses four coherent
 VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
-pattern walker. Two alternating framebuffer line banks use packed 4-bit M10K
+pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
 registered raster coordinate.
+
+The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. The OSS
+producer's explicit `--bios PATH` option embeds a privately supplied 8192-byte
+BIOS using a read-only binary/HEX snapshot in ignored build output. Identity v2
+binds both digests and the BIOS mode, and the producer rechecks the snapshot
+before and after compilation and before export. This variant declares
+`fes.coleco.private-bios` and exports only to `build/private-packages`, separate
+from the default image-selected package. The BIOS is a build input, not an
+extension to the cartridge media protocol. BIOS boot does not establish general
+retail-game compatibility; rendering and input require per-game validation.
 
 The serial renderer, replicated VRAM, registered request/wait schedule, packed
 line banks, sequential clear and publication interlock are deliberate RTL
@@ -2224,7 +2238,7 @@ marked as path-specific are not requirements of the other lane.
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
 | VDP multi-read VRAM | A single VRAM with one CPU port and three combinational raster reads fails OSS mapping and leaves Quartus with an oversized direct-memory implementation. Both lanes use four coherent copies, broadcast CPU writes, and pipelined name-to-pattern/color reads; the fourth copy feeds the serial sprite walker. |
-| Sprite line banks | Both lanes use alternating 256-entry packed 4-bit M10K entries, registered renderer read/write phases, a sequential clear and a raster-coordinate publication interlock. This keeps the renderer inside the system-clock budget and avoids publishing a line into the preceding framebuffer row. |
+| Sprite line banks | Both lanes use alternating 256-entry packed 6-bit M10K entries, registered renderer read/write phases, a sequential clear and a raster-coordinate publication interlock. This keeps the renderer inside the system-clock budget and avoids publishing a line into the preceding framebuffer row. |
 | Read-during-write mode | Quartus 17.0.2 rejects `OLD_DATA` for the bidirectional packed sprite shape, so the Quartus primitive uses `NEW_DATA_NO_NBE_READ`. The renderer consumes `q_a` one phase later; OSS preserves that schedule without depending on the Quartus literal. |
 | Sprite rendering | The procedural 16x2 loop expanded to about 42K mapped combinational cells and stalled routing. Registered column/repeat counters issue one source-pixel read/write pair per system clock and pack pixel, occupied and visible metadata, reducing the measured fabric to about 3.1K ALUT cells. This source-level scaling is shared by both lanes. |
 | Bulk initialization | `initial` loops over 16 KiB VRAM, cartridge RAM or the 49,152-entry framebuffer create large memory initialization structures. The bring-up initializes scalar state only and clears active line storage sequentially. |

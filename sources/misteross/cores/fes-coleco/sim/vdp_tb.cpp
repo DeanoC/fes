@@ -130,13 +130,13 @@ int main(int argc, char **argv) {
     io_write(dut, 0xbf, 0x3f);
     require(io_read(dut, 0xbe) == 0x12, "status read did not clear the control latch");
 
-    write_register(dut, 1, 0x00);
+    write_register(dut, 1, 0x40);
     write_register(dut, 2, 0x00);
     write_register(dut, 3, 0x80);
     write_register(dut, 4, 0x01);
     write_vram(dut, 0x0001, 0x01);
     write_vram(dut, 0x0808, 0x80);
-    write_vram(dut, 0x2001, 0xf1);
+    write_vram(dut, 0x2000, 0xf0);
 
     bool saw_foreground = false;
     for (unsigned i = 0; i != 70000; ++i) {
@@ -149,11 +149,11 @@ int main(int argc, char **argv) {
     }
     require(saw_foreground, "Graphics I tile did not produce a foreground pixel");
     require(dut.irq_n, "disabled VBlank interrupt asserted");
-    write_register(dut, 1, 0x20);
+    write_register(dut, 1, 0x60);
     require(!dut.irq_n, "enabling pending VBlank did not assert interrupt");
-    write_register(dut, 1, 0x00);
+    write_register(dut, 1, 0x40);
     require(dut.irq_n, "disabling interrupt did not release line");
-    write_register(dut, 1, 0x20);
+    write_register(dut, 1, 0x60);
     require(!dut.irq_n, "disabling interrupt incorrectly cleared pending status");
     dut.cpu_ce = 1; dut.cpu_iorq_n = 0; dut.cpu_rd_n = 0;
     dut.cpu_a = 0xbf; dut.eval();
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
     require(io_read(dut, 0xbf) == 0, "reset did not clear status");
     write_register(dut, 5, 0x36);
     write_vram(dut, 0x1b00, 0xd0);  // no sprites during the VBlank race test
-    write_register(dut, 1, 0x20);
+    write_register(dut, 1, 0x60);
     // Start from reset's known scan origin, without forcing raster state.
     // A new frame event on the acknowledgement edge must remain pending;
     // the held read still returns its snapshot from before that edge.
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
     dut.reset = 1;
     tick(dut);
     dut.reset = 0;
-    write_register(dut, 1, 0x00);  // normal 8x8 sprites, no magnification
+    write_register(dut, 1, 0x40);  // normal 8x8 sprites, no magnification
     write_register(dut, 5, 0x36);  // SAT at 1b00
     write_register(dut, 6, 0x01);  // sprite patterns at 0800
     write_vram(dut, 0x1b00, 15);   // sprite 0: y=16, x=20, pattern 0
@@ -230,6 +230,8 @@ int main(int argc, char **argv) {
     write_vram(dut, 0x0800, 0x80);
     write_register(dut, 2, 0x0f);     // isolate a blank background table
     write_register(dut, 4, 0x02);     // keep background patterns separate from sprites
+    write_register(dut, 3, 0x80);
+    write_vram(dut, 0x2000, 0x00); // explicitly transparent background color group
     write_vram(dut, 0x1000, 0x00);
     write_vram(dut, 0x3c42, 0x00);
     write_vram(dut, 0x3c43, 0x00);
@@ -273,9 +275,11 @@ int main(int argc, char **argv) {
     dut.reset = 1;
     tick(dut);
     dut.reset = 0;
-    write_register(dut, 1, 0x03);  // 16x16 sprites, magnified
+    write_register(dut, 1, 0x43);  // 16x16 sprites, magnified
     write_register(dut, 2, 0x0f);
     write_register(dut, 4, 0x02);
+    write_register(dut, 3, 0x80);
+    write_vram(dut, 0x2000, 0x00); // explicitly transparent background color group
     write_register(dut, 5, 0x36);
     write_register(dut, 6, 0x01);
     write_vram(dut, 0x1b00, 40);   // visible top line is y=41
@@ -342,9 +346,11 @@ int main(int argc, char **argv) {
     dut.reset = 1;
     tick(dut);
     dut.reset = 0;
-    write_register(dut, 1, 0x00);
+    write_register(dut, 1, 0x40);
     write_register(dut, 2, 0x0f);
     write_register(dut, 4, 0x02);
+    write_register(dut, 3, 0x80);
+    write_vram(dut, 0x2000, 0x00); // explicitly transparent background color group
     write_register(dut, 5, 0x36);
     write_register(dut, 6, 0x01);
     write_vram(dut, 0x1b00, 60);   // visible top line is y=61
@@ -379,9 +385,11 @@ int main(int argc, char **argv) {
     dut.reset = 1;
     tick(dut);
     dut.reset = 0;
-    write_register(dut, 1, 0x00);
+    write_register(dut, 1, 0x40);
     write_register(dut, 2, 0x0f);
     write_register(dut, 4, 0x02);
+    write_register(dut, 3, 0x80);
+    write_vram(dut, 0x2000, 0x00); // explicitly transparent background color group
     write_register(dut, 5, 0x36);
     write_register(dut, 6, 0x01);
     write_vram(dut, 0x1b00, 0xf9);
@@ -460,9 +468,11 @@ int main(int argc, char **argv) {
     dut.reset = 1;
     tick(dut);
     dut.reset = 0;
-    write_register(dut, 1, 0x00);
+    write_register(dut, 1, 0x40);
     write_register(dut, 2, 0x0f);
     write_register(dut, 4, 0x02);
+    write_register(dut, 3, 0x80);
+    write_vram(dut, 0x2000, 0x00); // explicitly transparent background color group
     write_register(dut, 5, 0x36);
     write_register(dut, 6, 0x01);
     for (unsigned sprite = 0; sprite != 4; ++sprite) {

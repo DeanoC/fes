@@ -31,7 +31,7 @@ class SG1000DiagnosticTests(unittest.TestCase):
             self.assertIn(b"\xdb\xdc", raw)
             self.assertIn(b"\xdb\xdd", raw)
             self.assertEqual(hashlib.sha256(raw).hexdigest(),
-                             "2491ddeea7f768b5ed0febf47233cc58776cbc348f0eb8a2ef3b9e1f32e8ecd8")
+                             "a2fcdc68fd4b2413a665ae4c9258a7c0fcd7e68cf7c52c4c434a2df0ceb89dfc")
 
             pixels = preview.read_bytes().split(b"\n", 3)[3]
             for port_row, value in ((4, 0xff), (8, 0xff)):
@@ -39,7 +39,7 @@ class SG1000DiagnosticTests(unittest.TestCase):
                     x = 385 + (4 + 3 * bit) * 16 + 8
                     y = 168 + port_row * 16 + 8
                     offset = (y * 1280 + x) * 3
-                    self.assertEqual(pixels[offset:offset + 3], b"\x00\xff\x40",
+                    self.assertEqual(pixels[offset:offset + 3], b"\x21\xc8\x42",
                                      (port_row, bit, value))
 
             result = self.generate(output, "--controllers", "--matrix", "0xffffffffff",
@@ -58,10 +58,10 @@ class SG1000DiagnosticTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             pixels = preview.read_bytes().split(b"\n", 3)[3]
             for port_row, bit, expected in (
-                (4, 0, b"\xff\x40\x00"),
-                (8, 1, b"\xff\x40\x00"),
-                (4, 1, b"\x00\xff\x40"),
-                (8, 0, b"\x00\xff\x40"),
+                (4, 0, b"\xd4\x52\x4d"),
+                (8, 1, b"\xd4\x52\x4d"),
+                (4, 1, b"\x21\xc8\x42"),
+                (8, 0, b"\x21\xc8\x42"),
             ):
                 x = 385 + (4 + 3 * bit) * 16 + 8
                 y = 168 + port_row * 16 + 8
