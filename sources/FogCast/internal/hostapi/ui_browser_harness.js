@@ -1600,13 +1600,24 @@ class BrowserHarness {
 
   configure(plan) {
     if (!this.page) throw new Error('browser harness is not ready');
-    this.fixtureServer.configure(plan);
-    this.page.resetEvidence();
+    // Do not expose the next fixture queue to the retiring document.
+    this.nextPlan = plan;
   }
 
   async reload() {
     if (!this.page || !this.fixtureServer.origin) throw new Error('browser harness is not ready');
+    // Chrome can finish outgoing-document requests with only ExtraInfo events
+    // after navigation has begun. Those have no request URL to attribute to
+    // either document. Retire the old document and reset the Network domain
+    // while the page is inert, before opening the next evidence window.
+    await this.page.navigate('about:blank');
+    await this.page.connection.send('Network.disable', {}, this.page.sessionId);
+    if (this.nextPlan !== undefined) {
+      this.fixtureServer.configure(this.nextPlan);
+      this.nextPlan = undefined;
+    }
     this.page.resetEvidence();
+    await this.page.connection.send('Network.enable', {}, this.page.sessionId);
     await this.page.navigate(`${this.fixtureServer.origin}/`);
   }
 

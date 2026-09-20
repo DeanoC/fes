@@ -1079,6 +1079,12 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
     await t.test('stale presentation response cannot replace a newer selection or block a later launch', async () => {
       await runScenario(harness, 'stale-presentation', basePlan({
         presentations: {
+          [SONIC_ID]: [
+            fixture('presentation-ready.json'),
+            fixture('presentation-ready.json'),
+            fixture('presentation-ready.json', 200, { hold: true }),
+            fixture('presentation-ready.json'),
+          ],
           [UNKNOWN_ID]: [
             fixture('presentation-no-match.json', 200, { hold: true }),
             fixture('presentation-no-match.json'),
@@ -1086,10 +1092,14 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         },
       }), async () => {
         await selectSonic(harness);
-        await harness.waitForRequest({
-          method: 'GET',
-          path: `/api/v1/presentation/games/${SONIC_ID}`,
-        });
+        // Both the initial selection and detail refresh request presentation.
+        // Claim both so the later waiter observes the replacement selection.
+        for (let i = 0; i < 2; i++) {
+          await harness.waitForRequest({
+            method: 'GET',
+            path: `/api/v1/presentation/games/${SONIC_ID}`,
+          });
+        }
         await harness.click('#catalog-list .game-card:nth-child(2)');
         await harness.waitForDetailHeading('Unknown <Game> detail');
         const oldPresentation = await harness.waitForRequest({
@@ -1100,10 +1110,11 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         let snapshot = await harness.waitForText('#detail-content', 'metadata_fallback');
         assert.equal(snapshot.detailHeading, 'Unknown <Game> detail');
         await harness.click('#catalog-list .game-card');
-        await harness.waitForRequest({
+        const replacementPresentation = await harness.waitForRequest({
           method: 'GET',
           path: `/api/v1/presentation/games/${SONIC_ID}`,
         });
+        await harness.release(replacementPresentation.id);
         snapshot = await harness.waitForText('#detail-content', 'Host-local presentation metadata for Sonic.');
         assert.equal(snapshot.detailHeading, 'Sonic the Hedgehog (detail refresh)');
         await harness.release(oldPresentation.id);
@@ -1340,6 +1351,7 @@ test('FogCast production UI Chrome/CDP integration', { timeout: 120_000 }, async
         sessions: [fixture('session-active.json'), fixture('session-active.json')],
         stops: [fixture('stop-error.json', 500)],
       }), async () => {
+        await harness.waitForText('#session-status', 'Active session');
         await harness.click('#stop-session');
         const snapshot = await harness.waitForText('#session-status', 'could not be confirmed');
         assert.equal(snapshot.sessionStopHidden, false);
