@@ -34,8 +34,9 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
   is held. Host simulations keep the parameter at its RTL default 0 and use the
   open `JP 0x8000` shim. The default package still ships that shim; household
   firmware binds at launch. `--bios` remains a separate private build-time
-  embed. Firmware mailbox behavior is software-tested; hardware acceptance is
-  pending.
+  embed. Firmware mailbox behavior is software-tested; exact-package household
+  BIOS, Frogger audio/input and lifecycle hardware evidence is recorded in
+  [the FES diagnostic](../../docs/validation/2026-09-21-playable-audio.md).
 - Shared controller ports: Coleco uses the composable application endpoint
   with two native digital gamepads and two twelve-key keypads.
   `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.

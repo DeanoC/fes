@@ -54,6 +54,11 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [Playable Catch and Coleco audio](validation/2026-09-21-playable-audio.md):
+  exact-package normal-library video, audio, input, household BIOS readiness,
+  switching and host-restart diagnostics with original-kit restoration.
+  ZX81 expansion and appliance release acceptance remain separate.
+
 - [Consolidated development](validation/2026-09-20-consolidated-development.md):
   preserved histories, contributor/cache rehearsals, three FPGA packages,
   reproducible native image and exact Coleco/software diagnostics with restoration.
