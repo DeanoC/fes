@@ -1,9 +1,15 @@
 # Catalog core media
 
-Schema 8 stores immutable media bytes in SQLite, addressed by lowercase SHA-256.
-The public comparable values expose IDs and metadata, never filesystem paths:
+Schema 9 stores immutable media bytes in SQLite, addressed by lowercase SHA-256,
+and adds a household firmware slot that points at those objects. The public
+comparable values expose IDs and metadata, never filesystem paths:
 
-- CoreEntry adds MediaID and MediaRole, both omitted from JSON when empty.
+- CoreEntry adds MediaID and MediaRole, both omitted from JSON when empty, and
+  optional FirmwareRequired for titles that cannot become Ready without
+  household firmware (Coleco Frogger). BIOS-free diagnostics omit the flag.
+- CoreFirmware is one household slot (`firmware`) whose MediaID is a core-media
+  digest. Coleco BIOS must be exactly 8192 bytes. Clearing the slot deletes the
+  pointer, not the stored object. No BIOS/ROM bytes are stored in git.
 - CoreMedia contains MediaID and Size.
 - MaxCoreMediaBytes is protocol.MaxContentBytes (32 MiB), independent of target
   development-media limits. CoreMediaChunkBytes is 64 KiB.

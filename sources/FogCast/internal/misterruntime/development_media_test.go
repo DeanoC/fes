@@ -17,11 +17,18 @@ import (
 
 type mediaControl struct {
 	packageControl
-	loadMedia func(context.Context, string) (misterruntime.Protocol2Response, error)
+	loadMedia    func(context.Context, string) (misterruntime.Protocol2Response, error)
+	loadFirmware func(context.Context, string) (misterruntime.Protocol2Response, error)
 }
 
 func (c *mediaControl) LoadMedia(ctx context.Context, path string) (misterruntime.Protocol2Response, error) {
 	return c.loadMedia(ctx, path)
+}
+func (c *mediaControl) LoadFirmware(ctx context.Context, path string) (misterruntime.Protocol2Response, error) {
+	if c.loadFirmware == nil {
+		panic("load_firmware dispatched")
+	}
+	return c.loadFirmware(ctx, path)
 }
 func mediaResponse() misterruntime.Protocol2Response {
 	gen := uint64(9)
@@ -135,5 +142,45 @@ func TestDevelopmentMediaRechecksRuntimeGenerationAfterStaging(t *testing.T) {
 	err := runtime.LoadDevelopmentMedia(context.Background(), 1, strings.NewReader("x"), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
 	if err == nil || err.Phase != "admission" {
 		t.Fatalf("generation changed: %v", err)
+	}
+}
+
+func firmwareResponse() misterruntime.Protocol2Response {
+	response := mediaResponse()
+	response.ActivePackage.Descriptor.ABI.ID = "fes.application"
+	response.Capabilities.ActiveInterfaces = []misterruntime.Protocol2Interface{
+		{ID: "fes.media.blob", Major: 1},
+		{ID: "fes.firmware.blob", Major: 1},
+	}
+	return response
+}
+
+func TestDevelopmentFirmwareStagesExactBIOSAndDoesNotReleaseViaLoadMedia(t *testing.T) {
+	response := firmwareResponse()
+	calls := 0
+	control := &mediaControl{packageControl: packageControl{status2: &response}}
+	payload := bytes.Repeat([]byte{0x55, 0xaa}, int(protocol.FirmwareBytes/2))
+	control.loadMedia = func(context.Context, string) (misterruntime.Protocol2Response, error) {
+		t.Fatal("firmware used load_media")
+		return response, nil
+	}
+	control.loadFirmware = func(_ context.Context, path string) (misterruntime.Protocol2Response, error) {
+		calls++
+		data, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(data, payload) {
+			t.Fatalf("firmware bytes: %v", err)
+		}
+		return response, nil
+	}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9, Role: protocol.FirmwareRole}
+	if err := runtime.LoadDevelopmentMedia(context.Background(), protocol.FirmwareBytes, bytes.NewReader(payload), binding); err != nil {
+		t.Fatalf("firmware load: %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("firmware calls=%d", calls)
+	}
+	if err := runtime.LoadDevelopmentMedia(context.Background(), 8, bytes.NewReader(payload[:8]), binding); err == nil {
+		t.Fatal("short firmware accepted")
 	}
 }

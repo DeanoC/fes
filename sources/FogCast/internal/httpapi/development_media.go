@@ -20,7 +20,12 @@ func developmentMediaHandler(controller DevelopmentController) http.Handler {
 		if binding.Stream {
 			limit = protocol.MaxDeclaredMediaStreamBytes
 		}
-		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > limit {
+		if r.URL.Path == "/v1/development/firmware" {
+			binding.Role = protocol.FirmwareRole
+			limit = protocol.FirmwareBytes
+		}
+		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || r.ContentLength < 1 || r.ContentLength > limit ||
+			(binding.Role == protocol.FirmwareRole && r.ContentLength != protocol.FirmwareBytes) {
 			writeBadRequest(w, r, protocol.DevelopmentMediaRequestError().Message)
 			return
 		}

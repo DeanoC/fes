@@ -31,7 +31,11 @@ module coleco_machine (
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
-    output wire        cpu_halt_n
+    output wire        cpu_halt_n,
+    input  wire        firmware_we_a = 1'b0,
+    input  wire        firmware_we_b = 1'b0,
+    input  wire [12:0] firmware_addr = 13'd0,
+    input  wire [15:0] firmware_data = 16'h0000
 );
     localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
@@ -293,13 +297,13 @@ module coleco_machine (
         .MEM_INIT_FILE(RESET_ROM_INIT)
     ) reset_rom_block (
         .clock(clk_sys),
-        .address_a(cpu_addr[12:0]),
-        .data_a(8'h00),
-        .wren_a(1'b0),
+        .address_a(firmware_we_a ? firmware_addr : cpu_addr[12:0]),
+        .data_a(firmware_data[7:0]),
+        .wren_a(firmware_we_a),
         .q_a(reset_rom_read),
-        .address_b(peek_addr[12:0]),
-        .data_b(8'h00),
-        .wren_b(1'b0),
+        .address_b(firmware_we_b ? (firmware_addr + 13'd1) : peek_addr[12:0]),
+        .data_b(firmware_data[15:8]),
+        .wren_b(firmware_we_b),
         .q_b(reset_rom_peek)
     );
 

@@ -170,6 +170,18 @@ constants:
     value: 255
   - name: FesApplicationControllerKeypadMask
     value: 4095
+  - name: FesApplicationOpcodeFirmwareBegin
+    value: 15
+  - name: FesApplicationOpcodeFirmwareData
+    value: 16
+  - name: FesApplicationOpcodeFirmwareCommit
+    value: 17
+  - name: FesApplicationFirmwareBytes
+    value: 8192
+  - name: FesApplicationFirmwareDataPairIndex
+    value: 0
+  - name: FesApplicationFirmwareDataTailIndex
+    value: 1
 interfaces:
   - id: fes.gamepad
     major: 1
@@ -199,3 +211,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 6
+  - id: fes.firmware.blob
+    major: 1
+    minor: 0
+    capability_bit: 7

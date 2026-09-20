@@ -12,6 +12,30 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
+func (c *Client) LoadFirmware(ctx context.Context, path string) (Protocol2Response, error) {
+	if !validRuntimePath(path) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	line, _, err := c.callRawTracked(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+		Path      string `json:"path"`
+	}{2, "load_firmware", path})
+	if err != nil {
+		return Protocol2Response{}, err
+	}
+	response, err := decodeProtocol2Response(line)
+	if err == nil && (response.InspectedPackage != nil || response.CoreData != nil) {
+		err = errInvalidRuntimeResponse
+	}
+	return response, err
+}
+
+type protocol2FirmwareControl interface {
+	protocol2StatusControl
+	LoadFirmware(context.Context, string) (Protocol2Response, error)
+}
+
 func (c *Client) LoadMedia(ctx context.Context, path string) (Protocol2Response, error) {
 	if !validRuntimePath(path) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
@@ -80,6 +104,9 @@ func (r *Runtime) LoadDevelopmentMedia(ctx context.Context, size int64, body io.
 func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int64, body io.Reader, b protocol.DevelopmentMediaBinding) (apiErr *protocol.APIError) {
 	if !b.Valid() {
 		return protocol.DevelopmentMediaRequestError()
+	}
+	if b.Role == protocol.FirmwareRole && size != protocol.FirmwareBytes {
+		return protocol.DevelopmentFirmwareRequestError()
 	}
 	if b.Stream {
 		if size < 1 || size > protocol.MaxDeclaredMediaStreamBytes || body == nil {
@@ -160,7 +187,17 @@ func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int
 	}
 	var response Protocol2Response
 	operation := "load_media"
-	if b.Stream {
+	if b.Role == protocol.FirmwareRole {
+		firmware, ok := r.control.(protocol2FirmwareControl)
+		if !ok {
+			return unsupportedOperationError()
+		}
+		if size != protocol.FirmwareBytes {
+			return protocol.DevelopmentFirmwareRequestError()
+		}
+		operation = "load_firmware"
+		response, err = firmware.LoadFirmware(ctx, path)
+	} else if b.Stream {
 		var cancel context.CancelFunc
 		// The daemon media worker owns up to 120s; leave time for its reply
 		// and recovery before releasing this adapter's lifecycle admission.
@@ -180,6 +217,9 @@ func (r *Runtime) LoadDevelopmentMediaOwned(ctx, owner context.Context, size int
 	}
 	if !mediaResponseMatches(response, b) {
 		return unavailableError()
+	}
+	if b.Role == protocol.FirmwareRole {
+		return nil
 	}
 	for _, contract := range response.Capabilities.ActiveInterfaces {
 		if contract.ID == "fes.keyboard" && contract.Major == 1 && contract.Minor == 0 {

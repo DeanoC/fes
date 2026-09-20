@@ -193,6 +193,7 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         f'set_global_assignment -name SEARCH_PATH "{rel}/cores/fes-common/generated"',
         'set_global_assignment -name VERILOG_MACRO "QUARTUS=1"',
         f'set_global_assignment -name VERILOG_MACRO "FES_COLECO_BUILD_ID=128\'h{build_id}"',
+        "set_parameter -name ENABLE_FIRMWARE 1 -entity coleco_application_gp",
         assignment("SDC_FILE", SDC),
     ]
     for source in VERILOG_SOURCES:
@@ -320,6 +321,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.firmware.blob", "major": 1, "minor": 0, "required": False},
         ],
         "build": {
             "id": build_identity(record),

@@ -32,7 +32,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports"}
+	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob"}
 	if len(app.Interfaces) != len(want) {
 		t.Fatal("interface count")
 	}
@@ -41,7 +41,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			t.Fatalf("interface %d: %#v", i, iface)
 		}
 	}
-	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12, "OpcodeControllerButtons": 13, "OpcodeControllerKeypad": 14, "ControllerPortCount": 2, "ControllerButtonMask": 255, "ControllerKeypadMask": 4095} {
+	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12, "OpcodeControllerButtons": 13, "OpcodeControllerKeypad": 14, "ControllerPortCount": 2, "ControllerButtonMask": 255, "ControllerKeypadMask": 4095, "OpcodeFirmwareBegin": 15, "OpcodeFirmwareData": 16, "OpcodeFirmwareCommit": 17, "FirmwareBytes": 8192} {
 		got, ok := app.Constant("FesApplication" + name)
 		if !ok || got != want {
 			t.Fatalf("%s=%d", name, got)

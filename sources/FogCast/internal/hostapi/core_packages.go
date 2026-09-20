@@ -28,6 +28,7 @@ var corePackageIDRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	registerCoreMediaLibrary(mux, service)
+	registerCoreFirmwareLibrary(mux, service)
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(coreLibraryService)
@@ -106,10 +107,11 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	}))
 	mux.HandleFunc("POST /api/v1/library/core-entries", withService(func(w http.ResponseWriter, r *http.Request, s coreLibraryService) {
 		var request struct {
-			Title     string `json:"title"`
-			PackageID string `json:"package_id"`
-			MediaRole string `json:"media_role"`
-			MediaID   string `json:"media_id"`
+			Title             string `json:"title"`
+			PackageID         string `json:"package_id"`
+			MediaRole         string `json:"media_role"`
+			MediaID           string `json:"media_id"`
+			FirmwareRequired  bool   `json:"firmware_required"`
 		}
 		if decodeSingleJSON(w, r, &request) != nil {
 			return
@@ -124,7 +126,14 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 		}
 		var value catalog.CoreEntry
 		var err error
-		if request.MediaID != "" {
+		if request.FirmwareRequired {
+			firmware, ok := service.(coreFirmwareLibraryService)
+			if !ok {
+				writeError(w, 501, "UNSUPPORTED_OPERATION", "core firmware library is unavailable")
+				return
+			}
+			value, err = firmware.CreateCoreEntryWithFirmware(r.Context(), request.Title, request.PackageID, request.MediaRole, request.MediaID, true)
+		} else if request.MediaID != "" {
 			media, ok := service.(coreMediaLibraryService)
 			if !ok {
 				writeError(w, 501, "UNSUPPORTED_OPERATION", "core media library is unavailable")

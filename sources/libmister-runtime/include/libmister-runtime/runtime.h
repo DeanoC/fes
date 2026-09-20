@@ -400,6 +400,11 @@ public:
 		return {ErrorCode::unsupported_interface,
 			"computer media is unavailable", "request"};
 	}
+	virtual Error LoadComputerFirmware(const std::string&)
+	{
+		return {ErrorCode::unsupported_interface,
+			"firmware slot is unavailable", "request"};
+	}
 	virtual Error LoadComputerMediaStream(const std::string&, std::uint32_t)
 	{
 		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
@@ -429,6 +434,7 @@ public:
 	Error SetController(const std::string& package_id, std::uint64_t generation,
 		std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad);
 	Error LoadComputerMedia(const std::string& path);
+	Error LoadComputerFirmware(const std::string& path);
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);

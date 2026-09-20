@@ -1763,6 +1763,8 @@ func launchBlockReason(game hostclient.Game) string {
 		return "This ROM can't be read."
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
+	case hostclient.LaunchMissingFirmware:
+		return "Coleco BIOS required. Import household firmware before Play."
 	case "":
 		return ""
 	default:

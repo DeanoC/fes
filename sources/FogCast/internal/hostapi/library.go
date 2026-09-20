@@ -307,6 +307,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 			applyROMCached(&result.Games[index], page.Games[index], presence, romKnown)
 		}
 	}
+	enrichCompositions(r.Context(), service, result.Games)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -627,7 +628,10 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) g
 	if covers, ok := service.(coverService); ok {
 		result.Cover = covers.CoverHandle(ctx, result.ID)
 	}
-	return enrichLaunchable(service, result)
+	result = enrichLaunchable(service, result)
+	games := []gameResult{result}
+	enrichCompositions(ctx, service, games)
+	return games[0]
 }
 
 type platformLaunchService interface {
@@ -641,6 +645,44 @@ func enrichLaunchable(service Service, result gameResult) gameResult {
 	}
 	result.Launchable = catalog.Launchable(result.System)
 	return result
+}
+
+type compositionService interface {
+	CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error)
+}
+
+func enrichCompositions(ctx context.Context, service Service, games []gameResult) {
+	composer, ok := service.(compositionService)
+	if !ok || len(games) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(games))
+	for _, game := range games {
+		ids = append(ids, game.ID)
+		for _, variant := range game.Variants {
+			ids = append(ids, variant.ID)
+		}
+	}
+	comps, err := composer.CoreCompositions(ctx, ids)
+	if err != nil || len(comps) == 0 {
+		return
+	}
+	applyComposition := func(game *gameResult) {
+		comp, ok := comps[game.ID]
+		if !ok {
+			return
+		}
+		game.FirmwareRequired = comp.FirmwareRequired
+		if comp.FirmwareRequired {
+			game.FirmwareReady = comp.FirmwareReady
+		}
+	}
+	for i := range games {
+		applyComposition(&games[i])
+		for j := range games[i].Variants {
+			applyComposition(&games[i].Variants[j])
+		}
+	}
 }
 
 type libraryCacheService interface {

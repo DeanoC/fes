@@ -474,10 +474,18 @@ void TestPersistenceRequestsAndResponseFixtures()
 		&request)
 			   .ok());
 	assert(request.operation == Operation::load_media && request.media_path == "/tmp/a.p");
+	assert(Parse(R"({"protocol":2,"operation":"load_firmware","path":"/tmp/bios.bin"})",
+		&request)
+			   .ok());
+	assert(request.operation == Operation::load_firmware &&
+		request.media_path == "/tmp/bios.bin");
 	assert(!Parse(R"({"protocol":2,"operation":"set_keyboard","matrix":1099511627776})",
 		&request)
 				.ok());
 	assert(!Parse(R"({"protocol":2,"operation":"load_media","path":"a.p"})", &request).ok());
+	assert(!Parse(R"({"protocol":2,"operation":"load_firmware","path":"bios.bin"})",
+		&request)
+				.ok());
 	for (const auto* invalid : {"-1", "3", "true", "\"1\"", "1.0", "null"})
 		assert(!Parse(update + invalid + "}", &request).ok());
 	assert(!Parse(

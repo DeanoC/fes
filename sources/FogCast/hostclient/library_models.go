@@ -24,6 +24,8 @@ type Game struct {
 	Collections  []string `json:"collections,omitempty"`
 	Series       string   `json:"series,omitempty"`
 	Variants     []Game   `json:"variants,omitempty"`
+	FirmwareRequired bool `json:"firmware_required,omitempty"`
+	FirmwareReady    bool `json:"firmware_ready,omitempty"`
 }
 
 // LaunchBlock is why a catalog row is ineligible for POST /api/v1/session/launch.
@@ -31,10 +33,11 @@ type Game struct {
 type LaunchBlock string
 
 const (
-	LaunchBrowseOnly    LaunchBlock = "browse_only"
-	LaunchSourceOffline LaunchBlock = "source_offline"
-	LaunchUnreadable    LaunchBlock = "unreadable"
-	LaunchNotReady      LaunchBlock = "not_ready"
+	LaunchBrowseOnly       LaunchBlock = "browse_only"
+	LaunchSourceOffline    LaunchBlock = "source_offline"
+	LaunchUnreadable       LaunchBlock = "unreadable"
+	LaunchNotReady         LaunchBlock = "not_ready"
+	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
@@ -51,6 +54,9 @@ func (g Game) LaunchBlock() LaunchBlock {
 	}
 	if g.State != "available" {
 		return LaunchNotReady
+	}
+	if g.FirmwareRequired && !g.FirmwareReady {
+		return LaunchMissingFirmware
 	}
 	return ""
 }

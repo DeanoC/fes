@@ -63,6 +63,8 @@ type gameResult struct {
 	GroupKey        string              `json:"group_key,omitempty"`
 	VariantCount    int                 `json:"variant_count,omitempty"`
 	Variants        []gameResult        `json:"variants,omitempty"`
+	FirmwareRequired bool               `json:"firmware_required,omitempty"`
+	FirmwareReady    bool               `json:"firmware_ready,omitempty"`
 }
 
 type gamesResult struct {

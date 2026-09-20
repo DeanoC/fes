@@ -32,12 +32,31 @@ var (
 // CoreEntry binds one stable catalog game identity and core ID to an explicit
 // installed package selection.
 type CoreEntry struct {
-	GameID    string `json:"game_id"`
-	Title     string `json:"title"`
-	CoreID    string `json:"core_id"`
-	PackageID string `json:"package_id"`
-	MediaID   string `json:"media_id,omitempty"`
-	MediaRole string `json:"media_role,omitempty"`
+	GameID           string `json:"game_id"`
+	Title            string `json:"title"`
+	CoreID           string `json:"core_id"`
+	PackageID        string `json:"package_id"`
+	MediaID          string `json:"media_id,omitempty"`
+	MediaRole        string `json:"media_role,omitempty"`
+	FirmwareRequired bool   `json:"firmware_required,omitempty"`
+}
+
+const coreEntrySelect = `SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id, e.firmware_required
+		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id`
+
+func scanCoreEntry(scan func(...any) error) (CoreEntry, error) {
+	var entry CoreEntry
+	var firmware int
+	err := scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID, &firmware)
+	entry.FirmwareRequired = firmware != 0
+	return entry, err
+}
+
+func firmwareRequiredInt(required bool) int {
+	if required {
+		return 1
+	}
+	return 0
 }
 
 // CreateCoreEntry creates a durable title for coreID without media.
@@ -47,6 +66,15 @@ func (s *Store) CreateCoreEntry(ctx context.Context, title, coreID, packageID st
 
 // CreateCoreMediaEntry atomically creates a title with an explicit media selection.
 func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, false)
+}
+
+// CreateFirmwareRequiredEntry creates a title that cannot become Ready without household firmware.
+func (s *Store) CreateFirmwareRequiredEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string) (CoreEntry, error) {
+	return s.createCoreEntry(ctx, title, coreID, packageID, mediaRole, mediaID, true)
+}
+
+func (s *Store) createCoreEntry(ctx context.Context, title, coreID, packageID, mediaRole, mediaID string, firmwareRequired bool) (CoreEntry, error) {
 	title = strings.TrimSpace(title)
 	if err := validateCoreEntry(title, coreID, packageID); err != nil {
 		return CoreEntry{}, err
@@ -59,7 +87,7 @@ func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, package
 	// rows retain their stored IDs; the core/title query below finds duplicates
 	// created by either identity scheme.
 	gameID := GameID(CorePlatform, corePackageLibraryID, coreID+"\x00"+title, title)
-	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID}
+	entry := CoreEntry{GameID: gameID, Title: title, CoreID: coreID, PackageID: packageID, MediaRole: mediaRole, MediaID: mediaID, FirmwareRequired: firmwareRequired}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return CoreEntry{}, fmt.Errorf("begin core entry creation: %w", err)
@@ -93,7 +121,7 @@ func (s *Store) CreateCoreMediaEntry(ctx context.Context, title, coreID, package
 	); err != nil {
 		return CoreEntry{}, fmt.Errorf("insert core package game: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO core_entries(game_id, core_id, package_id, media_role, media_id) VALUES (?, ?, ?, ?, ?)`, gameID, coreID, packageID, mediaRole, mediaID); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO core_entries(game_id, core_id, package_id, media_role, media_id, firmware_required) VALUES (?, ?, ?, ?, ?, ?)`, gameID, coreID, packageID, mediaRole, mediaID, firmwareRequiredInt(firmwareRequired)); err != nil {
 		return CoreEntry{}, fmt.Errorf("insert core entry: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -113,12 +141,7 @@ func (s *Store) SelectCoreEntry(ctx context.Context, gameID, coreID, expectedID,
 		return CoreEntry{}, fmt.Errorf("begin core entry selection: %w", err)
 	}
 	defer tx.Rollback()
-	var entry CoreEntry
-	err = tx.QueryRowContext(ctx, `
-		SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id
-		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id
-		WHERE e.game_id = ?`, gameID,
-	).Scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID)
+	entry, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CoreEntry{}, ErrCoreEntryNotFound
 	}
@@ -150,12 +173,7 @@ func (s *Store) SelectCoreEntry(ctx context.Context, gameID, coreID, expectedID,
 }
 
 func (s *Store) CoreEntry(ctx context.Context, gameID string) (CoreEntry, error) {
-	var entry CoreEntry
-	err := s.db.QueryRowContext(ctx, `
-		SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id
-		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id
-		WHERE e.game_id = ?`, gameID,
-	).Scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID)
+	entry, err := scanCoreEntry(s.db.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CoreEntry{}, ErrCoreEntryNotFound
 	}
@@ -166,18 +184,15 @@ func (s *Store) CoreEntry(ctx context.Context, gameID string) (CoreEntry, error)
 }
 
 func (s *Store) CoreEntries(ctx context.Context) ([]CoreEntry, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id
-		FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id
-		ORDER BY e.game_id`)
+	rows, err := s.db.QueryContext(ctx, coreEntrySelect+` ORDER BY e.game_id`)
 	if err != nil {
 		return nil, fmt.Errorf("list core entries: %w", err)
 	}
 	defer rows.Close()
 	entries := make([]CoreEntry, 0)
 	for rows.Next() {
-		var entry CoreEntry
-		if err := rows.Scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID); err != nil {
+		entry, err := scanCoreEntry(rows.Scan)
+		if err != nil {
 			return nil, fmt.Errorf("read core entry: %w", err)
 		}
 		entries = append(entries, entry)

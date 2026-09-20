@@ -1,8 +1,8 @@
 # Launch composition
 
-**Status:** proposed (Phase 0). This is the durable model for how FES
-launches a described core. It is not a claim that firmware slots, expansion
-linking, or mid-session media change are implemented.
+**Status:** Phase 0 model is current. Phase 1 (Coleco firmware slot + Ready
+gate) is implemented in software on the existing library session path. It is
+not a kit HIL or hardware-acceptance claim.
 
 **Related:**
 
@@ -115,9 +115,11 @@ Present tense, current FES `sources/FogCast` and the ordered package set:
   object (`role` + digest). See
   [`core-package-library.md`](core-package-library.md).
 - `protocol.DeclaredCoreMediaCapabilities` projects supported **media**
-  transports from exact ABI and interface versions. The only implemented
-  role is `blob`. Optional declarations still need active runtime support
-  at launch. Unknown versions expose no roles.
+  transports from exact ABI and interface versions. The implemented media
+  role remains `blob`. `DeclaredFirmwareCapabilities` projects the optional
+  Coleco firmware slot from exact `fes.firmware.blob` 1.0. Unknown versions
+  expose no roles. Optional declarations still need active runtime support
+  at launch.
 - `fes.application` 1.0 packages that require blob media already reject a
   missing selection **before** package activation. Legacy
   `fes.simple-computer` packages may still launch package-only (ZX81 BASIC,
@@ -127,9 +129,27 @@ Present tense, current FES `sources/FogCast` and the ordered package set:
   `fes.coleco.private-bios` to an ignored private store. It is not loaded
   through `load_media` / `load_media_stream`.
 - Catalog eligibility (`hostclient.Game.LaunchEligible`) requires available
-  state and explicit `launchable` and `root_online`. It does not know about
-  firmware or expansions. Rooms treat **Ready** as “can launch through the
-  current setup”; that predicate is still package-and-platform shaped.
+  state, explicit `launchable` and `root_online`, and composition readiness.
+  A title with `firmware_required` is ineligible until household firmware is
+  filled **and** the selected package declares `fes.firmware.blob` 1.0.
+  Rooms map that block to **Unavailable** (“Coleco BIOS required…”) with
+  action “Import Coleco BIOS.” Graphics I / graphics-i omit the title-level
+  flag and stay Ready on the same Coleco package.
+- Household firmware is one content-addressed `firmware` slot in catalog
+  schema 9 (`core_firmware` pointing at `core_media`). Import is ordinary
+  core-media; `GET`/`PUT /api/v1/library/firmware` and
+  `fogcast core-firmware-select` bind or clear the slot. No BIOS bytes are
+  stored in git. The factory image stays BIOS-free.
+- Library launch still posts `game_id` to `POST /api/v1/session/launch`.
+  When a title requires firmware, the host admits the household object
+  **before** package activation, programs the core, binds firmware
+  (`load_firmware`, reset held), then binds cartridge media (which releases).
+  Missing required firmware never reports `state: active`.
+- Coleco’s sealed `fes.application` 1.0 package may declare optional
+  `fes.firmware.blob` 1.0. The producer enables the mailbox firmware
+  overlay (`ENABLE_FIRMWARE=1`) for synthesis only. Sims of `top` keep the
+  default off so BIOS-free diagnostics stay on the open `JP 0x8000` shim.
+  The private `--bios` producer remains bring-up only.
 - Agent health is not session readiness. An idle menu is not launch
   readiness. Those existing gates stay.
 - The expansion linker already exists as a development compose:
@@ -277,16 +297,12 @@ This Phase 0 PR, and the model it sets, explicitly do **not**:
 
 ## Next integration step
 
-Phase 1 is a bounded follow-up, not this document:
+Phase 1 software is in this tree. Remaining Phase 1 kit work is separately
+authorized and is not claimed here: leased Coleco bind of household BIOS
+before reset, Frogger versus Graphics I on HDMI, no factory BIOS install.
 
-1. Extend the sealed descriptor / shared contract so Coleco can declare a
-   firmware slot (required for titles that need BIOS; omitted for
-   BIOS-free diagnostics).
-2. Store household firmware like core-media: content-addressed, no bytes
-   in git, no image rewrite.
-3. Gate rooms/catalog **Ready** on that fill.
-4. Bind firmware on the runtime before releasing reset, on the existing
-   package session path.
+Phase 2 is the next model slice: load-time CRAM link of optional carts,
+starting with ZX81 16K RAM on the proven nextpnr linker. Software tests
+and descriptor fixtures still come before any leased kit run.
 
-FES parent merges stay Deano’s. Software tests and descriptor fixtures
-come before any leased kit run.
+FES parent merges stay Deano’s.

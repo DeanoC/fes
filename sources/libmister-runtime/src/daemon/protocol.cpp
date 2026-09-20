@@ -608,6 +608,15 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.expected_generation = generation->type == json::Type::unsigned_integer ?
 				generation->unsigned_value : static_cast<std::uint64_t>(generation->integer_value);
 			parsed.media_size = static_cast<std::uint32_t>(size->integer_value);
+		} else if (operation->string_value == "load_firmware") {
+			const char* const fields[] = {"protocol", "operation", "path"};
+			if (!HasOnly(root, fields, 3, &error)) return error;
+			const std::string* path = nullptr;
+			if (!StringMember(root, "path", &path, &error)) return error;
+			if (!Path(*path))
+				return Invalid("path must be an absolute path of at most 4095 bytes");
+			parsed.operation = Operation::load_firmware;
+			parsed.media_path = *path;
 		} else if (operation->string_value == "load_media") {
 			const char* const fields[] = {"protocol", "operation", "path"};
 			if (!HasOnly(root, fields, 3, &error)) return error;

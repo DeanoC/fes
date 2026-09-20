@@ -21,6 +21,9 @@ func blockedGame(id, title, system string, block hostclient.LaunchBlock) hostcli
 		g.State = "invalid"
 	case hostclient.LaunchNotReady:
 		g.State = "pending"
+	case hostclient.LaunchMissingFirmware:
+		g.FirmwareRequired = true
+		g.FirmwareReady = false
 	}
 	return g
 }
@@ -94,6 +97,13 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			dest:    Destination{Kind: KindGame, Availability: AvailUnavailable, Matches: []hostclient.Game{blockedGame("x", "X", "snes", hostclient.LaunchBrowseOnly)}},
 			status:  "This platform is browse-only on this host.",
 			action:  "See why this title cannot play.",
+			confirm: ConfirmExplain,
+		},
+		{
+			name:    "frogger missing firmware",
+			dest:    Destination{Kind: KindGame, Availability: AvailUnavailable, Matches: []hostclient.Game{blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)}},
+			status:  "Coleco BIOS required. Import household firmware before Play.",
+			action:  "Import Coleco BIOS.",
 			confirm: ConfirmExplain,
 		},
 		{
@@ -207,5 +217,25 @@ func TestApplyEditionPreferenceSkipsReaskWhenSavedMatchExists(t *testing.T) {
 	}
 	if DestinationPreferenceKey(dest) != "super mario bros|nes" {
 		t.Fatalf("key %q", DestinationPreferenceKey(dest))
+	}
+}
+
+func TestClassifyColecoFirmwareReadiness(t *testing.T) {
+	t.Parallel()
+	graphics := readyGame("fpga-graphics-i", "Graphics I", "fpga")
+	frogger := readyGame("fpga-frogger", "Frogger", "fpga")
+	frogger.FirmwareRequired = true
+	state, matches := ClassifyGames([]hostclient.Game{graphics}, "Graphics I")
+	if state != AvailReady || len(matches) != 1 {
+		t.Fatalf("graphics-i: %s %+v", state, matches)
+	}
+	state, matches = ClassifyGames([]hostclient.Game{frogger}, "Frogger")
+	if state != AvailUnavailable || len(matches) != 1 || matches[0].LaunchBlock() != hostclient.LaunchMissingFirmware {
+		t.Fatalf("frogger without BIOS: %s %+v", state, matches)
+	}
+	frogger.FirmwareReady = true
+	state, matches = ClassifyGames([]hostclient.Game{frogger}, "Frogger")
+	if state != AvailReady || len(matches) != 1 {
+		t.Fatalf("frogger with BIOS: %s %+v", state, matches)
 	}
 }

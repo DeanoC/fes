@@ -36,6 +36,14 @@ type coreEntryCatalog interface {
 	CoreEntries(context.Context) ([]catalog.CoreEntry, error)
 }
 
+type coreFirmwareCatalog interface {
+	coreMediaCatalog
+	CreateFirmwareRequiredEntry(context.Context, string, string, string, string, string) (catalog.CoreEntry, error)
+	CoreFirmware(context.Context, string) (catalog.CoreFirmware, error)
+	SelectCoreFirmware(context.Context, string, string) (catalog.CoreFirmware, error)
+	HouseholdFirmwareFilled(context.Context) (bool, error)
+}
+
 type coreInspectionClient interface {
 	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, error)
 }
@@ -188,10 +196,13 @@ func (s *Service) CoreEntry(ctx context.Context, id string) (catalog.CoreEntry, 
 	return result, mapCoreEntryError(err)
 }
 func (s *Service) CreateCoreEntry(parent context.Context, title, id string) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id, "", "")
+	return s.writeCoreEntry(parent, "", title, "", id, "", "", false)
 }
 func (s *Service) CreateCoreMediaEntry(parent context.Context, title, id, role, mediaID string) (catalog.CoreEntry, error) {
-	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID)
+	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, false)
+}
+func (s *Service) CreateCoreEntryWithFirmware(parent context.Context, title, id, role, mediaID string, firmwareRequired bool) (catalog.CoreEntry, error) {
+	return s.writeCoreEntry(parent, "", title, "", id, role, mediaID, firmwareRequired)
 }
 func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id string) (catalog.CoreEntry, error) {
 	if protocol.ValidateGameID(gameID) != nil {
@@ -200,9 +211,9 @@ func (s *Service) SelectCoreEntry(parent context.Context, gameID, expected, id s
 	if !packageIDPattern.MatchString(expected) {
 		return catalog.CoreEntry{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
-	return s.writeCoreEntry(parent, gameID, "", expected, id, "", "")
+	return s.writeCoreEntry(parent, gameID, "", expected, id, "", "", false)
 }
-func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id, role, mediaID string) (catalog.CoreEntry, error) {
+func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected, id, role, mediaID string, firmwareRequired bool) (catalog.CoreEntry, error) {
 	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
@@ -252,7 +263,13 @@ func (s *Service) writeCoreEntry(parent context.Context, gameID, title, expected
 	}
 	var entry catalog.CoreEntry
 	if gameID == "" {
-		if role == "" && mediaID == "" {
+		if firmwareRequired {
+			if mediaStore, ok := s.catalog.(coreFirmwareCatalog); ok {
+				entry, err = mediaStore.CreateFirmwareRequiredEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID)
+			} else {
+				return catalog.CoreEntry{}, canonicalError(protocol.CodeUnsupportedOperation, nil)
+			}
+		} else if role == "" && mediaID == "" {
 			entry, err = store.CreateCoreEntry(ctx, title, check.Descriptor.Core.ID, id)
 		} else if mediaStore, ok := s.catalog.(coreMediaCatalog); ok {
 			entry, err = mediaStore.CreateCoreMediaEntry(ctx, title, check.Descriptor.Core.ID, id, role, mediaID)
@@ -293,9 +310,13 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	defer s.clearUnstartedSessionTarget()
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
+	var firmware *coreEntryMedia
 	defer func() {
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
+		}
+		if firmware != nil {
+			resultErr = errors.Join(resultErr, firmware.Close())
 		}
 	}()
 	status, err := s.loadCoreLocked(ctx, parent, func(ctx context.Context) (coreLoadSource, error) {
@@ -315,6 +336,26 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
 		}
+		if entry.FirmwareRequired {
+			if !protocol.DeclaresFirmwareSlot(inspection.Descriptor) {
+				return coreLoadSource{}, protocol.FirmwareAdmissionError("required firmware cannot be bound; package does not declare fes.firmware.blob 1.0")
+			}
+			store, ok := s.catalog.(coreFirmwareCatalog)
+			if !ok {
+				return coreLoadSource{}, protocol.FirmwareAdmissionError("")
+			}
+			slot, err := store.CoreFirmware(ctx, protocol.FirmwareRole)
+			if err != nil {
+				return coreLoadSource{}, mapCoreFirmwareError(err)
+			}
+			if slot.MediaID == "" {
+				return coreLoadSource{}, protocol.FirmwareAdmissionError("")
+			}
+			firmware, err = s.readCoreFirmware(ctx, inspection.Descriptor, slot.MediaID)
+			if err != nil {
+				return coreLoadSource{}, err
+			}
+		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -325,11 +366,26 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	if err != nil {
 		return response, err
 	}
-	if media == nil {
+	if firmware == nil && media == nil {
 		return response, nil
 	}
 	if status.CorePackage == nil {
 		return response, canonicalError(protocol.CodeInternal, nil)
+	}
+	if firmware != nil {
+		fwBinding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
+		fwBinding.Role = protocol.FirmwareRole
+		fwStatus, fwErr := s.loadDevelopmentMediaReaderLocked(ctx, firmware.size, firmware.ReadCloser, fwBinding)
+		fwErr = errors.Join(fwErr, firmware.Close())
+		firmware = nil
+		if fwErr != nil {
+			return s.recoverLibrarySlot(parent, fwStatus, fwErr)
+		}
+		status = fwStatus
+		response.Status = status
+	}
+	if media == nil {
+		return response, nil
 	}
 	binding := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 	binding.Stream = media.stream
@@ -345,30 +401,31 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	mediaErr = errors.Join(mediaErr, media.Close())
 	media = nil
 	if mediaErr != nil {
-		// Activation already mutated the target. Even if the caller canceled or
-		// exhausted its deadline, attempt one bounded cleanup while retaining
-		// lifecycle admission and the original target binding.
-		cleanupParent := context.WithoutCancel(parent)
-		cleanupCtx, cleanupCancel := serviceTimeout(cleanupParent, s.uploadTimeout)
-		stopStatus, stopErr := s.stopLocked(cleanupCtx, cleanupParent, s.uploadTimeout)
-		cleanupCancel()
-		if stopErr != nil {
-			recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "library core media cleanup is not confirmed", Phase: "recovery"}
-			s.executionMu.Lock()
-			s.packageRejection = recoveryErr
-			s.activeGameID, s.activeSystem = "", ""
-			s.activePackageID, s.activePackageGeneration = "", 0
-			s.executionMu.Unlock()
-			if stopStatus.State != "" {
-				mediaStatus = stopStatus
-			}
-			mediaStatus.LastError = recoveryErr
-			mediaStatus.GameID, mediaStatus.System = nil, nil
-			return protocol.CachedLaunchResponse{Status: mediaStatus}, errors.Join(recoveryErr, mediaErr, stopErr)
-		}
-		return protocol.CachedLaunchResponse{Status: stopStatus}, postMutationCoreMediaError(mediaErr)
+		return s.recoverLibrarySlot(parent, mediaStatus, mediaErr)
 	}
 	return protocol.CachedLaunchResponse{Status: mediaStatus}, nil
+}
+
+func (s *Service) recoverLibrarySlot(parent context.Context, mediaStatus protocol.Status, mediaErr error) (protocol.CachedLaunchResponse, error) {
+	cleanupParent := context.WithoutCancel(parent)
+	cleanupCtx, cleanupCancel := serviceTimeout(cleanupParent, s.uploadTimeout)
+	stopStatus, stopErr := s.stopLocked(cleanupCtx, cleanupParent, s.uploadTimeout)
+	cleanupCancel()
+	if stopErr != nil {
+		recoveryErr := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "library core media cleanup is not confirmed", Phase: "recovery"}
+		s.executionMu.Lock()
+		s.packageRejection = recoveryErr
+		s.activeGameID, s.activeSystem = "", ""
+		s.activePackageID, s.activePackageGeneration = "", 0
+		s.executionMu.Unlock()
+		if stopStatus.State != "" {
+			mediaStatus = stopStatus
+		}
+		mediaStatus.LastError = recoveryErr
+		mediaStatus.GameID, mediaStatus.System = nil, nil
+		return protocol.CachedLaunchResponse{Status: mediaStatus}, errors.Join(recoveryErr, mediaErr, stopErr)
+	}
+	return protocol.CachedLaunchResponse{Status: stopStatus}, postMutationCoreMediaError(mediaErr)
 }
 
 func postMutationCoreMediaError(err error) error {

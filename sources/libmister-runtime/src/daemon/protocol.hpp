@@ -21,6 +21,7 @@ enum class Operation {
 	set_keyboard,
 	set_controller,
 	load_media,
+	load_firmware,
 	load_media_stream,
 	load_development_rbf,
 	stop,

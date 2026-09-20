@@ -320,11 +320,7 @@ func (s *Store) SelectCoreEntryMedia(ctx context.Context, gameID, expectedPackag
 		return CoreEntry{}, fmt.Errorf("begin core entry media selection: %w", err)
 	}
 	defer tx.Rollback()
-	var entry CoreEntry
-	err = tx.QueryRowContext(ctx, `
-  SELECT e.game_id, g.title, e.core_id, e.package_id, e.media_role, e.media_id
-  FROM core_entries AS e JOIN games AS g ON g.game_id = e.game_id WHERE e.game_id = ?`, gameID).
-		Scan(&entry.GameID, &entry.Title, &entry.CoreID, &entry.PackageID, &entry.MediaRole, &entry.MediaID)
+	entry, err := scanCoreEntry(tx.QueryRowContext(ctx, coreEntrySelect+` WHERE e.game_id = ?`, gameID).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
 		return CoreEntry{}, ErrCoreEntryNotFound
 	}

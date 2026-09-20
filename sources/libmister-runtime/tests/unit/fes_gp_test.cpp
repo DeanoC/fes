@@ -1232,6 +1232,62 @@ void TestControllerPartialDeliveryNeverRetries()
 	}
 }
 
+void TestFirmwareLoadHoldsResetUntilMediaRelease()
+{
+	StreamFixture inactive;
+	inactive.descriptor.abi = {FesApplicationABIID, 1, 0};
+	inactive.descriptor.interfaces = {
+		{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+		{FesApplicationInterfaceMediaBlobID, 1, 0, true},
+	};
+	assert(inactive.Identify(1, 32768, 512,
+		FesApplicationCapabilityVideoFixed720p60 |
+			FesApplicationCapabilityMediaBlob)
+			.ok());
+	assert(inactive.driver.LoadFirmware(
+		std::vector<std::uint8_t>(FesApplicationFirmwareBytes, 0x55), 1000000)
+			   .code == mister::ErrorCode::unsupported_interface);
+
+	StreamFixture f;
+	f.descriptor.abi = {FesApplicationABIID, 1, 0};
+	f.descriptor.interfaces = {
+		{FesApplicationInterfaceVideoFixed720p60ID, 1, 0, true},
+		{FesApplicationInterfaceMediaBlobID, 1, 0, true},
+		{FesApplicationInterfaceFirmwareBlobID, 1, 0, false},
+	};
+	const std::uint16_t caps = FesApplicationCapabilityVideoFixed720p60 |
+		FesApplicationCapabilityMediaBlob | FesApplicationCapabilityFirmwareBlob;
+	assert(f.Identify(1, 32768, 512, caps).ok());
+	const auto before_invalid = f.mmio.writes.size();
+	assert(f.driver.LoadFirmware({0x55, 0xaa}, 1000000).code ==
+		mister::ErrorCode::invalid_request);
+	assert(f.mmio.writes.size() == before_invalid);
+
+	const std::vector<std::uint8_t> bios(FesApplicationFirmwareBytes, 0x55);
+	const auto start = f.mmio.writes.size();
+	const unsigned exchanges = 2 + FesApplicationFirmwareBytes / 2 + 1;
+	for (unsigned i = 0; i < exchanges; ++i)
+		f.Reply();
+	assert(f.driver.LoadFirmware(bios, 1000000).ok());
+	assert(f.mmio.writes.size() == start + exchanges * 2);
+	assert((f.mmio.writes[start + 1].value & ~FesGpRequestMask) ==
+		(FesApplicationOpcodeExecution << 24));
+	assert((f.mmio.writes[start + 3].value & ~FesGpRequestMask) ==
+		((FesApplicationOpcodeFirmwareBegin << 24) | FesApplicationFirmwareBytes));
+	assert((f.mmio.writes[start + 5].value & ~FesGpRequestMask) ==
+		((FesApplicationOpcodeFirmwareData << 24) | 0x5555u));
+	assert((f.mmio.writes.back().value & ~FesGpRequestMask) ==
+		(FesApplicationOpcodeFirmwareCommit << 24));
+
+	const auto media_start = f.mmio.writes.size();
+	for (unsigned i = 0; i < 5; ++i)
+		f.Reply();
+	assert(f.driver.LoadMedia({0x12, 0x34}, 1000000).ok());
+	assert((f.mmio.writes.back().value & ~FesGpRequestMask) ==
+		((FesApplicationOpcodeExecution << 24) | 1u));
+	assert(f.mmio.writes.size() == media_start + 10);
+}
+
 } // namespace
 
 int main()
@@ -1255,8 +1311,9 @@ int main()
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
 	TestComputerKeyboardMatrixAndMediaBlob();
+	TestFirmwareLoadHoldsResetUntilMediaRelease();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 16 groups passed");
+	puts("fes_gp_test: 17 groups passed");
 	return 0;
 }
