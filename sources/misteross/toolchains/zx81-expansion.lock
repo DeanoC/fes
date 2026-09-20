@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "ec34fcf38986217af9b5558936044b7197d968a7"
+order = 10
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr d672fade; published DeanoC/yosys main merge."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+order = 20
+rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "d9fa609559801faf6027c21f2b10704c0d8d7abb"
+order = 30
+rationale = "Reviewed nextpnr PR #73 adds explicit shell clock selection for writable static carts, preserves constant controls, reconnects single-clock FF/SDP/TDP cells, and rejects derived/gated/constant/missing cart clocks. Published feature commit d9fa6095 over freeze-scaffold d672fade; not yet a merged upstream release. Existing HIP routing, memory and PLL support remains inherited. Pair with Yosys ec34fcf3 and Mistral b28e30a."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

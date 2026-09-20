@@ -7,7 +7,8 @@
 // Quartus DE10-Nano shell: 52 MHz ZX81 + 74.25 MHz HDMI, FES GP mailbox.
 // BUILD_ID is overridden from the canonical build-input record.
 module top #(
-    parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID
+    parameter [127:0] BUILD_ID = `FES_ZX81_BUILD_ID,
+    parameter EXPANSION_SOCKET = 0
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -100,7 +101,24 @@ module top #(
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
-    zx81_machine machine (
+    wire [13:0] ram_address;
+    wire [7:0] ram_write_data, ram_read_data;
+    wire ram_write_enable;
+    (* keep *) wire [36:0] plug_addr;
+    generate if (EXPANSION_SOCKET) begin : expansion
+        zx81_ram_socket socket (
+            .clock(clk_sys), .address(ram_address), .write_data(ram_write_data),
+            .write_enable(ram_write_enable), .peek_address(14'b0),
+            .read_data(ram_read_data), .peek_data(),
+            .pack_present(1'b0), .pack_data(8'b0), .pack_peek_data(8'b0),
+            .pack_address(plug_addr[13:0]), .pack_write_data(plug_addr[21:14]),
+            .pack_write_enable(plug_addr[22]), .pack_peek_address(plug_addr[36:23])
+        );
+    end else begin : fixed_memory
+        assign ram_read_data = 8'b0;
+        assign plug_addr = 37'b0;
+    end endgenerate
+    zx81_machine #(.EXTERNAL_RAM(EXPANSION_SOCKET)) machine (
         .clk_sys(clk_sys),
         .reset(exec_reset),
         .keyboard(keyboard),
@@ -117,7 +135,10 @@ module top #(
         .halt_n(),
         .cpu_addr(),
         .peek_addr(16'h0000),
-        .peek_data()
+        .peek_data(),
+        .ram_address(ram_address), .ram_write_data(ram_write_data),
+        .ram_write_enable(ram_write_enable),
+        .external_ram_data(ram_read_data), .external_peek_data(8'b0)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 
