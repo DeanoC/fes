@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "d9fa609559801faf6027c21f2b10704c0d8d7abb"
+commit = "30ac6f47bd94aec97467bee9fcd2ff09643fbc55"
 order = 30
-rationale = "Reviewed nextpnr PR #73 adds explicit shell clock selection for writable static carts, preserves constant controls, reconnects single-clock FF/SDP/TDP cells, and rejects derived/gated/constant/missing cart clocks. Published feature commit d9fa6095 over freeze-scaffold d672fade; not yet a merged upstream release. Existing HIP routing, memory and PLL support remains inherited. Pair with Yosys ec34fcf3 and Mistral b28e30a."
+rationale = "Reviewed nextpnr PR #73 adds explicit shell clock selection for writable static carts, preserves constant controls, reconnects single-clock FF/SDP/TDP cells, and rejects derived/gated/constant/missing cart clocks. Published reviewed union 30ac6f47 also preserves routed shell constant paths and already-bound M10K configuration during cart merge, and corrects MISTRAL_BUF LUT masks for FF DATAIN routethroughs. Based on freeze-scaffold d672fade; not yet a merged upstream release. Existing HIP routing, memory and PLL support remains inherited. Pair with Yosys ec34fcf3 and Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
