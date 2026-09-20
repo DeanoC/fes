@@ -123,8 +123,8 @@ asset, composition and image identities in the acceptance evidence.
    identity/display checks. Stop, explicitly clear the selection using its
    current ID as `expected_expansion_id`, and relaunch: require no composition
    and **68** again.
-6. With a valid owner retained, attempt a selection of a missing expansion ID
-   and an asset bound to another shell. Both must reject before programming;
+6. With a valid owner retained, attempt selection of a missing expansion ID
+   and import of an asset bound to an unavailable shell. Both must reject before programming;
    retain the same active tuple/generation and running display. A host unit
    regression separately injects a missing/mismatched already-selected asset
    while recovery is pending and requires zero Stop/load calls. Do not edit
