@@ -1,5 +1,9 @@
 # Installed FPGA packages in the library
 
+A library launch today selects one installed package and at most one media
+object. Proposed multi-slot composition (firmware, expansions, later
+removable media) is in [launch composition](launch-composition.md).
+
 FogCast keeps installed `.fcore` archives on the host, independently of the
 kit's temporary activation staging and immutable appliance image. Installation
 does not program the FPGA. A library entry selects an exact installed package

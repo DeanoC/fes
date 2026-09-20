@@ -5,7 +5,9 @@ the existing FogCast public host API over HTTP. It does not own catalog,
 content transfer, or `/dev/MiSTer_cmd`. The browser shell remains the default
 UI. Fullscreen living-room use applies a local TV overscan inset and idle
 stills-or-video attract from the host playlist. Browse layouts are cover grid
-(default), shelf/carousel, and list.
+(default), shelf/carousel, and list. Proposed composition readiness (a core
+package is not by itself Ready) is in
+[`launch-composition.md`](../launch-composition.md).
 
 Linux SDL3 packages, native-on-Linux build/run, and the Mac-vs-Linux proof
 split are in [`LINUX.md`](./LINUX.md).

@@ -1,6 +1,9 @@
 # Described FPGA core packages
 
 For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
+Proposed multi-slot launch composition (core, firmware, expansions, primary
+and removable media) is in the selected FogCast
+[launch composition](../sources/FogCast/docs/launch-composition.md) design.
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image

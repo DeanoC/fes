@@ -46,6 +46,11 @@ and is not current-profile acceptance.
 - [Development ease and repository migration](development-ease.md): investigated
   update friction, recommended module/repository boundaries and staged migration.
   The direction is approved; current development instructions describe what has landed.
+- [Launch composition](../sources/FogCast/docs/launch-composition.md): durable
+  FogCast model for core, firmware, expansion, and media slots. Phase 0 is
+  this document; Phase 1 is Coleco firmware readiness; Phase 2 is ZX81 16K
+  linked at load (not a bitstream per expansion); Phase 3 is removable
+  media. Docs only; no factory BIOS install.
 
 ## What has been verified
 
