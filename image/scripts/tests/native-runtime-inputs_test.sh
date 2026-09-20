@@ -207,6 +207,7 @@ print-site:
 	@printf '%s\n' '\$(MISTER_RUNTIME_SITE)'
 EOF
 for prefix in . sources/libmister-runtime; do
-  site=$(FES_RUNTIME_SOURCE_PATH="$prefix" make -s -f "$fixture/site.mk" print-site)
+  # Parent make may export -w; capture the value without directory messages.
+  site=$(FES_RUNTIME_SOURCE_PATH="$prefix" make --no-print-directory -s -f "$fixture/site.mk" print-site)
   test "$site" = "/runtime-source/$prefix" || fail 'Buildroot SITE differs from mounted module'
 done
