@@ -715,6 +715,10 @@ func cloneStatus(status protocol.Status) protocol.Status {
 	copy.LastError = cloneAPIError(status.LastError)
 	if status.CorePackage != nil {
 		packageCopy := *status.CorePackage
+		if status.CorePackage.Composition != nil {
+			compositionCopy := *status.CorePackage.Composition
+			packageCopy.Composition = &compositionCopy
+		}
 		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
 		if status.CorePackage.MediaStream != nil {
 			streamCopy := *status.CorePackage.MediaStream
