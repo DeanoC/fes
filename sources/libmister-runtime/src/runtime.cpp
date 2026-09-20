@@ -284,7 +284,7 @@ public:
 	}
 
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
-		const std::string& data_root = "")
+		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -318,7 +318,8 @@ public:
 		}
 
 		std::unique_ptr<AdmittedCorePackage> package;
-		const Error admitted = hardware_.AdmitCorePackage(directory,
+		const Error admitted = composition ? hardware_.AdmitCoreComposition(directory,
+			expected_package_id, *composition, &package) : hardware_.AdmitCorePackage(directory,
 			expected_package_id, &package);
 		if (!admitted.ok() || !package) {
 			const Error error = admitted.ok() ?
@@ -347,6 +348,7 @@ public:
 			}
 		}
 		const CorePackageInfo info = package->info();
+		const CoreComposition admitted_composition = package->composition();
 		Log("load_core", info.system, info.declared_core, "validate");
 
 		std::uint64_t retired_generation = 0;
@@ -408,6 +410,7 @@ public:
 			status_.core_data = data;
 			status_.active_package.package_id = info.package_id;
 			status_.active_package.descriptor = info.descriptor;
+			status_.active_package.composition = admitted_composition;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
 				info.descriptor.abi.id == "fes.application") {
@@ -908,6 +911,12 @@ Error Runtime::LoadCore(const std::string& directory,
 	const std::string& expected_package_id)
 {
 	return impl_->LoadCore(directory, expected_package_id);
+}
+
+Error Runtime::LoadComposedCore(const std::string& directory, const std::string& id,
+	const CoreCompositionRequest& request)
+{
+	return impl_->LoadCore(directory, id, "", &request);
 }
 Error Runtime::LoadLibraryCore(
 	const std::string& directory, const std::string& id, const std::string& root)

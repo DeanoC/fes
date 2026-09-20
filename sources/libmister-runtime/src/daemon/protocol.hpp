@@ -15,6 +15,7 @@ enum class Operation {
 	launch,
 	inspect_core,
 	load_core,
+	load_composed_core,
 	load_library_core,
 	inspect_core_data,
 	update_core_settings,
@@ -46,6 +47,7 @@ struct Request {
 	std::string expected_package_id;
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
+	CoreCompositionRequest composition_request;
 };
 
 Error ParseRequest(const std::string& line, Request* request);

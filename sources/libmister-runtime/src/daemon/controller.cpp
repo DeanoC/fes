@@ -59,6 +59,11 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadCore(request.package_path, request.package_id);
 		EmitFifoConsume("load_core", result.ok());
 		break;
+	case Operation::load_composed_core:
+		result = runtime_.LoadComposedCore(request.package_path, request.package_id,
+			request.composition_request);
+		EmitFifoConsume("load_composed_core", result.ok());
+		break;
 	case Operation::set_keyboard:
 		result = runtime_.SetComputerKeyboard(request.keyboard_matrix);
 		break;

@@ -176,10 +176,21 @@ struct ObservedIdentity {
 	std::string build_id;
 };
 
+struct CoreComposition {
+	std::string id, package_id, expansion_id, shell_sha256, payload_sha256;
+	std::uint64_t payload_size = 0;
+};
+
+struct CoreCompositionRequest {
+	std::string expansion_path, payload_path;
+	CoreComposition composition;
+};
+
 struct ActiveCorePackage {
 	std::string package_id;
 	CoreDescriptor descriptor;
 	ObservedIdentity observed;
+	CoreComposition composition;
 };
 
 struct CoreData {
@@ -313,6 +324,7 @@ class AdmittedCorePackage {
 public:
 	virtual ~AdmittedCorePackage() {}
 	const CorePackageInfo& info() const { return info_; }
+	virtual CoreComposition composition() const { return {}; }
 
 protected:
 	explicit AdmittedCorePackage(CorePackageInfo info)
@@ -338,6 +350,11 @@ public:
 	// re-establishes the still-active generation after that proven pre-mutation
 	// failure.
 	virtual Error RestoreInput(std::uint64_t) { return {}; }
+	virtual Error AdmitCoreComposition(const std::string&, const std::string&,
+		const CoreCompositionRequest&, std::unique_ptr<AdmittedCorePackage>*)
+	{
+		return {ErrorCode::unsupported_protocol, "core composition loading is unavailable"};
+	}
 	virtual Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*)
 	{
@@ -423,6 +440,7 @@ public:
 	Error LoadCore(const std::string& directory,
 		const std::string& expected_package_id);
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
+	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, std::uint16_t, CoreData*);
