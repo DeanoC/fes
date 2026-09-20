@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "d672fade461e8a1eba4d3f95895902d86f43b882"
+commit = "30ac6f47bd94aec97467bee9fcd2ff09643fbc55"
 order = 30
-rationale = "Freeze-scaffold cart merge: --fes-scaffold/--fes-cart, reserved BEL/rect QSF, occupancy-only PIP checks, and slot-aware halo routing (merged PR #72 d672fade onto 0fad53a7). Feature commit 6916e9d2. Preserves GPU-router delay-only repair (PR #71), design-WNS repair (PR #70), async-read M10K clocks (PR #68), consumer-domain async ROM clocks (PR #69), narrow TDP, GPU router, selector audit, HPS_LOCATION I2C placement, TDP RDW contracts, bounded fractional-N PLLs, native M10K packing, registered outputs, integer PLLs, DSPs, GPIO and SDC/QSF support. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a; published DeanoC/nextpnr mistral-stable merge."
+rationale = "Reviewed nextpnr PR #73 revision 30ac6f47 fixes MISTRAL_BUF pass-through LUT emission, adds explicit static-cart shell clocks, and preserves imported routed-shell memories and constant controls. Emitted-RBF regression covers buffers, inversions, ordinary LUTs and initialized MLABs; hardware qualification of rebuilt packages remains separate. Inherits freeze-scaffold d672fade and prior HIP routing, memory and PLL support. Published feature revision, not a merged upstream release. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

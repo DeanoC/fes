@@ -2194,7 +2194,12 @@ Commands, cart-authoring rules and kit probes live in the README
 [Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges)
 section. `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `d672fade` provides those flags after `make toolchain-fes`.
+The locked nextpnr `30ac6f47` provides those flags after `make toolchain-fes`.
+It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
+the earlier `d672fade` emitter could write all-ones masks despite successful
+simulation and timing. The selected PR #73 revision has an emitted-bitstream
+regression covering buffers, inversions, ordinary LUTs and initialized MLABs.
+That compiler regression does not replace hardware acceptance of rebuilt cores.
 `NEXTPNR_MISTRAL` overrides the binary. This path does not seal `fes.zx81`
 and is not FogCast format-3.
 
