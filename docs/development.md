@@ -74,6 +74,14 @@ not build arbitrary unstaged module edits. A snapshot retains the actual FES
 repository and commit, with the module's path and tree identity. It is not a
 synthetic standalone component commit. Do not edit builder-managed snapshots.
 
+FogCast's local Go replacement `../misteross/expansion` resolves inside that
+same full snapshot. Both host and ARM target builds therefore consume the
+expansion linker committed with the selected FogCast revision; uncommitted
+sibling edits do not enter a parent build. Image containers mount the complete
+snapshot Git root, preserving this layout. A separately selected misteross FPGA
+revision does not replace the host's Go dependency. No compiler or FPGA build
+is needed to build or test this software linker.
+
 The import mapping in [config/source-imports.toml](../config/source-imports.toml)
 records original repositories, prior gitlinks, imported commits and module trees.
 The import commit retains original histories as parents. That local history

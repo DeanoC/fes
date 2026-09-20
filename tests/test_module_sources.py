@@ -2,6 +2,7 @@ import importlib.util
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -74,6 +75,37 @@ class ModuleSourcesTest(unittest.TestCase):
         self.assertEqual((self.destination / "README.md").read_text(), "parent\n")
         self.assertFalse((self.destination / "scratch").exists())
         self.assertEqual(git(self.root, "status", "--porcelain=v1", "-z"), before)
+
+    @unittest.skipUnless(shutil.which('go'), 'Go required for local module snapshot builds')
+    def test_host_and_arm_builds_resolve_committed_sibling_go_module(self):
+        expansion = self.root / 'sources/misteross/expansion'
+        expansion.mkdir(parents=True)
+        (expansion / 'go.mod').write_text('module github.com/DeanoC/misteross/expansion\n\ngo 1.23\n')
+        library = expansion / 'asset.go'
+        library.write_text('package expansion\nconst Identity = "committed"\n')
+        (self.module / 'go.mod').write_text(
+            'module example.invalid/host\n\ngo 1.23\n'
+            'require github.com/DeanoC/misteross/expansion v0.0.0\n'
+            'replace github.com/DeanoC/misteross/expansion => ../misteross/expansion\n')
+        (self.module / 'main.go').write_text(
+            'package main\nimport "github.com/DeanoC/misteross/expansion"\n'
+            'func main() { println(expansion.Identity) }\n')
+        self.commit(self.root, 'local Go module dependency')
+        selected = git(self.root, 'rev-parse', 'HEAD')
+        library.write_text('this uncommitted sibling is not valid Go\n')
+        module = self.materialize(revision=selected)
+        self.assertIn('"committed"', (module.parent / 'misteross/expansion/asset.go').read_text())
+        for arch, machine in (('amd64', 62), ('arm', 40)):
+            with self.subTest(arch=arch):
+                output = self.root / 'out' / ('host-' + arch)
+                env = dict(os.environ, GOWORK='off', GOPROXY='off', GOSUMDB='off',
+                           CGO_ENABLED='0', GOTOOLCHAIN='local', GOOS='linux', GOARCH=arch, GOARM='7')
+                subprocess.run(['go', 'build', '-trimpath', '-o', str(output), '.'], cwd=module,
+                               env=env, capture_output=True, check=True)
+                header = output.read_bytes()[:20]
+                self.assertEqual(header[:4], b'\x7fELF')
+                self.assertEqual(struct.unpack('<H', header[18:20])[0], machine)
+        self.assertEqual(library.read_text(), 'this uncommitted sibling is not valid Go\n')
 
     def test_module_staged_unstaged_and_untracked_changes_are_rejected(self):
         for kind in ("unstaged", "staged", "untracked"):

@@ -10,6 +10,7 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms')
+EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
 # Keep this software suite shared with test_changed. A producer edit validates
@@ -103,6 +104,10 @@ def plan(paths):
     reasons = []
     for path in sorted(set(paths)):
         if documentation(path):
+            continue
+        if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)

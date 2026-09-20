@@ -117,6 +117,15 @@ class AffectedTests(unittest.TestCase):
         self.assertIn('hardware acceptance', result['not_run'])
         self.assertTrue(all(plan(['AGENTS.md'])['lanes'].values()))
 
+    def test_go_expansion_module_selects_software_consumers_only(self):
+        for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/expansion/' + path])
+                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled}, {'parent', 'host'})
+                self.assertEqual(result['cores'], [])
+        # The software module exception must not swallow adjacent FPGA trees.
+        self.assertEqual(set(plan(['sources/misteross/expansion-other/new.v'])['cores']), set(CORES))
+
     def test_real_git_merge_base_deletes_and_renames(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
