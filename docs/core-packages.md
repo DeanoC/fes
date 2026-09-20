@@ -8,9 +8,13 @@ selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
 package set, while focused profiles may select a smaller package set.
 `fes.sms` is registered for package-only host-library acceptance. Its
 selection filename is `fes-sms.package-selection.toml`. It is not in the
-factory image closed set. The selected misteross pin is `10eaac1…`, including
-recipe-clock timing scoring, Coleco/ZX81 placer search, two-HIP-device search
-and Coleco 32 KiB application streaming.
+factory image closed set. The selected misteross pin is `b4e2f6f…`
+([misteross #78](https://github.com/DeanoC/misteross/pull/78)), including
+the freeze-scaffold 901 socket and 900/903 carts, recipe-clock timing
+scoring, Coleco/ZX81 placer search, two-HIP-device search, Coleco 32 KiB
+application streaming, and SMS SN76489/HDMI I2S audio. Repository
+`toolchain.lock` on that pin is still nextpnr `0fad53a7`; freeze-scaffold
+compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 The earlier `0825da5f…` selection records the sealed 32 KiB fixed-map SMS
 HIP/nextpnr producer; its historical seed and timing evidence do not establish
 fresh artifact acceptance for the current selection. See the
