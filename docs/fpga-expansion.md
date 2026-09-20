@@ -24,11 +24,11 @@ Follow the misteross README
 section there. The compose entry point is
 `scripts/build_fes_slot.py`. The linker is `scripts/link_static_rbf.py`.
 
-Current FES `main` selects misteross `b4e2f6f` (freeze-scaffold experiments
-on nextpnr `0fad53a7`). Compose on that pin still needs a nextpnr with
-`--fes-scaffold` (`NEXTPNR_MISTRAL`, or misteross `#79` which selects
-`d672fade` in `toolchain.lock`). Coleco, SG-1000 and SMS keep their
-core-local `0fad53a7` HIP slot either way.
+The selected misteross pin is `744906e` ([misteross #79](https://github.com/DeanoC/misteross/pull/79)).
+Repository `toolchain.lock` is nextpnr `d672fade`, so
+`make toolchain-fes` then `scripts/build_fes_slot.py` compose without a
+sidecar. Coleco, SG-1000 and SMS keep their core-local `0fad53a7` HIP slot.
+`NEXTPNR_MISTRAL` still overrides the binary.
 
 ## Kit
 
