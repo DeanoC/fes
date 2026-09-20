@@ -24,8 +24,10 @@ linking, or mid-session media change are implemented.
   [FES ZX81](../../../docs/fes-zx81.md)
 - Coleco reset shim versus private BIOS bring-up:
   [misteross Coleco README](../../misteross/cores/fes-coleco/README.md)
-- FPGA freeze-scaffold carts (a different composition — bitstream, not a
-  launch slot): [FPGA cartridge expansion](../../../docs/fpga-expansion.md)
+- Proven expansion linker (static CRAM overlay at load, ZX81 example):
+  [FPGA cartridge expansion](../../../docs/fpga-expansion.md),
+  misteross [`link_static_rbf.py`](../../misteross/scripts/link_static_rbf.py)
+  and [Freeze-scaffold cartridges](../../misteross/README.md#freeze-scaffold-cartridges)
 
 ---
 
@@ -80,22 +82,29 @@ display name or file extension.
 | --- | --- | --- | --- |
 | **Core** | Format-2 FPGA package (sealed manifest + RBF) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
 | **Firmware** | BIOS / boot ROM the CPU fetches at reset | Before boot | Coleco 8 KiB BIOS (Phase 1) |
-| **Expansions** | Optional runtime-linked devices that exist before reset | Before boot | ZX81 optional 16K RAM pack on the current nextpnr package (Phase 2) |
+| **Expansions** | Optional carts **linked at load** onto the core’s reserved socket | At load, before programming | ZX81 16K RAM pack via the proven nextpnr CRAM linker (Phase 2) |
 | **Primary media** | Cart, ROM, or the media the machine is meant to start with | Before boot, unless the package allows a media-less start | Coleco cart, Mega Drive `cartridge`, ZX81 `.p` tape |
 | **Secondary / removable media** | Disk, CD, or other media that can change after the machine is running | After boot; may change mid-session | Later disk/CD systems (Phase 3) |
 
 Primary media is already visible as today’s library `blob` / stream
 selection and as native Mega Drive `cartridge`. Firmware is not a second
 blob of the same role: Coleco BIOS occupies `0x0000–0x1fff` and is not the
-cartridge mailbox. Expansions are not media and are not a second FPGA
-bitstream. Freeze-scaffold compose ([FPGA cartridge expansion](../../../docs/fpga-expansion.md))
-builds one full-chip development RBF; that diagnostic path stays outside
-this slot table.
+cartridge mailbox.
 
-ZX81’s first slice compiles 16 KB RAM into the package. Phase 2 does not
-pretend that is already a slot. It makes the RAM pack an optional device
-the runtime links before boot so a 1K machine and a 16K machine are honest
-compositions of the same core.
+Expansions are not media and are not a unique bitstream per option. The
+core is a shell with a reserved socket. Each expansion is an independently
+built cart. At **load**, the existing static linker
+(`scripts/link_static_rbf.py`) overlays that cart’s CRAM onto the shell.
+The kit programs one full-chip RBF. There is no place-and-route per
+combination and no sealed `fes.zx81-16k` versus `fes.zx81-1k` package.
+The 901 shell plus 900/903 carts already proved this overlay on kit; that
+linker is the ZX81 expansion example. Phase 2 uses it directly for the
+household 16K RAM pack. It does not invent a second “runtime device” path
+and it does not wait on a bitstream-per-expansion model.
+
+ZX81’s current first-slice package still compiles 16 KB RAM into the
+sealed RBF. That is today’s factory image, not the expansion slot. The
+slot is the load-time link of an optional RAM cart onto a socketed core.
 
 ## What is true now
 
@@ -123,6 +132,11 @@ Present tense, current FES `sources/FogCast` and the ordered package set:
   current setup”; that predicate is still package-and-platform shaped.
 - Agent health is not session readiness. An idle menu is not launch
   readiness. Those existing gates stay.
+- The expansion linker already exists as a development compose:
+  `link_static_rbf.py overlay` copies a cart CRAM rectangle onto a frozen
+  shell. It is kit-proven on the 901/900/903 path and does not yet seal
+  `fes.zx81` or appear on `session/launch`. Phase 2 is that load-time
+  link on the library path, not a new overlay algorithm.
 
 Proposed work below does not rewrite those paths. It adds slot fill and
 composition readiness in front of the same session launch.
@@ -134,10 +148,11 @@ Default order, unless a package declares a stricter recipe:
 1. Resolve the core package and its slot contract.
 2. Fill every **required** slot from household and library assets. Fail
    closed before any FPGA mutation.
-3. Admit the composition on the target (existing kit lease, identity, and
+3. **Link** selected **expansions** onto the core shell (static CRAM
+   overlay at load). Skip this step when no expansion is selected.
+4. Admit the composition on the target (existing kit lease, identity, and
    lifecycle exclusion).
-4. Program the core.
-5. Link selected **expansions** so they are visible at reset.
+5. Program the linked bitstream (one full-chip RBF).
 6. Bind **firmware**.
 7. Bind **primary media** (today’s `load_media` / `load_media_stream` /
    native `cartridge`, held in reset where the core already does that).
@@ -145,11 +160,14 @@ Default order, unless a package declares a stricter recipe:
 9. After boot, **secondary / removable media** may change without
    reprogramming the FPGA.
 
-Bind-before-boot versus bind-after-boot is the important split:
+Link-at-load versus bind-after-boot is the important split:
 
-- Firmware and expansions are hardware that the machine notices at reset.
-  Linking a ZX81 16K pack after BASIC has started is a different product
-  than plugging it in before power-on. Phase 2 does the latter.
+- Expansions are part of the bitstream the kit programs. The 16K RAM pack
+  is linked before programming, the same way a real pack is plugged in
+  before power-on. Linking after BASIC has started is a different product;
+  this model does not do that.
+- Firmware is bytes the CPU fetches at reset, not a CRAM cart. It still
+  binds before boot, after the FPGA is programmed.
 - Coleco cartridge delivery already holds CPU/VDP reset through the
   mailbox commit. Firmware belongs on that same side of boot: the CPU must
   not fetch `0x0000` until the BIOS slot is filled.
@@ -166,10 +184,10 @@ slots for a library title.
 | Owner | Responsibility |
 | --- | --- |
 | mister-packages + sealed format-2 descriptor | Declare ABI and versioned interfaces: which slots exist, required versus optional, size and transport. Unknown versions fail closed. |
-| FogCast host | Compose the launch from household/install assets and the library. Refuse **Ready** and refuse launch when a required slot is empty. Store firmware and media as ordinary household objects (content-addressed, like today’s core-media). **No private BIOS or ROM bytes in git.** |
-| FogCast target agent | Cache, transfer, and session-coordinate the already-composed facts. It does not invent slot semantics or program the FPGA. |
-| libmister-runtime | Execute bind order, programming, expansion link, firmware/media delivery, reset release, later media change, and return to idle. It remains the compatibility authority through the negotiated ABI registry. |
-| misteross | Build packages that implement the declared slots. The private `--bios` producer remains a bring-up proof, not the household firmware path. |
+| FogCast host | Compose the launch from household/install assets and the library, including which expansion carts to link at load. Refuse **Ready** and refuse launch when a required slot is empty. Store firmware and media as ordinary household objects (content-addressed, like today’s core-media). **No private BIOS or ROM bytes in git.** |
+| FogCast target agent | Cache, transfer, and session-coordinate the already-composed facts. It does not invent slot semantics, run nextpnr, or program the FPGA. |
+| libmister-runtime | Execute bind order, programming of the linked RBF, firmware/media delivery, reset release, later media change, and return to idle. It remains the compatibility authority through the negotiated ABI registry. |
+| misteross | Build the core shell, expansion carts, and the static linker. The private `--bios` producer remains a bring-up proof, not the household firmware path. Place-and-route stays on each shell and each cart once; load only overlays. |
 | FES | Select compatible module revisions, keep the default image BIOS-free, and record evidence. |
 
 Household firmware is an install/library asset, not an image feature and
@@ -228,15 +246,17 @@ and then try to generalize it.
 | --- | --- | --- |
 | **0 — this document** | Shared vocabulary, ownership, bind-before-boot vs later change, Ready rule | Code, ABI changes, kit time |
 | **1 — Coleco firmware slot + readiness** | Descriptor-declared firmware slot; household BIOS import; Unavailable when required firmware is missing; runtime bind before reset release | Permanent BIOS in the factory image; git-tracked BIOS; rewriting the cartridge mailbox into a BIOS loader for every core |
-| **2 — expansion slots** | Optional pre-boot devices, starting with ZX81 16K RAM on the current nextpnr package | A new ZX81 bitstream per RAM size as the product model; freeze-scaffold carts as “expansions” |
+| **2 — expansion slots** | Load-time CRAM link of optional carts, starting with ZX81 16K RAM on the proven nextpnr linker | A unique place-and-route / sealed bitstream per RAM size or per expansion combination |
 | **3 — removable media / media-change** | Secondary slot and mid-session change without reprogramming the core | A claim that every core already supports disk swap |
 
 Phase 1 may keep the private `--bios` producer as a diagnostic compare. It
 must not become the way a sofa title gets a BIOS.
 
-Phase 2’s ZX81 16K pack is the first expansion because the first-slice
-machine already contains the RAM fabric. The slot makes that resource
-optional and visible in the composition, bound before boot.
+Phase 2 skips bitstream-per-expansion and goes directly to the linking
+system already proven on the ZX81 freeze-scaffold example (`link_static_rbf`
+overlay of an independent cart onto a reserved socket). The household 16K
+RAM pack is that cart on the library launch path. Do not add a parallel
+runtime-device protocol.
 
 Phase 3 waits until a core actually has removable media. Do not overload
 today’s single `blob` role into a fake disk swap.
@@ -248,7 +268,7 @@ This Phase 0 PR, and the model it sets, explicitly do **not**:
 - install a Coleco BIOS in the factory image or in git
 - add kit HIL, HDMI captures, or hardware acceptance
 - rewrite every core onto a new ABI
-- treat freeze-scaffold FPGA carts as launch-composition expansions
+- build a unique bitstream per expansion (no `fes.zx81-16k` P&R package)
 - replace `POST /api/v1/session/launch` with a new public compose API in
   Phase 1 (the host composes internally; the sofa still posts a `game_id`)
 - infer persistence, firmware, or expansions from a display name, package

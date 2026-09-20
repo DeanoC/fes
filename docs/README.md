@@ -49,7 +49,8 @@ and is not current-profile acceptance.
 - [Launch composition](../sources/FogCast/docs/launch-composition.md): durable
   FogCast model for core, firmware, expansion, and media slots. Phase 0 is
   this document; Phase 1 is Coleco firmware readiness; Phase 2 is ZX81 16K
-  expansion; Phase 3 is removable media. Docs only; no factory BIOS install.
+  linked at load (not a bitstream per expansion); Phase 3 is removable
+  media. Docs only; no factory BIOS install.
 
 ## What has been verified
 
