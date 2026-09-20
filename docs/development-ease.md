@@ -1,7 +1,8 @@
 # FES development ease: investigation and migration proposal
 
-Status: approved migration implemented on an isolated local branch; final FPGA
-organization and image qualification are in progress. No remote cutover yet.
+Status: approved migration implemented and locally validated on an isolated
+branch, including reproducible image builds and an exact-artifact hardware
+diagnostic. Remote publication and repository cutover remain pending.
 Investigated 2026-09-20; see
 [development freshness instructions](development.md#inspect-source-freshness).
 The user confirmed that independently releasing FogCast, libmister-runtime and
@@ -336,5 +337,12 @@ Candidate `4caf87af` passed the host build and the parent suite (524 tests,
 36 skips). Its selected Pong/ZX81 packages passed routing and timing; that build
 was interrupted during Coleco routing to finish these audit corrections before
 final qualification. Those partial artifacts do not qualify the revised source.
-Keep the objective open through the final policy build, exact-artifact hardware
-diagnostic, native image verification and integration handoff.
+The final candidate `e58bbe878d0c41cff8cf106dafb29d2da40a5ba1` passed all three
+FPGA builds, two matching native image builds, structural/QEMU verification and
+the exact Coleco package/software diagnostic. Five HDMI captures matched all
+664 reference samples; lifecycle acceptance and original-kit restoration passed.
+The final status command distinguishes that evidence from the restored installed
+binaries and unknown remote CI. See the
+[consolidated validation record](validation/2026-09-20-consolidated-development.md).
+Remote cutover still requires the user's integration decision, history-preserving
+publication, current-base CI and the documented team transition.

@@ -129,7 +129,7 @@ remains a component build, not a parent output. `linux.img` is the target root
 filesystem; run `make media` after a verified cold build to publish the
 flashable disk image. Build, media assembly and verification do not deploy or
 contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate; see [bootable media](docs/bootable-media.md). Current gitlink diagnostic evidence is in the
+acceptance is separate; see [bootable media](docs/bootable-media.md). Historical diagnostic evidence is in the
 [dual-PLL native diagnostic](docs/dual-pll-native-diagnostic.md). Earlier clean
 two-pass evidence is in [integration validation](docs/integration-validation.md).
 

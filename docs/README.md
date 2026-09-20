@@ -49,6 +49,9 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [Consolidated development](validation/2026-09-20-consolidated-development.md):
+  preserved histories, contributor/cache rehearsals, three FPGA packages,
+  reproducible native image and exact Coleco/software diagnostics with restoration.
 - [Functional FPGA identity](validation/2026-09-20-functional-core-identity.md):
   real Coleco compiler signoff, reuse after documentation and repository import,
   and exact-package HDMI diagnostics; imported-image qualification is separate.
