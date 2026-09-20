@@ -381,6 +381,22 @@ development possible with both the open-source Mistral toolchain and Quartus.
 - `880_m10k_async_rom`, 1024-by-10 read-only async M10K. Run
   `make sim EXP=880_m10k_async_rom` and `make oss EXP=880_m10k_async_rom`;
   no Quartus comparison lane is implemented.
+- `890_slot_m10k` / `891_slot_m10k_base` / `892_slot_m10k_cart`, a reserved
+  M10K column at `MISTRAL_M10K.26.1.0` for static CRAM overlay. Run
+  `make sim EXP=890_slot_m10k` and the base/cart siblings. Overlay with
+  `python3 scripts/link_static_rbf.py`. Quartus comparison is not implemented.
+- `900_expansion_bus`, independent cart A (`cart` top) with one BEL-locked
+  slot cell and the INIT oracle. Synth-only: `make oss EXP=900_expansion_bus`.
+  Verilator: `make sim EXP=900_expansion_bus`. Compose onto the 901 shell with
+  `NEXTPNR_MISTRAL=/path/to/feat/fes-reserved-bels/nextpnr-mistral`
+  `scripts/build_fes_slot.py` (locked nextpnr `0fad53a7` lacks `--fes-scaffold`).
+- `901_plugged_base`, empty socket (`0xD901`) with locked `MISTRAL_FF` plugs
+  outside reserved rect `25 1 27 16` (addr column 24, rdata 28.1–28.10).
+  Overlay tile-column CRAM 21–33 with
+  `python3 scripts/link_static_rbf.py overlay --map experiments/901_plugged_base/link.toml`
+  after freeze-scaffold P&R. Run `make sim EXP=901_plugged_base`.
+- `903_wide_cart`, independent cart B: four slot cells and a 2-bit decode
+  into the same 901 socket. Run `make sim EXP=903_wide_cart`.
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under

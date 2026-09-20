@@ -209,6 +209,12 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "860_m10k_selectors",
             "870_m10k_narrow",
             "880_m10k_async_rom",
+            "890_slot_m10k",
+            "891_slot_m10k_base",
+            "892_slot_m10k_cart",
+            "900_expansion_bus",
+            "901_plugged_base",
+            "903_wide_cart",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
