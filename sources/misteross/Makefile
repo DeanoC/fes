@@ -308,7 +308,30 @@ sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARG
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
 $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
 
-sim-fes-coleco-unit: sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io
+.PHONY: sim-fes-coleco-firmware sim-fes-coleco-firmware-oss
+sim-fes-coleco-firmware-oss: COLECO_FIRMWARE_FLAGS = -DFES_COLECO_OSS=1
+sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
+	$(require_local_sim)
+	@mkdir -p build/sim/$@
+	$(VERILATOR) --cc --exe --build --top-module firmware_model -Wall \
+		-DTV80_REFRESH=1 $(COLECO_FIRMWARE_FLAGS) \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-coleco/sim/firmware_model.sv \
+		cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/firmware_tb.cpp"
+	@build/sim/$@/Vfirmware_model
+
+sim-fes-coleco-unit: sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -370,7 +393,7 @@ sim-fes-coleco-board-build:
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 
-sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss
+sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss sim-fes-coleco-firmware-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \

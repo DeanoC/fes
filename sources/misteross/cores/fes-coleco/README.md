@@ -62,9 +62,14 @@ Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`.
 The shared mailbox then advertises capability bit 7 and accepts opcodes 15–17
 for an exact 8192-byte overlay while reset is held. Writes land in the machine's
 firmware dual-port RAM at `0x0000–0x1fff`. Firmware commit does not release
-execution; cartridge media still owns release. Host simulations leave
+execution; cartridge media still owns release. Existing video board simulations leave
 `ENABLE_FIRMWARE` at its RTL default 0, so they keep the open shim and do not
-advertise firmware. The default package declares `fes.firmware.blob` 1.0
+advertise firmware. `make sim-fes-coleco-firmware` and its `-oss` variant
+enable the production endpoint and connect it to the real machine RAM/CPU.
+They check every uploaded byte, malformed and incomplete transfers, reset
+ordering, and execution of an open test firmware that writes CPU RAM and
+halts. Both run with the normal Coleco unit suites; they use no private BIOS.
+The default package declares `fes.firmware.blob` 1.0
 optional so BIOS-free Graphics I titles share the firmware-capable bitstream.
 Household firmware binds at launch through FogCast/runtime; BIOS bytes stay
 out of git. Firmware mailbox behavior is software-tested; hardware acceptance
