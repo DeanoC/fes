@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from unittest.mock import patch
 
 from scripts import build_fes_catch as catch
 from scripts import build_fes_demo as demo
@@ -13,6 +14,13 @@ from scripts.export_core_package import build_identity
 ROOT = Path(__file__).resolve().parents[1]
 
 class CatchProducerTests(unittest.TestCase):
+    def test_cli_accepts_standard_package_resolver_arguments(self):
+        with patch("sys.argv", ["build_fes_catch.py", "--root", str(ROOT),
+                "--package-output", str(ROOT / "build/packages"), "--cache-root", "/tmp/cache",
+                "--identity-version", "2"]), patch.object(catch, "build", return_value=Path("sealed")) as build:
+            self.assertEqual(catch.main(), 0)
+        build.assert_called_once_with(ROOT, ROOT / "build/packages", cache_root=Path("/tmp/cache"), identity_version=2, gpu_device=0)
+
     def test_real_source_identity_and_generic_interfaces(self):
         # A monorepo-shaped clean source exercises the same closure as core-dev.
         with tempfile.TemporaryDirectory() as temporary:

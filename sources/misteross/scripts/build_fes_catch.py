@@ -49,8 +49,11 @@ def manifest(record, evidence, repository, revision, identities):
     return encode_manifest(fields)
 
 @guard_functional_source
-def build(root=ROOT, *, cache_root=None, identity_version=2, gpu_device=0):
+def build(root=ROOT, package_store=None, *, cache_root=None, identity_version=2, gpu_device=0):
     root = Path(root).resolve()
+    package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
+    if package_store != root / "build/packages":
+        raise board.BuildError(f"FES Catch package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     tools = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
@@ -89,7 +92,7 @@ def build(root=ROOT, *, cache_root=None, identity_version=2, gpu_device=0):
             if create_build_record(root, repository, revision, identities,
                 identity_version=identity_version, execution=invocation.inputs) != record:
                 raise board.BuildError("functional source inputs changed during build")
-        return export_package(encoded, output / "core.rbf", root / "build/packages")
+        return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
         if output is not None:
             board._invalidate_failed_artifact(output)
@@ -102,11 +105,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--package-output", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
     args = parser.parse_args()
     try:
-        print(build(args.root, cache_root=args.cache_root, identity_version=args.identity_version, gpu_device=args.gpu_device))
+        print(build(args.root, args.package_output, cache_root=args.cache_root, identity_version=args.identity_version, gpu_device=args.gpu_device))
     except (board.BuildError, ValueError) as exc:
         print(f"FES Catch: {exc}", file=sys.stderr)
         return 1
