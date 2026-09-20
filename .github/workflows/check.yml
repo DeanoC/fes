@@ -99,13 +99,14 @@ jobs:
         if: fromJSON(needs.plan.outputs.lanes).fpga
         run: |
           sudo apt-get update
-          sudo apt-get install -y verilator
+          sudo apt-get install -y verilator strace
           cd sources/misteross
           python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
           python3 -m unittest discover -s tests -p 'test_functional_identity.py' -v
           python3 -m unittest discover -s tests -p 'test_export_core_package.py' -v
           python3 -m unittest discover -s tests -p 'test_legacy_source.py' -v
           python3 -m unittest discover -s tests -p 'test_source_repository.py' -v
+          python3 -m unittest discover -s tests -p 'test_compiler_read_audit.py' -v
           python3 -m unittest discover -s tests -p 'test_core_package.py' -v
           python3 -m unittest discover -s tests -p 'test_search*.py' -v
           make sim-fes-demo sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-sms sim-fes-sms-oss sim-fes-sg1000 sim-fes-sg1000-oss
@@ -124,12 +125,34 @@ jobs:
       - name: Require every planned check to succeed
         env:
           RESULTS: ${{ toJSON(needs) }}
+          TESTED_REVISION: ${{ github.sha }}
+          INTEGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 - <<'PYCODE'
           import json, os
           results = json.loads(os.environ['RESULTS'])
+          from datetime import datetime, timezone
+          base = os.environ.get('INTEGRATION_BASE')
+          observation = {'format': 1, 'kind': 'ci-observation',
+              'source_revision': os.environ['TESTED_REVISION'],
+              'integration_base': base if base and base != '0' * 40 else None,
+              'observed_at': datetime.now(timezone.utc).isoformat(),
+              'repository': os.environ['REPOSITORY'], 'run_url': os.environ['RUN_URL'],
+              'checks': [{'name': name, 'result': job['result']} for name, job in results.items()]}
+          with open('ci-observation.json', 'w') as output:
+              json.dump(observation, output, sort_keys=True, indent=2)
+              output.write('\n')
           failed = {name: job['result'] for name, job in results.items() if job['result'] != 'success'}
           if failed:
               raise SystemExit('Required CI failed or did not run: ' + str(failed))
           print('All planned software checks passed; omitted lanes are reported in the plan.')
           PYCODE
+      - name: Retain exact CI identity observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fes-ci-observation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-observation.json
+          if-no-files-found: error

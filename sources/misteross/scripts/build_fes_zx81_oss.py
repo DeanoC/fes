@@ -29,6 +29,7 @@ from scripts.fes_build_common import (
     _sha256,
     _write_atomic,
 )
+from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
@@ -69,7 +70,7 @@ RTL_SOURCES = (
     "cores/fes-zx81/rtl/top.v",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/source_repository.py",
+    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/fes_build_common.py",
     ABI_DEFINITION,
     "toolchain.lock",
@@ -158,6 +159,7 @@ def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str
     return repository, revision
 
 
+@guard_functional_source
 def create_build_record(
     root: Path,
     repository: str,
@@ -197,7 +199,7 @@ def create_build_record(
         },
     }
     if identity_version == 2:
-        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution)
+        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     elif identity_version != 1:
         raise BuildError("unsupported build identity version")
     return encode_build_record(fields)
@@ -413,6 +415,7 @@ def _manifest(
     return encode_manifest(fields)
 
 
+@guard_functional_source
 def build(
     root: Path = ROOT,
     package_store: Path | None = None,
@@ -449,7 +452,7 @@ def build(
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
         )
-        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}), output_relative=OUTPUT_RELATIVE)
+        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -469,7 +472,7 @@ def build(
                 extra=("--router", "gpu"),
                 required=PLACER_QOR_CLOCKS,
                 gpu_devices=gpu_devices,
-                **({"env": invocation.env} if invocation else {}),
+                **({"env": invocation.env, "audit_source_root": root} if invocation else {}),
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc

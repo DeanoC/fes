@@ -58,7 +58,7 @@ VHDL_SOURCES = (
     "cores/fes-zx81/rtl/t80/T80pa.vhd",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/source_repository.py",
+    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/legacy_source.py",
     ABI_DEFINITION,
     QSF_PINS,

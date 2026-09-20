@@ -69,7 +69,7 @@ AUDIO_QSF = "cores/fes-demo/constraints-audio.qsf"
 AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
               "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
 PINNED_INPUTS = (
-    RECIPE, "scripts/source_repository.py", "scripts/legacy_source.py", "scripts/fes_build_common.py", "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
+    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py", "scripts/legacy_source.py", "scripts/fes_build_common.py", "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 

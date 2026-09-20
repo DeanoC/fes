@@ -377,10 +377,13 @@ def _prepare_output(root: Path, *, relative: Path, build_outputs: Sequence[str])
 
 
 def _run_tool(command: tuple[str, ...], cwd: Path, log: Path,
-              *, output_relative: Path, env=None) -> None:
+              *, output_relative: Path, env=None, audit_source_root=None) -> None:
     try:
-        result = subprocess.run(
+        from scripts.compiler_read_audit import audited_run
+        runner = subprocess.run if audit_source_root is None else audited_run
+        result = runner(
             list(command),
+            **({"source_root": audit_source_root} if audit_source_root is not None else {}),
             cwd=cwd,
             env=env,
             stdout=subprocess.PIPE,

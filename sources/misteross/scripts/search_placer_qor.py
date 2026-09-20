@@ -45,6 +45,7 @@ import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+import contextvars
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from queue import Queue
@@ -162,6 +163,7 @@ def _run_nextpnr(
     timeout: int,
     required: Sequence[tuple[str | None, float]] | None = None,
     env=None,
+    audit_source_root=None,
 ) -> Candidate:
     run_dir = output / f"s{seed}-w{weight}-c{critexp}"
     if run_dir.exists():
@@ -191,8 +193,11 @@ def _run_nextpnr(
         command += ["--freq", freq]
     try:
         with log_path.open("w") as log:
-            result = subprocess.run(
+            from scripts.compiler_read_audit import audited_run
+            runner = subprocess.run if audit_source_root is None else audited_run
+            result = runner(
                 command,
+                **({"source_root": audit_source_root} if audit_source_root is not None else {}),
                 env=env,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -301,7 +306,7 @@ def evaluate_pairs(
     if workers <= 1 or len(pairs) <= 1:
         return [run(seed, weight) for seed, weight in pairs]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run, seed, weight) for seed, weight in pairs]
+        futures = [pool.submit(contextvars.copy_context().run, run, seed, weight) for seed, weight in pairs]
         return [future.result() for future in futures]
 
 
@@ -341,6 +346,7 @@ def search(
     gpu_devices: Sequence[int] = (),
     run_one=None,
     env=None,
+    audit_source_root=None,
 ) -> list[Candidate]:
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
@@ -370,6 +376,7 @@ def search(
                 timeout=timeout,
                 required=required,
                 env=env,
+                audit_source_root=audit_source_root,
             )
         finally:
             gpu_pool.put(gpu)
@@ -465,6 +472,7 @@ def route_after_synth(
     gpu_devices: Sequence[int] = (),
     run_one=None,
     env=None,
+    audit_source_root=None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
     search_dir = dest / "qor-search"
@@ -490,6 +498,7 @@ def route_after_synth(
         gpu_devices=gpu_devices,
         run_one=run_one,
         env=env,
+        audit_source_root=audit_source_root,
     )
     (dest / "qor-ranking.json").write_text(
         json.dumps(

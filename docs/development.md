@@ -9,6 +9,11 @@ instructions. Read [getting started](getting-started.md) for machine setup and
 
 ## Inspect source freshness
 
+Use `make status` for the combined source, build and validation summary;
+`STATUS_ARGS='--offline --json'` produces a full local evidence report.
+Supply CI, hardware and deployment receipts as described in [status](status.md).
+Missing evidence stays unknown; a recent source commit is not hardware acceptance.
+
 `make source-status` reports the checkout and selected commit without fetching,
 changing refs or writing Git indexes:
 
@@ -297,11 +302,14 @@ Mutable source builds stay in individual snapshots. Cached packages retain their
 original manifests and records; a separate `.provenance.json` selection receipt
 identifies selected versus original source and the exact payload digest.
 
-Functional record version 2 is opt-in per recipe until its representative build
-and hardware gate pass. Version 1 retains exact-record selection. A changed commit
+Registered OSS recipes select functional record version 2. Version 1 retains
+exact-record selection. A changed commit
 with the same verified functional inputs can reuse the original version-2 artifact;
-unavailable historical evidence fails closed. Core-local source closure remains
-conservative, so edits within an owning core directory can invalidate that core.
+unavailable historical evidence fails closed. The versioned Markdown policy
+excludes non-executable documentation while retaining code and data throughout
+the owning modules. Functional builds require strace for compiler read checks;
+ordinary Python source reads are also guarded. Older records keep their original
+closure rules. Each new artifact still needs its own qualification.
 
 ## Diagnose local edits without committing them
 

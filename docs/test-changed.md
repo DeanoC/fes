@@ -57,7 +57,9 @@ one for a test failure, and two for invalid input or missing prerequisites.
 
 Executable tools and required module/test files are checked before tests start.
 No test lane is silently dropped because Go, Make, a C/C++ compiler, Node, ripgrep
-or Verilator is absent. Language dependencies, authenticated local test fixtures,
+Verilator or strace is absent. The FPGA read-audit tests use strace; the
+functional FPGA producers also require it to check documentation exclusions.
+Language dependencies, authenticated local test fixtures,
 and any test-container prerequisites must already be prepared; the runner does
 not install them. Such failures stop the run and remain failures. It clears
 `GOOS`, `GOARCH` and `GOARM` from the test environment so a prior cross-build shell

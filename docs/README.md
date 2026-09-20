@@ -15,6 +15,7 @@ host software and target root filesystem.
 | See who owns native image assembly | [Image assembly ownership](image-assembly.md) |
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
 | Create a FES feature worktree and use incremental builds | [Development guide](development.md) |
+| Inspect sources, build receipts, CI and exact hardware/deployment evidence | [Unified status](status.md) |
 | Run affected software checks across modules | [Focused tests](test-changed.md) |
 | Publish the consolidated repository while preserving component history | [Repository cutover](repository-cutover.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |

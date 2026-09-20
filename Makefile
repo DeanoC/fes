@@ -103,3 +103,8 @@ generate:
 	@$(PYTHON) scripts/generate.py --write
 check-generated:
 	@$(PYTHON) scripts/generate.py --check
+
+.PHONY: status
+STATUS_ARGS ?=
+status:
+	@$(PYTHON) scripts/status.py $(STATUS_ARGS)

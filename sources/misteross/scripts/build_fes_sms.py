@@ -61,7 +61,7 @@ SYSTEMVERILOG_SOURCES = (
     "cores/fes-sms/rtl/sms_machine.sv",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/source_repository.py",
+    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/legacy_source.py",
     ABI_DEFINITION,
     QSF_PINS,

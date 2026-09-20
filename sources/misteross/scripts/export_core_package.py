@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.compiler_read_audit import POLICY, excluded_markdown
 from scripts.source_repository import canonical_repository
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
@@ -151,6 +152,14 @@ def _validate_build_record(fields: object) -> dict:
             _string(value, f"parameter {name}", maximum=4_096)
         elif type(value) is int and not -(1 << 63) <= value < (1 << 63):
             raise PackageExportError(f"parameter {name} integer is outside signed 64-bit range")
+    if fields["format"] == 2:
+        policy = parameters.get("source_closure_policy")
+        if policy is not None and policy != POLICY:
+            raise PackageExportError("unknown source closure policy")
+        if policy == POLICY:
+            for key in ("recipe", "abi_definition"):
+                if fields[key] not in fields["source_inputs"]:
+                    raise PackageExportError("recipe/ABI is excluded from source closure")
     return fields
 
 
@@ -298,12 +307,14 @@ def _require_tracked(root: Path, relative: str, field: str) -> None:
         raise PackageExportError(f"{field} is not tracked by the pinned source commit: {relative}") from exc
 
 
-def source_input_closure(root: Path, roots: list[str]) -> dict[str, str]:
+def source_input_closure(root: Path, roots: list[str], *, policy=None) -> dict[str, str]:
     """Hash every tracked regular file in declared modules, rejecting path escapes.
 
     The producer chooses conservative module roots, not an optimistic handpicked
     source list. Export repeats this enumeration, detecting additions/deletions.
     """
+    if policy not in (None, POLICY):
+        raise PackageExportError("unknown source closure policy")
     result = {}
     for prefix in roots:
         _relative_path(prefix, "source root")
@@ -319,23 +330,30 @@ def source_input_closure(root: Path, roots: list[str]) -> dict[str, str]:
             _relative_path(path, "source input")
             if not (path == prefix or path.startswith(prefix + "/")):
                 raise PackageExportError("source input is outside declared root")
-            result[path] = hashlib.sha256(_checked_input(root, path, "source input").read_bytes()).hexdigest()
             members += 1
+            checked = _checked_input(root, path, "source input")
+            actual_mode = "100755" if checked.stat().st_mode & 0o111 else "100644"
+            if policy == POLICY and excluded_markdown(path, actual_mode):
+                continue
+            result[path] = hashlib.sha256(checked.read_bytes()).hexdigest()
         if not members:
             raise PackageExportError(f"source root has no tracked inputs: {prefix}")
     return dict(sorted(result.items()))
 
 
-def functional_record_fields(root: Path, fields: dict, roots: list[str], execution: dict) -> dict:
+def functional_record_fields(root: Path, fields: dict, roots: list[str], execution: dict, *, pinned_inputs) -> dict:
     """Add the shared v2 envelope to a producer's existing parameters."""
     from scripts.functional_execution import execution_digest
     if execution is None:
         raise PackageExportError("functional identity requires controlled execution inputs")
     git_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
     result = dict(fields, format=2, source_path=Path(root).resolve().relative_to(git_root).as_posix(),
-                  source_roots=sorted(roots), source_inputs=source_input_closure(root, sorted(roots)))
+                  source_roots=sorted(roots), source_inputs=source_input_closure(root, sorted(roots), policy=POLICY))
+    for path in (*pinned_inputs, fields["recipe"], fields["abi_definition"]):
+        if path not in result["source_inputs"]:
+            raise PackageExportError("explicit input excluded from source closure: " + path)
     result["parameters"] = dict(fields["parameters"], execution_sha256=execution_digest(execution),
-                                gpu_device=execution["gpu_device"])
+                                gpu_device=execution["gpu_device"], source_closure_policy=POLICY)
     return result
 
 
@@ -376,6 +394,8 @@ def verify_record_source_at_revision(root: Path, record: bytes) -> dict:
                 raise PackageExportError("recorded source is outside module")
             relative = path[len(prefix):]
             _relative_path(relative, "recorded source input")
+            if fields["parameters"].get("source_closure_policy") == POLICY and excluded_markdown(relative, mode.decode()):
+                continue
             actual[relative] = hashlib.sha256(object_bytes("cat-file", "blob", oid.decode())).hexdigest()
     if actual != fields["source_inputs"]:
         raise PackageExportError("recorded source closure differs from Git revision")
@@ -416,7 +436,7 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
     _require_clean_repository(root, fields["revision"], repository=fields["repository"],
                               **({"allow_subdirectory": True} if fields["format"] == 2 else {}))
 
-    if fields["format"] == 2 and source_input_closure(root, fields["source_roots"]) != fields["source_inputs"]:
+    if fields["format"] == 2 and source_input_closure(root, fields["source_roots"], policy=fields["parameters"].get("source_closure_policy")) != fields["source_inputs"]:
         raise PackageExportError("source closure differs from build-input record")
 
     for relative, revision in fields["dependencies"].items():
@@ -533,7 +553,7 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
             os.close(store_fd)
         _require_clean_repository(root, record_fields["revision"], repository=record_fields["repository"],
                                   **({"allow_subdirectory": True} if record_fields["format"] == 2 else {}))
-        if record_fields["format"] == 2 and source_input_closure(root, record_fields["source_roots"]) != record_fields["source_inputs"]:
+        if record_fields["format"] == 2 and source_input_closure(root, record_fields["source_roots"], policy=record_fields["parameters"].get("source_closure_policy")) != record_fields["source_inputs"]:
             raise PackageExportError("source closure changed during export")
         for relative, revision in record_fields["dependencies"].items():
             _require_clean_repository(root.joinpath(*PurePosixPath(relative).parts), revision)

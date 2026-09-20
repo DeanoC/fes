@@ -70,10 +70,12 @@ def plan(root, base, head="HEAD", jobs=2):
     if impact["lanes"]["fpga"]:
         fpga = affected.MODULE_ROOTS["fpga"]
         for pattern in ("test_build_fes_*.py", "test_functional_identity.py", "test_export_core_package.py",
+                        "test_compiler_read_audit.py",
                         "test_legacy_source.py", "test_source_repository.py",
                         "test_core_package.py", "test_search_placer_qor.py"):
             add("fpga", pattern, fpga,
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", pattern, "-v"],
+                tools=["strace"] if pattern == "test_compiler_read_audit.py" else [],
                 files=["tests/" + pattern])
         for core in impact["cores"]:
             add("fpga", core + " RTL simulation", fpga,

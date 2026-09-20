@@ -43,6 +43,11 @@ build identity and provenance all validate. A miss runs that recipe once and
 the result goes through the same checks.
 
 The default FES package producers use the authenticated HIP/nextpnr route.
+Functional builds also require `/usr/bin/strace` with `--kill-on-exit` support
+for compiler input checks. The tracer and its libraries are fingerprinted;
+changing them changes the execution identity. Non-executable Markdown remains
+documentation: using it as a compiler or ordinary Python helper input rejects
+the build instead of sealing a package with an incomplete identity.
 The parent default path opts all selected FES package producers into the
 shared compiler cache at the primary FES checkout's
 `out/cache/misteross-toolchains`, or under the configured `FES_CACHE_ROOT`.

@@ -13,6 +13,7 @@ import platform
 import re
 import subprocess
 from pathlib import Path
+from scripts.compiler_read_audit import TRACER, read_execution_data
 
 
 _REQUIRED_YOSYS_SUPPORT = (
@@ -42,9 +43,9 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
     def capture(path: Path):
         # System library symlinks are expected; bind their resolved bytes and
         # lexical pathname, unlike source inputs whose symlinks are forbidden.
-        files[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+        files[str(path)] = hashlib.sha256(read_execution_data(path)).hexdigest()
 
-    executables = set(tools.values())
+    executables = {*tools.values(), TRACER}
     if "yosys" in tools:
         # synth_intel_alm invokes abc9, whose default external executable is
         # <yosys-bindir>/yosys-abc (passes/techmap/abc9_exe.cc).
@@ -68,7 +69,7 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
             raise ValueError(f"missing dynamic library for {binary.name}")
         for name in re.findall(r"(?:=>\s+|^\s*)(/[^\s]+)", result.stdout, re.MULTILINE):
             capture(Path(name))
-    for prefix in sorted({binary.parent.parent for binary in executables}):
+    for prefix in sorted({binary.parent.parent for binary in executables if binary != TRACER}):
         support = prefix / "share"
         if support.is_dir():
             for path in sorted(support.rglob("*")):

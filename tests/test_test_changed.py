@@ -61,7 +61,7 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         self.assertTrue(all(result["impact"]["lanes"].values()))
         fpga = [c for c in result["commands"] if c["lane"] == "fpga"]
-        for name in ("test_functional_identity.py", "test_export_core_package.py", "test_core_package.py", "test_search_placer_qor.py"):
+        for name in ("test_functional_identity.py", "test_export_core_package.py", "test_core_package.py", "test_search_placer_qor.py", "test_compiler_read_audit.py"):
             self.assertTrue(any(name in c["argv"] for c in fpga))
         for core in test_changed.affected.CORES:
             self.assertTrue(any("sim-fes-" + core in c["argv"] for c in fpga))

@@ -325,5 +325,16 @@ claimed enabled. Until repository settings are configured, the integrator must
 serialize candidate integration and retest against current main. Remote policy
 and repository archival are not silently changed by this local migration.
 
-Keep the objective open through final FPGA organization, software tests,
-representative new-artifact diagnostics, image verification and integration.
+The shared producer helpers, shared RTL and single registered-memory compiler
+lock are implemented, with passing core simulations. The completion audit added
+`make status` to aggregate separate source/build/CI/hardware/deployment evidence,
+and a versioned Markdown exclusion with compiler and Python read checks. CI
+emits a dated tested-commit/base observation; hardware and deployment evidence
+remain explicit dated observations rather than inferred state.
+
+Candidate `4caf87af` passed the host build and the parent suite (524 tests,
+36 skips). Its selected Pong/ZX81 packages passed routing and timing; that build
+was interrupted during Coleco routing to finish these audit corrections before
+final qualification. Those partial artifacts do not qualify the revised source.
+Keep the objective open through the final policy build, exact-artifact hardware
+diagnostic, native image verification and integration handoff.

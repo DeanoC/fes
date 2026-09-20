@@ -141,6 +141,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 | `make test-changed TEST_CHANGED_ARGS='--base origin/main'` | Affected software checks and dependent consumers |
 | `make dev-snapshot` | Freeze local edits in a separate diagnostic-only checkout |
 | `make source-status` | Read-only selected revisions, local changes and observed remote main freshness |
+| `make status` | Separate source, CI, build, hardware and deployment evidence ([guide](docs/status.md)) |
 | `make check` | Current component and shared-definition consistency |
 | `make doctor` | Selected pins/lock, Linux architecture, Go and container availability |
 | `make host` | Linux API server and CLI |

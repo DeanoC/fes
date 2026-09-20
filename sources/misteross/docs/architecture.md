@@ -22,11 +22,34 @@ modules of each declared input, including shared RTL, root or core compiler lock
 the recipe/ABI digests, authenticated
 tool identities, routing options and controlled execution identity. This is a
 conservative module closure: unrelated root documentation does not invalidate
-it, but another producer helper under `scripts/` does. Core-local README and
-other files under these conservative roots also invalidate today; narrowing
-that scope requires an audited compiler input trace. Root docs and unrelated
-UI files are outside the closure and their stability is tested. Export repeats the full
-closure enumeration and rejects missing, untracked, symlink or changed inputs.
+it, but another producer helper under `scripts/` does. New records set `parameters.source_closure_policy = "compiler-markdown-v1"`.
+This policy excludes tracked non-executable `.md`/`.markdown` files, including
+new documentation, while retaining executable Markdown and every other file
+regardless of a `docs/` directory name. Recipe, ABI and explicit producer inputs
+must remain in the closure; declaring an excluded Markdown input fails closed.
+Both working-tree and historical Git-object validation apply the recorded
+policy. Existing format-1 and format-2 records without that parameter retain
+their original semantics, including documentation in declared roots.
+
+The five functional producers trace synthesis and each route attempt with
+`/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
+execution identity. Successful source Markdown opens for reading (including
+O_PATH) fail before sealing; output-only writes are distinguished. Trace size,
+completion, pathname decoding and unsupported open mechanisms fail closed.
+A forbidden read is fatal across placement search. A timed-out compiler group
+is terminated; only a complete, valid and benign audit retains the existing
+seed-timeout fallback. Ordinary parent Python `open`/`Path` reads are guarded
+inside functional build/record contexts, including search worker threads; the
+guard is inactive afterward. Support bytes explicitly hashed into execution
+evidence are read through a narrow capture helper. This is not an adversarial
+sandbox for native extensions or raw system calls. Successful-open tracing
+also does not prove that arbitrary future code ignores Markdown metadata or
+failed-open results; producer changes that depend on documentation in those
+ways must revise the policy before reuse is qualified.
+
+Root docs and unrelated UI files remain outside the source closure. Export
+repeats closure enumeration and rejects missing, untracked, symlink or changed
+functional inputs.
 The producer requires a clean committed module before and after building.
 Standalone source uses `source_path = "."`; imported modules use their path
 relative to the real repository root. The revision and origin remain those of
