@@ -13,6 +13,7 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 from recipes import FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment, recipe_for
 import artifact_cache
+from module_sources import normalize_known_origin
 
 MISTEROSS_REPOSITORY = "https://github.com/DeanoC/misteross.git"
 FES_REPOSITORY = "https://github.com/DeanoC/fes.git"
@@ -31,7 +32,7 @@ def digest(path):
 
 
 def authenticate_misteross_origin(source):
-    """Replace a local clone URL with the selected canonical producer origin."""
+    """Validate snapshot provenance without modifying its repository config."""
     source = Path(source).resolve()
     try:
         top = Path(subprocess.check_output(
@@ -45,13 +46,14 @@ def authenticate_misteross_origin(source):
             ["git", "-C", str(source), "remote", "get-url", "--all", "origin"],
             text=True).splitlines()
         accepted = ([repository], [repository.removesuffix(".git")])
+        if len(urls) != 1 or normalize_known_origin(urls[0]) != repository:
+            raise ValueError(
+                "producer origin is not the expected first-party repository; "
+                "inspect the source origin and explicitly select the intended repository before staging")
         if urls not in accepted:
-            subprocess.run(["git", "-C", str(source), "remote", "set-url", "origin",
-                           repository], check=True, stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE, text=True)
-            urls = subprocess.check_output(
-                ["git", "-C", str(source), "remote", "get-url", "--all", "origin"],
-                text=True).splitlines()
+            raise ValueError(
+                "producer snapshot requires canonical HTTPS provenance; "
+                "restage through FES source materialization (the source SSH origin can remain unchanged)")
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError("cannot authenticate selected misteross repository origin") from error
     if urls not in accepted:

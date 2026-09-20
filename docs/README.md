@@ -14,7 +14,8 @@ host software and target root filesystem.
 | See which binaries, images and cores are versioned artifacts | [Artifact identities](artifacts.md) |
 | See who owns native image assembly | [Image assembly ownership](image-assembly.md) |
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
-| Create component worktrees and use incremental builds | [Development guide](development.md) |
+| Create a FES feature worktree and use incremental builds | [Development guide](development.md) |
+| Run affected software checks across modules | [Focused tests](test-changed.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
@@ -47,8 +48,8 @@ and is not current-profile acceptance.
 ## What has been verified
 
 - [Functional FPGA identity](validation/2026-09-20-functional-core-identity.md):
-  real Coleco compiler signoff and exact-artifact reuse after a documentation-only
-  commit; hardware and imported-image qualification remain outstanding.
+  real Coleco compiler signoff, reuse after documentation and repository import,
+  and exact-package HDMI diagnostics; imported-image qualification is separate.
 
 - [Coleco 32 KiB streaming](coleco-stream-32k.md): component tests and bounded
   HDMI diagnostics, with separate parent integration status and artifact IDs.

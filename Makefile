@@ -25,6 +25,7 @@ PACKAGE_ACCEPTANCE_ARGS ?=
 PACKAGE_ACCEPTANCE_ISOLATED_ARGS ?=
 CORE_DEV_ARGS ?=
 CORE_DEV_ACCEPT_ARGS ?=
+TEST_CHANGED_ARGS ?= --base origin/main
 help:
 	@printf '%s\n' 'FES: start with AGENTS.md and docs/development.md' 'make source-status | check | doctor | build | host | image | verify | rebuild | dev | platform-provision | platform-test | target-acceptance | media | verify-media | rollback-media | test' 'Default: native-integration-dev; FES image lanes are package-only' 'Appliance bootstrap builds FES platform/ against the selected FogCast appliance module.' 'make media auto-embeds the private host token; use FES_UNPROVISIONED=1 for CI-only media.' 'Quartus is an explicit oracle/check for unsupported systems; build does not deploy.'
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
@@ -38,11 +39,21 @@ platform-test:
 	$(PYTHON) scripts/platform.py test --fogcast "$(abspath sources/FogCast)"
 test:
 	$(MAKE) platform-provision
+	$(MAKE) media-test-provision
 	$(PYTHON) -m unittest discover -s tests -v
 	$(MAKE) platform-test
 	$(MAKE) -C image test FOGCAST_DIR="$(abspath sources/FogCast)"
 check:
 	$(PYTHON) scripts/consistency.py
+.PHONY: media-test-provision
+media-test-provision:
+	$(PYTHON) -c 'import os; from pathlib import Path; from scripts.media_container import ensure_media_container; from scripts.media_inputs import MediaLock; ensure_media_container(Path("."), os.environ.get("CONTAINER_RUNTIME", "docker"), MediaLock.load(Path("boot-media.lock.toml")))'
+.PHONY: test-changed
+test-changed:
+	$(PYTHON) scripts/test_changed.py $(TEST_CHANGED_ARGS)
+.PHONY: dev-snapshot
+dev-snapshot:
+	$(PYTHON) scripts/dev_snapshot.py
 target-acceptance:
 	$(PYTHON) scripts/target_acceptance.py --selection-dir "$(TARGET_ACCEPTANCE_SELECTION_DIR)" $(TARGET_ACCEPTANCE_ARGS)
 

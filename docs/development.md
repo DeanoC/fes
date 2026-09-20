@@ -1,21 +1,16 @@
 # Development through FES
 
-New to the checkout? Begin with [getting started](getting-started.md). For
-assignments and team handoffs, see [the agent workflow](agent-workflow.md).
-
-Read [the parent instructions](../AGENTS.md) and
-[component boundaries](component-boundaries.md) first. Choose the component
-that owns the behavior, then read its instructions, README and current
-architecture before editing. FES coordinates compatible revisions; each
-component keeps its own implementation and focused development loop.
+FES contains the host, target runtime, shared contracts and FPGA product sources
+in one Git repository. Their ownership boundaries remain separate; their files
+under `sources/` are tracked modules in the same FES commit. Start with
+[AGENTS.md](../AGENTS.md), [the project map](project-map.md) and the owning module's
+instructions. Read [getting started](getting-started.md) for machine setup and
+[the agent workflow](agent-workflow.md) for assignments.
 
 ## Inspect source freshness
 
-Run `make source-status` before selecting updates. It observes remote `main` for
-FES and each component without fetching, changing refs, selecting pins or writing
-Git indexes. Component `selected` is the index gitlink used by integration; a
-staged selection is shown separately from the committed gitlink. Checkout HEAD,
-branch, dirty paths and selection mismatches remain visible.
+`make source-status` reports the checkout and selected commit without fetching,
+changing refs or writing Git indexes:
 
 ```sh
 make source-status
@@ -23,72 +18,74 @@ make source-status SOURCE_STATUS_ARGS='--offline'
 make source-status SOURCE_STATUS_ARGS='--json --timeout 5'
 ```
 
-Online observations include UTC timestamps. `equal` means the selected SHA matches
-the observed remote main. `behind`, `ahead` and `diverged` use available local
-history; `different-history-unavailable` means the SHAs differ but the command
-cannot safely determine ancestry without fetching. Offline, failed and timed-out
-queries remain unknown. No cached remote-tracking ref is presented as a fresh
-remote observation. Uninitialized components are reported and their configured
-`.gitmodules` URL can still be queried; initialized checkouts use their `origin`.
-All project repositories currently use `main`; this command deliberately compares
-that integration branch, not the developer branch's configured upstream.
+Imported module rows identify the real FES commit, module path and subtree ID.
+They share the FES `main` remote observation; they do not have independent branch
+tips to reconcile. Dirty paths are scoped to each module. Staged or unstaged
+module edits are visible, but build selection still refers to committed bytes.
 
-The JSON schema includes full SHAs and lossless Git porcelain change records.
-The report exits zero when inspection succeeds, even for dirty/stale/unknown
-sources; it is informational, not an integration gate. Invalid invocation or
-local inspection failure exits 2. It does not establish compatibility, CI success,
-build completion, hardware qualification or deployed state. Continue to use
-`make check` for selected-source consistency.
+Online observations include UTC timestamps. `equal`, `behind`, `ahead` and
+`diverged` describe available Git history. `different-history-unavailable` means
+the commits differ but ancestry cannot be established locally. Offline, failed
+or timed-out observations remain unknown. A cached remote-tracking ref is never
+presented as a fresh remote observation. Historical gitlink checkouts remain
+readable by the status tool; those compatibility rows still distinguish indexed
+and committed pins.
+
+Status is informational: it does not establish compatibility, CI success, build
+completion or deployed identity. Use `make check` for committed-source and
+consumer consistency.
 
 ## Isolate component work
 
-From the FES root, create a worktree from the selected clean component HEAD.
-For example, for a FogCast task named `launch-status`:
+Create one FES worktree for a task, including tasks that span several modules:
 
 ```sh
-mkdir -p out/dev/launch-status
-git -C sources/FogCast worktree add -b feat/launch-status \
-  "$PWD/out/dev/launch-status/FogCast" HEAD
+mkdir -p out/dev
+git worktree add -b feat/launch-status "$PWD/out/dev/launch-status" HEAD
+cd out/dev/launch-status
 ```
 
-Use the corresponding directory under `sources/` for another component.
-`out/` is ignored. Use a unique task/branch name for each concurrent task in
-the same component repository. Leave the root `sources/` checkouts clean and
-at their selected pins so other integration work can build reproducibly.
-Run component commands inside the worktree; parent builds use selected
-revisions, not an uncommitted component worktree.
+Edit the owning files directly under `sources/FogCast`,
+`sources/libmister-runtime`, `sources/mister-packages` or `sources/misteross` in
+that worktree. Shared-contract changes and their consumers belong in the same
+FES branch and PR. There is no internal pin-update PR chain. Independent tasks
+use different FES worktrees; workers sharing one task agree disjoint file
+ownership before concurrent edits. Do not create nested component worktrees.
 
-When parallel work helps, assign disjoint scopes and share contract changes
-early. The integrator selects reviewed component results, updates parent
-gitlinks and affected profile/contract inputs, and runs integration checks.
-Workers do not move root component checkouts or update gitlinks independently.
-Committing and publishing still require user authorization.
-
-For a reviewed component commit already available in its repository, the
-integrator selects it explicitly, for example:
+For local iteration, run the owning module's tests or the
+[affected software command](test-changed.md):
 
 ```sh
-git -C sources/FogCast checkout --detach REVIEWED_FOGCAST_COMMIT
-git -C sources/libmister-runtime checkout --detach MATCHING_RUNTIME_COMMIT
-git add sources/FogCast sources/libmister-runtime
-make check
-make host
+python3 scripts/test_changed.py --base origin/main --plan-only
+python3 scripts/test_changed.py --base origin/main
+make check-generated
 ```
 
-Replace the uppercase placeholders with full reviewed commit IDs. If a worker
-used another clone, fetch its branch into the component repository first. FES
-selects the runtime independently and generates the concrete assembly lock. Stage package or FPGA
-gitlinks in the same way when they change. These staged gitlinks are what the
-parent validates, so the candidate can be built before a parent commit or PR.
-Before publishing the parent, ensure each selected commit is available from the
-component remote; a local-only commit will break recursive clones elsewhere.
+After a shared definition or fixture changes, use `make generate`, review the
+resulting consumer changes and run affected tests. Commit the reviewed FES
+change when authorized, then run `make check` and the appropriate build. Parent
+builds consume real committed FES snapshots under ignored `out/work/`; they do
+not build arbitrary unstaged module edits. A snapshot retains the actual FES
+repository and commit, with the module's path and tree identity. It is not a
+synthetic standalone component commit. Do not edit builder-managed snapshots.
+
+The import mapping in [config/source-imports.toml](../config/source-imports.toml)
+records original repositories, prior gitlinks, imported commits and module trees.
+The import commit retains original histories as parents. That local history
+mapping does not assert that cutover has been published or hardware-qualified.
+When moving from a submodule checkout, preserve old component branches,
+worktrees and uncommitted work. Prefer a separate fresh checkout of the reviewed
+import revision; do not delete old module directories or reset them to make the
+new layout fit.
 
 ## Validate at the right scope
 
 | Command from FES root | Purpose |
 | --- | --- |
-| `make test` | Parent regression tests |
-| `make check` | Component pins, locks and generated-definition consistency |
+| `make test` | Parent/platform/image-recipe regression suites; prepare their prerequisites |
+| `python3 scripts/test_changed.py --base REF` | Affected software tests, including dependent consumers |
+| `make generate` / `make check-generated` | Regenerate mapped consumers / check without writing |
+| `make check` | Committed module selection, FES policy and generated-definition consistency |
 | `make doctor` | Selected profile and build prerequisites |
 | `make host` | Compile selected linux/amd64 host outputs and `host.json` |
 | `make dev` | Incremental diagnostic native image using a persistent base |
@@ -122,7 +119,7 @@ Coordinate shared expensive runs rather than starting one per agent.
 
 Run `make dev` for the selected `native-integration-dev` revisions. It publishes
 `out/native-integration-dev/development/linux.img` and a `development.json`
-receipt after structural validation. It uses the same pinned package set,
+receipt after structural validation. It uses the same selected package set,
 FES `image/` overlay and image recipes as the clean build. The native image
 contains the locked idle RBF and the same closed `fes.pong`, `fes.zx81`,
 `fes.coleco` package set. It does not deploy, run QEMU,
@@ -148,37 +145,32 @@ identical because its generated host tools are not generally relocatable.
 
 The cache key covers the FES `image/` Buildroot tree (configuration, overlays,
 patches and package recipes), container inputs, source/package locks, scripts,
-Makefile, FogCast native input policy except the runtime commit, and the parent
-incremental runner. Changes to these inputs select a separate fresh volume.
+Makefile, FES native input policy except the generated runtime commit, and the
+parent incremental runner. Changes to these inputs select a separate fresh volume.
 Application-source changes and runtime commit changes retain the base. The
 container cache identity uses input contents rather than checkout locations, so
-identical compiler containers are shared across component worktrees. The package
+identical compiler containers are shared across FES worktrees. The package
 selection and locked idle RBF are installed during finalization; a change to
 that policy selects a new base. This intentionally conservative key can be
 narrowed later with evidence.
 
-The default parent integration path also opts every selected FES
-package producer into the disposable shared compiler cache at
-`out/cache/misteross-toolchains` through an explicit producer `--cache-root`.
-That cache is workspace-local ignored state, not provenance. Published slots
-seal `install/` and `evidence/` as 0555
-directories with 0444 files and also keep writable `src/` and `build/`
-trees, so a plain recursive removal cannot delete them. Restore owner write
-and search permission, then remove that exact tree:
+Compiler and functional-artifact caches are shared across FES worktrees. Their
+default root is the primary Git checkout's `out/cache`, not each task worktree's
+`out/cache`. Set `FES_CACHE_ROOT=/absolute/path` to select another stable location.
+Producers receive its `misteross-toolchains` directory through `--cache-root`;
+immutable core packages use its `core-packages` directory. Mutable build outputs
+remain in each task's disposable snapshots. Cache contents are not independent
+provenance or acceptance evidence.
 
-```sh
-chmod -R u+rwX -- out/cache/misteross-toolchains
-rm -rf -- out/cache/misteross-toolchains
-```
+Do not copy authenticated compiler installations to another path and assume
+that their qualification survives relocation. Authenticate/build a new slot
+when changing the cache location. Inspect a failing cache slot and the recorded
+path before any targeted repair; never remove all of `out/`, which may contain
+other worktrees and uncommitted work.
 
-Then retry. The shared-cache implementation and real OFF/HIP evidence live in
-misteross PR #60; this parent slice does not claim a fresh cold build or
-hardware validation.
-
-`make dev` builds selected clean revisions, not arbitrary uncommitted worker
-checkouts. Integrate reviewed component commits using the commands above before
-running the parent build. Workers can still use their component's artifact-only
-diagnostic loop.
+`make dev` builds committed module sources. Preserve local edits and commit the
+reviewed change before assembly; use module tests for earlier iteration. The
+artifact-only diagnostic loop remains available without a whole-image rebuild.
 
 ## Package-only development acceptance
 
@@ -280,11 +272,11 @@ Report component work with this short handoff:
 - Commands run and results, including failures or untested paths.
 - Hardware status: host-only, diagnostic, or acceptance with exact artifact
   identities and dated evidence.
-- Parent pin or shared-contract effects and the next integration step.
+- Shared-contract, consumer or FES artifact-policy effects and the next integration step.
 
 Passing host tests or reusing historical hardware evidence does not establish
 hardware acceptance of `native-integration-dev`. Record acceptance only for
-the artifacts actually exercised. Name the selected component commits and
+the artifacts actually exercised. Name the selected FES commit, module paths and
 receipt hashes; an uncommitted worktree is not those artifacts. See
 [artifact identities](artifacts.md). Whole-system image assembly is already
 owned by FES `image/`; see [current refactor status](fes-structure.md).
@@ -292,9 +284,9 @@ owned by FES `image/`; see [current refactor status](fes-structure.md).
 ## Contract generation and shared build caches
 
 `make check-generated` verifies generated consumers and copied conformance data.
-After repository import, `make generate` regenerates these outputs in one working
-tree, including the known copied external-core pins. It refuses writes while
-components remain gitlinks, preserving the old pinned integration inputs.
+`make generate` regenerates these outputs in the FES working tree, including the
+known copied external-core pins. Its legacy-layout guard refuses to rewrite
+historical gitlink checkouts.
 Canonical package definitions and runtime fixtures remain owner-maintained inputs.
 
 Compiler caches and functional core artifacts use the primary Git checkout's
@@ -310,3 +302,21 @@ and hardware gate pass. Version 1 retains exact-record selection. A changed comm
 with the same verified functional inputs can reuse the original version-2 artifact;
 unavailable historical evidence fails closed. Core-local source closure remains
 conservative, so edits within an owning core directory can invalidate that core.
+
+## Diagnose local edits without committing them
+
+Run `make dev-snapshot` from the feature worktree to freeze current tracked and
+untracked, nonignored files into a separate checkout under
+`out/development-snapshots/`. Staged and unstaged changes are combined using the
+current working file contents; deletions and executable modes are preserved.
+The command leaves your index, branches and working files unchanged.
+
+The printed JSON gives the snapshot directory and actual Git commit. Run
+`make host` or `make dev` in that directory for diagnostic integration builds;
+`make doctor` is also available. The snapshot retains the original repository
+origin and parent commit, and commits a development-only marker. It is not a
+reviewed source selection: cold builds, verify, image, media and release checks
+reject it, including when a profile selects its module revision. Removing the
+working marker does not change that classification. Commit reviewed edits in
+the feature worktree before producing release or hardware-acceptance evidence.
+Snapshots do not update the feature branch or qualify hardware automatically.

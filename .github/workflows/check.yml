@@ -41,29 +41,15 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
         run: |
-          python3 -m unittest tests.test_affected -v
-          if [ "$BASE" = 0000000000000000000000000000000000000000 ]; then
-            git show --format= --check "$HEAD"
-          else
-            git diff --check "$(git merge-base "$BASE" "$HEAD")" "$HEAD"
-          fi
+          python3 -m unittest tests.test_affected tests.test_check_diff -v
+          python3 scripts/check_diff.py --base "$BASE" --head "$HEAD"
   parent-tests:
     needs: plan
     runs-on: ubuntu-24.04
     steps:
-      - name: Require component read access
-        env:
-          COMPONENT_TOKEN: ${{ secrets.FES_COMPONENTS_TOKEN }}
-        run: |
-          test -n "$COMPONENT_TOKEN" || {
-            echo 'Set FES_COMPONENTS_TOKEN to a read-only token for FES and its four private components.'
-            exit 1
-          }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          submodules: recursive
           fetch-depth: 0
-          token: ${{ secrets.FES_COMPONENTS_TOKEN }}
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -73,15 +59,7 @@ jobs:
             platform/go.sum
       - name: Provision pinned boot-media test container
         if: fromJSON(needs.plan.outputs.lanes).parent
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          from scripts.media_container import ensure_media_container
-          from scripts.media_inputs import MediaLock
-
-          ensure_media_container(Path('.'), 'docker', MediaLock.load(Path('boot-media.lock.toml')))
-          PY
+        run: make media-test-provision
       - if: fromJSON(needs.plan.outputs.lanes).parent
         run: make platform-provision
       - if: fromJSON(needs.plan.outputs.lanes).parent
@@ -90,19 +68,9 @@ jobs:
     needs: plan
     runs-on: ubuntu-24.04
     steps:
-      - name: Require component read access
-        env:
-          COMPONENT_TOKEN: ${{ secrets.FES_COMPONENTS_TOKEN }}
-        run: |
-          test -n "$COMPONENT_TOKEN" || {
-            echo 'Set FES_COMPONENTS_TOKEN to a read-only token for FES and its four private components.'
-            exit 1
-          }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          submodules: recursive
           fetch-depth: 0
-          token: ${{ secrets.FES_COMPONENTS_TOKEN }}
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -114,13 +82,21 @@ jobs:
         run: make check
       - if: fromJSON(needs.plan.outputs.lanes).host
         run: make host
+      - name: Host and protocol consumer tests
+        if: fromJSON(needs.plan.outputs.lanes).host
+        run: |
+          cd sources/FogCast
+          go test -race ./...
+          make test-ui
+          cd appliance
+          go test -race ./...
       - name: Runtime software tests
         if: fromJSON(needs.plan.outputs.lanes).runtime
         run: make -C sources/libmister-runtime -j2 test
       - name: Shared contract tests
         if: fromJSON(needs.plan.outputs.lanes).contracts
         run: |
-          python3 -m pip install jsonschema pyyaml
+          python3 -m pip install -r sources/mister-packages/requirements-test.txt
           make -C sources/mister-packages test
       - name: FPGA producer tests and shared endpoint simulation
         if: fromJSON(needs.plan.outputs.lanes).fpga
@@ -129,14 +105,18 @@ jobs:
           sudo apt-get install -y verilator
           cd sources/misteross
           python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
-          make sim-fes-demo
+          python3 -m unittest discover -s tests -p 'test_functional_identity.py' -v
+          python3 -m unittest discover -s tests -p 'test_export_core_package.py' -v
+          python3 -m unittest discover -s tests -p 'test_core_package.py' -v
+          python3 -m unittest discover -s tests -p 'test_search*.py' -v
+          make sim-fes-demo sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-sms sim-fes-sms-oss sim-fes-sg1000 sim-fes-sg1000-oss
       - name: Report software lane limits
         if: always()
         env:
           LANES: ${{ needs.plan.outputs.lanes }}
         run: |
           echo "Selected software lanes: $LANES" >> "$GITHUB_STEP_SUMMARY"
-          echo 'False lanes were skipped. FPGA coverage is producer tests and shared endpoint simulation only; per-core execution, synthesis, image builds and hardware acceptance were not run.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'False lanes were skipped. FPGA coverage is producer/package tests and core RTL simulation; synthesis, image builds and hardware acceptance were not run.' >> "$GITHUB_STEP_SUMMARY"
   integration:
     if: always()
     needs: [plan, parent-tests, components]

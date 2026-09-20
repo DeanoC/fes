@@ -1,8 +1,8 @@
 # Getting started with FES
 
 Start at FES when you want to build a known combination of FogCast, the native
-runtime and FPGA artifacts. Start a component worktree when you want to change
-one of those parts. The [project map](project-map.md) explains the distinction.
+runtime and FPGA artifacts. Create a FES task worktree when you want to change
+one or several of those modules. The [project map](project-map.md) explains the distinction.
 
 ## 1. Prepare the checkout
 
@@ -13,30 +13,45 @@ FPGA package route uses the authenticated HIP/nextpnr producers. Quartus Lite
 17.0.2 is only an explicit bring-up/oracle check for a system whose nextpnr
 route is not implemented; it is not required by the default package-only path.
 
-You need Git access to FES and all four component repositories. The clone
-example below uses SSH for FES, but `.gitmodules` currently uses HTTPS for the
-components. Configure your Git HTTPS credential helper, or an existing Git URL
-rewrite to your authenticated SSH setup; parent SSH access alone is insufficient.
+The first-party modules are tracked in FES, so a checkout of the reviewed import
+revision needs access to this repository rather than four separate component
+remotes. Use the branch or commit supplied for the imported layout; do not assume
+that a remote default branch has already published this cutover.
 
 ```sh
-git clone --recurse-submodules git@github.com:DeanoC/fes.git
+git clone git@github.com:DeanoC/fes.git
 cd fes
-make test
+# Select the reviewed import branch/commit if it is not the default checkout.
+git status
 make check
 ```
 
-For an existing checkout, inspect `git status` and `git submodule status` before
-running `git submodule update --init --recursive`. Preserve any component work
-before changing its checkout. The parent expects each `sources/` directory to
-be clean and at its indexed revision.
+When coming from the earlier submodule layout, preserve existing component
+branches, worktrees and uncommitted changes. Use a separate fresh checkout of the
+reviewed import revision, and port the intended changes into its tracked module
+paths. Do not remove old module directories or reset existing work to force the
+new layout into place. Original URLs, commits and trees are recorded in
+[config/source-imports.toml](../config/source-imports.toml); the import retains
+original histories.
 
-`make test` checks the parent without external services. `make check` validates
-the selected component revisions, the runtime lock and generated definitions.
-It needs Go and the components, but does not build an image or use the kit.
-For host-only work, continue with `make host`; Docker is not required for this
-path. `make doctor` checks the container engine as well, and does not check
-Quartus availability. Avoid `git submodule update --remote`: integration uses
-pinned commits, not whichever branch tips are newest.
+`make check` validates committed module sources, FES artifact policy and generated
+consumers. It needs Go but does not build an image or use the kit. For everyday
+software iteration, use the [affected tests](test-changed.md):
+
+```sh
+python3 scripts/test_changed.py --base origin/main --plan-only
+python3 scripts/test_changed.py --base origin/main
+make check-generated
+```
+
+`make generate` refreshes mapped definitions and fixtures after authoritative
+inputs change; review those edits together with their consumers. The full
+`make test` suite additionally covers platform and image-recipe tests and
+provisions its pinned platform/media containers. Docker must be available, with
+network access for the first provisioning. For host compilation, use `make host`; Docker is
+not required for that path. `make doctor` also checks the container engine, and
+does not check Quartus availability. Build commands consume committed snapshots;
+local module tests can exercise uncommitted work.
 
 ## 2. Choose what to build
 
@@ -60,7 +75,10 @@ The first development build can copy a compatible existing clean base or build
 it once. Later builds retain unchanged compiler/base packages. Completely
 unchanged outputs are reused after hash checks. See
 [incremental native builds](development.md#incremental-native-image) for cache
-invalidation and output details. `make dev` builds the target image only; run
+invalidation and output details. Compiler and functional-package caches default
+to the primary FES checkout's `out/cache`, shared across its worktrees; an absolute
+`FES_CACHE_ROOT` selects another stable location. Do not relocate authenticated
+compiler installations by copying their directories. `make dev` builds the target image only; run
 `make host` separately when you need host binaries.
 
 For clean integration verification:
@@ -190,15 +208,14 @@ and input behavior require separate hardware checks of the exact image.
 
 | Message or symptom | Next step |
 | --- | --- |
-| Missing submodule | Confirm Git access, then initialize submodules as above |
-| `HEAD differs from parent pin` | Inspect the component and staged gitlink; let the integrator reconcile them |
-| `source checkout is dirty` | Preserve edits in the component task worktree; see [development](development.md#isolate-component-work) |
-| Runtime lock differs from parent pin | Select the FogCast/runtime pair together; changing only the gitlink is insufficient |
-| Generated consumer or copied source-pin drift | Reconcile the authoritative package definition and affected consumers; `make check` reports drift but does not repair it |
+| Imported modules are absent | Check that this checkout contains the reviewed import revision; preserve the earlier checkout and its component work |
+| `source checkout is dirty` | Run focused tests during iteration, then commit the reviewed module changes before a selected-source build |
+| Generated consumer or copied source-pin drift | Update the authoritative definition, run `make generate`, review all consumer edits, then `make check-generated` |
+| Generated runtime lock is stale | Regenerate through the FES build path; artifact policy belongs to `image/build/native-inputs.toml` |
 | Missing Quartus | Only relevant to a documented oracle/check for a system not yet supported by nextpnr; the default package-only path uses HIP/nextpnr |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |
-| Private-component CI checkout fails | Configure repository secret `FES_COMPONENTS_TOKEN` with access to the parent and four components |
+| Checkout uses old recursive-component CI instructions | Confirm which FES revision and workflow is running; imported modules are tracked files, while old commits retain their historical checkout requirements |
 
 Next: [change a component](development.md#isolate-component-work) or
 [assign a bounded agent task](agent-workflow.md).

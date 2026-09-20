@@ -19,7 +19,8 @@ class AffectedTests(unittest.TestCase):
         for module in ('host', 'runtime'):
             for path in (MODULE_ROOTS[module], MODULE_ROOTS[module] + '/src/main.cpp'):
                 result = plan([path])
-                self.assertEqual({k for k,v in result['lanes'].items() if v}, {'parent', module})
+                self.assertEqual({k for k,v in result['lanes'].items() if v},
+                                 {'parent', module} | ({'host'} if module == 'runtime' else set()))
 
     def test_shared_and_core_rtl_are_conservative(self):
         for path in ('sources/misteross/cores/fes-common/rtl/fes_application_gp.v',

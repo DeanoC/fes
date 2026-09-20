@@ -56,6 +56,24 @@ def _origin(root):
     return urls[0]
 
 
+def normalize_known_origin(origin):
+    """Canonicalize transport spellings of known first-party GitHub origins.
+
+    Unknown URLs remain themselves: a fork or local clone must never acquire
+    first-party provenance merely because its directory has a familiar name.
+    Source checkout configuration is not modified; snapshots use the result.
+    """
+    if origin is None:
+        return None
+    match = re.fullmatch(
+        r"(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)"
+        r"DeanoC/([A-Za-z0-9_.-]+?)(?:\.git)?", origin, re.IGNORECASE)
+    repositories = {name.lower(): name for name in ("fes", *COMPONENTS)}
+    if match and match[1].lower() in repositories:
+        return "https://github.com/DeanoC/" + repositories[match[1].lower()] + ".git"
+    return origin
+
+
 def _without_symlinks(root, path):
     current = root
     for part in path.relative_to(root).parts:
@@ -115,7 +133,7 @@ def describe(root, name, revision=None, *, require_clean=True):
         tree = tree_result.stdout.strip()
     if require_clean and status:
         raise ValueError(f"{relative}: source checkout is dirty; commit module changes before building")
-    return {"kind": "gitlink" if gitlink else "module", "repository": _origin(source),
+    return {"kind": "gitlink" if gitlink else "module", "repository": normalize_known_origin(_origin(source)),
             "commit": commit, "path": module_path, "tree": tree,
             "root_commit": root_commit, "dirty": bool(status)}
 
@@ -163,9 +181,13 @@ def materialize(root, name, revision, destination):
         raise ValueError(f"source snapshot must have independent Git metadata: {destination}")
     if (Path(_value(destination, "rev-parse", "--show-toplevel")).resolve() != destination or
             _value(destination, "rev-parse", "HEAD") != identity["commit"] or
-            _origin(destination) != identity["repository"] or
+            normalize_known_origin(_origin(destination)) != identity["repository"] or
             _value(destination, "status", "--porcelain=v1", "-z", "--untracked-files=all")):
         raise ValueError(f"source snapshot is changed; inspect {destination} before rebuilding")
+    # Older snapshots may retain an equivalent SSH/HTTPS spelling. Normalize
+    # once here, after validating source/cleanliness, never in the producer.
+    if _origin(destination) != identity["repository"]:
+        _git(destination, "remote", "set-url", "origin", identity["repository"])
     module = destination if identity["path"] == "." else destination / identity["path"]
     _without_symlinks(destination, module)
     if not module.is_dir():

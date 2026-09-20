@@ -1,4 +1,5 @@
 """Parent format-2 recipe registry and producer dispatch."""
+from dataclasses import replace
 from pathlib import Path
 import os
 import subprocess
@@ -16,6 +17,10 @@ from tests.test_bundle import BundleTest
 class RecipeRegistryTest(unittest.TestCase):
     def test_registry_preserves_existing_hip_descriptors(self):
         self.assert_existing_descriptors()
+
+    def test_default_registry_uses_functional_identity(self):
+        self.assertTrue(recipes.FORMAT2_RECIPES)
+        self.assertEqual({r.identity_version for r in recipes.FORMAT2_RECIPES.values()}, {2})
 
     def assert_existing_descriptors(self):
         self.assertTrue(
@@ -158,7 +163,7 @@ class RecipeDataTest(unittest.TestCase):
             self.assertEqual(env["KEEP"], "yes")
 
     def test_unknown_and_each_missing_recipe_field_rejected(self):
-        for field in self.document()["recipes"][0]:
+        for field in self.document()["recipes"][0].keys() - {"identity_version"}:
             document = self.document()
             del document["recipes"][0][field]
             with self.subTest(missing=field), self.assertRaises(ValueError):
@@ -168,6 +173,12 @@ class RecipeDataTest(unittest.TestCase):
             document["recipes"][0][field] = "arbitrary"
             with self.subTest(unknown=field), self.assertRaises(ValueError):
                 self.load_document(document)
+
+    def test_omitted_identity_version_preserves_legacy_registry_compatibility(self):
+        document = self.document()
+        for entry in document["recipes"]:
+            del entry["identity_version"]
+        self.assertEqual({r.identity_version for r in self.load_document(document).values()}, {1})
 
     def test_invalid_field_values_rejected(self):
         cases = {
@@ -294,7 +305,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_resolver_uses_descriptor_core_id_and_selection_filename(self):
         module = self.module()
-        recipe = recipes.recipe_for("fes.coleco")
+        recipe = replace(recipes.recipe_for("fes.coleco"), identity_version=1)
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"
@@ -329,7 +340,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_package_miss_builds_selected_producer_once_and_reuse_builds_none(self):
         module = self.module()
-        recipe = recipes.recipe_for("fes.zx81")
+        recipe = replace(recipes.recipe_for("fes.zx81"), identity_version=1)
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"
@@ -369,7 +380,7 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_mismatched_package_core_id_is_rejected(self):
         module = self.module()
-        recipe = recipes.recipe_for("fes.zx81")
+        recipe = replace(recipes.recipe_for("fes.zx81"), identity_version=1)
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"

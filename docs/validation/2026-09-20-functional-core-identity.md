@@ -1,10 +1,11 @@
 # Functional FPGA identity and documentation-only reuse
 
-Status: host/compiler evidence; hardware gate remains outstanding.
+Status: real compiler build, unchanged-artifact reuse and exact-package hardware
+diagnostic passed. Full-image qualification is separate.
 
 The development-ease migration separates embedded functional build identity from
 repository revision provenance. This record describes the first real build and
-reuse rehearsal, not an imported-repository image or hardware acceptance.
+reuse rehearsal and bounded package diagnostic, not full-image acceptance.
 
 ## Exact artifacts
 
@@ -48,13 +49,31 @@ Local evidence is under `/home/deano/fes/out/dev/development-ease/`:
 `coleco-docs-reuse.json`. Producer reports and the original archive are under
 `misteross/build/fes-coleco-oss` and `misteross/build/packages` there.
 
-## Remaining gate
+## Imported repository reuse
 
-The kit was read-only inspected: ready/idle, lease free, installed runtime
-`8c4b690` and agent `6976a4a`. These predate the required application/controller
-interfaces. No kit mutation was made. A temporary service-update maintenance
-window was requested in the
+Import commit `0ff5652fab64f855d44249140a6102da21c38245` retains FES plus
+all four component histories as parents. All imported module trees match their
+original selected trees. `make check` and `make host` passed from the imported
+checkout. Resolving Coleco there reused the package above without invoking the
+producer. The new sidecar records the actual FES repository, commit and
+`sources/misteross` path, preserving the original manifest and build record.
+Local evidence: `coleco-import-reuse.json` and `coleco-import-selection.toml`.
+
+## Exact-package hardware diagnostic
+
+Bob confirmed the disruptive maintenance window in the
 [coordination thread](https://deanoshome.slack.com/archives/C0C3BKMU67J/p1789890519995599).
-Ordinary core operations require the target lease only; service replacement is
-disruptive maintenance. Exact-package HDMI/lifecycle diagnostics, imported-module
-build qualification and full-image validation remain separate outstanding gates.
+Under the target lease, temporary runtime `079b4548` and FogCast agent/host
+`e69e92db` exercised the exact package above through an isolated host library.
+The sequence covered 32768-byte, 24576-byte, 32767-byte and legacy 989-byte
+media, Stop, and a 32768-byte relaunch. All five captures matched 664/664 HDMI
+samples; active package, attached input and stream capacity were checked.
+The original runtime, agent and Kit binaries were restored and their running
+hashes verified. The kit remained on the same boot, ready/idle and lease free.
+
+Evidence and full identities:
+`/home/deano/fes/out/hardware/coleco-functional-20260920/README.md`.
+This is a bounded package diagnostic; same-generation stale-tail behavior is
+simulation coverage, and no imported full image was deployed or qualified.
+Later shared-source reorganization changes functional inputs and needs new
+artifact evidence. Existing immutable artifacts and this evidence stay intact.

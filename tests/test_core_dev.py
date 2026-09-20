@@ -41,6 +41,10 @@ class PrepareTest(unittest.TestCase):
             p = patch.object(core_dev.build, target, value)
             p.start()
             self.addCleanup(p.stop)
+        # These fixtures exercise sealed v1 archives; v2 reconstruction has its own suite.
+        self.mock(core_dev.recipes, "FORMAT2_RECIPES", new={
+            name: replace(recipe, identity_version=1)
+            for name, recipe in core_dev.recipes.FORMAT2_RECIPES.items()})
         self.validate = self.mock(core_dev.inputs, "validate", return_value=self.pins)
         self.stage = self.mock(core_dev.build, "source_checkout", return_value=self.source)
         self.resolve = self.mock(core_dev.bundle, "resolve_core_package", side_effect=self.resolver)

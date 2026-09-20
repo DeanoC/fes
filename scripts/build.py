@@ -192,6 +192,23 @@ def _host_profile(profile):
     return selected
 
 
+def development_classification(revisions):
+    """Report diagnostic provenance for the root and selected module commits."""
+    from inputs import development_snapshot
+    root_snapshot = development_snapshot(ROOT)
+    selected = {}
+    observed = {}
+    for name, revision in revisions.items():
+        if revision not in observed:
+            observed[revision] = development_snapshot(ROOT, revision)
+        if observed[revision] is not None:
+            selected[name] = {'revision': revision, 'snapshot': observed[revision]}
+    if root_snapshot is None and not selected:
+        return None
+    return {'classification': 'development-only', 'root': root_snapshot,
+            'selected_sources': selected}
+
+
 def host_fingerprint(revisions, profile, toolchain):
     """Fingerprint only inputs that can affect the host binaries."""
     data = {
@@ -200,6 +217,9 @@ def host_fingerprint(revisions, profile, toolchain):
         'go': toolchain,
         'recipe': recipe_fingerprint(HOST_RECIPE_FILES),
     }
+    diagnostic = development_classification(data['sources'])
+    if diagnostic is not None:
+        data['development_snapshot'] = diagnostic
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -213,6 +233,9 @@ def build_fingerprint(revisions, profile, toolchain):
     data = {"sources": revisions, "profile": host_profile, "go": toolchain,
             "recipe": recipe_fingerprint(BUILD_RECIPE_FILES),
             "image_recipe": recipe_fingerprint(image_recipe_files())}
+    diagnostic = development_classification(revisions)
+    if diagnostic is not None:
+        data['development_snapshot'] = diagnostic
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -1353,7 +1376,10 @@ def main():
                         choices=["native-integration-dev"])
     args = parser.parse_args()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
-    revisions = validate(ROOT, profile)
+    if args.action in ('host', 'dev', 'doctor'):
+        revisions = validate(ROOT, profile, allow_development=True)
+    else:
+        revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
     package_ids = selected_packages(profile, args.profile)
     if not package_ids:

@@ -1,12 +1,12 @@
 # Project map
 
 FES means Fogger Entertainment System. It is the parent integration repository:
-it records which component versions work together and provides common build and
-validation commands. Component source code stays in its own Git repository.
+its first-party modules share one Git repository, with common build and validation
+commands. Source paths remain under `sources/` while module ownership stays explicit.
 
 ## What each part does
 
-| Part | Runs where? | Owns | Start reading |
+| Module | Runs where? | Owns | Start reading |
 | --- | --- | --- | --- |
 | FES | Development/build machine | Component selection, compatibility checks, build orchestration and integration evidence | [README](../README.md), [build entrypoint](../scripts/build.py) |
 | FogCast | Host machine and target | UI, library, host APIs, transfers and the network-facing target agent | [README](../sources/FogCast/README.md), [architecture](../sources/FogCast/docs/ARCHITECTURE.md) |
@@ -53,8 +53,8 @@ integration, not a production dependency of its native image.
 mister-packages definitions generate checked-in consumers used by the runtime
 and FPGA source, and describe upstream core sources. FogCast consumes the
 runtime-advertised ABI registry without a second static Go allowlist. misteross
-produces the FES package set. FES selects component commits, checks that their
-definitions and locks agree, then invokes the FES `image/` recipe to assemble
+produces the FES package set. FES snapshots committed module sources, checks that their
+definitions and external-artifact policy agree, then invokes the FES `image/` recipe to assemble
 the agent, runtime, libraries and ordered package set. FogCast remains an input
 (agent, kit and extra-core selector) via `FOGCAST_DIR`.
 
@@ -65,38 +65,47 @@ the agent, runtime, libraries and ordered package set. FogCast remains an input
 | `AGENTS.md` | Common working instructions for every agent | For parent workflow changes |
 | `Makefile` | User-facing parent commands | For parent command changes |
 | `profiles/` | Active native integration build settings | Integrator-owned |
-| `scripts/inputs.py` | Component pin and runtime-lock checks | Parent implementation |
-| `scripts/consistency.py` | Package generation and source-pin checks | Parent implementation |
+| `scripts/inputs.py` | Committed module selection and generated runtime assembly inputs | Parent implementation |
+| `scripts/consistency.py` | Generated consumer, fixture and external source-pin checks | Parent implementation |
 | `image/` | Native Buildroot, container and SD/rootfs assembly | Parent image recipe |
 | `scripts/build.py`, `scripts/native_dev.py` | Clean and incremental orchestration | Parent implementation |
 | `platform/` | FES-owned appliance boot selector (`fes-boot`) and Linux boot helpers | Parent boot source; built against the selected FogCast `appliance` module |
 | `scripts/appliance.py`, `scripts/appliance_media.py`, `scripts/platform.py` | Versioned releases, bootstrap and provisioned appliance card files | Parent assembly; see [the release guide](appliance-releases.md) |
 | `scripts/bundle.py`, `scripts/environment.py` | Bundle validation and build environment | Parent implementation |
 | `tests/` | Parent regression tests | With relevant parent behavior changes |
-| `sources/` | Clean submodule checkouts at integration pins | Move pins only through the integrator |
-| `out/dev/<task>/<component>/` | Component worker worktrees | Yes, for that worker's assigned scope |
-| `out/work/` | Builder-managed standalone component clones | No routine edits; builders consume them |
+| `sources/` | Tracked first-party modules in the FES repository | Edit the owning module in a task worktree |
+| `out/dev/<task>/` | FES task worktree containing every module | Yes, within the assigned scope |
+| `out/work/` | Builder-managed committed FES snapshots; commands run in module subdirectories | Do not edit |
 | `out/<profile>/` | Published host/clean-image artifacts and receipts | Generated outputs |
 | `out/native-integration-dev/development/` | Separate incremental diagnostic outputs | Generated outputs |
+| `scripts/test_changed.py` | Affected software tests and consumer closure | FES development tooling |
+| `scripts/generate.py` | Mapped contract generation and fixture copies | FES generation tooling |
+| `config/source-imports.toml` | Original URLs, gitlinks, imported commits and trees | Historical import provenance |
 | `docs/` | Current guides and dated validation evidence | Keep current instructions distinct from history |
 
-`out/` is ignored by Git. Buildroot's large compiled outputs also live in Docker
-volumes, so deleting a published image does not remove its compiler cache.
+`out/` is ignored by Git. Shared compiler and functional-artifact caches default
+to the primary FES checkout's `out/cache` (override with absolute `FES_CACHE_ROOT`).
+Buildroot's large compiled outputs also live in Docker volumes, so deleting a
+published image does not remove its compiler cache.
 Do not use blanket cleanup such as deleting all of `out/`: `out/dev/` can contain
 uncommitted worker source changes. Inspect the specific generated output or
 recorded cache volume before removing it.
 
 ## Terms used in the guides
 
-- **Pin / gitlink:** the exact component commit recorded by the parent Git index.
+- **Module:** a first-party source directory tracked in the FES commit.
+- **Pin / gitlink:** historical internal component selection, or an external
+  dependency selection; imported modules no longer need internal gitlinks.
 - **Profile:** the TOML selection of the active native integration build settings.
-- **Worktree:** another checkout of a component, with its own branch and files,
-  sharing Git history with the component repository.
+- **Worktree:** another FES checkout with its own branch, index and module files,
+  sharing the FES Git history.
 - **RBF:** the binary FPGA configuration loaded by the runtime.
 - **Bundle:** an RBF plus provenance describing its source and build recipe.
 - **Core package:** a closed format-2 manifest and RBF with a content-derived immutable package ID.
 - **Selection record:** the normalized description of the core installed in an
   image, including its origin and hash.
+- **Snapshot:** a disposable checkout of the real selected FES commit, retaining
+  its Git identity and module-relative paths for existing build commands.
 - **Receipt:** input fingerprint and output hashes used to detect stale or
   changed artifacts; it does not itself prove hardware behavior.
 - **Cold two-pass build:** two independent image builds used to check matching

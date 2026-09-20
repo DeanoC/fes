@@ -1,5 +1,6 @@
 """Validate parent source selections and derive concrete assembly inputs."""
 from pathlib import Path
+import json
 import subprocess
 import tomllib
 import re
@@ -19,13 +20,36 @@ def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
 
 
-def validate(root, profile=None):
+def development_snapshot(root, revision="HEAD"):
+    result = subprocess.run(['git', '-C', str(root), 'show',
+        revision + ':config/development-snapshot.json'], stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True)
+    if result.returncode:
+        return None
+    record = json.loads(result.stdout)
+    if (not isinstance(record, dict) or
+        set(record) != {'format', 'classification', 'base_revision', 'captured_tree'} or
+        type(record.get('format')) is not int or record['format'] != 1 or
+        record.get('classification') != 'development-only' or
+        any(not re.fullmatch(r'[0-9a-f]{40}', str(record.get(key, '')))
+            for key in ('base_revision', 'captured_tree'))):
+        raise ValueError('invalid development snapshot classification')
+    return record
+
+
+def validate(root, profile=None, *, allow_development=False):
     root = Path(root)
+    if development_snapshot(root) is not None and not allow_development:
+        raise ValueError('development snapshot cannot satisfy committed integration or release checks; build from the reviewed feature commit')
     revisions = {name: describe(root, name)["commit"] for name in COMPONENTS}
     for name, revision in (profile or {}).get("sources", {}).items():
         if name not in revisions or not re.fullmatch(r"[0-9a-f]{40}", str(revision)):
             raise ValueError(f"invalid profile source revision: {name}={revision}")
-        revisions[name] = describe(root, name, revision)["commit"]
+        selection = describe(root, name, revision)
+        if (selection['kind'] == 'module' and not allow_development and
+                development_snapshot(root, selection['commit']) is not None):
+            raise ValueError('development snapshot source cannot satisfy release checks')
+        revisions[name] = selection["commit"]
     return revisions
 
 

@@ -121,6 +121,44 @@ class ModuleSourcesTest(unittest.TestCase):
         self.destination.rename(moved)
         self.assertEqual(git(moved / "sources/FogCast", "rev-parse", "HEAD"), self.initial)
 
+    def test_ssh_origin_is_normalized_once_and_repeated_fpga_staging_is_read_only(self):
+        bundle_spec = importlib.util.spec_from_file_location("origin_test_bundle", SCRIPT.with_name("bundle.py"))
+        bundle = importlib.util.module_from_spec(bundle_spec)
+        bundle_spec.loader.exec_module(bundle)
+        producer = self.root / "sources/misteross"
+        producer.mkdir()
+        (producer / "README.md").write_text("FPGA source\n")
+        self.commit(self.root, "producer module")
+        revision = git(self.root, "rev-parse", "HEAD")
+        for origin in ("git@github.com:DeanoC/fes.git", "ssh://git@github.com/DeanoC/fes.git",
+                       "https://github.com/DeanoC/fes"):
+            with self.subTest(origin=origin):
+                git(self.root, "remote", "set-url", "origin", origin)
+                identity = module_sources.describe(self.root, "misteross")
+                self.assertEqual(identity["repository"], bundle.FES_REPOSITORY)
+                first = module_sources.materialize(self.root, "misteross", revision, self.destination)
+                # A pre-migration snapshot may have retained the SSH alias.
+                git(self.destination, "remote", "set-url", "origin", origin)
+                self.assertEqual(module_sources.materialize(self.root, "misteross", revision, self.destination), first)
+                config = (self.destination / ".git/config").read_bytes()
+                bundle.authenticate_misteross_origin(first)
+                self.assertEqual((self.destination / ".git/config").read_bytes(), config)
+                self.assertEqual(module_sources.materialize(self.root, "misteross", revision, self.destination), first)
+                bundle.authenticate_misteross_origin(first)
+                self.assertEqual(git(first, "remote", "get-url", "origin"), bundle.FES_REPOSITORY)
+                self.assertEqual(git(self.root, "remote", "get-url", "origin"), origin)
+
+    def test_origin_normalization_only_recognizes_known_first_party_urls(self):
+        for name in ("fes", *module_sources.COMPONENTS):
+            expected = f"https://github.com/DeanoC/{name}.git"
+            for origin in (expected, expected[:-4], f"git@github.com:DeanoC/{name}.git",
+                           f"ssh://git@github.com/DeanoC/{name}.git"):
+                self.assertEqual(module_sources.normalize_known_origin(origin), expected)
+        for origin in (None, "/local/source", "https://example.invalid/fes.git",
+                       "https://github.com/fork/fes.git", "https://github.com/DeanoC/unknown.git",
+                       "https://github.com/DeanoC/fes.git/", "https://github.com/DeanoC/fes.git?x"):
+            self.assertEqual(module_sources.normalize_known_origin(origin), origin)
+
     def test_snapshot_changes_are_rejected_without_cleanup(self):
         result = self.materialize()
         overlay = result / "generated-lock.toml"

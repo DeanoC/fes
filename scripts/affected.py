@@ -46,7 +46,11 @@ def plan(paths):
             reasons.append(f'{path}: FPGA sources and shared core dependencies')
         else:
             selected.update(('parent', owner))
-            reasons.append(f'{path}: {owner} and parent integration')
+            if owner == 'runtime':
+                selected.add('host')
+                reasons.append(f'{path}: runtime, host protocol consumers and parent integration')
+            else:
+                reasons.append(f'{path}: {owner} and parent integration')
     return {'lanes': {lane: lane in selected for lane in LANES},
             'skipped': [lane for lane in LANES if lane not in selected],
             'cores': sorted(cores), 'paths': sorted(set(paths)), 'reasons': reasons,

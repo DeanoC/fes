@@ -1,11 +1,12 @@
 # FES development ease: investigation and migration proposal
 
-Status: migration direction approved; repository layout not yet implemented.
-Investigated 2026-09-20. Stages 1–3 and import/CI tooling are in local implementation; see
+Status: approved migration implemented on an isolated local branch; final FPGA
+organization and image qualification are in progress. No remote cutover yet.
+Investigated 2026-09-20; see
 [development freshness instructions](development.md#inspect-source-freshness).
 The user confirmed that independently releasing FogCast, libmister-runtime and
 mister-packages is not an external requirement: optimize for FES development.
-Current component instructions continue to apply until migration lands.
+Current module instructions apply to the selected checkout.
 
 ## Recommendation
 
@@ -235,9 +236,9 @@ until its replacement has passed the corresponding gate.
 | 5. Import and organize FPGA product modules | Core/shared/producer modules; external toolchains still locked | Same selected source inputs and compiler selections accounted for; simulation and representative build/package/hardware acceptance pass. Roll back import commit before publishing new cutover artifacts if gate fails |
 | 6. Retire transition machinery | New CI planner, stable caches, ownership docs and one contributor workflow | Two independent team changes merge without manual internal pin PRs; status identifies merged/built/qualified separately. Archive old development entry points only after this rehearsal |
 
-Start stage 1 next. It supplies useful evidence immediately and remains useful
-through migration. Stage 2 removes real daily friction while identity work is
-validated. Do not spend weeks building pin-update bots that consolidation removes.
+The stages deliver freshness reporting first, then remove redundant selection
+while functional identity is validated. Permanent pin-update bots are unnecessary
+once the first-party modules share one repository.
 
 For imports, prefer preserving component history under prefixes with an explicit
 cutover mapping, rehearsed on a disposable branch. Compare that against a snapshot
@@ -299,12 +300,30 @@ Stage 1 has source freshness reporting. Stage 2 moves external native-artifact
 policy into FES and derives the runtime revision from the parent selection;
 FogCast checkpoint `e69e92d` removes duplicate selection. Stage 3 producer
 checkpoint `5be2940` has versioned functional records and a passing real Coleco
-build plus documentation-only exact-artifact reuse. Hardware qualification is
-still pending; recipe defaults remain version 1 until that gate.
+build plus documentation-only exact-artifact reuse. The exact package passed
+bounded HDMI/lifecycle diagnostics; recipes now select functional identity
+version 2. Legacy version-1 records retain their original semantics.
 
-History-preserving import tooling, real-commit module snapshots, full-repository
-container mounts, affected-module CI and a single contract-generation command
-have focused tests. They are preparatory code, not evidence that the actual
-repository cutover or its image has been validated. Keep the full migration
-objective open through import, component tests, build/hardware gates, contributor
-workflow rehearsal and final integration.
+Import commit `0ff5652` preserves all four component histories as actual parents
+and matches each original module tree. Its consistency and host builds passed;
+the original Coleco artifact was reused across repository origin and source-path
+changes. Full-repository snapshots/mounts, affected-module CI, contract generation
+and marked local development snapshots are implemented. Strict integration,
+image/media and release paths reject development snapshots.
+
+The local two-team rehearsal used a contract addition with generated Go/C++/RTL
+consumers and an independent documentation change. Both integrated with zero
+conflicts or internal pin updates. This was a single-operator rehearsal of two
+branches, not two live team deliveries or remote PRs. Evidence:
+`/home/deano/fes/out/dev/development-ease/team-rehearsal/20260920-111354/README.md`.
+The rehearsal-only ABI constant is absent from the migration branch.
+
+GitHub observations found no open PRs in any of the five repositories at
+2026-09-20 07:58 UTC. FES main had no branch protection or active rulesets at the
+later settings check. The workflow supports `merge_group`, but no merge queue is
+claimed enabled. Until repository settings are configured, the integrator must
+serialize candidate integration and retest against current main. Remote policy
+and repository archival are not silently changed by this local migration.
+
+Keep the objective open through final FPGA organization, software tests,
+representative new-artifact diagnostics, image verification and integration.
