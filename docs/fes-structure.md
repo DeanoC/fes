@@ -1,17 +1,21 @@
 # FES structure and refactor status
 
-Updated on 2026-09-18 after FES #75–#77. Canonical and integration checkouts
-were synchronized to main `a362662`. Selected FogCast `d9745ed`,
-runtime `a6d658c`, misteross `0825da5` and mister-packages `fdc4ece`
-passed full-image verification and bounded physical acceptance.
-This is the current ownership decision, not a queue of migrations
-to repeat. Historical plans describe the implementation sequence; their
-unchecked execution steps are not evidence that merged work is absent.
+First-party sources now share the FES repository and commit, as described in
+the [project map](project-map.md) and [development guide](development.md).
+Module ownership remains separate; feature changes across modules use one
+worktree and PR. External compilers and upstream dependencies retain explicit
+locks. The earlier repository decision below has been superseded by the
+approved [development-ease migration](development-ease.md).
+
+The merge table and September 18 acceptance references on this page are
+historical evidence for that source selection. They do not qualify the current
+image or subsequent feature work. Current acceptance belongs to the exact
+artifacts recorded in the [documentation index](README.md#what-has-been-verified).
 
 ## Decision
 
-Keep FES plus its four component repositories. FES owns appliance assembly,
-boot software, component selection and integration evidence. FogCast owns the
+Keep first-party product sources together in FES. FES owns appliance assembly,
+boot software, artifact selection and integration evidence. FogCast owns the
 host application, clients and network-facing target agent. Runtime hardware
 control, FPGA builds and shared definitions retain their existing owners.
 Main_MiSTer is reference/test material, not a native production dependency.
@@ -90,7 +94,8 @@ operation; see the [2026-09-18 cleanup](validation/2026-09-18-workspace-retireme
 Full-image deployment and physical acceptance for Pong, ZX81, Coleco and the
 retained SMS package are recorded in the
 [2026-09-18 validation record](validation/2026-09-18-sms-stream-start-diagnostic.md).
-This does not imply generalized core, mapper or release acceptance.
+This historical evidence does not imply acceptance of the current source
+selection, generalized cores, mappers or releases.
 
 The keyboard-capability follow-up is selected through FogCast #252. Fourteen
 characterization cases preserve exact-version recognition, nil/empty inputs,
