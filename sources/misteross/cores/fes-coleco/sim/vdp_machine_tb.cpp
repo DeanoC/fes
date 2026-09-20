@@ -20,6 +20,8 @@ int main(int argc, char **argv) {
     Vcoleco_machine dut;
     dut.clk_sys = 0; dut.reset = 1; dut.media_ready = 0;
     dut.controller_buttons = 0; dut.controller_keypad = 0; dut.peek_addr = 0; dut.media_data = 0;
+    dut.firmware_we_a = 0; dut.firmware_we_b = 0;
+    dut.firmware_addr = 0; dut.firmware_data = 0;
     dut.eval();
     for (int file = 1; file < argc; ++file) {
         std::ifstream input(argv[file], std::ios::binary);

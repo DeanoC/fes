@@ -32,10 +32,10 @@ module coleco_machine (
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
     output wire        cpu_halt_n,
-    input  wire        firmware_we_a = 1'b0,
-    input  wire        firmware_we_b = 1'b0,
-    input  wire [12:0] firmware_addr = 13'd0,
-    input  wire [15:0] firmware_data = 16'h0000
+    input  wire        firmware_we_a,
+    input  wire        firmware_we_b,
+    input  wire [12:0] firmware_addr,
+    input  wire [15:0] firmware_data
 );
     localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
