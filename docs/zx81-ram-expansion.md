@@ -94,3 +94,54 @@ restart adoption, and cleanup against real RBF bytes without hardware.
 These checks are host evidence. Exact empty-shell and composed-pack hardware
 acceptance must separately verify the selected package, composition tuple,
 RAMTOP, keyboard/tape behavior and clean Stop/reload on the designated kit.
+
+## Designated-kit acceptance recipe
+
+Use the integrated runtime/agent and one private host catalog. Root is the kit
+operator; claim its ordinary lease before programming. Retain the initial
+system/active-package state and restore it after the run. Record all package,
+asset, composition and image identities in the acceptance evidence.
+
+1. Import the exact sealed socket package. Create one entry using
+   `POST /api/v1/library/core-entries` with `title` and `package_id`. Keep the
+   returned `game_id`; its media and expansion selections are initially empty.
+2. Launch with the ordinary `POST /api/v1/session/launch` and that `game_id`.
+   Wait for BASIC, attach the existing session keyboard input, and capture the
+   display. Require the base package/BUILD_ID and no composition in status.
+3. Enter `PRINT PEEK 16389` using the matrix sequence below. The display must
+   show **68**. This is the high byte of RAMTOP at 16388/16389, hence 0x4400
+   and 1 KiB available from 0x4000. The RAMTOP system-variable address is from
+   [the original ZX81 manual, chapter 28](https://worldofspectrum.net/ZX81BasicProgramming/chap28.html).
+4. Stop through the host session API. Import the independently built cart at
+   `POST /api/v1/core-expansions`. PUT the entry's expansion selection with
+   exact `package_id`, empty `expected_expansion_id`, and returned `expansion_id`.
+   Launch the same `game_id` normally. Require the same base package/BUILD_ID,
+   the exact expected composition tuple, and a new generation. Repeat the
+   keyboard expression: the display must now show **128**, RAMTOP 0x8000.
+5. Stop, restart the private host with its existing catalog, and launch the
+   same entry again. Confirm the selected expansion survived and repeat the
+   identity/display checks. Stop, explicitly clear the selection using its
+   current ID as `expected_expansion_id`, and relaunch: require no composition
+   and **68** again.
+6. With a valid owner retained, attempt a selection of a missing expansion ID
+   and an asset bound to another shell. Both must reject before programming;
+   retain the same active tuple/generation and running display. A host unit
+   regression separately injects a missing/mismatched already-selected asset
+   while recovery is pending and requires zero Stop/load calls. Do not edit
+   the kit's catalog or immutable package files to manufacture these failures.
+7. Stop/relaunch once more and restore the original kit setup. Save request
+   outcomes, identity snapshots and display frames; successful simulation or
+   a direct runtime composed load is not a substitute for this library test.
+
+Keyboard sequence, verified against the actual BASIC/ULA simulation with both
+memory sizes: `P`, `Shift+Enter`, `O`, `1`, `6`, `3`, `8`, `9`, `Enter`.
+`P` inserts PRINT in keyword mode. Shift+Enter enters function mode and O inserts
+PEEK. Send each press/release through the existing session input attachment;
+start with roughly 200 ms down and 200 ms released per key and inspect the
+resulting line before Enter. Hold both Shift and Enter during their chord and
+release both before O. Allow BASIC's initial RAM/display setup to finish before
+typing (the 16 KiB simulation needed a longer initial wait than 1 KiB).
+
+FogCast matrix event codes are P=275, O=274, Shift=256, Enter=257 and digit n=
+286+n. They are already handled by `internal/zx81keys`; this test adds no
+hardware diagnostic command or private RAM peek interface.
