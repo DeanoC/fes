@@ -44,7 +44,8 @@ TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-oss")
 SOCKET_OUTPUT_RELATIVE = Path("build/fes-zx81-socket")
 SOCKET_TOOLCHAIN_LOCK = "toolchains/zx81-expansion.lock"
-SOCKET_TOOL_COMMITS = {**EXPECTED_TOOL_COMMITS, "nextpnr": "b5a0ea71d7701985a07a7b32a06936dcddfc2f16"}
+SOCKET_TOOL_COMMITS = {**EXPECTED_TOOL_COMMITS, "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
+                       "nextpnr": "74f26cc1a5554a70cfca89be27850ec90f857030"}
 RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF = "cores/fes-zx81/constraints-oss.qsf"

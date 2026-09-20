@@ -2548,6 +2548,15 @@ requirements and the SDC digest. Publication requires both clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
+The cart route also receives the fixed `fes.zx81-ram.socket/1` CRAM rectangle
+`1769,32,2806,7024` (exclusive upper bounds). The scoped compiler queries Mistral
+for each routing mux's physical configuration bits; nominal wire/tile locations
+do not determine those bits for long wires. Existing shell pip selections remain
+fixed, and new muxes must fit the rectangle, including shared-net branches.
+Surviving cart constant inputs use local slot LUT drivers after control folding,
+so they do not depend on extending distant shell constant trees. Publication
+still compares the complete emitted header and CRAM against the original sealed
+shell and refuses any non-CRC change outside the fixed rectangle.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,

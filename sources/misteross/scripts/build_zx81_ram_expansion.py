@@ -30,6 +30,7 @@ BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
 REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.0, "pixel_clk": 74.25}
+CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-ram.socket/1, half-open
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -73,6 +74,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     clock_constraints = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-ram.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
+              "cram_region": CRAM_REGION,
               "clock_constraints_sha256": digest(clock_constraints)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/zx81-ram-expansion" / recipe_sha
@@ -88,6 +90,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
         [str(tools["nextpnr-mistral"].path), "--json", str(shell / "routed.json"), "--device", "5CSEBA6U23I7",
          "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",
+         "--fes-cram-region", ",".join(str(value) for value in CRAM_REGION),
          "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
@@ -110,7 +113,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
         raise ValueError("cart clock constraints changed during build")
     cart = (output / "cart.rbf").read_bytes()
     base, placed = rbf_load(package.payload_bytes), rbf_load(cart)
-    rect = CramRect(x0=1769, y0=32, x1=2806, y1=7024)
+    rect = CramRect(*CRAM_REGION)
     if base.header != placed.header:
         raise ValueError("cart changes shell ORAM/PRAM header")
     changes = classify_cram_diff(base, placed, rect)

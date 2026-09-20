@@ -6,15 +6,15 @@ rationale = "CMake build adds native Cyclone V M10K flow-through inference (merg
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "b28e30a36b5139aaed5a5d361a30b542e6b7c758"
+commit = "18db2489a63bd9fcfbb7ba727ac194e767e7dce3"
 order = 20
-rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27, PLL BELs, MLAB INIT, M10K dual-clock packing, 20-bit M10K byte enables, mixed-width M10K SDP, true dual-port M10K packing including byte masks and mixed-width TDP into existing tables, and corrected LAB/MLAB CLKx_INV/CLKx_SEL addresses: preserves DSP upper routing tiles on the bfa096c1 array-header baseline; fixed commit, not a moving branch."
+rationale = "Reviewed Mistral PR #3 adds const physical routing-mux CRAM footprints and device dimensions on b28e30a. Exact seven offending muxes and 14 observed outside bits are covered by the standalone regression. Scoped ZX81 cart routing uses this API to enforce the fixed socket CRAM boundary; default and registered-memory locks retain their qualified library revisions."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "b5a0ea71d7701985a07a7b32a06936dcddfc2f16"
+commit = "74f26cc1a5554a70cfca89be27850ec90f857030"
 order = 30
-rationale = "Reviewed nextpnr PR #73 supplies explicit single-clock socket admission, preserves bound shell RAM/constants and correct BUF LUT emission. Published b5a0ea71 additionally preserves complete pin and physical LAB state in validated routed snapshots, rejects mixed shell/cart LAB placement, initializes restored BUF annotations and removes orphan routing only from detached unused return nets. LUT6 and inverted-control shell RBF replay is byte-identical; RAM-cart routing/emission and malformed snapshot tests pass. This scoped producer revision is not yet merged upstream. Default and registered-memory lanes remain separately pinned. Pair with Yosys ec34fcf3 and Mistral b28e30a."
+rationale = "Reviewed nextpnr PR #73 preserves explicit socket clocks, bound shell RAM/constants, correct BUF LUT emission, validated complete pin/LAB snapshots and isolated frozen LAB placement. Revision 74f26cc1 adds a physical routing-mux CRAM fence and local cart constant drivers. The real sealed ZX81 shell plus RAM cart passes HIP routing, both declared clocks, identical header and zero outside-slot non-CRC differences. Published scoped feature revision; hardware acceptance is separate. Requires Mistral 18db248 and Yosys ec34fcf3. Default and registered-memory lanes remain separately pinned."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

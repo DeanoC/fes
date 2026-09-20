@@ -124,6 +124,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             if self.mode != "missing_synthesis":
                 netlist.write_text("{}")
         elif self.mode != "missing_route":
+            self.assertEqual(command[command.index("--fes-cram-region") + 1], "1769,32,2806,7024")
             sdc = Path(command[command.index("--sdc") + 1])
             self.assertEqual(sdc, self.output / "clocks.sdc")
             self.assertIn("-period 19.230769230769 [get_nets {clk_sys}]", sdc.read_text())
@@ -151,6 +152,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
         recipe = json.loads((self.output / "build-summary.json").read_text())["recipe"]
         self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.0, "pixel_clk": 74.25})
+        self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
 
     def test_missing_wrong_or_failing_clock_cannot_publish(self):
