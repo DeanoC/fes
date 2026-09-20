@@ -124,11 +124,20 @@ func TestRetroArchAdapterOwnsPreparedContentUntilStop(t *testing.T) {
 
 func TestRetroArchAdapterIgnoresCanceledLaunchContext(t *testing.T) {
 	var got context.Context
+	// Keep the process alive until Stop; NoopProcess exits immediately and
+	// races this test's Active assertion with the normal reaper.
+	proc := &fakeProcess{done: make(chan struct{})}
 	adapter := hostexec.NewRetroArchAdapter("retroarch", "core", func(ctx context.Context, _ string, _ ...string) (hostexec.Process, error) {
 		got = ctx
-		return hostexec.NoopProcess{}, nil
+		return proc, nil
+	})
+	t.Cleanup(func() {
+		if err := adapter.Stop(context.Background()); err != nil {
+			t.Errorf("cleanup Stop: %v", err)
+		}
 	})
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	if _, err := adapter.Launch(ctx, bytes.NewReader([]byte("rom")), testIdentity()); err != nil {
 		t.Fatal(err)
 	}
