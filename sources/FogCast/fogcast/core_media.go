@@ -51,7 +51,8 @@ func (s *Service) CoreMediaCapabilities(ctx context.Context, id string) (protoco
 	return protocol.CoreMediaCapabilities{
 		PackageID: inspection.PackageID, Source: "declared-contract",
 		Compatibility: "unknown", ImportMaxBytes: catalog.MaxCoreMediaBytes,
-		Media: protocol.DeclaredCoreMediaCapabilities(inspection.Descriptor),
+		Media:     protocol.DeclaredCoreMediaCapabilities(inspection.Descriptor),
+		Firmware:  protocol.DeclaredFirmwareCapabilities(inspection.Descriptor),
 	}, nil
 }
 

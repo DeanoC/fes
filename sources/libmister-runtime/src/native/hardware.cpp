@@ -581,6 +581,7 @@ Capabilities NativeHardware::capabilities() const
 		application.minor = generated::FesApplicationABIMinor;
 		application.interfaces = {
 			{generated::FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0},
+			{generated::FesApplicationInterfaceFirmwareBlobID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadPortsID, 1, 0},
 			{generated::FesApplicationInterfaceKeypadPortsID, 1, 0},
@@ -633,6 +634,20 @@ Error NativeHardware::LoadComputerMedia(const std::string& path)
 	const Error admitted = ReadComputerMedia(path, &bytes);
 	if (!admitted.ok()) return WithPhase(admitted, "request");
 	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMedia(
+		bytes, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+Error NativeHardware::LoadComputerFirmware(const std::string& path)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"FES firmware slot is not active", "request"};
+	std::vector<std::uint8_t> bytes;
+	const Error admitted = ReadComputerMedia(path, &bytes);
+	if (!admitted.ok()) return WithPhase(admitted, "request");
+	if (bytes.size() != generated::FesApplicationFirmwareBytes)
+		return {ErrorCode::invalid_request, "FES firmware size is invalid", "request"};
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadFirmware(
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }
 

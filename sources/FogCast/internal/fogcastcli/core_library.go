@@ -19,7 +19,7 @@ import (
 
 func coreLibraryCommand(name string) bool {
 	switch name {
-	case "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select":
+	case "core-media-capabilities", "core-media-install", "core-media-select", "core-settings", "core-progress", "core-settings-set", "core-install", "core-list", "core-check", "core-entry", "core-select", "core-firmware-select":
 		return true
 	}
 	return false
@@ -96,11 +96,25 @@ func runCoreLibraryCommand(ctx context.Context, origin string, args []string) (r
 		method, path = http.MethodPost, path+"/"+url.PathEscape(args[1])+"/compatibility"
 	case "core-entry":
 		method, path = http.MethodPost, "/api/v1/library/core-entries"
-		entry := map[string]string{"title": args[1], "package_id": args[2]}
-		if len(args) == 5 {
-			entry["media_role"], entry["media_id"] = args[3], args[4]
+		entry := map[string]any{"title": args[1], "package_id": args[2]}
+		rest := args[3:]
+		if n := len(rest); n > 0 && rest[n-1] == "firmware" {
+			entry["firmware_required"] = true
+			rest = rest[:n-1]
+		}
+		if len(rest) == 2 {
+			entry["media_role"], entry["media_id"] = rest[0], rest[1]
+		} else if len(rest) != 0 {
+			return commandResult{err: &protocol.APIError{Code: protocol.CodeBadRequest, Message: "core entry is title, package ID, optional media, optional firmware"}, exit: 1}
 		}
 		data, _ = json.Marshal(entry)
+	case "core-firmware-select":
+		next := args[1]
+		if next == "none" {
+			next = ""
+		}
+		method, path = http.MethodPut, "/api/v1/library/firmware"
+		data, _ = json.Marshal(map[string]string{"slot": "firmware", "media_id": next})
 	case "core-select":
 		method, path = http.MethodPut, "/api/v1/library/core-entries/"+url.PathEscape(args[1])
 		data, _ = json.Marshal(map[string]string{"expected_package_id": args[2], "package_id": args[3]})

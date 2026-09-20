@@ -1,0 +1,22 @@
+{
+  "source": {
+    "repository": "DeanoC/libmister-runtime",
+    "commit": "94e6cbf303b53be13b6e612135d040f2fa332dd8",
+    "file": "src/native/generated/fes_application.hpp",
+    "note": "Generated FesApplication firmware constants as consumed by the in-tree runtime header. Not hardware acceptance."
+  },
+  "firmware": {
+    "FesApplicationOpcodeFirmwareBegin": 15,
+    "FesApplicationOpcodeFirmwareData": 16,
+    "FesApplicationOpcodeFirmwareCommit": 17,
+    "FesApplicationFirmwareBytes": 8192,
+    "FesApplicationFirmwareDataPairIndex": 0,
+    "FesApplicationFirmwareDataTailIndex": 1
+  },
+  "interface": {
+    "id": "fes.firmware.blob",
+    "major": 1,
+    "minor": 0,
+    "capability_bit": 7
+  }
+}

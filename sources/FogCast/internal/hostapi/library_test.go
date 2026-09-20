@@ -3,6 +3,7 @@ package hostapi_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,33 @@ func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 	}
 	if len(result.Games) != 1 || result.Games[0].Platform != "snes" || !result.Games[0].Launchable {
 		t.Fatalf("%+v", result.Games)
+	}
+}
+
+type compositionFailService struct {
+	fakeService
+}
+
+func (s *compositionFailService) CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error) {
+	return nil, errors.New("corrupt household firmware")
+}
+
+func TestGamesListFailsClosedWhenCompositionEnrichmentFails(t *testing.T) {
+	service := &compositionFailService{fakeService: fakeService{games: []catalog.Game{{
+		ID: "fpga-frogger", Title: "Frogger", System: protocol.SystemSNES,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}}}}
+	list := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+	if list.Code != http.StatusInternalServerError || !strings.Contains(list.Body.String(), `"code":"INTERNAL"`) {
+		t.Fatalf("list leaked Ready after composition failure: %d %s", list.Code, list.Body.String())
+	}
+	if strings.Contains(list.Body.String(), `"firmware_required":false`) || strings.Contains(list.Body.String(), `"launchable":true`) {
+		t.Fatalf("list body still looks Ready: %s", list.Body.String())
+	}
+	service.game = service.games[0]
+	detail := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games/fpga-frogger")
+	if detail.Code != http.StatusInternalServerError {
+		t.Fatalf("detail leaked Ready after composition failure: %d %s", detail.Code, detail.Body.String())
 	}
 }
 

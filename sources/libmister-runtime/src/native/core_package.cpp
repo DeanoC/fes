@@ -719,19 +719,21 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		bool video = false, blob = false, stream = false;
 		bool gamepad = false, ports = false, keypad = false;
 		for (const auto& interface : descriptor.interfaces) {
+			const bool firmware = interface.id == FesApplicationInterfaceFirmwareBlobID;
 			const bool known = interface.id == FesApplicationInterfaceGamepadID ||
 				interface.id == FesApplicationInterfaceGamepadPortsID ||
 				interface.id == FesApplicationInterfaceKeypadPortsID ||
 				interface.id == FesApplicationInterfaceVideoFixed720p60ID ||
 				interface.id == FesApplicationInterfaceMediaBlobID ||
 				interface.id == FesApplicationInterfaceMediaBlobStreamID ||
-				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID;
+				interface.id == FesApplicationInterfaceAudioPcmS16Stereo48kID ||
+				firmware;
 			const bool supported = known && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"required application interface is unsupported");
 			if (!supported) continue;
-			if (!interface.required)
+			if (!interface.required && !firmware)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"application operational interfaces must be required when declared");
 			if (interface.id == FesApplicationInterfaceVideoFixed720p60ID)

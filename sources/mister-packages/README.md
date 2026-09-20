@@ -121,8 +121,10 @@ default `c++`) for generated-header syntax tests.
 
 The additive [application I/O contract](docs/application-io.md) defines
 `fes.application` 1.0 (tag 3) on `fes-gp-v1`, composing fixed video with optional
-gamepad, media and fixed 48 kHz stereo PCM audio. Audio uses capability bit 4
-and no new mailbox command. Legacy ABI definitions remain unchanged.
+gamepad, media, fixed 48 kHz stereo PCM audio, and an optional 8192-byte
+firmware overlay. Audio uses capability bit 4 and no new mailbox command.
+Firmware uses capability bit 7 and opcodes 15–17. Legacy ABI definitions remain
+unchanged.
 The additive `fes.gamepad.ports` and `fes.keypad.ports` interfaces define two
 logical digital controller ports and optional twelve-key keypads, using bits
 5/6 and opcodes 13/14. They preserve the existing one-player interface.

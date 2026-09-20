@@ -97,6 +97,12 @@ constexpr std::uint32_t FesApplicationOpcodeControllerKeypad = 0xeu;
 constexpr std::uint32_t FesApplicationControllerPortCount = 0x2u;
 constexpr std::uint32_t FesApplicationControllerButtonMask = 0xffu;
 constexpr std::uint32_t FesApplicationControllerKeypadMask = 0xfffu;
+constexpr std::uint32_t FesApplicationOpcodeFirmwareBegin = 0xfu;
+constexpr std::uint32_t FesApplicationOpcodeFirmwareData = 0x10u;
+constexpr std::uint32_t FesApplicationOpcodeFirmwareCommit = 0x11u;
+constexpr std::uint32_t FesApplicationFirmwareBytes = 0x2000u;
+constexpr std::uint32_t FesApplicationFirmwareDataPairIndex = 0x0u;
+constexpr std::uint32_t FesApplicationFirmwareDataTailIndex = 0x1u;
 constexpr const char* FesApplicationInterfaceGamepadID = "fes.gamepad";
 constexpr std::uint16_t FesApplicationInterfaceGamepadMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceGamepadMinor = 0u;
@@ -125,6 +131,10 @@ constexpr const char* FesApplicationInterfaceKeypadPortsID = "fes.keypad.ports";
 constexpr std::uint16_t FesApplicationInterfaceKeypadPortsMajor = 1u;
 constexpr std::uint16_t FesApplicationInterfaceKeypadPortsMinor = 0u;
 constexpr std::uint32_t FesApplicationCapabilityKeypadPorts = 0x40u;
+constexpr const char* FesApplicationInterfaceFirmwareBlobID = "fes.firmware.blob";
+constexpr std::uint16_t FesApplicationInterfaceFirmwareBlobMajor = 1u;
+constexpr std::uint16_t FesApplicationInterfaceFirmwareBlobMinor = 0u;
+constexpr std::uint32_t FesApplicationCapabilityFirmwareBlob = 0x80u;
 
 } // namespace generated
 } // namespace native

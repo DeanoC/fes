@@ -189,12 +189,15 @@ func (d *Destination) FillCopy() {
 		d.Action = "Choose an edition."
 	case AvailUnavailable:
 		d.Status = "This title cannot play on the current setup."
+		d.Action = "See why this title cannot play."
 		if len(d.Matches) > 0 {
 			if reason := LaunchBlockCopy(d.Matches[0]); reason != "" {
 				d.Status = reason
 			}
+			if d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
+				d.Action = "Import Coleco BIOS."
+			}
 		}
-		d.Action = "See why this title cannot play."
 	case AvailReady:
 		d.Status = "Ready to play."
 		d.Action = "Play"
@@ -242,6 +245,8 @@ func LaunchBlockCopy(game hostclient.Game) string {
 		return "This ROM can't be read."
 	case hostclient.LaunchNotReady:
 		return "This game isn't ready to launch."
+	case hostclient.LaunchMissingFirmware:
+		return "Coleco BIOS required. Import household firmware before Play."
 	case "":
 		return ""
 	default:

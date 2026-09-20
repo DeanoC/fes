@@ -66,7 +66,9 @@ module top #(
         .buttons(mailbox_buttons), .controller_buttons(), .controller_keypad(),
         .media_ready(), .media_size(),
         .media_byte0(palette_red), .media_byte1(palette_green), .media_byte2(palette_blue),
-        .media_write_addr(), .media_write_data(), .media_write_enable()
+        .media_write_addr(), .media_write_data(), .media_write_enable(),
+        .firmware_write_addr(), .firmware_write_data(), .firmware_write_enable(),
+        .firmware_ready()
     );
 
     pixel_pll video_clock (

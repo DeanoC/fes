@@ -39,9 +39,16 @@ func TestApplicationDecoderConsumesRuntimeSerializerFixtures(t *testing.T) {
 		if audio != (mode == 3) {
 			t.Fatalf("mode %d audio interface propagation: %+v", mode, status)
 		}
+		if protocol.FirmwareCapable(status) != (mode == 5) {
+			t.Fatalf("mode %d firmware projection: %+v", mode, status)
+		}
 		binding := protocol.DevelopmentMediaBinding{PackageID: p.PackageID, Generation: activation.Generation, Stream: mode == 2 || mode == 5}
 		if mediaResponseMatches(response, binding) != media {
 			t.Fatalf("mode %d media binding mismatch", mode)
+		}
+		firmwareBinding := protocol.DevelopmentMediaBinding{PackageID: p.PackageID, Generation: activation.Generation, Role: protocol.FirmwareRole}
+		if mediaResponseMatches(response, firmwareBinding) != (mode == 5) {
+			t.Fatalf("mode %d firmware binding mismatch", mode)
 		}
 		binding.Generation++
 		if mediaResponseMatches(response, binding) {

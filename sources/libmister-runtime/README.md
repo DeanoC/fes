@@ -2,7 +2,8 @@
 
 `fes.application` 1.0 adds composable fixed-video applications: no input,
 one gamepad or two logical controller ports with optional numeric keypads,
-stereo 48 kHz PCM audio, and optional blob/stream media by declaration. Existing game and
+stereo 48 kHz PCM audio, optional blob/stream media, and an optional 8192-byte
+firmware overlay by declaration. Existing game and
 computer ABIs remain unchanged. See [application I/O](docs/application-io.md)
 for admission, reset/media readiness and software-only support boundaries.
 

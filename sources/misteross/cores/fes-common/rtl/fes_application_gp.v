@@ -8,7 +8,8 @@ module fes_application_gp #(
     parameter bit ENABLE_KEYPAD_PORTS = 0,
     parameter bit ENABLE_MEDIA = 0,
     parameter bit ENABLE_MEDIA_STREAM = 0,
-    parameter bit ENABLE_AUDIO = 0
+    parameter bit ENABLE_AUDIO = 0,
+    parameter bit ENABLE_FIRMWARE = 0
 ) (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -25,7 +26,11 @@ module fes_application_gp #(
     output reg  [(ENABLE_MEDIA_STREAM ? 15 : 14):0] media_size,
     output reg  [7:0]   media_byte0,
     output reg  [7:0]   media_byte1,
-    output reg  [7:0]   media_byte2
+    output reg  [7:0]   media_byte2,
+    output wire [12:0]  firmware_write_addr,
+    output wire [15:0]  firmware_write_data,
+    output wire [1:0]   firmware_write_enable,
+    output reg          firmware_ready
 );
     localparam integer MEDIA_AW = ENABLE_MEDIA_STREAM ? 15 : 14;
     localparam [31:0] CAPABILITIES =
@@ -35,7 +40,8 @@ module fes_application_gp #(
         (ENABLE_KEYPAD_PORTS ? `FES_APPLICATION_INTERFACE_KEYPAD_PORTS_CAPABILITY_MASK : 32'd0) |
         (ENABLE_MEDIA ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_CAPABILITY_MASK : 32'd0) |
         (ENABLE_MEDIA_STREAM ? `FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK : 32'd0) |
-        (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0);
+        (ENABLE_AUDIO ? `FES_APPLICATION_INTERFACE_AUDIO_PCM_S16_STEREO_48K_CAPABILITY_MASK : 32'd0) |
+        (ENABLE_FIRMWARE ? `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK : 32'd0);
     localparam [31:0] ID_MAGIC0_INDEX = `FES_APPLICATION_IDENTITY_MAGIC0_INDEX;
     localparam [31:0] ID_MAGIC1_INDEX = `FES_APPLICATION_IDENTITY_MAGIC1_INDEX;
     localparam [31:0] ID_TRANSPORT_MAJOR_INDEX = `FES_APPLICATION_IDENTITY_TRANSPORT_MAJOR_INDEX;
@@ -62,6 +68,8 @@ module fes_application_gp #(
     reg media_open;
     reg [14:0] media_ptr;
     reg [14:0] media_expected;
+    reg firmware_open;
+    reg [13:0] firmware_ptr;
 
     // Stream 1.0 staging. Unused when ENABLE_MEDIA_STREAM is zero.
     // verilator lint_off UNUSED
@@ -133,6 +141,20 @@ module fes_application_gp #(
     assign media_write_addr = stream_we_a ? stream_received[MEDIA_AW-1:0] : media_ptr[MEDIA_AW-1:0];
     assign media_write_data = command_argument[15:0];
     assign media_write_enable = {media_we_b | stream_we_b, media_we_a | stream_we_a};
+
+    wire firmware_cmd = ENABLE_FIRMWARE && exec_reset && (request_sync != acknowledged_toggle) &&
+                     (command_opcode == `FES_APPLICATION_OPCODE_FIRMWARE_DATA) &&
+                     firmware_open;
+    wire firmware_pair = firmware_cmd &&
+                      (command_index == `FES_APPLICATION_FIRMWARE_DATA_PAIR_INDEX) &&
+                      ({1'b0, firmware_ptr} + 15'd2 <= 15'd8192);
+    wire firmware_tail = firmware_cmd &&
+                      (command_index == `FES_APPLICATION_FIRMWARE_DATA_TAIL_INDEX) &&
+                      (command_argument[15:8] == 8'h00) &&
+                      ({1'b0, firmware_ptr} + 15'd1 == 15'd8192);
+    assign firmware_write_addr = firmware_ptr[12:0];
+    assign firmware_write_data = command_argument[15:0];
+    assign firmware_write_enable = {firmware_pair, firmware_pair | firmware_tail};
 
     function [15:0] identity_word;
         input [31:0] index;
@@ -247,6 +269,9 @@ module fes_application_gp #(
         media_byte0 = 8'h00;
         media_byte1 = 8'h00;
         media_byte2 = 8'h00;
+        firmware_ready = 1'b0;
+        firmware_open = 1'b0;
+        firmware_ptr = 14'd0;
         stream_active = 1'b0;
         stream_begin_next = 3'd0;
         stream_chunk_next = 2'd0;
@@ -296,6 +321,8 @@ module fes_application_gp #(
                         controller_keypad <= 24'd0;
                     end else if (command_argument == `FES_APPLICATION_EXECUTION_RELEASE) begin
                         if ((ENABLE_MEDIA || ENABLE_MEDIA_STREAM) && (!media_ready || media_open || stream_active || stream_begin_next != 0))
+                            reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                        else if (ENABLE_FIRMWARE && firmware_open)
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                         else
                             exec_reset <= 1'b0;
@@ -585,6 +612,56 @@ module fes_application_gp #(
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                     else
                         clear_stream;
+                end
+                `FES_APPLICATION_OPCODE_FIRMWARE_BEGIN: begin
+                    if (!ENABLE_FIRMWARE)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (!exec_reset || firmware_open || media_open || stream_active)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                    else if (command_index != `FES_APPLICATION_CONTROL_INDEX)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                    else if (command_argument != `FES_APPLICATION_FIRMWARE_BYTES)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                    else begin
+                        firmware_open <= 1'b1;
+                        firmware_ready <= 1'b0;
+                        firmware_ptr <= 14'd0;
+                    end
+                end
+                `FES_APPLICATION_OPCODE_FIRMWARE_DATA: begin
+                    if (!ENABLE_FIRMWARE)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (!exec_reset || !firmware_open)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                    else if (command_index == `FES_APPLICATION_FIRMWARE_DATA_PAIR_INDEX) begin
+                        if ({1'b0, firmware_ptr} + 15'd2 > 15'd8192)
+                            reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                        else
+                            firmware_ptr <= firmware_ptr + 14'd2;
+                    end else if (command_index == `FES_APPLICATION_FIRMWARE_DATA_TAIL_INDEX) begin
+                        if (command_argument[15:8] != 8'h00 ||
+                            {1'b0, firmware_ptr} + 15'd1 != 15'd8192)
+                            reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                        else
+                            firmware_ptr <= firmware_ptr + 14'd1;
+                    end else
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                end
+                `FES_APPLICATION_OPCODE_FIRMWARE_COMMIT: begin
+                    if (!ENABLE_FIRMWARE)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
+                    else if (!exec_reset)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                    else if (command_index != `FES_APPLICATION_CONTROL_INDEX)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_INDEX));
+                    else if (command_argument != 32'h00000000)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
+                    else if (!firmware_open || firmware_ptr != 14'd8192)
+                        reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
+                    else begin
+                        firmware_open <= 1'b0;
+                        firmware_ready <= 1'b1;
+                    end
                 end
                 default: reject_command(16'(`FES_APPLICATION_ERROR_INVALID_OPCODE));
             endcase

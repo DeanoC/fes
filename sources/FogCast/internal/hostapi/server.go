@@ -63,6 +63,8 @@ type gameResult struct {
 	GroupKey        string              `json:"group_key,omitempty"`
 	VariantCount    int                 `json:"variant_count,omitempty"`
 	Variants        []gameResult        `json:"variants,omitempty"`
+	FirmwareRequired bool               `json:"firmware_required,omitempty"`
+	FirmwareReady    bool               `json:"firmware_ready,omitempty"`
 }
 
 type gamesResult struct {
@@ -470,7 +472,12 @@ func New(service Service, options ...ServerOption) http.Handler {
 			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, enrichGameResult(r.Context(), service, publicGameWithVariants(r.Context(), service, game)))
+		result, err := enrichGameResult(r.Context(), service, publicGameWithVariants(r.Context(), service, game))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("GET /api/v1/presentation/games/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.RawQuery != "" || r.Body != nil && r.Body != http.NoBody {

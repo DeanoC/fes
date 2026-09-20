@@ -1215,10 +1215,12 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
-Proposed work for multi-slot launch composition (firmware, expansions, and
-later removable media) is labelled in
-[launch composition](launch-composition.md). It does not change the working
-path below.
+Proposed work for expansion linking and later removable media remains in
+[launch composition](launch-composition.md). Phase 1 Coleco firmware is on
+the working library path below: a title may require a household firmware
+object, rooms/catalog **Ready** follows that fill, and `session/launch`
+binds firmware before cartridge media and reset release. Expansions are
+still proposed.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented

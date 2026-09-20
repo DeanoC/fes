@@ -339,6 +339,7 @@ def build_commands(
     yosys_program = (
         f"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1{bios_define} -I cores/fes-common/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"chparam -set ENABLE_FIRMWARE 1 coleco_application_gp; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
         f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
     )
@@ -540,6 +541,7 @@ def _manifest(
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
             {"id": "fes.media.blob-stream", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.firmware.blob", "major": 1, "minor": 0, "required": False},
         ],
         "build": {
             "id": evidence["build_id"],

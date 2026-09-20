@@ -26,6 +26,9 @@ func (b DevelopmentMediaBinding) AcceptsSize(s Status, size int64) bool {
 	if !b.Matches(s) || size < 1 {
 		return false
 	}
+	if b.Role == FirmwareRole {
+		return size == FirmwareBytes
+	}
 	if !b.Stream {
 		return size <= MaxDevelopmentMediaBytes
 	}

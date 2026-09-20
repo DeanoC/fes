@@ -158,6 +158,22 @@ selected snapshot. Selection never rewrites an active session.
 An optional blob declaration is eligible for selection, not a promise that
 every target activates it; missing active support fails launch with cleanup.
 
+Household Coleco BIOS uses the same core-media store. Import the 8192-byte
+object, then bind the household slot. Titles created with trailing `firmware`
+are Unavailable until that slot is filled **and** the selected package
+declares `fes.firmware.blob` 1.0:
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json core-media-install /absolute/path/coleco.bios
+fogcast --api http://127.0.0.1:8787 --json core-firmware-select MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json core-entry 'Frogger' PACKAGE_ID blob CART_MEDIA_ID firmware
+fogcast --api http://127.0.0.1:8787 --json core-firmware-select none
+```
+
+`GET`/`PUT /api/v1/library/firmware` is the same slot. Graphics I / graphics-i
+omit the title-level flag and stay Ready without BIOS. The private `--bios`
+producer is not this path.
+
 `core-media-capabilities PACKAGE_ID` works offline and returns:
 
 ```json
@@ -270,9 +286,11 @@ root. Archives are content-addressed, validated before atomic publication and
 revalidated from the same bytes sent for activation. Partial imports never
 become inventory entries. An installed ID is never silently overwritten.
 
-Selections and media bytes live in the existing catalog database. Schema 8
-adds 64 KiB chunk rows for new imports while retaining existing inline objects,
-digests, entries and history. The migration does not rewrite package archives.
+Selections and media bytes live in the existing catalog database. Schema 9
+adds a household `firmware` pointer and `firmware_required` on core entries.
+Schema 8 already added 64 KiB chunk rows for new imports while retaining
+existing inline objects, digests, entries and history. The migration does not
+rewrite package archives.
 Every media read rechecks its size and digest; corrupt objects are refused,
 never silently replaced. Upload staging and verified read snapshots are private
 temporary files, removed on failure or close; they are not a second persistent

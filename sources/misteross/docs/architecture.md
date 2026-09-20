@@ -2159,7 +2159,8 @@ and is not FogCast format-3.
 uses the [MiSTer ColecoVision core](https://github.com/MiSTer-devel/ColecoVision_MiSTer)
 as a system reference, but is a reduced Verilog-first adapter around the
 shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
-`fes.keypad.ports` 1.0, fixed video, blob and blob-stream media. A/B map to Fire 1/2; the
+`fes.keypad.ports` 1.0, fixed video, blob and blob-stream media, and optional
+`fes.firmware.blob` 1.0. A/B map to Fire 1/2; the
 twelve keypad bits represent 0..9, *, #. Each active-high full-state write
 addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
 staging RAM preserves registered media-copy timing. The first slice contains a TV80
@@ -2186,15 +2187,23 @@ pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
 registered raster coordinate.
 
-The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. The OSS
-producer's explicit `--bios PATH` option embeds a privately supplied 8192-byte
-BIOS using a read-only binary/HEX snapshot in ignored build output. Identity v2
-binds both digests and the BIOS mode, and the producer rechecks the snapshot
-before and after compilation and before export. This variant declares
-`fes.coleco.private-bios` and exports only to `build/private-packages`, separate
-from the default image-selected package. The BIOS is a build input, not an
-extension to the cartridge media protocol. BIOS boot does not establish general
-retail-game compatibility; rendering and input require per-game validation.
+The default reset ROM is an open `JP 0x8000` shim, not a Coleco BIOS. Quartus
+(`set_parameter -name ENABLE_FIRMWARE 1`) and OSS (`chparam -set ENABLE_FIRMWARE 1`)
+synthesize the shared mailbox overlay into the 8 KiB aperture; host simulations
+keep `ENABLE_FIRMWARE` at its RTL default 0. The default package still ships the
+open shim and declares `fes.firmware.blob` 1.0 optional so BIOS-free titles share
+the bitstream. Runtime firmware is an exact 8192-byte begin/data/commit while
+reset is held; it is not cartridge media and does not release execution.
+Firmware mailbox behavior is software-tested; physical Coleco BIOS bind remains
+pending. The OSS producer's explicit `--bios PATH` option embeds a privately
+supplied 8192-byte BIOS using a read-only binary/HEX snapshot in ignored build
+output. Identity v2 binds both digests and the BIOS mode, and the producer
+rechecks the snapshot before and after compilation and before export. This
+variant declares `fes.coleco.private-bios` and exports only to
+`build/private-packages`, separate from the default image-selected package.
+The BIOS is a build input, not an extension to the cartridge media protocol.
+BIOS boot does not establish general retail-game compatibility; rendering and
+input require per-game validation.
 
 The serial renderer, replicated VRAM, registered request/wait schedule, packed
 line banks, sequential clear and publication interlock are deliberate RTL

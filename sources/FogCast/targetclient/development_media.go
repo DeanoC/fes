@@ -14,7 +14,12 @@ func (c *Client) LoadDevelopmentMedia(ctx context.Context, size int64, body io.R
 		return protocol.Status{}, protocol.DevelopmentMediaRequestError()
 	}
 	path := "/v1/development/media"
-	if b.Stream {
+	if b.Role == protocol.FirmwareRole {
+		if size != protocol.FirmwareBytes || body == nil {
+			return protocol.Status{}, protocol.DevelopmentFirmwareRequestError()
+		}
+		path = "/v1/development/firmware"
+	} else if b.Stream {
 		if size < 1 || size > protocol.MaxDeclaredMediaStreamBytes || body == nil {
 			return protocol.Status{}, protocol.DevelopmentMediaRequestError()
 		}

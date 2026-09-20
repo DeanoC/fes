@@ -15,7 +15,8 @@ retail-game compatibility.
   16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
   Legacy `fes.media.blob` remains bounded to 1–16 KiB.
 - Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
-  proprietary ColecoVision BIOS is embedded.
+  proprietary ColecoVision BIOS is embedded. Synthesized packages optionally
+  overlay this aperture through `fes.firmware.blob` 1.0.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, register-based Graphics I/II name/pattern/color tables, four-bit tile
@@ -55,6 +56,20 @@ it is not the default FES image selection. BIOS bytes and BIOS-bearing artifacts
 must stay outside source control. The BIOS is embedded at build time; the
 existing cartridge media interface does not load a BIOS at runtime.
 
+## Runtime firmware overlay
+
+Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`.
+The shared mailbox then advertises capability bit 7 and accepts opcodes 15–17
+for an exact 8192-byte overlay while reset is held. Writes land in the machine's
+firmware dual-port RAM at `0x0000–0x1fff`. Firmware commit does not release
+execution; cartridge media still owns release. Host simulations leave
+`ENABLE_FIRMWARE` at its RTL default 0, so they keep the open shim and do not
+advertise firmware. The default package declares `fes.firmware.blob` 1.0
+optional so BIOS-free Graphics I titles share the firmware-capable bitstream.
+Household firmware binds at launch through FogCast/runtime; BIOS bytes stay
+out of git. Firmware mailbox behavior is software-tested; hardware acceptance
+is pending. `--bios` remains the separate private build-time embed path above.
+
 Use the BIOS-free diagnostic as a hardware control before diagnosing a retail
 cartridge. Private BIOS boot and per-game rendering/input checks are separate
 from that control and from general ColecoVision compatibility.
@@ -63,7 +78,7 @@ from that control and from general ColecoVision compatibility.
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x1fff` | default open reset ROM (reset to `0x8000`, NMI to `0x8066`), or explicitly supplied private BIOS |
+| `0x0000–0x1fff` | default open reset ROM (reset to `0x8000`, NMI to `0x8066`); synthesized packages may overlay this from `fes.firmware.blob`, or an explicitly supplied private BIOS |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
 | `0x8000–0xffff` | fixed 32 KiB cartridge aperture; images up to 16 KiB mirror at C000 |
 | I/O `0xbe` | VDP data |
@@ -72,7 +87,7 @@ from that control and from general ColecoVision compatibility.
 | I/O reads `0xe0–0xff` | controller 1 when A1=0, controller 2 when A1=1 (including FC/FF) |
 
 The application mailbox advertises fixed video, blob media, blob-stream media, `fes.gamepad.ports`
-1.0 and `fes.keypad.ports` 1.0. It does not advertise keyboard or legacy gamepad.
+1.0, `fes.keypad.ports` 1.0 and optional `fes.firmware.blob` 1.0. It does not advertise keyboard or legacy gamepad.
 The common endpoint supplies accepted writes to a console-owned 32 KiB staging
 RAM; `coleco_application_gp` preserves the machine's registered cartridge-copy path.
 The host holds execution reset while uploading and commits media before

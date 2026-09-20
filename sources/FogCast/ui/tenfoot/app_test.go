@@ -190,6 +190,7 @@ func TestLaunchBlockReasonMirrorsWebUI(t *testing.T) {
 		{name: "offline", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, want: "This game's source is offline."},
 		{name: "invalid", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "invalid", RootOnline: true, Launchable: true}, want: "This ROM can't be read."},
 		{name: "not-ready", game: hostclient.Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "scanning", RootOnline: true, Launchable: true}, want: "This game isn't ready to launch."},
+		{name: "frogger-missing-firmware", game: hostclient.Game{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true}, want: "Coleco BIOS required. Import household firmware before Play."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

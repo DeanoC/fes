@@ -344,6 +344,7 @@ void FesGpCoreDriver::BeginSession()
 	computer_ = false;
 	application_ = false;
 	media_ = false;
+	firmware_ = false;
 	gamepad_ = false;
 	controller_ports_ = false;
 	keypad_ports_ = false;
@@ -387,6 +388,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.major != 1 || interface.minor != 0) continue;
 			if (interface.id == FesApplicationInterfaceMediaBlobID)
 				media_ = (observed_capabilities_ & FesApplicationCapabilityMediaBlob) != 0;
+			if (interface.id == FesApplicationInterfaceFirmwareBlobID)
+				firmware_ = (observed_capabilities_ & FesApplicationCapabilityFirmwareBlob) != 0;
 			if (interface.id == FesApplicationInterfaceGamepadID)
 				gamepad_ = (observed_capabilities_ & FesApplicationCapabilityGamepad) != 0;
 			if (interface.id == FesApplicationInterfaceGamepadPortsID)
@@ -615,6 +618,44 @@ Error FesGpCoreDriver::LoadMedia(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
 	if (released.error.ok()) reset_held_ = false;
 	return WithPhase(std::move(released.error), "input");
+}
+
+Error FesGpCoreDriver::LoadFirmware(
+	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
+{
+	if (stream_pending_) return Io("media stream requires recovery before firmware");
+	if (!firmware_)
+		return {ErrorCode::unsupported_interface, "FES firmware slot is inactive",
+			"input"};
+	if (bytes.size() != FesApplicationFirmwareBytes)
+		return {ErrorCode::invalid_request, "FES firmware size is invalid",
+			"request"};
+	// Hold reset through firmware commit. LoadMedia still owns release.
+	CoreDriverResult held = Quiesce({}, deadline);
+	if (!held.error.ok()) return held.error;
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesApplicationOpcodeFirmwareBegin),
+		static_cast<std::uint8_t>(FesApplicationControlIndex),
+		static_cast<std::uint16_t>(FesApplicationFirmwareBytes), deadline, &response);
+	if (!error.ok()) return WithPhase(error, "input");
+	if (response != 0)
+		return {ErrorCode::io_failed, "FES firmware begin failed", "input"};
+	for (std::size_t offset = 0; offset + 1 < bytes.size(); offset += 2) {
+		const std::uint16_t pair = static_cast<std::uint16_t>(
+			bytes[offset] | (static_cast<std::uint16_t>(bytes[offset + 1]) << 8));
+		error = gp_.Exchange(static_cast<std::uint8_t>(FesApplicationOpcodeFirmwareData),
+			static_cast<std::uint8_t>(FesApplicationFirmwareDataPairIndex), pair,
+			deadline, &response);
+		if (!error.ok()) return WithPhase(error, "input");
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES firmware data failed", "input"};
+	}
+	error = gp_.Exchange(static_cast<std::uint8_t>(FesApplicationOpcodeFirmwareCommit),
+		static_cast<std::uint8_t>(FesApplicationControlIndex), 0, deadline, &response);
+	if (!error.ok()) return WithPhase(error, "input");
+	if (response != 0)
+		return {ErrorCode::io_failed, "FES firmware commit failed", "input"};
+	return {};
 }
 
 Error FesGpCoreDriver::StreamInfo(MediaStreamInfo* output) const

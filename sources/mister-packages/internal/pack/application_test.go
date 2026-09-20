@@ -32,7 +32,7 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports"}
+	want := []string{"fes.gamepad", "fes.video.fixed-720p60", "fes.media.blob", "fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports", "fes.firmware.blob"}
 	if len(app.Interfaces) != len(want) {
 		t.Fatal("interface count")
 	}
@@ -41,11 +41,59 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 			t.Fatalf("interface %d: %#v", i, iface)
 		}
 	}
-	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12, "OpcodeControllerButtons": 13, "OpcodeControllerKeypad": 14, "ControllerPortCount": 2, "ControllerButtonMask": 255, "ControllerKeypadMask": 4095} {
+	for name, want := range map[string]uint32{"AbiTag": 3, "OpcodeExecution": 2, "OpcodeButtons": 3, "ButtonMask": 255, "OpcodeMediaStreamAbort": 12, "OpcodeControllerButtons": 13, "OpcodeControllerKeypad": 14, "ControllerPortCount": 2, "ControllerButtonMask": 255, "ControllerKeypadMask": 4095, "OpcodeFirmwareBegin": 15, "OpcodeFirmwareData": 16, "OpcodeFirmwareCommit": 17, "FirmwareBytes": 8192} {
 		got, ok := app.Constant("FesApplication" + name)
 		if !ok || got != want {
 			t.Fatalf("%s=%d", name, got)
 		}
+	}
+}
+
+func TestApplicationFirmwareOracle(t *testing.T) {
+	root := repoRoot(t)
+	app, err := LoadABI(filepath.Join(root, "packages/abi/fes_application.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oracle struct {
+		Source struct {
+			Repository string
+			Commit     string
+			File       string
+		}
+		Firmware  map[string]uint32
+		Interface struct {
+			ID            string `json:"id"`
+			Major         uint16
+			Minor         uint16
+			CapabilityBit uint8 `json:"capability_bit"`
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(root, "testdata/oracles/fes-application-firmware.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &oracle); err != nil {
+		t.Fatal(err)
+	}
+	if oracle.Source.Repository != "DeanoC/libmister-runtime" ||
+		oracle.Source.Commit != "94e6cbf303b53be13b6e612135d040f2fa332dd8" ||
+		oracle.Source.File != "src/native/generated/fes_application.hpp" {
+		t.Fatalf("runtime consumer revision: %+v", oracle.Source)
+	}
+	if len(oracle.Firmware) != 6 {
+		t.Fatalf("incomplete firmware oracle: %d", len(oracle.Firmware))
+	}
+	for name, want := range oracle.Firmware {
+		got, ok := app.Constant(name)
+		if !ok || got != want {
+			t.Errorf("%s=%x present=%t want=%x", name, got, ok, want)
+		}
+	}
+	got := app.Interfaces[7]
+	if got.ID != oracle.Interface.ID || got.Major != oracle.Interface.Major ||
+		got.Minor != oracle.Interface.Minor || got.CapabilityBit != oracle.Interface.CapabilityBit {
+		t.Fatalf("firmware interface: %+v want %+v", got, oracle.Interface)
 	}
 }
 

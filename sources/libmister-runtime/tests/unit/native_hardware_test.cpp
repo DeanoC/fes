@@ -2388,6 +2388,10 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"development-contained-v1", "fes-gp-v1", "mister-v1"}));
 	assert(capabilities.abis.size() == 4);
 	assert(capabilities.abis[0].id == "fes.application");
+	assert(capabilities.abis[0].interfaces.size() == 8);
+	assert(capabilities.abis[0].interfaces[1].id == "fes.firmware.blob");
+	assert(capabilities.abis[0].interfaces[1].major == 1);
+	assert(capabilities.abis[0].interfaces[1].minor == 0);
 	assert(capabilities.abis[1].id == "fes.simple-computer");
 	assert(capabilities.abis[2].id == "fes.simple-game");
 	assert(capabilities.abis[3].id == "mister");
@@ -2440,6 +2444,38 @@ void TestApplicationVideoOnlyLifecycleNeedsNoInput()
 	}
 	}
 	}
+}
+
+void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
+{
+	std::vector<std::string> events;
+	RecordingDriver gp(events);
+	IntegratedFixture fixture(&gp);
+	fixture.Start();
+	const auto idle = fixture.native.hardware.capabilities();
+	assert(idle.abis[0].id == "fes.application");
+	bool advertised = false;
+	for (const auto& contract : idle.abis[0].interfaces)
+		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
+			advertised = true;
+	assert(advertised);
+	TempDirectory package;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.application");
+	manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
+	manifest += "\n[[interfaces]]\nid = \"fes.firmware.blob\"\nmajor = 1\nminor = 0\nrequired = false\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).ok());
+	const auto status = fixture.runtime.status();
+	bool active = false;
+	for (const auto& contract : status.capabilities.active_interfaces)
+		if (contract.id == "fes.firmware.blob" && contract.major == 1 && contract.minor == 0)
+			active = true;
+	assert(active);
+	assert(fixture.runtime.Stop().ok());
 }
 
 void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
@@ -2835,6 +2871,7 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 int main()
 {
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
+	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
 	TestPersistentReplacementRefreshAndSaveFailureResume();

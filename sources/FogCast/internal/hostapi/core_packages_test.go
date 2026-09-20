@@ -146,3 +146,72 @@ func TestCoreDataAPIRequiresCompleteTypedCASAndEmptyReads(t *testing.T) {
 		t.Fatalf("updates=%d update=%+v", s.updates, s.update)
 	}
 }
+
+type coreFirmwareAPIService struct {
+	coreLibraryAPIService
+	slot      catalog.CoreFirmware
+	selection []string
+}
+
+func (s *coreFirmwareAPIService) CoreFirmware(context.Context, string) (catalog.CoreFirmware, error) {
+	return s.slot, nil
+}
+func (s *coreFirmwareAPIService) SelectCoreFirmware(_ context.Context, slot, mediaID string) (catalog.CoreFirmware, error) {
+	s.selection = []string{slot, mediaID}
+	s.slot = catalog.CoreFirmware{Slot: slot, MediaID: mediaID, Size: protocol.FirmwareBytes}
+	if mediaID == "" {
+		s.slot.Size = 0
+	}
+	return s.slot, nil
+}
+func (s *coreFirmwareAPIService) CreateCoreEntryWithFirmware(context.Context, string, string, string, string, bool) (catalog.CoreEntry, error) {
+	return catalog.CoreEntry{Title: "Frogger", FirmwareRequired: true}, nil
+}
+
+func TestHouseholdFirmwareAPI(t *testing.T) {
+	s := &coreFirmwareAPIService{slot: catalog.CoreFirmware{Slot: "firmware"}}
+	handler := hostapi.New(s)
+	id := strings.Repeat("c", 64)
+	get := httptest.NewRequest(http.MethodGet, "/api/v1/library/firmware", nil)
+	get.Host = "127.0.0.1"
+	got := httptest.NewRecorder()
+	handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || !strings.Contains(got.Body.String(), `"slot":"firmware"`) {
+		t.Fatalf("get = %d %s", got.Code, got.Body.String())
+	}
+	put := httptest.NewRequest(http.MethodPut, "/api/v1/library/firmware", strings.NewReader(`{"slot":"firmware","media_id":"`+id+`"}`))
+	put.Host = "127.0.0.1"
+	put.Header.Set("Content-Type", "application/json")
+	written := httptest.NewRecorder()
+	handler.ServeHTTP(written, put)
+	if written.Code != http.StatusOK || !strings.Contains(written.Body.String(), id) {
+		t.Fatalf("put = %d %s", written.Code, written.Body.String())
+	}
+	if len(s.selection) != 2 || s.selection[1] != id {
+		t.Fatalf("selection=%v", s.selection)
+	}
+	clear := httptest.NewRequest(http.MethodPut, "/api/v1/library/firmware", strings.NewReader(`{"slot":"firmware","media_id":""}`))
+	clear.Host = "127.0.0.1"
+	clear.Header.Set("Content-Type", "application/json")
+	cleared := httptest.NewRecorder()
+	handler.ServeHTTP(cleared, clear)
+	if cleared.Code != http.StatusOK || strings.Contains(cleared.Body.String(), `"media_id"`) {
+		t.Fatalf("clear = %d %s", cleared.Code, cleared.Body.String())
+	}
+	bad := httptest.NewRequest(http.MethodPut, "/api/v1/library/firmware", strings.NewReader(`{"slot":"bios","media_id":"`+id+`"}`))
+	bad.Host = "127.0.0.1"
+	bad.Header.Set("Content-Type", "application/json")
+	rejected := httptest.NewRecorder()
+	handler.ServeHTTP(rejected, bad)
+	if rejected.Code != http.StatusBadRequest {
+		t.Fatalf("invalid slot = %d %s", rejected.Code, rejected.Body.String())
+	}
+	create := httptest.NewRequest(http.MethodPost, "/api/v1/library/core-entries", strings.NewReader(`{"title":"Frogger","package_id":"`+strings.Repeat("a", 64)+`","firmware_required":true}`))
+	create.Host = "127.0.0.1"
+	create.Header.Set("Content-Type", "application/json")
+	created := httptest.NewRecorder()
+	handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated || !strings.Contains(created.Body.String(), `"firmware_required":true`) {
+		t.Fatalf("create = %d %s", created.Code, created.Body.String())
+	}
+}

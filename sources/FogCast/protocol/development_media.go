@@ -17,6 +17,7 @@ const HostTargetIDHeader = "X-FogCast-Target-ID"
 // It is checked by FogCast; the local runtime load_media wire shape is unchanged.
 type DevelopmentMediaBinding struct {
 	Stream     bool // Selected explicitly by the stream endpoint, never inferred from size.
+	Role       string
 	PackageID  string
 	Generation uint64
 	Target     string // Host-only binding; not sent to the local runtime.
@@ -27,6 +28,12 @@ func (b DevelopmentMediaBinding) Valid() bool {
 	if len(b.PackageID) != 64 || b.Generation == 0 {
 		return false
 	}
+	if b.Role != "" && b.Role != "blob" && b.Role != FirmwareRole {
+		return false
+	}
+	if b.Role == FirmwareRole && b.Stream {
+		return false
+	}
 	for _, c := range b.PackageID {
 		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
 			return false
@@ -35,8 +42,14 @@ func (b DevelopmentMediaBinding) Valid() bool {
 	return true
 }
 func (b DevelopmentMediaBinding) Matches(s Status) bool {
-	return b.Valid() && s.State == StateActive && s.Development && s.Recovery == "" && s.LastError == nil &&
-		s.CorePackage != nil && s.CorePackage.PackageID == b.PackageID && s.CorePackage.Generation == b.Generation && DevelopmentMediaCapable(s.CorePackage) && (!b.Stream || MediaStreamCapable(s.CorePackage))
+	if !b.Valid() || s.State != StateActive || !s.Development || s.Recovery != "" || s.LastError != nil ||
+		s.CorePackage == nil || s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
+		return false
+	}
+	if b.Role == FirmwareRole {
+		return FirmwareCapable(s.CorePackage)
+	}
+	return DevelopmentMediaCapable(s.CorePackage) && (!b.Stream || MediaStreamCapable(s.CorePackage))
 }
 func DevelopmentMediaCapable(p *CorePackageStatus) bool {
 	if p == nil || !supportsBlobABI(p.ABI.ID, int64(p.ABI.Major), int64(p.ABI.Minor)) {
@@ -70,6 +83,9 @@ func DevelopmentMediaHeaders(h http.Header) (DevelopmentMediaBinding, bool) {
 }
 func DevelopmentMediaRequestError() *APIError {
 	return &APIError{Code: CodeBadRequest, Message: "development media requires 1..16384 bytes and a package generation", Phase: "request"}
+}
+func DevelopmentFirmwareRequestError() *APIError {
+	return &APIError{Code: CodeBadRequest, Message: "development firmware requires exactly 8192 bytes and a firmware-capable package generation", Phase: "request"}
 }
 func DevelopmentMediaIdentityError() *APIError {
 	return &APIError{Code: CodeBusy, Message: "development media requires the current active media-capable package generation", Phase: "admission"}
