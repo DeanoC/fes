@@ -161,6 +161,7 @@ def _run_nextpnr(
     extra: Sequence[str],
     timeout: int,
     required: Sequence[tuple[str | None, float]] | None = None,
+    env=None,
 ) -> Candidate:
     run_dir = output / f"s{seed}-w{weight}-c{critexp}"
     if run_dir.exists():
@@ -192,6 +193,7 @@ def _run_nextpnr(
         with log_path.open("w") as log:
             result = subprocess.run(
                 command,
+                env=env,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 check=False,
@@ -338,6 +340,7 @@ def search(
     required: Sequence[tuple[str | None, float]] | None = None,
     gpu_devices: Sequence[int] = (),
     run_one=None,
+    env=None,
 ) -> list[Candidate]:
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
@@ -366,6 +369,7 @@ def search(
                 extra=tuple(extra_run),
                 timeout=timeout,
                 required=required,
+                env=env,
             )
         finally:
             gpu_pool.put(gpu)
@@ -460,6 +464,7 @@ def route_after_synth(
     required: Sequence[tuple[str | None, float]] | None = None,
     gpu_devices: Sequence[int] = (),
     run_one=None,
+    env=None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
     search_dir = dest / "qor-search"
@@ -484,6 +489,7 @@ def route_after_synth(
         required=required,
         gpu_devices=gpu_devices,
         run_one=run_one,
+        env=env,
     )
     (dest / "qor-ranking.json").write_text(
         json.dumps(

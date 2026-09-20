@@ -29,7 +29,8 @@ from scripts.build_fes_pong import (
     _write_atomic,
 )
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, _parse_ints, route_after_synth
 
 
@@ -129,15 +130,15 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path) -> tuple[str, str]:
+def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str, str]:
     root = Path(root).resolve()
     actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root:
+    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
         raise BuildError(f"source root does not match Git checkout root: {root}")
     revision = _git(root, "rev-parse", "HEAD")
     if HEX40_RE.fullmatch(revision) is None:
         raise BuildError("source HEAD is not a full lowercase Git commit")
-    if _git(root, "status", "--porcelain", "--untracked-files=all"):
+    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
         raise BuildError("source checkout must be clean before build and export")
     repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
     if len(repositories) != 1:
@@ -158,6 +159,8 @@ def create_build_record(
     tool_identities: Mapping[str, str],
     *,
     qor_mode: str = "first-pass",
+    identity_version: int = 1,
+    execution: dict | None = None,
 ) -> bytes:
     fields = {
         "format": 1,
@@ -187,6 +190,10 @@ def create_build_record(
             "top": TOP,
         },
     }
+    if identity_version == 2:
+        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution)
+    elif identity_version != 1:
+        raise BuildError("unsupported build identity version")
     return encode_build_record(fields)
 
 
@@ -407,6 +414,7 @@ def build(
     cache_root: Path | None = None,
     best_fmax: bool = False,
     gpu_devices: Sequence[int] = (),
+    identity_version: int = 1,
 ) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -415,11 +423,17 @@ def build(
     qor_mode = "staged" if best_fmax else "first-pass"
     qor_weights = PLACER_WEIGHTS if best_fmax else (PLACER_TIMING_WEIGHT,)
     qor_budget = PLACER_QOR_BUDGET if best_fmax else max(len(PLACER_SEEDS), 1)
-    repository, revision = _require_clean_source(root)
+    repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
+    if identity_version == 2:
+        if len(gpu_devices) > 1:
+            raise BuildError("functional identity requires one GPU device")
+        gpu_devices = tuple(gpu_devices) or (0,)
+    invocation = FunctionalInvocation(authenticated, gpu_devices[0]) if identity_version == 2 else None
     record = create_build_record(
         root, repository, revision, identities, qor_mode=qor_mode,
+        identity_version=identity_version, execution=invocation.inputs if invocation else None,
     )
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
@@ -429,7 +443,7 @@ def build(
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
         )
-        _run_tool(commands[0], root, output / "yosys.log")
+        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}))
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -449,6 +463,7 @@ def build(
                 extra=("--router", "gpu"),
                 required=PLACER_QOR_CLOCKS,
                 gpu_devices=gpu_devices,
+                **({"env": invocation.env} if invocation else {}),
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -456,6 +471,8 @@ def build(
         evidence["route"]["placer_seed"] = winner.seed
         evidence["route"]["placer_heap_timingweight"] = winner.weight
         evidence["route"]["placer_qor_mode"] = qor_mode
+        if invocation:
+            evidence["execution"] = invocation.inputs
         evidence.update(
             {
                 "build_id": build_id,
@@ -474,9 +491,14 @@ def build(
         final_tools = _authenticate_tools(root, cache_root=cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
-        final_repository, final_revision = _require_clean_source(root)
+        final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
         if (final_repository, final_revision) != (repository, revision):
             raise BuildError("source identity changed during build")
+        if invocation:
+            invocation.verify()
+            if create_build_record(root, repository, revision, identities, qor_mode=qor_mode,
+                identity_version=identity_version, execution=invocation.inputs) != record:
+                raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store)
     except Exception:
         for name in ("core.rbf", "manifest.toml", "build-summary.json"):
@@ -484,6 +506,9 @@ def build(
             if path.is_file() or path.is_symlink():
                 path.unlink()
         raise
+    finally:
+        if invocation:
+            invocation.close()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -492,6 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
+    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=1)
     parser.add_argument(
         "--best-fmax",
         action="store_true",
@@ -499,12 +525,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--gpu-devices",
-        default="0,1",
+        default=None,
         help="HIP device indices for --best-fmax (default 0,1 = XTX + 9700)",
     )
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
+            if arguments.identity_version != 1:
+                raise BuildError("functional identity requires a controlled build")
             repository, revision = _require_clean_source(arguments.root)
             authenticated = _authenticate_tools(arguments.root, cache_root=arguments.cache_root)
             identities = {name: tool.identity for name, tool in authenticated.items()}
@@ -525,7 +553,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.package_output,
                 cache_root=arguments.cache_root,
                 best_fmax=arguments.best_fmax,
-                gpu_devices=_parse_ints(arguments.gpu_devices) if arguments.best_fmax else (),
+                identity_version=arguments.identity_version,
+                gpu_devices=_parse_ints(arguments.gpu_devices or ("0" if arguments.identity_version == 2 else "0,1"))
+                    if arguments.best_fmax or arguments.identity_version == 2 else (),
             )
         )
     except (BuildError, OSError, ValueError) as exc:

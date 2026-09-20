@@ -3,6 +3,62 @@
 misteross turns small experiment RTL into local MiSTer RBF artifacts. Network
 deployment and target lifecycle are outside this repository.
 
+## Functional input identity (opt-in OSS producers)
+
+Pong, ZX81, Coleco, SMS and SG-1000 OSS producers accept `--identity-version 2`.
+The default remains
+version 1 until the new lane has routed-artifact and hardware qualification.
+Package manifests remain format 2; their runtime readers are unchanged. The
+external `build-inputs.json` record gains format 2, while the exporter still
+reads format 1 with its original full-record SHA256 correlation algorithm.
+
+Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
+its embedded 128-bit ID from a domain-separated functional projection excluding
+those provenance fields. It includes every tracked regular file under `scripts/` and the owning core/board
+modules of each declared input, including shared RTL, root or core compiler locks,
+the recipe/ABI digests, authenticated
+tool identities, routing options and controlled execution identity. This is a
+conservative module closure: unrelated root documentation does not invalidate
+it, but another producer helper under `scripts/` does. Core-local README and
+other files under these conservative roots also invalidate today; narrowing
+that scope requires an audited compiler input trace. Root docs and unrelated
+UI files are outside the closure and their stability is tested. Export repeats the full
+closure enumeration and rejects missing, untracked, symlink or changed inputs.
+The producer requires a clean committed module before and after building.
+Standalone source uses `source_path = "."`; imported modules use their path
+relative to the real repository root. The revision and origin remain those of
+the real root commit, not a synthetic child commit. Export resolves that module
+below the Git root and scopes source cleanliness to it; unrelated sibling work
+is preserved. Module relocation alone does not enter the functional projection.
+
+The opt-in lane supplies an explicit environment to synthesis and routing,
+using an empty private home instead of user configuration and omitting ambient
+loader, Yosys and GPU overrides. It records one explicit GPU device (default 0),
+KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
+`yosys-abc`), dynamic-library bytes and installed tool support data. Missing
+ABC or required Intel ALM support files reject the functional lane.
+Only a single routing device is supported in this lane; use
+`--identity-version 2 --gpu-devices 0` for Coleco/ZX81, optionally with
+`--best-fmax`, or `--identity-version 2 --gpu-device 0` for Pong/SMS/SG-1000. Execution
+inputs are rechecked before sealing and their full description is retained in
+`build-summary.json`; the canonical record includes their digest. Installation
+paths remain part of this conservative identity, so tool relocation does not
+silently reuse hardware qualification. This is an input identity, not a promise
+of identical placement bytes across runs. Authentication probes remain the
+existing toolchain checks; actual compiler invocations use the controlled env.
+
+A same-input later commit may have the same embedded ID but different original
+provenance and package ID. This producer does not relabel existing manifests or
+implement parent cache reuse. FES must separately authenticate the original
+artifact against its original source and publish a current selection receipt
+before reusing it. `verify_record_source_at_revision(root, record)` reads the
+recorded commit's exact module closure from Git objects without changing HEAD,
+the index or working files; absent history and altered member sets fail closed.
+It does not substitute for current tool authentication or payload verification.
+Existing FES whole-record matching continues to distinguish
+commits until that coordinated change lands. No new hardware acceptance is
+claimed by these host-side identity and exporter tests.
+
 ## Build lanes
 
 ### Composable application reference

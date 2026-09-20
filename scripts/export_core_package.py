@@ -79,10 +79,12 @@ def _validate_build_record(fields: object) -> dict:
         "tools",
         "parameters",
     }
+    if isinstance(fields, dict) and fields.get("format") == 2:
+        expected |= {"source_roots", "source_inputs", "source_path"}
     if not isinstance(fields, dict) or set(fields) != expected:
         raise PackageExportError("build record has missing or unrecognized fields")
-    if type(fields["format"]) is not int or fields["format"] != 1:
-        raise PackageExportError("build record format must be the integer 1")
+    if type(fields["format"]) is not int or fields["format"] not in (1, 2):
+        raise PackageExportError("build record format must be integer 1 or 2")
     try:
         _manifest_repository(fields["repository"])
     except PackageError as exc:
@@ -96,6 +98,29 @@ def _validate_build_record(fields: object) -> dict:
         digest = _string(fields[field], field)
         if HEX64_RE.fullmatch(digest) is None:
             raise PackageExportError(f"{field} must be 64 lowercase hexadecimal characters")
+
+    if fields["format"] == 2:
+        if fields["source_path"] != ".":
+            _relative_path(fields["source_path"], "source_path")
+        roots = fields["source_roots"]
+        inputs = fields["source_inputs"]
+        if not isinstance(roots, list) or not roots or any(not isinstance(p, str) for p in roots):
+            raise PackageExportError("source_roots must be nonempty relative paths")
+        if roots != sorted(set(roots)):
+            raise PackageExportError("source_roots must be sorted and unique")
+        for path in roots:
+            _relative_path(path, "source root")
+        if not isinstance(inputs, dict) or not inputs:
+            raise PackageExportError("source_inputs must be nonempty")
+        for path, digest in inputs.items():
+            _relative_path(path, "source input")
+            if not any(path == prefix or path.startswith(prefix + "/") for prefix in roots):
+                raise PackageExportError("source input is outside declared roots")
+            if not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None:
+                raise PackageExportError("source input digest must be lowercase SHA256")
+        for path_key, digest_key in (("recipe", "recipe_sha256"), ("abi_definition", "abi_definition_sha256")):
+            if inputs.get(fields[path_key]) != fields[digest_key]:
+                raise PackageExportError("source closure must include recipe and ABI bytes")
 
     dependencies = fields["dependencies"]
     if not isinstance(dependencies, dict):
@@ -143,7 +168,17 @@ def build_identity(record: bytes) -> str:
 
     if not isinstance(record, bytes):
         raise TypeError("build record must be bytes")
-    return hashlib.sha256(record).hexdigest()[:32]
+    # Version 1 historically hashes arbitrary bytes; retain that exact API.
+    try:
+        version = json.loads(record).get("format")
+    except (ValueError, AttributeError, UnicodeDecodeError):
+        version = None
+    if version != 2:
+        return hashlib.sha256(record).hexdigest()[:32]
+    fields = _decode_build_record(record)
+    functional = {key: value for key, value in fields.items() if key not in ("repository", "revision", "source_path")}
+    encoded = json.dumps(functional, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(b"fes-functional-inputs-v2\0" + encoded).hexdigest()[:32]
 
 
 def _reject_float(value: str) -> None:
@@ -213,6 +248,7 @@ def _git(root: Path, *arguments: str) -> str:
             ["git", "-C", str(root), *arguments],
             text=True,
             capture_output=True,
+            env=dict(os.environ, GIT_LITERAL_PATHSPECS="1", GIT_NO_LAZY_FETCH="1", GIT_OPTIONAL_LOCKS="0"),
             check=True,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -221,13 +257,13 @@ def _git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def _require_clean_repository(root: Path, revision: str, *, repository: str | None = None) -> None:
+def _require_clean_repository(root: Path, revision: str, *, repository: str | None = None, allow_subdirectory: bool = False) -> None:
     actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root.resolve():
+    if actual_root != root.resolve() and not (allow_subdirectory and root.resolve().is_relative_to(actual_root)):
         raise PackageExportError(f"build input is not rooted at its declared checkout: {root}")
     if _git(root, "rev-parse", "HEAD") != revision:
         raise PackageExportError(f"build input checkout is not at pinned revision: {root}")
-    if _git(root, "status", "--porcelain", "--untracked-files=all"):
+    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
         raise PackageExportError(f"build input checkout is not clean: {root}")
     if repository is not None:
         remotes = _git(root, "remote", "get-url", "--all", "origin").splitlines()
@@ -257,11 +293,106 @@ def _require_tracked(root: Path, relative: str, field: str) -> None:
         raise PackageExportError(f"{field} is not tracked by the pinned source commit: {relative}") from exc
 
 
+def source_input_closure(root: Path, roots: list[str]) -> dict[str, str]:
+    """Hash every tracked regular file in declared modules, rejecting path escapes.
+
+    The producer chooses conservative module roots, not an optimistic handpicked
+    source list. Export repeats this enumeration, detecting additions/deletions.
+    """
+    result = {}
+    for prefix in roots:
+        _relative_path(prefix, "source root")
+        if _git(root, "ls-files", "--others", "--exclude-standard", "--", prefix):
+            raise PackageExportError(f"source root contains untracked inputs: {prefix}")
+        entries = _git(root, "ls-files", "--stage", "-z", "--", prefix).split("\0")
+        members = 0
+        for entry in filter(None, entries):
+            metadata, path = entry.split("\t", 1)
+            mode, _, stage = metadata.split()
+            if mode not in ("100644", "100755") or stage != "0":
+                raise PackageExportError("source closure requires regular tracked files")
+            _relative_path(path, "source input")
+            if not (path == prefix or path.startswith(prefix + "/")):
+                raise PackageExportError("source input is outside declared root")
+            result[path] = hashlib.sha256(_checked_input(root, path, "source input").read_bytes()).hexdigest()
+            members += 1
+        if not members:
+            raise PackageExportError(f"source root has no tracked inputs: {prefix}")
+    return dict(sorted(result.items()))
+
+
+def functional_record_fields(root: Path, fields: dict, roots: list[str], execution: dict) -> dict:
+    """Add the shared v2 envelope to a producer's existing parameters."""
+    from scripts.functional_execution import execution_digest
+    if execution is None:
+        raise PackageExportError("functional identity requires controlled execution inputs")
+    git_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
+    result = dict(fields, format=2, source_path=Path(root).resolve().relative_to(git_root).as_posix(),
+                  source_roots=sorted(roots), source_inputs=source_input_closure(root, sorted(roots)))
+    result["parameters"] = dict(fields["parameters"], execution_sha256=execution_digest(execution),
+                                gpu_device=execution["gpu_device"])
+    return result
+
+
+def verify_record_source_at_revision(root: Path, record: bytes) -> dict:
+    """Verify immutable recorded source bytes using Git objects, without checkout.
+
+    This proves the source closure at the recorded commit, not current tool or
+    hardware compatibility. The caller separately checks the payload/manifest
+    and matches the functional record to its authenticated current selection.
+    Missing history fails closed; promisor fetches are disabled.
+    """
+    fields = _decode_build_record(record)
+    if fields["format"] != 2:
+        raise PackageExportError("historical functional verification requires record format 2")
+    git_root = Path(_git(root, "rev-parse", "--show-toplevel"))
+    prefix = "" if fields["source_path"] == "." else fields["source_path"] + "/"
+    revision = fields["revision"]
+    def object_bytes(*args):
+        result = subprocess.run(["git", "-C", str(git_root), *args], capture_output=True,
+                                env=dict(os.environ, GIT_NO_LAZY_FETCH="1", GIT_OPTIONAL_LOCKS="0",
+                                         GIT_TERMINAL_PROMPT="0", GIT_LITERAL_PATHSPECS="1"), check=False)
+        if result.returncode:
+            raise PackageExportError("recorded source history is unavailable")
+        return result.stdout
+    object_bytes("cat-file", "-e", revision + "^{commit}")
+    actual = {}
+    for source_root in fields["source_roots"]:
+        entries = object_bytes("ls-tree", "-r", "-z", "--full-tree", revision, "--", prefix + source_root)
+        if not entries:
+            raise PackageExportError("recorded source root is missing")
+        for entry in filter(None, entries.split(b"\0")):
+            metadata, raw_path = entry.split(b"\t", 1)
+            mode, kind, oid = metadata.split()
+            if mode not in (b"100644", b"100755") or kind != b"blob":
+                raise PackageExportError("recorded source closure contains nonregular inputs")
+            path = raw_path.decode("utf-8")
+            if not path.startswith(prefix):
+                raise PackageExportError("recorded source is outside module")
+            relative = path[len(prefix):]
+            _relative_path(relative, "recorded source input")
+            actual[relative] = hashlib.sha256(object_bytes("cat-file", "blob", oid.decode())).hexdigest()
+    if actual != fields["source_inputs"]:
+        raise PackageExportError("recorded source closure differs from Git revision")
+    for relative, expected in fields["dependencies"].items():
+        entry = object_bytes("ls-tree", revision, "--", prefix + relative).split()
+        if len(entry) != 4 or entry[0] != b"160000" or entry[2].decode() != expected:
+            raise PackageExportError("historical dependency is not the recorded Git submodule")
+    return fields
+
+
 def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_fields: dict) -> Path:
     try:
         root = Path(_git(payload.parent, "rev-parse", "--show-toplevel")).resolve()
     except PackageExportError as exc:
         raise PackageExportError("RBF must be contained by a pinned Git checkout") from exc
+    if fields["format"] == 2 and fields["source_path"] != ".":
+        for part in PurePosixPath(fields["source_path"]).parts:
+            root = root / part
+            if root.is_symlink() or not root.is_dir():
+                raise PackageExportError("source_path must name a real module directory")
+        if not payload.resolve().is_relative_to(root.resolve()):
+            raise PackageExportError("RBF is outside its declared source module")
     build = manifest_fields["build"]
     for key in ("repository", "revision", "recipe_sha256"):
         if fields[key] != build[key]:
@@ -277,7 +408,11 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
         raise PackageExportError("recipe bytes do not match build-input record")
     if hashlib.sha256(abi_definition.read_bytes()).hexdigest() != fields["abi_definition_sha256"]:
         raise PackageExportError("ABI definition bytes do not match build-input record")
-    _require_clean_repository(root, fields["revision"], repository=fields["repository"])
+    _require_clean_repository(root, fields["revision"], repository=fields["repository"],
+                              **({"allow_subdirectory": True} if fields["format"] == 2 else {}))
+
+    if fields["format"] == 2 and source_input_closure(root, fields["source_roots"]) != fields["source_inputs"]:
+        raise PackageExportError("source closure differs from build-input record")
 
     for relative, revision in fields["dependencies"].items():
         dependency = root.joinpath(*PurePosixPath(relative).parts)
@@ -391,7 +526,10 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
             os.fsync(store_fd)
         finally:
             os.close(store_fd)
-        _require_clean_repository(root, record_fields["revision"], repository=record_fields["repository"])
+        _require_clean_repository(root, record_fields["revision"], repository=record_fields["repository"],
+                                  **({"allow_subdirectory": True} if record_fields["format"] == 2 else {}))
+        if record_fields["format"] == 2 and source_input_closure(root, record_fields["source_roots"]) != record_fields["source_inputs"]:
+            raise PackageExportError("source closure changed during export")
         for relative, revision in record_fields["dependencies"].items():
             _require_clean_repository(root.joinpath(*PurePosixPath(relative).parts), revision)
     except Exception:

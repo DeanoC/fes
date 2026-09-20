@@ -88,6 +88,129 @@ class ExportCorePackageTests(unittest.TestCase):
     def tearDown(self):
         self.tempdir.cleanup()
 
+    def functional_fields(self):
+        fields = dict(self.record_fields, format=2, source_path=".", source_roots=["abi", "scripts"])
+        fields["source_inputs"] = export_core_package.source_input_closure(self.repo, fields["source_roots"])
+        return fields
+
+    def test_functional_identity_separates_commit_provenance(self):
+        fields = self.functional_fields()
+        before = encode_build_record(fields)
+        (self.repo / "README.md").write_text("Documentation only\n")
+        _run("git", "add", "README.md", cwd=self.repo)
+        _run("git", "commit", "-qm", "docs", cwd=self.repo)
+        fields["revision"] = _run("git", "rev-parse", "HEAD", cwd=self.repo)
+        fields["source_inputs"] = export_core_package.source_input_closure(self.repo, fields["source_roots"])
+        after = encode_build_record(fields)
+        self.assertNotEqual(before, after)
+        self.assertEqual(build_identity(before), build_identity(after))
+        self.assertEqual(json.loads(before)["revision"], self.revision)
+        legacy = dict(self.record_fields, revision=fields["revision"])
+        self.assertNotEqual(build_identity(self.record), build_identity(encode_build_record(legacy)))
+
+    def test_functional_export_from_monorepo_module_preserves_root_provenance(self):
+        # Move the exact source module below the existing repository root.
+        module = self.repo / "sources/fpga"
+        module.mkdir(parents=True)
+        for name in ("scripts", "abi", "build", ".gitignore"):
+            (self.repo / name).rename(module / name)
+        # Keep the independent dependency fixture outside the scoped module.
+        (self.repo / ".gitignore").write_text("/dependencies/\n")
+        _run("git", "add", "-A", cwd=self.repo)
+        _run("git", "commit", "-qm", "module import", cwd=self.repo)
+        fields = dict(self.record_fields, format=2, source_path="sources/fpga",
+                      source_roots=["abi", "scripts"], dependencies={},
+                      revision=_run("git", "rev-parse", "HEAD", cwd=self.repo))
+        fields["source_inputs"] = export_core_package.source_input_closure(module, fields["source_roots"])
+        record = encode_build_record(fields)
+        self.assertEqual(export_core_package.verify_record_source_at_revision(module, record), fields)
+        (module / "build/build-inputs.json").write_bytes(record)
+        self.fields["build"].update(revision=fields["revision"], id=build_identity(record))
+        # An unrelated module's work is not a dirty FPGA source selection.
+        (self.repo / "other-module-work").write_text("preserve")
+        sealed = export_package(encode_manifest(self.fields), module / "build/core.rbf", self.store)
+        self.assertEqual(tomllib.loads((sealed / "manifest.toml").read_text())["build"]["revision"], fields["revision"])
+        moved = dict(fields, source_path="renamed/fpga")
+        self.assertEqual(build_identity(record), build_identity(encode_build_record(moved)))
+
+    def test_historical_source_verification_is_read_only_and_checks_original_bytes(self):
+        fields = dict(self.functional_fields(), dependencies={})
+        record = encode_build_record(fields)
+        before_head = _run("git", "rev-parse", "HEAD", cwd=self.repo)
+        before_index = (self.repo / ".git/index").read_bytes()
+        (self.repo / "scripts/build.py").write_text("dirty current source\n")
+        checked = export_core_package.verify_record_source_at_revision(self.repo, record)
+        self.assertEqual(checked, fields)
+        self.assertEqual(_run("git", "rev-parse", "HEAD", cwd=self.repo), before_head)
+        self.assertEqual((self.repo / ".git/index").read_bytes(), before_index)
+        self.assertEqual((self.repo / "scripts/build.py").read_text(), "dirty current source\n")
+        missing = dict(fields, revision="f" * 40)
+        with self.assertRaisesRegex(PackageExportError, "history is unavailable"):
+            export_core_package.verify_record_source_at_revision(self.repo, encode_build_record(missing))
+        forged = dict(fields, recipe_sha256="0" * 64, source_inputs=dict(fields["source_inputs"]))
+        forged["source_inputs"][fields["recipe"]] = "0" * 64
+        with self.assertRaisesRegex(PackageExportError, "differs from Git"):
+            export_core_package.verify_record_source_at_revision(self.repo, encode_build_record(forged))
+
+    def test_functional_identity_tracks_shared_helpers_and_tools(self):
+        original = self.functional_fields()
+        initial = build_identity(encode_build_record(original))
+        helper = self.repo / "scripts/helper.py"
+        helper.write_text("helper = 1\n")
+        _run("git", "add", "scripts/helper.py", cwd=self.repo)
+        added = self.functional_fields()
+        self.assertNotEqual(initial, build_identity(encode_build_record(added)))
+        helper.write_text("helper = 2\n")
+        changed = self.functional_fields()
+        self.assertNotEqual(build_identity(encode_build_record(added)), build_identity(encode_build_record(changed)))
+        _run("git", "rm", "-f", "scripts/helper.py", cwd=self.repo)
+        self.assertEqual(initial, build_identity(encode_build_record(self.functional_fields())))
+        for key, value in (("tools", {"yosys": "changed"}), ("parameters", {"seed": 2})):
+            modified = dict(original, **{key: value})
+            self.assertNotEqual(initial, build_identity(encode_build_record(modified)))
+
+    def test_functional_closure_rejects_untracked_deleted_and_symlink_inputs(self):
+        helper = self.repo / "scripts/helper.py"
+        helper.write_text("new\n")
+        with self.assertRaisesRegex(PackageExportError, "untracked"):
+            self.functional_fields()
+        helper.unlink()
+        recipe = self.repo / "scripts/build.py"
+        recipe.unlink()
+        with self.assertRaisesRegex(PackageExportError, "missing"):
+            self.functional_fields()
+        recipe.symlink_to(self.repo / "abi/fes-gp.json")
+        with self.assertRaisesRegex(PackageExportError, "symlink"):
+            self.functional_fields()
+        with self.assertRaisesRegex(PackageExportError, "traversal"):
+            export_core_package.source_input_closure(self.repo, ["../outside"])
+
+    def test_functional_export_verifies_full_closure(self):
+        fields = self.functional_fields()
+        record = encode_build_record(fields)
+        (self.build / "build-inputs.json").write_bytes(record)
+        self.fields["build"]["id"] = build_identity(record)
+        manifest = encode_manifest(self.fields)
+        sealed = export_package(manifest, self.rbf, self.store)
+        original_manifest = (sealed / "manifest.toml").read_bytes()
+        forged = dict(fields, source_inputs=dict(fields["source_inputs"]))
+        # Recipe/ABI must agree with their top-level fields even before export.
+        forged["source_inputs"]["scripts/build.py"] = "0" * 64
+        with self.assertRaisesRegex(PackageExportError, "recipe and ABI"):
+            encode_build_record(forged)
+        # Omitting an existing tracked helper cannot be used to weaken closure.
+        helper = self.repo / "scripts/helper.py"
+        helper.write_text("helper = 1\n")
+        _run("git", "add", "scripts/helper.py", cwd=self.repo)
+        _run("git", "commit", "-qm", "helper", cwd=self.repo)
+        fields["revision"] = _run("git", "rev-parse", "HEAD", cwd=self.repo)
+        record = encode_build_record(fields)
+        (self.build / "build-inputs.json").write_bytes(record)
+        self.fields["build"].update(revision=fields["revision"], id=build_identity(record))
+        with self.assertRaisesRegex(PackageExportError, "source closure differs"):
+            export_package(encode_manifest(self.fields), self.rbf, self.store)
+        self.assertEqual(original_manifest, (sealed / "manifest.toml").read_bytes())
+
     def test_build_record_encoding_is_canonical_and_defines_build_id(self):
         shuffled = dict(reversed(list(self.record_fields.items())))
         self.assertEqual(encode_build_record(shuffled), self.record)

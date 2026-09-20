@@ -20,7 +20,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.lockfile import LockfileError, load_lock
 
 
@@ -171,15 +172,15 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str] = PINNED_INPUTS) -> tuple[str, str]:
+def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str] = PINNED_INPUTS, identity_version: int = 1) -> tuple[str, str]:
     root = Path(root).resolve()
     actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root:
+    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
         raise BuildError(f"source root does not match Git checkout root: {root}")
     revision = _git(root, "rev-parse", "HEAD")
     if HEX40_RE.fullmatch(revision) is None:
         raise BuildError("source HEAD is not a full lowercase Git commit")
-    if _git(root, "status", "--porcelain", "--untracked-files=all"):
+    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
         raise BuildError("source checkout must be clean before build and export")
     repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
     if len(repositories) != 1:
@@ -423,6 +424,9 @@ def create_build_record(
     repository: str,
     revision: str,
     tool_identities: Mapping[str, str],
+    *,
+    identity_version: int = 1,
+    execution: dict | None = None,
 ) -> bytes:
     root = Path(root)
     fields = {
@@ -447,6 +451,10 @@ def create_build_record(
             "top": TOP,
         },
     }
+    if identity_version == 2:
+        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution)
+    elif identity_version != 1:
+        raise BuildError("unsupported build identity version")
     return encode_build_record(fields)
 
 
@@ -525,11 +533,12 @@ def _prepare_output(root: Path, *, relative: Path = OUTPUT_RELATIVE) -> Path:
 
 
 def _run_tool(command: tuple[str, ...], cwd: Path, log: Path,
-              *, output_relative: Path = OUTPUT_RELATIVE) -> None:
+              *, output_relative: Path = OUTPUT_RELATIVE, env=None) -> None:
     try:
         result = subprocess.run(
             list(command),
             cwd=cwd,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             check=False,
@@ -842,6 +851,8 @@ def _build_after_record(
     record: bytes,
     output: Path,
     cache_root: Path | None = None,
+    invocation=None,
+    identity_version: int = 1,
 ) -> Path:
     build_id = build_identity(record)
     commands = build_commands(
@@ -850,11 +861,13 @@ def _build_after_record(
         build_id,
         {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
     )
-    _run_tool(commands[0], root, output / "yosys.log")
+    _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}))
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    _run_tool(commands[1], root, output / "nextpnr.log")
+    _run_tool(commands[1] + (("--gpu-device", str(invocation.gpu_device)) if invocation else ()), root, output / "nextpnr.log", **({"env": invocation.env} if invocation else {}))
     evidence = validate_build_evidence(output, root)
+    if invocation:
+        evidence["execution"] = invocation.inputs
     evidence.update(
         {
             "build_id": build_id,
@@ -873,9 +886,14 @@ def _build_after_record(
     final_tools = _authenticate_tools(root, cache_root=cache_root)
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise BuildError("authenticated tool identity changed during build")
-    final_repository, final_revision = _require_clean_source(root)
+    final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
     if (final_repository, final_revision) != (repository, revision):
         raise BuildError("source identity changed during build")
+    if invocation:
+        invocation.verify()
+        if create_build_record(root, repository, revision, identities,
+            identity_version=identity_version, execution=invocation.inputs) != record:
+            raise BuildError("functional source inputs changed during build")
     return export_package(manifest, output / "core.rbf", package_store)
 
 
@@ -888,15 +906,17 @@ def _invalidate_failed_artifact(output: Path) -> None:
             raise BuildError(f"cannot invalidate non-file failed build output: {path}")
 
 
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 1, gpu_device: int = 0) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Pong package store must be {root / 'build/packages'}")
-    repository, revision = _require_clean_source(root)
+    repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    record = create_build_record(root, repository, revision, identities)
+    invocation = FunctionalInvocation(authenticated, gpu_device) if identity_version == 2 else None
+    record = create_build_record(root, repository, revision, identities,
+        identity_version=identity_version, execution=invocation.inputs if invocation else None)
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -910,10 +930,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             record,
             output,
             cache_root=cache_root,
+            **({"invocation": invocation, "identity_version": identity_version} if invocation else {}),
         )
     except Exception:
         _invalidate_failed_artifact(output)
         raise
+    finally:
+        if invocation:
+            invocation.close()
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -921,13 +945,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--gpu-device", type=int, default=0)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
-        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root))
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-pong: {exc}", file=sys.stderr)
         return 1
