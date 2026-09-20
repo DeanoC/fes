@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
     "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
+    "nextpnr": "d672fade461e8a1eba4d3f95895902d86f43b882",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -102,6 +102,15 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertIn("array", lock["mistral"].rationale)
 
+    def test_nextpnr_pin_documents_freeze_scaffold_merge(self):
+        lock = lockfile.load_lock(ROOT / "toolchain.lock")
+        self.assertEqual(
+            lock["nextpnr"].commit,
+            "d672fade461e8a1eba4d3f95895902d86f43b882",
+        )
+        self.assertIn("PR #72", lock["nextpnr"].rationale)
+        self.assertIn("--fes-scaffold", lock["nextpnr"].rationale)
+
     def test_get_prints_only_requested_commit(self):
         result = subprocess.run(
             [sys.executable, "scripts/lockfile.py", "get", "nextpnr", "commit"],
@@ -110,7 +119,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "0fad53a75a0218941c417ec6bb58bdede9070987\n")
+        self.assertEqual(result.stdout, "d672fade461e8a1eba4d3f95895902d86f43b882\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

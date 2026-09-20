@@ -61,9 +61,10 @@ def _require_scaffold_nextpnr(nextpnr: Path) -> None:
     if "--fes-scaffold" not in help_text or "--fes-cart" not in help_text:
         raise SlotBuildError(
             f"{nextpnr} does not provide --fes-scaffold/--fes-cart; "
-            "set NEXTPNR_MISTRAL to a DeanoC/nextpnr feat/fes-reserved-bels binary "
-            "(https://github.com/DeanoC/nextpnr/pull/72). "
-            "toolchain.lock remains 0fad53a7 until that revision is selected."
+            "install the locked nextpnr with `make toolchain-fes` "
+            "(DeanoC/nextpnr mistral-stable d672fade, "
+            "https://github.com/DeanoC/nextpnr/pull/72) "
+            "or set NEXTPNR_MISTRAL to that binary."
         )
 
 

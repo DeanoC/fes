@@ -5,8 +5,8 @@ with the closed INIT oracle. Plug names `plug_addr` / `plug_rdata` match
 the 901 empty socket. Signature stays in the shell.
 
 Synth-only (`make oss EXP=900_expansion_bus`). Verilator:
-`make sim EXP=900_expansion_bus`. Compose with a nextpnr that has
-`--fes-scaffold`/`--fes-cart` (`NEXTPNR_MISTRAL=...`):
+`make sim EXP=900_expansion_bus`. Compose onto the 901 shell with locked
+nextpnr `d672fade` (`make toolchain-fes`):
 
 ```
 python3 scripts/build_fes_slot.py \
@@ -19,3 +19,6 @@ python3 scripts/build_fes_slot.py \
 Linker `cram_rect` + `require_slot_only` copies tile-column CRAM 21–33 from
 the pass-2 bitstream onto the 901 shell and refuses bits outside that
 rectangle. Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
+Kit probe after compose: `experiments/901_plugged_base/hardware/probe_cart.sh`.
+See the README [Freeze-scaffold cartridges](../../README.md#freeze-scaffold-cartridges)
+section.

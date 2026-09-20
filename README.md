@@ -385,18 +385,94 @@ development possible with both the open-source Mistral toolchain and Quartus.
   M10K column at `MISTRAL_M10K.26.1.0` for static CRAM overlay. Run
   `make sim EXP=890_slot_m10k` and the base/cart siblings. Overlay with
   `python3 scripts/link_static_rbf.py`. Quartus comparison is not implemented.
+  Locked nextpnr `d672fade` honours `FES_RESERVED_BEL` / `FES_RESERVED_RECT`.
 - `900_expansion_bus`, independent cart A (`cart` top) with one BEL-locked
   slot cell and the INIT oracle. Synth-only: `make oss EXP=900_expansion_bus`.
-  Verilator: `make sim EXP=900_expansion_bus`. Compose onto the 901 shell with
-  `NEXTPNR_MISTRAL=/path/to/feat/fes-reserved-bels/nextpnr-mistral`
-  `scripts/build_fes_slot.py` (locked nextpnr `0fad53a7` lacks `--fes-scaffold`).
+  Verilator: `make sim EXP=900_expansion_bus`. Compose onto the 901 shell as
+  described in [Freeze-scaffold cartridges](#freeze-scaffold-cartridges).
 - `901_plugged_base`, empty socket (`0xD901`) with locked `MISTRAL_FF` plugs
   outside reserved rect `25 1 27 16` (addr column 24, rdata 28.1–28.10).
-  Overlay tile-column CRAM 21–33 with
-  `python3 scripts/link_static_rbf.py overlay --map experiments/901_plugged_base/link.toml`
-  after freeze-scaffold P&R. Run `make sim EXP=901_plugged_base`.
+  Run `make sim EXP=901_plugged_base` and `make oss EXP=901_plugged_base`.
 - `903_wide_cart`, independent cart B: four slot cells and a 2-bit decode
-  into the same 901 socket. Run `make sim EXP=903_wide_cart`.
+  into the same 901 socket. Synth-only: `make oss EXP=903_wide_cart`.
+  Verilator: `make sim EXP=903_wide_cart`.
+
+## Freeze-scaffold cartridges
+
+The DE10-Nano has no partial reconfiguration. A composed cartridge is one
+full-chip RBF: a frozen empty socket (the shell) plus an independent cart
+whose cells occupy a reserved rectangle. The linker copies only that
+rectangle's CRAM from the pass-2 bitstream onto the pass-1 shell.
+
+### Roles
+
+| Piece | Experiment | What it is |
+| --- | --- | --- |
+| Shell | `901_plugged_base` | Empty socket. Signature `0xD901`. Primitive `MISTRAL_FF` plugs outside reserved rect `25 1 27 16` (addr column 24, rdata `28.1`–`28.10`). No slot M10K. |
+| Cart A | `900_expansion_bus` | `cart` top, one BEL-locked `MISTRAL_M10K.26.1.0`, INIT oracle. No HPS, no signature. |
+| Cart B | `903_wide_cart` | Four slot M10Ks and a 2-bit decode on `plug_addr[11:10]`. Same plug names. |
+| Map | `experiments/901_plugged_base/link.toml` | `overlay_mode = "cram_rect"`, tile columns 21–33, `require_slot_only`. |
+
+The 890/891/892 trio is the older INIT-only M10K overlay
+(`overlay_mode = "m10k_ram"`). Use 901 when the cart is unknown at shell
+place-and-route time.
+
+### Build a composed RBF
+
+Pass-2 uses `--router gpu`, so install HIP nextpnr first:
+
+```sh
+make toolchain-fes
+make oss EXP=901_plugged_base
+python3 scripts/build_fes_slot.py \
+  --shell-json build/oss/901_plugged_base/routed.json \
+  --shell-rbf build/oss/901_plugged_base/top.rbf \
+  --cart 900_expansion_bus \
+  --output build/oss/composed_901_plus_900.rbf
+```
+
+Replace `--cart 900_expansion_bus` with `903_wide_cart` for cart B. The
+script synthesizes the cart, merges it into the routed shell with
+`--fes-scaffold --fes-cart`, and runs `scripts/link_static_rbf.py overlay`.
+Locked nextpnr `d672fade` provides those flags. `NEXTPNR_MISTRAL` still
+overrides the binary. A nextpnr without the flags fails closed. The linker
+writes `composed_901_plus_900.rbf.receipt.json` beside the output.
+
+To overlay two already-built RBFs without resynthesizing:
+
+```sh
+python3 scripts/link_static_rbf.py overlay \
+  --base build/oss/901_plugged_base/top.rbf \
+  --cart path/to/pass2.rbf \
+  --map experiments/901_plugged_base/link.toml \
+  --output build/oss/composed.rbf
+python3 scripts/link_static_rbf.py diff \
+  --a build/oss/901_plugged_base/top.rbf \
+  --b build/oss/composed.rbf
+```
+
+`require_slot_only` refuses any CRAM bit outside the map rectangle.
+Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
+
+### Write another cart
+
+1. Independent experiment with `top = "cart"` and `synth_only`.
+2. Ports `plug_addr[15:0]` and `plug_rdata[9:0]` matching the shell.
+3. BEL-lock every slot cell inside reserved rect `25 1 27 16` (M10K column 26).
+4. `setattr -set FES_SLOT 1 c:*` after synth so nextpnr treats those cells as the cart.
+5. No HPS, LED, GPIO, or signature; the shell keeps `0xD901`.
+6. Primitive `MISTRAL_FF` `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
+7. Compose with `--cart <experiment>` onto the same 901 shell. Do not rebuild the shell for a new cart.
+
+### Kit probes
+
+Claim the designated kit with `scripts/kit.py session`. Load the RBF through
+the development-RBF path. Vacant 901:
+`experiments/901_plugged_base/hardware/probe.sh`. Composed cart A:
+`probe_cart.sh`. Cart B: `probe_cart_b.sh`. GPI is
+`{SIGNATURE, plug_addr[5:0], plug_rdata}`. This is a development-RBF
+diagnostic, not image acceptance, and it does not seal `fes.zx81`.
+
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
   with explicitly configured Quartus 17.0.2. Outputs and provenance are under
