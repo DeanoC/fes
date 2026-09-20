@@ -79,5 +79,17 @@ class ExpansionBusTests(unittest.TestCase):
     def test_readme_points_cart_a_at_oss_synth(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("`make oss EXP=900_expansion_bus`", readme)
+        self.assertIn("scripts/build_fes_slot.py", readme)
+        self.assertIn("## Freeze-scaffold cartridges", readme)
         self.assertIn("NEXTPNR_MISTRAL", readme)
         self.assertNotIn("Synth-only: `make sim EXP=900_expansion_bus`", readme)
+        self.assertNotIn("lacks `--fes-scaffold`", readme)
+        lock = (ROOT / "toolchain.lock").read_text(encoding="utf-8")
+        self.assertIn("d672fade461e8a1eba4d3f95895902d86f43b882", lock)
+        self.assertIn("--fes-scaffold", lock)
+        for relative in (
+            "experiments/900_expansion_bus/expected.md",
+            "experiments/901_plugged_base/expected.md",
+            "experiments/903_wide_cart/expected.md",
+        ):
+            self.assertIn("build_fes_slot.py", (ROOT / relative).read_text(encoding="utf-8"))

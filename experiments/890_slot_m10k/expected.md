@@ -6,8 +6,8 @@ oracle bitstream for the static CRAM overlay linker. Quartus comparison is not
 implemented.
 
 GPO `[9:0]` is the read address. GPI signature `0xD890`. The QSF names
-`FES_RESERVED_BEL` / `FES_RESERVED_RECT`. `feat/fes-reserved-bels` honours
-them; the selected toolchain pin does not until the integrator updates it.
+`FES_RESERVED_BEL` / `FES_RESERVED_RECT`. Locked nextpnr `d672fade`
+honours them.
 
 Build the base and cart siblings, then compose:
 

@@ -1,5 +1,5 @@
-# Clock pin plus the reserved expansion M10K site. Current nextpnr ignores
-# FES_RESERVED_BEL; DeanoC/nextpnr feat/fes-reserved-bels honours it.
+# Clock pin plus the reserved expansion M10K site. Locked nextpnr d672fade
+# honours FES_RESERVED_BEL / FES_RESERVED_RECT.
 set_location_assignment PIN_V11 -to FPGA_CLK1_50
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -entity top -to FPGA_CLK1_50
 set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.1.0"

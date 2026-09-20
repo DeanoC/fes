@@ -336,7 +336,15 @@ The current `kit.py stop` completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance; it does
 not establish native game acceptance.
 
-The current nextpnr pin `0fad53a75a0218941c417ec6bb58bdede9070987` is
+The current nextpnr pin `d672fade461e8a1eba4d3f95895902d86f43b882` is
+merged PR #72 (`6916e9d233b2649ef504216b871ff481f7d50d26` onto
+`0fad53a75a0218941c417ec6bb58bdede9070987`). It adds `--fes-scaffold` /
+`--fes-cart` cart merge, `FES_RESERVED_BEL` / `FES_RESERVED_RECT` QSF,
+occupancy-only PIP checks, and slot-aware halo routing. Pair it with
+Yosys `ec34fcf3`. Mistral stays `b28e30a`. Coleco, SG-1000 and SMS keep
+the core-local nextpnr `0fad53a7` slot.
+
+That pin sits on `0fad53a75a0218941c417ec6bb58bdede9070987`,
 merged PR #71 (`fb24298a1b6f17b706033684459b78b9614a02f1`,
 `e9d975d95686c1bcf03bfc9f6dcd4e753a6d6fbe` and
 `d540a0604f68b123525500fa4371ad107a1c2d8c` onto
@@ -1985,11 +1993,10 @@ onto `gp_in[15:10]`), and routes the socket. `scripts/link_static_rbf.py`
 copies CRAM for tile columns 21–33 (`overlay_mode = "cram_rect"`,
 `require_slot_only`) and refuses bits outside that rectangle. Classify
 ignores sx120f ECC/CRC columns 41, 42, 45 and 49. `m10k_ram` remains
-INIT-only for matching cells. A HIP sidecar of `feat/fes-reserved-bels`
-plus kit GPI showed vacant 901 `plug_addr` following GPO, then composed
-cart A INIT words and cart B banks 0–3. That is a development-RBF
-diagnostic, not image acceptance. Do not pin `toolchain.lock` from this
-worktree; the integrator selects a nextpnr commit. Primitive `MISTRAL_FF`
+INIT-only for matching cells. Kit GPI on the locked nextpnr `d672fade`
+showed vacant 901 `plug_addr` following GPO, then composed cart A INIT
+words and cart B banks 0–3. That is a development-RBF diagnostic, not
+image acceptance. Primitive `MISTRAL_FF`
 `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
 `scripts/cyclonev_rbf.py` and `scripts/link_static_rbf.py` decompress a
 full RBF, overlay a CRAM rectangle or `overlay_mode = "m10k_ram"` via
@@ -2034,6 +2041,35 @@ only), and an 8192x1 true-dual-port M10K (fabric GPI only), and a
 1024x10 read-only async M10K ROM (fabric GPI only). It does
 not establish native
 game acceptance.
+
+## Freeze-scaffold cartridges
+
+The DE10-Nano has no partial reconfiguration. A composed cartridge is one
+full-chip RBF. Pass-1 place-and-route writes an empty 901 socket. Pass-2
+merges cart JSON into that routed shell:
+
+```
+nextpnr-mistral --json routed.json --fes-scaffold --fes-cart cart.json \
+  --no-pack --router gpu
+```
+
+nextpnr stitches `plug_addr` from primitive FF Q ports (Yosys aliases
+`plug_addr[5:0]` onto `gp_in[15:10]`), unbinds `plug_rdata` without a logic
+BUF, and forces cart M10K `CLK1` onto the shell clock. `scripts/link_static_rbf.py overlay`
+then copies CRAM for tile columns 21–33
+(`experiments/901_plugged_base/link.toml`, `overlay_mode = "cram_rect"`,
+`require_slot_only`) onto the pass-1 shell and refuses bits outside that
+rectangle. Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
+`overlay_mode = "m10k_ram"` remains INIT-only for the 890/891/892 isolation
+trio.
+
+Commands, cart-authoring rules and kit probes live in the README
+[Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges)
+section. `scripts/build_fes_slot.py` is the compose entry point; it fails
+closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
+The locked nextpnr `d672fade` provides those flags after `make toolchain-fes`.
+`NEXTPNR_MISTRAL` overrides the binary. This path does not seal `fes.zx81`
+and is not FogCast format-3.
 
 ## FES ColecoVision first slice
 
