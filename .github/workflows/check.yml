@@ -1,9 +1,12 @@
 name: FES integration
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
   merge_group:
+  schedule:
+    - cron: '17 3 * * 1'
 permissions:
   contents: read
 concurrency:
@@ -14,6 +17,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       lanes: ${{ steps.plan.outputs.lanes }}
+      cores: ${{ steps.plan.outputs.cores }}
+      simulations: ${{ steps.plan.outputs.simulations }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -26,13 +31,18 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           EVENT: ${{ github.event_name }}
         run: |
-          if [ "$EVENT" = workflow_dispatch ]; then BASE=0000000000000000000000000000000000000000; fi
+          if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
           python3 scripts/affected.py --base "$BASE" --head "$HEAD" --output /tmp/affected.json
           python3 - <<'PYCODE'
           import json, os
+          from scripts.ci_gate import validate_plan
+          from scripts.ci_simulations import simulation_matrix
           plan = json.load(open('/tmp/affected.json'))
+          validate_plan(plan['lanes'], plan['cores'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
+              output.write('cores=' + json.dumps(plan['cores']) + '\n')
+              output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'])) + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
           PYCODE
@@ -43,11 +53,12 @@ jobs:
           EVENT: ${{ github.event_name }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          if [ "$EVENT" = workflow_dispatch ]; then BASE=0000000000000000000000000000000000000000; fi
-          python3 -m unittest tests.test_affected tests.test_check_diff -v
+          if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
+          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
   parent-tests:
     needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).parent
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -60,10 +71,11 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - if: fromJSON(needs.plan.outputs.lanes).parent
-        run: make test
-  components:
+      - run: |
+          make test
+  consistency:
     needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).parent
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -76,67 +88,148 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - if: fromJSON(needs.plan.outputs.lanes).parent
-        run: make check
-      - if: fromJSON(needs.plan.outputs.lanes).host
-        run: make host
-      - name: Host and protocol consumer tests
-        if: fromJSON(needs.plan.outputs.lanes).host
-        run: |
+      - run: |
+          make check
+  host:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).host
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: sources/FogCast/go.mod
+          cache-dependency-path: |
+            sources/FogCast/go.sum
+            platform/go.sum
+      - run: |
+          make host
           cd sources/FogCast
           go test -race ./...
           make test-ui
           cd appliance
           go test -race ./...
-      - name: Runtime software tests
-        if: fromJSON(needs.plan.outputs.lanes).runtime
-        run: make -C sources/libmister-runtime -j2 test
-      - name: Shared contract tests
-        if: fromJSON(needs.plan.outputs.lanes).contracts
-        run: |
+  runtime:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).runtime
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: |
+          make -C sources/libmister-runtime -j2 test
+  contracts:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).contracts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: sources/FogCast/go.mod
+          cache-dependency-path: |
+            sources/FogCast/go.sum
+            platform/go.sum
+      - run: |
           python3 -m pip install -r sources/mister-packages/requirements-test.txt
           make -C sources/mister-packages test
+  fpga-producer:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.lanes).fpga
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compiler read-audit dependency
+        run: sudo apt-get update && sudo apt-get install -y strace
+      - name: FPGA producer and package software tests
+        run: |
+          python3 - <<'PYCODE'
+          import subprocess, sys
+          from scripts.affected import FPGA_SOFTWARE_TESTS
+          for pattern in FPGA_SOFTWARE_TESTS:
+              subprocess.run([sys.executable, '-m', 'unittest', 'discover',
+                              '-s', 'tests', '-p', pattern, '-v'],
+                             cwd='sources/misteross', check=True)
+          PYCODE
+  simulation-tools:
+    needs: plan
+    if: needs.plan.outputs.cores != '[]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Simulation build dependencies
-        if: fromJSON(needs.plan.outputs.lanes).fpga
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf bison flex g++ make help2man libfl-dev zlib1g-dev strace
       - name: Cache pinned simulation compiler
-        if: fromJSON(needs.plan.outputs.lanes).fpga
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ runner.temp }}/fes-verilator
           key: fes-verilator-ubuntu24-${{ runner.arch }}-${{ hashFiles('scripts/ci_verilator.sh') }}
       - name: Select pinned simulation compiler
-        if: fromJSON(needs.plan.outputs.lanes).fpga
         run: |
           bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
           echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
-      - name: FPGA producer tests and shared endpoint simulation
-        if: fromJSON(needs.plan.outputs.lanes).fpga
+      - name: Package the compiler once for all simulation jobs
+        run: tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/fes-verilator.tar.gz" fes-verilator
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fes-simulation-compiler
+          path: ${{ runner.temp }}/fes-verilator.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+  fpga-simulation:
+    needs: [plan, simulation-tools]
+    # Job conditions are evaluated before matrix expansion, so [] skips safely.
+    if: needs.plan.outputs.cores != '[]'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.plan.outputs.simulations) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: fes-simulation-compiler
+          path: ${{ runner.temp }}
+      - name: Restore the pinned simulation compiler
         run: |
-          cd sources/misteross
-          python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
-          python3 -m unittest discover -s tests -p 'test_functional_identity.py' -v
-          python3 -m unittest discover -s tests -p 'test_export_core_package.py' -v
-          python3 -m unittest discover -s tests -p 'test_legacy_source.py' -v
-          python3 -m unittest discover -s tests -p 'test_source_repository.py' -v
-          python3 -m unittest discover -s tests -p 'test_compiler_read_audit.py' -v
-          python3 -m unittest discover -s tests -p 'test_core_package.py' -v
-          python3 -m unittest discover -s tests -p 'test_search*.py' -v
-          make sim-fes-demo sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-sms sim-fes-sms-oss sim-fes-sg1000 sim-fes-sg1000-oss
-      - name: Report software lane limits
-        if: always()
+          tar -C "$RUNNER_TEMP" -xzf "$RUNNER_TEMP/fes-verilator.tar.gz"
+          export VERILATOR_ROOT="$RUNNER_TEMP/fes-verilator/share/verilator"
+          echo "VERILATOR_ROOT=$VERILATOR_ROOT" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/fes-verilator/bin" >> "$GITHUB_PATH"
+          bash scripts/ci_verilator.sh "$RUNNER_TEMP/fes-verilator" "$RUNNER_TEMP/fes-verilator-build"
+      - name: Simulate selected core scenarios
         env:
-          LANES: ${{ needs.plan.outputs.lanes }}
-        run: |
-          echo "Selected software lanes: $LANES" >> "$GITHUB_STEP_SUMMARY"
-          echo 'False lanes were skipped. FPGA coverage is producer/package tests and core RTL simulation; synthesis, image builds and hardware acceptance were not run.' >> "$GITHUB_STEP_SUMMARY"
+          TARGETS: ${{ matrix.target }}
+        run: make -C sources/misteross $TARGETS
   integration:
     if: always()
-    needs: [plan, parent-tests, components]
+    needs: [plan, parent-tests, consistency, host, runtime, contracts, fpga-producer, simulation-tools, fpga-simulation]
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Require every planned check to succeed
         env:
           RESULTS: ${{ toJSON(needs) }}
@@ -144,26 +237,7 @@ jobs:
           INTEGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python3 - <<'PYCODE'
-          import json, os
-          results = json.loads(os.environ['RESULTS'])
-          from datetime import datetime, timezone
-          base = os.environ.get('INTEGRATION_BASE')
-          observation = {'format': 1, 'kind': 'ci-observation',
-              'source_revision': os.environ['TESTED_REVISION'],
-              'integration_base': base if base and base != '0' * 40 else None,
-              'observed_at': datetime.now(timezone.utc).isoformat(),
-              'repository': os.environ['REPOSITORY'], 'run_url': os.environ['RUN_URL'],
-              'checks': [{'name': name, 'result': job['result']} for name, job in results.items()]}
-          with open('ci-observation.json', 'w') as output:
-              json.dump(observation, output, sort_keys=True, indent=2)
-              output.write('\n')
-          failed = {name: job['result'] for name, job in results.items() if job['result'] != 'success'}
-          if failed:
-              raise SystemExit('Required CI failed or did not run: ' + str(failed))
-          print('All planned software checks passed; omitted lanes are reported in the plan.')
-          PYCODE
+        run: python3 -m scripts.ci_gate
       - name: Retain exact CI identity observation
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

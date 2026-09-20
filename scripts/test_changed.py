@@ -69,10 +69,7 @@ def plan(root, base, head="HEAD", jobs=2):
             ["make", "test", "PYTHON=" + sys.executable], tools=["go"], files=["Makefile"])
     if impact["lanes"]["fpga"]:
         fpga = affected.MODULE_ROOTS["fpga"]
-        for pattern in ("test_build_fes_*.py", "test_functional_identity.py", "test_export_core_package.py",
-                        "test_compiler_read_audit.py",
-                        "test_legacy_source.py", "test_source_repository.py",
-                        "test_core_package.py", "test_search_placer_qor.py"):
+        for pattern in affected.FPGA_SOFTWARE_TESTS:
             add("fpga", pattern, fpga,
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", pattern, "-v"],
                 tools=["strace"] if pattern == "test_compiler_read_audit.py" else [],

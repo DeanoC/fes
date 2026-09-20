@@ -176,8 +176,12 @@ The integrator reviews one feature diff, runs `make check`, and
 records the tested commit. See [development and handoffs](docs/development.md)
 for exact commands and how several agents can work independently.
 
-CI computes affected modules and dependent consumers, then runs their software
-checks with an always-reported integration result. The normal repository token
+CI computes affected modules and dependent consumers, then runs independent
+software checks and core simulation cases in parallel with an always-reported
+integration result. PRs, main-branch pushes and merge groups receive affected
+checks; weekly and manual runs cover the full suite. Feature-branch pushes do
+not duplicate PR runs. See [selection and coverage](docs/test-changed.md#selection-and-coverage).
+The normal repository token
 is sufficient; first-party checkout needs no sibling-repository secret.
 Quartus, full image builds and physical checks run on the development machine.
 

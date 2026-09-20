@@ -19,7 +19,7 @@ python3 scripts/test_changed.py --base origin/main --plan-only
 An explicit `--head` may be used for planning another commit. Execution requires
 that commit to be checked out; otherwise the command refuses to test different
 bytes from the requested revision. All-zero forty-character `--base` means all
-lanes, matching the new-branch CI convention. `--jobs 2` controls the runtime
+lanes, as used by manual and scheduled full CI runs. `--jobs 2` controls the runtime
 Make parallelism; values from 1 through 32 are accepted.
 
 ## Selection and coverage
@@ -29,15 +29,41 @@ Make parallelism; values from 1 through 32 are accepted.
 | Host | Parent regressions/consumer consistency; actual host Go race tests, nested appliance Go race tests and host UI tests |
 | Runtime | Parent checks, runtime software suite and host protocol consumers |
 | Shared contracts | All software lanes and their dependent consumers |
-| FPGA sources or producer code | Parent checks, producer/package/functional-identity/search-policy tests and conservative core simulations |
+| Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
+| FPGA core source | Parent checks, FPGA software tests and simulations for that family and its dependent consumers |
 | Unknown or root inputs | All software lanes |
 | Documentation only | Planner regression tests and whitespace checks |
 
 `AGENTS.md` changes count as behavioral inputs. Renames select both old and new
-owners. FPGA closure currently includes all six core families because Coleco
-sources are shared by sibling cores. The runner includes the default and OSS
+owners. Shared Coleco VDP, RAM and TV80 changes select Coleco, SG-1000 and SMS.
+The Coleco directory conservatively selects those same consumers because its
+generated headers are shared. Pong's directory also selects the demo, which
+uses its board models. New shared units, unclassified scripts, build graph
+changes and unknown core families select all registered core families.
+The rules in `scripts/affected.py` are checked against current literal source and
+include paths in the expanded Make recipes and producer scripts. This is not
+recursive compiler/import tracing: relative or dynamically constructed
+cross-family references need explicit review. When adding a consumer, update
+its rule and coverage test together. A new supported core also needs its
+simulation target registered in `scripts/ci_simulations.py`.
+
+The local runner includes the default and OSS
 SMS/SG-1000 simulations; Coleco's aggregate target includes its OSS tests. It
 never invokes a synthesis, placement, Quartus, image-building or deployment target.
+
+CI uses the same producer-test list and affected families, but runs independent
+components and simulation targets in separate jobs. Coleco has two unit-test
+jobs and twelve board-case jobs: graphics, stream, interactive, controllers,
+VDP I/O and sprites, each in default and registered OSS lanes. These preserve
+the cases and compiler flags in the local aggregate commands. Each job has
+isolated build output; the matrix runs at most eight jobs concurrently.
+
+PRs run against their merge result; pushes to `main` validate the merged result.
+Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;
+weekly and manual runs select the complete suite. The stable `integration`
+check requires every planned job to succeed, including compiler preparation.
+Missing, skipped or cancelled required jobs fail the gate. Deliberately omitted
+jobs are recorded in the plan, not reported as successful tests in the CI receipt.
 
 Parent checks run the Python regression suite and the existing
 `consistency.check` function against current module files. This allows ordinary

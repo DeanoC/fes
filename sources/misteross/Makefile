@@ -61,6 +61,8 @@ help:
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
+		"  sim-fes-coleco-unit[-oss]  Run focused Coleco unit/CPU simulations" \
+		"  sim-fes-coleco-board-CASE[-oss]  Run one board case: graphics stream interactive controllers vdp-io sprites" \
 		"  sim-fes-coleco-quartus  Test RAM/media with supplied Quartus 17 models and Icarus" \
 		"  coleco-diagnostic  Generate the open Coleco Graphics I cartridge and reference image" \
 		"  coleco-sprite-diagnostic  Generate the open Coleco Graphics II sprite cartridge and reference image" \
@@ -130,7 +132,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-coleco-graphics sim-fes-coleco-graphics-oss sim-fes-coleco-quartus sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -295,7 +297,18 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
 
-sim-fes-coleco: sim-fes-coleco-graphics coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-oss sim-fes-coleco-vdp-io
+# Each board case is a separate CI shard. The shared build prerequisite runs
+# once per lane in a Make invocation; diagnostics finish before their readers.
+COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
+COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
+.PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
+sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
+sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
+
+$(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
+$(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
+
+sim-fes-coleco-unit: sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -335,6 +348,9 @@ sim-fes-coleco: sim-fes-coleco-graphics coleco-stream-diagnostic sim-fes-coleco-
 		cores/fes-common/rtl/coleco_video_dpram.v cores/fes-common/rtl/coleco_video_720p.v \
 		"$(CURDIR)/cores/fes-coleco/sim/video_tb.cpp"
 	@build/sim/fes-coleco-video/Vcoleco_video_720p
+
+sim-fes-coleco-board-build:
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-board
 	$(VERILATOR) --cc --exe --build --top-module top -Wall \
 		-DTV80_REFRESH=1 \
@@ -353,20 +369,8 @@ sim-fes-coleco: sim-fes-coleco-graphics coleco-stream-diagnostic sim-fes-coleco-
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
-	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
-		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
-	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/stream-32k.rom \
-		build/diagnostics/fes-coleco/stream-24k.rom build/diagnostics/fes-coleco/stream-odd.rom build/diagnostics/fes-coleco/graphics-i.rom
-	@build/sim/fes-coleco-board/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
-		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
-	@build/sim/fes-coleco-board/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
-		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
-	@build/sim/fes-coleco-board/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
-		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
-	@build/sim/fes-coleco-board/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
-		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
-sim-fes-coleco-oss: sim-fes-coleco-graphics-oss coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-diagnostic sim-fes-coleco-vdp-io-oss
+sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -404,6 +408,9 @@ sim-fes-coleco-oss: sim-fes-coleco-graphics-oss coleco-stream-diagnostic sim-fes
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
 	@build/sim/fes-coleco-machine-oss/Vcoleco_machine
+
+sim-fes-coleco-board-build-oss:
+	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-board-oss
 	$(VERILATOR) --cc --exe --build --top-module top -Wall \
 		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
@@ -423,17 +430,29 @@ sim-fes-coleco-oss: sim-fes-coleco-graphics-oss coleco-stream-diagnostic sim-fes
 		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
-	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
+
+sim-fes-coleco-board-graphics sim-fes-coleco-board-graphics-oss: coleco-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
-	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/stream-32k.rom \
+
+sim-fes-coleco-board-stream sim-fes-coleco-board-stream-oss: coleco-stream-diagnostic coleco-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop build/diagnostics/fes-coleco/stream-32k.rom \
 		build/diagnostics/fes-coleco/stream-24k.rom build/diagnostics/fes-coleco/stream-odd.rom build/diagnostics/fes-coleco/graphics-i.rom
-	@build/sim/fes-coleco-board-oss/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
+
+sim-fes-coleco-board-interactive sim-fes-coleco-board-interactive-oss: coleco-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop --interactive build/diagnostics/fes-coleco/input.rom \
 		build/diagnostics/fes-coleco/input-16k.rom build/diagnostics/fes-coleco/input.rom
-	@build/sim/fes-coleco-board-oss/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
+
+sim-fes-coleco-board-controllers sim-fes-coleco-board-controllers-oss: coleco-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop --controllers build/diagnostics/fes-coleco/controller.rom \
 		build/diagnostics/fes-coleco/controller-16k.rom build/diagnostics/fes-coleco/controller.rom
-	@build/sim/fes-coleco-board-oss/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
+
+sim-fes-coleco-board-vdp-io sim-fes-coleco-board-vdp-io-oss: coleco-vdp-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop --vdp-io build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom build/diagnostics/fes-coleco/vdp-io.rom
-	@build/sim/fes-coleco-board-oss/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
+
+sim-fes-coleco-board-sprites sim-fes-coleco-board-sprites-oss: coleco-sprite-diagnostic
+	@build/sim/fes-coleco-board$(if $(filter %-oss,$@),-oss)/Vtop --sprites build/diagnostics/fes-coleco/sprites.rom \
 		build/diagnostics/fes-coleco/sprites-16k.rom build/diagnostics/fes-coleco/sprites.rom
 
 build-fes-zx81-quartus:
