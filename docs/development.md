@@ -125,7 +125,11 @@ CI simulations use Verilator 5.032 at source commit
 [`scripts/ci_verilator.sh`](../scripts/ci_verilator.sh). This simulation baseline
 is independent of the synthesis toolchain locks; neither Ubuntu's older default
 Verilator nor a development snapshot is substituted automatically. CI caches the
-installation by host architecture and bootstrap-script digest. To reproduce it
+installation by host architecture and bootstrap-script digest. One preparation
+job restores or builds it and shares the installation with the selected
+simulation jobs, so a cold cache does not compile Verilator separately for every
+core. The [affected-check guide](test-changed.md#selection-and-coverage) describes
+CI job selection and the complete set of Coleco simulation cases. To reproduce it
 locally, install Git, a C++ compiler, Make, Autoconf, Bison, Flex, help2man and the
 Flex/zlib development libraries, then run:
 

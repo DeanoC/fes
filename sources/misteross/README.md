@@ -551,6 +551,14 @@ their NMI handler at 8066; see [VDP interfaces](cores/fes-coleco/README.md#vdp-r
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 See the core guide for prerequisites and reproducible before/after probes.
 
+For parallel software verification, `sim-fes-coleco-unit[-oss]` runs the
+focused endpoint, VDP, CPU and video checks. The independent
+`sim-fes-coleco-board-CASE[-oss]` targets run `graphics`, `stream`, `interactive`,
+`controllers`, `vdp-io` or `sprites`. Each case prepares its diagnostics and
+builds the matching board model. The existing aggregate commands include all
+their prior cases; `make -j4 sim-fes-coleco` shares the two board builds within
+one invocation. FES CI runs the fourteen targets in isolated jobs.
+
 `make sim-fes-sg1000` tests the next `fes.simple-computer` Coleco sibling: a
 reduced SG-1000 machine with the cartridge at `0x0000`, 1 KiB RAM at `0xc000`,
 the shared TMS9918-style VDP, and SG-1000 8255 joystick ports `0xdc`/`0xdd`.

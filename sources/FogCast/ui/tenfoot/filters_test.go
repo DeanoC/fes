@@ -240,7 +240,10 @@ func TestHoldWestOpensFiltersWithoutSorting(t *testing.T) {
 		t.Fatal("short west opened filters")
 	}
 
+	// The short press started a library reload that reads sort under mu.
+	app.mu.Lock()
 	app.sort = "title"
+	app.mu.Unlock()
 	held = map[Command]bool{}
 	now = time.Unix(0, 0)
 	if applyPressed(app, map[Command]bool{CmdSortCycle: true}, held, now) {

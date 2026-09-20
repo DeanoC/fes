@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import textwrap
 from pathlib import Path
 import subprocess
 import sys
@@ -228,13 +227,13 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(report['deployed']['state'], 'unknown')
 
     def test_aggregate_emission_retains_failure_and_unknown_base(self):
-        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
-        block = workflow.split('      - name: Require every planned check to succeed', 1)[1]
-        program = textwrap.dedent(block.split("python3 - <<'PYCODE'\n", 1)[1].split('          PYCODE', 1)[0])
-        environment = dict(os.environ, RESULTS=json.dumps({'components': {'result': 'failure'}}),
+        source = Path(__file__).resolve().parents[1]
+        environment = dict(os.environ, RESULTS=json.dumps({'host': {'result': 'failure'}}),
+                           PYTHONPATH=str(source),
                            TESTED_REVISION=self.head, INTEGRATION_BASE='0' * 40,
                            REPOSITORY='test/fes', RUN_URL='https://example.invalid/runs/1')
-        run = subprocess.run([sys.executable, '-c', program], cwd=self.root, env=environment, capture_output=True)
+        run = subprocess.run([sys.executable, '-m', 'scripts.ci_gate'], cwd=self.root,
+                             env=environment, capture_output=True)
         self.assertNotEqual(run.returncode, 0)
         observed = status.supplied_observation(self.root / 'ci-observation.json', 'ci-observation', self.head)
         self.assertEqual(observed['state'], 'incomplete-observation')
@@ -244,8 +243,28 @@ class StatusTest(unittest.TestCase):
     def test_workflow_emits_tested_checkout_identity_and_retains_observation(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/check.yml').read_text()
         self.assertIn('TESTED_REVISION: ${{ github.sha }}', workflow)
-        self.assertIn("'kind': 'ci-observation'", workflow)
+        self.assertIn('run: python3 -m scripts.ci_gate', workflow)
         self.assertIn('path: ci-observation.json', workflow)
+
+    def test_validated_skipped_lanes_emit_successful_status_evidence(self):
+        from scripts.affected import LANES
+        from scripts.ci_gate import JOB_LANES
+        results = {job: {'result': 'skipped'} for job in
+                   (*JOB_LANES, 'simulation-tools', 'fpga-simulation')}
+        results['plan'] = {'result': 'success', 'outputs': {
+            'lanes': json.dumps({lane: False for lane in LANES}),
+            'cores': '[]', 'simulations': '{"include": []}'}}
+        environment = dict(os.environ, RESULTS=json.dumps(results),
+                           PYTHONPATH=str(Path(__file__).resolve().parents[1]),
+                           TESTED_REVISION=self.head, INTEGRATION_BASE=self.head,
+                           REPOSITORY='test/fes', RUN_URL='https://example.invalid/runs/2')
+        run = subprocess.run([sys.executable, '-m', 'scripts.ci_gate'], cwd=self.root,
+                             env=environment, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        observed = status.supplied_observation(self.root / 'ci-observation.json',
+                                              'ci-observation', self.head)
+        self.assertEqual(observed['state'], 'recorded-success')
+        self.assertEqual(observed['observation']['checks'], [{'name': 'plan', 'result': 'success'}])
 
 
 if __name__ == '__main__':

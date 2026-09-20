@@ -75,6 +75,24 @@ class TestChangedTest(unittest.TestCase):
         self.assertTrue(all(c["lane"] == "always" for c in result["commands"]))
         self.assertEqual(result["impact"]["skipped"], list(test_changed.affected.LANES))
 
+    def test_producer_change_runs_software_without_gameplay_simulations(self):
+        self.change("sources/misteross/scripts/build_fes_coleco_oss.py")
+        result = self.plan()
+        fpga = [c for c in result["commands"] if c["lane"] == "fpga"]
+        self.assertTrue(fpga)
+        self.assertEqual(result["impact"]["cores"], [])
+        self.assertFalse(any(c["argv"][0] == "make" for c in fpga))
+        self.assertEqual([c["argv"][c["argv"].index("-p") + 1] for c in fpga],
+                         list(test_changed.affected.FPGA_SOFTWARE_TESTS))
+
+    def test_vdp_change_runs_each_shared_consumer_and_oss_lane(self):
+        self.change("sources/misteross/cores/fes-common/rtl/coleco_vdp.sv")
+        result = self.plan()
+        targets = [c["argv"][1] for c in result["commands"]
+                   if c["lane"] == "fpga" and c["argv"][0] == "make"]
+        self.assertEqual(set(targets), {"sim-fes-coleco", "sim-fes-sg1000",
+                                      "sim-fes-sg1000-oss", "sim-fes-sms", "sim-fes-sms-oss"})
+
     def test_staged_and_untracked_changes_are_included_without_mutation(self):
         self.change("sources/FogCast/new.go")
         git(self.root, "add", "sources/FogCast/new.go")
