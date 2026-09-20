@@ -51,11 +51,11 @@ class ColecoDiagnosticTests(unittest.TestCase):
                     for col in range(32):
                         expected = b"\x00\x00\x00"
                         if row in (0, 23) or col in (0, 31):
-                            expected = b"\x00\xff\x40"
+                            expected = b"\x21\xc8\x42"
                         for bank, value in enumerate(banks):
                             for bit in range(8):
                                 if 3 + 5 * bank <= row <= 4 + 5 * bank and 4 + 3 * bit <= col <= 5 + 3 * bit:
-                                    expected = b"\xff\x40\x00" if value & (1 << bit) else b"\x00\xff\x40"
+                                    expected = b"\xd4\x52\x4d" if value & (1 << bit) else b"\x21\xc8\x42"
                         offset = ((168 + row * 16 + 8) * 1280 + 385 + col * 16 + 8) * 3
                         self.assertEqual(pixels[offset:offset + 3], expected, (matrix, row, col))
             result = self.generate(output, "--controllers", "--pad-to", "16384")
@@ -117,8 +117,8 @@ class ColecoDiagnosticTests(unittest.TestCase):
             colors = collections.Counter(zip(pixels[0::3], pixels[1::3], pixels[2::3]))
             self.assertEqual(colors, {
                 (0, 0, 0): 798912,
-                (0, 255, 64): 75168,
-                (255, 64, 0): 47520,
+                (33, 200, 66): 75168,
+                (212, 82, 77): 47520,
             })
 
     def test_invalid_size_or_shared_output_is_rejected_before_writing(self) -> None:
@@ -146,7 +146,7 @@ class ColecoDiagnosticTests(unittest.TestCase):
                         x, y = 385 + (3 + 6 * bit) * 16, 168 + (6 + 10 * player) * 16
                         offset = (y * 1280 + x) * 3
                         self.assertEqual(pixels[offset:offset + 3],
-                                         b"\xff\x40\x00" if bits & (1 << bit) else b"\x00\xff\x40")
+                                         b"\xd4\x52\x4d" if bits & (1 << bit) else b"\x21\xc8\x42")
                 offset = (400 * 1280 + 640) * 3  # gap between players
                 self.assertEqual(pixels[offset:offset + 3], b"\x00\x00\x00")
             raw = output.read_bytes()
@@ -157,7 +157,7 @@ class ColecoDiagnosticTests(unittest.TestCase):
             result = self.generate(output)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(hashlib.sha256(output.read_bytes()).hexdigest(),
-                             "9f9fa280b141e0538a571bb66f1e2447f691eecb853ae05547720f2ccc20783c")
+                             "f45f692cd3280b235779e676af0b8f6a366e8ad91c9d8f1516487937f4813715")
 
     def test_invalid_interactive_rows_do_not_write_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

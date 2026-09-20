@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Bounded TMS9918-compatible video path for the FES ColecoVision slice.
 //
-// The first bringup implements Graphics I name/pattern/color tables, a bounded
-// Graphics II sprite path, the control/data ports, a 16 KiB VRAM aperture, and
+// Implements Graphics I/II name/pattern/color tables, a bounded sprite path,
+// four-bit color indices, the control/data ports, a 16 KiB VRAM aperture, and
 // VBlank/collision/overflow status. The raster is deliberately exposed in the
 // logical 256x192 domain; the video shell owns the 720p timing and scaling.
 
@@ -19,7 +19,7 @@ module coleco_vdp (
     input  wire       raster_ce,
     output reg  [7:0] raster_x,
     output reg  [8:0] raster_y,
-    output reg  [1:0] raster_pixel,
+    output reg  [3:0] raster_pixel,
     output reg        raster_blank,
     output reg        status_collision,
     output reg        status_overflow,
@@ -64,13 +64,13 @@ module coleco_vdp (
     // and the selected pattern row serially while the current line renders
     // from one of two small line buffers.
     reg [13:0] sprite_vram_address;
-    // Each line bank is a packed 4-bit M10K entry: pixel[1:0], occupied[2],
-    // and visible[3]. Port A supplies a registered renderer read/write and
+    // Each line bank is a packed 6-bit M10K entry: pixel[3:0], occupied[4],
+    // and visible[5]. Port A supplies a registered renderer read/write and
     // port B supplies the registered raster read.
-    wire [3:0] sprite_line_render_a_read;
-    wire [3:0] sprite_line_render_b_read;
-    wire [3:0] sprite_line_display_a_read;
-    wire [3:0] sprite_line_display_b_read;
+    wire [5:0] sprite_line_render_a_read;
+    wire [5:0] sprite_line_render_b_read;
+    wire [5:0] sprite_line_display_a_read;
+    wire [5:0] sprite_line_display_b_read;
     reg        sprite_display_bank;
     reg        sprite_build_bank;
     reg [7:0]  sprite_display_y;
@@ -176,16 +176,43 @@ module coleco_vdp (
     wire [13:0] name_base = {vdp_reg[2][3:0], 10'b0};
     wire [13:0] color_base = {vdp_reg[3], 6'b0};
     wire [13:0] pattern_base = {vdp_reg[4][2:0], 11'b0};
+    wire graphics_ii = vdp_reg[0][1];
+    // Graphics II partitions the picture into three 64-line pattern sets.
+    // R4[1:0] and R3[6:0] mask address bits, allowing intentional mirroring.
+    // TMS99xx also applies R3's character mask to the pattern table (unlike
+    // TMS91xx); the documented full-table configuration sets these bits to 1.
+    function [13:0] pattern_address;
+        input [7:0] tile;
+        input [7:0] y;
+        begin
+            if (graphics_ii)
+                pattern_address = {vdp_reg[4][2], (y[7:6] & vdp_reg[4][1:0]),
+                                   (tile & {vdp_reg[3][4:0], 3'b111}), y[2:0]};
+            else
+                pattern_address = pattern_base | {3'b0, tile, y[2:0]};
+        end
+    endfunction
+    function [13:0] color_address;
+        input [7:0] tile;
+        input [7:0] y;
+        begin
+            if (graphics_ii)
+                color_address = {vdp_reg[3][7], ({y[7:6], tile} & {vdp_reg[3][6:0], 3'b111}), y[2:0]};
+            else
+                color_address = color_base | {9'b0, tile[7:3]};
+        end
+    endfunction
+    function [3:0] visible_color;
+        input [3:0] color;
+        begin visible_color = color == 0 ? vdp_reg[7][3:0] : color; end
+    endfunction
 
 `ifdef FES_COLECO_REGISTERED_VDP
     wire [31:0] oss_name_address_w = {18'b0, name_base} +
                                      ({27'b0, oss_launch_y[7:3]} << 5) +
                                      {27'b0, oss_launch_x[7:3]};
-    wire [31:0] oss_pattern_address_w = {18'b0, pattern_base} +
-                                        ({24'b0, vram_name_read} << 3) +
-                                        {29'b0, oss_name_coord_y[2:0]};
-    wire [31:0] oss_color_address_w = {18'b0, color_base} +
-                                      {24'b0, vram_name_read};
+    wire [13:0] oss_pattern_address_w = pattern_address(vram_name_read, oss_name_coord_y[7:0]);
+    wire [13:0] oss_color_address_w = color_address(vram_name_read, oss_name_coord_y[7:0]);
 
     localparam [3:0] SPRITE_IDLE         = 4'd0;
     localparam [3:0] SPRITE_CLEAR        = 4'd1;
@@ -201,12 +228,12 @@ module coleco_vdp (
     wire [13:0] sprite_pattern_base = {vdp_reg[6][2:0], 11'b0};
     wire sprite_display_line_valid = oss_pattern_valid &&
                                      (sprite_display_y == oss_pattern_coord_y[7:0]);
-    wire [3:0] sprite_display_line_data = sprite_display_bank ?
+    wire [5:0] sprite_display_line_data = sprite_display_bank ?
                                           sprite_line_display_b_read :
                                           sprite_line_display_a_read;
-    wire [1:0] sprite_display_pixel = (sprite_display_line_valid &&
-                                       sprite_display_line_data[3]) ?
-                                       sprite_display_line_data[1:0] : 2'd0;
+    wire [3:0] sprite_display_pixel = (sprite_display_line_valid &&
+                                       sprite_display_line_data[5]) ?
+                                       sprite_display_line_data[3:0] : 4'd0;
     wire [8:0] sprite_height_w = (vdp_reg[1][1] ? 9'd16 : 9'd8) <<
                                   (vdp_reg[1][0] ? 1 : 0);
     // TMS9918 treats E1..FF as signed negative Y positions; E0 and below
@@ -236,17 +263,16 @@ module coleco_vdp (
         (sprite_render_col < 5'd8) ?
         sprite_pattern_left[7 - sprite_render_col] :
         sprite_pattern_right[15 - sprite_render_col];
-    wire [3:0] sprite_render_line_data = sprite_build_bank ?
+    wire [5:0] sprite_render_line_data = sprite_build_bank ?
                                          sprite_line_render_b_read :
                                          sprite_line_render_a_read;
-    wire       sprite_render_occupied_w = sprite_render_line_data[2];
-    wire       sprite_render_existing_pixel_w = sprite_render_line_data[3];
-    wire [1:0] sprite_render_pixel_value_w =
-        (sprite_attr_color[3:0] == 4'h1) ? 2'd1 : 2'd2;
-    wire [3:0] sprite_render_write_data_w =
+    wire       sprite_render_occupied_w = sprite_render_line_data[4];
+    wire       sprite_render_existing_pixel_w = sprite_render_line_data[5];
+    wire [3:0] sprite_render_pixel_value_w = sprite_attr_color[3:0];
+    wire [5:0] sprite_render_write_data_w =
         (!sprite_render_existing_pixel_w && (sprite_attr_color[3:0] != 4'h0)) ?
         {1'b1, 1'b1, sprite_render_pixel_value_w} :
-        {sprite_render_line_data[3], 1'b1, sprite_render_line_data[1:0]};
+        {sprite_render_line_data[5], 1'b1, sprite_render_line_data[3:0]};
     wire [7:0] sprite_line_address_a_w =
         (sprite_eval_state == SPRITE_CLEAR) ? sprite_clear_address :
         sprite_render_address_w;
@@ -261,35 +287,35 @@ module coleco_vdp (
     // following SPRITE_RENDER_WRITE phase. Port B remains the raster read, so
     // the old metadata and the visible pixel stay in one coherent entry.
     coleco_video_dpram #(
-        .DATAWIDTH(4),
+        .DATAWIDTH(6),
         .ADDRWIDTH(8),
         .NUMWORDS(256)
     ) sprite_pixel_ram_a (
         .clock_a(clk),
         .address_a(sprite_line_address_a_w),
-        .data_a(sprite_line_clear_w ? 4'h0 : sprite_render_write_data_w),
+        .data_a(sprite_line_clear_w ? 6'h0 : sprite_render_write_data_w),
         .wren_a(sprite_line_write_w && !sprite_build_bank),
         .q_a(sprite_line_render_a_read),
         .clock_b(clk),
         .address_b(oss_name_coord_x),
-        .data_b(4'h0),
+        .data_b(6'h0),
         .wren_b(1'b0),
         .q_b(sprite_line_display_a_read)
     );
 
     coleco_video_dpram #(
-        .DATAWIDTH(4),
+        .DATAWIDTH(6),
         .ADDRWIDTH(8),
         .NUMWORDS(256)
     ) sprite_pixel_ram_b (
         .clock_a(clk),
         .address_a(sprite_line_address_a_w),
-        .data_a(sprite_line_clear_w ? 4'h0 : sprite_render_write_data_w),
+        .data_a(sprite_line_clear_w ? 6'h0 : sprite_render_write_data_w),
         .wren_a(sprite_line_write_w && sprite_build_bank),
         .q_a(sprite_line_render_b_read),
         .clock_b(clk),
         .address_b(oss_name_coord_x),
-        .data_b(4'h0),
+        .data_b(6'h0),
         .wren_b(1'b0),
         .q_b(sprite_line_display_b_read)
     );
@@ -809,7 +835,7 @@ module coleco_vdp (
     reg       pattern_bit;
 
 `ifndef FES_COLECO_REGISTERED_VDP
-    reg [1:0] sprite_pixel_comb;
+    reg [3:0] sprite_pixel_comb;
     reg       sprite_occupied_comb;
     reg       sprite_collision_comb;
     reg       sprite_overflow_comb;
@@ -836,7 +862,7 @@ module coleco_vdp (
     // combinational expression. It is an executable oracle for the registered
     // line walker below; synthesis never uses this path.
     always @* begin
-        sprite_pixel_comb = 2'd0;
+        sprite_pixel_comb = 4'd0;
         sprite_occupied_comb = 1'b0;
         sprite_collision_comb = 1'b0;
         sprite_overflow_comb = 1'b0;
@@ -939,7 +965,7 @@ module coleco_vdp (
                                             if (sprite_pixel_comb == 0 &&
                                                 (sprite_scan_color_comb & 15) != 0)
                                                 sprite_pixel_comb =
-                                                    (sprite_scan_color_comb & 15) == 1 ? 2'd1 : 2'd2;
+                                                    sprite_scan_color_comb[3:0];
                                         end
                                     end
                                 end
@@ -958,7 +984,7 @@ module coleco_vdp (
     // Quartus and OSS paths use an explicit registered-memory pipeline.
     always @* begin
         raster_blank = raster_y >= 9'd192;
-        raster_pixel = 2'd0;
+        raster_pixel = vdp_reg[7][3:0];
         name_index = 0;
         pattern_index = 0;
         color_index = 0;
@@ -967,21 +993,17 @@ module coleco_vdp (
         color_byte = 8'h00;
         pattern_bit = 1'b0;
 
-        if (!raster_blank) begin
+        if (!raster_blank && vdp_reg[1][6]) begin
             name_index = ({18'b0, name_base} +
                           ({27'b0, raster_y[7:3]} << 5) +
                           {27'b0, raster_x[7:3]}) & 32'h00003fff;
             tile_name = vram[name_index];
-            pattern_index = ({18'b0, pattern_base} +
-                             ({24'b0, tile_name} << 3) +
-                             {29'b0, raster_y[2:0]}) & 32'h00003fff;
-            color_index = ({18'b0, color_base} + {24'b0, tile_name}) &
-                          32'h00003fff;
+            pattern_index = {18'b0, pattern_address(tile_name, raster_y[7:0])};
+            color_index = {18'b0, color_address(tile_name, raster_y[7:0])};
             pattern_byte = vram[pattern_index];
             color_byte = vram[color_index];
             pattern_bit = pattern_byte[7 - raster_x[2:0]];
-            if (pattern_bit)
-                raster_pixel = (color_byte[7:4] == 4'h0) ? 2'd1 : 2'd2;
+            raster_pixel = visible_color(pattern_bit ? color_byte[7:4] : color_byte[3:0]);
             if (sprite_pixel_comb != 0)
                 raster_pixel = sprite_pixel_comb;
         end
@@ -994,12 +1016,11 @@ module coleco_vdp (
         raster_x = oss_pattern_coord_x;
         raster_y = oss_pattern_coord_y;
         raster_blank = !oss_pattern_valid || oss_pattern_coord_y >= 9'd192;
-        raster_pixel = 2'd0;
-        if (oss_pattern_valid && !raster_blank &&
-            vram_pattern_read[7 - oss_pattern_coord_x[2:0]]) begin
-            raster_pixel = (vram_color_read[7:4] == 4'h0) ? 2'd1 : 2'd2;
-        end
-        if (oss_pattern_valid && !raster_blank && sprite_display_pixel != 0)
+        raster_pixel = vdp_reg[7][3:0];
+        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6])
+            raster_pixel = visible_color(vram_pattern_read[7 - oss_pattern_coord_x[2:0]] ?
+                                         vram_color_read[7:4] : vram_color_read[3:0]);
+        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6] && sprite_display_pixel != 0)
             raster_pixel = sprite_display_pixel;
     end
 `endif

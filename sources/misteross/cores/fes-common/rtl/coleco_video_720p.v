@@ -8,7 +8,7 @@ module coleco_video_720p (
     input  wire       raster_ce,
     input  wire [7:0] logical_x,
     input  wire [7:0] logical_y,
-    input  wire [1:0] logical_pixel,
+    input  wire [3:0] logical_pixel,
     input  wire       logical_blank,
     output reg  [7:0] red,
     output reg  [7:0] green,
@@ -45,11 +45,11 @@ module coleco_video_720p (
     wire [9:0] image_y = (vertical - IMAGE_TOP) >> 1;
     wire [15:0] read_address = image_active ?
                                 {image_y[7:0], image_x[7:0]} : 16'd0;
-    wire [1:0] framebuffer_q_a;
-    wire [1:0] framebuffer_q;
+    wire [3:0] framebuffer_q_a;
+    wire [3:0] framebuffer_q;
 
     coleco_video_dpram #(
-        .DATAWIDTH(2),
+        .DATAWIDTH(4),
         .ADDRWIDTH(16),
         .NUMWORDS(49152)
     ) framebuffer (
@@ -60,7 +60,7 @@ module coleco_video_720p (
         .q_a(framebuffer_q_a),
         .clock_b(pixel_clk),
         .address_b(read_address),
-        .data_b(2'd0),
+        .data_b(4'd0),
         .wren_b(1'b0),
         .q_b(framebuffer_q)
     );
@@ -78,25 +78,23 @@ module coleco_video_720p (
         green = 8'h00;
         blue = 8'h00;
         if (image_active) begin
+            // Fixed RGB approximation of the sixteen TMS9918 color codes.
             case (framebuffer_q)
-                2'd1: begin
-                    red = 8'hff;
-                    green = 8'h40;
-                end
-                2'd2: begin
-                    green = 8'hff;
-                    blue = 8'h40;
-                end
-                2'd3: begin
-                    red = 8'hff;
-                    green = 8'hff;
-                    blue = 8'hff;
-                end
-                default: begin
-                    red = 8'h00;
-                    green = 8'h00;
-                    blue = 8'h00;
-                end
+                4'd2: {red,green,blue} = 24'h21c842;
+                4'd3: {red,green,blue} = 24'h5edc78;
+                4'd4: {red,green,blue} = 24'h5455ed;
+                4'd5: {red,green,blue} = 24'h7d76fc;
+                4'd6: {red,green,blue} = 24'hd4524d;
+                4'd7: {red,green,blue} = 24'h42ebf5;
+                4'd8: {red,green,blue} = 24'hfc5554;
+                4'd9: {red,green,blue} = 24'hff7978;
+                4'd10: {red,green,blue} = 24'hd4c154;
+                4'd11: {red,green,blue} = 24'he6ce80;
+                4'd12: {red,green,blue} = 24'h21b03b;
+                4'd13: {red,green,blue} = 24'hc95bba;
+                4'd14: {red,green,blue} = 24'hcccccc;
+                4'd15: {red,green,blue} = 24'hffffff;
+                default: {red,green,blue} = 24'h000000;
             endcase
         end
     end

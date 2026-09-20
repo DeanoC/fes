@@ -32,7 +32,7 @@ module top #(
     wire [7:0] media_data;
     wire [7:0] logical_x;
     wire [7:0] logical_y;
-    wire [1:0] logical_pixel;
+    wire [3:0] logical_pixel;
     wire logical_blank;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (

@@ -4,7 +4,7 @@
 // This is intentionally an adapter-sized machine rather than a claim of full
 // ColecoVision compatibility: the reset shim replaces the proprietary BIOS,
 // the cartridge aperture is a fixed 32 KiB image, and the VDP exposes the
-// bounded Graphics I slice implemented in coleco_vdp.sv.
+// bounded Graphics I/II slice implemented in coleco_vdp.sv.
 
 `ifdef FES_COLECO_OSS
 `define FES_COLECO_REGISTERED_MEDIA
@@ -27,7 +27,7 @@ module coleco_machine (
     output wire [7:0]  controller2_value,
     output wire [7:0]  logical_x,
     output wire [7:0]  logical_y,
-    output wire [1:0]  logical_pixel,
+    output wire [3:0]  logical_pixel,
     output wire        logical_blank,
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
@@ -66,7 +66,7 @@ module coleco_machine (
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
     wire [7:0] vdp_raster_x;
-    wire [1:0] vdp_raster_pixel;
+    wire [3:0] vdp_raster_pixel;
     wire       vdp_raster_blank;
     wire       vdp_status_collision;
     wire       vdp_status_overflow;
@@ -281,6 +281,8 @@ module coleco_machine (
 
 `ifdef QUARTUS
     localparam RESET_ROM_INIT = "cores/fes-coleco/rtl/coleco_reset_rom.mif";
+`elsif FES_COLECO_PRIVATE_BIOS
+    localparam RESET_ROM_INIT = "build/fes-coleco-oss/private-bios.hex";
 `else
     localparam RESET_ROM_INIT = "cores/fes-coleco/rtl/coleco_reset_rom.hex";
 `endif

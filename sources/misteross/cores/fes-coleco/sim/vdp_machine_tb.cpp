@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
                 tick();
                 if (!dut.logical_blank && dut.logical_y < 192) {
                     const unsigned x = dut.logical_x, y = dut.logical_y;
-                    const unsigned expected = x < 8 || x >= 248 || y < 8 || y >= 184 ? 2 : 0;
+                    const unsigned expected = x < 8 || x >= 248 || y < 8 || y >= 184 ? 2 : 1;
                     require(dut.logical_pixel == expected, "CPU pass picture pixel mismatch");
                     seen[y*256+x] = true;
                 }

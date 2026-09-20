@@ -524,19 +524,23 @@ system clock and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses
 the 520 MHz PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is
 no RBF, timing or hardware-support evidence. The command never programs a kit.
 
-`make sim-fes-coleco` tests the next `fes.simple-computer` first slice in both
+`make sim-fes-coleco` tests the `fes.application` Coleco slice in both
 default and OSS-conditional lanes: a reduced ColecoVision machine with an open
-`JP 0x8000` reset shim, a raw 1–16 KiB cartridge aperture, mirrored CPU RAM,
-Graphics I VDP tile/status path with buffered reads and VBlank NMI, two joystick/keypad controllers with two fire
+`JP 0x8000` reset shim, a raw 1–32 KiB cartridge aperture, mirrored CPU RAM,
+Graphics I/II VDP tile/status paths with four-bit colors, buffered reads and VBlank NMI, two joystick/keypad controllers with two fire
 buttons and twelve encoded keypad keys each, and the fixed
 1650×750 HDMI shell. The board tests upload the exact open diagnostic bytes
 through GP, release execution immediately, and check CPU-driven pixels across
 compact/full-size/repeated loads. `make coleco-diagnostic` generates the
 MIT-licensed raw cartridge and 720p reference image; see
 [the core guide](cores/fes-coleco/README.md#open-graphics-i-diagnostic).
-The optional joystick and raw-controller-byte diagnostics reuse the unchanged
-40-bit keyboard ABI; see [controller mapping](cores/fes-coleco/README.md#standard-controller-mapping).
-These are host simulations, not hardware acceptance.
+The optional joystick and raw-controller-byte diagnostics use the native
+controller ports; see [controller mapping](cores/fes-coleco/README.md#standard-controller-mapping).
+These are host simulations, not hardware acceptance. For a privately supplied
+8192-byte BIOS, the OSS producer accepts `--bios PATH`; this embeds the BIOS in a
+separate `fes.coleco.private-bios` package under `build/private-packages` and binds
+its digests into identity v2. It does not change the default reset-shim package
+or establish retail compatibility. See [private BIOS bring-up](cores/fes-coleco/README.md#private-bios-bring-up).
 
 `make coleco-vdp-diagnostic` generates a BIOS-free CPU read/status/NMI test.
 `make sim-fes-coleco-vdp-io` and its `-oss` counterpart check its real CPU

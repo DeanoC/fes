@@ -18,26 +18,52 @@ retail-game compatibility.
   proprietary ColecoVision BIOS is embedded.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
-  VRAM, register-based Graphics I name/pattern/color tables, tile pixels, and
-  buffered VRAM reads, bounded Graphics II sprites, VBlank status and enabled
+  VRAM, register-based Graphics I/II name/pattern/color tables, four-bit tile
+  and sprite colors, buffered VRAM reads, VBlank status and enabled
   VBlank NMI delivery.
 - Two standard controllers with joystick/keypad mode selection, twelve encoded
   keypad keys and two fire buttons through shared native controller ports.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio, BIOS services, expansion hardware, bank switching, full VDP modes,
+Audio, expansion hardware, bank switching, full VDP modes,
 and cycle-perfect clocking remain outside this first slice. Native host/runtime
-selection follows the declared interfaces. Graphics II is intentionally bounded to the implemented
-sprite path: normal 8x8/16x16 sprites, magnification, early-clock positioning,
+selection follows the declared interfaces. Graphics II supports screen-third
+pattern/color addressing and register masks. The bounded sprite path includes
+normal 8x8/16x16 sprites, magnification, early-clock positioning,
 clipping, transparency/priority, four visible sprites per line, collision and
 fifth-sprite status. The raw media limit and reset shim are deliberate
 compatibility boundaries.
+
+## Private BIOS bring-up
+
+The default package retains the open reset shim. It starts execution at
+`0x8000` and does not boot a conventional Coleco cartridge header or provide
+Coleco BIOS services. A successful cartridge transfer therefore does not prove
+that a retail game can run.
+
+The OSS producer accepts an explicit private 8192-byte BIOS for bring-up:
+
+```sh
+python3 scripts/build_fes_coleco_oss.py --bios /absolute/path/to/coleco-bios.bin
+```
+
+Run this from the misteross module in a clean, committed FES worktree. The
+producer snapshots the BIOS into ignored build output and includes the binary
+and generated initialization-file digests in its functional identity. This
+variant uses `fes.coleco.private-bios` and the separate private package store;
+it is not the default FES image selection. BIOS bytes and BIOS-bearing artifacts
+must stay outside source control. The BIOS is embedded at build time; the
+existing cartridge media interface does not load a BIOS at runtime.
+
+Use the BIOS-free diagnostic as a hardware control before diagnosing a retail
+cartridge. Private BIOS boot and per-game rendering/input checks are separate
+from that control and from general ColecoVision compatibility.
 
 ## Memory and host interfaces
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x1fff` | open reset ROM; reset jumps to `0x8000`, NMI at `0x0066` jumps to `0x8066` |
+| `0x0000–0x1fff` | default open reset ROM (reset to `0x8000`, NMI to `0x8066`), or explicitly supplied private BIOS |
 | `0x6000–0x7fff` | mirrored 1 KiB CPU RAM |
 | `0x8000–0xffff` | fixed 32 KiB cartridge aperture; images up to 16 KiB mirror at C000 |
 | I/O `0xbe` | VDP data |
@@ -86,6 +112,13 @@ complete TMS9918 compatibility.
 
 ## VDP reads and interrupts
 
+`make sim-fes-coleco-graphics` and `make sim-fes-coleco-graphics-oss` check
+literal VRAM fixtures for Graphics I color grouping, Graphics II table masks
+and screen thirds, foreground/background colors, backdrop substitution,
+display blanking and full-color sprites. Both are included in the corresponding
+Coleco regression targets. The video test carries all sixteen color codes
+through the actual framebuffer and HDMI palette.
+
 The data/control interface follows the read-ahead and interrupt behavior in
 the [TI TMS9918A data manual](https://computers.baffa.tec.br/pages/datasheet/TMS9918A_TMS9928A_TMS9929A_Video_Display_Processors_Data_Manual_Nov82.pdf),
 sections 2.1.3–2.1.6, and the pinned MiSTer
@@ -118,14 +151,14 @@ enable VDP interrupts must install their handler there, initialize a RAM stack,
 acknowledge VDP status, preserve the registers they use and return with RETN.
 This is an explicitly defined open-cartridge convention, not Coleco BIOS
 services or a stock cartridge header. Existing graphics/controller diagnostics
-leave the VDP interrupt-enable bit clear and their ROM bytes stay unchanged.
+leave the VDP interrupt-enable bit clear.
 
 `make coleco-vdp-diagnostic` builds the original MIT-licensed `vdp_io.py`
 cartridge at `build/diagnostics/fes-coleco/vdp-io.rom` and its 16 KiB padded
 variant. The real CPU checks prefetch/sequential/wrap reads, status clearing,
 interrupt-disabled behavior, enable-with-pending NMI, two acknowledged frame
 interrupts and subsequent disabling. Only then does it paint a green one-tile
-border with a black interior and HALT. Failure paints an orange interior;
+border with a black interior and HALT. Failure paints a red interior;
 timeout never counts as success. RAM 6000 is 00 while running, A5 on pass,
 E1..E7 on failure; 6001 is the NMI count, 6002/6003 the handler's status reads,
 6004 its error flag and 6010..6014 the VRAM-read samples.
@@ -169,7 +202,7 @@ halts. The final sprites exercise early-clock placement, right-edge clipping
 and a second color.
 
 The expected `sprites.ppm` is 1280x720: a green Graphics I border, black
-interior, orange at logical `(188..189,81..82)` and `(255,101..102)`, and green
+interior, red at logical `(188..189,81..82)` and `(255,101..102)`, and green
 at `(10..11,131..132)`. The coordinates include the established one-HDMI-pixel
 registered-framebuffer read latency and the fixed 2x logical scaling. The
 board oracle independently checks the complete HDMI frame and expects 27,680
@@ -231,7 +264,7 @@ python3 cores/fes-coleco/diagnostic/generate.py \
 Python's standard library is sufficient; no assembler, downloaded ROM,
 commercial cartridge or proprietary BIOS is used. Its original code, generated
 cartridge and reference image are covered by `diagnostic/LICENSE` (MIT).
-The raw cartridge is **989 bytes**, entered at **0x8000** by the open reset
+The raw cartridge is **1067 bytes**, entered at **0x8000** by the open reset
 shim's `JP 0x8000`. Its SHA-256 is recorded by the generation command. There is
 no header or container. The entry/code/data stay entirely within the portable
 1..16384-byte media aperture. `--pad-to 16384` produces an equivalent full-size
@@ -241,34 +274,35 @@ path for a loaded `fes.coleco` package; the PPM is a host comparison artifact.
 
 The CPU disables interrupts, initializes SP without reading or using stack RAM,
 clears all 16 KiB VRAM through port BE, sets all eight VDP registers through BF,
-then fills the name table at 0000, three patterns at 0800 and colors at 2000.
+then fills the name table at 0000, patterns based at 0800 and colors at 2000.
+Tile names 0, 8, 16 and 24 select distinct eight-character color groups for
+the border, green pattern, red pattern and blank interior.
 It also writes a sprite-list terminator at 1B00, enables Graphics I display, and
 halts with a static picture. All VRAM consulted for the final image is written
-by the program; CPU RAM power-up values are irrelevant. The VDP currently
-ignores display-enable masking, so transient startup contents can be visible
-while initialization runs. Compare the settled image, allowing about a second
+by the program; CPU RAM power-up values are irrelevant. The VDP honors
+display-enable masking. Compare the settled image, allowing about a second
 after execution release for this diagnostic.
 
 Expected active HDMI image (`graphics-i.ppm`, 1280×720):
 
 - Black surroundings; centered 512×384 picture at x=384..895, y=168..551.
 - Solid green border, one 8×8 logical tile thick (nominally 16 HDMI pixels).
-- Inside, 30 columns × 22 rows of alternating green/orange 12×12 HDMI squares
+- Inside, 30 columns × 22 rows of alternating green/red 12×12 HDMI squares
   with black gaps. The upper-left interior square is green.
-- Green is RGB `00ff40`, orange `ff4000`, black `000000`: 75,168 green,
-  47,520 orange, 798,912 black active pixels; 122,688 nonblack in total.
+- Green is RGB `21c842`, red `d4524d`, black `000000`: 75,168 green,
+  47,520 red, 798,912 black active pixels; 122,688 nonblack in total.
 
 The current registered framebuffer read shifts the contents one HDMI pixel
 right inside the fixed image window. The preview and board oracle include
 that existing latency/clipping (left border 17 pixels, right border 15 pixels).
-The VDP uses one color byte per tile name and a reduced two-color foreground
-mapping, not the complete TMS9918 Graphics I palette. This cartridge diagnoses
-this slice, not a stock BIOS cartridge format or retail compatibility. It does
+The VDP uses one Graphics I color byte per eight character patterns and the
+full sixteen-code palette; this diagnostic selects green, red and black.
+This cartridge diagnoses the open slice, not a stock BIOS cartridge format or retail compatibility. It does
 not test audio, controller input, sprites, interrupts or BIOS services.
 
 `make sim-fes-coleco` generates both cartridges and runs the default and
 `FES_COLECO_OSS` lanes with the production `TV80_REFRESH=1` setting.
-Each board simulation uploads 989 → 16384 → 989 bytes
+Each board simulation uploads 1067 → 16384 → 1067 bytes
 through HOLD/BEGIN/DATA/COMMIT/RELEASE, including the odd tail and full aperture,
 with **no wait before RELEASE**. It asserts CPU/VDP reset through the copy,
 compares every loaded byte including the OSS final flush, observes one VDP
@@ -304,7 +338,7 @@ python3 cores/fes-coleco/diagnostic/generate.py --interactive \
 
 Two rows of five solid panels show controller 1 (top) and controller 2
 (bottom). Columns mean **Up, Right, Down, Left, Fire**, in bit order 0..4.
-Released panels are orange, pressed panels green; the surround is black with
+Released panels are red, pressed panels green; the surround is black with
 a green border. This view shows joystick directions and Fire 1 only.
 
 `--row0` and `--row1` retain active-low preview-only panel states for old
@@ -330,7 +364,7 @@ publish zero states through the normal runtime path.
 `controller-16k.rom` and `controller.ppm`. Four rows show raw controller bytes
 in this order: player 1 joystick, player 1 keypad, player 2 joystick, player 2
 keypad. Each row has eight panels, bits 0..7 from left to right; green means
-zero and orange means one. Panels occupy two-by-two tiles at columns
+zero and red means one. Panels occupy two-by-two tiles at columns
 `4+3*bit .. 5+3*bit`, rows `3+5*bank .. 4+5*bank`. Black surroundings and a
 green border retain the static diagnostic's geometry and framebuffer latency.
 
@@ -510,7 +544,7 @@ Yosys/nextpnr/Mistral owner:
 | VDP multi-read VRAM | A single inferred VRAM with one CPU port and three combinational raster reads fails Mistral memory mapping and also leaves Quartus with an oversized direct-memory implementation. Both compiler paths use four coherent `coleco_dpram` copies, broadcast CPU writes, and pipeline name → pattern/color reads by two clocks; the fourth copy is the serial SAT/pattern walker for sprites. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` uses independent-clock altsyncram with a registered B address and UNREGISTERED B output, matching the OSS wrapper's single read edge. |
 | Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered four-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |
-| Registered sprite evaluator | The SAT and pattern bytes are walked serially through one registered M10K/altsyncram port. Each alternating 256-entry line bank is one packed 4-bit word: pixel, occupied and visible metadata share the M10K entry. Port A performs a registered read followed by a write for each source pixel; port B supplies the registered raster read. A sequential 256-word clear and matching-y publication interlock keep the renderer inside the production ~4K system-clock line budget without unrolled reset/start loops. Yosys `e2d425de` (PR #14) keeps this registered `ramstyle=M10K` shape as a synchronous TDP with a live CLK2; the earlier `ec34fcf3` flow-through mapper had reclassified it as `CFG_ASYNC_READ` with a constant CLK2, which nextpnr rejects. |
+| Registered sprite evaluator | The SAT and pattern bytes are walked serially through one registered M10K/altsyncram port. Each alternating 256-entry line bank is one packed 6-bit word: pixel, occupied and visible metadata share the M10K entry. Port A performs a registered read followed by a write for each source pixel; port B supplies the registered raster read. A sequential 256-word clear and matching-y publication interlock keep the renderer inside the production ~4K system-clock line budget without unrolled reset/start loops. Yosys `e2d425de` (PR #14) keeps this registered `ramstyle=M10K` shape as a synchronous TDP with a live CLK2; the earlier `ec34fcf3` flow-through mapper had reclassified it as `CFG_ASYNC_READ` with a constant CLK2, which nextpnr rejects. |
 | Sprite render fabric | A procedural 16x2 render loop synthesized to about 42K mapped combinational cells and left the fixed route running for more than 55 minutes without a report; `router2` also plateaued with tens of thousands of overused resources. The registered path therefore advances one source pixel per system clock with registered column/repeat counters and a read/write pair. Packing pixel and occupancy metadata into the M10K entry reduces the measured mapped ALUT fabric to about 3.1K while preserving priority, collision and clipping behavior. Do not restore the wide procedural write loop without a new fit/timing reproduction. |
 | Sprite evaluator startup/interlock | The evaluator begins priming line zero immediately after reset, while the CPU may still be writing the SAT and VDP registers. The diagnostic allows one frame for the configured table to replace that reset-time sample before checking line-zero sprites; a production cartridge should likewise complete setup during its normal startup warm-up. A `!sprite_pending_valid` guard also prevents a new build from clearing the bank whose publication is still pending. |
 | Bulk initialization | Clearing 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer in an `initial` loop expands into thousands of `$meminit` cells and can exhaust the synthesis memory budget. The bring-up leaves those RAMs uninitialized and initializes only scalar state. |

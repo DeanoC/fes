@@ -21,7 +21,7 @@ class ColecoVDPDiagnosticTests(unittest.TestCase):
             self.assertEqual((header, size, maximum), (b"P6", b"1280 720", b"255"))
             self.assertEqual(len(pixels), 1280*720*3)
             colors = collections.Counter(zip(pixels[0::3], pixels[1::3], pixels[2::3]))
-            self.assertEqual(colors, {(0, 255, 64): 27648, (0, 0, 0): 893952})
+            self.assertEqual(colors, {(33, 200, 66): 27648, (0, 0, 0): 893952})
             original = output.read_bytes()
             result = subprocess.run(command + [str(output)], capture_output=True)
             self.assertNotEqual(result.returncode, 0)

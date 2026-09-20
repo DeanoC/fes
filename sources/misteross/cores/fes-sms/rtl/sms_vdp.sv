@@ -24,7 +24,7 @@ module sms_vdp (
     wire [7:0] legacy_cpu_dout;
     wire [7:0] legacy_raster_x;
     wire [8:0] legacy_raster_y;
-    wire [1:0] legacy_raster_pixel;
+    wire [3:0] legacy_raster_pixel;
     wire legacy_raster_blank;
     wire legacy_status_collision;
     wire legacy_status_overflow;
@@ -86,10 +86,23 @@ module sms_vdp (
     assign cpu_dout = mode4_active ? mode4_cpu_dout : legacy_cpu_dout;
     assign raster_x = mode4_active ? mode4_raster_x : legacy_raster_x;
     assign raster_y = mode4_active ? mode4_raster_y : legacy_raster_y;
-    assign raster_color = mode4_active ? mode4_raster_color :
-                          legacy_raster_pixel == 2'd1 ? 6'h07 :
-                          legacy_raster_pixel == 2'd2 ? 6'h1c :
-                          legacy_raster_pixel == 2'd3 ? 6'h3f : 6'h00;
+    function [5:0] legacy_color;
+        input [3:0] code;
+        begin
+            // The same fixed TMS palette, quantized to SMS two-bit RGB lanes.
+            case (code)
+                2: legacy_color=6'h1c; 3: legacy_color=6'h1d;
+                4: legacy_color=6'h35; 5: legacy_color=6'h35;
+                6: legacy_color=6'h17; 7: legacy_color=6'h3d;
+                8: legacy_color=6'h17; 9: legacy_color=6'h17;
+                10: legacy_color=6'h1f; 11: legacy_color=6'h2f;
+                12: legacy_color=6'h08; 13: legacy_color=6'h27;
+                14: legacy_color=6'h3f; 15: legacy_color=6'h3f;
+                default: legacy_color=6'h00;
+            endcase
+        end
+    endfunction
+    assign raster_color = mode4_active ? mode4_raster_color : legacy_color(legacy_raster_pixel);
     assign raster_blank = mode4_active ? mode4_raster_blank : legacy_raster_blank;
     assign status_collision = mode4_active ? mode4_status_collision :
                               legacy_status_collision;

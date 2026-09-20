@@ -30,10 +30,10 @@ class ColecoSpriteDiagnosticTests(unittest.TestCase):
             self.assertGreater(len(raw), 0x66)
             self.assertLess(len(raw), 16384)
             self.assertEqual(len(raw) % 2, 1)
-            self.assertEqual(len(raw), 1223)
+            self.assertEqual(len(raw), 1245)
             self.assertEqual(
                 hashlib.sha256(raw).hexdigest(),
-                "b3aa3558e702272cdbd019d5f4553cc5e885e754ac7c29648137f2b6ce6a831c",
+                "8504dcd0c36d6936c9475183b3bcc9a030b3d6d1fa02fbd8f2a2b88d47bd9d91",
             )
             self.assertEqual(self.generate(output).returncode, 0)
             self.assertEqual(output.read_bytes(), raw)
@@ -43,7 +43,7 @@ class ColecoSpriteDiagnosticTests(unittest.TestCase):
             self.assertEqual(padded, raw + b"\xff" * (16384 - len(raw)))
             self.assertEqual(
                 hashlib.sha256(padded).hexdigest(),
-                "5bb58354ff5c49100aae1769270fe03d32524816464dcc99ee619cd09e5a054d",
+                "0ec9b48bfa04d48e1db6cd795f5c75b10cab2ad35c4e407ceff3f8d6692b112b",
             )
 
     def test_preview_contains_status_sprite_geometry_and_palette(self) -> None:
@@ -56,7 +56,7 @@ class ColecoSpriteDiagnosticTests(unittest.TestCase):
             self.assertEqual((magic, size, maximum), (b"P6", b"1280 720", b"255"))
             self.assertEqual(len(pixels), 1280 * 720 * 3)
             colors = collections.Counter(zip(pixels[0::3], pixels[1::3], pixels[2::3]))
-            self.assertEqual(set(colors), {(0, 0, 0), (0, 255, 64), (255, 64, 0)})
+            self.assertEqual(set(colors), {(0, 0, 0), (33, 200, 66), (212, 82, 77)})
 
             def sample(logical_x: int, logical_y: int) -> bytes:
                 x = 385 + logical_x * 2
@@ -64,13 +64,13 @@ class ColecoSpriteDiagnosticTests(unittest.TestCase):
                 offset = (y * 1280 + x) * 3
                 return pixels[offset:offset + 3]
 
-            self.assertEqual(sample(0, 0), b"\x00\xff\x40")
-            self.assertEqual(sample(188, 81), b"\xff\x40\x00")
-            self.assertEqual(sample(189, 81), b"\xff\x40\x00")
-            self.assertEqual(sample(188, 82), b"\xff\x40\x00")
-            self.assertEqual(sample(255, 101), b"\xff\x40\x00")
-            self.assertEqual(sample(10, 131), b"\x00\xff\x40")
-            self.assertEqual(sample(11, 131), b"\x00\xff\x40")
+            self.assertEqual(sample(0, 0), b"\x21\xc8\x42")
+            self.assertEqual(sample(188, 81), b"\xd4\x52\x4d")
+            self.assertEqual(sample(189, 81), b"\xd4\x52\x4d")
+            self.assertEqual(sample(188, 82), b"\xd4\x52\x4d")
+            self.assertEqual(sample(255, 101), b"\xd4\x52\x4d")
+            self.assertEqual(sample(10, 131), b"\x21\xc8\x42")
+            self.assertEqual(sample(11, 131), b"\x21\xc8\x42")
             self.assertEqual(sample(240, 101), b"\x00\x00\x00")
 
     def test_invalid_padding_leaves_no_output(self) -> None:

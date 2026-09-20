@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
+import stat
+from dataclasses import dataclass
 import json
 import math
 import re
@@ -142,6 +146,76 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
 
+
+BIOS_SIZE = 8192
+
+
+def _read_private_file(path: Path, size: int, label: str) -> bytes:
+    path = Path(path).absolute()
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise BuildError(f"{label} must not traverse a symlink")
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size != size:
+            raise BuildError(f"{label} must be a regular file of exactly {size} bytes")
+        data = stream.read(size + 1)
+        after = os.fstat(stream.fileno())
+    if len(data) != size or (before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+            after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+        raise BuildError(f"{label} changed while being read")
+    return data
+
+
+@dataclass(frozen=True)
+class PrivateBiosSnapshot:
+    binary_sha256: str
+    hex_sha256: str
+
+    def verify(self, output: Path) -> dict:
+        binary = _read_private_file(output / "private-bios.bin", BIOS_SIZE, "private BIOS snapshot")
+        hex_bytes = _read_private_file(output / "private-bios.hex", BIOS_SIZE * 3, "private BIOS HEX snapshot")
+        for name in ("private-bios.bin", "private-bios.hex"):
+            if (output / name).stat().st_mode & 0o222:
+                raise BuildError("private BIOS snapshot must remain read-only")
+        if (hashlib.sha256(binary).hexdigest() != self.binary_sha256 or
+                hashlib.sha256(hex_bytes).hexdigest() != self.hex_sha256 or
+                hex_bytes != _bios_hex(binary)):
+            raise BuildError("private BIOS snapshot differs from recorded input")
+        return {"bios_mode": "private-8192", "bios_size": BIOS_SIZE,
+                "bios_sha256": self.binary_sha256, "bios_hex_sha256": self.hex_sha256}
+
+
+def _bios_hex(data: bytes) -> bytes:
+    return "".join(f"{value:02x}\n" for value in data).encode("ascii")
+
+
+def _snapshot_bios(source: Path, output: Path) -> PrivateBiosSnapshot:
+    # Snapshot once; subsequent checks bind these bytes, not a mutable external
+    # filename. No private pathname or ROM contents enter the public record.
+    binary = _read_private_file(source, BIOS_SIZE, "private BIOS input")
+    hex_bytes = _bios_hex(binary)
+    if any(path.is_symlink() for path in (output, *output.parents)):
+        raise BuildError("private BIOS output must not traverse a symlink")
+    output.chmod(0o700)
+    for name, data in (("private-bios.bin", binary), ("private-bios.hex", hex_bytes)):
+        _write_atomic(output / name, data)
+        (output / name).chmod(0o400)
+    snapshot = PrivateBiosSnapshot(hashlib.sha256(binary).hexdigest(), hashlib.sha256(hex_bytes).hexdigest())
+    snapshot.verify(output)
+    return snapshot
+
+
+def _package_store(root: Path, requested: Path | None, *, private_bios: bool) -> Path:
+    expected = root / ("build/private-packages" if private_bios else "build/packages")
+    chosen = expected if requested is None else Path(requested).absolute()
+    if chosen != expected or any(path.is_symlink() for path in (chosen, *chosen.parents)):
+        raise BuildError(f"FES ColecoVision package store must be {expected}")
+    if private_bios:
+        chosen.mkdir(parents=True, exist_ok=True, mode=0o700)
+        chosen.chmod(0o700)
+    return chosen
+
+
 def _authenticate_coleco_tools(root: Path, cache_root: Path | None = None):
     return _authenticate_tools(
         root,
@@ -203,6 +277,7 @@ def create_build_record(
     qor_mode: str = "first-pass",
     identity_version: int = 1,
     execution: dict | None = None,
+    bios_snapshot: PrivateBiosSnapshot | None = None,
 ) -> bytes:
     fields = {
         "format": 1,
@@ -234,6 +309,10 @@ def create_build_record(
             "top": TOP,
         },
     }
+    if bios_snapshot is not None:
+        if identity_version != 2:
+            raise BuildError("private BIOS requires build identity version 2")
+        fields["parameters"].update(bios_snapshot.verify(root / OUTPUT_RELATIVE))
     if identity_version == 2:
         fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     elif identity_version != 1:
@@ -247,6 +326,7 @@ def build_commands(
     build_id: str,
     tools: Mapping[str, Path],
     seed: int = SEED,
+    *, private_bios: bool = False,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     if output != root / OUTPUT_RELATIVE:
         raise BuildError(f"FES ColecoVision OSS output must be {root / OUTPUT_RELATIVE}")
@@ -255,8 +335,9 @@ def build_commands(
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
+    bios_define = " -DFES_COLECO_PRIVATE_BIOS=1" if private_bios else ""
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 -I cores/fes-common/generated {sources}; "
+        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1{bios_define} -I cores/fes-common/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
         f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
@@ -435,13 +516,15 @@ def _manifest(
 ) -> bytes:
     rbf = evidence["rbf"]
     record_fields = json.loads(record)
+    private_bios = record_fields["parameters"].get("bios_mode") == "private-8192"
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     fields = {
         "format": 2,
         "core": {
-            "id": "fes.coleco",
-            "name": "FES ColecoVision",
-            "description": "Standalone fixed-720p ColecoVision slice for the FES application ABI (OSS)",
+            "id": "fes.coleco.private-bios" if private_bios else "fes.coleco",
+            "name": "FES ColecoVision private BIOS bring-up" if private_bios else "FES ColecoVision",
+            "description": ("Private supplied-BIOS bring-up; not the image-selected reset-shim package"
+                if private_bios else "Standalone fixed-720p ColecoVision slice for the FES application ABI (OSS)"),
             "version": "1.0.0",
         },
         "target": {
@@ -478,11 +561,12 @@ def build(
     best_fmax: bool = False,
     gpu_devices: Sequence[int] = (),
     identity_version: int = 1,
+    bios: Path | None = None,
 ) -> Path:
     root = Path(root).resolve()
-    package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
-    if package_store != root / "build/packages":
-        raise BuildError(f"FES ColecoVision package store must be {root / 'build/packages'}")
+    if bios is not None and identity_version != 2:
+        raise BuildError("private BIOS requires build identity version 2")
+    package_store = _package_store(root, package_store, private_bios=bios is not None)
     qor_mode = "staged" if best_fmax else "first-pass"
     qor_weights = PLACER_WEIGHTS if best_fmax else (PLACER_TIMING_WEIGHT,)
     qor_budget = PLACER_QOR_BUDGET if best_fmax else max(len(PLACER_SEEDS), 1)
@@ -490,6 +574,7 @@ def build(
     authenticated = _authenticate_coleco_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     output = _prepare_output(root)
+    bios_snapshot = _snapshot_bios(bios, output) if bios is not None else None
     execution = None
     controlled_env = None
     private_home = None
@@ -503,7 +588,7 @@ def build(
         execution = execution_inputs(tool_paths, controlled_env, gpu_devices[0])
     record = create_build_record(
         root, repository, revision, identities, qor_mode=qor_mode,
-        identity_version=identity_version, execution=execution,
+        identity_version=identity_version, execution=execution, bios_snapshot=bios_snapshot,
     )
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -511,11 +596,16 @@ def build(
         commands = build_commands(
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+            private_bios=bios_snapshot is not None,
         )
+        if bios_snapshot is not None:
+            bios_snapshot.verify(output)
         if controlled_env is None:
             _run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
         else:
             _run_tool(commands[0], root, output / "yosys.log", env=controlled_env, audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+        if bios_snapshot is not None:
+            bios_snapshot.verify(output)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -571,9 +661,11 @@ def build(
             if final_execution != execution:
                 raise BuildError("execution inputs changed during build")
             final_record = create_build_record(root, repository, revision, identities,
-                qor_mode=qor_mode, identity_version=identity_version, execution=final_execution)
+                qor_mode=qor_mode, identity_version=identity_version, execution=final_execution, bios_snapshot=bios_snapshot)
             if final_record != record:
                 raise BuildError("functional source inputs changed during build")
+        if bios_snapshot is not None:
+            bios_snapshot.verify(output)
         return export_package(manifest, output / "core.rbf", package_store)
     except Exception:
         for name in ("core.rbf", "manifest.toml", "build-summary.json"):
@@ -591,6 +683,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--bios", type=Path, help="private 8192-byte BIOS bring-up (identity v2; separate package store)")
     parser.add_argument("--print-commands", action="store_true")
     parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2,
                         help="2 opts into functional input identity (single GPU; experimental)")
@@ -607,6 +700,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
+            if arguments.bios is not None:
+                raise BuildError("private BIOS requires the controlled build invocation")
             if arguments.identity_version != 1:
                 raise BuildError("functional identity requires the controlled build invocation")
             repository, revision = _require_clean_source(arguments.root)
@@ -628,6 +723,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.root,
                 arguments.package_output,
                 cache_root=arguments.cache_root,
+                bios=arguments.bios,
                 best_fmax=arguments.best_fmax,
                 identity_version=arguments.identity_version,
                 gpu_devices=_parse_ints(arguments.gpu_devices or ("0" if arguments.identity_version == 2 else "0,1"))

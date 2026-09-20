@@ -76,21 +76,21 @@ def cartridge(interactive: bool = False, controllers: bool = False, stream_size:
     # XOR A; OUT (BE),A; DEC BC; LD A,B; OR C
     jr_nz(clear)
 
-    # Name 0 = solid border; names 1/2 = inset 6x6 square within an 8x8 tile.
+    # Graphics I shares a color byte across each group of eight names.
+    # Border, green, red and blank therefore use names 0, 8, 16 and 24.
     square = bytes((0, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0x7E, 0))
-    copy(0x0800, bytes([0xFF] * 24) + bytes(8) if dynamic
-         else bytes([0xFF] * 8) + square + square)
-    # This reduced VDP uses color_base + name (not the full TMS9918 palette):
-    # nonzero high nibble -> green; zero high nibble -> orange; unset bit -> black.
-    copy(0x2000, bytes((0xF1, 0xF1, 0x01, 0)) if dynamic
-         else bytes((0xF1, 0xF1, 0x01)))
+    copy(0x0800, bytes([0xFF] * 8))
+    copy(0x0840, bytes([0xFF] * 8) if dynamic else square)
+    copy(0x0880, bytes([0xFF] * 8) if dynamic else square)
+    copy(0x08C0, bytes(8))
+    copy(0x2000, bytes((0x21, 0x21, 0x61, 0x11)))
     copy(0x1B00, bytes((0xD0,)))  # Sprite-list terminator for future VDP expansion
     names = bytes(
-        0 if col in (0, 31) or row in (0, 23) else 1 + ((col + row) & 1)
+        0 if col in (0, 31) or row in (0, 23) else 8 + 8 * ((col + row) & 1)
         for row in range(24) for col in range(32)
     )
     if dynamic:
-        names = bytes(0 if col in (0, 31) or row in (0, 23) else 3
+        names = bytes(0 if col in (0, 31) or row in (0, 23) else 24
                       for row in range(24) for col in range(32))
     copy(0x0000, names)
     register(1, 0xC0)  # Graphics I, 16 KiB, display on, interrupts off
@@ -118,8 +118,8 @@ def cartridge(interactive: bool = False, controllers: bool = False, stream_size:
             emit(0x7B, 0x32, bank, 0x60)  # LD A,E; LD (cache),A
             for bit in range(8 if controllers else 5):
                 emit(0x7B, 0xE6, 1 << bit)  # LD A,E; AND mask
-                emit(0x28, 0x04, 0x3E, 0x02, 0x18, 0x02, 0x3E, 0x01)
-                # JR Z,pressed; LD A,2 (orange); JR selected; LD A,1 (green)
+                emit(0x28, 0x04, 0x3E, 0x10, 0x18, 0x02, 0x3E, 0x08)
+                # JR Z,pressed; LD A,16 (red); JR selected; LD A,8 (green)
                 emit(0x57)  # LD D,A: preserve tile while setting VDP address
                 first_row = 3 + 5 * bank if controllers else 5 + 10 * bank
                 for row in range(first_row, first_row + (2 if controllers else 4)):
@@ -173,21 +173,21 @@ def preview(interactive: bool = False, row0: int = 31, row1: int = 31,
                 lx, ly = max(0, x - 385) // 2, (y - 168) // 2
                 col, row = lx // 8, ly // 8
                 if col in (0, 31) or row in (0, 23):
-                    rgb = (0, 255, 64)
+                    rgb = (33, 200, 66)
                 elif controllers:
                     for bank, value in enumerate(banks):
                         for bit in range(8):
                             if (3 + 5 * bank <= row <= 4 + 5 * bank
                                     and 4 + 3 * bit <= col <= 5 + 3 * bit):
-                                rgb = (255, 64, 0) if value & (1 << bit) else (0, 255, 64)
+                                rgb = (212, 82, 77) if value & (1 << bit) else (33, 200, 66)
                 elif interactive:
                     for player, bits in enumerate((row0, row1)):
                         for bit in range(5):
                             if (5 + 10 * player <= row < 9 + 10 * player
                                     and 2 + 6 * bit <= col < 6 + 6 * bit):
-                                rgb = (255, 64, 0) if bits & (1 << bit) else (0, 255, 64)
+                                rgb = (212, 82, 77) if bits & (1 << bit) else (33, 200, 66)
                 elif lx % 8 not in (0, 7) and ly % 8 not in (0, 7):
-                    rgb = (0, 255, 64) if (col + row) % 2 == 0 else (255, 64, 0)
+                    rgb = (33, 200, 66) if (col + row) % 2 == 0 else (212, 82, 77)
             rows.extend(rgb)
     return b"P6\n1280 720\n255\n" + rows
 

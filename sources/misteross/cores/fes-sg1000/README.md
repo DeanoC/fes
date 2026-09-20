@@ -97,7 +97,7 @@ stores `A5` at `C000`, captures port `DC` at `C001` and HALTs.
 The same target also emits `build/diagnostics/fes-sg1000/controller.rom` and
 `controller.ppm`. The controller image keeps the Graphics I shell alive and
 continuously renders the raw active-low `DC` and `DD` bytes as two rows of
-eight indicators. Pressed bits are orange and released bits are green; the
+eight indicators. Pressed bits are red and released bits are green; the
 cached bytes at `C001` and `C002` make the live polling path observable in
 simulation. Its preview accepts the unchanged 40-bit keyboard matrix with,
 for example, `--controllers --matrix 0xfffffffdfe`.

@@ -263,8 +263,8 @@ struct Board {
                     "VDP I/O diagnostic halted without CPU pass/NMI results");
             for (unsigned addr = 0; addr < 768; ++addr)
                 require(written[addr], "CPU did not initialize pass name table");
-            for (unsigned addr = 0x800; addr < 0x810; ++addr)
-                require(written[addr], "CPU did not initialize pass patterns");
+            for (unsigned row = 0; row < 8; ++row)
+                require(written[0x800+row] && written[0x840+row], "CPU did not initialize pass patterns");
             require(written[0x2000] && written[0x2001], "CPU did not initialize pass colors");
         } else if (sprites) {
             const unsigned status = root.top__DOT__machine__DOT__cpu_ram_block__DOT__ram[2];
@@ -276,8 +276,8 @@ struct Board {
                 require(written[addr], "sprite diagnostic did not initialize name table");
             require(written[0x0800] && written[0x0801],
                     "sprite diagnostic did not initialize sprite patterns");
-            for (unsigned addr = 0x1000; addr < 0x1010; ++addr)
-                require(written[addr], "sprite diagnostic did not initialize background patterns");
+            for (unsigned row = 0; row < 8; ++row)
+                require(written[0x1000+row] && written[0x1040+row], "sprite diagnostic did not initialize background patterns");
             require(written[0x2000] && written[0x2001],
                     "sprite diagnostic did not initialize background colors");
             for (unsigned addr = 0x1b00; addr < 0x1b18; ++addr)
@@ -321,11 +321,11 @@ struct Board {
         const auto banks = expected_banks();
         for (unsigned row = 0; row < 24; ++row)
             for (unsigned col = 0; col < 32; ++col) {
-                unsigned expected = row == 0 || row == 23 || col == 0 || col == 31 ? 0 : 3;
+                unsigned expected = row == 0 || row == 23 || col == 0 || col == 31 ? 0 : 24;
                 for (unsigned bank = 0; bank < 4; ++bank)
                     for (unsigned bit = 0; bit < 8; ++bit)
                         if (row >= 3+5*bank && row <= 4+5*bank && col >= 4+3*bit && col <= 5+3*bit)
-                            expected = banks[bank] & (1 << bit) ? 2 : 1;
+                            expected = banks[bank] & (1 << bit) ? 16 : 8;
                 require(observed_vram[row*32+col] == expected, name + ": CPU VRAM panel mismatch");
             }
     }
@@ -369,11 +369,11 @@ uint32_t expected_rgb(unsigned x, unsigned y, bool vdp_io = false) {
     const unsigned logical_x = x == 384 ? 0 : (x - 385) / 2;
     const unsigned logical_y = (y - 168) / 2;
     const unsigned col = logical_x / 8, row = logical_y / 8;
-    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x21c842;
     if (vdp_io) return 0;
     if (logical_x % 8 == 0 || logical_x % 8 == 7 ||
         logical_y % 8 == 0 || logical_y % 8 == 7) return 0;
-    return (col + row) % 2 == 0 ? 0x00ff40 : 0xff4000;
+    return (col + row) % 2 == 0 ? 0x21c842 : 0xd4524d;
 }
 
 uint32_t sprite_rgb(unsigned x, unsigned y) {
@@ -382,14 +382,14 @@ uint32_t sprite_rgb(unsigned x, unsigned y) {
     const unsigned logical_y = (y - 168) / 2;
     if ((logical_x == 188 || logical_x == 189) &&
         (logical_y == 81 || logical_y == 82))
-        return 0xff4000;
+        return 0xd4524d;
     if (logical_x == 255 && (logical_y == 101 || logical_y == 102))
-        return 0xff4000;
+        return 0xd4524d;
     if ((logical_x == 10 || logical_x == 11) &&
         (logical_y == 131 || logical_y == 132))
-        return 0x00ff40;
+        return 0x21c842;
     const unsigned col = logical_x / 8, row = logical_y / 8;
-    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x21c842;
     return 0;
 }
 
@@ -397,12 +397,12 @@ uint32_t interactive_rgb(unsigned x, unsigned y, uint8_t p0, uint8_t p1) {
     if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
     const unsigned col = (x == 384 ? 0 : (x - 385) / 2) / 8;
     const unsigned row = ((y - 168) / 2) / 8;
-    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x21c842;
     // Independent geometry oracle: no cartridge bytes, VRAM or preview used.
     for (unsigned bit = 0; bit < 5; ++bit) {
         if (col < 2 + 6 * bit || col > 5 + 6 * bit) continue;
-        if (row >= 5 && row <= 8) return p0 & (1u << bit) ? 0xff4000 : 0x00ff40;
-        if (row >= 15 && row <= 18) return p1 & (1u << bit) ? 0xff4000 : 0x00ff40;
+        if (row >= 5 && row <= 8) return p0 & (1u << bit) ? 0xd4524d : 0x21c842;
+        if (row >= 15 && row <= 18) return p1 & (1u << bit) ? 0xd4524d : 0x21c842;
     }
     return 0;
 }
@@ -411,11 +411,11 @@ uint32_t controllers_rgb(unsigned x, unsigned y, const std::array<uint8_t, 4> &b
     if (x < 384 || x >= 896 || y < 168 || y >= 552) return 0;
     const unsigned col = (x == 384 ? 0 : (x - 385) / 2) / 8;
     const unsigned row = (y - 168) / 16;
-    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x00ff40;
+    if (col == 0 || col == 31 || row == 0 || row == 23) return 0x21c842;
     for (unsigned bank = 0; bank < 4; ++bank)
         for (unsigned bit = 0; bit < 8; ++bit)
             if (row >= 3+5*bank && row <= 4+5*bank && col >= 4+3*bit && col <= 5+3*bit)
-                return banks[bank] & (1 << bit) ? 0xff4000 : 0x00ff40;
+                return banks[bank] & (1 << bit) ? 0xd4524d : 0x21c842;
     return 0;
 }
 

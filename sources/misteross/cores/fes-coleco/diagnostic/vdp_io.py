@@ -5,7 +5,7 @@
 RAM: 6000=00 running/A5 pass/E1..E7 failure, 6001=NMI count,
 6002/3=handler status reads, 6004=handler error, 6010..14=data reads.
 Pass: green one-tile border, black interior. Failure: same border with an
-orange interior. CPU paints either result and only then HALTs. Timeout is
+red interior. CPU paints either result and only then HALTs. Timeout is
 never success. Source and generated output use diagnostic/LICENSE (MIT).
 """
 import argparse
@@ -143,7 +143,7 @@ def cartridge():
     jump(0xc3, "paint")
     for reason in range(1, 8):
         label(f"fail{reason}")
-        emit(0x1e, 0xe0 + reason, 0x16, 0xff)  # orange interior
+        emit(0x1e, 0xe0 + reason, 0x16, 0xff)  # red interior
         jump(0xc3, "paint")
 
     label("paint")
@@ -155,17 +155,18 @@ def cartridge():
     address(0x0800)
     for _ in range(8):
         out(0xbe, 0xff)
+    address(0x0840)  # name 8 has a distinct Graphics I color group
     for _ in range(8):
         emit(0x7a, 0xd3, 0xbe)  # LD A,D; OUT interior pattern
     address(0x2000)
-    out(0xbe, 0xf1)
-    out(0xbe, 0x01)
+    out(0xbe, 0x21)
+    out(0xbe, 0x61)
     address(0x1b00)
     out(0xbe, 0xd0)
     address(0)
     for row in range(24):
         for col in range(32):
-            out(0xbe, 0 if row in (0, 23) or col in (0, 31) else 1)
+            out(0xbe, 0 if row in (0, 23) or col in (0, 31) else 8)
     register(1, 0xc0)  # display on, NMI off
     emit(0x7b)  # publish only after complete picture
     store(0x6000)
@@ -191,7 +192,7 @@ def preview():
                 col = max(0, x-385) // 16
                 row = (y-168) // 16
                 border = col in (0, 31) or row in (0, 23)
-            pixels.extend(b"\x00\xff\x40" if border else b"\x00\x00\x00")
+            pixels.extend(b"\x21\xc8\x42" if border else b"\x00\x00\x00")
     return b"P6\n1280 720\n255\n" + pixels
 
 
