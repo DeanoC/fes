@@ -105,6 +105,8 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
         self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
         self.mode = "valid"
+        self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.002082824707031},
+                                "pixel_clk": {"achieved": 100, "constraint": 74.250068664550781}}}
         self.calls = []
         self.output = None
 
@@ -122,10 +124,13 @@ class ZX81CartPublicationTests(unittest.TestCase):
             if self.mode != "missing_synthesis":
                 netlist.write_text("{}")
         elif self.mode != "missing_route":
+            sdc = Path(command[command.index("--sdc") + 1])
+            self.assertEqual(sdc, self.output / "clocks.sdc")
+            self.assertIn("-period 19.230769230769 [get_nets {clk_sys}]", sdc.read_text())
+            self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
             (self.output / "cart-routed.json").write_text("{}")
-            (self.output / "timing.json").write_text(json.dumps({"fmax": {
-                "clk_sys": {"achieved": 60, "constraint": 52}}}))
+            (self.output / "timing.json").write_text(json.dumps(self.timing))
         log = kwargs["stdout"]
         if self.mode == name + "_error":
             log.write("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
@@ -144,6 +149,29 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual(self.calls, ["synthesis", "route"])
         self.assertEqual((self.output / "linked.rbf").read_bytes(), b"linked")
         self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
+        recipe = json.loads((self.output / "build-summary.json").read_text())["recipe"]
+        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.0, "pixel_clk": 74.25})
+        self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
+
+    def test_missing_wrong_or_failing_clock_cannot_publish(self):
+        good = copy.deepcopy(self.timing)
+        cases = []
+        missing = copy.deepcopy(good); del missing["fmax"]["pixel_clk"]; cases.append(missing)
+        wrong = copy.deepcopy(good); wrong["fmax"]["clk_sys"]["constraint"] = 74.25; cases.append(wrong)
+        slow = copy.deepcopy(good); slow["fmax"]["pixel_clk"]["achieved"] = 74.0; cases.append(slow)
+        nonfinite = copy.deepcopy(good); nonfinite["fmax"]["clk_sys"]["achieved"] = float("nan"); cases.append(nonfinite)
+        too_low = copy.deepcopy(good); too_low["fmax"]["clk_sys"] = {"constraint": 51.999, "achieved": 51.9995}; cases.append(too_low)
+        extra = copy.deepcopy(good); extra["fmax"]["unexpected"] = {"constraint": 1, "achieved": 2}; cases.append(extra)
+        for timing in cases:
+            with self.subTest(timing=timing):
+                self.timing = copy.deepcopy(good)
+                previous = self.build()
+                self.timing = timing
+                with self.assertRaises((ValueError, RuntimeError)):
+                    self.build()
+                self.assertFalse(previous.exists())
+                self.assertFalse((self.output / "linked.rbf").exists())
+                self.assertFalse((self.output / "build-summary.json").exists())
 
     def test_failed_retries_cannot_publish_or_reuse_previous_outputs(self):
         for mode in ("route_error", "synthesis_error", "missing_route", "missing_synthesis", "nonzero_route"):

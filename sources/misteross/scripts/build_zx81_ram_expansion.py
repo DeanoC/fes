@@ -27,11 +27,31 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
 INPUTS = SOURCES + ("scripts/build_zx81_ram_expansion.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
-                 "linked.rbf", "build-summary.json", "synthesis.log", "route.log")
+                 "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
+REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.0, "pixel_clk": 74.25}
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+def cart_clock_constraints(root: Path) -> bytes:
+    # --no-pack restores the routed nets but does not derive PLL constraints.
+    # These are the declared shell frequencies, never its achieved Fmax.
+    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen ZX81 PLL output clocks.\n"
+    for name, frequency in REQUIRED_CLOCKS_MHZ.items():
+        text += f"create_clock -name {name} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
+    return text.encode()
+
+def validate_cart_timing(timing: dict) -> None:
+    fmax = timing.get("fmax")
+    if not isinstance(fmax, dict) or set(fmax) != set(REQUIRED_CLOCKS_MHZ):
+        raise ValueError("cart timing must report exactly the system and pixel clocks")
+    for name, expected in REQUIRED_CLOCKS_MHZ.items():
+        # Shared validation accounts for nextpnr's picosecond quantization,
+        # rejects non-finite fields and requires achieved >= reported constraint.
+        _, _, achieved = shell_recipe._frequency_row(fmax, expected, name, name)
+        if achieved < expected:
+            raise ValueError(f"cart {name} timing is below required {expected:g} MHz")
 
 def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     root, shell = root.resolve(), shell.resolve()
@@ -50,8 +70,10 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in INPUTS}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in ("routed.json", "socket.qsf", "manifest.toml", "core.rbf")})
+    clock_constraints = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-ram.socket/1",
-              "placer_seed": PLACER_SEED}
+              "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
+              "clock_constraints_sha256": digest(clock_constraints)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/zx81-ram-expansion" / recipe_sha
     # A recipe directory can be retried. Remove both intermediate evidence and
@@ -59,11 +81,12 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     publications = tuple(path.name for path in output.glob("*.tar"))
     _prepare_output(root, relative=output.relative_to(root),
                     build_outputs=BUILD_OUTPUTS + publications)
+    (output / "clocks.sdc").write_bytes(clock_constraints)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(shell / "routed.json"), "--device", "5CSEBA6U23I7",
-         "--qsf", str(shell / "socket.qsf"), "--sdc", str(root / shell_recipe.SDC), "--freq", "52",
+         "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",
          "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
@@ -82,9 +105,9 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
     timing = json.loads((output / "timing.json").read_text())
-    failures = {name: value for name, value in timing.get("fmax", {}).items() if value["achieved"] < value["constraint"]}
-    if failures or not timing.get("fmax"):
-        raise ValueError(f"cart does not meet frozen-shell timing: {failures}")
+    validate_cart_timing(timing)
+    if (output / "clocks.sdc").read_bytes() != clock_constraints:
+        raise ValueError("cart clock constraints changed during build")
     cart = (output / "cart.rbf").read_bytes()
     base, placed = rbf_load(package.payload_bytes), rbf_load(cart)
     rect = CramRect(x0=1769, y0=32, x1=2806, y1=7024)

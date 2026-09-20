@@ -2541,6 +2541,13 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
+The independent ZX81 RAM-cart producer reloads an already routed shell with
+`--no-pack`, so it writes a separate generated SDC that explicitly constrains
+`clk_sys` to 52 MHz and `pixel_clk` to 74.25 MHz. Its recipe records those
+requirements and the SDC digest. Publication requires both clocks to meet
+their nominal and reported constraints, with only the existing picosecond
+quantization tolerance when identifying the reported frequencies. This does
+not change the sealed base shell or infer requirements from achieved Fmax.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,
