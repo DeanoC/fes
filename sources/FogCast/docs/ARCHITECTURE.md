@@ -690,6 +690,10 @@ local file path; no browser file picker and no host file-list API). That POST
 is the same public `application/octet-stream` session endpoint. Sofa chrome
 labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
+Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
+a firmware-required title opens a local file picker and posts
+`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`. That is not a
+development RBF load.
 
 ## FES appliance releases
 
@@ -1218,9 +1222,10 @@ renderers over the same session model and do not own physical transitions.
 Proposed work for expansion linking and later removable media remains in
 [launch composition](launch-composition.md). Phase 1 Coleco firmware is on
 the working library path below: a title may require a household firmware
-object, rooms/catalog **Ready** follows that fill, and `session/launch`
-binds firmware before cartridge media and reset release. Expansions are
-still proposed.
+object, rooms/catalog **Ready** follows that fill, tenfoot Confirm imports
+an 8192-byte BIOS through the existing media/firmware APIs, and
+`session/launch` binds firmware before cartridge media and reset release.
+Expansions are still proposed.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented

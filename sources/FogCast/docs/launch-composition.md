@@ -138,8 +138,11 @@ Present tense, current FES `sources/FogCast` and the ordered package set:
 - Household firmware is one content-addressed `firmware` slot in catalog
   schema 9 (`core_firmware` pointing at `core_media`). Import is ordinary
   core-media; `GET`/`PUT /api/v1/library/firmware` and
-  `fogcast core-firmware-select` bind or clear the slot. No BIOS bytes are
-  stored in git. The factory image stays BIOS-free.
+  `fogcast core-firmware-select` bind or clear the slot. Tenfoot/rooms Confirm
+  on **Unavailable** (“Import Coleco BIOS.”) opens a pad-friendly file picker
+  that posts the same APIs: `POST /api/v1/core-media` then
+  `PUT /api/v1/library/firmware`. No BIOS bytes are stored in git. The factory
+  image stays BIOS-free.
 - Library launch still posts `game_id` to `POST /api/v1/session/launch`.
   When a title requires firmware, the host admits the household object
   **before** package activation, programs the core, binds firmware
@@ -228,7 +231,7 @@ blocks play”) from **Ready**. Composition uses that same split.
 | Situation | State | Confirm |
 | --- | --- | --- |
 | Core package missing | Missing / Unavailable | Explain install; do not launch |
-| Core present, required firmware missing | **Unavailable** | “Coleco BIOS required” (or the slot’s honest name) plus a household-import action. Not Ready. |
+| Core present, required firmware missing | **Unavailable** | “Coleco BIOS required… Import Coleco BIOS.” Confirm opens the household file picker. Not Ready. |
 | Core present, optional expansion unset | Ready, with the unbound expansion omitted | Launch the 1K (or otherwise default) composition; Details can offer the 16K pack |
 | Required primary media missing | Unavailable | Same as today’s application-blob rejection, surfaced in the panel |
 | All required slots filled and target gates pass | Ready | Play |
@@ -297,9 +300,10 @@ This Phase 0 PR, and the model it sets, explicitly do **not**:
 
 ## Next integration step
 
-Phase 1 software is in this tree. Remaining Phase 1 kit work is separately
-authorized and is not claimed here: leased Coleco bind of household BIOS
-before reset, Frogger versus Graphics I on HDMI, no factory BIOS install.
+Phase 1 software is in this tree, including the sofa/tenfoot household BIOS
+picker. Remaining Phase 1 kit work is separately authorized and is not
+claimed here: leased Coleco bind of household BIOS before reset, Frogger
+versus Graphics I on HDMI, no factory BIOS install.
 
 Phase 2 is the next model slice: load-time CRAM link of optional carts,
 starting with ZX81 16K RAM on the proven nextpnr linker. Software tests

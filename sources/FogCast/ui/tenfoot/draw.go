@@ -164,6 +164,7 @@ func drawFrame(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuTex
 		drawCollectionMenu(dev, snap, labels, used)
 	}
 	drawRoomPicker(dev, snap, labels, used)
+	drawFirmwarePicker(dev, snap, labels, used)
 	drawSettings(dev, snap, labels, used)
 	drawFilters(dev, snap, labels, used)
 	drawOSK(dev, snap, labels, used)

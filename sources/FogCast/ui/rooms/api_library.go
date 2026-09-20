@@ -173,6 +173,8 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 	t.RawSetString("state", lua.LString(g.State))
 	t.RawSetString("series", lua.LString(g.Series))
 	t.RawSetString("launchable", lua.LBool(g.LaunchEligible()))
+	t.RawSetString("firmware_required", lua.LBool(g.FirmwareRequired))
+	t.RawSetString("firmware_ready", lua.LBool(g.FirmwareReady))
 	t.RawSetString("favorite", lua.LBool(g.Favorite))
 	t.RawSetString("play_count", lua.LNumber(g.PlayCount))
 	t.RawSetString("last_played_at", lua.LNumber(g.LastPlayedAt))

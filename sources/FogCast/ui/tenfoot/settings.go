@@ -54,6 +54,7 @@ const (
 	settingsOSKTargetAddress
 	settingsOSKTargetAgent
 	settingsOSKDevelopmentPath
+	settingsOSKFirmwarePath
 )
 
 type settingsTargetDraft struct {
@@ -1088,6 +1089,8 @@ func (a *App) submitSettingsOSKLocked() {
 		a.submitTargetAgentOSKLocked()
 	case settingsOSKDevelopmentPath:
 		a.submitDevelopmentPathOSKLocked()
+	case settingsOSKFirmwarePath:
+		a.submitFirmwarePathOSKLocked()
 	default:
 		a.closeSettingsOSKLocked()
 	}
