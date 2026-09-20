@@ -16,6 +16,13 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
 
 ## What works now
 
+- Coleco includes a TI SN76489 PSG (three tones and noise) at ports E0–FF,
+  feeding shared coherent PCM clock crossing and 48 kHz HDMI I2S. HOLD clears
+  the PSG and serializes silence while audio clocks continue. Host simulation
+  covers real CPU writes, tone/noise rates, attenuation and asynchronous stereo
+  transfer; routed and physical audio acceptance are separate checks.
+  `make sim-fes-coleco-audio` runs the focused audio simulations.
+
 - Coleco fixed 32 KiB cartridges use the shared CRC-checked blob-stream endpoint;
   `make coleco-stream-diagnostic` emits BIOS-free upper-ROM CPU/video checks.
   Small cartridges retain the legacy 16 KiB mirrored map.

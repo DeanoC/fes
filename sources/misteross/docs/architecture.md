@@ -195,6 +195,35 @@ single-PLL configuration and board ports.
 
 ### Shared application audio
 
+Coleco also declares `fes.audio.pcm-s16-stereo-48k` and capability bit 4.
+Its shared `fes_sn76489.sv` consumes a one-cycle write strobe, chip-clock enable
+and data byte; console address decoding stays in `coleco_machine.sv`. Three
+10-bit tone dividers and a TI 15-bit noise register feed a signed 16-bit mono
+mix with 2 dB attenuation steps, duplicated into stereo. The programmable
+interface follows the [TI SN76489AN data sheet](https://map.grauw.nl/resources/sound/texas_instruments_sn76489an.pdf).
+The level table and latch/data approach reuse the earlier SMS implementation
+from misteross commit `6f56a8f`; Coleco uses TI noise feedback and a period-zero
+reload of one, rather than the Sega variant. A fractional enable produces an
+average 3,579,545 Hz chip clock from the 52 MHz system clock. This preserves
+audio pitch independently of the reduced machine's CPU/video cadence.
+
+`fes_audio_output.v` connects system-domain signed stereo samples to the
+existing audio-domain serializer. A request/acknowledge handshake captures and
+holds both words together; only handshake bits pass through synchronizers.
+The source clock must continue running. One transfer is requested per stereo
+frame; the completed snapshot becomes a later output frame (bounded latency,
+not an audio FIFO). HOLD synchronizes into the audio domain and substitutes
+zero, while PLL unlock gates data immediately and resets framing. Transfer
+state survives lock loss to avoid interpreting a stale acknowledgement as a
+new sample. The custom tone demo remains a native audio-clock source and needs
+no CDC. Coleco adds the 12.288 MHz PLL alongside its system and video PLLs;
+the producer checks audio timing and each output pad before packaging.
+
+`make sim-fes-coleco-audio` checks tone periods, attenuation, noise, coherent
+asynchronous stereo transfer, serial padding, hold and lock loss. The existing
+machine tests execute Z80 PSG OUT instructions in both memory timing models.
+These are host simulations, not proof of audible HDMI output on a receiver.
+
 The audio variant declares required `fes.audio.pcm-s16-stereo-48k` 1.0 and
 advertises application capability bit 4. It uses the existing execution hold
 and gamepad commands; no audio mailbox opcode or host sample transport exists.

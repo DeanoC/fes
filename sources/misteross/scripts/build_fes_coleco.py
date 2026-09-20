@@ -40,6 +40,9 @@ SDC = "cores/fes-coleco/clocks.sdc"
 RESET_ROM_HEX = "cores/fes-coleco/rtl/coleco_reset_rom.hex"
 RESET_ROM_MIF = "cores/fes-coleco/rtl/coleco_reset_rom.mif"
 VERILOG_SOURCES = (
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
+    "cores/fes-common/rtl/fes_audio_pll.v",
     "cores/fes-common/rtl/sys_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
@@ -56,6 +59,7 @@ VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-common/rtl/fes_sn76489.sv",
     "cores/fes-coleco/rtl/coleco_machine.sv",
 )
 PINNED_INPUTS = (
@@ -316,6 +320,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},

@@ -32,6 +32,7 @@ module coleco_machine (
     output wire [7:0]  vdp_status,
     output wire [15:0] cpu_addr_debug,
     output wire        cpu_halt_n,
+    output wire signed [15:0] audio_sample,
     input  wire        firmware_we_a,
     input  wire        firmware_we_b,
     input  wire [12:0] firmware_addr,
@@ -78,6 +79,20 @@ module coleco_machine (
     wire       vdp_irq_n;
     reg        vdp_write_seen;
     wire       vdp_bus_ce = ce_cpu_n && (nWR || !vdp_write_seen);
+
+    // PSG clock stays at the NTSC chip frequency independently of the
+    // reduced machine's CPU cadence. Fractional enable has <1 system tick jitter.
+    reg [25:0] psg_phase = 0;
+    wire [26:0] psg_next = {1'b0, psg_phase} + 27'd3579545;
+    wire psg_ce = psg_next >= 27'd52000000;
+    always @(posedge clk_sys)
+        if (machine_reset) psg_phase <= 0;
+        else psg_phase <= psg_ce ? 26'(psg_next - 27'd52000000) : psg_next[25:0];
+    fes_sn76489 psg (
+        .clk(clk_sys), .reset(machine_reset), .ce(psg_ce),
+        .write(vdp_bus_ce && !nIORQ && !nWR && cpu_addr[7:5] == 3'b111),
+        .data(cpu_dout), .sample(audio_sample)
+    );
 
     // TV80 holds an OUT bus cycle across more than one negative CPU enable.
     // The VDP consumes a byte per strobe, so acknowledge a held write once.

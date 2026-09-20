@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
         require(uint32_t(mailbox.dut.gpi) == 0xf5000000u, "initial signature");
         require(mailbox.dut.exec_reset, "initial reset");
         require(!mailbox.dut.media_ready, "initial ready");
-        exchange(mailbox, toggle, 1, 7, 0, response(!toggle, false, 0x006e),
+        exchange(mailbox, toggle, 1, 7, 0, response(!toggle, false, 0x007e),
                  "capabilities include stream");
         exchange(mailbox, toggle, 1, 4, 0, response(!toggle, false, 3), "abi tag");
         exchange(mailbox, toggle, 4, 0, 3, response(!toggle, false, 0), "legacy begin");
