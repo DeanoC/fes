@@ -147,11 +147,11 @@ module fes_application_gp #(
                      firmware_open;
     wire firmware_pair = firmware_cmd &&
                       (command_index == `FES_APPLICATION_FIRMWARE_DATA_PAIR_INDEX) &&
-                      ({1'b0, firmware_ptr} + 14'd2 <= 14'd8192);
+                      ({1'b0, firmware_ptr} + 15'd2 <= 15'd8192);
     wire firmware_tail = firmware_cmd &&
                       (command_index == `FES_APPLICATION_FIRMWARE_DATA_TAIL_INDEX) &&
                       (command_argument[15:8] == 8'h00) &&
-                      ({1'b0, firmware_ptr} + 14'd1 == 14'd8192);
+                      ({1'b0, firmware_ptr} + 15'd1 == 15'd8192);
     assign firmware_write_addr = firmware_ptr[12:0];
     assign firmware_write_data = command_argument[15:0];
     assign firmware_write_enable = {firmware_pair, firmware_pair | firmware_tail};
@@ -634,13 +634,13 @@ module fes_application_gp #(
                     else if (!exec_reset || !firmware_open)
                         reject_command(16'(`FES_APPLICATION_ERROR_INVALID_STATE));
                     else if (command_index == `FES_APPLICATION_FIRMWARE_DATA_PAIR_INDEX) begin
-                        if ({1'b0, firmware_ptr} + 14'd2 > 14'd8192)
+                        if ({1'b0, firmware_ptr} + 15'd2 > 15'd8192)
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
                         else
                             firmware_ptr <= firmware_ptr + 14'd2;
                     end else if (command_index == `FES_APPLICATION_FIRMWARE_DATA_TAIL_INDEX) begin
                         if (command_argument[15:8] != 8'h00 ||
-                            {1'b0, firmware_ptr} + 14'd1 != 14'd8192)
+                            {1'b0, firmware_ptr} + 15'd1 != 15'd8192)
                             reject_command(16'(`FES_APPLICATION_ERROR_INVALID_ARGUMENT));
                         else
                             firmware_ptr <= firmware_ptr + 14'd1;
