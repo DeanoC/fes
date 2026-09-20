@@ -27,7 +27,10 @@ python3 scripts/build_zx81_ram_expansion.py \
 The result is a two-member archive: canonical `manifest.json` and `cart.rbf`.
 The manifest binds the exact shell package, base BUILD_ID and RBF hash, cart
 hash and size, source revision, recipe hash, device and fixed socket geometry.
-The cart producer checks timing and rejects any non-CRC change outside the
+The cart producer records and uses placement seed 2 explicitly; retries use
+the same deterministic recipe. It rejects logged compiler errors even when
+the process exits zero, and clears old outputs before each attempt.
+It checks timing and rejects any non-CRC change outside the
 fixed socket. The host and target use the Go linker rather than trusting a
 producer-generated replacement RBF. Compiler and Python are build tools only.
 

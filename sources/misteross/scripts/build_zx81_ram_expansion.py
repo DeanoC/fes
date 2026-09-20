@@ -28,6 +28,7 @@ SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.
 INPUTS = SOURCES + ("scripts/build_zx81_ram_expansion.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log")
+PLACER_SEED = 2
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -49,7 +50,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in INPUTS}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in ("routed.json", "socket.qsf", "manifest.toml", "core.rbf")})
-    recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-ram.socket/1"}
+    recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-ram.socket/1",
+              "placer_seed": PLACER_SEED}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/zx81-ram-expansion" / recipe_sha
     # A recipe directory can be retried. Remove both intermediate evidence and
@@ -63,7 +65,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
         [str(tools["nextpnr-mistral"].path), "--json", str(shell / "routed.json"), "--device", "5CSEBA6U23I7",
          "--qsf", str(shell / "socket.qsf"), "--sdc", str(root / shell_recipe.SDC), "--freq", "52",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",
-         "--no-pack", "--router", "gpu", "--rbf", str(output / "cart.rbf"), "--compress-rbf",
+         "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
     for name, command in zip(("synthesis", "route"), commands):

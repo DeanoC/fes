@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "30ac6f47bd94aec97467bee9fcd2ff09643fbc55"
+commit = "b5a0ea71d7701985a07a7b32a06936dcddfc2f16"
 order = 30
-rationale = "Reviewed nextpnr PR #73 adds explicit shell clock selection for writable static carts, preserves constant controls, reconnects single-clock FF/SDP/TDP cells, and rejects derived/gated/constant/missing cart clocks. Published reviewed union 30ac6f47 also preserves routed shell constant paths and already-bound M10K configuration during cart merge, and corrects MISTRAL_BUF LUT masks for FF DATAIN routethroughs. Based on freeze-scaffold d672fade; not yet a merged upstream release. Existing HIP routing, memory and PLL support remains inherited. Pair with Yosys ec34fcf3 and Mistral b28e30a."
+rationale = "Reviewed nextpnr PR #73 supplies explicit single-clock socket admission, preserves bound shell RAM/constants and correct BUF LUT emission. Published b5a0ea71 additionally preserves complete pin and physical LAB state in validated routed snapshots, rejects mixed shell/cart LAB placement, initializes restored BUF annotations and removes orphan routing only from detached unused return nets. LUT6 and inverted-control shell RBF replay is byte-identical; RAM-cart routing/emission and malformed snapshot tests pass. This scoped producer revision is not yet merged upstream. Default and registered-memory lanes remain separately pinned. Pair with Yosys ec34fcf3 and Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
