@@ -57,11 +57,6 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - name: Provision pinned boot-media test container
-        if: fromJSON(needs.plan.outputs.lanes).parent
-        run: make media-test-provision
-      - if: fromJSON(needs.plan.outputs.lanes).parent
-        run: make platform-provision
       - if: fromJSON(needs.plan.outputs.lanes).parent
         run: make test
   components:

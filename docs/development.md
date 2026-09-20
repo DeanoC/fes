@@ -320,3 +320,9 @@ reject it, including when a profile selects its module revision. Removing the
 working marker does not change that classification. Commit reviewed edits in
 the feature worktree before producing release or hardware-acceptance evidence.
 Snapshots do not update the feature branch or qualify hardware automatically.
+
+Host builds publish `out/<profile>/host-inputs.json` on both successful builds
+and cache reuse. Its canonical JSON digest equals `host.json.inputs`; snapshot
+builds include explicit `development-only` provenance there. Cold host readers
+validate this sidecar when present and reject diagnostic output. Historical
+ordinary receipts without the sidecar remain readable.

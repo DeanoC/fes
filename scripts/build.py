@@ -250,6 +250,40 @@ def verification_record(output, image_sha256, baseline_match):
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
 
 
+def publish_host_inputs(output, fingerprint, metadata):
+    """Publish the exact fingerprint preimage without changing the host receipt schema."""
+    raw = json.dumps(metadata, sort_keys=True).encode()
+    if hashlib.sha256(raw).hexdigest() != fingerprint:
+        raise ValueError('host inputs metadata does not match fingerprint')
+    output = Path(output)
+    with tempfile.NamedTemporaryFile(prefix='.host-inputs-', dir=output, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            stream.write(raw)
+            stream.flush()
+            temporary.replace(output / 'host-inputs.json')
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def load_host_inputs(output, fingerprint):
+    """Validate optional bound metadata; old ordinary host receipts have none."""
+    path = Path(output) / 'host-inputs.json'
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(mode) or path.stat().st_size > 1024 * 1024:
+        raise ValueError('invalid host inputs sidecar')
+    raw = path.read_bytes()
+    metadata = json.loads(raw)
+    if (not isinstance(metadata, dict) or
+            raw != json.dumps(metadata, sort_keys=True).encode() or
+            hashlib.sha256(raw).hexdigest() != fingerprint):
+        raise ValueError('host inputs sidecar differs from receipt')
+    return metadata
+
+
 def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
     """Require the exact current host receipt for one OS/arch product."""
     output = Path(output)
@@ -271,6 +305,9 @@ def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
         if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision,
                        'os': os_name, 'arch': arch}:
             raise ValueError('host receipt differs from selected inputs or binaries')
+        metadata = load_host_inputs(output, fingerprint)
+        if metadata is not None and 'development_snapshot' in metadata:
+            raise ValueError('development host output is not cold qualified')
         return {'fes_revision': revision, 'host_receipt_sha256': digest(output / 'host.json'),
                 'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api'],
                 'os': os_name, 'arch': arch}
@@ -1421,7 +1458,7 @@ def main():
             (IMAGE / "build/native-inputs.toml").read_text(),
             revisions["libmister-runtime"]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
-        host_fp, _ = host_fingerprint(revisions, profile, toolchain)
+        host_fp, host_info = host_fingerprint(revisions, profile, toolchain)
         packages = ()
         image_fp, image_info = fp, info
         if package_ids and args.action in ("build", "image", "verify", "rebuild", "dev"):
@@ -1464,6 +1501,7 @@ def main():
                     "REVISION=" + revisions["FogCast"]], env=env)
                 write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
                               os_name=profile["host_os"], arch=profile["host_arch"])
+            publish_host_inputs(output, host_fp, host_info)
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
                 output, "image", image_fp)
