@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// TI SN76489: three tones, 15-bit noise, 2 dB attenuation, mono signed PCM.
+// TI SN76489A: three tones, 15-bit noise recurrence, 2 dB steps, signed PCM.
 // ce is one pulse per chip clock; write is a single system-clock byte strobe.
 // See Texas Instruments SN76489AN data sheet (1980), register/clock tables.
 module fes_sn76489 (
@@ -9,12 +9,14 @@ module fes_sn76489 (
 );
     reg [9:0] period [0:2];
     reg [3:0] attenuation [0:3];
-    reg [9:0] count [0:2];
+    reg [10:0] count [0:2];
     reg [2:0] tone = 0;
     reg [3:0] divider = 0;
     reg [2:0] latched = 0, noise_control = 0;
     reg [6:0] noise_count = 0;
-    reg [14:0] noise = 15'h4000;
+    // The A variant delays the 15-bit recurrence by two output stages.
+    // Hardware-verified reference: MAME src/devices/sound/sn76496.cpp.
+    reg [16:0] noise = 17'h10000;
     wire [2:0] selected = data[7] ? data[6:4] : latched;
     wire noise_write = write && selected == 6;
     wire tone2_rise = divider == 0 && count[2] <= 1 && !tone[2];
@@ -46,7 +48,7 @@ module fes_sn76489 (
             for (i=0; i<3; i=i+1) begin period[i]<=0; count[i]<=0; end
             for (i=0; i<4; i=i+1) attenuation[i]<=15;
             tone<=0; divider<=0; latched<=0; noise_control<=0;
-            noise_count<=0; noise<=15'h4000; sample<=0;
+            noise_count<=0; noise<=17'h10000; sample<=0;
         end else begin
             // Four full-scale channels sum to +/-32764 without clipping.
             sample <= amplitude(tone[0], attenuation[0]) +
@@ -66,7 +68,7 @@ module fes_sn76489 (
                 if (divider == 0) begin
                     for (i=0; i<3; i=i+1) begin
                         if (count[i] <= 1) begin
-                            count[i] <= period[i] == 0 ? 10'd1 : period[i];
+                            count[i] <= period[i] == 0 ? 11'd1024 : {1'b0, period[i]};
                             tone[i] <= ~tone[i];
                         end else count[i] <= count[i] - 1'b1;
                     end
@@ -79,11 +81,11 @@ module fes_sn76489 (
                     else noise_count <= noise_count - 1'b1;
                 end
                 if (noise_shift)
-                    noise <= {noise[0] ^ (noise_control[2] && noise[1]), noise[14:1]};
+                    noise <= {noise[2] ^ (noise_control[2] && noise[3]), noise[16:1]};
             end
             // A noise write restarts the generator even on a shift edge.
             if (noise_write) begin
-                noise_control <= data[2:0]; noise <= 15'h4000; noise_count <= 0;
+                noise_control <= data[2:0]; noise <= 17'h10000; noise_count <= 0;
             end
         end
     end

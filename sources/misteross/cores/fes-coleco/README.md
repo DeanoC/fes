@@ -9,7 +9,7 @@ retail-game compatibility.
 
 ## Implemented first slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
+- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain.
 - Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
   16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
@@ -26,7 +26,12 @@ retail-game compatibility.
   keypad keys and two fire buttons through shared native controller ports.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio, expansion hardware, bank switching, full VDP modes,
+- TI SN76489A tone/noise synthesis at ports E0–FF with shared 48 kHz stereo
+  HDMI output. `make sim-fes-coleco-audio` checks PSG and coherent PCM transfer.
+  System/audio clocks share one 52.224/12.288 MHz PLL; the CPU/raster cadence is
+  0.43% faster than the earlier 52 MHz profile, while HDMI pixel timing is fixed.
+
+Expansion hardware, bank switching, full VDP modes,
 and cycle-perfect clocking remain outside this first slice. Native host/runtime
 selection follows the declared interfaces. Graphics II supports screen-third
 pattern/color addressing and register masks. The bounded sprite path includes
@@ -429,7 +434,7 @@ rejects a CPU-reference fallback in the route log. The seed is sealed with
 the recipe's build record because the embedded `BUILD_ID` changes the
 placement search space. The GPU router may report an early timing shortfall
 before its final repair pass, so the allowance lets routing complete while the
-recipe still requires the final structured 52 MHz and 74.25 MHz timing rows to
+recipe still requires the final structured 52.224 MHz, 74.25 MHz and 12.288 MHz timing rows to
 pass. Quartus does not consume the OSS lock or GPU toolchain.
 Neither build command programs hardware.
 

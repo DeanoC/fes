@@ -11,12 +11,19 @@ int main() {
     for(int i=0;i<100;++i){tick();check(d.sample==0,"reset must mute all four channels");}
     // N=50: exact half period is 800 chip-clock enable pulses.
     write(0x82);write(0x03);write(0x90);
-    for(int i=0;i<2000;++i)tick();
+    // Changing period does not restart the in-flight TI zero-period count.
+    for(int i=0;i<18000;++i)tick();
     int last=-1, edges=0; bool sign=int16_t(d.sample)>0;
     for(int i=0;i<8000;++i){tick();bool next=int16_t(d.sample)>0;
         check(std::abs(int(int16_t(d.sample)))==8191,"full scale attenuation");
         if(next!=sign){if(last>=0)check(i-last==800,"tone divider/latch-data protocol");last=i;++edges;}sign=next;}
     check(edges>=9,"tone must oscillate");
+    write(0x80);write(0x00);
+    for(int i=0;i<18000;++i)tick();
+    last=-1;edges=0;sign=int16_t(d.sample)>0;
+    for(int i=0;i<50000;++i){tick();bool next=int16_t(d.sample)>0;
+        if(next!=sign){if(last>=0)check(i-last==16384,"TI period zero must mean1024");last=i;++edges;}sign=next;}
+    check(edges>=3,"zero-period tone must run at slow TI rate");
     write(0x91);for(int i=0;i<3;++i)tick();
     check(std::abs(int(int16_t(d.sample)))==6507,"2 dB attenuation");
     write(0x0f);for(int i=0;i<3;++i)tick();check(d.sample==0,"data byte updates latched volume");

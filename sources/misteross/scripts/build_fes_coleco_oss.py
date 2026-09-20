@@ -58,7 +58,7 @@ PLACER_CRITICALITY_EXPONENT = 5
 # constants (that would change BUILD_ID and invalidate the search).
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_QOR_BUDGET = 24
-PLACER_QOR_CLOCKS = (("clk_sys", 52.224), (None, 74.25), (None, 12.288))
+PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -497,7 +497,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "50 MHz -> 52.224 MHz" not in route_text:
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.224, "system clock")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     audio = _frequency_row(timing.get("fmax"), 12.288, "audio clock")
     if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):

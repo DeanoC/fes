@@ -30,7 +30,7 @@ def main() -> None:
     root = Path(__file__).resolve().parents[1]
     output = root / "build/sim/fes-coleco-quartus"
     sources = [s for s in (*VERILOG_SOURCES, *SYSTEMVERILOG_SOURCES)
-               if Path(s).name not in ("sys_pll.v", "pixel_pll.v", "top.v")]
+               if Path(s).name not in ("sys_pll.v", "coleco_system_pll.v", "pixel_pll.v", "top.v")]
     identity = f"{model}: sha256 {hashlib.sha256(model.read_bytes()).hexdigest()}\n"
     print(identity, end="", flush=True)
     for label, revision in (("before", args.baseline), ("after", None)):

@@ -202,8 +202,10 @@ and data byte; console address decoding stays in `coleco_machine.sv`. Three
 mix with 2 dB attenuation steps, duplicated into stereo. The programmable
 interface follows the [TI SN76489AN data sheet](https://map.grauw.nl/resources/sound/texas_instruments_sn76489an.pdf).
 The level table and latch/data approach reuse the earlier SMS implementation
-from misteross commit `6f56a8f`; Coleco uses TI noise feedback and a period-zero
-reload of one, rather than the Sega variant. A fractional enable produces an
+from misteross commit `6f56a8f`; Coleco uses TI SN76489A noise feedback/output
+delay and a period-zero reload of 1024, following the hardware-verified
+[MAME chip implementation](https://github.com/mamedev/mame/blob/master/src/devices/sound/sn76496.cpp).
+A fractional enable produces an
 average 3,579,545 Hz chip clock from the 52.224 MHz system clock. This preserves
 audio pitch independently of the reduced machine's CPU/video cadence.
 
