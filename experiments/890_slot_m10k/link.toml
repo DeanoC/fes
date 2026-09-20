@@ -1,0 +1,13 @@
+device = "5CSEBA6U23I7"
+die = "sx120f"
+slot_column = 26
+slot_bels = ["MISTRAL_M10K.26.1.0"]
+# HIP Gate 0: MISTRAL_M10K.26.1.0 CRAM for 890 vs empty 891 occupies
+# x=2096..2395, y=88..769. Keep a small margin; do not overlay the rest of
+# column 26.
+
+[cram_rect]
+x0 = 2096
+y0 = 80
+x1 = 2396
+y1 = 780

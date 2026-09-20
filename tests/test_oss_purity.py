@@ -142,6 +142,14 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/860_m10k_selectors/rtl/top.v",
             "experiments/870_m10k_narrow/rtl/top.v",
             "experiments/880_m10k_async_rom/rtl/top.v",
+            "experiments/890_slot_m10k/rtl/top.v",
+            "experiments/890_slot_m10k/pins.qsf",
+            "experiments/891_slot_m10k_base/rtl/top.v",
+            "experiments/892_slot_m10k_cart/rtl/top.v",
+            "experiments/900_expansion_bus/rtl/cart.v",
+            "experiments/901_plugged_base/rtl/top.v",
+            "experiments/901_plugged_base/pins.qsf",
+            "experiments/903_wide_cart/rtl/cart.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -804,6 +812,18 @@ class OssPipelinePurityTests(unittest.TestCase):
         self.assertNotIn("-nobram", commands)
         self.assertNotIn("hps_gp_model.v", commands)
         self.assertNotIn("m10k_async_rom_model.v", commands)
+        self.assertIn("--freq 50", commands)
+        self.assertIn("--compress-rbf", commands)
+        self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")
+
+    def test_print_commands_enables_block_memory_for_slot_m10k(self) -> None:
+        result = self._run("--print-commands", "--experiment", "890_slot_m10k")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        commands = result.stdout
+        self.assertIn("experiments/890_slot_m10k/rtl/top.v", commands)
+        self.assertIn("--qsf experiments/890_slot_m10k/pins.qsf", commands)
+        self.assertIn("synth_intel_alm -nolutram -nodsp -top top", commands)
+        self.assertNotIn("-nobram", commands)
         self.assertIn("--freq 50", commands)
         self.assertIn("--compress-rbf", commands)
         self.assertFalse(self.marker.exists(), "print mode must not invoke a tool")

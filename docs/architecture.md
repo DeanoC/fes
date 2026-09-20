@@ -1953,6 +1953,33 @@ JSON timed out; GPI and probe still passed. `stop` completed development
 reboot recovery and left the lease free. The current nextpnr pin
 `9cbbf735` with Yosys `ec34fcf3` reproduces those same RBF bytes.
 
+`890_slot_m10k` is the combined isolation oracle: a fabric probe plus one
+BEL-locked 1024-by-10 async M10K at `MISTRAL_M10K.26.1.0`, GPI `0xD890`.
+`891_slot_m10k_base` is the empty site (`0xD89100A6`). `892_slot_m10k_cart`
+occupies the same BEL (`0xD892`). `901_plugged_base` is the empty
+freeze-scaffold socket (`0xD901`) with primitive `MISTRAL_FF` plugs
+BEL-locked outside reserved rect `25 1 27 16` (addr column 24, rdata
+`MISTRAL_FF.28.1.2` through `28.10.2`). GPI is
+`{SIGNATURE, plug_addr[5:0], plug_rdata}`. `900_expansion_bus` is cart A:
+one reserved M10K and the closed INIT oracle. `903_wide_cart` is cart B:
+four reserved M10Ks and a 2-bit decode on `plug_addr[11:10]`. Pass-1 P&R
+writes the 901 scaffold; pass-2 `--fes-scaffold --fes-cart` merges cart
+JSON, stitches plugs from those FF Q ports (Yosys aliases `plug_addr[5:0]`
+onto `gp_in[15:10]`), and routes the socket. `scripts/link_static_rbf.py`
+copies CRAM for tile columns 21–33 (`overlay_mode = "cram_rect"`,
+`require_slot_only`) and refuses bits outside that rectangle. Classify
+ignores sx120f ECC/CRC columns 41, 42, 45 and 49. `m10k_ram` remains
+INIT-only for matching cells. A HIP sidecar of `feat/fes-reserved-bels`
+plus kit GPI showed vacant 901 `plug_addr` following GPO, then composed
+cart A INIT words and cart B banks 0–3. That is a development-RBF
+diagnostic, not image acceptance. Do not pin `toolchain.lock` from this
+worktree; the integrator selects a nextpnr commit. Primitive `MISTRAL_FF`
+`BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
+`scripts/cyclonev_rbf.py` and `scripts/link_static_rbf.py` decompress a
+full RBF, overlay a CRAM rectangle or `overlay_mode = "m10k_ram"` via
+mistral-cv decompile/compile, rewrite CRCs, and recompress. They never
+splice compressed frames.
+
 The current `kit.py` close completed development reboot recovery and left the
 lease free. This is exact-artifact functional diagnostic acceptance of M18
 multiply, native M27 multiply with omitted controls, M9 preadder subtract,

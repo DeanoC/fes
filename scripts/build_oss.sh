@@ -107,6 +107,7 @@ policy_nolutram=""
 policy_nodsp=""
 policy_yosys_post_synth=""
 policy_nextpnr_router=""
+policy_synth_only=""
 rtl=""
 qsf=""
 sdc=""
@@ -255,6 +256,7 @@ while IFS='=' read -r policy_key policy_value; do
         nodsp) policy_nodsp=$policy_value ;;
         yosys_post_synth) policy_yosys_post_synth=$policy_value ;;
         nextpnr_router) policy_nextpnr_router=$policy_value ;;
+        synth_only) policy_synth_only=$policy_value ;;
         allowed_hard_blocks) : ;; # Consumed by Python summary validation.
         "") : ;;
         *) fail "closed experiment policy emitted an unknown field: $policy_key" ;;
@@ -275,6 +277,8 @@ esac
     || fail "closed experiment policy nolutram must be 0 or 1"
 [[ "$policy_nodsp" == "0" || "$policy_nodsp" == "1" ]] \
     || fail "closed experiment policy nodsp must be 0 or 1"
+[[ "$policy_synth_only" == "0" || "$policy_synth_only" == "1" ]] \
+    || fail "closed experiment policy synth_only must be 0 or 1"
 
 rtl="$ROOT/$rtl_rel"
 qsf="$ROOT/$qsf_rel"
@@ -312,7 +316,11 @@ synth_flags=""
 [[ "$policy_nolutram" == "1" ]] && synth_flags+=" -nolutram"
 [[ "$policy_nodsp" == "1" ]] && synth_flags+=" -nodsp"
 
-yosys_program="${read_verilog_cmds}synth_intel_alm${synth_flags} -top ${policy_top}; ${policy_yosys_post_synth}stat; write_json ${out_rel}/synth.json"
+yosys_post=""
+if [[ -n "${policy_yosys_post_synth:-}" ]]; then
+    yosys_post="${policy_yosys_post_synth}; "
+fi
+yosys_program="${read_verilog_cmds}synth_intel_alm${synth_flags} -top ${policy_top}; ${yosys_post}stat; write_json ${out_rel}/synth.json"
 yosys_cmd=("$yosys" -p "$yosys_program")
 nextpnr_help_cmd=("$nextpnr" --help)
 nextpnr_cmd=(
@@ -345,8 +353,10 @@ if (( PRINT_COMMANDS )); then
     printf 'target: %s\n' "$TARGET"
     printf 'synthesis: %s\n' "$yosys_program"
     print_cmd "$run_logged" "$out_rel/yosys.log" "${yosys_cmd[@]}"
-    print_cmd "$run_logged" "$out_rel/nextpnr-help.log" "${nextpnr_help_cmd[@]}"
-    print_cmd "$run_logged" "$out_rel/nextpnr.log" "${nextpnr_cmd[@]}"
+    if [[ "$policy_synth_only" != "1" ]]; then
+        print_cmd "$run_logged" "$out_rel/nextpnr-help.log" "${nextpnr_help_cmd[@]}"
+        print_cmd "$run_logged" "$out_rel/nextpnr.log" "${nextpnr_cmd[@]}"
+    fi
     exit 0
 fi
 
@@ -392,7 +402,9 @@ authenticate_tool() {
 }
 
 authenticate_tool yosys yosys
-authenticate_tool nextpnr nextpnr-mistral
+if [[ "$policy_synth_only" != "1" ]]; then
+    authenticate_tool nextpnr nextpnr-mistral
+fi
 
 mkdir -p -- "$out_dir"
 
@@ -415,6 +427,11 @@ fi
     || fail "cannot apply synth json port directions: $EXP"
 "$PYTHON" "$policy_tool" --experiment "$EXP" --check-synth-json "$out_synth" >/dev/null \
     || fail "synth json does not satisfy closed experiment policy: $EXP"
+
+if [[ "$policy_synth_only" == "1" ]]; then
+    printf 'synth-only experiment %s wrote %s\n' "$EXP" "$out_synth"
+    exit 0
+fi
 
 "$run_logged" "$nextpnr_help_log" "${nextpnr_help_cmd[@]}"
 required_flags=(--json --device --qsf --sdc --freq --rbf --compress-rbf --write --report --detailed-timing-report)
