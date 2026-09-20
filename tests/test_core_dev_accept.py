@@ -38,6 +38,90 @@ class PreparedAcceptanceTest(unittest.TestCase):
     def write(self):
         self.receipt.write_text(json.dumps(self.data))
 
+    def make_v2(self):
+        self.data["format"] = 2
+        self.data["sources"]["misteross"] = "e" * 40
+        sidecar = {"format": 1, "selected_repository": "https://example.com/fes.git",
+                   "selected_revision": "e" * 40, "selected_source_path": "sources/misteross",
+                   "original_repository": "https://example.com/misteross.git",
+                   "original_revision": self.revision, "original_source_path": ".",
+                   "functional_inputs_sha256": "f" * 64, "original_record_sha256": "1" * 64,
+                   "selected_record_sha256": "2" * 64, "package_id": self.package,
+                   "core_rbf_sha256": "c" * 64}
+        self.write_v2_sidecar(sidecar)
+        return sidecar
+
+    def write_v2_sidecar(self, sidecar):
+        record = self.file("fes-pong.package-selection.provenance.json", json.dumps(sidecar).encode())
+        record.pop("size")
+        self.data["source_selection"] = record
+        self.write()
+
+    def test_v2_cached_original_revision_is_distinct_from_current_selection(self):
+        self.make_v2()
+        provenance = {}
+        args = accept.candidate_arguments(self.receipt, provenance)
+        self.assertEqual(args[args.index("--expected-package-id") + 1], self.package)
+        self.assertEqual(provenance["source_selection_sha256"], self.data["source_selection"]["sha256"])
+        self.data["format"] = 1
+        self.data.pop("source_selection")
+        self.write()
+        with self.assertRaisesRegex(ValueError, "selection differs"):
+            accept.candidate_arguments(self.receipt)
+
+    def test_v2_source_identity_fields_are_strict_and_consistent(self):
+        original = self.make_v2()
+        mutations = {"format": True, "selected_revision": "a" * 40,
+                     "original_revision": "e" * 40, "package_id": "e" * 64,
+                     "core_rbf_sha256": "e" * 64, "functional_inputs_sha256": "bad",
+                     "original_record_sha256": "x" * 64, "selected_record_sha256": None,
+                     "selected_repository": "https://user:secret@example.com/repo",
+                     "original_repository": "http://example.com/repo",
+                     "selected_source_path": "sources/../misteross", "original_source_path": "/absolute",
+                     "unexpected": "field"}
+        for key, value in mutations.items():
+            with self.subTest(key=key):
+                self.write_v2_sidecar({**original, key: value})
+                with self.assertRaises(ValueError):
+                    accept.candidate_arguments(self.receipt)
+        for path in ("sources//misteross", "./sources", "sources/", "sources\\misteross", ""):
+            self.write_v2_sidecar({**original, "selected_source_path": path})
+            with self.assertRaises(ValueError):
+                accept.candidate_arguments(self.receipt)
+
+    def test_v2_changed_sidecar_fails_before_runner(self):
+        self.make_v2()
+        path = self.root / self.data["source_selection"]["path"]
+        path.write_text("{}")
+        with patch.object(accept.isolated, "main") as runner:
+            self.assertEqual(accept.main(["--prepared", str(self.receipt)]), 1)
+        runner.assert_not_called()
+
+    def test_v2_sidecar_version_presence_and_boundaries(self):
+        self.make_v2()
+        saved = dict(self.data["source_selection"])
+        for mutation in (lambda: self.data.pop("source_selection"),
+                         lambda: self.data.update(format=1),
+                         lambda: self.data["source_selection"].update(path="other.json"),
+                         lambda: self.data["source_selection"].update(size=1)):
+            self.data["format"] = 2
+            self.data["source_selection"] = dict(saved)
+            mutation()
+            self.write()
+            with self.assertRaises(ValueError):
+                accept.candidate_arguments(self.receipt)
+        self.data["format"] = 2
+        self.data["source_selection"] = saved
+        self.write()
+        path = self.root / saved["path"]
+        path.write_bytes(b"x" * 65537)
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            accept.candidate_arguments(self.receipt)
+        path.unlink()
+        path.symlink_to(self.root / "core.fcore")
+        with self.assertRaises(OSError):
+            accept.candidate_arguments(self.receipt)
+
     def test_forwards_exact_candidate_and_media(self):
         self.data["library_media"] = self.file("media.bin", b"rom")
         self.write()

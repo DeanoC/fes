@@ -1,0 +1,26 @@
+schema: mister-packages.v1
+kind: programming_profiles
+id: de10_nano
+description: >-
+  Declarative DE10-Nano programming profile registry. Runtime owns electrical
+  setup, reset ordering, containment and bridge release recipes.
+platform: de10_nano
+device: 5CSEBA6U23I7
+profiles:
+  - id: mister-v1
+    diagnostic_only: false
+    abis:
+      - id: mister
+        major: 1
+  - id: fes-gp-v1
+    diagnostic_only: false
+    abis:
+      - id: fes.simple-game
+        major: 1
+      - id: fes.simple-computer
+        major: 1
+      - id: fes.application
+        major: 1
+  - id: development-contained-v1
+    diagnostic_only: true
+    abis: []

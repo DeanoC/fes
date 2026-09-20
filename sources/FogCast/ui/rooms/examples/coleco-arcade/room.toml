@@ -1,0 +1,9 @@
+id = "coleco-arcade"
+title = "ColecoVision Arcade"
+author = "FogCast"
+description = "Classic Coleco arcade ports, found by name in the library."
+main = "main.lua"
+
+[theme]
+background = "#14110c"
+accent = "#e6c547"

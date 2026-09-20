@@ -5,9 +5,10 @@ FES selects compatible component *sources*. A running system is a set of
 This page names those artifacts, who builds them, and what is allowed to differ.
 It does not change commands.
 
-Fail closed on mismatch. Do not rewrite host config, pins, or target identity to
-make an unmatched pair look current. Parent builds use selected gitlinks, not
-uncommitted worktrees.
+Fail closed on mismatch. Do not rewrite host config or target identity to make
+an unmatched pair look current. Integration builds use committed FES modules.
+Explicit local development snapshots are marked diagnostic and cannot satisfy
+release checks.
 
 ## Roles (not machines)
 
@@ -77,7 +78,7 @@ admission. Configuration is not rewritten.
 | May differ | Must match for a launch |
 | --- | --- |
 | Host, agent and runtime source revisions | Supported target API and operation-specific runtime/package contracts; selected package identity and target ownership |
-| Uncommitted component worktrees vs parent pins (worktrees are not the image) | Parent gitlink, FogCast runtime lock, and generated package consumers (`make check`) |
+| Working files vs committed module snapshots (working files are not the image) | Recorded FES selection, external native policy and generated package consumers (`make check`) |
 | Capture device presence | Not part of the FPGA tuple |
 | DHCP address | `target_id` (discovery); never a new identity minted by media |
 

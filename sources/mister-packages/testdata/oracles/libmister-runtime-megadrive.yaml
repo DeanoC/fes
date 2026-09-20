@@ -1,0 +1,49 @@
+# Oracle extracted from libmister-runtime (not generated).
+# Source commit: 31f37f3c7b0e765109d5f4aa30984d6b091b1d12
+# Schema extension note: omitted media transform means raw; omitted
+# X/Y/L/R/Select masks mean unsupported (zero). No historical values changed.
+# Files:
+#   src/linux/production_hardware.cpp
+#   tests/fixtures/megadrive-profile-v1.txt
+#
+# The production profile stores an image-owned absolute RBF path
+# (/usr/share/mister-runtime/cores/megadrive.rbf). This oracle records
+# the artifact name and role; the install prefix is not package data.
+# FogCast systems/table.go aliases, covers, and library roots are not
+# part of this profile.
+
+source:
+  repository: DeanoC/libmister-runtime
+  commit: 31f37f3c7b0e765109d5f4aa30984d6b091b1d12
+  files:
+    - src/linux/production_hardware.cpp
+    - tests/fixtures/megadrive-profile-v1.txt
+
+profile:
+  system: megadrive
+  expected_core: MegaDrive
+  rbf:
+    role: core
+    artifact: megadrive.rbf
+  media:
+    - role: cartridge
+      index: 1
+      required: true
+      extensions: [.md, .gen, .bin]
+      maximum_size: 0x2000000
+  core:
+    reset_assert_word: 0x0001
+    initial_status_word: 0x0001
+    reset_release_word: 0x0000
+    file_wire: little_endian_byte_pairs
+  input:
+    player_count: 1
+    player_command: 0x02
+    up: 0x0008
+    down: 0x0004
+    left: 0x0002
+    right: 0x0001
+    a: 0x0010
+    b: 0x0020
+    c: 0x0040
+    start: 0x0080

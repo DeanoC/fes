@@ -8,13 +8,11 @@ selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
 package set, while focused profiles may select a smaller package set.
 `fes.sms` is registered for package-only host-library acceptance. Its
 selection filename is `fes-sms.package-selection.toml`. It is not in the
-factory image closed set. The selected misteross pin is `744906e…`
-([misteross #79](https://github.com/DeanoC/misteross/pull/79)), including
-the freeze-scaffold 901 socket and 900/903 carts, repository nextpnr
-`d672fade` (`--fes-scaffold` / `--fes-cart`), recipe-clock timing scoring,
-Coleco/ZX81 placer search, two-HIP-device search, Coleco 32 KiB
-application streaming, and SMS SN76489/HDMI I2S audio. Coleco, SG-1000
-and SMS keep the core-local nextpnr `0fad53a7` HIP slot. Freeze-scaffold
+factory image closed set. The selected FPGA sources are the tracked
+`sources/misteross` module at the selected FES commit. Its repository-default
+compiler lock serves the factory Pong/ZX81 route; Coleco, SG-1000 and SMS share
+`toolchains/registered-memory.lock`. Inspect `config/core-recipes.toml` for each
+registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 The earlier `0825da5f…` selection records the sealed 32 KiB fixed-map SMS
 HIP/nextpnr producer; its historical seed and timing evidence do not establish
@@ -45,8 +43,14 @@ build identity and provenance all validate. A miss runs that recipe once and
 the result goes through the same checks.
 
 The default FES package producers use the authenticated HIP/nextpnr route.
+Functional builds also require `/usr/bin/strace` with `--kill-on-exit` support
+for compiler input checks. The tracer and its libraries are fingerprinted;
+changing them changes the execution identity. Non-executable Markdown remains
+documentation: using it as a compiler or ordinary Python helper input rejects
+the build instead of sealing a package with an incomplete identity.
 The parent default path opts all selected FES package producers into the
-workspace-local shared compiler cache at `out/cache/misteross-toolchains`.
+shared compiler cache at the primary FES checkout's
+`out/cache/misteross-toolchains`, or under the configured `FES_CACHE_ROOT`.
 Shared mode verifies the selected misteross checkout and lock pins, then
 authenticates Yosys, nextpnr-mistral and Mistral from the matching published
 cache slot rather than from `build/toolchain` in that checkout. An old package
@@ -56,9 +60,9 @@ prepare and check the shared slot with:
 ```sh
 make dev
 # If this reports missing authenticated FES package build inputs:
-revision=$(git rev-parse :sources/misteross)
-work="out/work/misteross-$revision"
-cache="$PWD/out/cache/misteross-toolchains"
+# Run from the FES root with clean selected module sources.
+work="$PWD/sources/misteross"
+cache=$(python3 -c 'import sys; sys.path.insert(0, "scripts"); from recipes import TOOLCHAIN_CACHE_ROOT; print(TOOLCHAIN_CACHE_ROOT)')
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
@@ -69,7 +73,7 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-coleco
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
-  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \
+  FES_TOOLCHAIN_LOCKFILE=toolchains/registered-memory.lock \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict

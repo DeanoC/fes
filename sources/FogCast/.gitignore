@@ -1,0 +1,15 @@
+/.worktrees/
+/artifacts/
+/dist/
+/bin/
+/build/cache/
+/build/output/
+/.cache/
+/local-games/
+/private-roms/
+*.secret.toml
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+/local-fogcast/
+/artifacts/remote-play/

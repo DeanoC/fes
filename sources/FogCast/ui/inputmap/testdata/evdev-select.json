@@ -1,0 +1,7 @@
+{
+  "name": "evdev-select",
+  "description": "Raw evdev BTN_SOUTH becomes Select.",
+  "bindings": {
+    "evdev:304": "select"
+  }
+}

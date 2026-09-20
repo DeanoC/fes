@@ -1,0 +1,201 @@
+schema: mister-packages.v1
+kind: abi
+id: fes.application
+description: >-
+  Composable FES application mailbox. Video is required by v1 admission;
+  gamepad, media and fixed stereo PCM audio are independently declared capabilities.
+major: 1
+minor: 0
+tag: 3
+constants:
+  - name: FesApplicationSignature
+    value: 0xf5000000
+  - name: FesApplicationRequestMask
+    value: 0x80000000
+  - name: FesApplicationOpcodeMask
+    value: 0x7f000000
+  - name: FesApplicationIndexMask
+    value: 0x00ff0000
+  - name: FesApplicationArgumentMask
+    value: 0x0000ffff
+  - name: FesApplicationAckMask
+    value: 0x00800000
+  - name: FesApplicationErrorMask
+    value: 0x00400000
+  - name: FesApplicationResponseMask
+    value: 0x0000ffff
+  - name: FesApplicationIdentityMagic0
+    value: 0x4546
+  - name: FesApplicationIdentityMagic1
+    value: 0x3153
+  - name: FesApplicationTransportMajor
+    value: 1
+  - name: FesApplicationTransportMinor
+    value: 0
+  - name: FesApplicationAbiTag
+    value: 3
+  - name: FesApplicationAbiMajor
+    value: 1
+  - name: FesApplicationAbiMinor
+    value: 0
+  - name: FesApplicationIdentityMagic0Index
+    value: 0
+  - name: FesApplicationIdentityMagic1Index
+    value: 1
+  - name: FesApplicationIdentityTransportMajorIndex
+    value: 2
+  - name: FesApplicationIdentityTransportMinorIndex
+    value: 3
+  - name: FesApplicationIdentityAbiTagIndex
+    value: 4
+  - name: FesApplicationIdentityAbiMajorIndex
+    value: 5
+  - name: FesApplicationIdentityAbiMinorIndex
+    value: 6
+  - name: FesApplicationIdentityCapabilitiesIndex
+    value: 7
+  - name: FesApplicationIdentityBuildIDStartIndex
+    value: 8
+  - name: FesApplicationIdentityWordCount
+    value: 16
+  - name: FesApplicationOpcodeIdentity
+    value: 1
+  - name: FesApplicationOpcodeExecution
+    value: 2
+  - name: FesApplicationOpcodeButtons
+    value: 3
+  - name: FesApplicationOpcodeMediaBegin
+    value: 4
+  - name: FesApplicationOpcodeMediaData
+    value: 5
+  - name: FesApplicationOpcodeMediaCommit
+    value: 6
+  - name: FesApplicationControlIndex
+    value: 0
+  - name: FesApplicationExecutionHoldReset
+    value: 0
+  - name: FesApplicationExecutionRelease
+    value: 1
+  - name: FesApplicationErrorInvalidOpcode
+    value: 1
+  - name: FesApplicationErrorInvalidIndex
+    value: 2
+  - name: FesApplicationErrorInvalidArgument
+    value: 3
+  - name: FesApplicationErrorInvalidState
+    value: 4
+  - name: FesApplicationButtonUp
+    value: 1
+  - name: FesApplicationButtonDown
+    value: 2
+  - name: FesApplicationButtonLeft
+    value: 4
+  - name: FesApplicationButtonRight
+    value: 8
+  - name: FesApplicationButtonA
+    value: 16
+  - name: FesApplicationButtonB
+    value: 32
+  - name: FesApplicationButtonSelect
+    value: 64
+  - name: FesApplicationButtonStart
+    value: 128
+  - name: FesApplicationButtonMask
+    value: 255
+  - name: FesApplicationMediaMinBytes
+    value: 1
+  - name: FesApplicationMediaMaxBytes
+    value: 16384
+  - name: FesApplicationMediaDataPairIndex
+    value: 0
+  - name: FesApplicationMediaDataTailIndex
+    value: 1
+  - name: FesApplicationOpcodeMediaStreamInfo
+    value: 7
+  - name: FesApplicationOpcodeMediaStreamBegin
+    value: 8
+  - name: FesApplicationOpcodeMediaStreamChunk
+    value: 9
+  - name: FesApplicationOpcodeMediaStreamData
+    value: 10
+  - name: FesApplicationOpcodeMediaStreamCommit
+    value: 11
+  - name: FesApplicationOpcodeMediaStreamAbort
+    value: 12
+  - name: FesApplicationMediaStreamMinBytes
+    value: 1
+  - name: FesApplicationMediaStreamGuaranteedMaxBytes
+    value: 32768
+  - name: FesApplicationMediaStreamMaxBytes
+    value: 33554432
+  - name: FesApplicationMediaStreamChunkMaxBytes
+    value: 512
+  - name: FesApplicationMediaStreamInfoMinLoIndex
+    value: 0
+  - name: FesApplicationMediaStreamInfoMinHiIndex
+    value: 1
+  - name: FesApplicationMediaStreamInfoMaxLoIndex
+    value: 2
+  - name: FesApplicationMediaStreamInfoMaxHiIndex
+    value: 3
+  - name: FesApplicationMediaStreamInfoChunkMaxIndex
+    value: 4
+  - name: FesApplicationMediaStreamBeginTotalLoIndex
+    value: 0
+  - name: FesApplicationMediaStreamBeginTotalHiIndex
+    value: 1
+  - name: FesApplicationMediaStreamBeginCRC32LoIndex
+    value: 2
+  - name: FesApplicationMediaStreamBeginCRC32HiIndex
+    value: 3
+  - name: FesApplicationMediaStreamChunkOffsetLoIndex
+    value: 0
+  - name: FesApplicationMediaStreamChunkOffsetHiIndex
+    value: 1
+  - name: FesApplicationMediaStreamChunkLengthIndex
+    value: 2
+  - name: FesApplicationMediaStreamCRC32Initial
+    value: 0xffffffff
+  - name: FesApplicationMediaStreamCRC32Polynomial
+    value: 0xedb88320
+  - name: FesApplicationMediaStreamCRC32FinalXor
+    value: 0xffffffff
+  - name: FesApplicationOpcodeControllerButtons
+    value: 13
+  - name: FesApplicationOpcodeControllerKeypad
+    value: 14
+  - name: FesApplicationControllerPortCount
+    value: 2
+  - name: FesApplicationControllerButtonMask
+    value: 255
+  - name: FesApplicationControllerKeypadMask
+    value: 4095
+interfaces:
+  - id: fes.gamepad
+    major: 1
+    minor: 0
+    capability_bit: 0
+  - id: fes.video.fixed-720p60
+    major: 1
+    minor: 0
+    capability_bit: 1
+  - id: fes.media.blob
+    major: 1
+    minor: 0
+    capability_bit: 2
+  - id: fes.media.blob-stream
+    major: 1
+    minor: 0
+    capability_bit: 3
+  - id: fes.audio.pcm-s16-stereo-48k
+    major: 1
+    minor: 0
+    capability_bit: 4
+  - id: fes.gamepad.ports
+    major: 1
+    minor: 0
+    capability_bit: 5
+  - id: fes.keypad.ports
+    major: 1
+    minor: 0
+    capability_bit: 6

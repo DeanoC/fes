@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "TARGET_UNAVAILABLE",
+    "message": "session operation failed"
+  }
+}

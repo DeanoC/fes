@@ -1,0 +1,9 @@
+id = "tms-vdp"
+title = "TMS9918 Family"
+author = "FogCast"
+description = "Every system whose video chip descends from the Texas Instruments TMS9918."
+main = "main.lua"
+
+[theme]
+background = "#101418"
+accent = "#39c5bb"

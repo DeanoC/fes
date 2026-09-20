@@ -1,0 +1,20 @@
+format = 1
+
+[mister_runtime]
+mount_path = '/runtime-source'
+
+[idle_rbf]
+repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
+commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
+path = 'menu.rbf'
+sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'
+size = 2452588
+install_path = '/usr/share/mister-runtime/idle.rbf'
+
+[megadrive_rbf]
+repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
+commit = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
+path = 'releases/MegaDrive_20260603.rbf'
+sha256 = '0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839'
+size = 4296864
+install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'

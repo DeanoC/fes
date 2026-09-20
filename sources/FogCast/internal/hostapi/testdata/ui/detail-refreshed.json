@@ -1,0 +1,11 @@
+{
+  "id": "megadrive-sonic-test",
+  "title": "Sonic the Hedgehog (detail refresh)",
+  "system": "megadrive",
+  "kind": "zip",
+  "state": "available",
+  "launchable": true,
+  "root_online": true,
+  "content_prepared": true,
+  "execution": "fpga_native"
+}

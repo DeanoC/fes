@@ -6,18 +6,22 @@ On Powerboat, keep the user `fogcast-api.service` disabled and stopped by
 default. Coding, builds, simulations and package preparation need no running
 host. This does not stop the MiSTer target agent or runtime.
 
-For an authorized automated kit test, coordinate exclusive use and run a
+For an authorized automated kit test, claim the target lease and run a
 temporary isolated host through the [package acceptance lane](package-acceptance.md)
 where appropriate. Shut down that host, verify cleanup and report release.
 For operator menu/controller testing, explicitly start one normal host for
 that session, stop it afterward and leave autostart disabled. Do not run a
 duplicate test host against the same kit.
 
-Coordinate the managing service, not just its PID: restart policies can undo
-a process kill. A connected socket alone does not prove lease ownership, and
-a free lease alone does not establish an exclusive operator reservation.
-Check both the reservation and target lease before mutations. Slack handoffs
-do not themselves authorize deployment, merging or a new hardware operation.
+The target lease is sufficient coordination for ordinary kit use: loading a
+core, supplying media/input, collecting diagnostics and stopping the session.
+No separate Slack reservation or acknowledgement is required for those operations.
+
+Coordinate disruptive maintenance such as replacing/restarting shared services,
+rebooting or changing the installed image. Coordinate the managing service, not
+just its PID: restart policies can undo a process kill. Slack is not a push
+notification channel for this harness; poll a thread when a reply is needed.
+Coordination does not replace the existing lease or authorize another device.
 
 The selected components include renewable kit ownership. The target agent is
 the single lease authority; libmister-runtime owns FPGA programming and recovery.

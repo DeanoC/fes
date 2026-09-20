@@ -28,7 +28,8 @@ See [the documentation index](docs/README.md) to distinguish them.
 Main_MiSTer is a comparison reference, not a production dependency. Keep
 physical transitions in the runtime and network/session coordination in the
 FogCast agent. Image assembly lives in FES `image/`; FogCast supplies agent,
-kit and lock inputs through `FOGCAST_DIR`.
+kit and selector inputs through `FOGCAST_DIR`. FES owns external artifact policy
+in `image/build/native-inputs.toml` and derives runtime source selection itself.
 
 For described-core settings or progress, read the [core persistence guide](docs/core-persistence.md).
 Keep the data layout and wire contract in mister-packages, capture and durable
@@ -38,14 +39,13 @@ Do not infer persistence from a display name, package path or raw RBF.
 
 ## Keep worker and integration checkouts separate
 
-Keep `sources/` checkouts clean: they are pinned integration build inputs.
-Develop component changes in separate worktrees under
-`out/dev/<task>/<component>` using the commands in the development guide.
-Different tasks touching one component need different worktrees and branches.
-The integrator alone updates parent gitlinks and reconciles shared contracts;
-component workers hand back revisions or diffs. Preserve unrelated changes.
+`sources/` contains ordinary tracked modules in this FES repository. Develop a
+feature in one FES worktree under `out/dev/<task>/fes`, including every affected
+module. Different tasks use different worktrees and branches; agree file
+ownership before parallel edits. There are no first-party gitlinks to update.
+Regenerate shared consumers in the same change. Preserve unrelated changes.
 
-Parent builds use selected component commits, not uncommitted worker changes.
+Parent builds use committed FES module bytes, not uncommitted worker changes.
 Return an uncommitted diff when committing has not been authorized. Never claim
 a parent build tested edits that have not been selected.
 
@@ -105,6 +105,6 @@ root-switch tests, watchdog diagnostics and exact-artifact hardware acceptance.
 ## Finish with a handoff
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and
-results, hardware classification, effects on parent pins/shared contracts,
+results, hardware classification, effects on module/shared contracts,
 and the next integration step. Do not commit, push, or open a PR without user
 authorization.

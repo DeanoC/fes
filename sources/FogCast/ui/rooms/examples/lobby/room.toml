@@ -1,0 +1,5 @@
+id = "lobby"
+title = "Lobby"
+author = "FogCast"
+description = "Every installed room on one wall; a starting point for your own."
+main = "main.lua"

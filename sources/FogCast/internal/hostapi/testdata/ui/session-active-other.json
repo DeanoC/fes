@@ -1,0 +1,7 @@
+{
+  "state": "active",
+  "game_id": "snes-unknown-test",
+  "system": "snes",
+  "execution": "fpga_native",
+  "media": "active"
+}

@@ -1,0 +1,18 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.nic301
+description: >-
+  L3 NIC301 remap. Write-only on Cyclone V; the runtime treats the write
+  itself as the authority and does not read back.
+
+registers:
+  - name: REMAP
+    offset: 0x0
+    access: wo
+    description: L3 remap.
+    address_symbols: [kL3RemapAddress]
+    writes:
+      - symbol: kL3RemapContained
+        value: 0x1
+      - symbol: kL3RemapFpgaEnabled
+        value: 0x19

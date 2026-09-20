@@ -70,6 +70,8 @@ if [ -n "${FES_PACKAGE_IDS:-}" ]; then
   load_package_mount_order
 fi
 fogcast_dir=
+fogcast_mount=
+fogcast_container=/fogcast
 if [ -n "${FOGCAST_DIR:-}" ]; then
   case "$FOGCAST_DIR" in
     /*) : ;;
@@ -83,6 +85,18 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
     exit 2
   }
   fogcast_dir=$(CDPATH='' cd -- "$FOGCAST_DIR" && pwd -P)
+  fogcast_mount=$fogcast_dir
+  if fogcast_top=$(git -C "$fogcast_dir" rev-parse --show-toplevel 2>/dev/null); then
+    fogcast_top=$(CDPATH='' cd -- "$fogcast_top" && pwd -P)
+    case "$fogcast_dir" in
+      "$fogcast_top") : ;;
+      "$fogcast_top/sources/FogCast")
+        fogcast_mount=$fogcast_top
+        fogcast_container=/fogcast/sources/FogCast
+        ;;
+      *) printf '%s\n' 'target-image-container: unsupported FogCast module path' >&2; exit 2 ;;
+    esac
+  fi
 fi
 docker_run() {
   set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
@@ -114,8 +128,8 @@ docker_run() {
       --env "$package_selection_env=/fes-$package_core-package-selection.toml" "$@"
   done
   if [ -n "$fogcast_dir" ]; then
-    exec "$runtime" run --volume "$fogcast_dir:/fogcast:ro" \
-      --env FOGCAST_DIR=/fogcast --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
+    exec "$runtime" run --volume "$fogcast_mount:/fogcast:ro" \
+      --env "FOGCAST_DIR=$fogcast_container" --env "NATIVE_RUNTIME_MODE=$native_mode" "$@"
   fi
   exec "$runtime" run --env NATIVE_RUNTIME_MODE=package-only "$@"
 }
@@ -123,6 +137,8 @@ run_container() {
   docker_run "$@"
 }
 native_runtime_source=
+native_runtime_mount=
+native_runtime_prefix=.
 native_runtime_commit=
 if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   case "$LIBMISTER_RUNTIME_DIR" in
@@ -147,6 +163,11 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
     "$repo_root/scripts/verify-native-runtime-inputs.sh" \
     "$native_lock" "$native_runtime_source" "$native_idle"
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
+  native_runtime_mount=$(git -C "$native_runtime_source" rev-parse --show-toplevel)
+  native_runtime_mount=$(CDPATH='' cd -- "$native_runtime_mount" && pwd -P)
+  if [ "$native_runtime_source" != "$native_runtime_mount" ]; then
+    native_runtime_prefix=sources/libmister-runtime
+  fi
 fi
 
 if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
@@ -196,8 +217,9 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
         --user "$host_uid:$host_gid" \
         --volume "$repo_root:/work" \
         --volume "$output_volume:/target-image-output" \
-        --volume "$native_runtime_source:/runtime-source:ro" \
+        --volume "$native_runtime_mount:/runtime-source:ro" \
         --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --env "FES_RUNTIME_SOURCE_PATH=$native_runtime_prefix" \
         --workdir /work \
         "$dev_image" "$@"
     fi
@@ -218,8 +240,9 @@ if [ "${TARGET_IMAGE_DEV_CONTAINER:-0}" = 1 ]; then
       --user "$host_uid:$host_gid" \
       --volume "$repo_root:/work" \
       --volume "$output_volume:/target-image-output" \
-      --volume "$native_runtime_source:/runtime-source:ro" \
+      --volume "$native_runtime_mount:/runtime-source:ro" \
       --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --env "FES_RUNTIME_SOURCE_PATH=$native_runtime_prefix" \
       --workdir /work \
       "$dev_image" "$@"
   fi
@@ -339,8 +362,9 @@ if [ "$mode" = run ] && [ -n "$native_runtime_source" ]; then
     --user "$host_uid:$host_gid" \
     --volume "$repo_root:/work" \
     --volume "$output_volume:/target-image-output" \
-    --volume "$native_runtime_source:/runtime-source:ro" \
+    --volume "$native_runtime_mount:/runtime-source:ro" \
     --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --env "FES_RUNTIME_SOURCE_PATH=$native_runtime_prefix" \
     --workdir /work \
     "$build_image_id" "$@"
 fi
@@ -364,8 +388,9 @@ if [ -n "$native_runtime_source" ]; then
     --user "$host_uid:$host_gid" \
     --volume "$repo_root:/work" \
     --volume "$output_volume:/target-image-output" \
-    --volume "$native_runtime_source:/runtime-source:ro" \
+    --volume "$native_runtime_mount:/runtime-source:ro" \
     --env "FOGCAST_MISTER_RUNTIME_COMMIT=$native_runtime_commit" \
+        --env "FES_RUNTIME_SOURCE_PATH=$native_runtime_prefix" \
     --workdir /work \
     "$build_image_id" "$@"
 fi

@@ -54,3 +54,22 @@ class StagingTest(unittest.TestCase):
         (staged / "README").write_text("unexpected")
         with self.assertRaisesRegex(ValueError, "changed"):
             module.source_checkout("FogCast", revision, "-source", (overlay,))
+
+    def test_staging_removes_only_untracked_generated_lock(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        import build
+        previous = build.ROOT
+        self.addCleanup(setattr, build, "ROOT", previous)
+        build.ROOT = self.root
+        child = self.root / "sources/FogCast"
+        overlay = "build/native-runtime.inputs.lock.toml"
+        git(child, "rm", overlay)
+        git(child, "commit", "-qm", "FES owns policy")
+        git(self.root, "update-index", "--cacheinfo", "160000", git(child, "rev-parse", "HEAD"), "sources/FogCast")
+        revision = git(child, "rev-parse", "HEAD")
+        staged = build.source_checkout("FogCast", revision, "-source", (overlay,))
+        (staged / overlay).parent.mkdir(exist_ok=True)
+        (staged / overlay).write_text("generated assembly lock")
+        same = build.source_checkout("FogCast", revision, "-source")
+        self.assertFalse((same / overlay).exists())
+        self.assertEqual(git(same, "status", "--porcelain"), "")

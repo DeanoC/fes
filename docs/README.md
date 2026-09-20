@@ -14,7 +14,10 @@ host software and target root filesystem.
 | See which binaries, images and cores are versioned artifacts | [Artifact identities](artifacts.md) |
 | See who owns native image assembly | [Image assembly ownership](image-assembly.md) |
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
-| Create component worktrees and use incremental builds | [Development guide](development.md) |
+| Create a FES feature worktree and use incremental builds | [Development guide](development.md) |
+| Inspect sources, build receipts, CI and exact hardware/deployment evidence | [Unified status](status.md) |
+| Run affected software checks across modules | [Focused tests](test-changed.md) |
+| Publish the consolidated repository while preserving component history | [Repository cutover](repository-cutover.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
@@ -38,7 +41,20 @@ catalog, including exact NES video and native session lifecycle acceptance, is
 recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
 and is not current-profile acceptance.
 
+## Proposals
+
+- [Development ease and repository migration](development-ease.md): investigated
+  update friction, recommended module/repository boundaries and staged migration.
+  The direction is approved; current development instructions describe what has landed.
+
 ## What has been verified
+
+- [Consolidated development](validation/2026-09-20-consolidated-development.md):
+  preserved histories, contributor/cache rehearsals, three FPGA packages,
+  reproducible native image and exact Coleco/software diagnostics with restoration.
+- [Functional FPGA identity](validation/2026-09-20-functional-core-identity.md):
+  real Coleco compiler signoff, reuse after documentation and repository import,
+  and exact-package HDMI diagnostics; imported-image qualification is separate.
 
 - [Coleco 32 KiB streaming](coleco-stream-32k.md): component tests and bounded
   HDMI diagnostics, with separate parent integration status and artifact IDs.

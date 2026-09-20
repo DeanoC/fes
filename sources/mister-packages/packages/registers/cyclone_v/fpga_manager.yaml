@@ -1,0 +1,142 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.fpga_manager
+description: >-
+  Cyclone V FPGA manager registers and GPO/GPI bits used by
+  libmister-runtime fpga_manager.hpp and spi.hpp. Field layout follows
+  those headers, which themselves follow the HPS TRM and Main.
+
+registers:
+  - name: STAT
+    offset: 0x0
+    access: rw
+    description: FPGA-manager status.
+    address_symbols: [kFpgaStatusAddress]
+    fields:
+      - name: MODE
+        bits: "2:0"
+        access: ro
+        mask_symbol: kFpgaModeMask
+        description: FPGA configuration mode.
+        values:
+          - symbol: kFpgaModeReset
+            value: 0x1
+          - symbol: kFpgaModeConfiguration
+            value: 0x2
+          - symbol: kFpgaModeInitialization
+            value: 0x3
+          - symbol: kFpgaModeUser
+            value: 0x4
+      - name: MSEL
+        bits: "7:3"
+        access: ro
+        mask_symbol: kFpgaMselMask
+        shift_symbol: kFpgaMselShift
+        description: MSEL sample used to pick configuration width and clock ratio.
+
+  - name: CTRL
+    offset: 0x4
+    access: rw
+    description: FPGA-manager control.
+    address_symbols: [kFpgaControlAddress]
+    fields:
+      - name: EN
+        bits: "0"
+        mask_symbol: kFpgaControlEnableMask
+      - name: NCE
+        bits: "1"
+        mask_symbol: kFpgaControlNceMask
+      - name: NCONFIGPULL
+        bits: "2"
+        mask_symbol: kFpgaControlNconfigPullMask
+      - name: CDRATIO
+        bits: "7:6"
+        mask_symbol: kFpgaControlClockDataRatioMask
+        shift_symbol: kFpgaControlClockDataRatioShift
+      - name: AXICFGEN
+        bits: "8"
+        mask_symbol: kFpgaControlAxiConfigurationEnableMask
+      - name: CFGWDTH
+        bits: "9"
+        mask_symbol: kFpgaControlConfigurationWidthMask
+
+  - name: DCLKCNT
+    offset: 0x8
+    access: rw
+    description: Data-clock count.
+    address_symbols: [kFpgaDclkCountAddress]
+
+  - name: DCLKSTAT
+    offset: 0xc
+    access: rw
+    description: Data-clock status. Runtime waits for bit 0, then writes 1 to clear.
+    address_symbols: [kFpgaDclkStatusAddress]
+    fields:
+      - name: DCNTDONE
+        bits: "0"
+
+  - name: GPO
+    offset: 0x10
+    access: rw
+    description: >-
+      General-purpose output to the FPGA. Core reset/normal and the SPI
+      user-I/O strobes share this word.
+    address_symbols: [kFpgaGpoAddress, kSpiGpoAddress]
+    fields:
+      - name: SPI_STROBE
+        bits: "17"
+        mask_symbol: kSpiStrobeMask
+      - name: SPI_FILE_SELECT
+        bits: "18"
+        mask_symbol: kSpiFileSelectMask
+      - name: SPI_USER_SELECT
+        bits: "20"
+        mask_symbol: kSpiUserSelectMask
+      - name: CORE_STATE
+        bits: "31:30"
+        mask_symbol: kFpgaCoreStateMask
+        values:
+          - symbol: kFpgaCoreReset
+            value: 0x1
+            placement: register
+          - symbol: kFpgaCoreNormal
+            value: 0x2
+            placement: register
+      - name: SPI_CORE_ID_STROBE
+        bits: "31"
+        mask_symbol: kSpiCoreIdStrobeMask
+
+  - name: GPI
+    offset: 0x14
+    access: ro
+    description: General-purpose input from the FPGA. Sampled after the core-ID strobe.
+    address_symbols: [kSpiGpiAddress]
+
+  - name: GPIO_PORTA_EOI
+    offset: 0x84c
+    access: rw
+    description: Configuration-monitor end-of-interrupt.
+    address_symbols: [kFpgaMonitorEoiAddress]
+    fields:
+      - name: CLEAR
+        bits: "11:0"
+        values:
+          - symbol: kFpgaMonitorClearAll
+            value: 0xfff
+            placement: register
+
+  - name: GPIO_EXT_PORTA
+    offset: 0x850
+    access: ro
+    description: Configuration-monitor status.
+    address_symbols: [kFpgaMonitorAddress]
+    fields:
+      - name: NSTATUS
+        bits: "0"
+        mask_symbol: kFpgaMonitorNstatusMask
+      - name: CONF_DONE
+        bits: "1"
+        mask_symbol: kFpgaMonitorConfDoneMask
+      - name: INIT_DONE
+        bits: "2"
+        mask_symbol: kFpgaMonitorInitDoneMask

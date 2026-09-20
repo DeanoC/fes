@@ -8,11 +8,12 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import stat
 import sys
 import tomllib
+from urllib.parse import urlsplit
 
 from core_dev import snapshot
 import package_acceptance_isolated as isolated
@@ -43,6 +44,55 @@ def _file(root, record, name, maximum, *, fixed=None):
     return str(root / path)
 
 
+def source_selection(root, record, sources, selected, package, payload):
+    record = _object(record, {"path", "sha256"})
+    expected_name = Path(selected["path"]).with_suffix(".provenance.json").name
+    filename = _file(root, record, "source selection", 65536, fixed=expected_name)
+    fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError("source selection must be regular")
+        raw = stream.read(65537)
+    if not raw or len(raw) > 65536 or hashlib.sha256(raw).hexdigest() != record["sha256"]:
+        raise ValueError("source selection changed while reading")
+    value = _object(json.loads(raw), {
+        "format", "selected_repository", "selected_revision", "selected_source_path",
+        "original_repository", "original_revision", "original_source_path",
+        "functional_inputs_sha256", "original_record_sha256", "selected_record_sha256",
+        "package_id", "core_rbf_sha256"})
+    if type(value["format"]) is not int or value["format"] != 1:
+        raise ValueError("unsupported source selection format")
+    for prefix in ("selected", "original"):
+        revision = value[prefix + "_revision"]
+        if not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision):
+            raise ValueError("invalid source selection revision")
+        repository = value[prefix + "_repository"]
+        if not isinstance(repository, str) or not repository or any(ord(c) <= 32 or ord(c) >= 127 for c in repository):
+            raise ValueError("invalid source selection repository")
+        if any(char in repository for char in '\\<>"{}|^`'):
+            raise ValueError("invalid source selection repository")
+        url = urlsplit(repository)
+        _ = url.port  # Reject malformed or out-of-range port authorities.
+        if (url.scheme != "https" or not url.hostname or url.username is not None or
+                url.password is not None or re.search(r"%(?![0-9a-fA-F]{2})", repository)):
+            raise ValueError("invalid source selection repository")
+        path = value[prefix + "_source_path"]
+        if (not isinstance(path, str) or not path or "\\" in path or
+                any(ord(c) < 32 or ord(c) == 127 for c in path) or
+                (path != "." and (PurePosixPath(path).is_absolute() or
+                 PurePosixPath(path).as_posix() != path or
+                 any(part in ("", ".", "..") for part in path.split("/"))))):
+            raise ValueError("invalid source selection path")
+    for key in ("functional_inputs_sha256", "original_record_sha256", "selected_record_sha256", "package_id", "core_rbf_sha256"):
+        if not isinstance(value[key], str) or not re.fullmatch(r"[0-9a-f]{64}", value[key]):
+            raise ValueError("invalid source selection digest")
+    if (value["selected_revision"] != sources["misteross"] or
+            value["original_revision"] != selected["misteross_revision"] or
+            value["package_id"] != package or value["core_rbf_sha256"] != payload):
+        raise ValueError("source selection differs from prepared identity")
+    return value
+
+
 def candidate_arguments(receipt_path, provenance=None):
     path = Path(receipt_path).absolute()
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -54,9 +104,11 @@ def candidate_arguments(receipt_path, provenance=None):
         raise ValueError("prepared receipt exceeds its size bound")
     data = _object(json.loads(raw),
                    {"format", "core_id", "package_id", "archive", "sources", "selection"},
-                   {"library_media"})
-    if type(data["format"]) is not int or data["format"] != 1:
+                   {"library_media", "source_selection"})
+    if type(data["format"]) is not int or data["format"] not in (1, 2):
         raise ValueError("unsupported prepared receipt format")
+    if (data["format"] == 2) != ("source_selection" in data):
+        raise ValueError("prepared format and source selection disagree")
     core = isolated._require_core_id(data["core_id"])
     package = isolated._require_package_id(data["package_id"], "prepared package ID")
     sources = _object(data["sources"], {"FogCast", "libmister-runtime", "misteross", "mister-packages"})
@@ -72,10 +124,13 @@ def candidate_arguments(receipt_path, provenance=None):
     selected = tomllib.loads(Path(selection_path).read_text())
     if (selected.get("format") != 2 or selected.get("kind") != "core-package"
             or selected.get("core_id") != core or selected.get("package_id") != package
-            or selected.get("misteross_revision") != sources["misteross"]
+            or (data["format"] == 1 and selected.get("misteross_revision") != sources["misteross"])
             or selected.get("mister_packages_revision") != sources["mister-packages"]
             or selected.get("payload_sha256") != selection["payload_sha256"]):
         raise ValueError("prepared selection differs from receipt")
+    if data["format"] == 2:
+        source_selection(path.parent, data["source_selection"], sources,
+                         {**selected, "path": selection["path"]}, package, selection["payload_sha256"])
     result = ["--archive", archive_path, "--expected-archive-sha256", archive["sha256"],
               "--expected-package-id", package, "--expected-core-id", core]
     if "library_media" in data:
@@ -86,6 +141,8 @@ def candidate_arguments(receipt_path, provenance=None):
         provenance.update(format=1, prepared_sha256=hashlib.sha256(raw).hexdigest(),
                           core_id=core, package_id=package,
                           archive_sha256=archive["sha256"])
+        if data["format"] == 2:
+            provenance["source_selection_sha256"] = data["source_selection"]["sha256"]
     return result
 
 

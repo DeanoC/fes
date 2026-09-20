@@ -30,6 +30,51 @@ class ReceiptTest(unittest.TestCase):
                             ["linux.img", "reproducibility.txt"])
         return image_sha256, qemu_log_sha256
 
+    def test_host_sidecar_is_bound_and_diagnostic_rejected_by_cold_reader(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            for name in ('fogcast', 'fogcast-api'):
+                (output / name).write_bytes(name.encode())
+            for diagnostic in (False, True):
+                metadata = {'sources': {'FogCast': 'a' * 40}}
+                if diagnostic:
+                    metadata['development_snapshot'] = {'classification': 'development-only'}
+                fingerprint = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+                with mock.patch.object(build, 'git', return_value='a' * 40):
+                    build.write_receipt(output, 'host', fingerprint, ['fogcast', 'fogcast-api'], os_name='linux', arch='amd64')
+                receipt = (output / 'host.json').read_bytes()
+                build.publish_host_inputs(output, fingerprint, metadata)
+                self.assertEqual((output / 'host.json').read_bytes(), receipt)
+                self.assertEqual(build.load_host_inputs(output, fingerprint), metadata)
+                self.assertEqual(build.digest(output / 'host-inputs.json'), fingerprint)
+                # Reuse publishes the same preimage without changing host.json.
+                build.publish_host_inputs(output, fingerprint, metadata)
+                if diagnostic:
+                    with self.assertRaisesRegex(ValueError, 'cold host receipt'):
+                        build.load_verified_host(output, fingerprint)
+                else:
+                    self.assertEqual(build.load_verified_host(output, fingerprint)['fes_revision'], 'a' * 40)
+                (output / 'host-inputs.json').write_text('{}')
+                with self.assertRaisesRegex(ValueError, 'cold host receipt'):
+                    build.load_verified_host(output, fingerprint)
+            (output / 'host-inputs.json').unlink()
+            self.assertIsNone(build.load_host_inputs(output, fingerprint))
+            # Historical ordinary receipt compatibility is retained without a sidecar.
+            fingerprint = hashlib.sha256(json.dumps({'sources': {'FogCast': 'a' * 40}}, sort_keys=True).encode()).hexdigest()
+            with mock.patch.object(build, 'git', return_value='a' * 40):
+                build.write_receipt(output, 'host', fingerprint, ['fogcast', 'fogcast-api'], os_name='linux', arch='amd64')
+            self.assertEqual(build.load_verified_host(output, fingerprint)['fes_revision'], 'a' * 40)
+
+    def test_host_sidecar_publication_rejects_wrong_fingerprint(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, 'fingerprint'):
+                build.publish_host_inputs(Path(temporary), '0' * 64, {'sources': {}})
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
     def test_media_sources_do_not_invalidate_cold_build_fingerprint(self):
         sys.path.insert(0, str(SCRIPTS))
         import build

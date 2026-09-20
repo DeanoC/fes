@@ -17,14 +17,14 @@ is negotiated by the existing host/agent/runtime path; do not copy capability
 limits or controller mappings into this registry. Media is an explicit immutable
 library selection, not a compiled-in host asset.
 
-To add a compatible core, implement and test its producer in misteross, select
-that reviewed component revision in FES, and add its recipe row. No new host/UI
+To add a compatible core, implement and test its producer in
+`sources/misteross` and add its recipe row in the same reviewed FES commit. No new host/UI
 allowlist is required. A new ABI or transport still requires separately reviewed
 runtime support. A registry row alone cannot create that support.
 
 ## Prepare one package, without an image build
 
-From a clean pinned FES checkout on the development machine:
+From a clean committed FES checkout on the development machine:
 
 ```sh
 mkdir -p out/core-dev
@@ -32,7 +32,7 @@ make core-dev CORE_DEV_ARGS='prepare --core fes.pong --output out/core-dev/pong-
 ```
 
 Choose a new output directory for each candidate. Preparation checks selected
-component revisions, takes the normal parent build lock and runs the existing
+module selections, takes the normal parent build lock and runs the existing
 authenticated package resolver for **only** that core. Matching package/compiler
 inputs are reused; a package miss runs its producer. Missing compiler prerequisites
 fail with the existing toolchain setup guidance in [core packages](core-packages.md).

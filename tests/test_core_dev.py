@@ -1,4 +1,5 @@
 """Host-only preparation tests: no producer, image, network or kit execution."""
+from dataclasses import replace
 import fcntl
 import hashlib
 import io
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -39,6 +41,10 @@ class PrepareTest(unittest.TestCase):
             p = patch.object(core_dev.build, target, value)
             p.start()
             self.addCleanup(p.stop)
+        # These fixtures exercise sealed v1 archives; v2 reconstruction has its own suite.
+        self.mock(core_dev.recipes, "FORMAT2_RECIPES", new={
+            name: replace(recipe, identity_version=1)
+            for name, recipe in core_dev.recipes.FORMAT2_RECIPES.items()})
         self.validate = self.mock(core_dev.inputs, "validate", return_value=self.pins)
         self.stage = self.mock(core_dev.build, "source_checkout", return_value=self.source)
         self.resolve = self.mock(core_dev.bundle, "resolve_core_package", side_effect=self.resolver)
@@ -306,6 +312,148 @@ toolchain = "test"
             (directory / "manifest.toml").write_bytes(manifest.replace(b'Test', b'Other'))
             with self.assertRaises(subprocess.CalledProcessError):
                 core_dev.inspect_archive(source, archive, directory, recipe)
+
+
+class CachedPreparationTest(unittest.TestCase):
+    def setUp(self):
+        self.source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        if not (self.source / "scripts/export_core_package.py").is_file():
+            self.skipTest("selected producer parser unavailable")
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.output = self.root / "prepared"
+        self.recipe = replace(core_dev.recipes.recipe_for("fes.pong"), identity_version=2)
+        self.pins = {name: "c" * 40 for name in core_dev.inputs.COMPONENTS}
+        self.payload = b"original cached payload"
+        self.manifest = f'''format = 2
+interfaces = []
+[core]
+id = "fes.pong"
+name = "Cached"
+description = ""
+version = "1.0.0"
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+[payload]
+file = "core.rbf"
+size = {len(self.payload)}
+sha256 = "{sha(self.payload)}"
+[abi]
+id = "fes.simple-game"
+major = 1
+minor = 0
+[build]
+id = "{'a' * 32}"
+repository = "https://example.com/core.git"
+revision = "{'b' * 40}"
+recipe_sha256 = "{'c' * 64}"
+toolchain = "test"
+'''.encode()
+        # Actual content-addressed cache entry outside source/build/packages.
+        original = {"format": 2, "repository": "https://example.com/core.git", "revision": "b" * 40,
+                    "source_path": ".", "source_inputs": {"rtl/top.v": "d" * 64}}
+        self.original_record = json.dumps(original, sort_keys=True).encode()
+        self.selected_record = json.dumps({**original, "repository": "https://example.com/fes.git",
+                                           "revision": self.pins["misteross"], "source_path": "sources/misteross"}, sort_keys=True).encode()
+        # Use the real selected parser for package identity before cache layout.
+        seed = self.root / "seed"
+        seed.mkdir()
+        (seed / "manifest.toml").write_bytes(self.manifest)
+        (seed / "core.rbf").write_bytes(self.payload)
+        identity = core_dev.inspect_archive(self.source, seed, seed, self.recipe)
+        self.package_id = identity["package_id"]
+        self.cache = self.root / "cache"
+        slot = core_dev.bundle.artifact_cache.store_for(self.cache, self.original_record) / self.package_id
+        slot.mkdir(parents=True)
+        self.package = slot / self.package_id
+        seed.rename(self.package)
+        self.record_path = slot / "build-inputs.json"
+        self.record_path.write_bytes(self.original_record)
+        for member in (*self.package.iterdir(), self.record_path):
+            member.chmod(0o444)
+        self.package.chmod(0o555)
+        slot.chmod(0o555)
+        inspected = {"package_id": self.package_id, "manifest": tomllib.loads(self.manifest.decode()),
+                     "manifest_sha256": sha(self.manifest), "core_rbf_sha256": sha(self.payload)}
+        self.patches = []
+        self.patch(core_dev.build, "ROOT", self.root)
+        self.patch(core_dev.inputs, "validate", return_value=self.pins)
+        self.patch(core_dev.build, "source_checkout", return_value=self.source)
+        self.patch(core_dev.recipes, "recipe_for", return_value=self.recipe)
+        self.patch(core_dev.bundle, "ARTIFACT_CACHE_ROOT", self.cache)
+        self.patch(core_dev.bundle, "canonical_package_record", return_value=self.selected_record)
+        self.candidates = self.patch(core_dev.bundle, "_matching_package_candidates",
+                                     side_effect=[[], [(self.package, self.record_path, inspected)]])
+        self.producer = self.patch(core_dev.bundle, "_build_package", side_effect=AssertionError("cache hit must not run producer"))
+
+    def patch(self, obj, name, *args, **kwargs):
+        p = patch.object(obj, name, *args, **kwargs)
+        self.addCleanup(p.stop)
+        return p.start()
+
+    def test_real_cache_directory_reconstructs_archive_and_preserves_original_identity(self):
+        import core_dev_accept
+        self.assertFalse((self.source / "build/packages" / (self.package_id + ".fcore")).exists())
+        receipt = core_dev.prepare("fes.pong", self.output)
+        self.assertEqual(receipt["format"], 2)
+        self.assertEqual(self.candidates.call_count, 2)
+        self.assertIn("store_override", self.candidates.call_args.kwargs)
+        self.producer.assert_not_called()
+        self.assertEqual(self.record_path.read_bytes(), self.original_record)
+        self.assertEqual((self.package / "manifest.toml").read_bytes(), self.manifest)
+        with tarfile.open(self.output / "core.fcore") as archive:
+            self.assertEqual(archive.extractfile("manifest.toml").read(), self.manifest)
+            self.assertEqual(archive.extractfile("core.rbf").read(), self.payload)
+        self.assertEqual(receipt["sources"], self.pins)
+        selection = tomllib.loads((self.output / receipt["selection"]["path"]).read_text())
+        self.assertEqual(selection["misteross_revision"], "b" * 40)
+        sidecar = self.output / receipt["source_selection"]["path"]
+        self.assertEqual(sha(sidecar.read_bytes()), receipt["source_selection"]["sha256"])
+        args = core_dev_accept.candidate_arguments(self.output / "prepared.json")
+        self.assertEqual(args[args.index("--expected-package-id") + 1], self.package_id)
+        self.assertEqual((self.output / "core.fcore").stat().st_mode & 0o777, 0o444)
+
+    def test_reconstruction_failure_removes_partial_archive_and_provenance(self):
+        original = core_dev.subprocess.run
+        def fail(*args, **kwargs):
+            if any("from scripts.export_core_package import _archive_bytes" in str(arg) for arg in args[0]):
+                (self.output / ".core.fcore.tmp").write_bytes(b"partial")
+                raise subprocess.CalledProcessError(1, args[0])
+            return original(*args, **kwargs)
+        with patch.object(core_dev.subprocess, "run", side_effect=fail):
+            with self.assertRaises(subprocess.CalledProcessError):
+                core_dev.prepare("fes.pong", self.output)
+        self.assertFalse((self.output / "core.fcore").exists())
+        self.assertFalse((self.output / ".core.fcore.tmp").exists())
+        self.assertFalse((self.output / "prepared.json").exists())
+        self.assertFalse((self.output / "fes-pong.package-selection.provenance.json").exists())
+        self.assertTrue((self.output / "failure.json").is_file())
+        self.producer.assert_not_called()
+
+    def test_reconstructed_identity_failure_removes_published_archive_and_sidecar(self):
+        with patch.object(core_dev, "inspect_archive", return_value={}):
+            with self.assertRaisesRegex(ValueError, "archive identity"):
+                core_dev.prepare("fes.pong", self.output)
+        self.assertFalse((self.output / "core.fcore").exists())
+        self.assertFalse((self.output / "prepared.json").exists())
+        self.assertFalse((self.output / "fes-pong.package-selection.provenance.json").exists())
+        self.assertEqual(self.record_path.read_bytes(), self.original_record)
+
+    def test_cached_member_bounds_and_sealing_are_enforced(self):
+        record = {"manifest_sha256": sha(self.manifest), "core_rbf_sha256": sha(self.payload)}
+        member = self.package / "core.rbf"
+        member.chmod(0o644)
+        with self.assertRaisesRegex(ValueError, "sealed"):
+            core_dev.reconstruct_archive(self.source, self.package, self.root / "bad.fcore", self.recipe, record)
+        with member.open("wb") as stream:
+            stream.truncate((32 << 20) + 1)
+        member.chmod(0o444)
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            core_dev.reconstruct_archive(self.source, self.package, self.root / "bad.fcore", self.recipe, record)
+        self.assertFalse((self.root / "bad.fcore").exists())
 
 
 if __name__ == "__main__":

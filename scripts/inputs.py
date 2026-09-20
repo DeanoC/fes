@@ -1,44 +1,76 @@
-"""Validate the parent gitlinks and the child's runtime lock."""
+"""Validate parent source selections and derive concrete assembly inputs."""
 from pathlib import Path
+import json
 import subprocess
 import tomllib
 import re
 
-COMPONENTS = ("FogCast", "libmister-runtime", "misteross", "mister-packages")
+from module_sources import COMPONENTS, describe
+
 
 def git(root, *args):
+    # Git show paths are repository-relative, whereas callers operate on modules.
+    # Preserve the real repository/commit while resolving a module-relative file.
+    if len(args) == 2 and args[0] == "show" and ":" in args[1]:
+        revision, relative = args[1].split(":", 1)
+        prefix = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "--show-prefix"], text=True).strip()
+        if prefix and not relative.startswith(":"):
+            args = ("show", revision + ":" + prefix + relative)
     return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
 
-def validate(root, profile=None):
+
+def development_snapshot(root, revision="HEAD"):
+    result = subprocess.run(['git', '-C', str(root), 'show',
+        revision + ':config/development-snapshot.json'], stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True)
+    if result.returncode:
+        return None
+    record = json.loads(result.stdout)
+    if (not isinstance(record, dict) or
+        set(record) != {'format', 'classification', 'base_revision', 'captured_tree'} or
+        type(record.get('format')) is not int or record['format'] != 1 or
+        record.get('classification') != 'development-only' or
+        any(not re.fullmatch(r'[0-9a-f]{40}', str(record.get(key, '')))
+            for key in ('base_revision', 'captured_tree'))):
+        raise ValueError('invalid development snapshot classification')
+    return record
+
+
+def validate(root, profile=None, *, allow_development=False):
     root = Path(root)
-    revisions = {}
-    for name in COMPONENTS:
-        path = "sources/" + name
-        entries = git(root, "ls-files", "--stage", "--", path).splitlines()
-        if len(entries) != 1:
-            raise ValueError(f"{path}: missing or conflicting submodule pin")
-        fields = entries[0].split()
-        if fields[0] != "160000" or fields[2] != "0":
-            raise ValueError(f"{path}: expected a submodule pin")
-        child = root / path
-        if not (child / ".git").exists():
-            raise ValueError(f"{path}: run git submodule update --init --recursive")
-        if git(child, "rev-parse", "HEAD") != fields[1]:
-            raise ValueError(f"{path}: HEAD differs from parent pin")
-        if git(child, "status", "--porcelain", "--untracked-files=all"):
-            raise ValueError(f"{path}: source checkout is dirty")
-        revisions[name] = fields[1]
+    if development_snapshot(root) is not None and not allow_development:
+        raise ValueError('development snapshot cannot satisfy committed integration or release checks; build from the reviewed feature commit')
+    revisions = {name: describe(root, name)["commit"] for name in COMPONENTS}
     for name, revision in (profile or {}).get("sources", {}).items():
         if name not in revisions or not re.fullmatch(r"[0-9a-f]{40}", str(revision)):
             raise ValueError(f"invalid profile source revision: {name}={revision}")
-        child = root / "sources" / name
-        exists = subprocess.run(["git", "-C", str(child), "cat-file", "-e", revision + "^{commit}"],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if exists.returncode:
-            raise ValueError(f"{name}: profile revision {revision} is unavailable; fetch component history")
-        revisions[name] = revision
-    lock = tomllib.loads(git(root / "sources/FogCast", "show",
-                           revisions["FogCast"] + ":build/native-runtime.inputs.lock.toml"))
-    if lock["mister_runtime"]["commit"] != revisions["libmister-runtime"]:
-        raise ValueError("FogCast runtime lock differs from parent runtime pin")
+        selection = describe(root, name, revision)
+        if (selection['kind'] == 'module' and not allow_development and
+                development_snapshot(root, selection['commit']) is not None):
+            raise ValueError('development snapshot source cannot satisfy release checks')
+        revisions[name] = selection["commit"]
     return revisions
+
+
+def selected_runtime_lock(raw, revision):
+    """Override the standalone default only in a disposable assembly overlay."""
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("invalid selected runtime revision")
+    original = tomllib.loads(raw)
+    if not isinstance(original.get("mister_runtime"), dict):
+        raise ValueError("native input policy lacks runtime settings")
+    section = re.search(r"(?ms)^\[mister_runtime\][ \t]*\n(.*?)(?=^\[|\Z)", raw)
+    if section is None:
+        raise ValueError("native input policy lacks runtime section")
+    body, count = re.subn(r"(?m)^commit[ \t]*=.*$", "commit = '" + revision + "'", section.group(1))
+    if count == 0:
+        body = "commit = '" + revision + "'\n" + body
+    elif count != 1:
+        raise ValueError("native input policy has multiple runtime commits")
+    generated = raw[:section.start(1)] + body + raw[section.end(1):]
+    expected = original.copy()
+    expected["mister_runtime"] = dict(original["mister_runtime"], commit=revision)
+    if tomllib.loads(generated) != expected:
+        raise ValueError("runtime selection changed unrelated assembly policy")
+    return generated

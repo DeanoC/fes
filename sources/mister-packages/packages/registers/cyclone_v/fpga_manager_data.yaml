@@ -1,0 +1,11 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.fpga_manager_data
+description: AXI configuration data aperture written while streaming an RBF.
+
+registers:
+  - name: DATA
+    offset: 0x0
+    access: wo
+    description: FPGA-manager data word.
+    address_symbols: [kFpgaDataAddress]

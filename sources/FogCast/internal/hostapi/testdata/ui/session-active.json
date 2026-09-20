@@ -1,0 +1,26 @@
+{
+  "state": "active",
+  "game_id": "megadrive-sonic-test",
+  "system": "megadrive",
+  "execution": "fpga_native",
+  "media": "active",
+  "progress": {
+    "stage": "ready",
+    "message": "session is ready"
+  },
+  "input": {
+    "state": "attached",
+    "ready": true,
+    "metrics": {
+      "frames_sent": 4,
+      "state_resyncs": 1,
+      "sequence_gaps": 0,
+      "releases": 2,
+      "capture_to_bridge_p95_ms": 1.25,
+      "bridge_to_uinput_p95_ms": 2.5,
+      "rtt_ms": 3.75,
+      "bridge_to_uinput_measurable": false,
+      "shutdown_reason": "operator_stop"
+    }
+  }
+}

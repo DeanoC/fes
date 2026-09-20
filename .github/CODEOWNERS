@@ -1,0 +1,9 @@
+# Module responsibilities are described in docs/component-boundaries.md.
+# Deano is the repository owner; add real team handles when teams are configured.
+* @DeanoC
+/sources/FogCast/ @DeanoC
+/sources/libmister-runtime/ @DeanoC
+/sources/mister-packages/ @DeanoC
+/sources/misteross/ @DeanoC
+/image/ @DeanoC
+/platform/ @DeanoC

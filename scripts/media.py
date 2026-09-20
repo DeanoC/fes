@@ -389,7 +389,7 @@ def published_package(output, configuration, profile):
 
 def provenance_for(root, fogcast, cold):
     try:
-        idle = tomllib.loads((fogcast / 'build/native-runtime.inputs.lock.toml').read_text())['idle_rbf']
+        idle = tomllib.loads((root / 'image/build/native-inputs.toml').read_text())['idle_rbf']
         if idle['install_path'] != '/usr/share/mister-runtime/idle.rbf':
             raise ValueError('noncanonical idle destination')
         return Provenance(cold['fes_revision'], PROFILE,

@@ -1,0 +1,184 @@
+package fogcast_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/DeanoC/FogCast/fogcast"
+)
+
+func TestDefaultPathsIncludesPrivateMetadataRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := fogcast.DefaultPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths.MetadataRoot != filepath.Join(home, ".cache", "fogcast", "metadata") {
+		t.Fatalf("MetadataRoot = %q", paths.MetadataRoot)
+	}
+}
+
+func TestLoadConfigDistinguishesAbsentDisabledAndEnabledMetadata(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	cases := map[string]string{
+		"absent": base,
+		"disabled": base + `
+[metadata]
+provider = "igdb"
+enabled = false
+`,
+		"enabled": base + `
+[metadata]
+provider = "igdb"
+enabled = true
+client_id = "client-id"
+client_secret = "client-secret"
+`,
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			config, err := fogcast.LoadConfig(writeConfig(t, content))
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch name {
+			case "absent":
+				if config.Metadata.Configured || config.Metadata.Enabled {
+					t.Fatalf("metadata = %#v", config.Metadata)
+				}
+			case "disabled":
+				if !config.Metadata.Configured || config.Metadata.Enabled || config.Metadata.Provider != "igdb" {
+					t.Fatalf("metadata = %#v", config.Metadata)
+				}
+			case "enabled":
+				if !config.Metadata.Configured || !config.Metadata.Enabled || config.Metadata.Provider != "igdb" || config.Metadata.ClientID != "client-id" || config.Metadata.ClientSecret != "client-secret" {
+					t.Fatalf("metadata = %#v", config.Metadata)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadMetadataConfigReadsOnlyMetadataFromFullProfile(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "Metadata.zip")
+	path := filepath.Join(dir, "metadata.toml")
+	content := `token = "not-used-by-metadata"
+request_timeout_seconds = -1
+
+[[libraries]]
+id = "invalid-but-not-applied"
+system = "unknown"
+root = "relative"
+
+[metadata]
+enabled = true
+provider = "launchbox"
+archive = "` + archive + `"
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := fogcast.LoadMetadataConfig(path)
+	if err != nil {
+		t.Fatalf("LoadMetadataConfig: %v", err)
+	}
+	if !config.Configured || !config.Enabled || config.Provider != "launchbox" || config.Archive != archive {
+		t.Fatalf("metadata = %#v", config)
+	}
+}
+
+func TestLoadMetadataConfigRequiresMetadataSection(t *testing.T) {
+	path := writeConfig(t, `token = "not-metadata"
+`)
+	if _, err := fogcast.LoadMetadataConfig(path); err == nil || !strings.Contains(err.Error(), "metadata section is required") {
+		t.Fatalf("LoadMetadataConfig error = %v", err)
+	}
+}
+
+func TestLoadConfigRejectsUnsafeEnabledMetadataConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	for name, section := range map[string]string{
+		"missing client id": `enabled = true
+provider = "igdb"
+client_secret = "secret"`,
+		"missing client secret": `enabled = true
+provider = "igdb"
+client_id = "id"`,
+		"wrong provider": `enabled = true
+provider = "steam"
+client_id = "id"
+client_secret = "secret"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fogcast.LoadConfig(writeConfig(t, base+"\n[metadata]\n"+section+"\n")); err == nil {
+				t.Fatal("unsafe metadata accepted")
+			}
+		})
+	}
+}
+
+func TestLoadConfigAcceptsLaunchBoxArchiveWithoutCredentials(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "Metadata.zip")
+	if err := os.WriteFile(archive, []byte("zip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	content := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")) + `
+[metadata]
+provider = "launchbox"
+enabled = true
+archive = "` + archive + `"
+`
+	config, err := fogcast.LoadConfig(writeConfig(t, content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !config.Metadata.Enabled || config.Metadata.Provider != "launchbox" || config.Metadata.Archive != archive || config.Metadata.ClientSecret != "" {
+		t.Fatalf("metadata = %#v", config.Metadata)
+	}
+}
+
+func TestLoadConfigRequiresExplicitIGDBProviderWhenEnabled(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	content := base + `
+[metadata]
+enabled = true
+client_id = "id"
+client_secret = "secret"
+`
+	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+		t.Fatal("enabled metadata without explicit provider accepted")
+	}
+}
+
+func TestLoadConfigRejectsNonCleanLibraryRoot(t *testing.T) {
+	dir := t.TempDir()
+	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
+	content := strings.Replace(base, filepath.Join(dir, "SNES"), dir+"/SNES/../SNES", 1)
+	if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
+		t.Fatal("non-clean library root accepted")
+	}
+}
+
+func TestLoadConfigRequiresPrivateConfigFileWhenMetadataEnabled(t *testing.T) {
+	dir := t.TempDir()
+	path := writeConfig(t, validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))+`[metadata]
+enabled = true
+provider = "igdb"
+client_id = "id"
+client_secret = "secret"
+`)
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fogcast.LoadConfig(path); err == nil {
+		t.Fatal("world-readable metadata config accepted")
+	}
+}

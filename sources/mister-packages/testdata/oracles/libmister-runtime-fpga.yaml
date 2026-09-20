@@ -1,0 +1,59 @@
+# Oracle extracted from libmister-runtime (not generated).
+# Source commit: 443b603de991b56b5f4d0d11c5bc88a3f83fad13
+# Files:
+#   src/native/linux/fpga_manager.hpp
+#   src/native/linux/spi.hpp
+#
+# diff-oracle requires every name here to be emitted with this value.
+# Extra emitted symbols (memory windows, unused banks) are allowed.
+
+source:
+  repository: DeanoC/libmister-runtime
+  commit: 443b603de991b56b5f4d0d11c5bc88a3f83fad13
+
+constants:
+  kFpgaStatusAddress: 0xff706000
+  kFpgaControlAddress: 0xff706004
+  kFpgaDclkCountAddress: 0xff706008
+  kFpgaDclkStatusAddress: 0xff70600c
+  kFpgaGpoAddress: 0xff706010
+  kFpgaMonitorEoiAddress: 0xff70684c
+  kFpgaMonitorAddress: 0xff706850
+  kFpgaDataAddress: 0xffb90000
+  kSystemManagerFpgaInterfaceAddress: 0xffd08028
+  kSdrFpgaPortResetAddress: 0xffc25080
+  kBridgeResetAddress: 0xffd0501c
+  kL3RemapAddress: 0xff800000
+  kSpiGpoAddress: 0xff706010
+  kSpiGpiAddress: 0xff706014
+  kFpgaModeMask: 0x7
+  kFpgaMselMask: 0xf8
+  kFpgaMselShift: 0x3
+  kFpgaModeReset: 0x1
+  kFpgaModeConfiguration: 0x2
+  kFpgaModeInitialization: 0x3
+  kFpgaModeUser: 0x4
+  kFpgaControlConfigurationWidthMask: 0x200
+  kFpgaControlAxiConfigurationEnableMask: 0x100
+  kFpgaControlClockDataRatioMask: 0xc0
+  kFpgaControlClockDataRatioShift: 0x6
+  kFpgaControlNconfigPullMask: 0x4
+  kFpgaControlNceMask: 0x2
+  kFpgaControlEnableMask: 0x1
+  kFpgaMonitorNstatusMask: 0x1
+  kFpgaMonitorConfDoneMask: 0x2
+  kFpgaMonitorInitDoneMask: 0x4
+  kFpgaMonitorClearAll: 0xfff
+  kFpgaCoreStateMask: 0xc0000000
+  kFpgaCoreReset: 0x40000000
+  kFpgaCoreNormal: 0x80000000
+  kSdrFpgaPortsDisabled: 0x0
+  kSdrFpgaPortsEnabled: 0x3fff
+  kBridgesInReset: 0x7
+  kBridgesReleased: 0x0
+  kL3RemapContained: 0x1
+  kL3RemapFpgaEnabled: 0x19
+  kSpiCoreIdStrobeMask: 0x80000000
+  kSpiStrobeMask: 0x20000
+  kSpiFileSelectMask: 0x40000
+  kSpiUserSelectMask: 0x100000

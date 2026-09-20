@@ -1,0 +1,22 @@
+# Minimal Quartus project for the 030_m10k_rom oracle.
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CSEBA6U23I7
+set_global_assignment -name TOP_LEVEL_ENTITY top
+set_global_assignment -name VERILOG_FILE "../../../experiments/030_m10k_rom/rtl/top.v"
+set_global_assignment -name SDC_FILE "../../../boards/de10nano/clocks.sdc"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY "output_files"
+set_global_assignment -name GENERATE_RBF_FILE ON
+set_global_assignment -name IGNORE_PARTITIONS ON
+
+# Keep the two assignments visible in the oracle project as well as in the
+# shared source.  They are identical values, so opening the staged project
+# does not depend on Tcl source-file search behavior.
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
+set_location_assignment PIN_W15 -to LED[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[0]
+
+# Reuse the authoritative board pin constraints.  There are intentionally no
+# QIP/QSYS/IP assignments: unrelated auto-generated IP is disabled for this
+# minimal oracle project.
+source "../../../boards/de10nano/pins.qsf"

@@ -1,0 +1,23 @@
+format = 2
+core.id = "fes.pong"
+core.name = "FES Pong"
+core.description = "Synthetic test-only core bundle fixture; never deploy."
+core.version = "0.1.0"
+target.platform = "de10_nano"
+target.device = "5CSEBA6U23I7"
+target.programming_profile = "fes-gp-v1"
+payload.file = "core.rbf"
+payload.size = 12
+payload.sha256 = "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"
+abi.id = "fes.simple-game"
+abi.major = 1
+abi.minor = 0
+interfaces = [
+  { id = "fes.gamepad", major = 1, minor = 0, required = true },
+  { id = "fes.video.fixed-720p60", major = 1, minor = 0, required = true },
+]
+build.id = "0123456789abcdef0123456789abcdef"
+build.repository = "https://example.invalid/fes-pong"
+build.revision = "1111111111111111111111111111111111111111"
+build.recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+build.toolchain = "synthetic fixture generator 1.0 (test-only)"

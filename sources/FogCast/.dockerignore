@@ -1,0 +1,10 @@
+.git
+.worktrees
+artifacts
+bin
+build/cache
+build/output
+dist
+local-games
+private-roms
+*.secret.toml

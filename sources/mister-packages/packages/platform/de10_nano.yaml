@@ -1,0 +1,7 @@
+schema: mister-packages.v1
+kind: platform
+id: de10_nano
+description: Designated FogCast MiSTer kit. One board, one SoC, one CPU.
+board: board/de10_nano.yaml
+soc: soc/cyclone_v.yaml
+cpu: cpu/arm_cyclone_v.yaml

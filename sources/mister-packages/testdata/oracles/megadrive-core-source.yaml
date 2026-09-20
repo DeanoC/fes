@@ -1,0 +1,19 @@
+# Oracle extracted from libmister-runtime provenance (not generated).
+# Files:
+#   docs/provenance/megadrive-20260603.md
+#   tests/fixtures/megadrive-profile-v1.txt
+
+source:
+  repository: DeanoC/libmister-runtime
+  commit: eafefd1464836c57ab0d349baba5f5e8ea9f4252
+  files:
+    - docs/provenance/megadrive-20260603.md
+    - tests/fixtures/megadrive-profile-v1.txt
+
+pin:
+  repository: https://github.com/MiSTer-devel/MegaDrive_MiSTer
+  commit: 7365a137cfd8fa6f041e964d8b953159c0ec42d9
+  rbf_path: releases/MegaDrive_20260603.rbf
+  rbf_sha256: 0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839
+  rbf_size: 4296864
+  project: MegaDrive.qpf

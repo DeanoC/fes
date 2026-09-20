@@ -1,8 +1,8 @@
 # FES
 
-Fogger Entertainment System is the starting point for developing and building
-FogCast and the native MiSTer system. Start here, select a component to work on,
-then return here to verify the assembled combination.
+Fogger Entertainment System contains the first-party source for FogCast and
+the native MiSTer system. One FES commit selects host, runtime, shared contracts
+and FPGA sources. Develop a feature across modules in one worktree and one PR.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
@@ -40,25 +40,27 @@ fallback.
 ## Start
 
 Use Linux amd64 with Git, GNU Make, Python 3.11+, Go and Docker. Go selects the
-version in the selected FogCast `go.mod` (currently 1.26.5). All component
-repositories must be accessible with your Git credentials.
+version in the selected FogCast `go.mod` (currently 1.26.5). First-party sources
+are included here; external build dependencies retain their own locks.
 
 ```sh
-git clone --recurse-submodules git@github.com:DeanoC/fes.git
+git clone git@github.com:DeanoC/fes.git
 cd fes
-make test
 make check
 make host
 ```
 
-For an existing checkout, inspect local changes before running
-`git submodule update --init --recursive`; preserve component work first.
-`make check` verifies clean pinned sources, the runtime lock, package YAML,
+For an older submodule checkout, preserve component work and use a fresh clone
+for the migration; do not overwrite nested working repositories.
+`make check` verifies clean selected modules, package YAML,
 twenty generated consumers, twenty shared fixture copies and copied source
 pins. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
+Use [focused tests](docs/test-changed.md) during development. The full `make test`
+suite provisions its pinned platform/media containers and needs Docker plus
+network access on first use; host compilation does not need them.
 
 ## Build the integrated native system
 
@@ -76,7 +78,7 @@ make verify
 ```
 
 The default `native-integration-dev` selects component revisions through the
-submodule gitlinks, retains the locked idle RBF, and installs the ordered,
+FES commit, retains the locked idle RBF, and installs the ordered,
 closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
@@ -84,7 +86,8 @@ missing, extra or misidentified packages. The FES image has no legacy bundle
 lane.
 
 The normal package-only build uses the authenticated HIP/nextpnr producers and
-their workspace-local compiler cache at `out/cache/misteross-toolchains`. A
+their shared compiler cache beneath the primary FES checkout’s `out/cache`
+(or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's format-2 producer.
 Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
@@ -126,7 +129,7 @@ remains a component build, not a parent output. `linux.img` is the target root
 filesystem; run `make media` after a verified cold build to publish the
 flashable disk image. Build, media assembly and verification do not deploy or
 contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate; see [bootable media](docs/bootable-media.md). Current gitlink diagnostic evidence is in the
+acceptance is separate; see [bootable media](docs/bootable-media.md). Historical diagnostic evidence is in the
 [dual-PLL native diagnostic](docs/dual-pll-native-diagnostic.md). Earlier clean
 two-pass evidence is in [integration validation](docs/integration-validation.md).
 
@@ -134,7 +137,11 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 
 | Command | Result |
 | --- | --- |
-| `make test` | Parent regression tests; no components or external services required |
+| `make test` | Parent, platform and image tests; requires their container prerequisites |
+| `make test-changed TEST_CHANGED_ARGS='--base origin/main'` | Affected software checks and dependent consumers |
+| `make dev-snapshot` | Freeze local edits in a separate diagnostic-only checkout |
+| `make source-status` | Read-only selected revisions, local changes and observed remote main freshness |
+| `make status` | Separate source, CI, build, hardware and deployment evidence ([guide](docs/status.md)) |
 | `make check` | Current component and shared-definition consistency |
 | `make doctor` | Selected pins/lock, Linux architecture, Go and container availability |
 | `make host` | Linux API server and CLI |
@@ -150,7 +157,7 @@ two-pass evidence is in [integration validation](docs/integration-validation.md)
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current gitlinks, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered `fes.pong`, `fes.zx81`, `fes.coleco` package set |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
@@ -159,20 +166,19 @@ package-only path.
 
 ## Development and integration
 
-Keep `sources/` clean at the indexed gitlinks. Components compile from disposable
-standalone clones under `out/work/`, which preserve each child's Git identity.
-Use separate worktrees under `out/dev/` for component changes. Builds in one
+Edit modules under `sources/` in an isolated FES worktree. Committed integration
+builds use disposable full-repository snapshots under `out/work/`, retaining the
+actual FES commit and module path. Builds in one
 checkout are serialized and each profile uses a distinct Docker output volume.
 Ambient Go and image-selection overrides are normalized.
 
-The integrator updates component gitlinks together, runs `make check`, and
-records the tested combination. See [development and handoffs](docs/development.md)
+The integrator reviews one feature diff, runs `make check`, and
+records the tested commit. See [development and handoffs](docs/development.md)
 for exact commands and how several agents can work independently.
 
-CI runs parent tests, consistency and host compilation. Configure the repository
-secret `FES_COMPONENTS_TOKEN` with read access to FES and all four private
-components; the default Actions token cannot read sibling private repositories.
-CI deliberately fails with an actionable message when this credential is absent.
+CI computes affected modules and dependent consumers, then runs their software
+checks with an always-reported integration result. The normal repository token
+is sufficient; first-party checkout needs no sibling-repository secret.
 Quartus, full image builds and physical checks run on the development machine.
 
 The normal profile installs the locked idle RBF and the ordered FES package set.

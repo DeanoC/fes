@@ -1,95 +1,102 @@
 # Working with agents through FES
 
-Every agent starts with [root AGENTS.md](../AGENTS.md). Use FES to understand the
-whole system, then move into the smallest component scope that owns the task.
-The parent is the common starting point; it is not a requirement for each worker
-to build the whole system.
+Every agent starts with [AGENTS.md](../AGENTS.md),
+[the project map](project-map.md) and the owning module's instructions. The
+first-party modules under `sources/` share the FES repository and commit history.
+Keep their architectural ownership separate while making cross-module changes
+in one branch and PR.
 
 ## 1. Route the task
 
 | Example task | Primary owner | Likely coordination |
 | --- | --- | --- |
-| Change browser launch status or library browsing | FogCast host/UI | Target agent only if an API contract changes |
-| Change upload handling or network session reporting | FogCast target agent | Runtime if local protocol changes |
-| Fix FPGA reset order, video initialization or input delivery | libmister-runtime | FogCast only for an exposed protocol change |
-| Change RTL, simulate a core or export a new RBF | misteross | Package source pin and parent artifact selection |
-| Change board/register/system definitions | mister-packages | Regenerate all affected C++/Go consumers |
-| Change selected revisions, receipts or image orchestration | FES | Relevant component owners |
+| Browser UI, game library or host API | FogCast | Target agent only if a contract changes |
+| Target HTTP requests, content transfer or session coordination | FogCast agent | Runtime for physical operations |
+| FPGA programming, media/input delivery or recovery | libmister-runtime | Agent for exposed protocol changes |
+| Shared wire definitions or generated constants | mister-packages | Every affected consumer |
+| Core RTL, simulation or package production | misteross | Shared definitions and FES artifact selection |
+| Image assembly, cache policy or integration evidence | FES | The affected modules |
 
-A cross-component change needs one integrator to reconcile the contract and
-pins. Separate workers can implement independent pieces after agreeing the
-interface. A small one-component task does not need a full team.
+A cross-module change needs one integrator to reconcile contracts, generated
+consumers and validation. Separate workers may implement independent scopes;
+delegation is useful when work is genuinely independent, not a requirement.
 
-## 2. Give each worker a concrete assignment
-
-Copy and fill this template:
+## 2. Assign a bounded scope
 
 ```text
-Task: <concrete behavior to change>
-Start: Read FES AGENTS.md and docs/project-map.md, then the owning component's
-       AGENTS.md, README and current architecture.
-Owner: <component and bounded files/modules>
-Base: <selected component commit>
-Worktree: <absolute path under out/dev/task/component>
-Interface: <inputs/outputs and any agreed cross-component change>
-Validation: <focused tests and any necessary integration evidence>
-Handoff: Explain the diff, tests, limitations and parent/consumer effects.
+Task: <concrete resulting behavior>
+Owner: <logical module and exact files/directories>
+Base: <FES commit>
+Worktree: <absolute FES task worktree>
+Interface: <contracts coordinated with other workers>
+Validation: <focused tests and integration checks>
+Handoff: <diff or authorized commit, evidence and remaining work>
 ```
 
-For example, one worker might own a FogCast status display while another owns
-an independent runtime input fix. Give them separate component worktrees. If
-both need to change the same protocol, agree the representation first and name
-who owns each side and the final integration.
+Agree file ownership before concurrent edits. Workers sharing a FES task
+worktree must not edit overlapping files independently. Separate tasks use
+separate FES worktrees, including when both tasks affect the same module.
 
-Workers should report newly discovered shared-file or contract overlap before
-editing it. Do not have multiple agents update the parent pins independently.
+## 3. Work in one repository
 
-## 3. Work in isolation
+Use the [FES worktree commands](development.md#isolate-component-work). Edit the
+owning module's tracked files there. There is no separate child checkout or
+internal gitlink update for each implementation change. Do not edit generated
+build snapshots under `out/work/`.
 
-Use the exact [worktree commands](development.md#isolate-component-work).
-Keep `sources/` clean, and do not edit the builder's `out/work/` clones. For
-parent-only changes, use a parent branch or an isolated parent checkout when
-concurrent edits would otherwise overlap.
+Run focused module tests during iteration. The
+[affected test command](test-changed.md) includes working-tree edits and dependent
+consumers; runtime changes also run host protocol tests, and shared contracts
+select all consumers. Use `make generate` for mapped definitions and fixtures,
+then inspect the diff and run `make check-generated`. Canonical source definitions
+and runtime serializer fixtures remain owned by their respective modules.
 
-Run the component's focused tests in its worktree. A bare `make` inside a
-component is not the same as `make` at the FES root. Read its targets before
-starting an expensive build or any hardware command.
-
-Parent builds consume selected committed component revisions, not a worker's
-uncommitted files. If the result is still a diff, hand back that diff and the
-worktree path. When commits are authorized, return the result commit as well.
-Do not claim that `make dev` exercised an unselected worktree change.
+Parent builds require committed module sources. Their disposable snapshots
+retain the real FES commit, module path and tree identity. Do not claim that a
+parent build tested an uncommitted edit, or that a reused FPGA package was built
+from the current commit: its original manifest and the separate selection
+provenance receipt identify the actual build and reuse.
 
 ## 4. Integrate once
 
-The integrator inspects worker results, checks overlapping changes, selects the
-compatible component commits and stages the parent gitlinks. Follow the
-[selection example](development.md#isolate-component-work). FogCast's runtime
-lock must match the selected runtime commit; package-definition changes must
-include matching generated consumers and copied source pins.
+Reconcile worker diffs in the task's FES branch, review the shared contracts and
+consumers, and make one compatible commit when authorized. No component SHA-only
+PRs are needed. FES owns `image/build/native-inputs.toml` and derives the concrete
+runtime assembly lock inside disposable build snapshots.
 
-Run `make check`, then the build appropriate to the change: `make host` for
-host outputs or `make dev` for a diagnostic native image. Reserve clean
-`make build` and `make verify` for stabilized integration. One parent build is
-allowed per checkout; agree one operator for expensive FPGA builds and physical
-kit use. Independent worker tests can continue while integration runs.
+Run `make check`, then the appropriate host or incremental image build. Reserve
+cold `make build` / `make verify` for stabilized integration. Shared compiler and
+artifact caches default to the primary FES checkout's `out/cache`; an absolute
+`FES_CACHE_ROOT` selects a different stable location. Each worktree retains its
+own mutable outputs. One parent build operates in a checkout at a time; do not
+have every worker rebuild the full image or run the same expensive simulation.
 
-Before publishing the parent, selected component commits must be available from
-their remotes so a fresh recursive clone can obtain them. Follow the user's
-existing authorization for commits, pushes and PRs.
+Ordinary kit tests require the existing target lease. Coordinate disruptive
+maintenance under [kit sharing](kit-sharing.md), preserve the exact device
+qualification and authorization, and report cleanup and release. A passing
+software test or build does not authorize deployment to another device.
+
+Follow the user's authorization for commits, pushes and PRs. The imported source
+histories and original URLs are recorded in
+[config/source-imports.toml](../config/source-imports.toml). Preserve old component
+worktrees and branches during migration; a separate fresh checkout of the reviewed
+import revision avoids destructive replacement of local component work. The
+presence of the import mapping does not claim published cutover or hardware
+acceptance of the new layout.
 
 ## 5. Return a useful handoff
 
 ```text
-Changed: <problem, resulting behavior, owning component>
-Source: <base commit; result commit or worktree + uncommitted diff>
-Checked: <commands and actual results>
-Integration: <parent pins, runtime lock, package consumers, or API effects>
+Changed: <behavior, module and bounded scope>
+Source: <base FES commit; result commit or worktree plus uncommitted diff>
+Checked: <commands and actual results, including skipped checks>
+Integration: <contract, consumer, source-selection or artifact-policy effects>
 Hardware: <not exercised, diagnostic, or exact-artifact evidence link>
-Remaining: <specific limitation or next dependency; “none” if complete>
+Remaining: <specific next dependency or none>
 ```
 
-A passing unit test is not hardware evidence. A successful image build is not a
-deployment. Link dated evidence for the exact artifact when physical testing is
-part of the task. The designated kit and its operational instructions remain in
-FogCast's [development guide](../sources/FogCast/docs/DEVELOPMENT.md).
+Keep host-only validation, hardware diagnostics and exact-image acceptance
+separate. Historical evidence applies to its recorded artifacts, not automatically
+to a new commit, imported layout or assembled image. The designated kit and its
+operating instructions remain in FogCast's
+[development guide](../sources/FogCast/docs/DEVELOPMENT.md).

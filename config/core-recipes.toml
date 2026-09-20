@@ -3,6 +3,7 @@ version = 1
 
 [[recipes]]
 core_id = "fes.pong"
+identity_version = 2
 producer_script = "scripts/build_fes_pong.py"
 producer_module = "scripts.build_fes_pong"
 authenticate = "_authenticate_tools"
@@ -16,6 +17,7 @@ quartus_role = "check only when a twin exists"
 
 [[recipes]]
 core_id = "fes.zx81"
+identity_version = 2
 producer_script = "scripts/build_fes_zx81_oss.py"
 producer_module = "scripts.build_fes_zx81_oss"
 authenticate = "_authenticate_tools"
@@ -29,10 +31,11 @@ quartus_role = "bring-up/check oracle"
 
 [[recipes]]
 core_id = "fes.coleco"
+identity_version = 2
 producer_script = "scripts/build_fes_coleco_oss.py"
 producer_module = "scripts.build_fes_coleco_oss"
 authenticate = "_authenticate_coleco_tools"
-lock_path = "cores/fes-coleco/toolchain.lock"
+lock_path = "toolchains/registered-memory.lock"
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-coleco.package-selection.toml"
@@ -42,10 +45,11 @@ quartus_role = "bring-up/check oracle"
 
 [[recipes]]
 core_id = "fes.sms"
+identity_version = 2
 producer_script = "scripts/build_fes_sms_oss.py"
 producer_module = "scripts.build_fes_sms_oss"
 authenticate = "_authenticate_sms_tools"
-lock_path = "cores/fes-sms/toolchain.lock"
+lock_path = "toolchains/registered-memory.lock"
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-sms.package-selection.toml"

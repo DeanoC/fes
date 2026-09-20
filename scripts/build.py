@@ -16,7 +16,8 @@ import sys
 import tomllib
 import tempfile
 
-from inputs import git, validate
+from inputs import git, validate, selected_runtime_lock
+import module_sources
 import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
@@ -46,6 +47,7 @@ BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",
+    "build/native-inputs.toml",
     "build/target-image-container-packages.sha256",
     "build/target-image-kernel-defconfig.sha256",
 )
@@ -190,6 +192,23 @@ def _host_profile(profile):
     return selected
 
 
+def development_classification(revisions):
+    """Report diagnostic provenance for the root and selected module commits."""
+    from inputs import development_snapshot
+    root_snapshot = development_snapshot(ROOT)
+    selected = {}
+    observed = {}
+    for name, revision in revisions.items():
+        if revision not in observed:
+            observed[revision] = development_snapshot(ROOT, revision)
+        if observed[revision] is not None:
+            selected[name] = {'revision': revision, 'snapshot': observed[revision]}
+    if root_snapshot is None and not selected:
+        return None
+    return {'classification': 'development-only', 'root': root_snapshot,
+            'selected_sources': selected}
+
+
 def host_fingerprint(revisions, profile, toolchain):
     """Fingerprint only inputs that can affect the host binaries."""
     data = {
@@ -198,6 +217,9 @@ def host_fingerprint(revisions, profile, toolchain):
         'go': toolchain,
         'recipe': recipe_fingerprint(HOST_RECIPE_FILES),
     }
+    diagnostic = development_classification(data['sources'])
+    if diagnostic is not None:
+        data['development_snapshot'] = diagnostic
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -211,6 +233,9 @@ def build_fingerprint(revisions, profile, toolchain):
     data = {"sources": revisions, "profile": host_profile, "go": toolchain,
             "recipe": recipe_fingerprint(BUILD_RECIPE_FILES),
             "image_recipe": recipe_fingerprint(image_recipe_files())}
+    diagnostic = development_classification(revisions)
+    if diagnostic is not None:
+        data['development_snapshot'] = diagnostic
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest(), data
 
 
@@ -223,6 +248,40 @@ def verification_record(output, image_sha256, baseline_match):
     return {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
             "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass",
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+
+
+def publish_host_inputs(output, fingerprint, metadata):
+    """Publish the exact fingerprint preimage without changing the host receipt schema."""
+    raw = json.dumps(metadata, sort_keys=True).encode()
+    if hashlib.sha256(raw).hexdigest() != fingerprint:
+        raise ValueError('host inputs metadata does not match fingerprint')
+    output = Path(output)
+    with tempfile.NamedTemporaryFile(prefix='.host-inputs-', dir=output, delete=False) as stream:
+        temporary = Path(stream.name)
+        try:
+            stream.write(raw)
+            stream.flush()
+            temporary.replace(output / 'host-inputs.json')
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
+def load_host_inputs(output, fingerprint):
+    """Validate optional bound metadata; old ordinary host receipts have none."""
+    path = Path(output) / 'host-inputs.json'
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(mode) or path.stat().st_size > 1024 * 1024:
+        raise ValueError('invalid host inputs sidecar')
+    raw = path.read_bytes()
+    metadata = json.loads(raw)
+    if (not isinstance(metadata, dict) or
+            raw != json.dumps(metadata, sort_keys=True).encode() or
+            hashlib.sha256(raw).hexdigest() != fingerprint):
+        raise ValueError('host inputs sidecar differs from receipt')
+    return metadata
 
 
 def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
@@ -246,6 +305,9 @@ def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
         if receipt != {'inputs': fingerprint, 'files': hashes, 'fes_revision': revision,
                        'os': os_name, 'arch': arch}:
             raise ValueError('host receipt differs from selected inputs or binaries')
+        metadata = load_host_inputs(output, fingerprint)
+        if metadata is not None and 'development_snapshot' in metadata:
+            raise ValueError('development host output is not cold qualified')
         return {'fes_revision': revision, 'host_receipt_sha256': digest(output / 'host.json'),
                 'fogcast_sha256': hashes['fogcast'], 'fogcast_api_sha256': hashes['fogcast-api'],
                 'os': os_name, 'arch': arch}
@@ -294,25 +356,27 @@ def output_volume(root, profile):
     return "fes-native-" + identity
 
 
-def source_checkout(name, revision, suffix="", restore=()):
-    # Isolate child Git identity from the parent and keep .git inside container mounts.
+def source_checkout(name, revision, suffix="", restore=None):
+    if restore is None:
+        restore = ("build/native-runtime.inputs.lock.toml",) if name == "FogCast" else ()
+    identity = module_sources.describe(ROOT, name, revision)
     path = ROOT / "out/work" / (name + "-" + revision + suffix)
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        run(["git", "clone", "--no-hardlinks", "--no-checkout",
-             ROOT / "sources" / name, path])
-        run(["git", "-C", path, "checkout", "--detach", revision])
-    status = git(path, "status", "--porcelain", "--untracked-files=all")
-    changed = {line.split(maxsplit=1)[-1] for line in status.splitlines() if line}
-    if changed and changed == set(restore):
-        for relative in restore:
-            (path / relative).write_bytes(subprocess.check_output(
-                ["git", "-C", str(path), "show", "HEAD:" + relative]
-            ))
+    module = path if identity["path"] == "." else path / identity["path"]
+    if path.exists() and module.exists():
         status = git(path, "status", "--porcelain", "--untracked-files=all")
-    if git(path, "rev-parse", "HEAD") != revision or status:
-        raise ValueError(f"staged source is changed; inspect and remove {path} before rebuilding")
-    return path
+        changed = {line.split(maxsplit=1)[-1] for line in status.splitlines() if line}
+        allowed = {str((module / relative).relative_to(path)) for relative in restore}
+        if changed and changed == allowed:
+            for relative in restore:
+                repository_path = str((module / relative).relative_to(path))
+                tracked = subprocess.run(["git", "-C", str(path), "cat-file", "-e", "HEAD:" + repository_path],
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if tracked.returncode == 0:
+                    (module / relative).write_bytes(subprocess.check_output(
+                        ["git", "-C", str(path), "show", "HEAD:" + repository_path]))
+                else:
+                    (module / relative).unlink()
+    return module_sources.materialize(ROOT, name, revision, path)
 
 
 def selected_packages(profile, profile_name):
@@ -1349,7 +1413,10 @@ def main():
                         choices=["native-integration-dev"])
     args = parser.parse_args()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
-    revisions = validate(ROOT, profile)
+    if args.action in ('host', 'dev', 'doctor'):
+        revisions = validate(ROOT, profile, allow_development=True)
+    else:
+        revisions = validate(ROOT, profile)
     mode = native_image_mode(profile)
     package_ids = selected_packages(profile, args.profile)
     if not package_ids:
@@ -1378,18 +1445,20 @@ def main():
     # Serialize this workspace only; do not share the child's default output volume.
     with locked_diagnostics(ROOT, output, args.action) as (lock, diagnostics):
         with diagnostics.measure("source staging"):
-            fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile)
+            fogcast = source_checkout("FogCast", revisions["FogCast"], "-" + args.profile,
+                                      ("build/native-runtime.inputs.lock.toml",))
             if profile.get("check_packages"):
                 from consistency import check
                 selected = {name: source_checkout(name, revision)
                             for name, revision in revisions.items() if name != "FogCast"}
                 check(ROOT, dict(selected, FogCast=fogcast))
         lock_path = fogcast / "build/native-runtime.inputs.lock.toml"
-        lock_path.write_bytes(subprocess.check_output([
-            "git", "-C", str(fogcast), "show", "HEAD:build/native-runtime.inputs.lock.toml"
-        ]))
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(selected_runtime_lock(
+            (IMAGE / "build/native-inputs.toml").read_text(),
+            revisions["libmister-runtime"]))
         fp, info = build_fingerprint(revisions, profile, toolchain)
-        host_fp, _ = host_fingerprint(revisions, profile, toolchain)
+        host_fp, host_info = host_fingerprint(revisions, profile, toolchain)
         packages = ()
         image_fp, image_info = fp, info
         if package_ids and args.action in ("build", "image", "verify", "rebuild", "dev"):
@@ -1432,6 +1501,7 @@ def main():
                     "REVISION=" + revisions["FogCast"]], env=env)
                 write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
                               os_name=profile["host_os"], arch=profile["host_arch"])
+            publish_host_inputs(output, host_fp, host_info)
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
                 output, "image", image_fp)

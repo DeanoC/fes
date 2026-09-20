@@ -4,9 +4,33 @@ import os
 import keyword
 import re
 import tomllib
+import subprocess
 from pathlib import Path
 
-TOOLCHAIN_CACHE_ROOT = Path(__file__).resolve().parents[1] / "out/cache/misteross-toolchains"
+def shared_cache_root():
+    """Share immutable caches across Git worktrees; allow an explicit location."""
+    configured = os.environ.get("FES_CACHE_ROOT")
+    if configured:
+        path = Path(configured)
+        if not path.is_absolute():
+            raise ValueError("FES_CACHE_ROOT must be absolute")
+        return path
+    root = Path(__file__).resolve().parents[1]
+    try:
+        result = subprocess.run(["git", "-C", str(root), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return root / "out/cache"  # Image verifier containers need no Git executable.
+    if result.returncode == 0:
+        common = Path(result.stdout.strip())
+        if common.name == ".git":
+            root = common.parent
+    return root / "out/cache"
+
+
+CACHE_ROOT = shared_cache_root()
+TOOLCHAIN_CACHE_ROOT = CACHE_ROOT / "misteross-toolchains"
+ARTIFACT_CACHE_ROOT = CACHE_ROOT / "core-packages"
 HIP_ROUTER = "HIP"
 HIP_ARCHITECTURES = "gfx1100;gfx1201"
 
@@ -40,10 +64,11 @@ class Format2Recipe:
     package_selection_env: str
     quartus_role: str
     cache_root: Path = TOOLCHAIN_CACHE_ROOT
+    identity_version: int = 1
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
-_RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root"}
+_RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root", "identity_version"}
 _IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
 
 
@@ -66,11 +91,14 @@ def load_recipes(path=REGISTRY_PATH):
         raise ValueError("recipes must be a nonempty array of tables")
     result, selections, environment_names = {}, set(), set()
     for entry in entries:
-        if not isinstance(entry, dict) or set(entry) != _RECIPE_FIELDS:
+        if (not isinstance(entry, dict) or not _RECIPE_FIELDS <= set(entry)
+                or set(entry) - _RECIPE_FIELDS - {"identity_version"}):
             raise ValueError("recipe fields must exactly match the version-1 schema")
+        if type(entry.get("identity_version", 1)) is not int or entry.get("identity_version", 1) not in (1, 2):
+            raise ValueError("identity_version must be 1 or 2")
         if any(not isinstance(value, str) or not value.strip()
                or any(ord(char) < 32 or ord(char) == 127 for char in value)
-               for value in entry.values()):
+               for key, value in entry.items() if key != "identity_version"):
             raise ValueError("recipe fields must be nonempty strings without control characters")
         core_id = entry["core_id"]
         if not re.fullmatch(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*", core_id):

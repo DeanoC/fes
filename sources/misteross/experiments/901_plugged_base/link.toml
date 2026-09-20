@@ -1,0 +1,14 @@
+device = "5CSEBA6U23I7"
+die = "sx120f"
+slot_column = 26
+slot_bels = ["MISTRAL_M10K.26.1.0"]
+overlay_mode = "cram_rect"
+require_slot_only = true
+
+# Tile columns 21-33: reserved BELs 25-27 plus plug FFs and H6 routing halo.
+# Exclusive x1. ECC/CRC columns 41, 42, 45 and 49 are ignored by classify_cram_diff.
+[cram_rect]
+x0 = 1769
+y0 = 32
+x1 = 2806
+y1 = 7024

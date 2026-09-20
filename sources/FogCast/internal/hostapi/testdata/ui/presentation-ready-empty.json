@@ -1,0 +1,15 @@
+{
+  "game_id": "megadrive-sonic-test",
+  "state": "ready",
+  "presentation": {
+    "summary": "",
+    "year": "",
+    "genre": "",
+    "studio": "",
+    "players": ""
+  },
+  "attribution": {
+    "provider": "igdb",
+    "label": "Data from IGDB.com"
+  }
+}

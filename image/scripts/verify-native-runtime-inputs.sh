@@ -110,10 +110,13 @@ if [ "$native_mode" = package-only ]; then
   }
   runtime_top=$(CDPATH='' cd -- "$runtime_top" && pwd -P)
   actual_root=$(CDPATH='' cd -- "$runtime_source" && pwd -P)
-  [ "$runtime_top" = "$actual_root" ] || {
-    printf '%s\n' 'verify-native-runtime-inputs: runtime source is not the checkout root' >&2
-    exit 1
-  }
+  case "$actual_root" in
+    "$runtime_top"|"$runtime_top/sources/libmister-runtime") : ;;
+    *)
+      printf '%s\n' 'verify-native-runtime-inputs: runtime source is not the checkout root or supported module' >&2
+      exit 1
+      ;;
+  esac
   actual_commit=$(git -C "$runtime_source" rev-parse --verify HEAD 2>/dev/null) || {
     printf '%s\n' 'verify-native-runtime-inputs: runtime HEAD is unavailable' >&2
     exit 1
@@ -122,7 +125,7 @@ if [ "$native_mode" = package-only ]; then
     printf '%s\n' 'verify-native-runtime-inputs: runtime HEAD does not match the lock' >&2
     exit 1
   }
-  [ -z "$(git -C "$runtime_source" status --porcelain --untracked-files=all)" ] || {
+  [ -z "$(git -C "$runtime_source" status --porcelain --untracked-files=all -- .)" ] || {
     printf '%s\n' 'verify-native-runtime-inputs: runtime checkout is dirty' >&2
     exit 1
   }

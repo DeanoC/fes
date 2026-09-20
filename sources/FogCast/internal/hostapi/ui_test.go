@@ -1,0 +1,186 @@
+package hostapi_test
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/DeanoC/FogCast/internal/hostapi"
+)
+
+func TestUIHandlerReturnsSelfContainedHTML(t *testing.T) {
+	response := httptest.NewRecorder()
+	hostapi.UIHandler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "FogCast") {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("content type = %q", got)
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("cache control = %q", got)
+	}
+}
+
+func TestUICoreLibraryManagementIsEmbeddedAndExplicit(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"Manage FPGA library", "FogCastCoreLibrary", "createController",
+		"id=\"core-library\"", "id=\"core-package-file\"", "id=\"core-media-file\"",
+		"id=\"core-entry-title\"", "id=\"core-entry-package-save\"",
+		"id=\"core-entry-media-save\"", "id=\"core-entry-media-clear\"",
+		"/api/v1/core-packages", "/api/v1/core-media", "/api/v1/library/core-entries",
+		"expected_package_id", "expected_media_id", "coreLibraryIsOpen()",
+		"Change may already be saved. Refresh to confirm",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("missing core library integration %q", token)
+		}
+	}
+	if strings.Contains(html, "{{FOGCAST_CORE_LIBRARY}}") {
+		t.Fatal("unexpanded core library asset")
+	}
+}
+
+func TestUIEscapesGameTextInBrowserTemplate(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{"textContent", "createElement", "replaceChildren"} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing safe DOM token %q", token)
+		}
+	}
+	for _, token := range []string{".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write", "eval("} {
+		if strings.Contains(html, token) {
+			t.Fatalf("assembled UI contains forbidden unsafe DOM token %q", token)
+		}
+	}
+}
+
+func TestUIIsSelfContainedAndHasLauncherStates(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	if got := strings.Count(html, "<style>"); got != 1 {
+		t.Fatalf("expected exactly one inline style, got %d", got)
+	}
+	for _, token := range []string{"<script>", "FogCastMetadata", "gamesPath", "launchRequest"} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing expected inline asset token %q", token)
+		}
+	}
+	for _, token := range []string{"<script src", "<link rel=\"stylesheet\"", "http://", "https://", "//fonts.", "@import", "url(", "onclick=", "oninput="} {
+		if strings.Contains(html, token) {
+			t.Fatalf("assembled UI contains forbidden external-resource token %q", token)
+		}
+	}
+	for _, token := range []string{
+		"loading", "empty", "no_matches", "catalog_error", "retry", "metadata_fallback",
+		"launching", "launch_success", "launch_error",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing launcher state/label token %q", token)
+		}
+	}
+}
+
+func TestUIUsesOnlyExistingAPIEndpointFamilies(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"/api/v1/games",
+		"/api/v1/session/launch",
+		"/api/v1/platforms",
+		"/api/v1/library/favorites/",
+		"/api/v1/library/collections",
+		"/api/v1/library/attract",
+		"/api/v1/library/settings",
+		"/api/v1/presentation/media/",
+		"/api/v1/health",
+		"/api/v1/debug/ui-events",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing API endpoint family %q", token)
+		}
+	}
+	if strings.Contains(html, "/api/v1/targets") || strings.Contains(html, "/api/v1/status") {
+		t.Fatal("assembled UI references an API endpoint outside the approved families")
+	}
+}
+
+func TestUIShowsTargetConnectionAndPreparationWithoutCredentials(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{"disconnected", "connecting", "ready", "active", "busy", "recovery-required", "prepare_target", "target_id"} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing discovery token %q", token)
+		}
+	}
+}
+
+func TestUIExtendsExistingSettingsPaneForLibrariesAndTargets(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		`id="settings-libraries"`, `id="add-library"`,
+		`id="settings-targets"`, `id="add-target"`,
+		`id="settings-selected-target"`, `agent.type = 'password'`,
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing settings control %q", token)
+		}
+	}
+	if strings.Contains(html, "/api/v1/targets") || strings.Contains(html, "/api/v1/settings") {
+		t.Fatal("assembled UI invented a second settings endpoint family")
+	}
+}
+
+func TestUIIncludesNewFPGASystemLabelsAndLaunchAllowlist(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"wsc: 'WonderSwan Color'",
+		"a7800: 'Atari 7800'",
+		"intv: 'Intellivision'",
+		"const SESSION_SYSTEM_ALLOWLIST = Object.freeze(Object.keys(CATALOG_PLATFORM_LABELS));",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing FPGA system label/allowlist token %q", token)
+		}
+	}
+}
+
+func TestUISemanticAccessibilityAndResponsiveShell(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		"viewport", "<main", "<h1", "aria-label", "aria-live=\"polite\"", "aria-busy",
+		"<button", "<input", ":focus-visible", "@media",
+		`id="keyboard-help"`, "Type to search", "data-keyboard-pane",
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing accessibility/responsive token %q", token)
+		}
+	}
+}
+
+func TestUIFixRoundAccessibilityContracts(t *testing.T) {
+	html := hostapi.UIHTMLForTest()
+	for _, token := range []string{
+		`id="launch-status"`, `aria-live="polite"`, `heading.id = 'detail-heading';`,
+		`aria-labelledby="detail-heading"`, `aria-pressed`,
+		`launching`, `launch_success`, `launch_error`,
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing fix-round accessibility contract %q", token)
+		}
+	}
+	if strings.Contains(html, `class="detail-empty"`) {
+		t.Fatal("assembled UI retains a non-replaceable initial detail prompt")
+	}
+	for _, token := range []string{
+		`nodes.launchStatus.textContent = presentation.text;`,
+		`nodes.launchStatus.setAttribute('role', presentation.role);`,
+		`const selected = isSelectedGame(state.selectedLiveGame, game);`,
+		`card.setAttribute('aria-pressed', String(selected));`,
+		`const heading = element('h2', '', detailHeading(game));`,
+		`nodes.detailContent.appendChild(heading);`,
+	} {
+		if !strings.Contains(html, token) {
+			t.Fatalf("assembled UI is missing exact fix-round source contract %q", token)
+		}
+	}
+}

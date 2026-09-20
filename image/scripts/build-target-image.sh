@@ -144,10 +144,14 @@ inside_build() {
     --cache /work/build/cache/target-image
 
   if [ "$inside_variant" = native-dev ]; then
+    case "${FES_RUNTIME_SOURCE_PATH:-.}" in
+      .|sources/libmister-runtime) : ;;
+      *) printf '%s\n' 'build-target-image: unsupported runtime source path' >&2; exit 2 ;;
+    esac
     NATIVE_RUNTIME_MODE=package-only \
       /work/scripts/verify-native-runtime-inputs.sh \
       "${FOGCAST_DIR}/build/native-runtime.inputs.lock.toml" \
-      /runtime-source \
+      "/runtime-source/${FES_RUNTIME_SOURCE_PATH:-.}" \
       /work/build/cache/target-image/native/idle.rbf
   fi
 
