@@ -15,7 +15,8 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.build_fes_pong import (
+from scripts.source_repository import canonical_repository
+from scripts.fes_build_common import (
     BuildError,
     _authenticate_tools,
     _cell_counts,
@@ -60,7 +61,7 @@ COLECO_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={COLECO_GPU_ROUTER}; hip-architectures={COLECO_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
-COLECO_TOOLCHAIN_LOCK = "cores/fes-coleco/toolchain.lock"
+COLECO_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
@@ -72,24 +73,25 @@ ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF = "cores/fes-coleco/constraints-oss.qsf"
 SDC = "cores/fes-coleco/clocks-oss.sdc"
 RTL_SOURCES = (
-    "cores/fes-coleco/rtl/sys_pll.v",
-    "cores/fes-coleco/rtl/pixel_pll.v",
+    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-coleco/rtl/coleco_application_gp.v",
-    "cores/fes-coleco/rtl/coleco_dpram.v",
-    "cores/fes-coleco/rtl/coleco_video_dpram.v",
-    "cores/fes-coleco/rtl/coleco_vdp.sv",
-    "cores/fes-coleco/rtl/coleco_video_720p.v",
+    "cores/fes-common/rtl/coleco_dpram.v",
+    "cores/fes-common/rtl/coleco_video_dpram.v",
+    "cores/fes-common/rtl/coleco_vdp.sv",
+    "cores/fes-common/rtl/coleco_video_720p.v",
     "cores/fes-coleco/rtl/coleco_machine.sv",
-    "cores/fes-coleco/rtl/t80pa.v",
-    "cores/fes-coleco/rtl/tv80/tv80_core.v",
-    "cores/fes-coleco/rtl/tv80/tv80_alu.v",
-    "cores/fes-coleco/rtl/tv80/tv80_mcode.v",
-    "cores/fes-coleco/rtl/tv80/tv80_reg.v",
+    "cores/fes-common/rtl/t80pa.v",
+    "cores/fes-common/rtl/tv80/tv80_core.v",
+    "cores/fes-common/rtl/tv80/tv80_alu.v",
+    "cores/fes-common/rtl/tv80/tv80_mcode.v",
+    "cores/fes-common/rtl/tv80/tv80_reg.v",
     "cores/fes-coleco/rtl/top.v",
 )
 PINNED_INPUTS = (
-    RECIPE,
+    RECIPE, "scripts/source_repository.py",
+    "scripts/fes_build_common.py",
     ABI_DEFINITION,
     COLECO_TOOLCHAIN_LOCK,
     QSF,
@@ -183,7 +185,11 @@ def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str
             _git(root, "ls-files", "--error-unmatch", "--", relative)
         except BuildError as exc:
             raise BuildError(f"pinned build input is not tracked: {relative}") from exc
-    return repositories[0], revision
+    try:
+        repository = canonical_repository(repositories[0])
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
+    return repository, revision
 
 
 def create_build_record(
@@ -504,9 +510,9 @@ def build(
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
         )
         if controlled_env is None:
-            _run_tool(commands[0], root, output / "yosys.log")
+            _run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
         else:
-            _run_tool(commands[0], root, output / "yosys.log", env=controlled_env)
+            _run_tool(commands[0], root, output / "yosys.log", env=controlled_env, output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -583,7 +589,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=1,
+    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2,
                         help="2 opts into functional input identity (single GPU; experimental)")
     parser.add_argument(
         "--best-fmax",

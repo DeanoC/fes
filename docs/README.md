@@ -16,6 +16,7 @@ host software and target root filesystem.
 | Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
 | Create a FES feature worktree and use incremental builds | [Development guide](development.md) |
 | Run affected software checks across modules | [Focused tests](test-changed.md) |
+| Publish the consolidated repository while preserving component history | [Repository cutover](repository-cutover.md) |
 | Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |

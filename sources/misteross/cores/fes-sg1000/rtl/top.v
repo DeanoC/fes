@@ -82,7 +82,7 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    fes_computer_gp mailbox (
+    fes_computer_gp gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),

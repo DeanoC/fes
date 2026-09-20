@@ -74,7 +74,7 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("cores/fes-coleco/toolchain.lock", result.stdout)
+        self.assertIn("toolchains/registered-memory.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-coleco", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
@@ -191,6 +191,20 @@ class BuildFesColecoTests(unittest.TestCase):
                         ROOT, cache_root=request.cache_root
                     )
 
+    def test_optional_verilator_warning_is_probed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            compiler = Path(temporary) / "verilator"
+            for supported in (False, True):
+                with self.subTest(supported=supported):
+                    compiler.write_text("#!/bin/sh\nexit " + ("0" if supported else "1") + "\n")
+                    compiler.chmod(0o755)
+                    result = subprocess.run(
+                        ["make", "-n", "sim-fes-coleco-vdp-io", f"VERILATOR={compiler}"],
+                        cwd=ROOT, text=True, capture_output=True, check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual("-Wno-PROCASSINIT" in result.stdout, supported)
+                    self.assertIn("-Wno-BLKSEQ", result.stdout)
+
     def test_oss_simulation_entrypoint_compiles_conditional_branches(self) -> None:
         result = subprocess.run(
             ["make", "-n", "sim-fes-coleco-oss"],
@@ -278,7 +292,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertEqual(pins["nextpnr"].commit, "0fad53a75a0218941c417ec6bb58bdede9070987")
 
     def test_coleco_uses_a_core_local_toolchain_without_downgrading_main(self) -> None:
-        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "cores/fes-coleco/toolchain.lock")
+        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
         self.assertEqual(COLECO_TOOLCHAIN_ROOT, "build/toolchain/fes-coleco")
         self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
         global_pins = load_lock(ROOT / "toolchain.lock")
@@ -314,18 +328,18 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn('BEL = "cyclonev_hps_interface_peripheral_i2c.52.60.0"', top)
         self.assertIn("`ifdef QUARTUS", top)
         self.assertIn("hdmi_scl_low ? 1'b0 : 1'bz", top)
-        dpram = (ROOT / "cores/fes-coleco/rtl/coleco_dpram.v").read_text(encoding="utf-8")
+        dpram = (ROOT / "cores/fes-common/rtl/coleco_dpram.v").read_text(encoding="utf-8")
         self.assertIn("`ifdef FES_COLECO_OSS", dpram)
         self.assertIn('ram_style = "m10k_tdp"', dpram)
         self.assertIn("assign q_a = q_a_r", dpram)
-        vdp = (ROOT / "cores/fes-coleco/rtl/coleco_vdp.sv").read_text(encoding="utf-8")
+        vdp = (ROOT / "cores/fes-common/rtl/coleco_vdp.sv").read_text(encoding="utf-8")
         self.assertIn('ramstyle = "M10K"', vdp)
         self.assertIn("raster_y", vdp)
         self.assertIn("DATAWIDTH(4)", vdp)
         self.assertIn("SPRITE_RENDER_READ", vdp)
 
     def test_quartus_vdp_uses_the_registered_multi_read_shape(self) -> None:
-        vdp = (ROOT / "cores/fes-coleco/rtl/coleco_vdp.sv").read_text(encoding="utf-8")
+        vdp = (ROOT / "cores/fes-common/rtl/coleco_vdp.sv").read_text(encoding="utf-8")
         self.assertIn("`elsif QUARTUS", vdp)
         self.assertIn("FES_COLECO_REGISTERED_VDP", vdp)
         self.assertIn("vram_name_block", vdp)
@@ -365,8 +379,8 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn('VERILOG_MACRO "QUARTUS=1"', qsf)
         self.assertIn('VERILOG_MACRO "FES_COLECO_BUILD_ID=', qsf)
         self.assertIn("cores/fes-coleco/rtl/coleco_machine.sv", qsf)
-        self.assertIn("cores/fes-coleco/rtl/tv80/tv80_core.v", qsf)
-        self.assertIn("cores/fes-coleco/rtl/coleco_vdp.sv", qsf)
+        self.assertIn("cores/fes-common/rtl/tv80/tv80_core.v", qsf)
+        self.assertIn("cores/fes-common/rtl/coleco_vdp.sv", qsf)
         self.assertNotIn("VHDL_FILE", qsf)
         self.assertIn("cores/fes-coleco/rtl/coleco_reset_rom.hex", QUARTUS_PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_reset_rom.mif", QUARTUS_PINNED_INPUTS)
@@ -376,15 +390,15 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("0000: C3 00 80 00 00;", mif)
 
     def test_video_framebuffer_uses_dual_clock_ram_boundary(self) -> None:
-        video = (ROOT / "cores/fes-coleco/rtl/coleco_video_720p.v").read_text(encoding="utf-8")
+        video = (ROOT / "cores/fes-common/rtl/coleco_video_720p.v").read_text(encoding="utf-8")
         quartus_recipe = (ROOT / "scripts/build_fes_coleco.py").read_text(encoding="utf-8")
         oss_recipe = (ROOT / "scripts/build_fes_coleco_oss.py").read_text(encoding="utf-8")
         self.assertIn("coleco_video_dpram", video)
         self.assertIn("clock_a", video)
         self.assertIn("clock_b", video)
-        self.assertIn("cores/fes-coleco/rtl/coleco_video_dpram.v", quartus_recipe)
-        self.assertIn("cores/fes-coleco/rtl/coleco_video_dpram.v", oss_recipe)
-        dpram = (ROOT / "cores/fes-coleco/rtl/coleco_video_dpram.v").read_text(encoding="utf-8")
+        self.assertIn("cores/fes-common/rtl/coleco_video_dpram.v", quartus_recipe)
+        self.assertIn("cores/fes-common/rtl/coleco_video_dpram.v", oss_recipe)
+        dpram = (ROOT / "cores/fes-common/rtl/coleco_video_dpram.v").read_text(encoding="utf-8")
         self.assertIn('read_during_write_mode_port_a = "NEW_DATA_NO_NBE_READ"', dpram)
         self.assertNotIn('read_during_write_mode_port_a = "OLD_DATA"', dpram)
 
@@ -448,7 +462,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertTrue(all(i["required"] for i in fields["interfaces"]))
         self.assertIn("cores/fes-common/rtl/fes_application_gp.v", RTL_SOURCES)
         self.assertIn("cores/fes-coleco/rtl/coleco_application_gp.v", RTL_SOURCES)
-        self.assertNotIn("cores/fes-coleco/rtl/fes_computer_gp.v", RTL_SOURCES)
+        self.assertNotIn("cores/fes-common/rtl/fes_computer_gp.v", RTL_SOURCES)
 
     def test_coleco_gpu_configuration_constants_are_consistent(self) -> None:
         self.assertEqual(COLECO_GPU_BACKEND, "hip")

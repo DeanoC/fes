@@ -1,12 +1,13 @@
 from pathlib import Path
 import json
 import tempfile
+import subprocess
 import tomllib
 import unittest
 from unittest.mock import patch
 
 from scripts import build_fes_demo as demo
-from scripts import build_fes_pong as board
+from scripts import fes_build_common as board
 from scripts.export_core_package import build_identity
 from tests import test_build_fes_pong as pong_tests
 
@@ -41,7 +42,7 @@ class ApplicationProducerTests(unittest.TestCase):
             data = json.loads(path.read_text())
             top = data["modules"]["top"]
             top["cells"]["audio_clock.pll"] = {"type": "altera_pll", "parameters":
-                {**board.PLL_PARAMETERS, "output_clock_frequency0": "12.288 MHz"}}
+                {**demo.board_evidence.PLL_PARAMETERS, "output_clock_frequency0": "12.288 MHz"}}
             if filename == "routed.json":
                 for index, (port, pin) in enumerate(demo.AUDIO_PINS.items()):
                     top["ports"][port] = {"direction": "output", "bits": [100+index]}
@@ -61,10 +62,10 @@ class ApplicationProducerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             self.audio_evidence(output)
-            self.assertEqual(board.validate_build_evidence(output, ROOT, audio=True)["timing"]["audio"]["status"], "pass")
+            self.assertEqual(pong_tests.build_fes_pong.validate_build_evidence(output, ROOT, audio=True)["timing"]["audio"]["status"], "pass")
             demo.audio_pin_evidence(ROOT, output)
             with self.assertRaises(board.BuildError):
-                board.validate_build_evidence(output, ROOT)
+                pong_tests.build_fes_pong.validate_build_evidence(output, ROOT)
             for filename, mutation in (
                 ("timing.json", lambda d: d["fmax"]["audio_clk"].update(achieved=10)),
                 ("timing.json", lambda d: d["fmax"].pop("audio_clk")),
@@ -74,7 +75,7 @@ class ApplicationProducerTests(unittest.TestCase):
                 path = output / filename
                 data = json.loads(path.read_text()); mutation(data); path.write_text(json.dumps(data))
                 with self.assertRaises(board.BuildError):
-                    board.validate_build_evidence(output, ROOT, audio=True)
+                    pong_tests.build_fes_pong.validate_build_evidence(output, ROOT, audio=True)
             for attribute, wrong in (("LOC", "PIN_U12"), ("IO_STANDARD", "2.5 V"), ("NEXTPNR_BEL", "")):
                 self.audio_evidence(output)
                 path = output / "routed.json"
@@ -108,12 +109,12 @@ class ApplicationProducerTests(unittest.TestCase):
         self.assertNotEqual(*ids)
 
     def test_dirty_source_gate_precedes_tool_use(self):
-        with patch.object(board, "_require_clean_source", side_effect=board.BuildError("dirty")) as source, \
+        with patch.object(demo, "require_clean_source", side_effect=board.BuildError("dirty")) as source, \
              patch.object(board, "_authenticate_tools") as tools:
             with self.assertRaisesRegex(board.BuildError, "dirty"):
                 demo.build(ROOT)
             tools.assert_not_called()
-            source.assert_called_once_with(ROOT, pinned_inputs=demo.PINNED_INPUTS)
+            source.assert_called_once_with(ROOT, demo.PINNED_INPUTS)
 
     def test_failed_evidence_prevents_export_and_invalidates_outputs(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -122,16 +123,17 @@ class ApplicationProducerTests(unittest.TestCase):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes((ROOT / relative).read_bytes())
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
             tools = {name: board.AuthenticatedTool(Path("/auth") / name, name)
                      for name in ("yosys", "nextpnr-mistral", "mistral")}
             output = root / demo.output_relative(False)
             def run(command, cwd, log, **kwargs):
                 self.assertTrue((output / "build-inputs.json").is_file())
                 (output / "core.rbf").write_bytes(b"unvalidated")
-            with patch.object(board, "_require_clean_source", return_value=("https://example.invalid/repo", "a" * 40)), \
+            with patch.object(demo, "require_clean_source", return_value=("https://example.invalid/repo", "a" * 40)), \
                  patch.object(board, "_authenticate_tools", return_value=tools), \
                  patch.object(board, "_run_tool", side_effect=run), \
-                 patch.object(board, "validate_build_evidence", side_effect=board.BuildError("timing failed")), \
+                 patch.object(demo.board_evidence, "validate_build_evidence", side_effect=board.BuildError("timing failed")), \
                  patch.object(demo, "export_package") as export:
                 with self.assertRaisesRegex(board.BuildError, "timing failed"):
                     demo.build(root)

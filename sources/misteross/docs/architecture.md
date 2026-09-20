@@ -1,13 +1,16 @@
 # Current build architecture
 
 misteross turns small experiment RTL into local MiSTer RBF artifacts. Network
-deployment and target lifecycle are outside this repository.
+deployment and target lifecycle are outside this module.
 
-## Functional input identity (opt-in OSS producers)
+## Functional input identity
 
-Pong, ZX81, Coleco, SMS and SG-1000 OSS producers accept `--identity-version 2`.
-The default remains
-version 1 until the new lane has routed-artifact and hardware qualification.
+Pong, ZX81, Coleco, SMS and SG-1000 OSS producers default to
+`--identity-version 2`, as do their registered FES recipes. Explicit version 1
+remains available for standalone legacy builds; Demo and Quartus producers keep
+version-1 records. Qualification belongs to each exact artifact: the earlier
+Coleco functional-identity diagnostic does not qualify rebuilt shared-source
+artifacts.
 Package manifests remain format 2; their runtime readers are unchanged. The
 external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
@@ -31,7 +34,7 @@ the real root commit, not a synthetic child commit. Export resolves that module
 below the Git root and scopes source cleanliness to it; unrelated sibling work
 is preserved. Module relocation alone does not enter the functional projection.
 
-The opt-in lane supplies an explicit environment to synthesis and routing,
+The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
 loader, Yosys and GPU overrides. It records one explicit GPU device (default 0),
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
@@ -217,7 +220,7 @@ production source lists, and OSS synthesis flags come from the closed experiment
 policy. Simulation-only models never enter either synthesis lane.
 
 `oss` uses only the pinned repository-local tools described by
-`toolchain.lock` (core recipes may select a tracked core-local compatibility
+`toolchain.lock` (core recipes may select a tracked qualified compatibility
 lock and isolated toolchain root). nextpnr writes a compressed Cyclone V RBF
 (`--compress-rbf`) so the FPGA manager can reach CONF_DONE. Generated
 sources and tools live under `build/toolchain/`. Build output lives under
@@ -244,11 +247,11 @@ not a policy selector for those producers. HIP (`gpu-router=HIP`,
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong and ZX81 use the repository-wide
-`toolchain.lock` HIP slot. Coleco keeps `cores/fes-coleco/toolchain.lock`.
-SG-1000 and SMS keep `cores/fes-sg1000/toolchain.lock` and
-`cores/fes-sms/toolchain.lock` as byte copies of the Coleco lock (Yosys
-`e2d425de`, nextpnr `0fad53a7`, Mistral `b28e30a`) so a shared cache hits that
-Coleco HIP slot rather than the repository-wide mainline slot. Local HIP tools
+`toolchain.lock` HIP slot. Coleco, SG-1000 and SMS select the single
+`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
+Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
+lock, so all three consumers share the same HIP compiler cache slot.
+Local HIP tools
 come from `make toolchain-fes` for Pong/ZX81, `make toolchain-fes-coleco` for
 Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
 for SMS. `make toolchain` remains GPU-router OFF for generic OSS experiments.
@@ -2193,7 +2196,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Coleco's OSS recipe selects `cores/fes-coleco/toolchain.lock`, builds it under `build/toolchain/fes-coleco`, and enables the HIP device backend; Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Coleco's OSS recipe selects `toolchains/registered-memory.lock`, builds it under `build/toolchain/fes-coleco`, and enables the HIP device backend; Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -2233,7 +2236,7 @@ programs hardware. `--compile-only` writes `build/fes-sg1000-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sg1000` is the OSS producer
-(`scripts/build_fes_sg1000_oss.py`). It uses `cores/fes-sg1000/toolchain.lock`
+(`scripts/build_fes_sg1000_oss.py`). It uses `toolchains/registered-memory.lock`
 (Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
 `--synth-only` runs Yosys without a clean tree and does not seal. HIP
@@ -2288,8 +2291,8 @@ programs hardware. `--compile-only` writes `build/fes-sms-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
-(`scripts/build_fes_sms_oss.py`). It uses `cores/fes-sms/toolchain.lock`
-(Coleco compatibility pin as a byte copy), SMS `constraints-oss.qsf` (Coleco
+(`scripts/build_fes_sms_oss.py`). It uses `toolchains/registered-memory.lock`
+(shared registered-memory compiler selection), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -2869,3 +2872,49 @@ Task-10 build lane is responsible for authenticating the invoked tools and
 timing result before export. Generated or ignored build products may include the
 RBF and adjacent record, but they cannot stand in for tracked recipe or ABI
 inputs. Empty `dependencies` is valid for a self-contained source tree.
+
+
+## Shared FPGA producer and RTL ownership
+
+Build entrypoints remain per core: `scripts/build_fes_pong.py` and the
+ZX81/Coleco/SMS/SG-1000 OSS producers own their recipes and package metadata.
+`scripts/fes_build_common.py` owns authenticated tools, clean input checks,
+controlled tool invocation and shared evidence primitives. Tool invocations
+explicitly name their output directory. `scripts/fes_de10nano_evidence.py`
+validates the fixed video/audio board profile with resource expectations supplied
+by Pong or the application demo; those policies are not universal core limits.
+The demo imports these shared modules directly rather than importing Pong.
+
+`cores/fes-common/rtl` owns the CPU wrapper and TV80 implementation used by
+Coleco, SMS and SG-1000, their shared PLLs, RAMs, TMS9918 video path and legacy
+simple-computer mailbox. Existing HDL module names remain unchanged. TV80 retains
+its embedded MIT notices and pinned upstream attribution; other moved files
+retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
+and constraints remain in their existing directories. Coleco, SMS and SG-1000
+share `toolchains/registered-memory.lock`; its historical Coleco-specific
+comments are preserved to keep the authenticated lock bytes and compiler cache
+identity unchanged. The different repository-wide `toolchain.lock` remains separate.
+Per-core generated simple-computer headers remain checked against mister-packages;
+consumers use their own generated include directory.
+
+The source closure includes the shared helper files and `cores/fes-common`.
+Moving these files changes authenticated source paths and therefore changes v2
+build identities even though the HDL bytes are unchanged. Old packages retain
+their original manifests and source provenance; this organization does not confer
+routed-RBF or hardware acceptance on newly built packages.
+
+Simulation Makefile targets probe whether Verilator recognizes the optional
+PROCASSINIT warning category before suppressing it. CPU simulations narrowly
+suppress BLKSEQ for the existing TV80 implementation, consistent with SMS and
+SG-1000; other warnings remain fatal.
+
+Pong, ZX81, Coleco, SMS and SG-1000 board tops name their endpoint instance `gp_mailbox`
+to avoid the SystemVerilog `mailbox` keyword collision in Verilator 5.032.
+Module names and wiring remain unchanged. This input change also requires a
+new artifact identity and qualification.
+
+The five OSS command-line producers default to identity v2, so direct Make
+builds work from the FES module checkout. Explicit `--identity-version 1` remains
+available for standalone legacy builds. `--print-commands` for a sealed legacy
+recipe requires that explicit version; synthesis-only diagnostics do not claim
+a sealed functional identity.

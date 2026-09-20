@@ -20,6 +20,7 @@ from pathlib import Path, PurePosixPath
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts.source_repository import canonical_repository
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
     MAX_PAYLOAD_SIZE,
@@ -267,6 +268,10 @@ def _require_clean_repository(root: Path, revision: str, *, repository: str | No
         raise PackageExportError(f"build input checkout is not clean: {root}")
     if repository is not None:
         remotes = _git(root, "remote", "get-url", "--all", "origin").splitlines()
+        try:
+            remotes = [canonical_repository(remote) for remote in remotes]
+        except ValueError as exc:
+            raise PackageExportError(str(exc)) from exc
         if repository not in remotes:
             raise PackageExportError("main checkout origin does not match build.repository")
 

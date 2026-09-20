@@ -177,33 +177,33 @@ class BundleTest(unittest.TestCase):
                         module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
                             recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
 
-    def test_selected_misteross_pin_enables_shared_toolchain_cache(self):
+    def test_working_misteross_module_exposes_shared_toolchain_cache_api(self):
         root = Path(__file__).resolve().parents[1]
         self.module()  # Establish the parent scripts import path.
         from module_sources import describe
-        selected = describe(root, 'misteross')
+        selected = describe(root, 'misteross', require_clean=False)
         source = root / 'sources/misteross'
         self.assertIn(selected['kind'], ('gitlink', 'module'))
-        self.assertFalse(selected['dirty'])
-        self.assertEqual(subprocess.check_output(
-            ['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(), selected['commit'])
-        subprocess.run(['git', '-C', str(source), 'diff', '--exit-code', selected['commit'], '--', '.'],
-                       check=True, capture_output=True, text=True)
+        # Inspect working bytes so contributor tests also run before commit.
+        # Production source selection separately enforces clean pinned inputs.
         producer = root / 'sources/misteross/scripts/build_fes_sms_oss.py'
         self.assertTrue(producer.is_file())
-        self.assertTrue((root / 'sources/misteross/cores/fes-sms/toolchain.lock').is_file())
+        self.assertTrue((root / 'sources/misteross/toolchains/registered-memory.lock').is_file())
         text = producer.read_text()
         self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(10,')
         self.assertRegex(text, r'(?m)^SEED = PLACER_SEEDS\[0\]$')
         module = self.module()
-        # Probe the selected producer's CLI and authentication call contract,
-        # without building tools or accepting an unrelated local checkout.
+        # Probe this working module's CLI, authentication and lock contract,
+        # without building tools or claiming committed-artifact acceptance.
         probe = '''
 import importlib
 import inspect
 import sys
 from pathlib import Path
 producer = importlib.import_module(sys.argv[1])
+assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
+locks = [value for name, value in vars(producer).items() if name.endswith("_TOOLCHAIN_LOCK")]
+assert sys.argv[4] in (locks or ["toolchain.lock"]), (sys.argv[4], locks)
 inspect.signature(getattr(producer, sys.argv[2])).bind(
     Path.cwd(), cache_root=Path("unused-cache-probe"))
 '''
@@ -215,7 +215,8 @@ inspect.signature(getattr(producer, sys.argv[2])).bind(
                     cwd=source, text=True, timeout=30)
                 self.assertIn('--cache-root', help_text)
                 subprocess.run(
-                    [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate],
+                    [sys.executable, '-c', probe, recipe.producer_module, recipe.authenticate,
+                     str(source / recipe.producer_script), recipe.lock_path],
                     cwd=source, check=True, capture_output=True, text=True, timeout=30)
         common = Path(subprocess.check_output(
             ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())
@@ -224,7 +225,7 @@ inspect.signature(getattr(producer, sys.argv[2])).bind(
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=toolchains/registered-memory.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

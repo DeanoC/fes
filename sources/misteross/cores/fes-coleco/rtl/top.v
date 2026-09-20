@@ -83,7 +83,7 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
-    coleco_application_gp mailbox (
+    coleco_application_gp gp_mailbox (
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),

@@ -47,7 +47,9 @@ def main() -> None:
                 data = subprocess.check_output(["git", "show", f"{revision}:{relative}"], cwd=root)
                 snapshot = work / name
                 snapshot.write_bytes(data)
-                selected[selected.index(root / relative)] = snapshot
+                current_relative = ("cores/fes-common/rtl/coleco_video_dpram.v"
+                                    if name == "coleco_video_dpram.v" else relative)
+                selected[selected.index(root / current_relative)] = snapshot
         for test in ("quartus_ram_tb", "quartus_media_tb"):
             binary = work / f"{test}.vvp"
             command = [args.iverilog]

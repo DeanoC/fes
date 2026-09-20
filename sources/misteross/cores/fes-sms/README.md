@@ -155,7 +155,8 @@ a format-2 package when timing passes. `--compile-only` produces the RBF and
 timing evidence without sealing. It does not program hardware.
 
 `make build-fes-sms` is the OSS recipe (`scripts/build_fes_sms_oss.py`).
-It copies Coleco `clocks-oss.sdc` and `toolchain.lock`, and uses the SMS
+It copies Coleco `clocks-oss.sdc`, selects the shared
+`toolchains/registered-memory.lock`, and uses the SMS
 `constraints-oss.qsf` (Coleco video/I2C pins plus ADV7513 I2S). Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and

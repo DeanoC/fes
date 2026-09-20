@@ -11,7 +11,7 @@ from unittest.mock import patch
 from scripts import build_fes_coleco_oss as coleco
 from scripts.export_core_package import build_identity, PackageExportError
 from scripts.functional_execution import execution_environment, execution_digest
-from scripts.build_fes_pong import _run_tool
+from scripts.fes_build_common import _run_tool
 from scripts.search_placer_qor import route_after_synth, SearchError
 
 
@@ -20,7 +20,7 @@ class FunctionalColecoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = Path(__file__).resolve().parents[1]
-            for relative in ("scripts", "cores/fes-coleco", "cores/fes-common"):
+            for relative in ("scripts", "cores/fes-coleco", "cores/fes-common", "toolchains"):
                 shutil.copytree(source / relative, root / relative,
                                 ignore=shutil.ignore_patterns("__pycache__"))
             def git(*args):
@@ -47,9 +47,9 @@ class FunctionalColecoTests(unittest.TestCase):
             git("add", "apps")
             git("commit", "-qm", "UI")
             self.assertEqual(build_identity(before), build_identity(record()))
-            for relative in ("scripts/build_fes_pong.py", "cores/fes-common/rtl/fes_application_gp.v",
+            for relative in ("scripts/fes_build_common.py", "cores/fes-common/rtl/fes_application_gp.v",
                              "cores/fes-coleco/rtl/top.v", "cores/fes-coleco/clocks-oss.sdc",
-                             "cores/fes-coleco/toolchain.lock"):
+                             "toolchains/registered-memory.lock"):
                 with self.subTest(relative=relative):
                     path = root / relative
                     original = path.read_bytes()
@@ -68,7 +68,7 @@ class FunctionalColecoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = Path(__file__).resolve().parents[1]
-            for relative in ("scripts", "cores", "boards"):
+            for relative in ("scripts", "cores", "boards", "toolchains"):
                 shutil.copytree(source / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
             def git(*args):
@@ -84,7 +84,7 @@ class FunctionalColecoTests(unittest.TestCase):
                    {"yosys": "test"}, identity_version=2, execution=execution) for producer in producers}
             module = root / "sources/fpga"
             module.mkdir(parents=True)
-            for name in ("scripts", "cores", "boards", "toolchain.lock"):
+            for name in ("scripts", "cores", "boards", "toolchains", "toolchain.lock"):
                 (root / name).rename(module / name)
             git("add", "-A")
             git("commit", "-qm", "import")
@@ -100,6 +100,20 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(build_identity(old[producer]), build_identity(record))
                     with self.assertRaises(ValueError):
                         producer._require_clean_source(module)
+                    for relative in (("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
+                                      "toolchains/registered-memory.lock")
+                                     if producer in (coleco, build_fes_sms_oss, build_fes_sg1000_oss)
+                                     else ("scripts/fes_build_common.py",)):
+                        path = module / relative
+                        original = path.read_bytes()
+                        try:
+                            path.write_bytes(original + b"\n")
+                            changed = producer.create_build_record(module, repository, revision,
+                                {"yosys": "test"}, identity_version=2, execution=execution)
+                            self.assertNotEqual(build_identity(record), build_identity(changed))
+                        finally:
+                            path.write_bytes(original)
+
 
     def test_execution_hashes_compiler_abc_and_required_support_bytes(self):
         from scripts.functional_execution import execution_inputs, _REQUIRED_YOSYS_SUPPORT
@@ -141,7 +155,7 @@ class FunctionalColecoTests(unittest.TestCase):
             env = execution_environment(root, {"yosys": Path(sys.executable)})
             with patch.dict("os.environ", {"YOSYS_DATDIR": "ambient", "HIP_VISIBLE_DEVICES": "99"}):
                 _run_tool((sys.executable, "-c", "import os,json; print(json.dumps(dict(os.environ)))"),
-                          root, root / "env.log", env=env)
+                          root, root / "env.log", env=env, output_relative=Path("build/test"))
             observed = json.loads((root / "env.log").read_text())
             self.assertNotIn("YOSYS_DATDIR", observed)
             self.assertNotIn("HIP_VISIBLE_DEVICES", observed)

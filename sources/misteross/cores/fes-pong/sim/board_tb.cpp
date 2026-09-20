@@ -180,8 +180,8 @@ int main(int argc, char **argv) {
         require(!board.root.top__DOT__player_return, "return event must last one clock");
     };
     for(unsigned i=0;i<18;++i) return_frame();
-    require(board.root.top__DOT__mailbox__DOT__current_rally==18 &&
-            board.root.top__DOT__mailbox__DOT__best_rally==18,
+    require(board.root.top__DOT__gp_mailbox__DOT__current_rally==18 &&
+            board.root.top__DOT__gp_mailbox__DOT__best_rally==18,
             "unfinished rally updates restored record immediately");
 
     // Arrange the 19th return on the exact edge accepting freeze. Its pulse
@@ -210,8 +210,8 @@ int main(int argc, char **argv) {
             "resume must retain the running game's position");
     ok(3,0);
     for(unsigned i=19;i<65540;++i) return_frame();
-    require(board.root.top__DOT__mailbox__DOT__current_rally==65535 &&
-            board.root.top__DOT__mailbox__DOT__best_rally==65535,
+    require(board.root.top__DOT__gp_mailbox__DOT__current_rally==65535 &&
+            board.root.top__DOT__gp_mailbox__DOT__best_rally==65535,
             "current and best rally must saturate at u16 max");
 
     // Both scoring sides terminate a rally independently of 0-9 score wrap.
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
             board.dut.eval(); board.pixel_tick();
             require(board.root.top__DOT__point,"point event missing");
             board.pixel_tick();
-            require(!board.root.top__DOT__point && board.root.top__DOT__mailbox__DOT__current_rally==0,
+            require(!board.root.top__DOT__point && board.root.top__DOT__gp_mailbox__DOT__current_rally==0,
                     "point must end current rally");
         }
     }
@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
             board.root.top__DOT__core__DOT__game__DOT__ai_score==0,
             "display scores must retain wrap after nine");
     ok(2,0); board.pixel_tick();
-    require(board.root.top__DOT__mailbox__DOT__best_rally==65535 &&
+    require(board.root.top__DOT__gp_mailbox__DOT__best_rally==65535 &&
             board.root.top__DOT__paddle_speed==2, "game reset must retain persistent registers");
 
     std::cout << "FES board: I2C/clock domains, restore, collision-edge freeze/resume, rally saturation and score wrap passed\n";

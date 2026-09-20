@@ -181,7 +181,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
             shutil.copy2(BOOTSTRAP, scripts / "bootstrap.sh")
             shutil.copy2(ROOT / "scripts" / "lockfile.py", scripts / "lockfile.py")
             lock_path = root / "coleco.lock"
-            shutil.copy2(ROOT / "cores/fes-coleco/toolchain.lock", lock_path)
+            shutil.copy2(ROOT / "toolchains/registered-memory.lock", lock_path)
             toolchain_root = root / "coleco-toolchain"
             environment = os.environ.copy()
             environment.update(

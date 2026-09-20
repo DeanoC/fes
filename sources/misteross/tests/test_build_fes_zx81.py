@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -93,17 +94,18 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("QUARTUS_ROOTDIR", str(raised.exception))
 
     def test_dirty_tree_is_rejected(self) -> None:
-        real_git = build_fes_zx81._git
-
-        def fake_git(root: Path, *arguments: str) -> str:
-            if arguments and arguments[0] == "status":
-                return " M cores/fes-zx81/rtl/top.v"
-            return real_git(root, *arguments)
-
-        with patch.object(build_fes_zx81, "_git", fake_git):
-            with self.assertRaises(BuildError) as raised:
-                require_clean_source(ROOT)
-        self.assertIn("clean", str(raised.exception))
+        # This legacy producer requires a standalone checkout; isolate the
+        # dirty-tree check from the monorepo's module-root rejection.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for arguments in (("init", "-q"), ("config", "user.name", "Test"),
+                              ("config", "user.email", "test@example.invalid"),
+                              ("commit", "--allow-empty", "-qm", "fixture")):
+                subprocess.run(["git", "-C", str(root), *arguments], check=True,
+                               capture_output=True)
+            (root / "untracked.v").write_text("// dirty input\n")
+            with self.assertRaisesRegex(BuildError, "clean"):
+                require_clean_source(root)
 
     def test_clocks_must_appear_in_timing_text(self) -> None:
         require_clocks("Fmax 52.00 MHz and 74.25 MHz")

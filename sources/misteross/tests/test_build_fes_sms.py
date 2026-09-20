@@ -110,7 +110,7 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("cores/fes-sms/toolchain.lock", result.stdout)
+        self.assertIn("toolchains/registered-memory.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-sms", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
@@ -151,19 +151,16 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("cores/fes-sms/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-sms/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-sms/clocks.sdc", joined)
-        self.assertEqual(SMS_TOOLCHAIN_LOCK, "cores/fes-sms/toolchain.lock")
+        self.assertEqual(SMS_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertEqual(SMS_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
         self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "0fad53a75a0218941c417ec6bb58bdede9070987")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
-        coleco_pins = load_lock(ROOT / "cores/fes-coleco/toolchain.lock")
-        self.assertEqual(pins["yosys"].commit, coleco_pins["yosys"].commit)
-        self.assertEqual(pins["nextpnr"].commit, coleco_pins["nextpnr"].commit)
-        self.assertEqual(
-            (ROOT / SMS_TOOLCHAIN_LOCK).read_bytes(),
-            (ROOT / "cores/fes-coleco/toolchain.lock").read_bytes(),
-        )
+        from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
+        self.assertEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(pins["yosys"].commit, SMS_TOOL_COMMITS["yosys"])
+        self.assertEqual(pins["nextpnr"].commit, SMS_TOOL_COMMITS["nextpnr"])
         self.assertEqual(
             (ROOT / "cores/fes-sms/clocks-oss.sdc").read_bytes(),
             (ROOT / "cores/fes-coleco/clocks-oss.sdc").read_bytes(),
@@ -210,9 +207,9 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("cores/fes-sms/rtl/sms_hdmi_i2s.v", qsf)
         self.assertIn("cores/fes-sms/rtl/sms_video_720p.v", qsf)
         self.assertIn("cores/fes-sms/rtl/top.v", qsf)
-        self.assertIn("cores/fes-coleco/rtl/tv80/tv80_core.v", qsf)
-        self.assertIn("cores/fes-coleco/rtl/coleco_vdp.sv", qsf)
-        self.assertIn("cores/fes-coleco/rtl/fes_computer_gp.v", qsf)
+        self.assertIn("cores/fes-common/rtl/tv80/tv80_core.v", qsf)
+        self.assertIn("cores/fes-common/rtl/coleco_vdp.sv", qsf)
+        self.assertIn("cores/fes-common/rtl/fes_computer_gp.v", qsf)
         self.assertNotIn("VHDL_FILE", qsf)
         self.assertNotIn("coleco_reset_rom", qsf)
         self.assertNotIn("coleco_machine.sv", qsf)
@@ -404,7 +401,7 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
         self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
-        gp = (ROOT / "cores/fes-coleco/rtl/fes_computer_gp.v").read_text(encoding="utf-8")
+        gp = (ROOT / "cores/fes-common/rtl/fes_computer_gp.v").read_text(encoding="utf-8")
         self.assertIn("if (!ENABLE_MEDIA_STREAM || media_open)", gp)
         from scripts.build_fes_sms_oss import _manifest as oss_manifest_fn
 

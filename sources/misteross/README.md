@@ -1,8 +1,18 @@
 # Open MiSTer FPGA development environment
 
-This repository builds small experimental RBF files for the MiSTer/DE10-Nano
+This module builds small experimental RBF files for the MiSTer/DE10-Nano
 Cyclone V FPGA (`5CSEBA6U23I7`). It exists to make ordinary MiSTer core
 development possible with both the open-source Mistral toolchain and Quartus.
+
+Shared producer operations live in `scripts/fes_build_common.py`; fixed
+DE10-Nano video/audio evidence lives in `scripts/fes_de10nano_evidence.py`.
+Recipes retain their own resource expectations. The five OSS producer CLIs
+and their Make entrypoints default to functional identity v2 for module checkouts;
+`--identity-version 1` retains explicit standalone legacy builds. Synthesis-only
+diagnostics remain unsealed. Reusable Coleco/SMS/SG-1000
+CPU, RAM, video and mailbox RTL lives in `cores/fes-common/rtl`; core-specific
+machines and constraints remain in their core directories. These three cores
+select one qualified compiler lock, `toolchains/registered-memory.lock`.
 
 ## What works now
 
@@ -768,9 +778,9 @@ Omitting `--cache-root` / `CACHE_ROOT` keeps the repository-local HIP
 toolchain from `make toolchain-fes` (Pong/ZX81), `make toolchain-fes-coleco`,
 `make toolchain-fes-sg1000`, or `make toolchain-fes-sms`.
 Pong and ZX81 authenticate the repository-wide `toolchain.lock` HIP slot
-(`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). Coleco keeps
-`cores/fes-coleco/toolchain.lock` and the same HIP lane without aliasing the
-root-lock cache slot. SG-1000 and SMS keep byte copies of that Coleco lock.
+(`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). Coleco, SG-1000 and SMS
+share `toolchains/registered-memory.lock` and the same HIP lane without aliasing
+the root-lock cache slot. This one lock retains the exact qualified lock bytes.
 Quartus recipes remain oracle-only for ZX81, Coleco, SG-1000, and SMS and
 are not a nextpnr fallback.
 An empty shared cache is provisioned with the same Make variable used by the

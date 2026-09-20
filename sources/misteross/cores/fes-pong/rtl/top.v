@@ -131,7 +131,7 @@ module top #(
         .gp_out(hps_to_fpga)
     );
 
-    fes_gp mailbox (
+    fes_gp gp_mailbox (
         .clk(pixel_clk),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),

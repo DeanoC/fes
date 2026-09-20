@@ -6,6 +6,8 @@ CORE ?= megadrive
 ARTIFACT ?= rebuild
 PYTHON ?= python3
 VERILATOR ?= verilator
+# Older supported Verilator releases do not define this warning category.
+VERILATOR_PROCASSINIT = $(shell $(VERILATOR) -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT)
 PONG_FRAMEWORK ?= $(CURDIR)/build/frameworks/template
 PROGRAM_TRANSPORT ?= mister
 MISTER_HOST ?=
@@ -208,7 +210,7 @@ sim-fes-zx81:
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
 		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
@@ -269,14 +271,14 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/$@" \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_machine_tb.cpp"
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
@@ -288,14 +290,14 @@ sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-os
 		-Wno-PINCONNECTEMPTY \
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-gp" \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
 	@build/sim/fes-coleco-gp/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp
 	$(VERILATOR) --cc --exe --build --top-module coleco_vdp -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp" \
-		cores/fes-coleco/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_vdp.sv \
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
 	@build/sim/fes-coleco-vdp/Vcoleco_vdp
 	@mkdir -p build/sim/fes-coleco-machine
@@ -304,21 +306,21 @@ sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-os
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine" \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
 	@build/sim/fes-coleco-machine/Vcoleco_machine
 	@mkdir -p build/sim/fes-coleco-video
 	$(VERILATOR) --cc --exe --build --top-module coleco_video_720p -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-WIDTHTRUNC -Wno-UNUSEDPARAM \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-video" \
-		cores/fes-coleco/rtl/coleco_video_dpram.v cores/fes-coleco/rtl/coleco_video_720p.v \
+		cores/fes-common/rtl/coleco_video_dpram.v cores/fes-common/rtl/coleco_video_720p.v \
 		"$(CURDIR)/cores/fes-coleco/sim/video_tb.cpp"
 	@build/sim/fes-coleco-video/Vcoleco_video_720p
 	@mkdir -p build/sim/fes-coleco-board
@@ -327,17 +329,17 @@ sim-fes-coleco: coleco-stream-diagnostic sim-fes-coleco-stream sim-fes-coleco-os
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) --public-flat-rw \
+		-Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-coleco/rtl/coleco_machine.sv \
-		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/coleco_video_720p.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/coleco_video_720p.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
@@ -360,7 +362,7 @@ sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-di
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-gp-oss" \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-coleco/sim/gp_tb.cpp"
 	@build/sim/fes-coleco-gp-oss/Vfes_computer_gp
 	@mkdir -p build/sim/fes-coleco-vdp-oss
@@ -369,8 +371,8 @@ sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-di
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-vdp-oss" \
-		cores/fes-coleco/rtl/coleco_vdp.sv cores/fes-coleco/rtl/coleco_dpram.v \
-		cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_tb.cpp"
 	@build/sim/fes-coleco-vdp-oss/Vcoleco_vdp
 	@mkdir -p build/sim/fes-coleco-machine-oss
@@ -380,14 +382,14 @@ sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-di
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT \
-		-Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine-oss" \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/machine_tb.cpp"
 	@build/sim/fes-coleco-machine-oss/Vcoleco_machine
 	@mkdir -p build/sim/fes-coleco-board-oss
@@ -397,17 +399,17 @@ sim-fes-coleco-oss: coleco-stream-diagnostic sim-fes-coleco-stream-oss coleco-di
 		-CFLAGS "-DFES_COLECO_OSS=1" \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-PROCASSINIT --public-flat-rw \
-		-Icores/fes-common/generated -Icores/fes-coleco/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) --public-flat-rw \
+		-Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board-oss" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
-		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
-		cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_video_720p.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_video_720p.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 	@build/sim/fes-coleco-board-oss/Vtop build/diagnostics/fes-coleco/graphics-i.rom \
 		build/diagnostics/fes-coleco/graphics-i-16k.rom build/diagnostics/fes-coleco/graphics-i.rom
@@ -457,13 +459,13 @@ sim-fes-sg1000: sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine" \
-		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i.rom \
@@ -479,13 +481,13 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sg1000-machine-oss" \
-		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
 	@build/sim/fes-sg1000-machine-oss/Vsg1000_machine \
 		build/diagnostics/fes-sg1000/graphics-i.rom \
@@ -525,7 +527,7 @@ sim-fes-sms: sms-diagnostic
 		-GENABLE_MEDIA_STREAM=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp" \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
 	@build/sim/fes-sms-gp/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
@@ -536,8 +538,8 @@ sim-fes-sms: sms-diagnostic
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-vdp" \
-		cores/fes-sms/rtl/sms_vdp.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-sms/rtl/sms_vdp.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-psg
@@ -563,15 +565,15 @@ sim-fes-sms: sms-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
-		cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine/Vsms_machine \
 		build/diagnostics/fes-sms/mode4.rom
@@ -586,7 +588,7 @@ sim-fes-sms-oss: sms-diagnostic
 		-GENABLE_MEDIA_STREAM=1 \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-oss" \
-		cores/fes-coleco/rtl/fes_computer_gp.v cores/fes-coleco/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/stream_tb.cpp"
 	@build/sim/fes-sms-gp-oss/Vfes_computer_gp \
 		"$(CURDIR)/cores/fes-sms/generated/stream-exchanges.json"
@@ -598,8 +600,8 @@ sim-fes-sms-oss: sms-diagnostic
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-vdp-oss" \
-		cores/fes-sms/rtl/sms_vdp.sv cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
+		cores/fes-sms/rtl/sms_vdp.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		"$(CURDIR)/cores/fes-sms/sim/vdp_tb.cpp"
 	@build/sim/fes-sms-vdp-oss/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine-oss
@@ -610,15 +612,15 @@ sim-fes-sms-oss: sms-diagnostic
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
-		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-coleco/rtl/tv80 \
+		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
 		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
-		cores/fes-coleco/rtl/coleco_vdp.sv \
-		cores/fes-coleco/rtl/coleco_dpram.v cores/fes-coleco/rtl/coleco_video_dpram.v \
-		cores/fes-coleco/rtl/t80pa.v cores/fes-coleco/rtl/tv80/tv80_core.v \
-		cores/fes-coleco/rtl/tv80/tv80_alu.v cores/fes-coleco/rtl/tv80/tv80_mcode.v \
-		cores/fes-coleco/rtl/tv80/tv80_reg.v \
+		cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine-oss/Vsms_machine \
 		build/diagnostics/fes-sms/mode4.rom
@@ -646,17 +648,17 @@ toolchain-fes:
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-coleco:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-coleco/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-coleco") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-sg1000:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-sg1000/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sg1000") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-sms:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/cores/fes-sms/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sms") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/registered-memory.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/fes-sms") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
@@ -736,7 +738,7 @@ sim-fes-coleco-stream sim-fes-coleco-stream-oss:
 		-Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL --public-flat-rw \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/$@" \
 		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v \
-		cores/fes-coleco/rtl/coleco_dpram.v "$(CURDIR)/cores/fes-coleco/sim/stream_tb.cpp"
+		cores/fes-common/rtl/coleco_dpram.v "$(CURDIR)/cores/fes-coleco/sim/stream_tb.cpp"
 	@build/sim/$@/Vcoleco_application_gp cores/fes-common/generated/stream-exchanges.json
 
 .PHONY: coleco-stream-diagnostic

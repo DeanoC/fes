@@ -48,7 +48,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_oss.py",
                 "producer_module": "scripts.build_fes_coleco_oss",
-                "lock_path": "cores/fes-coleco/toolchain.lock",
+                "lock_path": "toolchains/registered-memory.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
                 "authenticate": "_authenticate_coleco_tools",
                 "package_dir_env": "FES_COLECO_PACKAGE_DIR",
@@ -57,7 +57,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sms": {
                 "producer_script": "scripts/build_fes_sms_oss.py",
                 "producer_module": "scripts.build_fes_sms_oss",
-                "lock_path": "cores/fes-sms/toolchain.lock",
+                "lock_path": "toolchains/registered-memory.lock",
                 "selection_filename": "fes-sms.package-selection.toml",
                 "authenticate": "_authenticate_sms_tools",
                 "package_dir_env": "FES_SMS_PACKAGE_DIR",
@@ -86,7 +86,7 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(pong.lock_path, zx81.lock_path)
         self.assertNotEqual(coleco.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, pong.lock_path)
-        self.assertNotEqual(sms.lock_path, coleco.lock_path)
+        self.assertEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):

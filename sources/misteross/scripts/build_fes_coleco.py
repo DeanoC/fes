@@ -19,6 +19,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from scripts import legacy_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
 from scripts.rebuild_core import (
@@ -39,26 +40,27 @@ SDC = "cores/fes-coleco/clocks.sdc"
 RESET_ROM_HEX = "cores/fes-coleco/rtl/coleco_reset_rom.hex"
 RESET_ROM_MIF = "cores/fes-coleco/rtl/coleco_reset_rom.mif"
 VERILOG_SOURCES = (
-    "cores/fes-coleco/rtl/sys_pll.v",
-    "cores/fes-coleco/rtl/pixel_pll.v",
+    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-coleco/rtl/coleco_application_gp.v",
-    "cores/fes-coleco/rtl/coleco_dpram.v",
-    "cores/fes-coleco/rtl/coleco_video_dpram.v",
-    "cores/fes-coleco/rtl/coleco_vdp.sv",
-    "cores/fes-coleco/rtl/coleco_video_720p.v",
-    "cores/fes-coleco/rtl/t80pa.v",
-    "cores/fes-coleco/rtl/tv80/tv80_core.v",
-    "cores/fes-coleco/rtl/tv80/tv80_alu.v",
-    "cores/fes-coleco/rtl/tv80/tv80_mcode.v",
-    "cores/fes-coleco/rtl/tv80/tv80_reg.v",
+    "cores/fes-common/rtl/coleco_dpram.v",
+    "cores/fes-common/rtl/coleco_video_dpram.v",
+    "cores/fes-common/rtl/coleco_vdp.sv",
+    "cores/fes-common/rtl/coleco_video_720p.v",
+    "cores/fes-common/rtl/t80pa.v",
+    "cores/fes-common/rtl/tv80/tv80_core.v",
+    "cores/fes-common/rtl/tv80/tv80_alu.v",
+    "cores/fes-common/rtl/tv80/tv80_mcode.v",
+    "cores/fes-common/rtl/tv80/tv80_reg.v",
     "cores/fes-coleco/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
     "cores/fes-coleco/rtl/coleco_machine.sv",
 )
 PINNED_INPUTS = (
-    RECIPE,
+    RECIPE, "scripts/source_repository.py",
+    "scripts/legacy_source.py",
     ABI_DEFINITION,
     QSF_PINS,
     SDC,
@@ -120,25 +122,10 @@ def _regular_input(root: Path, relative: str) -> Path:
 
 
 def require_clean_source(root: Path) -> tuple[str, str]:
-    root = Path(root).resolve()
-    actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root:
-        raise BuildError(f"source root does not match Git checkout root: {root}")
-    revision = _git(root, "rev-parse", "HEAD")
-    if HEX40_RE.fullmatch(revision) is None:
-        raise BuildError("source HEAD is not a full lowercase Git commit")
-    if _git(root, "status", "--porcelain", "--untracked-files=all"):
-        raise BuildError("source checkout must be clean before build and export")
-    repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
-    if len(repositories) != 1:
-        raise BuildError("source checkout must have exactly one origin URL")
-    for relative in PINNED_INPUTS:
-        _regular_input(root, relative)
-        try:
-            _git(root, "ls-files", "--error-unmatch", "--", relative)
-        except BuildError as exc:
-            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
-    return repositories[0], revision
+    try:
+        return legacy_source.require_clean_source(root, PINNED_INPUTS)
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
 
 
 def authenticate_quartus(root: Path) -> tuple[Path, Path, str, str]:
@@ -163,9 +150,9 @@ def create_build_record(
         "format": 1,
         "repository": repository,
         "revision": revision,
-        "recipe": RECIPE,
+        "recipe": legacy_source.context(root).qualify(RECIPE),
         "recipe_sha256": _sha256(_regular_input(root, RECIPE)),
-        "abi_definition": ABI_DEFINITION,
+        "abi_definition": legacy_source.context(root).qualify(ABI_DEFINITION),
         "abi_definition_sha256": _sha256(_regular_input(root, ABI_DEFINITION)),
         "dependencies": {},
         "tools": dict(tool_identities),
@@ -406,7 +393,8 @@ def build(
             {
                 "build_id": build_id,
                 "device": TARGET,
-                "inputs": {relative: _sha256(root / relative) for relative in sorted(PINNED_INPUTS)},
+                "inputs": {legacy_source.context(root).qualify(relative): _sha256(root / relative)
+                           for relative in sorted(PINNED_INPUTS)},
                 "tools": identities,
                 "top": TOP,
                 "toolchain": toolchain,

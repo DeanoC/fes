@@ -830,7 +830,7 @@ class BuildFesPongTests(unittest.TestCase):
             }
             events: list[str] = []
 
-            def run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
+            def run_tool(command: tuple[str, ...], cwd: Path, log: Path, **kwargs) -> None:
                 self.assertTrue((output / "build-inputs.json").is_file())
                 events.append(Path(command[0]).name)
                 if Path(command[0]).name == "yosys":
@@ -887,7 +887,7 @@ class BuildFesPongTests(unittest.TestCase):
                 "yosys": AuthenticatedTool(Path("/tool/yosys"), "yosys identity"),
             }
 
-            def run_tool(command: tuple[str, ...], cwd: Path, log: Path) -> None:
+            def run_tool(command: tuple[str, ...], cwd: Path, log: Path, **kwargs) -> None:
                 if Path(command[0]).name == "yosys":
                     log.write_text("ok\n", encoding="utf-8")
                     self._write_passing_outputs(output, achieved=70.0)
@@ -923,7 +923,7 @@ class BuildFesPongTests(unittest.TestCase):
             payload.parent.mkdir(parents=True)
             payload.write_bytes(b"rbf")
             log = root / "build/fes-pong/nextpnr.log"
-            build_fes_pong._run_tool((str(fake),), root, log)
+            build_fes_pong._run_tool((str(fake),), root, log, output_relative=build_fes_pong.OUTPUT_RELATIVE)
             self.assertIn("Program finished normally", log.read_text(encoding="utf-8"))
 
     def test_nextpnr_nonzero_exit_without_finished_route_is_rejected(self) -> None:
@@ -934,7 +934,7 @@ class BuildFesPongTests(unittest.TestCase):
             fake.chmod(0o755)
             log = root / "nextpnr.log"
             with self.assertRaisesRegex(BuildError, "tool failed with exit 1"):
-                build_fes_pong._run_tool((str(fake),), root, log)
+                build_fes_pong._run_tool((str(fake),), root, log, output_relative=build_fes_pong.OUTPUT_RELATIVE)
 
 
 if __name__ == "__main__":

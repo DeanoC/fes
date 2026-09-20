@@ -14,7 +14,8 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.build_fes_pong import (
+from scripts.source_repository import canonical_repository
+from scripts.fes_build_common import (
     BuildError,
     _authenticate_tools,
     _cell_counts,
@@ -54,7 +55,7 @@ SMS_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SMS_GPU_ROUTER}; hip-architectures={SMS_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-sms-oss")
-SMS_TOOLCHAIN_LOCK = "cores/fes-sms/toolchain.lock"
+SMS_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
 SMS_TOOLCHAIN_ROOT = "build/toolchain/fes-sms"
 SMS_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
@@ -66,26 +67,27 @@ ABI_DEFINITION = "cores/fes-sms/generated/fes_simple_computer.vh"
 QSF = "cores/fes-sms/constraints-oss.qsf"
 SDC = "cores/fes-sms/clocks-oss.sdc"
 RTL_SOURCES = (
-    "cores/fes-coleco/rtl/sys_pll.v",
-    "cores/fes-coleco/rtl/pixel_pll.v",
-    "cores/fes-coleco/rtl/fes_computer_gp.v",
-    "cores/fes-coleco/rtl/coleco_dpram.v",
-    "cores/fes-coleco/rtl/coleco_video_dpram.v",
-    "cores/fes-coleco/rtl/coleco_vdp.sv",
+    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-common/rtl/pixel_pll.v",
+    "cores/fes-common/rtl/fes_computer_gp.v",
+    "cores/fes-common/rtl/coleco_dpram.v",
+    "cores/fes-common/rtl/coleco_video_dpram.v",
+    "cores/fes-common/rtl/coleco_vdp.sv",
     "cores/fes-sms/rtl/sms_vdp.sv",
     "cores/fes-sms/rtl/sms_psg.sv",
     "cores/fes-sms/rtl/sms_video_720p.v",
     "cores/fes-sms/rtl/sms_hdmi_i2s.v",
     "cores/fes-sms/rtl/sms_machine.sv",
-    "cores/fes-coleco/rtl/t80pa.v",
-    "cores/fes-coleco/rtl/tv80/tv80_core.v",
-    "cores/fes-coleco/rtl/tv80/tv80_alu.v",
-    "cores/fes-coleco/rtl/tv80/tv80_mcode.v",
-    "cores/fes-coleco/rtl/tv80/tv80_reg.v",
+    "cores/fes-common/rtl/t80pa.v",
+    "cores/fes-common/rtl/tv80/tv80_core.v",
+    "cores/fes-common/rtl/tv80/tv80_alu.v",
+    "cores/fes-common/rtl/tv80/tv80_mcode.v",
+    "cores/fes-common/rtl/tv80/tv80_reg.v",
     "cores/fes-sms/rtl/top.v",
 )
 PINNED_INPUTS = (
-    RECIPE,
+    RECIPE, "scripts/source_repository.py",
+    "scripts/fes_build_common.py",
     ABI_DEFINITION,
     SMS_TOOLCHAIN_LOCK,
     QSF,
@@ -177,7 +179,11 @@ def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str
             _git(root, "ls-files", "--error-unmatch", "--", relative)
         except BuildError as exc:
             raise BuildError(f"pinned build input is not tracked: {relative}") from exc
-    return repositories[0], revision
+    try:
+        repository = canonical_repository(repositories[0])
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
+    return repository, revision
 
 
 def create_build_record(
@@ -240,7 +246,7 @@ def build_commands(
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
         f"read_verilog -sv -DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 "
-        f"-I cores/fes-sms/generated -I cores/fes-coleco/generated {sources}; "
+        f"-I cores/fes-sms/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
         f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
@@ -470,7 +476,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
         )
-        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}))
+        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}), output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -552,7 +558,7 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
         build_id,
         {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
     )
-    _run_tool(yosys, root, output / "yosys.log")
+    _run_tool(yosys, root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
     evidence = validate_synth_evidence(output)
@@ -579,7 +585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument(
         "--synth-only",
@@ -588,7 +594,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
     try:
-        if arguments.identity_version == 2 and (arguments.print_commands or arguments.synth_only):
+        if arguments.identity_version == 2 and arguments.print_commands and not arguments.synth_only:
             raise BuildError("functional identity requires a full controlled build")
         if arguments.print_commands:
             root = arguments.root.resolve()

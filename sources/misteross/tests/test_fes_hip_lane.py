@@ -61,6 +61,21 @@ def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
 
 
 class FesHipLaneTests(unittest.TestCase):
+    def test_producer_cli_defaults_functional_identity_and_retains_explicit_v1(self) -> None:
+        from scripts import build_fes_sms_oss, build_fes_sg1000_oss
+        for producer in (build_fes_pong, build_fes_zx81_oss, build_fes_coleco_oss,
+                         build_fes_sms_oss, build_fes_sg1000_oss):
+            for arguments, expected in (([], 2), (["--identity-version", "1"], 1)):
+                with self.subTest(producer=producer.__name__, version=expected), \
+                        patch.object(producer, "build", return_value=Path("/pkg")) as built:
+                    self.assertEqual(producer.main(arguments), 0)
+                    self.assertEqual(built.call_args.kwargs.get("identity_version", 1), expected)
+        for producer in (build_fes_sms_oss, build_fes_sg1000_oss):
+            with self.subTest(diagnostic=producer.__name__), \
+                    patch.object(producer, "synth", return_value={"synthesis_cells": {}}) as synth:
+                self.assertEqual(producer.main(["--synth-only"]), 0)
+                synth.assert_called_once()
+
     def test_producer_clis_forward_cache_root(self) -> None:
         pong = build_fes_pong._parser().parse_args(["--cache-root", "/tmp/fes-cache"])
         self.assertEqual(pong.cache_root, Path("/tmp/fes-cache"))
@@ -223,7 +238,7 @@ class FesHipLaneTests(unittest.TestCase):
                 seen.append(cache_root)
                 return tools
 
-            def run_tool(command, cwd, log):
+            def run_tool(command, cwd, log, **kwargs):
                 log.parent.mkdir(parents=True, exist_ok=True)
                 log.write_text("ok\n", encoding="utf-8")
                 if log.name == "yosys.log":
@@ -279,7 +294,7 @@ class FesHipLaneTests(unittest.TestCase):
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
         self.assertIn("FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201'", result.stdout)
         self.assertIn("scripts/bootstrap.sh", result.stdout)
-        self.assertNotIn("cores/fes-coleco/toolchain.lock", result.stdout)
+        self.assertNotIn("toolchains/registered-memory.lock", result.stdout)
         self.assertNotIn("build/toolchain/fes-coleco", result.stdout)
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(makefile, r"\.PHONY:.*\btoolchain-fes\b")

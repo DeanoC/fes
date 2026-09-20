@@ -69,7 +69,7 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-coleco
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
-  FES_TOOLCHAIN_LOCKFILE=cores/fes-coleco/toolchain.lock \
+  FES_TOOLCHAIN_LOCKFILE=toolchains/registered-memory.lock \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict

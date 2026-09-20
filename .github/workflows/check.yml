@@ -40,7 +40,9 @@ jobs:
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          EVENT: ${{ github.event_name }}
         run: |
+          if [ "$EVENT" = workflow_dispatch ]; then BASE=0000000000000000000000000000000000000000; fi
           python3 -m unittest tests.test_affected tests.test_check_diff -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD"
   parent-tests:
@@ -102,6 +104,8 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_build_fes_*.py' -v
           python3 -m unittest discover -s tests -p 'test_functional_identity.py' -v
           python3 -m unittest discover -s tests -p 'test_export_core_package.py' -v
+          python3 -m unittest discover -s tests -p 'test_legacy_source.py' -v
+          python3 -m unittest discover -s tests -p 'test_source_repository.py' -v
           python3 -m unittest discover -s tests -p 'test_core_package.py' -v
           python3 -m unittest discover -s tests -p 'test_search*.py' -v
           make sim-fes-demo sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-sms sim-fes-sms-oss sim-fes-sg1000 sim-fes-sg1000-oss

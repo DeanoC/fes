@@ -46,8 +46,6 @@ def main() -> None:
             "-DQUARTUS=1",
             "-I",
             str(root / "cores/fes-sg1000/generated"),
-            "-I",
-            str(root / "cores/fes-coleco/generated"),
             "-s",
             test,
             "-o",
