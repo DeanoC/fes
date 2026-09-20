@@ -3,12 +3,6 @@
 // the C++ testbench; this is not a PLL-lock, timing, or hardware model.
 /* verilator lint_off DECLFILENAME */
 /* verilator lint_off UNUSEDSIGNAL */
-module fes_audio_pll(input wire refclk, output wire clk, output wire locked);
-    // Board video cases do not assert analog clock behavior. Audio's dedicated
-    // simulation supplies independent clocks and decodes the serial output.
-    assign clk = refclk;
-    assign locked = 1'b1;
-endmodule
 module cyclonev_hps_interface_mpu_general_purpose (
     input wire [31:0] gp_in,
     output reg [31:0] gp_out
@@ -44,11 +38,14 @@ module cyclonev_hps_interface_peripheral_i2c (
     end
 endmodule
 
-module sys_pll (
+module coleco_system_pll (
     input wire refclk,
     input wire rst,
-    output reg outclk_0
+    output reg outclk_0,
+    output wire audio_clk, locked
 );
+    assign audio_clk = refclk;
+    assign locked = 1'b1;
     initial outclk_0 = 1'b0;
 endmodule
 

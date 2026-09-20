@@ -84,10 +84,10 @@ module coleco_machine (
     // reduced machine's CPU cadence. Fractional enable has <1 system tick jitter.
     reg [25:0] psg_phase = 0;
     wire [26:0] psg_next = {1'b0, psg_phase} + 27'd3579545;
-    wire psg_ce = psg_next >= 27'd52000000;
+    wire psg_ce = psg_next >= 27'd52224000;
     always @(posedge clk_sys)
         if (machine_reset) psg_phase <= 0;
-        else psg_phase <= psg_ce ? 26'(psg_next - 27'd52000000) : psg_next[25:0];
+        else psg_phase <= psg_ce ? 26'(psg_next - 27'd52224000) : psg_next[25:0];
     fes_sn76489 psg (
         .clk(clk_sys), .reset(machine_reset), .ce(psg_ce),
         .write(vdp_bus_ce && !nIORQ && !nWR && cpu_addr[7:5] == 3'b111),
@@ -180,7 +180,9 @@ module coleco_machine (
         ce_counter = 5'h00;
     end
 
-    // The reference machine runs from 52 MHz. These pulses retain the
+    // This audio-capable profile runs at 52.224 MHz (+0.43% from 52 MHz).
+    // The reduced CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
+    // These pulses retain the
     // proven ZX81 TV80 half-cycle shape while approximating the Coleco 3.58
     // MHz CPU/VDP cadence for the first OSS route.
     always @(negedge clk_sys) begin

@@ -21,6 +21,9 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
   the PSG and serializes silence while audio clocks continue. Host simulation
   covers real CPU writes, tone/noise rates, attenuation and asynchronous stereo
   transfer; routed and physical audio acceptance are separate checks.
+  System/audio share a dual-output PLL: 52.224/12.288 MHz. The reduced CPU
+  and logical raster run 0.43% faster than the previous 52 MHz profile;
+  HDMI pixel timing and 48 kHz sample rate stay fixed.
   `make sim-fes-coleco-audio` runs the focused audio simulations.
 
 - Coleco fixed 32 KiB cartridges use the shared CRC-checked blob-stream endpoint;

@@ -5,7 +5,7 @@
 `endif
 
 // DE10-Nano shell for the reduced ColecoVision machine. The mailbox and
-// machine remain in the 52 MHz system domain; the logical frame buffer crosses
+// machine remain in the 52.224 MHz system domain; the logical frame buffer crosses
 // to the independent 74.25 MHz HDMI pixel domain in coleco_video_720p.
 module top #(
     parameter [127:0] BUILD_ID = `FES_COLECO_BUILD_ID
@@ -40,7 +40,6 @@ module top #(
     wire logical_blank;
     wire [15:0] audio_sample;
     wire audio_clk, audio_locked;
-    fes_audio_pll audio_clock (.refclk(FPGA_CLK1_50), .clk(audio_clk), .locked(audio_locked));
     fes_audio_output audio (
         .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked), .hold(exec_reset),
         .left_sample(audio_sample), .right_sample(audio_sample),
@@ -84,10 +83,10 @@ module top #(
     );
 `endif
 
-    sys_pll system_clock (
+    coleco_system_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (

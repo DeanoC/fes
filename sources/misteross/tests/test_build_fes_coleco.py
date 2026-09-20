@@ -44,11 +44,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesColecoTests(unittest.TestCase):
+    def test_both_producers_constrain_audio_pins(self):
+        from scripts import build_fes_coleco
+        for qsf in (build_fes_coleco.QSF_PINS, build_fes_coleco_oss.QSF):
+            text = (ROOT / qsf).read_text()
+            for port, pin in build_fes_coleco_oss.AUDIO_PINS.items():
+                self.assertIn(f"set_location_assignment {pin} -to {port}", text)
+                self.assertIn(f'set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to {port}', text)
+
     def test_audio_evidence_rejects_missing_constant_and_wrong_pin_outputs(self):
         import copy
         pins = build_fes_coleco_oss.AUDIO_PINS
         cells = {"audio_clock.pll": {"type": "altera_pll", "parameters": {
-            "output_clock_frequency0": "12.288 MHz", "reference_clock_frequency": "50.0 MHz"}}}
+            "output_clock_frequency0": "52.224 MHz", "output_clock_frequency1": "12.288 MHz",
+            "reference_clock_frequency": "50.0 MHz"}}}
         ports = {}
         for index, (port, pin) in enumerate(pins.items()):
             ports[port] = {"direction": "output", "bits": [index]}

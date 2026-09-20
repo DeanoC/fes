@@ -204,7 +204,7 @@ interface follows the [TI SN76489AN data sheet](https://map.grauw.nl/resources/s
 The level table and latch/data approach reuse the earlier SMS implementation
 from misteross commit `6f56a8f`; Coleco uses TI noise feedback and a period-zero
 reload of one, rather than the Sega variant. A fractional enable produces an
-average 3,579,545 Hz chip clock from the 52 MHz system clock. This preserves
+average 3,579,545 Hz chip clock from the 52.224 MHz system clock. This preserves
 audio pitch independently of the reduced machine's CPU/video cadence.
 
 `fes_audio_output.v` connects system-domain signed stereo samples to the
@@ -216,8 +216,13 @@ not an audio FIFO). HOLD synchronizes into the audio domain and substitutes
 zero, while PLL unlock gates data immediately and resets framing. Transfer
 state survives lock loss to avoid interpreting a stale acknowledgement as a
 new sample. The custom tone demo remains a native audio-clock source and needs
-no CDC. Coleco adds the 12.288 MHz PLL alongside its system and video PLLs;
-the producer checks audio timing and each output pad before packaging.
+no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
+417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
+the separate video PLL. This raises the reduced CPU and logical raster cadence
+by 0.43% from the old 52 MHz profile; the CPU remains /16 (3.264 MHz), not
+cycle-accurate NTSC. HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
+The producer checks all three timing domains and each audio output pad before
+packaging. SG-1000/SMS keep their existing shared 52 MHz system PLL.
 
 `make sim-fes-coleco-audio` checks tone periods, attenuation, noise, coherent
 asynchronous stereo transfer, serial padding, hold and lock loss. The existing
