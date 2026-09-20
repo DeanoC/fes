@@ -177,10 +177,12 @@ func TestLoadCoreReportsTheExactRequestWriteBoundary(t *testing.T) {
 		status := fixtureLines(t, "protocol-v2.jsonl")[1]
 		fixture := newNegotiationOnlySocketFixture(t, status+"\n")
 		_, err := NewClient(fixture.path).LoadCore(context.Background(), "/tmp/package", fixturePackageID)
-		if err == nil || protocol2MutationAttempted(err) {
+		if !errors.Is(err, errRuntimeConnection) || protocol2MutationAttempted(err) {
 			t.Fatalf("attempted=%t error=%v", protocol2MutationAttempted(err), err)
 		}
-		fixture.wait(t)
+		if got := fixture.wait(t); len(got) != 1 || got[0] != `{"protocol":2,"operation":"status"}` {
+			t.Fatalf("requests = %q", got)
+		}
 	})
 	t.Run("response lost after mutation write", func(t *testing.T) {
 		status := fixtureLines(t, "protocol-v2.jsonl")[1]
@@ -386,16 +388,24 @@ func newNegotiationOnlySocketFixture(t *testing.T, response string) *sequenceSoc
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = listener.Close() })
 	fixture := &sequenceSocketFixture{path: path, done: make(chan fixtureResult, 1)}
 	go func() {
 		connection, acceptErr := listener.Accept()
 		result := fixtureResult{err: acceptErr}
 		if acceptErr == nil {
 			result.request, result.err = readNewline(connection)
+			// Stop accepting mutation connections before publishing negotiation
+			// success. The accepted status connection remains usable after Close.
+			// Closing afterwards races the client's next dial and can legitimately
+			// allow a complete mutation write before the reply is lost.
+			closeErr := listener.Close()
+			if result.err == nil {
+				result.err = closeErr
+			}
 			if result.err == nil {
 				_, result.err = writeAll(connection, response)
 			}
-			_ = listener.Close()
 			_ = connection.Close()
 		}
 		fixture.done <- result
