@@ -799,27 +799,41 @@ FES_TOOLCHAIN_CACHE_ROOT is still supported for callers that already use the
 internal spelling; if both variables are set they must name the same absolute
 path.
 
-`FES_ROOT` is the FES parent checkout (not this misteross worktree). The
-parent cache lives at `${FES_ROOT}/out/cache/misteross-toolchains`. Both
+For direct producer reuse inside the FES monorepo, derive the compiler cache
+from the selected parent's `recipes.TOOLCHAIN_CACHE_ROOT`. It resolves the
+primary checkout through Git's common directory and honors `FES_CACHE_ROOT`,
+so task worktrees use the same authenticated cache as parent builds. Both
 `CACHE_ROOT=… make build-fes-pong` and `make build-fes-pong CACHE_ROOT=…`
 are valid; Make clears `MAKEFLAGS`/`MFLAGS` for the producer in either form.
+Standalone misteross checkouts can instead supply an explicit absolute
+`CACHE_ROOT` using the commands above.
 
 ```sh
-CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-pong
-make build-fes-pong CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
-CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-zx81
-make build-fes-zx81 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
-CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-coleco
-make build-fes-coleco CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
-CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-sg1000
-make build-fes-sg1000 CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
-CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains" make build-fes-sms
-make build-fes-sms CACHE_ROOT="${FES_ROOT}/out/cache/misteross-toolchains"
-python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
-python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
-python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
-python3 scripts/build_fes_sg1000_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
-python3 scripts/build_fes_sms_oss.py --root "$PWD" --cache-root "${FES_ROOT}/out/cache/misteross-toolchains"
+# From the sources/misteross directory of the selected FES worktree:
+FES_ROOT="$(git rev-parse --show-toplevel)"
+FES_COMPILER_CACHE="$(python3 - "$FES_ROOT" <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(sys.argv[1]) / "scripts"))
+from recipes import TOOLCHAIN_CACHE_ROOT
+print(TOOLCHAIN_CACHE_ROOT)
+PY
+)"
+CACHE_ROOT="${FES_COMPILER_CACHE}" make build-fes-pong
+make build-fes-pong CACHE_ROOT="${FES_COMPILER_CACHE}"
+CACHE_ROOT="${FES_COMPILER_CACHE}" make build-fes-zx81
+make build-fes-zx81 CACHE_ROOT="${FES_COMPILER_CACHE}"
+CACHE_ROOT="${FES_COMPILER_CACHE}" make build-fes-coleco
+make build-fes-coleco CACHE_ROOT="${FES_COMPILER_CACHE}"
+CACHE_ROOT="${FES_COMPILER_CACHE}" make build-fes-sg1000
+make build-fes-sg1000 CACHE_ROOT="${FES_COMPILER_CACHE}"
+CACHE_ROOT="${FES_COMPILER_CACHE}" make build-fes-sms
+make build-fes-sms CACHE_ROOT="${FES_COMPILER_CACHE}"
+python3 scripts/build_fes_pong.py --root "$PWD" --cache-root "${FES_COMPILER_CACHE}"
+python3 scripts/build_fes_zx81_oss.py --root "$PWD" --cache-root "${FES_COMPILER_CACHE}"
+python3 scripts/build_fes_coleco_oss.py --root "$PWD" --cache-root "${FES_COMPILER_CACHE}"
+python3 scripts/build_fes_sg1000_oss.py --root "$PWD" --cache-root "${FES_COMPILER_CACHE}"
+python3 scripts/build_fes_sms_oss.py --root "$PWD" --cache-root "${FES_COMPILER_CACHE}"
 ```
 
 A nextpnr command that merely contains `--router gpu` is not sufficient: the

@@ -326,3 +326,10 @@ and cache reuse. Its canonical JSON digest equals `host.json.inputs`; snapshot
 builds include explicit `development-only` provenance there. Cold host readers
 validate this sidecar when present and reject diagnostic output. Historical
 ordinary receipts without the sidecar remain readable.
+
+For a missing authenticated compiler slot, use the recipe-specific command
+printed by FES, then rerun the original build. It includes the selected shared
+cache, lock and HIP settings. See [compiler provisioning](core-packages.md)
+for clean-module provisioning commands. A plain `make toolchain` without those
+settings can populate a different slot. Manual provisioning inherits shell
+compiler overrides that FES normally removes for producer execution.

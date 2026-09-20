@@ -1,7 +1,7 @@
 # FPGA cartridge expansion
 
-Freeze-scaffold compose lives in misteross. FES only selects a misteross
-revision; it does not overlay CRAM or merge cart JSON.
+Freeze-scaffold compose lives in the `sources/misteross` module. The FES
+commit selects its source; FES does not overlay CRAM or merge cart JSON.
 
 The DE10-Nano has no partial reconfiguration. A composed cartridge is one
 full-chip development RBF: a frozen empty socket plus an independent cart
@@ -10,13 +10,14 @@ factory package, not FogCast format-3, and it does not seal `fes.zx81`.
 
 ## Work in misteross
 
-Keep `sources/misteross` on the selected pin. Create a worktree:
+From the FES repository root, create an isolated FES worktree and enter its
+misteross module:
 
 ```sh
 mkdir -p out/dev/expansion
-git -C sources/misteross worktree add \
-  "$PWD/out/dev/expansion/misteross" HEAD
-cd out/dev/expansion/misteross
+git worktree add -b fpga-expansion \
+  "$PWD/out/dev/expansion/fes" HEAD
+cd out/dev/expansion/fes/sources/misteross
 ```
 
 Follow the misteross README
@@ -24,11 +25,13 @@ Follow the misteross README
 section there. The compose entry point is
 `scripts/build_fes_slot.py`. The linker is `scripts/link_static_rbf.py`.
 
-The selected misteross pin is `744906e` ([misteross #79](https://github.com/DeanoC/misteross/pull/79)).
-Repository `toolchain.lock` is nextpnr `d672fade`, so
+The compose support originated in [misteross #79](https://github.com/DeanoC/misteross/pull/79);
+that historical component revision is not the current source selection.
+Within the selected module, `toolchain.lock` pins nextpnr `d672fade`, so
 `make toolchain-fes` then `scripts/build_fes_slot.py` compose without a
-sidecar. Coleco, SG-1000 and SMS keep their core-local `0fad53a7` HIP slot.
-`NEXTPNR_MISTRAL` still overrides the binary.
+sidecar. Coleco, SG-1000 and SMS share `toolchains/registered-memory.lock`
+and its separate `0fad53a7` HIP slot. `NEXTPNR_MISTRAL` still overrides
+the compose binary.
 
 ## Kit
 

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import stat
+import shlex
 import subprocess
 import sys
 
@@ -99,8 +100,15 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         raise ValueError(
             f"cannot derive authenticated {recipe.core_id} build inputs in {source}; "
             f"inspect the producer error and, if the shared toolchain slot is missing, run "
-            f"{recipe.producer_script} --cache-root {recipe.cache_root} after "
-            f"make -C {source} toolchain with the recipe lock {recipe.lock_path}"
+            + shlex.join(['env',
+                'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
+                'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
+                'FES_TOOLCHAIN_GPU_ROUTER=' + recipe.gpu_router,
+                'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
+                'make', '-C', str(source), 'toolchain']) +
+            '; then rerun the original FES command. Use a shell without compiler/toolchain '
+            'overrides: FES producer_environment sanitizes those overrides for producers, '
+            'but this manual provisioning command inherits your shell environment.'
         ) from error
     canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"),
                            sort_keys=True).encode("utf-8") + b"\n"

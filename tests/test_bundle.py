@@ -5,6 +5,7 @@ from dataclasses import replace
 import os
 from pathlib import Path
 import subprocess
+import shlex
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,26 @@ class BundleTest(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
+
+    def test_missing_compiler_guidance_binds_recipe_and_quotes_paths(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory(prefix="fes quote ' space ") as temporary:
+            source = Path(temporary)
+            for core in ('fes.pong', 'fes.coleco'):
+                recipe = replace(module.recipe_for(core), cache_root=source / "cache with ' quote")
+                with patch.object(module, 'authenticate_misteross_origin'), \
+                        patch.object(module.subprocess, 'check_output', side_effect=subprocess.CalledProcessError(1, ['producer'])):
+                    with self.assertRaises(ValueError) as failure:
+                        module.canonical_package_record(source, recipe=recipe)
+                message = str(failure.exception)
+                command = message.split('slot is missing, run ', 1)[1].split('; then rerun', 1)[0]
+                self.assertEqual(shlex.split(command), ['env',
+                    'FES_TOOLCHAIN_CACHE_ROOT=' + str(recipe.cache_root),
+                    'FES_TOOLCHAIN_LOCKFILE=' + str(source / recipe.lock_path),
+                    'FES_TOOLCHAIN_GPU_ROUTER=' + recipe.gpu_router,
+                    'FES_TOOLCHAIN_HIP_ARCHITECTURES=' + recipe.hip_architectures,
+                    'make', '-C', str(source), 'toolchain'])
+                self.assertIn('manual provisioning command inherits', message)
 
     def test_unknown_origins_are_rejected_without_forging_provenance(self):
         module = self.module()
@@ -222,6 +243,10 @@ inspect.signature(getattr(producer, sys.argv[2])).bind(
             ['git', '-C', root, 'rev-parse', '--path-format=absolute', '--git-common-dir'], text=True).strip())
         self.assertEqual(module.TOOLCHAIN_CACHE_ROOT, common.parent / 'out/cache/misteross-toolchains')
         docs = (root / 'docs/core-packages.md').read_text()
+        self.assertIn('work="$PWD/sources/misteross"', docs)
+        self.assertIn('from recipes import TOOLCHAIN_CACHE_ROOT', docs)
+        self.assertNotIn('git rev-parse :sources/misteross', docs)
+
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(

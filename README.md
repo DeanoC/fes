@@ -86,7 +86,8 @@ missing, extra or misidentified packages. The FES image has no legacy bundle
 lane.
 
 The normal package-only build uses the authenticated HIP/nextpnr producers and
-their workspace-local compiler cache at `out/cache/misteross-toolchains`. A
+their shared compiler cache beneath the primary FES checkout’s `out/cache`
+(or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
 sealed selection are checked; a miss runs that package's format-2 producer.
 Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
