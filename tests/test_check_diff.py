@@ -48,6 +48,22 @@ class ImportWhitespaceTests(unittest.TestCase):
         check_diff.check(self.root, self.base)
         check_diff.check(self.root, '0' * 40)
 
+    def test_new_branch_preserves_parent_whitespace_but_checks_new_changes(self):
+        (self.root / 'historical.patch').write_text('existing patch bytes  \n')
+        self.commit('existing parent patch')
+        baseline = self.git('rev-parse', 'HEAD')
+        (self.root / 'clean').write_text('new clean content\n')
+        self.commit('new branch')
+        check_diff.check(self.root, '0' * 40, fallback_base=baseline)
+        (self.root / 'new').write_text('new error  \n')
+        self.commit('bad new branch content')
+        with self.assertRaisesRegex(ValueError, 'trailing whitespace'):
+            check_diff.check(self.root, '0' * 40, fallback_base=baseline)
+
+    def test_new_branch_missing_fallback_fails_closed(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            check_diff.check(self.root, '0' * 40, fallback_base='refs/remotes/origin/missing')
+
     def test_new_module_whitespace_fails(self):
         (self.root / 'sources/misteross/added').write_text('new error  \n')
         self.commit('edit module')

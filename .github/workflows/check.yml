@@ -41,10 +41,11 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
           HEAD: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           EVENT: ${{ github.event_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = workflow_dispatch ]; then BASE=0000000000000000000000000000000000000000; fi
           python3 -m unittest tests.test_affected tests.test_check_diff -v
-          python3 scripts/check_diff.py --base "$BASE" --head "$HEAD"
+          python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
   parent-tests:
     needs: plan
     runs-on: ubuntu-24.04

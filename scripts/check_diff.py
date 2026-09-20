@@ -10,8 +10,12 @@ def git(root, *args, check=True):
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, input='')
 
 
-def check(root, base, head='HEAD'):
+def check(root, base, head='HEAD', fallback_base=None):
     head = git(root, 'rev-parse', '--verify', '--end-of-options', head + '^{commit}').stdout.strip()
+    # New-branch pushes have no before commit. Compare their changes with
+    # the default branch when provided; the test planner still runs all lanes.
+    if base == '0' * 40 and fallback_base:
+        base = fallback_base
     empty = base == '0' * 40
     if empty:
         base = git(root, 'hash-object', '-t', 'tree', '--stdin').stdout.strip()
@@ -54,9 +58,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', required=True)
     parser.add_argument('--head', default='HEAD')
+    parser.add_argument('--fallback-base', help='comparison base for a new-branch push or manual run')
     args = parser.parse_args()
     try:
-        check(Path.cwd(), args.base, args.head)
+        check(Path.cwd(), args.base, args.head, args.fallback_base)
     except (ValueError, KeyError, subprocess.CalledProcessError) as error:
         parser.exit(1, str(error) + '\n')
 
