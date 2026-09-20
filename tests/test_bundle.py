@@ -157,7 +157,9 @@ class BundleTest(unittest.TestCase):
         producer = root / 'sources/misteross/scripts/build_fes_sms_oss.py'
         self.assertTrue(producer.is_file())
         self.assertTrue((root / 'sources/misteross/cores/fes-sms/toolchain.lock').is_file())
-        self.assertRegex(producer.read_text(), r'(?m)^SEED = 1$')
+        text = producer.read_text()
+        self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(10,')
+        self.assertRegex(text, r'(?m)^SEED = PLACER_SEEDS\[0\]$')
         module = self.module()
         # Probe the selected producer's CLI and authentication call contract,
         # without building tools or accepting an unrelated local checkout.
