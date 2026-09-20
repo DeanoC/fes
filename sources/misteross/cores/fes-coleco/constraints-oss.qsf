@@ -44,3 +44,12 @@ set_location_assignment PIN_U10 -to HDMI_I2C_SCL
 set_location_assignment PIN_AA4 -to HDMI_I2C_SDA
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2C_SCL
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2C_SDA
+# ADV7513 fixed 48 kHz stereo I2S clock/data pins.
+set_location_assignment PIN_U11 -to HDMI_MCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_MCLK
+set_location_assignment PIN_T12 -to HDMI_SCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_SCLK
+set_location_assignment PIN_T11 -to HDMI_LRCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_LRCLK
+set_location_assignment PIN_T13 -to HDMI_I2S
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2S
