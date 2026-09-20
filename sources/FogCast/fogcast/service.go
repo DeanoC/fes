@@ -1810,9 +1810,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 			// Confirm clean idle without claiming the kit or mutating a peer's
 			// session. Unreachable, active or recovery states still fail closed.
 			status, err = client.Status(ctx)
-			idleWithoutLease = err == nil && status.State == protocol.StateIdle &&
-				status.LastError == nil && status.Recovery == "" && !status.Development &&
-				status.CorePackage == nil
+			idleWithoutLease = err == nil && validRecoveredDevelopmentStatus(status) && status.CorePackage == nil
 		}
 	}
 	if !idleWithoutLease {

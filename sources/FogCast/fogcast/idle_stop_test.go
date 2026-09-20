@@ -15,6 +15,8 @@ import (
 // A pre-dispatch launch rejection never claims the kit. Stop must still be
 // idempotent for clean idle, without acquiring ownership or stopping a peer.
 func TestStopWithoutLeaseOnlyAcceptsObservedCleanIdle(t *testing.T) {
+	game, core := "retained-game", "retained-core"
+	system := protocol.System("coleco")
 	for _, tc := range []struct {
 		name     string
 		status   protocol.Status
@@ -27,6 +29,10 @@ func TestStopWithoutLeaseOnlyAcceptsObservedCleanIdle(t *testing.T) {
 		{"idle error", protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable}}, false, false},
 		{"development", protocol.Status{State: protocol.StateIdle, Development: true}, false, false},
 		{"retained package", protocol.Status{State: protocol.StateIdle, CorePackage: &protocol.CorePackageStatus{}}, false, false},
+		{"retained game", protocol.Status{State: protocol.StateIdle, GameID: &game}, false, false},
+		{"retained system", protocol.Status{State: protocol.StateIdle, System: &system}, false, false},
+		{"retained expected core", protocol.Status{State: protocol.StateIdle, ExpectedCore: &core}, false, false},
+		{"retained observed core", protocol.Status{State: protocol.StateIdle, ObservedCore: &core}, false, false},
 		{"unreachable", protocol.Status{}, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
