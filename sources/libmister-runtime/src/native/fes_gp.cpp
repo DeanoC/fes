@@ -184,10 +184,17 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 		return error;
 	}
 
+	bool response_seen = false;
+	bool last_ack = false;
 	for (;;) {
 		if (clock_.NowMs() >= exchange_deadline) {
 			poisoned_ = true;
-			return Io("FES GP exchange deadline exceeded");
+			// Identify the stalled handshake without logging media arguments or
+			// response data. Preserve the existing deadline and no-retry rule.
+			return Io("FES GP exchange deadline exceeded: opcode=" +
+				std::to_string(opcode) + " index=" + std::to_string(index) +
+				" request=" + std::to_string(next_toggle) + " ack=" +
+				(response_seen ? std::to_string(last_ack) : "unobserved"));
 		}
 		std::uint32_t observed = 0;
 		error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
@@ -200,6 +207,8 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 			return Io("invalid FES GP response signature or reserved bits");
 		}
 		const bool acknowledged = (observed & FesGpAckMask) != 0;
+		response_seen = true;
+		last_ack = acknowledged;
 		if (acknowledged != next_toggle) continue;
 		if (clock_.NowMs() >= exchange_deadline) {
 			poisoned_ = true;

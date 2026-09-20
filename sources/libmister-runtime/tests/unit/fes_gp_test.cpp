@@ -325,8 +325,12 @@ void TestExchangeAndIdentityUseExactDeadlineBoundaries()
 		mister::native::FesGp gp(mmio, clock);
 		mmio.values[kSpiGpiAddress] = FesGpSignature;
 		std::uint16_t response = 0;
-		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).code ==
-			mister::ErrorCode::io_failed);
+		const auto error = gp.Exchange(FesGpOpcodeIdentity, 7, 0x1234, 1000, &response);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message.find("opcode=" + std::to_string(FesGpOpcodeIdentity) +
+			" index=7 request=1") != std::string::npos);
+		assert(error.message.find("ack=0") != std::string::npos);
+		assert(error.message.find("4660") == std::string::npos);
 		assert(clock.now_ == 151);
 		assert(mmio.reads.size() == 99);
 		assert(mmio.writes.size() == 2);

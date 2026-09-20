@@ -133,7 +133,10 @@ input, state, video, or FPGA changes.
 
 After programming a FES package, activation resets the transport session and
 reads all 16 identity words under a two-second deadline, with each exchange
-bounded to 100 ms. It sends no destination control until the descriptor ABI,
+bounded to 100 ms. An exchange timeout records its opcode, index, request toggle and last observed
+acknowledgement, excluding argument and response payloads. It still poisons the
+session without retrying or extending the deadline.
+It sends no destination control until the descriptor ABI,
 capabilities, and build ID match. The fixed custom video path configures and
 validates the ADV7513 entirely over I2C, without issuing a MiSTer SPI timing or
 audio command. Application audio declarations select the I2S stereo recipe;
