@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: fes-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: fes-ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 jobs:
   plan:
