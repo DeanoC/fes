@@ -106,6 +106,7 @@ From a clean committed checkout, simulate and prepare it:
 
 ```sh
 make -C sources/misteross sim-fes-demo
+mkdir -p out/core-dev
 make core-dev CORE_DEV_ARGS='prepare --core fes.catch --output out/core-dev/catch-001'
 ```
 
