@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import json
 import os
 import tempfile
 import unittest
@@ -25,6 +26,41 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
+    def test_record_seals_effective_search_policy(self) -> None:
+        for mode in ("first-pass", "staged"):
+            with self.subTest(mode=mode):
+                weights, budget = build_fes_zx81_oss.placement_policy(mode)
+                record = json.loads(build_fes_zx81_oss.create_build_record(
+                    ROOT, "https://github.com/DeanoC/misteross.git", "a" * 40,
+                    {"yosys": "test"}, qor_mode=mode,
+                ))
+                parameters = record["parameters"]
+                self.assertEqual(parameters["placer_heap_timingweights"], ",".join(map(str, weights)))
+                self.assertEqual(parameters["placer_qor_budget"], budget)
+        with self.assertRaises(BuildError):
+            build_fes_zx81_oss.placement_policy("unknown")
+
+    def test_first_pass_reaches_fallback_and_stops_after_timing_closes(self) -> None:
+        from scripts.search_placer_qor import search
+        from tests.test_search_placer_qor import _candidate
+        weights, budget = build_fes_zx81_oss.placement_policy("first-pass")
+        calls = []
+
+        def route(seed, weight):
+            calls.append((seed, weight))
+            return _candidate(seed, weight, 52.4 if (seed, weight) == (34, 300) else 51.5)
+
+        ranked = search(
+            nextpnr=Path("unused"), fixture=Path("unused"), output=Path("unused"),
+            device=build_fes_zx81_oss.TARGET, qsf=Path("unused"), sdc=None, freq=None,
+            seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
+            budget=budget, mode="first-pass", extra=(), timeout=1, run_one=route,
+        )
+        self.assertEqual(calls, [(seed, weight) for weight in (1000, 300) for seed in PLACER_SEEDS])
+        self.assertTrue(ranked[0].passing)
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (34, 300))
+        self.assertEqual(budget, 70)
+
     def test_make_entrypoint_uses_the_oss_recipe(self) -> None:
         result = subprocess.run(
             ["make", "-n", "build-fes-zx81"],

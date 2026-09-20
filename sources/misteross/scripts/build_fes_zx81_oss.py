@@ -53,6 +53,7 @@ PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34)
 PLACER_TIMING_WEIGHT = 1000
 PLACER_CRITICALITY_EXPONENT = 5
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
+PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 2000, 100, 10)
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
 RTL_SOURCES = (
@@ -159,6 +160,14 @@ def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str
     return repository, revision
 
 
+def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
+    if mode == "first-pass":
+        return PLACER_FIRST_PASS_WEIGHTS, len(PLACER_SEEDS) * len(PLACER_FIRST_PASS_WEIGHTS)
+    if mode == "staged":
+        return PLACER_WEIGHTS, PLACER_QOR_BUDGET
+    raise BuildError(f"unsupported placement mode: {mode}")
+
+
 @guard_functional_source
 def create_build_record(
     root: Path,
@@ -170,6 +179,7 @@ def create_build_record(
     identity_version: int = 1,
     execution: dict | None = None,
 ) -> bytes:
+    weights, budget = placement_policy(qor_mode)
     fields = {
         "format": 1,
         "repository": repository,
@@ -191,10 +201,10 @@ def create_build_record(
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
-            "placer_heap_timingweights": ",".join(str(weight) for weight in PLACER_WEIGHTS),
+            "placer_heap_timingweights": ",".join(str(weight) for weight in weights),
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "placer_qor_mode": qor_mode,
-            "placer_qor_budget": PLACER_QOR_BUDGET,
+            "placer_qor_budget": budget,
             "top": TOP,
         },
     }
@@ -430,8 +440,7 @@ def build(
     if package_store != root / "build/packages":
         raise BuildError(f"FES ZX81 package store must be {root / 'build/packages'}")
     qor_mode = "staged" if best_fmax else "first-pass"
-    qor_weights = PLACER_WEIGHTS if best_fmax else (PLACER_TIMING_WEIGHT,)
-    qor_budget = PLACER_QOR_BUDGET if best_fmax else max(len(PLACER_SEEDS), 1)
+    qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
