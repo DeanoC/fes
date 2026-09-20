@@ -1220,12 +1220,15 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
-Proposed work for expansion linking and later removable media remains in
-[launch composition](launch-composition.md). Phase 1 Coleco firmware is on
-the working library path below: a title may require a household firmware
-object, rooms/catalog **Ready** follows that fill, and `session/launch`
-binds firmware before cartridge media and reset release. Expansions are
-still proposed.
+Coleco firmware and optional ZX81 RAM expansion use the normal library launch
+path. A title may require a household firmware object; rooms/catalog **Ready**
+follows that fill, and `session/launch` binds firmware before cartridge media
+and reset release. Expansion selection binds an independently linked pack to
+the exact shell package. Later removable media work remains proposed in
+[launch composition](launch-composition.md).
+
+Library list, detail and variant responses report expansion selection and readiness
+independently of firmware requirements, including firmware-free ZX81 shells.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented

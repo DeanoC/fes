@@ -2,8 +2,11 @@ package hostapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/DeanoC/FogCast/catalog"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/protocol"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -52,5 +55,68 @@ func TestExpansionAPIRequiresExactSelection(t *testing.T) {
 	}
 	if len(s.bound) != 4 || s.bound[0] != "fpga-example" || s.bound[2] != "" || s.bound[3] != strings.Repeat("b", 64) {
 		t.Fatalf("selection %+v", s.bound)
+	}
+}
+
+// Firmware-free shells still carry independent expansion readiness in every
+// library projection consumed by host clients.
+type expansionReadinessService struct {
+	groupedFake
+	compositions map[string]protocol.CoreComposition
+}
+
+func (s *expansionReadinessService) CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error) {
+	return s.compositions, nil
+}
+func (s *expansionReadinessService) PlatformLaunchable(protocol.System) bool { return true }
+func TestFirmwareFreeExpansionReadinessInLibraryResponses(t *testing.T) {
+	selected := strings.Repeat("b", 64)
+	for _, ready := range []bool{false, true} {
+		game := catalog.Game{ID: "fpga-zx81", Title: "ZX81", System: protocol.System("zx81"), Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true, GroupKey: "zx81-group"}
+		variant := game
+		variant.ID = "fpga-zx81-variant"
+		service := &expansionReadinessService{groupedFake: groupedFake{fakeService: fakeService{games: []catalog.Game{game}, game: game}, variants: []catalog.Game{variant}}, compositions: map[string]protocol.CoreComposition{
+			game.ID: {ExpansionID: selected, ExpansionReady: ready}, variant.ID: {ExpansionID: selected, ExpansionReady: ready},
+		}}
+		check := func(g hostclient.Game, admission bool) {
+			t.Helper()
+			if g.FirmwareRequired || g.ExpansionID != selected || g.ExpansionReady != ready {
+				t.Fatalf("ready=%v projection=%+v", ready, g)
+			}
+			if admission && g.LaunchEligible() != ready {
+				t.Fatalf("ready=%v block=%s projection=%+v", ready, g.LaunchBlock(), g)
+			}
+			if admission && !ready && g.LaunchBlock() != hostclient.LaunchMissingExpansion {
+				t.Fatalf("wrong refusal: %s", g.LaunchBlock())
+			}
+		}
+		for _, path := range []string{"/api/v1/games", "/api/v1/games/" + game.ID} {
+			response := serve(t, hostapi.New(service), http.MethodGet, path)
+			if response.Code != http.StatusOK {
+				t.Fatalf("%s: %d %s", path, response.Code, response.Body.String())
+			}
+			if path == "/api/v1/games" {
+				var list struct {
+					Games []hostclient.Game `json:"games"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil {
+					t.Fatal(err)
+				}
+				if len(list.Games) != 1 {
+					t.Fatal(list)
+				}
+				check(list.Games[0], true)
+			} else {
+				var detail hostclient.Game
+				if err := json.Unmarshal(response.Body.Bytes(), &detail); err != nil {
+					t.Fatal(err)
+				}
+				check(detail, true)
+				if len(detail.Variants) != 1 {
+					t.Fatal(detail)
+				}
+				check(detail.Variants[0], false)
+			}
+		}
 	}
 }
