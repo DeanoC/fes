@@ -19,6 +19,13 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
 - Coleco fixed 32 KiB cartridges use the shared CRC-checked blob-stream endpoint;
   `make coleco-stream-diagnostic` emits BIOS-free upper-ROM CPU/video checks.
   Small cartridges retain the legacy 16 KiB mirrored map.
+- Coleco synthesis enables `ENABLE_FIRMWARE` so the shared application mailbox
+  can overlay an exact 8192-byte firmware image on `0x0000–0x1fff` while reset
+  is held. Host simulations keep the parameter at its RTL default 0 and use the
+  open `JP 0x8000` shim. The default package still ships that shim; household
+  firmware binds at launch. `--bios` remains a separate private build-time
+  embed. Firmware mailbox behavior is software-tested; hardware acceptance is
+  pending.
 - Shared controller ports: Coleco uses the composable application endpoint
   with two native digital gamepads and two twelve-key keypads.
   `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.
@@ -536,11 +543,17 @@ MIT-licensed raw cartridge and 720p reference image; see
 [the core guide](cores/fes-coleco/README.md#open-graphics-i-diagnostic).
 The optional joystick and raw-controller-byte diagnostics use the native
 controller ports; see [controller mapping](cores/fes-coleco/README.md#standard-controller-mapping).
-These are host simulations, not hardware acceptance. For a privately supplied
+These are host simulations, not hardware acceptance. Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`
+and declare optional `fes.firmware.blob` 1.0 so BIOS-free Graphics I titles share
+the firmware-capable bitstream. Host simulations leave the parameter at 0, so
+capability bit 7 stays off and the open reset shim is used. Runtime firmware
+upload overlays the 8 KiB aperture through mailbox opcodes 15–17 and does not
+release execution; cartridge media still owns release. For a privately supplied
 8192-byte BIOS, the OSS producer accepts `--bios PATH`; this embeds the BIOS in a
 separate `fes.coleco.private-bios` package under `build/private-packages` and binds
 its digests into identity v2. It does not change the default reset-shim package
-or establish retail compatibility. See [private BIOS bring-up](cores/fes-coleco/README.md#private-bios-bring-up).
+or establish retail compatibility. See [private BIOS bring-up](cores/fes-coleco/README.md#private-bios-bring-up)
+and [runtime firmware overlay](cores/fes-coleco/README.md#runtime-firmware-overlay).
 
 `make coleco-vdp-diagnostic` generates a BIOS-free CPU read/status/NMI test.
 `make sim-fes-coleco-vdp-io` and its `-oss` counterpart check its real CPU

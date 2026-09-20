@@ -49,6 +49,54 @@ func TestApplicationContractAndLegacyConstants(t *testing.T) {
 	}
 }
 
+func TestApplicationFirmwareOracle(t *testing.T) {
+	root := repoRoot(t)
+	app, err := LoadABI(filepath.Join(root, "packages/abi/fes_application.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oracle struct {
+		Source struct {
+			Repository string
+			Commit     string
+			File       string
+		}
+		Firmware  map[string]uint32
+		Interface struct {
+			ID            string `json:"id"`
+			Major         uint16
+			Minor         uint16
+			CapabilityBit uint8 `json:"capability_bit"`
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(root, "testdata/oracles/fes-application-firmware.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &oracle); err != nil {
+		t.Fatal(err)
+	}
+	if oracle.Source.Repository != "DeanoC/libmister-runtime" ||
+		oracle.Source.Commit != "94e6cbf303b53be13b6e612135d040f2fa332dd8" ||
+		oracle.Source.File != "src/native/generated/fes_application.hpp" {
+		t.Fatalf("runtime consumer revision: %+v", oracle.Source)
+	}
+	if len(oracle.Firmware) != 6 {
+		t.Fatalf("incomplete firmware oracle: %d", len(oracle.Firmware))
+	}
+	for name, want := range oracle.Firmware {
+		got, ok := app.Constant(name)
+		if !ok || got != want {
+			t.Errorf("%s=%x present=%t want=%x", name, got, ok, want)
+		}
+	}
+	got := app.Interfaces[7]
+	if got.ID != oracle.Interface.ID || got.Major != oracle.Interface.Major ||
+		got.Minor != oracle.Interface.Minor || got.CapabilityBit != oracle.Interface.CapabilityBit {
+		t.Fatalf("firmware interface: %+v want %+v", got, oracle.Interface)
+	}
+}
+
 func TestApplicationGoldenExchanges(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(repoRoot(t), "testdata/fes-application-v1/exchanges.json"))
 	if err != nil {

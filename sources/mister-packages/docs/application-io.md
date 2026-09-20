@@ -18,6 +18,7 @@ fixtures do not establish consumer or hardware acceptance.
 | fes.audio.pcm-s16-stereo-48k | 4 | Fixed 48 kHz stereo signed 16-bit PCM output |
 | fes.gamepad.ports | 5 | Two independently addressed eight-button controllers |
 | fes.keypad.ports | 6 | Twelve numeric keypad keys on each controller port |
+| fes.firmware.blob | 7 | Exact 8192-byte firmware overlay while reset is held |
 
 V1 runtime admission requires video. Gamepad and media are independently
 composable: a video-only autonomous demo is valid, as is video with gamepad
@@ -25,10 +26,12 @@ and media. Every implemented registered interface must be declared by the
 manifest and advertised in live identity; live capabilities must agree with
 the declared registered set. Unknown required interfaces and unsupported
 versions fail admission; an unknown optional interface does not grant support.
-For this initial contract every recognized, supported operational interface
-must be declared required=true; composition is by omission. Recognized supported
-optional declarations are rejected, while unknown or unsupported optional
-declarations are ignored. Stream requires a required blob declaration. Library
+For this contract every recognized, supported operational interface other than
+firmware must be declared required=true; composition is by omission.
+`fes.firmware.blob` 1.0 may be required or optional so BIOS-free titles share a
+firmware-capable package. Recognized supported optional declarations of other
+interfaces are rejected, while unknown or unsupported optional declarations
+are ignored. Stream requires a required blob declaration. Library
 launch with blob requires selected media; development may load held and upload
 later. `fes.gamepad.ports` and the legacy one-player `fes.gamepad` are mutually
 exclusive. `fes.keypad.ports` requires `fes.gamepad.ports`. No general keyboard,
@@ -126,6 +129,21 @@ error behavior and timeout rules are exactly the generic contract in
 [media-stream.md](media-stream.md), using the FesApplication constant prefix.
 Its SMS fixed-map tail subsection is specific to SMS and is not required of
 generic applications. Stream is not inferred from blob or payload size.
+
+## Firmware
+
+`fes.firmware.blob` 1.0 is capability bit 7. A package may declare it required
+or optional so BIOS-free titles share a firmware-capable bitstream. Opcodes
+15/16/17 are Begin/Data/Commit. Begin uses index zero and admits only
+`FesApplicationFirmwareBytes` (8192). Data uses pair index 0 and tail index 1
+exactly like the media blob codec, low-byte first. Commit requires the entire
+8192 bytes, closes staging, sets firmware readiness and leaves execution
+reset-held. Firmware is valid only while reset is held and no media or stream
+transfer is open. It does not release execution; cartridge media still owns
+release. Invalid requests do not modify firmware state. A replacement Begin
+invalidates firmware readiness. There is no firmware stream codec. Firmware
+overlays the 8 KiB reset aperture; it is not cartridge media and does not
+belong in git. These definitions do not establish hardware acceptance.
 
 Errors are invalid opcode=1, index=2, argument=3, state=4. Opcodes whose
 capability is absent return invalid opcode. All invalid requests acknowledge

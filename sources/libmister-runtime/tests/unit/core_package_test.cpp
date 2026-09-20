@@ -296,6 +296,15 @@ void TestApplicationCompatibilityComposesInterfaces()
 	auto optional = descriptor;
 	optional.interfaces.back().required = false;
 	assert(!mister::native::CheckCoreCompatibility(optional).ok());
+	auto firmware = descriptor;
+	firmware.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
+	assert(mister::native::CheckCoreCompatibility(firmware).ok());
+	firmware.interfaces.back().required = true;
+	assert(mister::native::CheckCoreCompatibility(firmware).ok());
+	firmware.interfaces.back().minor = 1;
+	assert(!mister::native::CheckCoreCompatibility(firmware).ok());
+	firmware.interfaces.back().required = false;
+	assert(mister::native::CheckCoreCompatibility(firmware).ok());
 	descriptor.interfaces.push_back({"vendor.extension", 9, 9, false});
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
 	descriptor.interfaces.back().required = true;

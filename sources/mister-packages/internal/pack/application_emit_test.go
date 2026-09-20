@@ -43,12 +43,12 @@ func TestApplicationEmitsAlongsideLegacyABIs(t *testing.T) {
 			t.Fatal(err)
 		}
 		if name == "fes_application" {
-			for _, s := range []string{"FesApplicationABIID", "FesApplicationCapabilityGamepad", "FesApplicationCapabilityMediaBlobStream"} {
+			for _, s := range []string{"FesApplicationABIID", "FesApplicationCapabilityGamepad", "FesApplicationCapabilityMediaBlobStream", "FesApplicationCapabilityFirmwareBlob", "FesApplicationOpcodeFirmwareBegin"} {
 				if !strings.Contains(goText, s) {
 					t.Fatal(s)
 				}
 			}
-			for _, s := range []string{"FES_APPLICATION_ABI_TAG 32'h00000003", "FES_APPLICATION_OPCODE_BUTTONS 32'h00000003", "FES_APPLICATION_INTERFACE_GAMEPAD_CAPABILITY_MASK 32'h00000001", "FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK 32'h00000008"} {
+			for _, s := range []string{"FES_APPLICATION_ABI_TAG 32'h00000003", "FES_APPLICATION_OPCODE_BUTTONS 32'h00000003", "FES_APPLICATION_INTERFACE_GAMEPAD_CAPABILITY_MASK 32'h00000001", "FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK 32'h00000008", "FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK 32'h00000080", "FES_APPLICATION_OPCODE_FIRMWARE_BEGIN 32'h0000000f"} {
 				if !strings.Contains(verilog, s) {
 					t.Fatal(s)
 				}
@@ -72,6 +72,11 @@ static_assert(FesApplicationCapabilityKeypadPorts == 64, "keypad ports");
 static_assert(FesApplicationOpcodeControllerButtons == 13, "controller opcode");
 static_assert(FesApplicationOpcodeControllerKeypad == 14, "keypad opcode");
 static_assert(FesApplicationControllerPortCount == 2, "port count");
+static_assert(FesApplicationOpcodeFirmwareBegin == 15, "firmware begin");
+static_assert(FesApplicationOpcodeFirmwareData == 16, "firmware data");
+static_assert(FesApplicationOpcodeFirmwareCommit == 17, "firmware commit");
+static_assert(FesApplicationFirmwareBytes == 8192, "firmware bytes");
+static_assert(FesApplicationCapabilityFirmwareBlob == 128, "firmware");
 `
 	path := filepath.Join(dir, "test.cpp")
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {
@@ -90,7 +95,7 @@ static_assert(FesApplicationControllerPortCount == 2, "port count");
 			t.Skip("verilator unavailable; macros verified above")
 		}
 		path := filepath.Join(dir, "test.v")
-		source := "`include \"application.vh\"\nmodule application_constants; initial begin if (`FES_APPLICATION_ABI_TAG != 3 || `FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK != 8) $fatal; end endmodule\n"
+		source := "`include \"application.vh\"\nmodule application_constants; initial begin if (`FES_APPLICATION_ABI_TAG != 3 || `FES_APPLICATION_INTERFACE_MEDIA_BLOB_STREAM_CAPABILITY_MASK != 8 || `FES_APPLICATION_INTERFACE_FIRMWARE_BLOB_CAPABILITY_MASK != 128 || `FES_APPLICATION_OPCODE_FIRMWARE_BEGIN != 15) $fatal; end endmodule\n"
 		if err = os.WriteFile(path, []byte(source), 0600); err != nil {
 			t.Fatal(err)
 		}

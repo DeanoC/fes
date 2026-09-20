@@ -581,6 +581,7 @@ Capabilities NativeHardware::capabilities() const
 		application.minor = generated::FesApplicationABIMinor;
 		application.interfaces = {
 			{generated::FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0},
+			{generated::FesApplicationInterfaceFirmwareBlobID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadPortsID, 1, 0},
 			{generated::FesApplicationInterfaceKeypadPortsID, 1, 0},

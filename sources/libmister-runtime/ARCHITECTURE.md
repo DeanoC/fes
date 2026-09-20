@@ -5,7 +5,9 @@
 `fes.application` 1.0 uses the existing `fes-gp-v1` lifecycle and GP transport,
 with identity tag 3 and independent video, gamepad and media capabilities.
 Admission requires fixed-720p60 video; known operational declarations must be
-required, while absent interfaces impose no requirement. Unknown optional
+required, while absent interfaces impose no requirement. The Coleco firmware
+overlay `fes.firmware.blob` 1.0 is the exception: a package may declare it
+optional so BIOS-free titles share the same bitstream. Unknown optional
 interfaces are ignored. Blob-stream requires blob. See
 [application I/O](docs/application-io.md) for the complete runtime contract.
 
@@ -13,9 +15,13 @@ The existing `FesGpCoreDriver` verifies application identity and capabilities,
 reuses the shared button/media codecs, and never issues keyboard commands to
 an application. Video-only loads do not open the input session. Media-bearing
 applications remain reset-held until successful media commit; other
-applications release immediately. Existing ABI startup and persistence remain
-unchanged. Application stereo 48 kHz PCM audio is software-supported through
-the shared ADV7513 path; physical audio acceptance remains pending.
+applications release immediately. `load_firmware` is a separate 8192-byte
+mailbox transfer that keeps execution reset-held through begin/data/commit;
+cartridge `load_media` still owns release. Firmware 1.0 is software-supported
+on `fes.application`; physical Coleco BIOS bind remains pending. Existing ABI
+startup and persistence remain unchanged. Application stereo 48 kHz PCM audio is
+software-supported through the shared ADV7513 path; physical audio acceptance
+remains pending.
 
 Two logical controller ports use required `fes.gamepad.ports` 1.0; optional
 `fes.keypad.ports` 1.0 adds twelve keys per port. The former excludes the old

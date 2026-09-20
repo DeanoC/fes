@@ -336,6 +336,11 @@ Application audio `fes.audio.pcm-s16-stereo-48k` 1.0 is an additive required-whe
 present interface using capability bit 4. It needs no manifest-schema change;
 older runtimes reject its required declaration through normal registry admission.
 
+Application firmware `fes.firmware.blob` 1.0 is capability bit 7 with opcodes
+15–17 and exact length `FesApplicationFirmwareBytes` (8192). It may be required
+or optional. See [application I/O](application-io.md). The in-tree runtime
+consumer revision is recorded in `testdata/oracles/fes-application-firmware.json`.
+
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
 bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
 legacy required interfaces. See [the authoritative stream contract](media-stream.md).

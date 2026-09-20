@@ -307,7 +307,10 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 			applyROMCached(&result.Games[index], page.Games[index], presence, romKnown)
 		}
 	}
-	enrichCompositions(r.Context(), service, result.Games)
+	if err := enrichCompositions(r.Context(), service, result.Games); err != nil {
+		writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
+		return
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -614,7 +617,7 @@ func applyUserState(result *gameResult, state libraryuser.State) {
 	}
 }
 
-func enrichGameResult(ctx context.Context, service Service, result gameResult) gameResult {
+func enrichGameResult(ctx context.Context, service Service, result gameResult) (gameResult, error) {
 	if users, ok := service.(favoriteService); ok {
 		if state, err := users.LibraryState(ctx, result.ID); err == nil {
 			applyUserState(&result, state)
@@ -630,8 +633,10 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) g
 	}
 	result = enrichLaunchable(service, result)
 	games := []gameResult{result}
-	enrichCompositions(ctx, service, games)
-	return games[0]
+	if err := enrichCompositions(ctx, service, games); err != nil {
+		return result, err
+	}
+	return games[0], nil
 }
 
 type platformLaunchService interface {
@@ -651,10 +656,10 @@ type compositionService interface {
 	CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error)
 }
 
-func enrichCompositions(ctx context.Context, service Service, games []gameResult) {
+func enrichCompositions(ctx context.Context, service Service, games []gameResult) error {
 	composer, ok := service.(compositionService)
 	if !ok || len(games) == 0 {
-		return
+		return nil
 	}
 	ids := make([]string, 0, len(games))
 	for _, game := range games {
@@ -664,8 +669,11 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 		}
 	}
 	comps, err := composer.CoreCompositions(ctx, ids)
-	if err != nil || len(comps) == 0 {
-		return
+	if err != nil {
+		return err
+	}
+	if len(comps) == 0 {
+		return nil
 	}
 	applyComposition := func(game *gameResult) {
 		comp, ok := comps[game.ID]
@@ -683,6 +691,7 @@ func enrichCompositions(ctx context.Context, service Service, games []gameResult
 			applyComposition(&games[i].Variants[j])
 		}
 	}
+	return nil
 }
 
 type libraryCacheService interface {
