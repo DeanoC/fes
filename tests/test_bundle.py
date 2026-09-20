@@ -221,11 +221,17 @@ import importlib
 import inspect
 import sys
 from pathlib import Path
+from scripts.fes_build_common import _authenticate_tools as default_authenticate
 producer = importlib.import_module(sys.argv[1])
 assert Path(producer.__file__).resolve() == Path(sys.argv[3]).resolve()
 locks = [value for name, value in vars(producer).items() if name.endswith("_TOOLCHAIN_LOCK")]
-assert sys.argv[4] in (locks or ["toolchain.lock"]), (sys.argv[4], locks)
-inspect.signature(getattr(producer, sys.argv[2])).bind(
+authenticate = getattr(producer, sys.argv[2])
+# A scoped socket compiler does not replace the shared authenticator's
+# default lock used by the ordinary ZX81 recipe.
+if authenticate is default_authenticate:
+    locks.append("toolchain.lock")
+assert sys.argv[4] in locks, (sys.argv[4], locks)
+inspect.signature(authenticate).bind(
     Path.cwd(), cache_root=Path("unused-cache-probe"))
 '''
         for recipe in module.FORMAT2_RECIPES.values():
