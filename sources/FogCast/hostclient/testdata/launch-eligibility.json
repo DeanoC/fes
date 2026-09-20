@@ -1,0 +1,142 @@
+[
+  {
+    "name": "ready",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "available",
+      "root_online": true,
+      "launchable": true
+    },
+    "block": "",
+    "reason": ""
+  },
+  {
+    "name": "browse-only",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "available",
+      "root_online": true,
+      "launchable": false
+    },
+    "block": "browse_only",
+    "reason": "This platform is browse-only on this host."
+  },
+  {
+    "name": "missing",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "missing",
+      "root_online": true,
+      "launchable": true
+    },
+    "block": "source_offline",
+    "reason": "This game’s source is offline."
+  },
+  {
+    "name": "offline",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "available",
+      "root_online": false,
+      "launchable": true
+    },
+    "block": "source_offline",
+    "reason": "This game’s source is offline."
+  },
+  {
+    "name": "invalid",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "invalid",
+      "root_online": true,
+      "launchable": true
+    },
+    "block": "unreadable",
+    "reason": "This ROM can’t be read."
+  },
+  {
+    "name": "scanning",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "scanning",
+      "root_online": true,
+      "launchable": true
+    },
+    "block": "not_ready",
+    "reason": "This game isn’t ready to launch."
+  },
+  {
+    "name": "missing-launchable",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "available",
+      "root_online": true
+    },
+    "block": "browse_only",
+    "reason": "This platform is browse-only on this host."
+  },
+  {
+    "name": "missing-root-online",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "available",
+      "launchable": true
+    },
+    "block": "source_offline",
+    "reason": "This game’s source is offline."
+  },
+  {
+    "name": "missing-state",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "root_online": true,
+      "launchable": true
+    },
+    "block": "not_ready",
+    "reason": "This game isn’t ready to launch."
+  },
+  {
+    "name": "browse-precedence",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "missing",
+      "root_online": false,
+      "launchable": false
+    },
+    "block": "browse_only",
+    "reason": "This platform is browse-only on this host."
+  },
+  {
+    "name": "offline-precedence",
+    "game": {
+      "id": "fixture-game",
+      "title": "Fixture",
+      "system": "snes",
+      "state": "invalid",
+      "root_online": false,
+      "launchable": true
+    },
+    "block": "source_offline",
+    "reason": "This game’s source is offline."
+  }
+]

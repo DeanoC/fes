@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "UPSTREAM_UNAVAILABLE",
+    "message": "presentation metadata is unavailable"
+  }
+}

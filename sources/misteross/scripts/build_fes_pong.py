@@ -1,0 +1,965 @@
+#!/usr/bin/env python3
+"""Build and seal the deterministic standalone FES Pong package."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Mapping, Sequence
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
+from scripts.lockfile import LockfileError, load_lock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGET = "5CSEBA6U23I7"
+TOP = "top"
+OUTPUT_RELATIVE = Path("build/fes-pong")
+FES_GPU_BACKEND = "hip"
+FES_GPU_ROUTER = "HIP"
+FES_GPU_ARCHITECTURES = "gfx1100;gfx1201"
+FES_TOOLCHAIN_CONFIGURATION = (
+    f"gpu-router={FES_GPU_ROUTER}; hip-architectures={FES_GPU_ARCHITECTURES}"
+)
+QSF = "cores/fes-pong/constraints.qsf"
+SDC = "boards/de10nano/clocks.sdc"
+RECIPE = "scripts/build_fes_pong.py"
+ABI_DEFINITION = "cores/fes-pong/generated/fes_gp.vh"
+RTL_SOURCES = (
+    "cores/fes-pong/rtl/pixel_pll.v",
+    "cores/fes-pong/rtl/top.v",
+    "cores/fes-pong/rtl/fes_gp.v",
+    "cores/fes-common/rtl/fes_video_720p.v",
+    "cores/pong/rtl/pong_game.sv",
+)
+PINNED_INPUTS = (
+    RECIPE,
+    ABI_DEFINITION,
+    "toolchain.lock",
+    QSF,
+    SDC,
+    *RTL_SOURCES,
+)
+BUILD_OUTPUTS = (
+    "synth.json",
+    "routed.json",
+    "core.rbf",
+    "timing.json",
+    "yosys.log",
+    "nextpnr.log",
+    "build-summary.json",
+    "manifest.toml",
+)
+HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
+HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
+HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
+ORDINARY_RESOURCES = frozenset(
+    {"MISTRAL_BUF", "MISTRAL_CLKENA", "MISTRAL_COMB", "MISTRAL_FF", "MISTRAL_IO"}
+)
+REQUIRED_RESOURCES = {
+    "altera_pll": 1,
+    "cyclonev_hps_interface_mpu_general_purpose": 1,
+    "cyclonev_hps_interface_peripheral_i2c": 1,
+}
+FORBIDDEN_RESOURCES = frozenset(
+    {
+        "MISTRAL_M10K",
+        "MISTRAL_MLAB",
+        "MISTRAL_MUL9X9",
+        "MISTRAL_MUL18X18",
+        "MISTRAL_MUL18X19",
+        "MISTRAL_MUL18X19_COMBINED",
+        "MISTRAL_MUL27X27",
+    }
+)
+REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
+REFERENCE_SDC_BYTES = (
+    b"# 50 MHz DE10-Nano input clock.\n"
+    b"create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]\n"
+)
+PLL_PARAMETERS = {
+    "duty_cycle0": "00000000000000000000000000110010",
+    "fractional_vco_multiplier": "true",
+    "number_of_clocks": "00000000000000000000000000000001",
+    "operation_mode": "direct",
+    "output_clock_frequency0": "74.25 MHz",
+    "phase_shift0": "0 ps",
+    "reference_clock_frequency": "50.0 MHz",
+}
+REFERENCE_CONSTRAINT_LOG = "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz"
+PLL_ROUTE_LOG = (
+    "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, "
+    "M=8 N=1 C6=6, bel altera_pll.0.14.0"
+)
+EXPECTED_TOOL_COMMITS = {
+    "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
+    "nextpnr": "d672fade461e8a1eba4d3f95895902d86f43b882",
+    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
+}
+
+
+class BuildError(ValueError):
+    """Raised when the build cannot produce authenticated passing evidence."""
+
+
+def _require_gpu_backend(route_text: str) -> str:
+    """Require nextpnr to have routed on a live HIP device backend."""
+
+    lowered = route_text.lower()
+    if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
+        raise BuildError(
+            "route log proves that --router gpu has no live GPU device backend and "
+            "fell back to the CPU reference backend"
+        )
+    match = re.search(r"\bbackend\s+hip:[^\n]*\bready\b", route_text, re.IGNORECASE)
+    if match is None:
+        raise BuildError("route log does not prove a live HIP device backend")
+    return FES_GPU_BACKEND
+
+
+@dataclass(frozen=True)
+class AuthenticatedTool:
+    path: Path
+    identity: str
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _git(root: Path, *arguments: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *arguments],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+        raise BuildError(f"Git source verification failed: {detail}") from exc
+    return result.stdout.strip()
+
+
+def _contains_symlink(root: Path, relative: str) -> bool:
+    current = root
+    for part in Path(relative).parts:
+        current /= part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _regular_input(root: Path, relative: str) -> Path:
+    path = root / relative
+    if _contains_symlink(root, relative) or not path.is_file():
+        raise BuildError(f"pinned input must be a regular non-symlink file: {relative}")
+    return path
+
+
+def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str] = PINNED_INPUTS, identity_version: int = 1) -> tuple[str, str]:
+    root = Path(root).resolve()
+    actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
+    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
+        raise BuildError(f"source root does not match Git checkout root: {root}")
+    revision = _git(root, "rev-parse", "HEAD")
+    if HEX40_RE.fullmatch(revision) is None:
+        raise BuildError("source HEAD is not a full lowercase Git commit")
+    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
+        raise BuildError("source checkout must be clean before build and export")
+    repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
+    if len(repositories) != 1:
+        raise BuildError("source checkout must have exactly one origin URL")
+    for relative in pinned_inputs:
+        _regular_input(root, relative)
+        try:
+            _git(root, "ls-files", "--error-unmatch", "--", relative)
+        except BuildError as exc:
+            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
+    return repositories[0], revision
+
+
+def _read_evidence(path: Path, expected: str) -> str:
+    if path.is_symlink() or not path.is_file():
+        raise BuildError(f"missing tool authentication evidence: {path}")
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise BuildError(f"cannot read tool authentication evidence: {path}") from exc
+    if expected == "digest" and HEX64_RE.fullmatch(value) is None:
+        raise BuildError(f"invalid tool digest evidence: {path}")
+    return value
+
+
+def _probe_authenticated_tool(
+    root: Path,
+    path: Path,
+    lock_name: str,
+    executable: str,
+    arguments: tuple[str, ...],
+) -> None:
+    """Run the same short identity probe for local and shared tools."""
+
+    try:
+        result = subprocess.run(
+            [str(path), *arguments],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30.0,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise BuildError(f"cannot execute authenticated tool identity check: {executable}") from exc
+    output = "\n".join((result.stdout, result.stderr)).strip()
+    if result.returncode != 0 or not output:
+        raise BuildError(f"authenticated tool identity check failed: {executable}")
+    if lock_name == "mistral" and TARGET not in output:
+        raise BuildError(f"authenticated Mistral database does not list {TARGET}")
+
+
+def _authenticate_shared_tools(
+    root: Path,
+    *,
+    lock_path: Path,
+    expected_commits: Mapping[str, str],
+    expected_configuration: Mapping[str, str],
+    gpu_router: str | None,
+    hip_architectures: str | None,
+    cache_root: Path,
+) -> dict[str, AuthenticatedTool]:
+    """Resolve immutable shared tools through the verified cache manifest."""
+
+    try:
+        from scripts import toolchain_cache
+
+        request = toolchain_cache.request_from_environment(
+            root,
+            lock_path,
+            cache_root=cache_root,
+            gpu_router=gpu_router,
+            hip_architectures=hip_architectures,
+        )
+        manifest = toolchain_cache.resolve_ready(request)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(f"shared toolchain verification failed: {exc}") from exc
+
+    definitions = (
+        ("yosys", "yosys", "yosys", ("--version",)),
+        ("mistral", "mistral", "mistral-cv", ("models",)),
+        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
+    )
+    authenticated: dict[str, AuthenticatedTool] = {}
+    for record_name, lock_name, executable, arguments in definitions:
+        record = manifest.tools.get(lock_name)
+        if not isinstance(record, Mapping):
+            raise BuildError(f"shared toolchain manifest has no authenticated {lock_name} record")
+        commit = record.get("commit")
+        digest = record.get("sha256")
+        binary_name = record.get("binary")
+        manifest_path = record.get("path")
+        if commit != expected_commits[lock_name]:
+            raise BuildError(
+                f"shared authenticated {lock_name} commit {expected_commits[lock_name]}, got {commit}"
+            )
+        expected_binary = f"bin/{executable}"
+        if binary_name != expected_binary or manifest_path != f"install/{expected_binary}":
+            raise BuildError(f"shared authenticated tool path is invalid: {executable}")
+        path = manifest.slot / Path(manifest_path)
+        if path.is_symlink() or not path.is_file() or not os.access(path, os.X_OK):
+            raise BuildError(f"shared authenticated tool is not a regular executable: {path}")
+        if not isinstance(digest, str) or HEX64_RE.fullmatch(digest) is None:
+            raise BuildError(f"shared authenticated tool digest is invalid: {executable}")
+        configuration = expected_configuration.get(lock_name)
+        if configuration is not None:
+            try:
+                manifest_configuration = (
+                    f"gpu-router={manifest.configuration['gpu-router']}; "
+                    f"hip-architectures={manifest.configuration['hip-architectures']}"
+                )
+            except (KeyError, TypeError) as exc:
+                raise BuildError(
+                    f"shared toolchain manifest configuration is invalid: {executable}"
+                ) from exc
+            if manifest_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration does not match the requested build lane: {executable}"
+                )
+            configuration_path = manifest.evidence / lock_name / f".config-{commit}.txt"
+            actual_configuration = _read_evidence(configuration_path, "configuration")
+            if actual_configuration != configuration:
+                raise BuildError(
+                    f"shared tool configuration evidence does not match the requested build lane: {executable}"
+                )
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
+        identity = f"commit={commit}; sha256={digest}"
+        if configuration is not None:
+            identity += f"; {configuration}"
+        authenticated[record_name] = AuthenticatedTool(path=path, identity=identity)
+    try:
+        toolchain_cache.verify_ready(request)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(f"shared toolchain verification failed after identity probes: {exc}") from exc
+    return authenticated
+
+
+def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: str) -> str:
+    if configuration != FES_TOOLCHAIN_CONFIGURATION:
+        return ""
+    try:
+        if lock_path.resolve() != (root / "toolchain.lock").resolve():
+            return ""
+    except OSError:
+        return ""
+    return "; run `make toolchain-fes` to provision the FES HIP local toolchain"
+
+
+def _authenticate_tools(
+    root: Path,
+    *,
+    lock_path: Path | None = None,
+    toolchain_root: Path | None = None,
+    expected_commits: Mapping[str, str] | None = None,
+    expected_configuration: Mapping[str, str] | None = None,
+    gpu_router: str | None = None,
+    hip_architectures: str | None = None,
+    cache_root: Path | None = None,
+) -> dict[str, AuthenticatedTool]:
+    root = Path(root).resolve()
+    lock_path = root / "toolchain.lock" if lock_path is None else Path(lock_path)
+    if not lock_path.is_absolute():
+        lock_path = root / lock_path
+    toolchain_root = root / "build/toolchain" if toolchain_root is None else Path(toolchain_root)
+    if not toolchain_root.is_absolute():
+        toolchain_root = root / toolchain_root
+    expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
+    gpu_router = FES_GPU_ROUTER if gpu_router is None else gpu_router
+    hip_architectures = FES_GPU_ARCHITECTURES if hip_architectures is None else hip_architectures
+    expected_configuration = (
+        {"nextpnr": FES_TOOLCHAIN_CONFIGURATION}
+        if expected_configuration is None
+        else expected_configuration
+    )
+    definitions = (
+        ("yosys", "yosys", "yosys", ("--version",)),
+        ("mistral", "mistral", "mistral-cv", ("models",)),
+        ("nextpnr-mistral", "nextpnr", "nextpnr-mistral", ("--version",)),
+    )
+    if cache_root is not None:
+        return _authenticate_shared_tools(
+            root,
+            lock_path=lock_path,
+            expected_commits=expected_commits,
+            expected_configuration=expected_configuration,
+            gpu_router=gpu_router,
+            hip_architectures=hip_architectures,
+            cache_root=Path(cache_root),
+        )
+    try:
+        pins = load_lock(lock_path)
+    except (OSError, LockfileError, ValueError) as exc:
+        raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
+    install = toolchain_root / "install/bin"
+    build_root = toolchain_root / "build"
+    authenticated: dict[str, AuthenticatedTool] = {}
+    for record_name, lock_name, executable, arguments in definitions:
+        pin = pins[lock_name]
+        if pin.commit != expected_commits[lock_name]:
+            raise BuildError(
+                f"authenticated {lock_name} commit {expected_commits[lock_name]}, "
+                f"got {pin.commit}"
+            )
+        path = install / executable
+        if path.is_symlink() or not path.is_file() or not os.access(path, os.X_OK):
+            raise BuildError(f"pinned tool is not a regular executable: {path}")
+        stamp = build_root / lock_name / f".built-{pin.commit}"
+        digest_path = build_root / lock_name / f".digest-{pin.commit}.sha256"
+        if _read_evidence(stamp, "stamp") != f"commit={pin.commit}":
+            raise BuildError(f"tool build stamp does not match locked commit: {executable}")
+        expected_digest = _read_evidence(digest_path, "digest")
+        actual_digest = _sha256(path)
+        if actual_digest != expected_digest:
+            raise BuildError(f"tool executable digest does not match lock evidence: {executable}")
+        configuration = expected_configuration.get(lock_name)
+        if configuration is not None:
+            configuration_path = build_root / lock_name / f".config-{pin.commit}.txt"
+            hint = _fes_hip_local_provision_hint(root, lock_path, configuration)
+            try:
+                actual_configuration = _read_evidence(configuration_path, "configuration")
+            except BuildError as exc:
+                raise BuildError(f"{exc}{hint}") from exc
+            if actual_configuration != configuration:
+                raise BuildError(
+                    f"tool configuration does not match the requested build lane: {executable}{hint}"
+                )
+        _probe_authenticated_tool(root, path, lock_name, executable, arguments)
+        identity = f"commit={pin.commit}; sha256={actual_digest}"
+        if configuration is not None:
+            identity += f"; {configuration}"
+        authenticated[record_name] = AuthenticatedTool(
+            path=path,
+            identity=identity,
+        )
+    return authenticated
+
+
+def create_build_record(
+    root: Path,
+    repository: str,
+    revision: str,
+    tool_identities: Mapping[str, str],
+    *,
+    identity_version: int = 1,
+    execution: dict | None = None,
+) -> bytes:
+    root = Path(root)
+    fields = {
+        "format": 1,
+        "repository": repository,
+        "revision": revision,
+        "recipe": RECIPE,
+        "recipe_sha256": _sha256(_regular_input(root, RECIPE)),
+        "abi_definition": ABI_DEFINITION,
+        "abi_definition_sha256": _sha256(_regular_input(root, ABI_DEFINITION)),
+        "dependencies": {},
+        "tools": dict(tool_identities),
+        "parameters": {
+            "device": TARGET,
+            "gpu_architectures": FES_GPU_ARCHITECTURES,
+            "gpu_backend": FES_GPU_BACKEND,
+            "pixel_clock_hz": 74_250_000,
+            "pll_fractional_vco_multiplier": True,
+            "reference_clock_hz": 50_000_000,
+            "router": "gpu",
+            "seed": 1,
+            "top": TOP,
+        },
+    }
+    if identity_version == 2:
+        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution)
+    elif identity_version != 1:
+        raise BuildError("unsupported build identity version")
+    return encode_build_record(fields)
+
+
+def build_commands(
+    root: Path,
+    output: Path,
+    build_id: str,
+    tools: Mapping[str, Path],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    root = Path(root).resolve()
+    output = Path(output).resolve()
+    if output != root / OUTPUT_RELATIVE:
+        raise BuildError(f"FES Pong output must be {root / OUTPUT_RELATIVE}")
+    if HEX32_RE.fullmatch(build_id) is None:
+        raise BuildError("build ID must be 32 lowercase hexadecimal characters")
+    if set(tools) != {"yosys", "nextpnr-mistral"}:
+        raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
+    sources = " ".join(RTL_SOURCES)
+    yosys_program = (
+        f"read_verilog -sv -I cores/fes-pong/generated {sources}; "
+        f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        f"synth_intel_alm -nobram -nolutram -nodsp -top {TOP}; "
+        f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
+    )
+    yosys = (str(tools["yosys"]), "-p", yosys_program)
+    nextpnr = (
+        str(tools["nextpnr-mistral"]),
+        "--json", f"{OUTPUT_RELATIVE.as_posix()}/synth.json",
+        "--device", TARGET,
+        "--qsf", QSF,
+        "--sdc", SDC,
+        "--freq", "74.25",
+        "--seed", "1",
+        "--router", "gpu",
+        "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
+        "--compress-rbf",
+        "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",
+        "--report", f"{OUTPUT_RELATIVE.as_posix()}/timing.json",
+        "--detailed-timing-report",
+    )
+    return yosys, nextpnr
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise BuildError(f"build output is not a regular file: {path}")
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _prepare_output(root: Path, *, relative: Path = OUTPUT_RELATIVE) -> Path:
+    output = root / relative
+    build_root = root / "build"
+    if build_root.is_symlink() or (build_root.exists() and not build_root.is_dir()):
+        raise BuildError(f"build root must be a non-symlink directory: {build_root}")
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        raise BuildError(f"FES Pong output must be a non-symlink directory: {output}")
+    output.mkdir(parents=True, exist_ok=True)
+    for name in BUILD_OUTPUTS:
+        path = output / name
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise BuildError(f"build output must be a regular file: {path}")
+        if path.exists():
+            path.unlink()
+    return output
+
+
+def _run_tool(command: tuple[str, ...], cwd: Path, log: Path,
+              *, output_relative: Path = OUTPUT_RELATIVE, env=None) -> None:
+    try:
+        result = subprocess.run(
+            list(command),
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    except OSError as exc:
+        raise BuildError(f"cannot run authenticated tool: {command[0]}") from exc
+    _write_atomic(log, result.stdout)
+    if result.returncode != 0:
+        # nextpnr-mistral can emit an intermediate timing ERROR, retry, then
+        # finish a passing route and still exit 1. Accept a finished route
+        # with a payload; validate_build_evidence still requires final PASS.
+        routed = cwd / output_relative / "core.rbf"
+        if (
+            Path(command[0]).name == "nextpnr-mistral"
+            and b"Info: Program finished normally." in result.stdout
+            and routed.is_file()
+            and not routed.is_symlink()
+            and routed.stat().st_size > 0
+        ):
+            return
+        raise BuildError(f"tool failed with exit {result.returncode}: {command[0]}; see {log}")
+
+
+def _read_json(path: Path, label: str) -> dict:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
+        raise BuildError(f"missing nonempty {label}: {path}")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BuildError(f"invalid {label}: {path}") from exc
+    if not isinstance(value, dict):
+        raise BuildError(f"{label} must be a JSON object")
+    return value
+
+
+def _cell_counts(synthesis: dict) -> dict[str, int]:
+    modules = synthesis.get("modules")
+    if not isinstance(modules, dict):
+        raise BuildError("synthesis evidence has no modules")
+    counts: dict[str, int] = {}
+    for module in modules.values():
+        if not isinstance(module, dict) or not isinstance(module.get("cells"), dict):
+            continue
+        for cell in module["cells"].values():
+            if isinstance(cell, dict) and isinstance(cell.get("type"), str):
+                name = cell["type"]
+                counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _frequency_rows(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
+    if not isinstance(fmax, dict):
+        raise BuildError("timing report has no structured fmax data")
+    matches: list[tuple[str, float, float]] = []
+    for name, fields in fmax.items():
+        if not isinstance(name, str) or not isinstance(fields, dict):
+            continue
+        constraint = fields.get("constraint")
+        achieved = fields.get("achieved")
+        if (
+            isinstance(constraint, bool)
+            or not isinstance(constraint, (int, float))
+            or isinstance(achieved, bool)
+            or not isinstance(achieved, (int, float))
+        ):
+            continue
+        if not math.isfinite(float(constraint)) or not math.isfinite(float(achieved)):
+            raise BuildError(f"{label} timing frequencies must be finite")
+        tolerance = max(1e-6, expected * 5e-5)
+        if abs(float(constraint) - expected) <= tolerance:
+            matches.append((name, float(constraint), float(achieved)))
+    if len(matches) != 1:
+        raise BuildError(f"timing report must contain exactly one {label} {expected:g} MHz constraint")
+    name, constraint, achieved = matches[0]
+    if achieved < constraint:
+        raise BuildError(
+            f"{label} timing achieved {achieved:g} MHz, below reported constraint {constraint!r} MHz"
+        )
+    return name, constraint, achieved
+
+
+def _pll_cell_parameters(design: dict, label: str, *, audio: bool = False) -> None:
+    modules = design.get("modules")
+    top = modules.get(TOP) if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    matches = [
+        cell
+        for cell in cells.values()
+        if isinstance(cell, dict) and cell.get("type") == "altera_pll"
+    ] if isinstance(cells, dict) else []
+    expected = [PLL_PARAMETERS]
+    if audio:
+        expected.append({**PLL_PARAMETERS, "output_clock_frequency0": "12.288 MHz"})
+    frequency = lambda item: item.get("output_clock_frequency0", "")
+    if sorted((cell.get("parameters", {}) for cell in matches), key=frequency) != sorted(expected, key=frequency):
+        raise BuildError(f"{label} PLL parameters do not match the fixed 50-to-74.25 MHz profile")
+
+
+def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool = False) -> dict[str, object]:
+    sdc = _regular_input(source_root, SDC)
+    if sdc.read_bytes() != REFERENCE_SDC_BYTES:
+        raise BuildError("tracked SDC does not contain the exact FPGA_CLK1_50 20.000 ns constraint")
+    if route_text.count(REFERENCE_CONSTRAINT_LOG) != 1:
+        raise BuildError("route log must apply the FPGA_CLK1_50 50.00 MHz constraint exactly once")
+    if route_text.count(PLL_ROUTE_LOG) != 1:
+        raise BuildError("route log does not contain the expected fixed fractional PLL mapping")
+    if audio and len(re.findall(r"Info: PLL 'audio_clock.pll': 50 MHz -> 12\.288 MHz, direct, .*bel altera_pll\.[0-9.]+", route_text)) != 1:
+        raise BuildError("route log must contain the exact 12.288 MHz audio PLL mapping")
+    return {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "requested_mhz": 50.0,
+        "status": "pass",
+    }
+
+
+def _i2c_evidence(design: dict, label: str) -> None:
+    module = design.get("modules", {}).get(TOP, {})
+    cells = module.get("cells", {})
+    bridges = [cell for cell in cells.values()
+               if cell.get("type") == "cyclonev_hps_interface_peripheral_i2c"]
+    if len(bridges) != 1:
+        raise BuildError(f"{label} HDMI I2C requires exactly one HPS bridge")
+    bridge = bridges[0]
+    site = "cyclonev_hps_interface_peripheral_i2c.52.60.0"
+    placement = "NEXTPNR_BEL" if label == "routed" else "BEL"
+    if bridge.get("attributes", {}).get(placement) != site:
+        raise BuildError(f"{label} HDMI I2C must use HPS site X52 Y60")
+    connections = bridge.get("connections", {})
+    if (set(connections) != {"out_clk", "out_data", "scl", "sda"}
+            or any(not isinstance(bits, list) or len(bits) != 1
+                   or type(bits[0]) is not int for bits in connections.values())
+            or len({bits[0] for bits in connections.values()}) != 4):
+        raise BuildError(f"{label} HDMI I2C requires four distinct signal nets")
+    grounds = [["0"]]
+    if label == "routed":
+        grounds += [cell.get("connections", {}).get("Q") for cell in cells.values()
+                    if cell.get("type") == "MISTRAL_CONST"
+                    and re.fullmatch("0+", str(cell.get("parameters", {}).get("LUT", "")))
+                    and isinstance(cell.get("connections", {}).get("Q"), list)
+                    and len(cell["connections"]["Q"]) == 1]
+    for name, enable, feedback, pin, bel in (
+        ("hdmi_scl_pad", "out_clk", "scl", "PIN_U10", "MISTRAL_IO.6.0.0"),
+        ("hdmi_sda_pad", "out_data", "sda", "PIN_AA4", "MISTRAL_IO.4.0.2"),
+    ):
+        pad = cells.get(name, {})
+        ports = pad.get("connections", {})
+        if (pad.get("type") != "MISTRAL_IO" or ports.get("I") not in grounds
+                or ports.get("OE") != connections[enable]
+                or ports.get("O") != connections[feedback]):
+            raise BuildError(f"{label} HDMI I2C {name} must drive low or release with pad feedback")
+        port_name = "HDMI_I2C_SCL" if enable == "out_clk" else "HDMI_I2C_SDA"
+        port = module.get("ports", {}).get(port_name, {})
+        if (port.get("direction") != "inout" or not isinstance(port.get("bits"), list)
+                or len(port["bits"]) != 1 or ports.get("PAD") != port["bits"]):
+            raise BuildError(f"{label} HDMI I2C {name} must connect its bidirectional pad")
+        if label == "routed" and (
+                pad.get("attributes", {}).get("LOC") != pin
+                or pad.get("attributes", {}).get("NEXTPNR_BEL") != bel):
+            raise BuildError(f"routed HDMI I2C {name} must use {pin}")
+
+
+def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False) -> dict:
+    output = Path(output)
+    source_root = Path(source_root)
+    synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    routed = _read_json(output / "routed.json", "routed design")
+    routed_modules = routed.get("modules")
+    if not isinstance(routed_modules, dict) or not isinstance(routed_modules.get(TOP), dict):
+        raise BuildError("routed design does not contain the top module")
+    _pll_cell_parameters(synthesis, "synthesized", audio=audio)
+    _pll_cell_parameters(routed, "routed", audio=audio)
+    _i2c_evidence(synthesis, "synthesized")
+    _i2c_evidence(routed, "routed")
+    counts = _cell_counts(synthesis)
+    required_resources = {**REQUIRED_RESOURCES, "altera_pll": 2 if audio else 1}
+    for name, expected in required_resources.items():
+        if counts.get(name, 0) != expected:
+            raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
+    for name in FORBIDDEN_RESOURCES:
+        if counts.get(name, 0) != 0:
+            raise BuildError(f"forbidden synthesis cell {name} is in use")
+
+    route_log = output / "nextpnr.log"
+    if route_log.is_symlink() or not route_log.is_file():
+        raise BuildError(f"missing route log: {route_log}")
+    route_text = route_log.read_text(encoding="utf-8", errors="replace")
+    if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
+        raise BuildError("route log does not prove a complete routed design")
+    gpu_backend = _require_gpu_backend(route_text)
+    reference = _reference_clock_evidence(source_root, route_text, audio=audio)
+
+    timing = _read_json(output / "timing.json", "timing report")
+    fmax = timing.get("fmax")
+    if not isinstance(fmax, dict) or len(fmax) != (2 if audio else 1):
+        raise BuildError("timing report must contain exactly the pixel and audio sequential domains" if audio
+                         else "timing report must contain the single pixel sequential domain")
+    pixel = _frequency_rows(fmax, 74.25, "pixel clock")
+    audio_timing = _frequency_rows(fmax, 12.288, "audio clock") if audio else None
+    utilization = timing.get("utilization")
+    if not isinstance(utilization, dict):
+        raise BuildError("timing report has no structured utilization data")
+    resources: dict[str, dict[str, int]] = {}
+    known = (
+        ORDINARY_RESOURCES
+        | set(REQUIRED_RESOURCES)
+        | FORBIDDEN_RESOURCES
+        | REQUIRED_ZERO_RESOURCES
+    )
+    unknown = sorted(set(utilization) - known)
+    if unknown:
+        raise BuildError("timing report contains unknown resources: " + ", ".join(unknown))
+    for name, fields in sorted(utilization.items()):
+        if not isinstance(fields, dict):
+            raise BuildError(f"malformed resource evidence: {name}")
+        used = fields.get("used")
+        available = fields.get("available")
+        if (
+            isinstance(used, bool)
+            or not isinstance(used, int)
+            or used < 0
+            or isinstance(available, bool)
+            or not isinstance(available, int)
+            or available < 0
+        ):
+            raise BuildError(f"malformed resource counts: {name}")
+        resources[name] = {"available": available, "used": used}
+    for name, expected in required_resources.items():
+        if name not in resources or resources[name]["used"] != expected:
+            actual = "missing" if name not in resources else str(resources[name]["used"])
+            raise BuildError(f"resource {name} must be exactly {expected}, got {actual}")
+    for name in REQUIRED_ZERO_RESOURCES:
+        if name not in resources or resources[name]["used"] != 0:
+            actual = "missing" if name not in resources else str(resources[name]["used"])
+            raise BuildError(f"resource {name} must be exactly 0, got {actual}")
+    for name in FORBIDDEN_RESOURCES:
+        if name in resources and resources[name]["used"] != 0:
+            raise BuildError(f"forbidden resource {name} is in use")
+
+    rbf = output / "core.rbf"
+    if rbf.is_symlink() or not rbf.is_file() or not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
+        raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
+    return {
+        "status": "pass",
+        "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
+        "timing": {
+            **({"audio": {"clock": audio_timing[0], "constraint_mhz": audio_timing[1],
+                           "requested_mhz": 12.288, "achieved_mhz": audio_timing[2],
+                           "status": "pass"}} if audio_timing else {}),
+            "pixel": {
+                "clock": pixel[0],
+                "constraint_mhz": pixel[1],
+                "requested_mhz": 74.25,
+                "achieved_mhz": pixel[2],
+                "status": "pass",
+            },
+            "reference": reference,
+            "status": "pass",
+        },
+        "resources": resources,
+        "synthesis_cells": {name: counts[name] for name in sorted(counts)},
+        "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
+    }
+
+
+def _manifest(record: bytes, evidence: dict, repository: str, revision: str, tools: Mapping[str, str]) -> bytes:
+    record_fields = json.loads(record)
+    rbf = evidence["rbf"]
+    toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
+    fields = {
+        "format": 2,
+        "core": {
+            "id": "fes.pong",
+            "name": "FES Pong",
+            "description": "Standalone fixed-720p Pong for the FES general-purpose ABI",
+            "version": "1.1.0",
+        },
+        "target": {
+            "platform": "de10_nano",
+            "device": TARGET,
+            "programming_profile": "fes-gp-v1",
+        },
+        "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
+        "abi": {"id": "fes.simple-game", "major": 1, "minor": 0},
+        "interfaces": [
+            {"id": "fes.gamepad", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.persistence.words", "major": 1, "minor": 0, "required": True},
+            {"id": "fes.pong.progress", "major": 1, "minor": 0, "required": True},
+        ],
+        "build": {
+            "id": build_identity(record),
+            "repository": repository,
+            "revision": revision,
+            "recipe_sha256": record_fields["recipe_sha256"],
+            "toolchain": toolchain,
+        },
+    }
+    return encode_manifest(fields)
+
+
+def _build_after_record(
+    root: Path,
+    package_store: Path,
+    repository: str,
+    revision: str,
+    authenticated: Mapping[str, AuthenticatedTool],
+    identities: Mapping[str, str],
+    record: bytes,
+    output: Path,
+    cache_root: Path | None = None,
+    invocation=None,
+    identity_version: int = 1,
+) -> Path:
+    build_id = build_identity(record)
+    commands = build_commands(
+        root,
+        output,
+        build_id,
+        {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+    )
+    _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env} if invocation else {}))
+    if not (output / "synth.json").is_file():
+        raise BuildError("Yosys did not produce synthesis evidence")
+    _run_tool(commands[1] + (("--gpu-device", str(invocation.gpu_device)) if invocation else ()), root, output / "nextpnr.log", **({"env": invocation.env} if invocation else {}))
+    evidence = validate_build_evidence(output, root)
+    if invocation:
+        evidence["execution"] = invocation.inputs
+    evidence.update(
+        {
+            "build_id": build_id,
+            "device": TARGET,
+            "inputs": {relative: _sha256(root / relative) for relative in sorted(PINNED_INPUTS)},
+            "tools": identities,
+            "top": TOP,
+        }
+    )
+    _write_atomic(
+        output / "build-summary.json",
+        (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    manifest = _manifest(record, evidence, repository, revision, identities)
+    _write_atomic(output / "manifest.toml", manifest)
+    final_tools = _authenticate_tools(root, cache_root=cache_root)
+    if {name: tool.identity for name, tool in final_tools.items()} != identities:
+        raise BuildError("authenticated tool identity changed during build")
+    final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
+    if (final_repository, final_revision) != (repository, revision):
+        raise BuildError("source identity changed during build")
+    if invocation:
+        invocation.verify()
+        if create_build_record(root, repository, revision, identities,
+            identity_version=identity_version, execution=invocation.inputs) != record:
+            raise BuildError("functional source inputs changed during build")
+    return export_package(manifest, output / "core.rbf", package_store)
+
+
+def _invalidate_failed_artifact(output: Path) -> None:
+    for name in ("core.rbf", "manifest.toml", "build-summary.json"):
+        path = output / name
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        elif path.exists():
+            raise BuildError(f"cannot invalidate non-file failed build output: {path}")
+
+
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 1, gpu_device: int = 0) -> Path:
+    root = Path(root).resolve()
+    package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
+    if package_store != root / "build/packages":
+        raise BuildError(f"FES Pong package store must be {root / 'build/packages'}")
+    repository, revision = _require_clean_source(root, identity_version=identity_version)
+    authenticated = _authenticate_tools(root, cache_root=cache_root)
+    identities = {name: tool.identity for name, tool in authenticated.items()}
+    invocation = FunctionalInvocation(authenticated, gpu_device) if identity_version == 2 else None
+    record = create_build_record(root, repository, revision, identities,
+        identity_version=identity_version, execution=invocation.inputs if invocation else None)
+    output = _prepare_output(root)
+    _write_atomic(output / "build-inputs.json", record)
+    try:
+        return _build_after_record(
+            root,
+            package_store,
+            repository,
+            revision,
+            authenticated,
+            identities,
+            record,
+            output,
+            cache_root=cache_root,
+            **({"invocation": invocation, "identity_version": identity_version} if invocation else {}),
+        )
+    except Exception:
+        _invalidate_failed_artifact(output)
+        raise
+    finally:
+        if invocation:
+            invocation.close()
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--package-output", type=Path)
+    parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=1)
+    parser.add_argument("--gpu-device", type=int, default=0)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = _parser().parse_args(argv)
+    try:
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+    except (BuildError, OSError, ValueError) as exc:
+        print(f"build-fes-pong: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

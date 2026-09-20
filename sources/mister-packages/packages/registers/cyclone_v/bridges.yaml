@@ -1,0 +1,12 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.bridge_window
+description: >-
+  Placeholder for an HPS-FPGA bridge window. Bank size comes from the
+  SoC bank window_size. Not a libmister-runtime symbol in milestone 1.
+
+registers:
+  - name: CORE_WINDOW
+    offset: 0x0
+    access: rw
+    description: First word of the observed bridge window.

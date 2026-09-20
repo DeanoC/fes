@@ -1,0 +1,8 @@
+{
+  "name": "swap-ab",
+  "description": "Swap A and B after device normalization.",
+  "bindings": {
+    "a": "b",
+    "b": "a"
+  }
+}

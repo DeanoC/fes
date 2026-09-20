@@ -1,0 +1,5 @@
+# Clock pin plus the empty expansion socket. Plug FFs are BEL-locked in RTL
+# outside this rect. Locked nextpnr d672fade honours the freeze fence.
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -entity top -to FPGA_CLK1_50
+set_global_assignment -name FES_RESERVED_RECT "25 1 27 16"

@@ -1,0 +1,9 @@
+schema: mister-packages.v1
+kind: cpu
+id: arm.cyclone_v
+triple: arm-none-linux-gnueabihf
+arch: armv7
+width: 32
+core_count: 2
+max_atomic_width: 64
+description: Dual Cortex-A9 in the Cyclone V HPS. Host software is not this CPU.

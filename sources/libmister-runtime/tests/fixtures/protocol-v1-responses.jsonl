@@ -1,0 +1,2 @@
+{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"fixture"}
+{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"invalid_request","message":"fixture failure"},"version":"fixture"}

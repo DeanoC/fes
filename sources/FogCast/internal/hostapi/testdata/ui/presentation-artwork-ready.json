@@ -1,0 +1,17 @@
+{
+  "game_id": "megadrive-sonic-test",
+  "state": "ready",
+  "presentation": {
+    "summary": "Host-local presentation with bounded artwork.",
+    "year": "1991",
+    "genre": "Platformer",
+    "studio": "SEGA",
+    "players": "1 player",
+    "cover_artwork_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "backdrop_artwork_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "attribution": {
+    "provider": "igdb",
+    "label": "Data from IGDB.com"
+  }
+}

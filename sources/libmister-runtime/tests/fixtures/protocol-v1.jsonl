@@ -1,0 +1,4 @@
+{"protocol":1,"operation":"status"}
+{"protocol":1,"operation":"launch","system":"test_cart","rbf":"/tmp/test.rbf","media":{"cartridge":"/tmp/game.bin"},"settings":{"region":"auto"}}
+{"protocol":1,"operation":"load_development_rbf","rbf":"/tmp/development.rbf"}
+{"protocol":1,"operation":"stop"}

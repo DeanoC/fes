@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FogCast launcher</title>
+  {{FOGCAST_STYLES}}
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="FogCast home">FOG<span>CAST</span></a>
+    <div class="header-tools">
+      <p id="health" class="host-status" role="status">Checking local host…</p>
+      <button id="open-settings" class="button secondary" type="button">Settings</button>
+      <button id="open-core-library" class="button secondary" type="button">Manage FPGA library</button>
+    </div>
+  </header>
+  <main class="launcher" id="launcher" data-keyboard-pane="rail">
+    <p class="sr-only" id="keyboard-help">Use Arrow, Home, and End to move the library rail, Home cover rows, and the cover or list wall. Enter opens detail or launches. Escape moves back. Type to search.</p>
+    <nav class="library-nav" id="library-nav" aria-label="Library collections">
+      <p class="eyebrow">Library</p>
+      <button id="nav-home" class="nav-item selected" type="button">Home</button>
+      <button id="nav-all" class="nav-item" type="button">All games</button>
+      <button id="nav-continue" class="nav-item" type="button">Continue</button>
+      <button id="nav-favorites" class="nav-item" type="button">Favorites</button>
+      <button id="nav-recents" class="nav-item" type="button">Recent</button>
+      <button id="nav-unplayed" class="nav-item" type="button">Unplayed</button>
+      <button id="nav-recently-added" class="nav-item" type="button">Recently added</button>
+      <div id="collection-list" class="collection-list"></div>
+      <div id="collection-controls" class="collection-controls">
+        <button id="create-collection" class="button secondary" type="button">New collection</button>
+        <label id="collection-name-label" class="filter-label" hidden>Collection name
+          <input id="collection-name" type="text" maxlength="80" autocomplete="off">
+        </label>
+        <button id="save-collection" class="button secondary" type="button" hidden>Save collection</button>
+        <button id="rename-collection" class="button secondary" type="button" hidden>Rename</button>
+        <button id="delete-collection" class="button secondary" type="button" hidden>Delete</button>
+      </div>
+      <p class="eyebrow platform-heading">Platforms</p>
+      <div id="platform-list" class="platform-list"></div>
+    </nav>
+    <section class="catalog-panel" aria-labelledby="catalog-heading">
+      <div class="intro-row">
+        <div>
+          <p class="eyebrow">Local library</p>
+          <h1 id="catalog-heading">Games</h1>
+        </div>
+        <div class="catalog-intro-tools">
+          <div id="catalog-layout" class="catalog-layout" role="group" aria-label="Catalog layout">
+            <button id="layout-cover" class="layout-toggle" type="button" aria-pressed="true">Cover</button>
+            <button id="layout-list" class="layout-toggle" type="button" aria-pressed="false">List</button>
+          </div>
+          <p id="catalog-count" class="catalog-count" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="toolbar">
+        <label class="search-label" for="game-search">Search games</label>
+        <div class="search-controls">
+          <input id="game-search" type="search" placeholder="Search games" autocomplete="off">
+          <button id="refresh-catalog" class="button secondary" type="button">Refresh</button>
+        </div>
+        <div class="catalog-filters" role="group" aria-label="Catalog filters">
+          <label class="filter-label">Platform
+            <select id="filter-system">
+              <option value="">All platforms</option>
+            </select>
+          </label>
+          <label class="filter-label">Region
+            <select id="filter-region">
+              <option value="">All regions</option>
+              <option value="usa">USA</option>
+              <option value="japan">Japan</option>
+              <option value="europe">Europe</option>
+              <option value="world">World</option>
+              <option value="brazil">Brazil</option>
+              <option value="korea">Korea</option>
+              <option value="asia">Asia</option>
+              <option value="australia">Australia</option>
+              <option value="france">France</option>
+              <option value="germany">Germany</option>
+              <option value="spain">Spain</option>
+              <option value="italy">Italy</option>
+              <option value="canada">Canada</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="filter-label">Genre
+            <select id="filter-genre">
+              <option value="">All genres</option>
+            </select>
+          </label>
+          <label class="filter-label">Year
+            <select id="filter-year">
+              <option value="">All years</option>
+            </select>
+          </label>
+          <label class="filter-label">Availability
+            <select id="filter-availability">
+              <option value="">All</option>
+              <option value="ready">Ready</option>
+              <option value="offline">Offline</option>
+            </select>
+          </label>
+          <label class="filter-label" id="catalog-sort-filter"><span id="catalog-sort-label">Sort</span>
+            <select id="catalog-sort" aria-label="Sort">
+              <option value="title">Title</option>
+              <option value="year">Year</option>
+              <option value="system">Platform</option>
+              <option value="recently_added">Recently added</option>
+              <option value="recents" hidden disabled>Recent</option>
+            </select>
+          </label>
+          <label class="filter-label"><input id="filter-hide-prerelease" type="checkbox"> Hide betas</label>
+          <label class="filter-label"><input id="filter-hide-hacks" type="checkbox"> Hide hacks</label>
+        </div>
+      </div>
+      <div id="catalog" class="catalog-region" aria-busy="true">
+        <p id="catalog-status" class="sr-only" aria-live="polite">loading</p>
+        <div id="catalog-list" class="game-grid"></div>
+        <div id="catalog-actions" class="retry-container"></div>
+      </div>
+    </section>
+    <aside id="detail" class="detail-panel" aria-labelledby="detail-heading">
+      <div id="detail-content"></div>
+      <div id="launch-actions" class="launch-actions"></div>
+      <p id="launch-status" class="sr-only" role="status" aria-live="polite"></p>
+    </aside>
+    <section id="session-panel" class="session-panel session-quiet" aria-labelledby="session-heading" aria-busy="true" tabindex="-1">
+      <div class="session-header">
+        <div>
+          <p class="eyebrow">Host session</p>
+          <h2 id="session-heading">Session lifecycle</h2>
+        </div>
+        <p id="session-status" class="session-status" role="status" aria-live="polite" aria-atomic="true">Checking session status…</p>
+      </div>
+      <figure id="session-preview" class="session-preview" hidden>
+        <img id="session-preview-image" alt="Live FPGA picture">
+        <figcaption>Live FPGA picture</figcaption>
+      </figure>
+      <div id="session-details" class="session-details"></div>
+      <div id="session-actions" class="session-actions"></div>
+      <p id="session-message" class="session-message" role="alert" aria-live="assertive"></p>
+    </section>
+  </main>
+  <div id="attract" class="attract" hidden>
+    <p id="attract-title" class="attract-title"></p>
+    <div id="attract-stage" class="attract-stage"></div>
+  </div>
+  <div id="settings" class="settings" hidden>
+    <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
+      <p class="eyebrow">Host</p>
+      <h2 id="settings-heading">Settings</h2>
+      <label class="filter-label" for="settings-attract-idle">Attract idle seconds
+        <input id="settings-attract-idle" type="number" min="1" step="1" autocomplete="off">
+      </label>
+      <label class="filter-label" for="settings-preferred-regions">Preferred regions
+        <input id="settings-preferred-regions" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <section class="settings-group" aria-labelledby="settings-libraries-heading">
+        <div class="settings-group-header">
+          <h3 id="settings-libraries-heading">Library folders</h3>
+          <button id="add-library" class="button secondary compact" type="button">Add folder</button>
+        </div>
+        <p class="settings-help">Choose a system and a clean absolute NAS or local folder.</p>
+        <div id="settings-libraries" class="settings-list"></div>
+      </section>
+      <section class="settings-group" aria-labelledby="settings-targets-heading">
+        <div class="settings-group-header">
+          <h3 id="settings-targets-heading">MiSTer targets</h3>
+          <button id="add-target" class="button secondary compact" type="button">Add target</button>
+        </div>
+        <label class="filter-label" for="settings-selected-target">Selected target
+          <select id="settings-selected-target"></select>
+        </label>
+        <p class="settings-help">Agent credentials are write-only. Leave a stored agent blank to keep it.</p>
+        <div id="settings-targets" class="settings-list"></div>
+      </section>
+      <p id="settings-host-health" class="settings-status" role="status"></p>
+      <p id="settings-message" class="settings-message" role="alert"></p>
+      <div class="settings-actions">
+        <button id="save-settings" class="button" type="button">Save settings</button>
+        <button id="close-settings" class="button secondary" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+  <div id="game-actions-menu" class="game-actions-menu" hidden role="menu" aria-label="Game actions"></div>
+  <dialog id="core-library" hidden aria-labelledby="core-library-heading">
+    <h2 id="core-library-heading">Manage FPGA library</h2>
+    <p>Import and select for the next Kit launch. This panel never launches or stops a session.</p>
+    <div class="core-library-actions">
+      <button id="core-library-refresh" class="button secondary" type="button">Refresh</button>
+      <button id="core-library-close" class="button secondary" type="button">Close</button>
+    </div>
+    <fieldset>
+      <legend>Installed packages</legend>
+      <label for="core-package-file">Package archive (.fcore, up to 33 MiB)</label>
+      <input id="core-package-file" type="file" accept=".fcore">
+      <button id="core-package-import" class="button" type="button">Import package</button>
+      <label for="core-entry-select">Library entry</label>
+      <select id="core-entry-select"><option value="">New entry</option></select>
+      <p id="core-entry-current"></p>
+      <label for="core-package-select">Installed package (existing entries show same-core versions)</label>
+      <select id="core-package-select"><option value="">Choose package</option></select>
+      <button id="core-package-check" class="button secondary" type="button">Check compatibility</button>
+      <p id="core-package-status" role="status"></p>
+      <button id="core-entry-package-save" class="button" type="button">Select package for entry</button>
+    </fieldset>
+    <fieldset>
+      <legend>Optional immutable media</legend>
+      <label for="core-media-file">Media file (host storage up to 32 MiB; core limits may be smaller)</label>
+      <input id="core-media-file" type="file">
+      <button id="core-media-import" class="button" type="button">Import media</button>
+      <button id="core-media-discard" class="button secondary" type="button">Use no media for new entry</button>
+      <p id="core-media-status" role="status"></p>
+      <button id="core-entry-media-save" class="button" type="button">Select imported media for entry</button>
+      <button id="core-entry-media-clear" class="button secondary" type="button">Clear entry media</button>
+    </fieldset>
+    <fieldset>
+      <legend>Create a new title</legend>
+      <label for="core-entry-title">Title (up to 256 UTF-8 bytes)</label>
+      <input id="core-entry-title" type="text" maxlength="256" autocomplete="off">
+      <button id="core-entry-create" class="button" type="button">Create entry</button>
+    </fieldset>
+    <p id="core-library-message" role="status" aria-live="polite"></p>
+  </dialog>
+  {{FOGCAST_METADATA}}
+  {{FOGCAST_CORE_LIBRARY}}
+  {{FOGCAST_APP}}
+</body>
+</html>

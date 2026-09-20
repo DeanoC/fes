@@ -1,0 +1,31 @@
+# Copied pin from mister-packages packages/source/megadrive_mister.yaml.
+# Upstream version only. make fetch-core checks it out; rebuild is separate.
+
+[core.megadrive]
+repo = "https://github.com/MiSTer-devel/MegaDrive_MiSTer"
+commit = "7365a137cfd8fa6f041e964d8b953159c0ec42d9"
+rbf_path = "releases/MegaDrive_20260603.rbf"
+rbf_sha256 = "0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839"
+rbf_size = 4296864
+project = "MegaDrive.qpf"
+rationale = "Release 20260603. Upstream git pin plus the official RBF; our Quartus rebuild is a separate selectable artifact."
+
+# Copied from mister-packages packages/source/snes_mister.yaml.
+[core.snes]
+repo = "https://github.com/MiSTer-devel/SNES_MiSTer"
+commit = "93d359e6f23c734ae3928984e88bed1d9b53cbac"
+rbf_path = "releases/SNES_20260823.rbf"
+rbf_sha256 = "0c13347c0939f597ead5f1f835532d4508b10613e82e7316e902eabe712a9c83"
+rbf_size = 4446024
+project = "SNES.qpf"
+rationale = "Release 20260823. Upstream source/artifact identity verified. Local rebuild identity and hardware evidence are separate; see docs/architecture.md."
+
+# Copied from mister-packages packages/source/nes_mister.yaml.
+[core.nes]
+repo = "https://github.com/MiSTer-devel/NES_MiSTer"
+commit = "9a63821173b6da4d6e95dcbe2e2a322ec8171144"
+rbf_path = "releases/NES_20260823.rbf"
+rbf_sha256 = "a4c023defa4f7856585e5dba429a3b61aee3e01eb3de2c731bb0036c12f11701"
+rbf_size = 3282472
+project = "NES.qpf"
+rationale = "Release 20260823. Upstream source/artifact identity verified for the native NES cartridge slice."

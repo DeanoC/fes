@@ -1,0 +1,15 @@
+schema: mister-packages.v1
+kind: register_bank
+id: cyclone_v.system_manager
+description: System-manager slice used during FPGA bridge containment.
+
+registers:
+  - name: FPGAINTF
+    offset: 0x28
+    access: rw
+    description: FPGA interface selection. Runtime writes 0 to contain bridges.
+    address_symbols: [kSystemManagerFpgaInterfaceAddress]
+  - name: ISWGRP0
+    offset: 0x80
+    access: rw
+    description: First software handoff-group register. Observed by Main; not a runtime symbol yet.

@@ -1,0 +1,41 @@
+format = 1
+fes_base_commit = "3c9079dcc338f00f384a57c0a21cdb5f674ebf16"
+required_parents = ["3c9079dcc338f00f384a57c0a21cdb5f674ebf16", "e69e92dbf6d4aa4e7a6f360c2c24cc4bc588b249", "079b4548d5ab84c094686e00df4fbbe658f4f613", "5be29401614864e249f4f9c418c52385d52ccbd2", "41f4d9406955bed7abf318e1a14fde44e500dc92"]
+
+[imports."FogCast"]
+path = "sources/FogCast"
+repository = "https://github.com/DeanoC/FogCast.git"
+gitlink_repository = "https://github.com/DeanoC/FogCast.git"
+prior_gitlink = "31a426b15e49a794cb6e90692823dfa2ece7dc01"
+imported_commit = "e69e92dbf6d4aa4e7a6f360c2c24cc4bc588b249"
+tree = "cc161b0ecb897c5ed1c75127ddc9b751906ba1c0"
+history_ref = "refs/imports/FogCast"
+prior_history_ref = "refs/imports/prior/FogCast"
+
+[imports."libmister-runtime"]
+path = "sources/libmister-runtime"
+repository = "https://github.com/DeanoC/libmister-runtime.git"
+gitlink_repository = "https://github.com/DeanoC/libmister-runtime.git"
+prior_gitlink = "079b4548d5ab84c094686e00df4fbbe658f4f613"
+imported_commit = "079b4548d5ab84c094686e00df4fbbe658f4f613"
+tree = "872410eac9da779de8de48bb842da8c9b2cc47bd"
+history_ref = "refs/imports/libmister-runtime"
+
+[imports."misteross"]
+path = "sources/misteross"
+repository = "https://github.com/DeanoC/misteross.git"
+gitlink_repository = "https://github.com/DeanoC/misteross.git"
+prior_gitlink = "744906e6c901419030990907ffa722d1b3f9453a"
+imported_commit = "5be29401614864e249f4f9c418c52385d52ccbd2"
+tree = "aede86bc706b6569983a27766251d5b79c880608"
+history_ref = "refs/imports/misteross"
+prior_history_ref = "refs/imports/prior/misteross"
+
+[imports."mister-packages"]
+path = "sources/mister-packages"
+repository = "https://github.com/DeanoC/mister-packages.git"
+gitlink_repository = "https://github.com/DeanoC/mister-packages.git"
+prior_gitlink = "41f4d9406955bed7abf318e1a14fde44e500dc92"
+imported_commit = "41f4d9406955bed7abf318e1a14fde44e500dc92"
+tree = "e7170994d53881f222af67c751fed0113d898fcb"
+history_ref = "refs/imports/mister-packages"

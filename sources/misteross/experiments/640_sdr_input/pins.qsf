@@ -1,0 +1,6 @@
+# 50 MHz reference and dedicated SDR registered input on PIN_Y15.
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
+set_location_assignment PIN_Y15 -to SDR_IN
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDR_IN
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDR_IN

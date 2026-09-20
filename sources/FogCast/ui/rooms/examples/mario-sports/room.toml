@@ -1,0 +1,9 @@
+id = "mario-sports"
+title = "Sports Island"
+author = "FogCast"
+description = "Mario spin-offs across every system, one island."
+main = "main.lua"
+
+[theme]
+background = "#1f7a8c"
+accent = "#ffd300"

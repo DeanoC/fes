@@ -1,0 +1,617 @@
+{
+  "initial_request_toggle": false,
+  "build_id": "00112233445566778899aabbccddeeff",
+  "exchanges": [
+    {
+      "name": "identity-word-zero",
+      "opcode": 1,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        16777216,
+        2164260864
+      ],
+      "gpi": 4118824262,
+      "data": 17734,
+      "error": false
+    },
+    {
+      "name": "identity-word-01",
+      "opcode": 1,
+      "index": 1,
+      "argument": 0,
+      "gpo": [
+        2164326400,
+        16842752
+      ],
+      "gpi": 4110430547,
+      "data": 12627,
+      "error": false
+    },
+    {
+      "name": "identity-word-02",
+      "opcode": 1,
+      "index": 2,
+      "argument": 0,
+      "gpo": [
+        16908288,
+        2164391936
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "identity-word-03",
+      "opcode": 1,
+      "index": 3,
+      "argument": 0,
+      "gpo": [
+        2164457472,
+        16973824
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "identity-word-04",
+      "opcode": 1,
+      "index": 4,
+      "argument": 0,
+      "gpo": [
+        17039360,
+        2164523008
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "identity-word-05",
+      "opcode": 1,
+      "index": 5,
+      "argument": 0,
+      "gpo": [
+        2164588544,
+        17104896
+      ],
+      "gpi": 4110417921,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "identity-word-06",
+      "opcode": 1,
+      "index": 6,
+      "argument": 0,
+      "gpo": [
+        17170432,
+        2164654080
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "identity-word-07",
+      "opcode": 1,
+      "index": 7,
+      "argument": 0,
+      "gpo": [
+        2164719616,
+        17235968
+      ],
+      "gpi": 4110417935,
+      "data": 15,
+      "error": false
+    },
+    {
+      "name": "identity-word-08",
+      "opcode": 1,
+      "index": 8,
+      "argument": 0,
+      "gpo": [
+        17301504,
+        2164785152
+      ],
+      "gpi": 4118810880,
+      "data": 4352,
+      "error": false
+    },
+    {
+      "name": "identity-word-09",
+      "opcode": 1,
+      "index": 9,
+      "argument": 0,
+      "gpo": [
+        2164850688,
+        17367040
+      ],
+      "gpi": 4110431010,
+      "data": 13090,
+      "error": false
+    },
+    {
+      "name": "identity-word-10",
+      "opcode": 1,
+      "index": 10,
+      "argument": 0,
+      "gpo": [
+        17432576,
+        2164916224
+      ],
+      "gpi": 4118828356,
+      "data": 21828,
+      "error": false
+    },
+    {
+      "name": "identity-word-11",
+      "opcode": 1,
+      "index": 11,
+      "argument": 0,
+      "gpo": [
+        2164981760,
+        17498112
+      ],
+      "gpi": 4110448486,
+      "data": 30566,
+      "error": false
+    },
+    {
+      "name": "identity-word-12",
+      "opcode": 1,
+      "index": 12,
+      "argument": 0,
+      "gpo": [
+        17563648,
+        2165047296
+      ],
+      "gpi": 4118845832,
+      "data": 39304,
+      "error": false
+    },
+    {
+      "name": "identity-word-13",
+      "opcode": 1,
+      "index": 13,
+      "argument": 0,
+      "gpo": [
+        2165112832,
+        17629184
+      ],
+      "gpi": 4110465962,
+      "data": 48042,
+      "error": false
+    },
+    {
+      "name": "identity-word-14",
+      "opcode": 1,
+      "index": 14,
+      "argument": 0,
+      "gpo": [
+        17694720,
+        2165178368
+      ],
+      "gpi": 4118863308,
+      "data": 56780,
+      "error": false
+    },
+    {
+      "name": "identity-word-15",
+      "opcode": 1,
+      "index": 15,
+      "argument": 0,
+      "gpo": [
+        2165243904,
+        17760256
+      ],
+      "gpi": 4110483438,
+      "data": 65518,
+      "error": false
+    },
+    {
+      "name": "toggle-back",
+      "opcode": 1,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        16777216,
+        2164260864
+      ],
+      "gpi": 4118824262,
+      "data": 17734,
+      "error": false
+    },
+    {
+      "name": "invalid-opcode",
+      "opcode": 127,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        4278190080,
+        2130706432
+      ],
+      "gpi": 4114612225,
+      "data": 1,
+      "error": true
+    },
+    {
+      "name": "invalid-index",
+      "opcode": 1,
+      "index": 16,
+      "argument": 0,
+      "gpo": [
+        17825792,
+        2165309440
+      ],
+      "gpi": 4123000834,
+      "data": 2,
+      "error": true
+    },
+    {
+      "name": "invalid-argument",
+      "opcode": 1,
+      "index": 0,
+      "argument": 1,
+      "gpo": [
+        2164260865,
+        16777217
+      ],
+      "gpi": 4114612227,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "gameplay-hold-reset",
+      "opcode": 2,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        33554432,
+        2181038080
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "buttons-neutral",
+      "opcode": 3,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        2197815296,
+        50331648
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "data-info-0",
+      "opcode": 7,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        117440512,
+        2264924160
+      ],
+      "gpi": 4118806530,
+      "data": 2,
+      "error": false
+    },
+    {
+      "name": "data-info-1",
+      "opcode": 7,
+      "index": 1,
+      "argument": 0,
+      "gpo": [
+        2264989696,
+        117506048
+      ],
+      "gpi": 4110417921,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "data-info-2",
+      "opcode": 7,
+      "index": 2,
+      "argument": 0,
+      "gpo": [
+        117571584,
+        2265055232
+      ],
+      "gpi": 4118806529,
+      "data": 1,
+      "error": false
+    },
+    {
+      "name": "data-info-3",
+      "opcode": 7,
+      "index": 3,
+      "argument": 0,
+      "gpo": [
+        2265120768,
+        117637120
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "invalid-info-index",
+      "opcode": 7,
+      "index": 4,
+      "argument": 0,
+      "gpo": [
+        117702656,
+        2265186304
+      ],
+      "gpi": 4123000834,
+      "data": 2,
+      "error": true
+    },
+    {
+      "name": "read-before-freeze",
+      "opcode": 5,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        2231369728,
+        83886080
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "begin-restore",
+      "opcode": 4,
+      "index": 0,
+      "argument": 1,
+      "gpo": [
+        67108865,
+        2214592513
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "write-speed",
+      "opcode": 6,
+      "index": 0,
+      "argument": 2,
+      "gpo": [
+        2248146946,
+        100663298
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "incomplete-commit",
+      "opcode": 4,
+      "index": 0,
+      "argument": 2,
+      "gpo": [
+        67108866,
+        2214592514
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "invalid-write-index",
+      "opcode": 6,
+      "index": 2,
+      "argument": 7,
+      "gpo": [
+        2248278023,
+        100794375
+      ],
+      "gpi": 4114612226,
+      "data": 2,
+      "error": true
+    },
+    {
+      "name": "write-rally",
+      "opcode": 6,
+      "index": 1,
+      "argument": 17,
+      "gpo": [
+        100728849,
+        2248212497
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "stage-invalid-speed",
+      "opcode": 6,
+      "index": 0,
+      "argument": 3,
+      "gpo": [
+        2248146947,
+        100663299
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "invalid-speed-commit",
+      "opcode": 4,
+      "index": 0,
+      "argument": 2,
+      "gpo": [
+        67108866,
+        2214592514
+      ],
+      "gpi": 4123000835,
+      "data": 3,
+      "error": true
+    },
+    {
+      "name": "correct-speed",
+      "opcode": 6,
+      "index": 0,
+      "argument": 2,
+      "gpo": [
+        2248146946,
+        100663298
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "commit",
+      "opcode": 4,
+      "index": 0,
+      "argument": 2,
+      "gpo": [
+        67108866,
+        2214592514
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "write-after-commit",
+      "opcode": 6,
+      "index": 0,
+      "argument": 1,
+      "gpo": [
+        2248146945,
+        100663297
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "release",
+      "opcode": 2,
+      "index": 0,
+      "argument": 1,
+      "gpo": [
+        33554433,
+        2181038081
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "begin-while-running",
+      "opcode": 4,
+      "index": 0,
+      "argument": 1,
+      "gpo": [
+        2214592513,
+        67108865
+      ],
+      "gpi": 4114612228,
+      "data": 4,
+      "error": true
+    },
+    {
+      "name": "freeze",
+      "opcode": 4,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        67108864,
+        2214592512
+      ],
+      "gpi": 4118806528,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "freeze-again",
+      "opcode": 4,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        2214592512,
+        67108864
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "snapshot-speed",
+      "opcode": 5,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        83886080,
+        2231369728
+      ],
+      "gpi": 4118806530,
+      "data": 2,
+      "error": false
+    },
+    {
+      "name": "snapshot-rally",
+      "opcode": 5,
+      "index": 1,
+      "argument": 0,
+      "gpo": [
+        2231435264,
+        83951616
+      ],
+      "gpi": 4110417937,
+      "data": 17,
+      "error": false
+    },
+    {
+      "name": "invalid-read-index",
+      "opcode": 5,
+      "index": 2,
+      "argument": 0,
+      "gpo": [
+        84017152,
+        2231500800
+      ],
+      "gpi": 4123000834,
+      "data": 2,
+      "error": true
+    },
+    {
+      "name": "resume",
+      "opcode": 4,
+      "index": 0,
+      "argument": 3,
+      "gpo": [
+        2214592515,
+        67108867
+      ],
+      "gpi": 4110417920,
+      "data": 0,
+      "error": false
+    },
+    {
+      "name": "read-after-resume",
+      "opcode": 5,
+      "index": 0,
+      "argument": 0,
+      "gpo": [
+        83886080,
+        2231369728
+      ],
+      "gpi": 4123000836,
+      "data": 4,
+      "error": true
+    }
+  ]
+}

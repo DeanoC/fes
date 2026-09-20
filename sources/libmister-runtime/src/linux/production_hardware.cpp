@@ -1,0 +1,291 @@
+// Copyright 2026 FogCast contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+#include "linux/production_hardware.hpp"
+
+#include "native/artifacts.hpp"
+#include "native/core_loader.hpp"
+#include "native/core_driver.hpp"
+#include "native/fes_gp.hpp"
+#include "native/generated/megadrive.hpp"
+#include "native/generated/nes.hpp"
+#include "native/generated/pong.hpp"
+#include "native/generated/snes.hpp"
+#include "native/hardware.hpp"
+#include "native/input.hpp"
+#include "native/linux/fpga_manager.hpp"
+#include "native/linux/framebuffer.hpp"
+#include "native/linux/i2c.hpp"
+#include "native/linux/input.hpp"
+#include "native/linux/mmio.hpp"
+#include "native/linux/spi.hpp"
+#include "native/video.hpp"
+#include "native/video_recipe.hpp"
+
+#include <cstddef>
+#include <cstring>
+#include <cstdlib>
+#include <string>
+#include <time.h>
+#include <utility>
+
+#ifndef MISTER_RUNTIME_IDLE_RBF
+#define MISTER_RUNTIME_IDLE_RBF "/usr/share/mister-runtime/idle.rbf"
+#endif
+
+#ifndef MISTER_RUNTIME_CORES_DIR
+#define MISTER_RUNTIME_CORES_DIR "/usr/share/mister-runtime/cores"
+#endif
+
+namespace mister {
+namespace {
+
+Profile ProfileFromGenerated(const native::generated::GeneratedSystem& sys)
+{
+	FileWireFormat file_wire;
+	if (std::strcmp(sys.core.file_wire, "little_endian_byte_pairs") == 0)
+		file_wire = FileWireFormat::little_endian_byte_pairs;
+	else if (std::strcmp(sys.core.file_wire, "little_endian_bytes") == 0)
+		file_wire = FileWireFormat::little_endian_bytes;
+	else
+		std::abort();
+	Profile profile;
+	profile.system = sys.system;
+	profile.expected_core = sys.expected_core;
+	profile.rbf = std::string(MISTER_RUNTIME_CORES_DIR) + "/" + sys.rbf_artifact;
+	for (std::size_t i = 0; i < sys.media_count; ++i) {
+		const native::generated::GeneratedMediaRule& rule = sys.media[i];
+		MediaRule media;
+		media.role = rule.role;
+		media.index = rule.index;
+		media.required = rule.required;
+		media.maximum_size = rule.maximum_size;
+		if (std::strcmp(rule.transform, "raw") == 0) media.transform = MediaTransform::raw;
+		else if (std::strcmp(rule.transform, "snes_cartridge") == 0) media.transform = MediaTransform::snes_cartridge;
+		else if (std::strcmp(rule.transform, "nes_cartridge") == 0) media.transform = MediaTransform::nes_cartridge;
+		else std::abort();
+		for (std::size_t j = 0; j < rule.extension_count; ++j)
+			media.extensions.push_back(rule.extensions[j]);
+		profile.media.push_back(media);
+	}
+	profile.core.reset_assert_word = sys.core.reset_assert_word;
+	profile.core.initial_status_word = sys.core.initial_status_word;
+	profile.core.reset_release_word = sys.core.reset_release_word;
+	profile.core.file_wire = file_wire;
+	profile.input.player_count = sys.input.player_count;
+	profile.input.player_command = sys.input.player_command;
+	profile.input.up = sys.input.up;
+	profile.input.down = sys.input.down;
+	profile.input.left = sys.input.left;
+	profile.input.right = sys.input.right;
+	profile.input.a = sys.input.a;
+	profile.input.b = sys.input.b;
+	profile.input.c = sys.input.c;
+	profile.input.start = sys.input.start;
+	profile.input.x = sys.input.x;
+	profile.input.y = sys.input.y;
+	profile.input.l = sys.input.l;
+	profile.input.r = sys.input.r;
+	profile.input.select = sys.input.select;
+
+	return profile;
+}
+
+Profiles BuildProductionProfiles()
+{
+	Profiles profiles;
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kMegaDrive)).ok())
+		std::abort();
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kPong)).ok())
+		std::abort();
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kSNES)).ok())
+		std::abort();
+	if (!profiles.Add(ProfileFromGenerated(native::generated::kNES)).ok())
+		std::abort();
+	return profiles;
+}
+
+class UnavailableHardware final : public Hardware {
+public:
+	explicit UnavailableHardware(Error reason) : reason_(std::move(reason))
+	{
+		if (reason_.code != ErrorCode::io_failed)
+			reason_ = {ErrorCode::io_failed,
+				reason_.message.empty() ? "production hardware unavailable" : reason_.message};
+	}
+	void SetFaultSink(HardwareFaultSink*) override {}
+	HardwareResult LoadIdle() override { return {reason_, false, ""}; }
+	Error AdmitCorePackage(const std::string&, const std::string&,
+		std::unique_ptr<AdmittedCorePackage>*) override { return reason_; }
+	Error InspectCorePackage(const std::string&, const std::string&,
+		CorePackageInspection*) override { return reason_; }
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
+		std::uint64_t) override { return {reason_, false, ""}; }
+	HardwareResult Launch(const PreparedLaunch&, std::uint64_t) override
+	{
+		return {reason_, false, ""};
+	}
+	HardwareResult LoadDevelopmentRBF(const std::string&, std::uint64_t) override
+	{
+		return {reason_, false, ""};
+	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
+		std::uint64_t) override { return {reason_, false, ""}; }
+
+private:
+	Error reason_;
+};
+
+class SteadyClock final : public native::Clock {
+public:
+	std::uint64_t NowMs() const override
+	{
+		struct timespec stamp = {};
+		if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
+		return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
+			static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
+	}
+};
+
+class ProductionHardware final : public Hardware {
+public:
+	explicit ProductionHardware(LogSink& log)
+		: opener_(), mmio_(), clock_(), fpga_(mmio_, clock_),
+		  spi_(mmio_, clock_), core_(spi_), i2c_(clock_), framebuffer_(clock_),
+		  fes_gp_(mmio_, clock_), fes_gp_driver_(fes_gp_),
+		  mister_driver_(mmio_, core_, clock_),
+		  idle_video_(core_, spi_, i2c_, framebuffer_, clock_, log,
+			  native::Menu720p60Recipe()),
+		  game_video_(spi_, i2c_, clock_, log, native::Menu720p60Recipe()),
+		  input_device_(clock_), timeouts_(),
+		  input_session_(input_device_, spi_, clock_, timeouts_.core_io_ms),
+		  hardware_(opener_, fpga_, core_, idle_video_, game_video_,
+			  input_session_, native::FogCastGamepadIdentity(), clock_, log,
+			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, &fes_gp_driver_,
+			  &ProductionProfiles(),
+			  {"/tmp/fogcast-development/core-packages",
+			   "/usr/share/mister-runtime/core-packages"}) {}
+
+	void SetFaultSink(HardwareFaultSink* sink) override
+	{
+		hardware_.SetFaultSink(sink);
+	}
+	HardwareResult LoadIdle() override { return hardware_.LoadIdle(); }
+	Error FlushSave() override { return hardware_.FlushSave(); }
+	Error RestoreInput(std::uint64_t generation) override
+	{
+		return hardware_.RestoreInput(generation);
+	}
+	Error AdmitCorePackage(const std::string& directory,
+		const std::string& expected_id,
+		std::unique_ptr<AdmittedCorePackage>* package) override
+	{
+		return hardware_.AdmitCorePackage(directory, expected_id, package);
+	}
+	Error InspectCorePackage(const std::string& directory,
+		const std::string& expected_id, CorePackageInspection* inspection) override
+	{
+		return hardware_.InspectCorePackage(directory, expected_id, inspection);
+	}
+	Error PrepareCoreData(
+		AdmittedCorePackage* package, const std::string& root, CoreData* output) override
+	{
+		return hardware_.PrepareCoreData(package, root, output);
+	}
+	Error RefreshCoreData(AdmittedCorePackage* package, CoreData* output) override
+	{
+		return hardware_.RefreshCoreData(package, output);
+	}
+	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
+		const std::string& root, CoreData* output) override
+	{
+		return hardware_.InspectCoreData(directory, expected_id, root, output);
+	}
+	Error UpdateCoreSettings(const std::string& directory, const std::string& expected_id,
+		const std::string& root, const std::string& revision, std::uint16_t speed,
+		CoreData* output) override
+	{
+		return hardware_.UpdateCoreSettings(directory, expected_id, root, revision, speed, output);
+	}
+	Capabilities capabilities() const override { return hardware_.capabilities(); }
+	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadCore(std::move(package), generation);
+	}
+	HardwareResult Launch(const PreparedLaunch& launch,
+		std::uint64_t generation) override
+	{
+		return hardware_.Launch(launch, generation);
+	}
+	HardwareResult LoadDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadDevelopmentRBF(path, generation);
+	}
+	HardwareResult LoadContainedDevelopmentRBF(const std::string& path,
+		std::uint64_t generation) override
+	{
+		return hardware_.LoadContainedDevelopmentRBF(path, generation);
+	}
+	Error SetController(std::uint8_t port, std::uint16_t buttons,
+		std::uint16_t keypad) override
+	{
+		return hardware_.SetController(port, buttons, keypad);
+	}
+	Error SetComputerKeyboard(std::uint64_t matrix) override
+	{
+		return hardware_.SetComputerKeyboard(matrix);
+	}
+	Error LoadComputerMedia(const std::string& path) override
+	{
+		return hardware_.LoadComputerMedia(path);
+	}
+	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override
+	{
+		return hardware_.LoadComputerMediaStream(path, size);
+	}
+
+private:
+	native::PosixArtifactOpener opener_;
+	native::LinuxMmio mmio_;
+	SteadyClock clock_;
+	native::LinuxFpgaManager fpga_;
+	native::LinuxSpi spi_;
+	native::CoreLoader core_;
+	native::LinuxI2c i2c_;
+	native::LinuxFramebuffer framebuffer_;
+	native::FesGp fes_gp_;
+	native::FesGpCoreDriver fes_gp_driver_;
+	native::MisterCoreDriver mister_driver_;
+	native::MenuVideoBringup idle_video_;
+	native::FixedVideoBringup game_video_;
+	native::LinuxInput input_device_;
+	native::NativeTimeouts timeouts_;
+	native::NativeInputSession input_session_;
+	native::NativeHardware hardware_;
+};
+
+} // namespace
+
+const Profiles& ProductionProfiles()
+{
+	static const Profiles profiles = BuildProductionProfiles();
+	return profiles;
+}
+
+Error CreateProductionHardware(LogSink& log,
+	std::unique_ptr<Hardware>* hardware)
+{
+	if (hardware == nullptr)
+		return {ErrorCode::invalid_request, "missing production hardware output"};
+	hardware->reset(new ProductionHardware(log));
+	return {};
+}
+
+std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason)
+{
+	return std::make_unique<UnavailableHardware>(reason);
+}
+
+} // namespace mister

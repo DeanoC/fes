@@ -1,0 +1,37 @@
+{
+  "games": [
+    {
+      "id": "megadrive-sonic-test",
+      "title": "Sonic the Hedgehog",
+      "system": "megadrive",
+      "kind": "zip",
+      "state": "available",
+      "launchable": true,
+      "root_online": true,
+      "content_prepared": true,
+      "execution": "fpga_native"
+    },
+    {
+      "id": "snes-unknown-test",
+      "title": "Unknown <Game>",
+      "system": "snes",
+      "kind": "raw",
+      "state": "available",
+      "launchable": true,
+      "root_online": true,
+      "content_prepared": false,
+      "execution": "fpga_native"
+    },
+    {
+      "id": "snes-offline-test",
+      "title": "Offline Source",
+      "system": "snes",
+      "kind": "zip",
+      "state": "missing",
+      "launchable": true,
+      "root_online": false,
+      "content_prepared": false,
+      "execution": "fpga_native"
+    }
+  ]
+}

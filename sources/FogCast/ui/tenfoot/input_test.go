@@ -1,0 +1,426 @@
+package tenfoot
+
+import (
+	"github.com/DeanoC/FogCast/hostclient"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/remoteinput"
+	"github.com/DeanoC/FogCast/ui/inputmap"
+)
+
+func TestCommandFromLogicalIdentityAndSwapAB(t *testing.T) {
+	t.Parallel()
+	a, _ := remoteinput.NormalizeGamepad("a", true)
+	if CommandFromLogical(a) != CmdSelect {
+		t.Fatalf("identity A %s", CommandFromLogical(a))
+	}
+	if LogicalFromButton(ButtonSouth) != remoteinput.ButtonA || ButtonFromLogical(remoteinput.ButtonA) != ButtonSouth {
+		t.Fatal("south/A roundtrip")
+	}
+	r, err := inputmap.NewRemapper(inputmap.SwapAB())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if CommandFromLogical(r.Apply(a)) != CmdBack {
+		t.Fatalf("swap A %s", CommandFromLogical(r.Apply(a)))
+	}
+	b, _ := remoteinput.NormalizeGamepad("b", true)
+	if CommandFromLogical(r.Apply(b)) != CmdSelect {
+		t.Fatalf("swap B %s", CommandFromLogical(r.Apply(b)))
+	}
+	start, _ := remoteinput.NormalizeGamepad("start", true)
+	if CommandFromLogical(start) != CmdQuit {
+		t.Fatal("start")
+	}
+	selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+	if CommandFromLogical(selectPress) != CmdLayoutCycle {
+		t.Fatal("select")
+	}
+}
+
+func TestCommandFromGamepadButtons(t *testing.T) {
+	t.Parallel()
+	cases := map[Button]Command{
+		ButtonDPadUp:        CmdUp,
+		ButtonDPadDown:      CmdDown,
+		ButtonDPadLeft:      CmdLeft,
+		ButtonDPadRight:     CmdRight,
+		ButtonSouth:         CmdSelect,
+		ButtonEast:          CmdBack,
+		ButtonStart:         CmdQuit,
+		ButtonBack:          CmdLayoutCycle,
+		ButtonWest:          CmdSortCycle,
+		ButtonNorth:         CmdSearch,
+		ButtonLeftShoulder:  CmdFilterPrev,
+		ButtonRightShoulder: CmdFilterNext,
+	}
+	for button, want := range cases {
+		if got := CommandFromButton(button); got != want {
+			t.Fatalf("button %d = %s want %s", button, got, want)
+		}
+	}
+}
+
+// Essential room actions (docs/rooms-experience.md §3) must have a tap or
+// key route. Long-press may add a shortcut; it must not be the only route.
+// See docs/rooms-controller-bindings.md.
+func TestEssentialRoomActionsHaveTapRoutes(t *testing.T) {
+	t.Parallel()
+	if CommandFromButton(ButtonDPadUp) != CmdUp || CommandFromButton(ButtonDPadDown) != CmdDown ||
+		CommandFromButton(ButtonDPadLeft) != CmdLeft || CommandFromButton(ButtonDPadRight) != CmdRight {
+		t.Fatal("direction d-pad")
+	}
+	if CommandFromButton(ButtonSouth) != CmdSelect {
+		t.Fatal("confirm south/A")
+	}
+	if CommandFromButton(ButtonEast) != CmdBack {
+		t.Fatal("back east/B")
+	}
+	if CommandFromKey("up") != CmdUp || CommandFromKey("down") != CmdDown ||
+		CommandFromKey("left") != CmdLeft || CommandFromKey("right") != CmdRight {
+		t.Fatal("direction arrows")
+	}
+	if CommandFromKey("return") != CmdSelect || CommandFromKey("space") != CmdSelect {
+		t.Fatal("confirm keyboard")
+	}
+	if CommandFromKey("escape") != CmdBack || CommandFromKey("backspace") != CmdBack {
+		t.Fatal("back keyboard")
+	}
+	if CommandFromKey("o") != CmdSettings {
+		t.Fatal("system menu keyboard (SDL GUIDE maps to CmdSettings in sdl.go)")
+	}
+	if longPressCommand(CmdSelect) == CmdSelect || longPressCommand(CmdBack) == CmdBack {
+		t.Fatal("long-press must not replace the tap essential action")
+	}
+	if longPressCommand(CmdSettings) != CmdNone || longPressCommand(CmdUp) != CmdNone {
+		t.Fatal("system menu and direction must not be long-press gated")
+	}
+	if longPressCommand(CmdBack) != CmdHome {
+		t.Fatal("hold B remains a Home shortcut, not the only Home route")
+	}
+}
+
+func TestCommandFromKeyAndStick(t *testing.T) {
+	t.Parallel()
+	if CommandFromKey("right") != CmdRight || CommandFromKey("return") != CmdSelect {
+		t.Fatal("keyboard mapping")
+	}
+	if CommandFromKey("tab") != CmdTab || CommandFromKey("shift-tab") != CmdTabPrev {
+		t.Fatal("tab keyboard mapping")
+	}
+	if CommandFromKey("s") != CmdStop || CommandFromKey("down") != CmdDown || CommandFromKey("backspace") != CmdBack {
+		t.Fatal("stop keyboard mapping")
+	}
+	if CommandFromKey("[") != CmdFilterPrev || CommandFromKey("]") != CmdFilterNext || CommandFromKey("x") != CmdSortCycle || CommandFromKey("/") != CmdSearch {
+		t.Fatal("browse keyboard mapping")
+	}
+	if CommandFromKey("c") != CmdViewNext || CommandFromKey("v") != CmdFavorite || CommandFromKey("*") != CmdFavorite {
+		t.Fatal("collection keyboard mapping")
+	}
+	if CommandFromKey("-") != CmdSafeAreaOut || CommandFromKey("=") != CmdSafeAreaIn || CommandFromKey("plus") != CmdSafeAreaIn {
+		t.Fatal("safe-area keyboard mapping")
+	}
+	if CommandFromKey("l") != CmdLayoutCycle {
+		t.Fatal("layout keyboard mapping")
+	}
+	if CommandFromKey("o") != CmdSettings {
+		t.Fatal("settings keyboard mapping")
+	}
+	if CommandFromKey("g") != CmdFilters {
+		t.Fatal("filters keyboard mapping")
+	}
+	if CommandFromStick(20000, 0) != CmdRight || CommandFromStick(0, -20000) != CmdUp {
+		t.Fatal("stick mapping")
+	}
+	if CommandFromStick(100, 100) != CmdNone {
+		t.Fatal("stick deadzone")
+	}
+	// Near-diagonal noise must not flip a latched axis.
+	if CommandFromStickHeld(20000, 19900, CmdRight) != CmdRight {
+		t.Fatal("stick hysteresis hold")
+	}
+	if CommandFromStickHeld(19900, -20000, CmdUp) != CmdUp {
+		t.Fatal("stick hysteresis vertical hold")
+	}
+	if CommandFromStickHeld(20000, 20000+stickHysteresis, CmdRight) != CmdDown {
+		t.Fatal("stick hysteresis switch")
+	}
+	if CommandFromStickHeld(100, 100, CmdRight) != CmdNone {
+		t.Fatal("stick recenter")
+	}
+	// Latched axis below stickGate must not hand focus to the other axis.
+	if CommandFromStickHeld(12000, 17000, CmdRight) != CmdRight {
+		t.Fatal("stick latch holds right below gate")
+	}
+	if CommandFromStickHeld(-12000, 17000, CmdLeft) != CmdLeft {
+		t.Fatal("stick latch holds left below gate")
+	}
+	if CommandFromStickHeld(17000, 12000, CmdDown) != CmdDown {
+		t.Fatal("stick latch holds down below gate")
+	}
+	if CommandFromStickHeld(17000, -12000, CmdUp) != CmdUp {
+		t.Fatal("stick latch holds up below gate")
+	}
+	if CommandFromStickHeld(12000, 12000+stickHysteresis, CmdRight) != CmdDown {
+		t.Fatal("stick latch still switches on hysteresis")
+	}
+}
+
+func TestRepeaterFiresAfterDelay(t *testing.T) {
+	t.Parallel()
+	var r Repeater
+	now := time.Unix(0, 0)
+	if got := r.Down(CmdRight, now); got != CmdRight {
+		t.Fatalf("down = %s", got)
+	}
+	if got := r.Tick(now.Add(100 * time.Millisecond)); got != CmdNone {
+		t.Fatalf("early tick = %s", got)
+	}
+	if got := r.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdRight {
+		t.Fatalf("repeat = %s", got)
+	}
+	r.Up(CmdRight)
+	if got := r.Tick(now.Add(2 * time.Second)); got != CmdNone {
+		t.Fatalf("after up = %s", got)
+	}
+}
+
+func TestApplyPressedRearmsRemainingDirection(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(0, 0)
+
+	// Hold Right, also Down, release Down: Right is re-armed without an extra step.
+	app := catalogApp(20)
+	held := map[Command]bool{}
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
+		t.Fatal("quit")
+	}
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdDown: true}, held, now) {
+		t.Fatal("quit")
+	}
+	focusAfterBoth := app.Snapshot().Grid.Focus
+	if focusAfterBoth <= 1 {
+		t.Fatalf("expected right+down focus > 1, got %d", focusAfterBoth)
+	}
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.repeat.held != CmdRight {
+		t.Fatalf("after release down: held = %s want right", app.repeat.held)
+	}
+	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
+		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
+	}
+	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdRight {
+		t.Fatalf("right repeat = %s", got)
+	}
+
+	// Hold Right, also Down, release Right: Down is still held and must keep repeating.
+	app = catalogApp(20)
+	held = map[Command]bool{}
+	now = time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
+		t.Fatal("quit")
+	}
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdDown: true}, held, now) {
+		t.Fatal("quit")
+	}
+	focusAfterBoth = app.Snapshot().Grid.Focus
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdDown: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.repeat.held != CmdDown {
+		t.Fatalf("after release right: held = %s want down", app.repeat.held)
+	}
+	if got := app.Snapshot().Grid.Focus; got != focusAfterBoth {
+		t.Fatalf("re-arm moved focus %d -> %d", focusAfterBoth, got)
+	}
+	if got := app.Tick(now.Add(repeatDelay + time.Millisecond)); got != CmdDown {
+		t.Fatalf("down repeat = %s", got)
+	}
+}
+
+func TestApplyPressedSelectWhileHeldDoesNotWalkFocus(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(20)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdRight: true}, held, now) {
+		t.Fatal("quit")
+	}
+	focus := app.Snapshot().Grid.Focus
+	if focus != 1 {
+		t.Fatalf("focus after right = %d", focus)
+	}
+	now = now.Add(10 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{CmdRight: true, CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if got := app.Snapshot().Grid.Focus; got != focus {
+		t.Fatalf("select while held moved focus %d -> %d", focus, got)
+	}
+	if app.repeat.held != CmdRight {
+		t.Fatalf("held after select = %s want right", app.repeat.held)
+	}
+	if got := app.Tick(now.Add(50 * time.Millisecond)); got != CmdNone {
+		t.Fatalf("select must not restart repeat immediately: %s", got)
+	}
+	if got := app.Tick(time.Unix(0, 0).Add(repeatDelay + time.Millisecond)); got != CmdRight {
+		t.Fatalf("select restarted repeat delay: %s", got)
+	}
+}
+
+func TestHoldGateSelectShortAndLongPress(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(5)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().ViewPicker {
+		t.Fatal("picker opened on down")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("select fired on down: %#v", app.Snapshot().Launch)
+	}
+	now = now.Add(40 * time.Millisecond)
+	if applyPressed(app, map[Command]bool{}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().Launch.Phase != "error" {
+		t.Fatalf("short select should confirm, launch = %#v", app.Snapshot().Launch)
+	}
+
+	app = catalogApp(5)
+	held = map[Command]bool{}
+	now = time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if got := app.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdViewPicker {
+		t.Fatalf("long = %s", got)
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("picker should open")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin+2*time.Millisecond)) {
+		t.Fatal("quit")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("long select launched: %#v", app.Snapshot().Launch)
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("release should keep picker open")
+	}
+}
+
+func TestHoldGateNorthLongPressFavorites(t *testing.T) {
+	t.Parallel()
+	var g HoldGate
+	now := time.Unix(0, 0)
+	if !g.Begin(CmdSearch, now, true) {
+		t.Fatal("begin")
+	}
+	if got := g.Tick(now.Add(100 * time.Millisecond)); got != CmdNone {
+		t.Fatalf("early = %s", got)
+	}
+	if got := g.Tick(now.Add(longPressMin + time.Millisecond)); got != CmdFavorite {
+		t.Fatalf("long = %s", got)
+	}
+	if got := g.Release(CmdSearch, now.Add(longPressMin+time.Millisecond)); got != CmdNone {
+		t.Fatalf("release after long = %s", got)
+	}
+	if !g.Begin(CmdSearch, now, true) {
+		t.Fatal("begin short")
+	}
+	if got := g.Release(CmdSearch, now.Add(40*time.Millisecond)); got != CmdSearch {
+		t.Fatalf("short release = %s", got)
+	}
+}
+
+func TestHoldBeginNotesActivitySoAttractDoesNotStart(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(3)
+	app.attractIdle = 20 * time.Millisecond
+	app.attractIdleReady = true
+	app.lastInput = time.Unix(0, 0)
+	held := map[Command]bool{}
+	now := time.Unix(1, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if app.lastInput != now {
+		t.Fatalf("lastInput = %s want %s", app.lastInput, now)
+	}
+	app.hold.mu.Lock()
+	n := len(app.hold.pending)
+	app.hold.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("pending = %d", n)
+	}
+}
+
+func TestHoldGateClearConcurrentWithBeginTick(t *testing.T) {
+	t.Parallel()
+	var g HoldGate
+	now := time.Unix(0, 0)
+	const n = 8000
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			g.Begin(CmdSelect, now, true)
+			_ = g.Tick(now.Add(time.Millisecond))
+			g.Cancel(CmdSelect)
+			_ = g.Release(CmdSearch, now)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < n; i++ {
+			g.Clear()
+			g.Begin(CmdSearch, now, true)
+			_ = g.Tick(now.Add(longPressMin + time.Millisecond))
+			_ = g.Release(CmdSelect, now)
+		}
+	}()
+	wg.Wait()
+}
+
+func TestHoldGateReleaseOnLongPressThresholdDoesNotSelect(t *testing.T) {
+	t.Parallel()
+	app := catalogApp(5)
+	held := map[Command]bool{}
+	now := time.Unix(0, 0)
+	if applyPressed(app, map[Command]bool{CmdSelect: true}, held, now) {
+		t.Fatal("quit")
+	}
+	if applyPressed(app, map[Command]bool{}, held, now.Add(longPressMin)) {
+		t.Fatal("quit")
+	}
+	if !app.Snapshot().ViewPicker {
+		t.Fatal("picker should open on threshold release")
+	}
+	if app.Snapshot().Launch.Phase != "idle" {
+		t.Fatalf("threshold release launched: %#v", app.Snapshot().Launch)
+	}
+}
+
+func catalogApp(n int) *App {
+	app := NewApp(nil, 1280, 720, n)
+	app.games = make([]hostclient.Game, n)
+	for i := 0; i < n; i++ {
+		app.games[i] = hostclient.Game{ID: "g" + strconv.Itoa(i), Title: "Game"}
+	}
+	app.grid.SetCount(n)
+	return app
+}

@@ -1,0 +1,9 @@
+id = "mario-world"
+title = "Mushroom Kingdom"
+author = "FogCast"
+description = "An overworld map: each level is a different Mario game, on whichever core it needs."
+main = "main.lua"
+
+[theme]
+background = "#5c94fc"
+accent = "#ffd300"

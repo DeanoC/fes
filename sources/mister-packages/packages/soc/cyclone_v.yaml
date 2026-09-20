@@ -1,0 +1,75 @@
+schema: mister-packages.v1
+kind: soc
+id: cyclone_v
+vendor: altera
+family: cyclone_v
+description: >-
+  Cyclone V HPS map as used by libmister-runtime on DE10-Nano.
+  Windows are physical /dev/mem apertures, not claims that every byte
+  is a register.
+
+windows:
+  - name: HPS_REG_APERTURE
+    base: 0xff000000
+    size: 0x01000000
+    data_width: 32
+    base_symbol: HPS_REG_APERTURE_BASE_ADDR
+    size_symbol: HPS_REG_APERTURE_SIZE_IN_BYTES
+  - name: FPGA_CORE_MEMORY
+    base: 0x20000000
+    size: 0x20000000
+    data_width: 32
+    base_symbol: FPGA_CORE_MEMORY_BASE_ADDR
+    size_symbol: FPGA_CORE_MEMORY_SIZE_IN_BYTES
+
+buses:
+  - name: hps_to_fpga
+    protocol: axi
+    supplier: true
+    base: 0xff200000
+    data_width: 32
+    address_width: 25
+    fixed: true
+  - name: fpga_core_memory
+    protocol: axi
+    supplier: true
+    base: 0x20000000
+    data_width: 32
+    address_width: 29
+    fixed: true
+
+banks:
+  - name: FPGAMGRREGS
+    base: 0xff706000
+    registers: registers/cyclone_v/fpga_manager.yaml
+  - name: FPGAMGRDATA
+    base: 0xffb90000
+    registers: registers/cyclone_v/fpga_manager_data.yaml
+  - name: SYSMGR
+    base: 0xffd08000
+    registers: registers/cyclone_v/system_manager.yaml
+  - name: RSTMGR
+    base: 0xffd05000
+    registers: registers/cyclone_v/reset_manager.yaml
+  - name: SDR
+    base: 0xffc20000
+    registers: registers/cyclone_v/sdram.yaml
+  - name: L3REGS
+    base: 0xff800000
+    registers: registers/cyclone_v/nic301.yaml
+  - name: LWFPGASLAVES
+    base: 0xff200000
+    window_size: 0x00200000
+    registers: registers/cyclone_v/bridges.yaml
+  - name: LWHPS2FPGA
+    base: 0xff400000
+    window_size: 0x00100000
+    registers: registers/cyclone_v/bridges.yaml
+  - name: HPS2FPGA
+    base: 0xff500000
+    window_size: 0x00100000
+    registers: registers/cyclone_v/bridges.yaml
+  - name: FPGA2HPS
+    base: 0xff600000
+    window_size: 0x00100000
+    registers: registers/cyclone_v/bridges.yaml
