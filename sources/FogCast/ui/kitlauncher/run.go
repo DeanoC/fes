@@ -127,7 +127,26 @@ func boundedSessionText(value string, limit int) string {
 func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pad, error)) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	m := Model{Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true}
+	m := Model{
+		Message: connectingMessage, Shelf: normalizeShelf(c.config.Shelf), Pack: theme.NormalizePack(c.config.Theme), WheelOpen: true,
+		Session: Session{HPSFramebuffer: c.config.HPSFramebuffer},
+	}
+	loggedSplash := false
+	paintKitHDMI := func(m Model) {
+		if ShouldPaintHDMI(m) {
+			if present != nil {
+				present(m)
+			}
+			return
+		}
+		// Log once when idle is confirmed and the recipe has no HPS framebuffer.
+		// Do not blank-and-fail: the service keeps running and splash stays up.
+		if loggedSplash || m.Busy || m.Session.HPSFramebuffer || m.Session.State != "idle" {
+			return
+		}
+		loggedSplash = true
+		log.Printf("kit hdmi: confirmed idle without HPS framebuffer (no 0x002f); leaving splash visible")
+	}
 	var pad Pad
 	var stream *InputStream
 	streamKey := ""
@@ -157,9 +176,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		m.Message = OfflineMessage
 	}
 	m.Cache = mergeCacheStatus(c.Cache, hostclient.LibraryCache{}, false)
-	if present != nil {
-		present(m)
-	}
+	paintKitHDMI(m)
 	send := func(o observation) {
 		select {
 		case results <- o:
@@ -259,15 +276,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		if m.AttractActive {
 			m.hideAttract()
 		}
+		// Loading and stopping copy is a temporary overlay, and only when this
+		// idle still enables the HPS framebuffer. Splash has no linuxfb picture.
 		m.Message = "Loading game"
-		if action == "launch" {
-			// Publish feedback while Menu still owns the display, before the
-			// asynchronous request can hand HDMI to the game.
-			present(m)
-		} else {
+		if action != "launch" {
 			m.Message = "Stopping game"
-			present(m)
 		}
+		paintKitHDMI(m)
 		// Do not log credentials, raw transport errors, or response bodies.
 		log.Printf("kit session dispatch epoch=%d action=%s game_id=%q", e, action, boundedSessionText(id, 160))
 		go func() {
@@ -327,7 +342,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if o.session.State != "" {
-					m.Session = o.session
+					m.Session = applyObservedSession(m.Session, o.session)
 				}
 				if !m.Busy && o.session.State != "active" && o.session.State != "failed" {
 					if m.Message != hostUnavailableMessage && !strings.HasPrefix(m.Message, hostUnavailableMessage+" (") {
@@ -350,7 +365,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if streamKey != "" && streamKey != inputStreamKey(o.session) {
 				closeInput()
 			}
-			m.Session = o.session
+			m.Session = applyObservedSession(m.Session, o.session)
 			if !o.mutation {
 				m.TargetReady = o.health.TargetReady
 				if o.health.Connection.State == "busy" {
@@ -460,9 +475,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if action := m.Tick(now); action != "" {
 				mutate(action)
 			}
-			// A live/unknown game owns HDMI; retain the last menu pixels until confirmed idle.
-			if !m.Busy && m.Session.State != "active" {
-				present(m)
+			// A live game owns HDMI. Confirmed idle without an HPS framebuffer
+			// leaves FPGA splash pixels alone instead of painting kit chrome.
+			if !m.Busy {
+				paintKitHDMI(m)
 			}
 		}
 	}

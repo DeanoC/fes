@@ -1,8 +1,8 @@
 # Idle MENU → rooms — Phase 2 execution brief
 
-**Status:** slices 1–4 are done. Remaining slices 5–6 (kit HDMI present,
-leased HIL). Does not reopen the [design lock](idle-menu-rooms.md). Deano
-owns FES parent merge.
+**Status:** slices 1–5 are done. Slice 5 is host-only present/skip and does
+not claim kit HDMI. Remaining slice 6 (leased HIL). Does not reopen the
+[design lock](idle-menu-rooms.md). Deano owns FES parent merge.
 
 **Audience:** Bob / Herd / Caster executing Phase 2. Read the lock first.
 This brief names owners, PR slices, and engineering questions only.
@@ -85,9 +85,13 @@ native idle admission.
 Kit HDMI after Stop is still `/usr/sbin/fogcast-kit`
 ([`S60fogcast-kit`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit)).
 [`ui/kitlauncher/run.go`](../sources/FogCast/ui/kitlauncher/run.go)
-skips `present` while `session.State == "active"`. Splash has no HPS
-framebuffer, so slice 5 must leave FPGA splash pixels alone rather than
-paint Menu chrome. That present change is not this slice.
+skips `present` while a session is active, and after confirmed idle when
+that idle has no HPS framebuffer (`0x002f`). FPGA splash pixels stay on
+HDMI. The service logs that skip and keeps running if linuxfb cannot
+open. When launcher config or the session sets `hps_framebuffer`, the
+kit may paint a temporary linuxfb overlay (connecting, retry, last-good
+shelf). That overlay is not rooms, not Menu's file browser, and not a
+permanent catalog. Slice 6 is the leased HDMI proof.
 
 `config/core-recipes.toml` has play packages only. Splash is sealed
 board firmware, not a `fes.*` package.
@@ -183,7 +187,7 @@ slots; fetch and verify no longer require Distribution_MiSTer Menu
 identity; production `LoadIdle()` uses `SplashIdle()`. Clean assembly
 does not need a misteross GitHub token. No HIL required.
 
-### 5. Kit HDMI after Stop without MENU chrome
+### 5. Kit HDMI after Stop without MENU chrome — done (host-only)
 
 **Owner:** FogCast `cmd/fogcast-kit`, `ui/kitlauncher` (and image init
 only if the service must not paint). Depends on 2+4 on hardware.
@@ -264,9 +268,12 @@ Prefer a strawman in the implementing PR. Do not fork a second lock.
    skip unless measured.
 
 7. **`fogcast-kit` present after Stop.** Phase 2 is not dual-UI kill.
-   Strawman: if HPS fb exists, keep connecting/retry + last-good shelf
-   as the temporary overlay; if not, do not blank-and-fail the service —
-   log and leave splash visible.
+   Strawman, now the host-only behavior: if HPS fb exists
+   (`hps_framebuffer` on launcher config or the session), keep
+   connecting/retry + last-good shelf as the temporary overlay; if not,
+   do not blank-and-fail the service — log and leave splash visible.
+   Omission matches SplashIdle (no `0x002f`). Slice 6 still has to look
+   at HDMI.
 
 ---
 

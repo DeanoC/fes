@@ -242,8 +242,10 @@ evict the ROM cache. Prefetch is focus, then page, then next page, then strip,
 then attract. `GET /api/v1/library/cache` reports ROM used/free from a
 lease-free target inventory; cover used/free and last sync are kit-local.
 Host games may include `rom_cached` when that inventory is reachable.
-Power-on paints that shelf and visible covers
-from disk before host games HTTP; an absent host shows `Offline - local library`.
+When the idle enables the HPS framebuffer, power-on may paint that shelf and
+visible covers from disk before host games HTTP as a temporary linuxfb overlay;
+an absent host shows `Offline - local library`. Confirmed idle without an HPS
+framebuffer does not present, so FPGA splash pixels stay on HDMI.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session
 API and wait for host reconnect; the kit UI does not claim a target lease or

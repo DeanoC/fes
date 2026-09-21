@@ -1045,9 +1045,13 @@ next page → strip → attract, still capped at three concurrent fetches.
 `GET /api/v1/library/cache` (host and launcher listener) reports ROM cache
 used/free/max from lease-free target `GET /v2/cache`; cover used/free and last
 catalog sync are kit-local `DiskStore.Status()`. Games may include `rom_cached`
-when the target inventory is reachable; ROM-less rows omit it. Boot paints that
-shelf from disk before host games HTTP, decodes
-visible covers from disk first, and labels an absent host `Offline - local library`.
+when the target inventory is reachable; ROM-less rows omit it. When the idle
+enables the HPS framebuffer, boot may paint that shelf from disk before host
+games HTTP as a temporary linuxfb overlay. It decodes visible covers from disk
+first and labels an absent host `Offline - local library`. Confirmed idle
+without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
+splash pixels stay on HDMI, and a missing linuxfb device does not stop the
+service.
 Local D-pad/A still browse that snapshot. When the host is unreachable, launch
 and Stop remain unavailable until the configured host API reconnects. The kit
 launcher does not claim a target lease or call `/v2/launch` directly; lifecycle

@@ -151,3 +151,27 @@ func TestGetSessionUsesCallerClientAndRejectsOversize(t *testing.T) {
 		t.Fatalf("result = %+v, error = %v, want ErrResponseTooLarge", result, err)
 	}
 }
+
+func TestDecodeSessionHPSFramebufferIsOptional(t *testing.T) {
+	omitted, err := DecodeSession(http.StatusOK, []byte(`{"state":"idle"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if omitted.HPSFramebuffer != nil {
+		t.Fatalf("omitted framebuffer = %v", *omitted.HPSFramebuffer)
+	}
+	off, err := DecodeSession(http.StatusOK, []byte(`{"state":"idle","hps_framebuffer":false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off.HPSFramebuffer == nil || *off.HPSFramebuffer {
+		t.Fatalf("explicit false = %v", off.HPSFramebuffer)
+	}
+	on, err := DecodeSession(http.StatusOK, []byte(`{"state":"idle","hps_framebuffer":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if on.HPSFramebuffer == nil || !*on.HPSFramebuffer {
+		t.Fatalf("explicit true = %v", on.HPSFramebuffer)
+	}
+}

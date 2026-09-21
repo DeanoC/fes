@@ -259,11 +259,16 @@ transport values separately from end-to-end button-to-photon latency.
 
 ## Display and verification
 
-The native runtime enables the MiSTer HPS framebuffer on Menu bring-up and every
-successful return to idle. The launcher only renders memory; it never issues SPI,
-programs the FPGA, or claims a kit lease. Rendering pauses while a game is active.
-The connecting/library screen uses the existing pure-Go linuxfb backend and the
-shared `fbgrid` paint path. Tiles are a bounded page of live catalog rows. Cover handles come from catalog
+The launcher only renders memory; it never issues SPI, programs the FPGA, or
+claims a kit lease. Rendering pauses while a game is active. After confirmed
+idle it also skips `present` when that idle has no HPS framebuffer (SPI
+`0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
+pixels in place. A missing linuxfb device does not stop the service. When
+the launcher config or the session sets `hps_framebuffer`, the
+connecting/retry/last-good shelf may use the existing pure-Go linuxfb backend
+and the shared `fbgrid` paint path as a temporary overlay. That overlay is
+not Menu's file browser, not rooms, and not a permanent catalog. Tiles are a
+bounded page of live catalog rows. Cover handles come from catalog
 `Game.Cover` when present, otherwise from `GET /api/v1/presentation/games/{id}`
 (`cover_artwork_id`) for the visible page and the cheap next page. The same
 presentation payload may include `logo_id` from LaunchBox Clear Logo art, with
