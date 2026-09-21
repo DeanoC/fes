@@ -11,6 +11,7 @@ import tomllib
 
 
 EXPECTED_LAYOUT = "de10-nano-mister-v1"
+# core=menu.rbf is the locked U-Boot filename for the splash slot.
 EXPECTED_ENVIRONMENT = (
     "mmcroot=/dev/mmcblk0p1",
     "bootimage=/linux/zImage_dtb",

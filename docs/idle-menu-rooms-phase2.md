@@ -1,7 +1,8 @@
 # Idle MENU → rooms — Phase 2 execution brief
 
-**Status:** implementation brief (2026-09-21). Docs only. Does not reopen
-the [design lock](idle-menu-rooms.md). Deano owns FES parent merge.
+**Status:** slice 1 names splash vs Stop-idle slots in FES policy. Remaining
+slices 2–6. Does not reopen the [design lock](idle-menu-rooms.md). Deano
+owns FES parent merge.
 
 **Audience:** Bob / Herd / Caster executing Phase 2. Read the lock first.
 This brief names owners, PR slices, and engineering questions only.
@@ -31,27 +32,35 @@ composition stay unchanged.
 
 ---
 
-## What is true now (tip `392be4f9`)
+## What is true now (after slice 1)
 
-There is still one sealed idle bitstream. Image policy
+Image policy
 [`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
-pins MiSTer-devel `Distribution_MiSTer` `menu.rbf` (`idle_rbf.path`,
-install `/usr/share/mister-runtime/idle.rbf`). Fetch/verify hard-require
-that repository, commit, path, and install path
+names two artifact classes. Both currently pin MiSTer-devel
+`Distribution_MiSTer` `menu.rbf` (same sealed Menu bytes until slice 4):
+
+- **splash** (`splash_rbf`) — FAT / U-Boot. `fat_destination = '/menu.rbf'`.
+  Filename stays `menu.rbf` / `core=menu.rbf` until a U-Boot reseal.
+- **idle** (`idle_rbf`) — rootfs `LoadIdle()`.
+  `install_path = '/usr/share/mister-runtime/idle.rbf'`.
+
+Fetch/verify require both slots and still hard-require that repository,
+commit, and `menu.rbf` path
 ([`image/scripts/fetch-native-runtime-inputs.sh`](../image/scripts/fetch-native-runtime-inputs.sh),
 [`image/scripts/verify-native-runtime-inputs.sh`](../image/scripts/verify-native-runtime-inputs.sh)).
-Rootfs install is
-[`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh).
+Rootfs install remains idle-only
+([`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)).
 
-Media copies those same bytes to FAT `/menu.rbf` and **rejects** FAT ≠
-rootfs idle
-([`scripts/media_inside.py`](../scripts/media_inside.py)
-`check_inputs`). U-Boot env is `core=menu.rbf`
+Media copies **splash** bytes to FAT `/menu.rbf` and **idle** bytes into the
+rootfs check. FAT may diverge from rootfs idle; same-bytes still assembles.
+U-Boot env is `core=menu.rbf`
 ([`boot-media.lock.toml`](../boot-media.lock.toml),
 [`scripts/media_inputs.py`](../scripts/media_inputs.py)
-`EXPECTED_ENVIRONMENT`). Receipt `idle.fat_destination` is `/menu.rbf`.
-[`docs/bootable-media.md`](bootable-media.md) still requires both idle
-hashes to match one pinned value.
+`EXPECTED_ENVIRONMENT`). Receipt `splash.fat_destination` is `/menu.rbf`;
+`idle.rootfs_destination` is `/usr/share/mister-runtime/idle.rbf`. Each
+records its own `sha256`.
+[`docs/bootable-media.md`](bootable-media.md) compares those independent
+hashes.
 
 [`NativeHardware::LoadIdle`](../sources/libmister-runtime/src/native/hardware.cpp)
 opens `/usr/share/mister-runtime/idle.rbf` (production
@@ -100,7 +109,7 @@ Agree files before parallel edits ([agent workflow](agent-workflow.md)).
 Smallest first. Slices 1–2 do not wait on splash RTL. Slice 3 is the
 FPGA blocker. 4 needs 1+3; 5 needs 2+4 on a kit; 6 is the leased proof.
 
-### 1. Name splash vs Stop-idle in FES policy
+### 1. Name splash vs Stop-idle in FES policy — done
 
 **Owner:** FES (`image/build/native-inputs.toml`, fetch/verify/post-build,
 `scripts/media.py` / `media_inside.py` / `media_inputs.py`,

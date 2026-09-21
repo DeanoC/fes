@@ -3,6 +3,17 @@ format = 1
 [mister_runtime]
 mount_path = '/runtime-source'
 
+# Splash: FAT / U-Boot (`core=menu.rbf`). Filename stays menu.rbf until a
+# U-Boot reseal. Stop-idle: rootfs LoadIdle() artifact. Destinations may
+# diverge; this transitional pin reuses today's sealed Menu bytes for both.
+[splash_rbf]
+repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
+commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
+path = 'menu.rbf'
+sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'
+size = 2452588
+fat_destination = '/menu.rbf'
+
 [idle_rbf]
 repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
 commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'

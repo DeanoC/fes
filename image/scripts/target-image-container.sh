@@ -159,9 +159,10 @@ if [ -n "${LIBMISTER_RUNTIME_DIR:-}" ]; then
   }
   native_lock=${NATIVE_RUNTIME_INPUT_LOCK:-$fogcast_dir/build/native-runtime.inputs.lock.toml}
   native_idle=${NATIVE_RUNTIME_IDLE_FILE:-$repo_root/build/cache/target-image/native/idle.rbf}
+  native_splash=${NATIVE_RUNTIME_SPLASH_FILE:-$(CDPATH='' cd -- "$(dirname -- "$native_idle")" && pwd)/splash.rbf}
   NATIVE_RUNTIME_MODE=package-only \
     "$repo_root/scripts/verify-native-runtime-inputs.sh" \
-    "$native_lock" "$native_runtime_source" "$native_idle"
+    "$native_lock" "$native_runtime_source" "$native_idle" "$native_splash"
   native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)
   native_runtime_mount=$(git -C "$native_runtime_source" rev-parse --show-toplevel)
   native_runtime_mount=$(CDPATH='' cd -- "$native_runtime_mount" && pwd -P)

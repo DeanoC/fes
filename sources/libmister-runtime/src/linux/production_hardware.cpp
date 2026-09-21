@@ -19,6 +19,7 @@
 #include "native/linux/input.hpp"
 #include "native/linux/mmio.hpp"
 #include "native/linux/spi.hpp"
+#include "native/idle_recipe.hpp"
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
 
@@ -164,7 +165,8 @@ public:
 			  MISTER_RUNTIME_IDLE_RBF, timeouts_, mister_driver_, &fes_gp_driver_,
 			  &ProductionProfiles(),
 			  {"/tmp/fogcast-development/core-packages",
-			   "/usr/share/mister-runtime/core-packages"}) {}
+			   "/usr/share/mister-runtime/core-packages"},
+			  native::TransitionalMenuIdle()) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{

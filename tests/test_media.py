@@ -149,10 +149,15 @@ class MediaTests(unittest.TestCase):
         # The pinned idle cache is separate from cold output publication.
         (self.image / 'build/cache/target-image/native').mkdir(parents=True)
         (self.image / 'build/cache/target-image/native/idle.rbf').write_bytes(b'idle')
+        (self.image / 'build/cache/target-image/native/splash.rbf').write_bytes(b'idle')
         (self.fogcast / 'build').mkdir(parents=True, exist_ok=True)
+        digest_idle = hashlib.sha256(b'idle').hexdigest()
         (self.root / 'image/build/native-inputs.toml').write_text(
+            '[splash_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
+            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + digest_idle
+            + '"\nfat_destination="/menu.rbf"\n'
             '[idle_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
-            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + hashlib.sha256(b'idle').hexdigest()
+            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + digest_idle
             + '"\ninstall_path="/usr/share/mister-runtime/idle.rbf"\n')
 
     def build(self, config=None):

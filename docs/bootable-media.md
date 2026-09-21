@@ -192,12 +192,14 @@ card, verify all of the following before releasing the lease:
 - Before calling the result exact-artifact acceptance, compare installed bytes
   with the retained manifests for this exact cold receipt. Compare the installed
   rootfs (`/media/fat/linux/linux.img`), kernel
-  (`/media/fat/linux/zImage_dtb`), FAT idle artifact (`/media/fat/menu.rbf`),
-  and installed runtime idle artifact
+  (`/media/fat/linux/zImage_dtb`), FAT splash artifact (`/media/fat/menu.rbf`;
+  U-Boot still programs `core=menu.rbf`),
+  and installed runtime Stop-idle artifact
   (`/usr/share/mister-runtime/idle.rbf`) with `rootfs.sha256`, `kernel.sha256`,
-  and `idle.sha256` in `fes-media.toml`. The two idle hashes must both match
-  the pinned idle value.
-- Compare the installed rootfs, agent, runtime, kernel, idle artifact and all
+  `splash.sha256`, and `idle.sha256` in `fes-media.toml`. Splash and Stop-idle
+  are independent slots; their hashes may match while the transitional pin
+  reuses today's sealed Menu bytes for both.
+- Compare the installed rootfs, agent, runtime, kernel, splash, idle artifact and all
   selected package payloads before exact-artifact acceptance. Run:
 
   ```sh
@@ -207,7 +209,8 @@ card, verify all of the following before releasing the lease:
     /usr/share/mister-runtime/core-packages/*/core.rbf
   ```
 
-  Compare the first line to the external `fes-media.toml`; compare the agent,
+  Compare the first line to the external `fes-media.toml` (`splash.sha256` for
+  `/menu.rbf`, `idle.sha256` for rootfs idle); compare the agent,
   runtime and each package digest to the retained cold `manifest.tsv` bound by
   that generation's `image.json`. Do not use a manifest from a different
   source revision, recipe or cold receipt.

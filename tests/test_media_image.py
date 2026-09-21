@@ -110,7 +110,7 @@ class RealImageTests(unittest.TestCase):
     def test_manifest_has_complete_provenance_and_separate_checks(self):
         data = tomllib.loads(self.manifest.read_text())
         self.assertEqual(set(data), {'format', 'target', 'layout', 'source_date_epoch', 'provisioned',
-                         'hardware', 'fes', 'rootfs', 'kernel', 'uboot', 'idle', 'disk', 'fat',
+                         'hardware', 'fes', 'rootfs', 'kernel', 'uboot', 'splash', 'idle', 'disk', 'fat',
                          'partition_1', 'partition_2', 'output', 'assembly', 'checks'})
         self.assertEqual(data['target'], 'de10-nano')
         self.assertEqual(data['rootfs']['path'], 'out/native-integration-dev/linux.img')
@@ -118,7 +118,9 @@ class RealImageTests(unittest.TestCase):
         self.assertEqual(data['kernel']['destination'], '/linux/zImage_dtb')
         self.assertEqual(data['uboot']['destination'], 'partition_2')
         self.assertEqual(data['idle']['rootfs_destination'], '/usr/share/mister-runtime/idle.rbf')
-        self.assertEqual(data['idle']['fat_destination'], '/menu.rbf')
+        self.assertEqual(data['splash']['fat_destination'], '/menu.rbf')
+        self.assertNotIn('fat_destination', data['idle'])
+        self.assertEqual(data['splash']['sha256'], data['idle']['sha256'])
         self.assertEqual(data['output'], {'path': 'fes.img', 'size': self.image.stat().st_size, 'sha256': digest(self.image)})
         self.assertEqual(data['assembly']['sha256'], [digest(self.image)] * 2)
         self.assertEqual(data['checks'], {'structural_media': 'pass', 'assembly_reproducibility': 'pass',
@@ -126,7 +128,7 @@ class RealImageTests(unittest.TestCase):
         self.assertEqual(data['hardware'], 'not-run')
         self.assertEqual(data['partition_1']['start_sector'], 2048)
         self.assertEqual(data['partition_2']['type'], 0xa2)
-        for name in ('kernel', 'uboot', 'idle'):
+        for name in ('kernel', 'uboot', 'idle', 'splash'):
             self.assertTrue({'repository', 'revision', 'path', 'size', 'sha256'} <= set(data[name]))
         self.assertEqual(set(data['fes']), {'revision', 'profile', 'media_recipe_sha256'})
         self.assertTrue({'image_receipt_sha256', 'child_manifest_sha256'} <= set(data['rootfs']))
@@ -139,7 +141,7 @@ class RealImageTests(unittest.TestCase):
                  ('rootfs', 'path', '../linux.img'), ('rootfs', 'child_manifest_sha256', '0' * 64),
                  ('rootfs', 'image_receipt_sha256', '0' * 64),
                  ('kernel', 'repository', 'https://unselected.example'), ('kernel', 'destination', '/kernel'),
-                 ('uboot', 'revision', '0' * 40), ('idle', 'fat_destination', '/idle.rbf'),
+                 ('uboot', 'revision', '0' * 40), ('splash', 'fat_destination', '/idle.rbf'),
                  ('partition_1', 'active', False), ('partition_2', 'sector_count', 2047),
                  ('fat', 'serial', 1), ('output', 'path', '../fes.img'),
                  ('assembly', 'sha256', [digest(self.image), '0' * 64]),
@@ -221,6 +223,7 @@ class RealImageTests(unittest.TestCase):
         common = ["--lock", str(lock_path)]
         for name in ("rootfs", "idle", "kernel", "uboot"):
             common.extend(["--" + name, str(getattr(self.payloads, name))])
+        common.extend(["--splash", str(self.payloads.splash_payload())])
         provenance = Path(self.scratch.name) / 'provenance.json'
         provenance.write_text(json.dumps(dataclasses.asdict(self.provenance)))
         common += ['--provenance', str(provenance)]
@@ -398,3 +401,23 @@ class RealImageTests(unittest.TestCase):
         wrong.write_bytes(b"wrong")
         with self.assertRaisesRegex(ValueError, "idle"):
             media_inside.assemble(Path(self.scratch.name) / "invalid", dataclasses.replace(self.payloads, idle=wrong), self.lock)
+
+    def test_splash_may_differ_from_rootfs_idle(self):
+        splash = Path(self.scratch.name) / "splash.rbf"
+        splash.write_bytes(b"splash-rbf-fixture" * 1024)
+        provenance = dataclasses.replace(
+            self.provenance,
+            splash_size=splash.stat().st_size,
+            splash_sha256=digest(splash),
+        )
+        inputs = dataclasses.replace(self.payloads, splash=splash, provenance=provenance)
+        image, manifest = media_inside.assemble(Path(self.scratch.name) / "diverged", inputs, self.lock)
+        data = tomllib.loads(manifest.read_text())
+        self.assertEqual(data['splash']['sha256'], digest(splash))
+        self.assertEqual(data['idle']['sha256'], digest(self.idle))
+        self.assertNotEqual(data['splash']['sha256'], data['idle']['sha256'])
+        self.assertEqual(data['splash']['fat_destination'], '/menu.rbf')
+        self.assertEqual(data['idle']['rootfs_destination'], '/usr/share/mister-runtime/idle.rbf')
+        self.assertNotIn('fat_destination', data['idle'])
+        result = media_inside.verify_image(image, manifest, inputs, self.lock)
+        self.assertIn('/menu.rbf', result.paths)

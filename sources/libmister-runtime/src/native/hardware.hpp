@@ -5,6 +5,7 @@
 
 #include "libmister-runtime/runtime.h"
 #include "native/core_driver.hpp"
+#include "native/idle_recipe.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -60,7 +61,8 @@ public:
 		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver& mister_driver,
 		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr,
-		std::vector<std::string> package_roots = {});
+		std::vector<std::string> package_roots = {},
+		IdleRecipe idle_recipe = TransitionalMenuIdle());
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;
@@ -113,6 +115,7 @@ private:
 	Clock& clock_;
 	LogSink& log_;
 	std::string idle_rbf_;
+	IdleRecipe idle_recipe_;
 	NativeTimeouts timeouts_;
 	CoreDriver& mister_driver_;
 	CoreDriver* fes_gp_driver_;

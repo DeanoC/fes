@@ -449,6 +449,8 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(captured['assembly_lock']['mister_runtime']['commit'], '2' * 40)
         self.assertEqual(captured['assembly_lock']['idle_rbf'],
                          tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['idle_rbf'])
+        self.assertEqual(captured['assembly_lock']['splash_rbf'],
+                         tomllib.loads((build.IMAGE / 'build/native-inputs.toml').read_text())['splash_rbf'])
         self.assertEqual(captured['env']['FES_PACKAGE_IDS'],
                          'fes.pong,fes.zx81,fes.coleco')
         for core_id in ('fes.pong', 'fes.zx81', 'fes.coleco'):

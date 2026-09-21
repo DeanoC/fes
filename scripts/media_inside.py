@@ -46,18 +46,38 @@ class Provenance:
     idle_path: str
     idle_size: int
     idle_sha256: str
+    splash_repository: str | None = None
+    splash_revision: str | None = None
+    splash_path: str | None = None
+    splash_size: int | None = None
+    splash_sha256: str | None = None
 
     def __post_init__(self):
-        for name in ('fes_revision', 'idle_revision'):
+        # Transitional same-bytes pin: omitted splash identity copies idle.
+        if self.splash_repository is None:
+            object.__setattr__(self, 'splash_repository', self.idle_repository)
+        if self.splash_revision is None:
+            object.__setattr__(self, 'splash_revision', self.idle_revision)
+        if self.splash_path is None:
+            object.__setattr__(self, 'splash_path', self.idle_path)
+        if self.splash_size is None:
+            object.__setattr__(self, 'splash_size', self.idle_size)
+        if self.splash_sha256 is None:
+            object.__setattr__(self, 'splash_sha256', self.idle_sha256)
+        for name in ('fes_revision', 'idle_revision', 'splash_revision'):
             if not isinstance(getattr(self, name), str) or not re.fullmatch('[0-9a-f]{40}', getattr(self, name)):
                 raise ValueError('invalid media provenance revision')
-        for name in ('media_recipe_sha256', 'image_receipt_sha256', 'child_manifest_sha256', 'idle_sha256'):
+        for name in ('media_recipe_sha256', 'image_receipt_sha256', 'child_manifest_sha256',
+                     'idle_sha256', 'splash_sha256'):
             if not isinstance(getattr(self, name), str) or not re.fullmatch('[0-9a-f]{64}', getattr(self, name)):
                 raise ValueError('invalid media provenance digest')
         if (self.profile != 'native-integration-dev' or self.idle_path != 'menu.rbf'
+                or self.splash_path != 'menu.rbf'
                 or not isinstance(self.idle_repository, str) or not self.idle_repository.startswith('https://')
-                or type(self.idle_size) is not int or self.idle_size <= 0):
-            raise ValueError('invalid media provenance profile or idle source')
+                or not isinstance(self.splash_repository, str) or not self.splash_repository.startswith('https://')
+                or type(self.idle_size) is not int or self.idle_size <= 0
+                or type(self.splash_size) is not int or self.splash_size <= 0):
+            raise ValueError('invalid media provenance profile or splash/idle source')
 
     @classmethod
     def load(cls, path):
@@ -85,6 +105,11 @@ class ImageInputs:
     provenance: Provenance | None = None
     launcher_config: Path | None = None
     launcher_config_sha256: str | None = None
+    splash: Path | None = None
+
+    def splash_payload(self):
+        """FAT / U-Boot splash bytes. Defaults to idle for the same-bytes pin."""
+        return self.splash if self.splash is not None else self.idle
 
 
 @dataclass(frozen=True)
@@ -112,6 +137,7 @@ def regular(path, label):
 def check_inputs(inputs, lock, scratch):
     for name in ("rootfs", "idle", "kernel", "uboot"):
         regular(getattr(inputs, name), name)
+    regular(inputs.splash_payload(), "splash")
     verify_file(inputs.kernel, lock.kernel.size, lock.kernel.sha256, "kernel")
     verify_file(inputs.uboot, lock.uboot.size, lock.uboot.sha256, "U-Boot")
     if lock.uboot.size > BOOT_SIZE:
@@ -197,7 +223,7 @@ def _assemble_once(image, inputs, lock, scratch):
         stream.write(struct.pack("<HH", time, date))
     staged = scratch / "payloads"
     staged.mkdir()
-    for name, source in (("menu.rbf", inputs.idle), ("zImage_dtb", inputs.kernel), ("linux.img", inputs.rootfs)):
+    for name, source in (("menu.rbf", inputs.splash_payload()), ("zImage_dtb", inputs.kernel), ("linux.img", inputs.rootfs)):
         destination = staged / name
         shutil.copyfile(source, destination)
         os.utime(destination, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
@@ -226,6 +252,7 @@ def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_ve
     if not isinstance(provenance, Provenance):
         raise ValueError('complete media provenance input is required')
     verify_file(inputs.idle, provenance.idle_size, provenance.idle_sha256, 'idle provenance')
+    verify_file(inputs.splash_payload(), provenance.splash_size, provenance.splash_sha256, 'splash provenance')
     if (type(assembly_hashes) is not list or len(assembly_hashes) != 2
             or any(type(value) is not str or not re.fullmatch('[0-9a-f]{64}', value) for value in assembly_hashes)):
         raise ValueError('invalid independent assembly hashes')
@@ -240,9 +267,12 @@ def manifest_data(image, inputs, lock, config_sha, assembly_hashes, *, rootfs_ve
                          'size': inputs.rootfs.stat().st_size, 'sha256': digest(inputs.rootfs),
                          'image_receipt_sha256': provenance.image_receipt_sha256,
                          'child_manifest_sha256': provenance.child_manifest_sha256},
+              'splash': {'repository': provenance.splash_repository, 'revision': provenance.splash_revision,
+                         'path': provenance.splash_path, 'size': provenance.splash_size,
+                         'sha256': provenance.splash_sha256, 'fat_destination': '/menu.rbf'},
               'idle': {'repository': provenance.idle_repository, 'revision': provenance.idle_revision,
                        'path': provenance.idle_path, 'size': provenance.idle_size, 'sha256': provenance.idle_sha256,
-                       'rootfs_destination': '/usr/share/mister-runtime/idle.rbf', 'fat_destination': '/menu.rbf'},
+                       'rootfs_destination': '/usr/share/mister-runtime/idle.rbf'},
               'disk': {'sector_size': lock.sector_size, 'size': DISK_SIZE, 'identifier': lock.disk_id},
               'fat': {'label': lock.fat_label, 'serial': lock.fat_serial},
               'partition_1': asdict(lock.partition_1), 'partition_2': asdict(lock.partition_2),
@@ -520,7 +550,8 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
         device = f"{image}@@{PART1_OFFSET}"
         listing = run("mdir", "-a", "-b", "-s", "-i", device, "::/")
         paths = tuple(sorted(line.removeprefix("::").rstrip("/") for line in listing.splitlines() if line))
-        owned = {"/menu.rbf": inputs.idle, "/linux/zImage_dtb": inputs.kernel, "/linux/linux.img": inputs.rootfs}
+        owned = {"/menu.rbf": inputs.splash_payload(), "/linux/zImage_dtb": inputs.kernel,
+                 "/linux/linux.img": inputs.rootfs}
         expected_paths = set(owned) | {"/linux", "/fogcast"}
         if agent_config_sha256:
             expected_paths.add("/fogcast/agent.toml")
@@ -561,6 +592,7 @@ def main():
         command.add_argument("--provenance", type=Path, required=True)
         for payload in ("rootfs", "idle", "kernel", "uboot"):
             command.add_argument("--" + payload, type=Path, required=True)
+        command.add_argument("--splash", type=Path)
         command.add_argument("--launcher-config", type=Path)
         command.add_argument("--launcher-config-sha256")
         if name == "assemble":
@@ -574,7 +606,7 @@ def main():
     args = parser.parse_args()
     try:
         lock = MediaLock.load(args.lock)
-        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None), Provenance.load(args.provenance), args.launcher_config, args.launcher_config_sha256)
+        inputs = ImageInputs(args.rootfs, args.idle, args.kernel, args.uboot, getattr(args, "agent_config", None), Provenance.load(args.provenance), args.launcher_config, args.launcher_config_sha256, args.splash)
         if args.command == "assemble":
             image, manifest = assemble(args.output, inputs, lock)
             print(json.dumps({"image_sha256": digest(image), "assembly_sha256": load_manifest(manifest)["assembly"]["sha256"]}, sort_keys=True))

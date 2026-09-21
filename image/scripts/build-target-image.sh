@@ -93,7 +93,8 @@ verify_native_inputs() {
     "$repo/scripts/verify-native-runtime-inputs.sh" \
     "${NATIVE_RUNTIME_INPUT_LOCK:-${FOGCAST_DIR:?FOGCAST_DIR is required}/build/native-runtime.inputs.lock.toml}" \
     "$LIBMISTER_RUNTIME_DIR" \
-    "$repo/build/cache/target-image/native/idle.rbf"
+    "$repo/build/cache/target-image/native/idle.rbf" \
+    "$repo/build/cache/target-image/native/splash.rbf"
 }
 
 run_target_container() {
@@ -152,7 +153,8 @@ inside_build() {
       /work/scripts/verify-native-runtime-inputs.sh \
       "${FOGCAST_DIR}/build/native-runtime.inputs.lock.toml" \
       "/runtime-source/${FES_RUNTIME_SOURCE_PATH:-.}" \
-      /work/build/cache/target-image/native/idle.rbf
+      /work/build/cache/target-image/native/idle.rbf \
+      /work/build/cache/target-image/native/splash.rbf
   fi
 
 	cleanup_inside_output "$inside_output"
