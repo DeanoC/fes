@@ -11,6 +11,8 @@ chrome.
 
 **Related:**
 
+- Phase 2 execution (owners, slices, engineering questions only):
+  [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md)
 - Current idle artifact policy:
   [`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
 - Runtime idle sequence:
@@ -205,7 +207,7 @@ product.
 | Phase | Delivers | Does not deliver |
 | --- | --- | --- |
 | **1 — this document** | Locked split: splash vs attract ABI vs play vs (later) room RBF vs (later) accelerator. Visible contract. Process model. | Code, new RBF, ABI bytes, kit time |
-| **2 — shrink idle** | Distinct U-Boot splash RBF. Stop/`LoadIdle()` no longer brings up stock MENU chrome. Defined Stop idle (splash or an explicit non-Menu idle) so HDMI is honest while Linux/tenfoot start. | Attract ABI, rooms on kit HDMI, accelerator, FC2D hardware |
+| **2 — shrink idle** | Distinct U-Boot splash RBF. Stop/`LoadIdle()` no longer brings up stock MENU chrome. Defined Stop idle (splash or an explicit non-Menu idle) so HDMI is honest while Linux/tenfoot start. Execution: [`idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md). | Attract ABI, rooms on kit HDMI, accelerator, FC2D hardware |
 | **3 — single launcher** | Rooms through one tenfoot renderer on sofa and on kit-as-host. `fogcast-kit` catalog path retires toward that renderer. Stop restores the room on the surface that launched, including kit HDMI. | A second offline catalog; room custom RBF; claiming linuxfb is gone |
 | **4 — default attract ABI** | Factory default attract package on a described ABI. Runtime loads it as idle/attract through the package path. Room override hooks exist so a room can select a different attract package later. | Room-authored custom RBF as a general bitstream; graphics accelerator |
 | **5 — later** | Graphics-accelerator ABI owns the framebuffer; `/dev/fb0` debug-only; room custom RBF allowed as an explicit rooms feature | A compositor stack; treating FC2D software replay as done hardware |
@@ -256,6 +258,7 @@ implementation follow-ups inside the classes above.
 | Doc | Why |
 | --- | --- |
 | [`docs/README.md`](README.md) | Index (Proposals) |
+| [`docs/idle-menu-rooms-phase2.md`](idle-menu-rooms-phase2.md) | Phase 2 execution brief (does not reopen this lock) |
 | [`docs/component-boundaries.md`](component-boundaries.md) | Host vs runtime vs image vs FPGA builder |
 | [`docs/image-assembly.md`](image-assembly.md) | FES `image/` owns idle install; FogCast supplies `fogcast-kit` |
 | [`docs/core-packages.md`](core-packages.md) | Described play packages; locked idle RBF is current assembly |
