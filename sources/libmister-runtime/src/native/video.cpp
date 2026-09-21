@@ -269,65 +269,89 @@ VideoResult MenuVideoBringup::PhaseFailure(const char* phase,
 VideoResult MenuVideoBringup::BringUp(const std::string& expected_core,
 	std::uint64_t deadline)
 {
+	IdleRecipe idle = TransitionalMenuIdle();
+	idle.expected_core = expected_core;
+	return BringUp(idle, deadline);
+}
+
+VideoResult MenuVideoBringup::BringUp(const IdleRecipe& idle,
+	std::uint64_t deadline)
+{
 	VideoResult result;
+	const bool mister_user_io = IdleUsesMisterUserIo(idle);
 	if (clock_.NowMs() >= deadline)
-		return PhaseFailure("core_reset",
+		return PhaseFailure(mister_user_io ? "core_reset" : "hdmi_init",
 			{ErrorCode::io_failed, "deadline exceeded"}, result);
 
-	Error error = spi_.SynchronizeCore(deadline);
-	if (!error.ok()) return PhaseFailure("core_sync", error, result);
-	PhaseSuccess("core_sync", &result, log_);
+	Error error;
+	if (mister_user_io) {
+		error = spi_.SynchronizeCore(deadline);
+		if (!error.ok()) return PhaseFailure("core_sync", error, result);
+		PhaseSuccess("core_sync", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_reset", error, result);
-	PhaseSuccess("core_reset", &result, log_);
+		error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_reset", error, result);
+		PhaseSuccess("core_reset", &result, log_);
 
-	error = core_.Probe(&result.observed_core, deadline);
-	if (!error.ok()) return PhaseFailure("core_probe", error, result);
-	if (result.observed_core != expected_core || expected_core != "MENU")
-		return PhaseFailure("core_probe",
-			{ErrorCode::io_failed, "unexpected menu core"}, result);
-	PhaseSuccess("core_probe", &result, log_);
+		if (idle.probe_core) {
+			error = core_.Probe(&result.observed_core, deadline);
+			if (!error.ok()) return PhaseFailure("core_probe", error, result);
+			if (!idle.expected_core.empty() &&
+				result.observed_core != idle.expected_core)
+				return PhaseFailure("core_probe",
+					{ErrorCode::io_failed, "unexpected idle core"}, result);
+			PhaseSuccess("core_probe", &result, log_);
+		}
+	}
 
 	error = InitializeAdv(i2c_, recipe_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
 	PhaseSuccess("hdmi_init", &result, log_);
 
-	error = ApplyMode(spi_, i2c_, recipe_, deadline);
+	if (mister_user_io)
+		error = ApplyMode(spi_, i2c_, recipe_, deadline);
+	else
+		error = ApplyFixedMode(i2c_, recipe_, deadline);
 	if (!error.ok()) return PhaseFailure("video_timing", error, result);
 	PhaseSuccess("video_timing", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_release", error, result);
-	PhaseSuccess("core_release", &result, log_);
+	if (mister_user_io) {
+		error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_release", error, result);
+		PhaseSuccess("core_release", &result, log_);
+	}
 
 	error = WakeAdv(i2c_, deadline);
 	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
 	PhaseSuccess("hdmi_wake", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_input", error, result);
-	PhaseSuccess("core_input", &result, log_);
+	if (mister_user_io) {
+		error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_input", error, result);
+		PhaseSuccess("core_input", &result, log_);
+	}
 
-	FramebufferMode mode;
-	error = framebuffer_.Prepare(deadline, &mode);
-	if (error.ok()) error = ValidateMenuFramebuffer(mode);
-	if (!error.ok()) return PhaseFailure("framebuffer", error, result);
-	// Main's Linux framebuffer is at reserved DDR + one metadata page. RxB
-	// selects the driver's 32-bit little-endian RGB layout. Scale to fixed HDMI.
-	std::vector<std::uint16_t> response;
-	error = spi_.Exchange(kUserIoTarget, {0x002f, 0x8016,
-		static_cast<std::uint16_t>(mode.address),
-		static_cast<std::uint16_t>(mode.address >> 16),
-		static_cast<std::uint16_t>(mode.width), static_cast<std::uint16_t>(mode.height),
-		0, 1279, 0, 719, static_cast<std::uint16_t>(mode.stride)}, &response, deadline);
-	if (!error.ok()) return PhaseFailure("framebuffer", error, result);
-	if (response.empty() || response[0] == 0)
-		return PhaseFailure("framebuffer", {ErrorCode::io_failed,
-			"menu core does not support HPS framebuffer"}, result);
-	// Menu remains in the already released status0. Main's status helper
-	// shifts and masks its framebuffer argument, leaving bits[8:5] zero.
-	PhaseSuccess("framebuffer", &result, log_);
+	if (mister_user_io && idle.enable_hps_framebuffer) {
+		FramebufferMode mode;
+		error = framebuffer_.Prepare(deadline, &mode);
+		if (error.ok()) error = ValidateMenuFramebuffer(mode);
+		if (!error.ok()) return PhaseFailure("framebuffer", error, result);
+		// Main's Linux framebuffer is at reserved DDR + one metadata page. RxB
+		// selects the driver's 32-bit little-endian RGB layout. Scale to fixed HDMI.
+		std::vector<std::uint16_t> response;
+		error = spi_.Exchange(kUserIoTarget, {0x002f, 0x8016,
+			static_cast<std::uint16_t>(mode.address),
+			static_cast<std::uint16_t>(mode.address >> 16),
+			static_cast<std::uint16_t>(mode.width), static_cast<std::uint16_t>(mode.height),
+			0, 1279, 0, 719, static_cast<std::uint16_t>(mode.stride)}, &response, deadline);
+		if (!error.ok()) return PhaseFailure("framebuffer", error, result);
+		if (response.empty() || response[0] == 0)
+			return PhaseFailure("framebuffer", {ErrorCode::io_failed,
+				"idle core does not support HPS framebuffer"}, result);
+		// Menu remains in the already released status0. Main's status helper
+		// shifts and masks its framebuffer argument, leaving bits[8:5] zero.
+		PhaseSuccess("framebuffer", &result, log_);
+	}
 
 	error = RequireLink(i2c_, clock_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_verify", error, result);

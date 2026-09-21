@@ -175,7 +175,7 @@ public:
 		condition_.notify_all();
 		Log("start", "", "", "idle");
 		if (!result.observed_core.empty())
-			EmitCoreNameChange("MENU", result.observed_core, true);
+			EmitCoreNameChange(result.observed_core, result.observed_core, true);
 		return {};
 	}
 

@@ -27,7 +27,7 @@ fixtures verify software mechanics and do not establish system support.
 
 | Capability | Implementation | Software status | Hardware status |
 | --- | --- | --- | --- |
-| Native idle HPS framebuffer | 640×480 BGRX, validated Linux mode and Menu SPI enable, restored by Stop | software: yes | hardware: pending |
+| Native idle HPS framebuffer | 640×480 BGRX, validated Linux mode and SPI enable when `IdleRecipe` declares support; `TransitionalMenuIdle()` still enables it; omitted recipes skip `0x002f` | software: yes | hardware: pending |
 | MiSTer-compatible development RBF | open, HDMI power-down, program, synchronize, optional core observation, Stop to idle | software: yes | hardware: pending |
 | Format-2 core-package preflight | strict manifest/payload admission, retained descriptor, package identity and compiled compatibility check | software: yes | hardware: not applicable |
 | Format-2 MiSTer development activation | owned admission, retired outgoing input, optional system/profile identity, explicit `mister-v1` programming, no inferred media/input or ambiguous quiesce retry | software: yes | hardware: pending |
