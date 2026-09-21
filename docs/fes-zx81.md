@@ -1,9 +1,10 @@
 # FES ZX81
 
 The first slice is a ROM-less `fes.simple-computer` 1.0 package (`fes.zx81`
-1.0.0) with 16 KB RAM, original ROM, a 40-key matrix, one `.p` mailbox blob
-and fixed 720p60 HDMI. There is no ZX80, colour, YM2149, turbo, joystick or
-SDRAM in this slice.
+1.2.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
+colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
+package carries the vacant bus; carts are independent bus consumers.
 
 FES installs this package as part of the ordered native package-only image set.
 The host library path is `core-install` / `core-entry` /
@@ -19,7 +20,7 @@ ROM-less FPGA cores. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.simple-computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (all required) |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
 | Stop | existing package Select+Start |
@@ -31,10 +32,12 @@ reaches uinput.
 
 ## Producers
 
-Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) is the kit-proven
-bring-up lane. `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for
-the same package identity. OSS uses TV80, a 52 MHz system PLL and
-registered M10K; it does not inherit Quartus acceptance.
+Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
+1.0 bring-up/oracle lane; it does not produce the standard socketed package.
+`make build-fes-zx81` is the standard Yosys/nextpnr-mistral producer for the
+1.1 socketed package. OSS uses TV80, a 52 MHz system PLL, registered M10K and
+the scoped `toolchains/zx81-expansion.lock`; it does not inherit Quartus
+acceptance.
 
 ## Menu / sofa UI
 

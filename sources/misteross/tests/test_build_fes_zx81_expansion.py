@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import build_fes_zx81_oss as producer
-from scripts import build_zx81_ram_expansion as cart_producer
+from scripts import build_zx81_bus_validation_cart as cart_producer
 from scripts import zx81_expansion as expansion
 
 
@@ -66,19 +66,32 @@ class ZX81SocketProducerTests(unittest.TestCase):
                     expansion.prepare_shell_netlist(path)
                 self.assertEqual(path.read_text(), content)
 
-    def test_socket_build_keeps_factory_output_separate_and_reserves_socket(self):
-        root = Path("/source")
+    def test_socket_build_uses_the_standard_output_and_reserves_socket(self):
+        root = Path(__file__).resolve().parents[1]
         tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
-        shell, route = producer.build_commands(root, root / producer.SOCKET_OUTPUT_RELATIVE,
+        shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
                                                "a" * 32, tools, socketed=True)
         self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
         self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
-        self.assertIn("build/fes-zx81-socket/synth.json", shell[-1])
-        self.assertIn("build/fes-zx81-socket/socket.qsf", route)
+        self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
+        self.assertIn("build/fes-zx81-oss/socket.qsf", route)
         self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
-        fixed, _ = producer.build_commands(root, root / producer.OUTPUT_RELATIVE, "a" * 32, tools)
+        fixed, _ = producer.build_commands(root, root / producer.LEGACY_OUTPUT_RELATIVE,
+                                           "a" * 32, tools, socketed=False)
         self.assertNotIn("chparam -set EXPANSION_SOCKET", fixed[-1])
-        self.assertIn("build/fes-zx81-oss/synth.json", fixed[-1])
+        self.assertIn("build/fes-zx81-legacy/synth.json", fixed[-1])
+
+    def test_standard_build_defaults_to_socketed_shell(self):
+        root = Path(__file__).resolve().parents[1]
+        tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
+        shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
+                                               "a" * 32, tools)
+        self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
+        self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
+        self.assertIn("build/fes-zx81-oss/socket.qsf", route)
+        record = json.loads(producer.create_build_record(
+            root, "https://github.com/DeanoC/misteross.git", "a" * 40, {"yosys": "x"}))
+        self.assertEqual(record["parameters"]["expansion_socket"], "zx81-bus-v1")
 
     def test_library_carts_use_the_z80_edge_packing(self):
         root = Path(__file__).resolve().parents[1]
@@ -120,6 +133,32 @@ class ZX81SocketProducerTests(unittest.TestCase):
                     self.assertIn("-Wno-BLKSEQ", expansion.stdout)
 
 
+class ZX81DiagnosticCleanupTests(unittest.TestCase):
+    def test_diagnostic_restart_preserves_published_cart(self):
+        from scripts import hip_zx81_bus_socket as diagnostic
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / diagnostic.CART_OUT.relative_to(diagnostic.ROOT)
+            archive = root / "build/zx81-bus-validation-cart" / ("a" * 64) / "cart.tar"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"sealed cart")
+            output.mkdir(parents=True, exist_ok=True)
+            stale = output / "stale.rbf"
+            stale.write_bytes(b"old diagnostic")
+            # Stop at the first compiler invocation, after real directory cleanup.
+            with patch.object(diagnostic, "ROOT", root), patch.object(
+                diagnostic, "CART_OUT", output
+            ), patch.object(diagnostic.cart, "cart_clock_constraints", return_value=b"clocks"), patch.object(
+                diagnostic, "run", side_effect=RuntimeError("compiler boundary")
+            ):
+                with self.assertRaisesRegex(RuntimeError, "compiler boundary"):
+                    diagnostic.compose_cart({"yosys": Path("yosys")}, {})
+            self.assertEqual(archive.read_bytes(), b"sealed cart")
+            self.assertFalse(stale.exists())
+            self.assertEqual((output / "clocks.sdc").read_bytes(), b"clocks")
+
+
 class ZX81CartPublicationTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()
@@ -135,7 +174,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
                            ("routed.json", b"{}"), ("socket.qsf", b"pins")):
             (self.shell / name).write_bytes(data)
         package = SimpleNamespace(manifest_bytes=b"manifest", payload_bytes=b"shell",
-            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-ram",
+            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-bus",
             "major": 1, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
         tools = {name: SimpleNamespace(path=Path("/tools") / name, identity={"name": name})
                  for name in ("yosys", "nextpnr-mistral")}

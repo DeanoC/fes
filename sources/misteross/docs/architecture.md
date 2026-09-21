@@ -314,13 +314,15 @@ not a policy selector for those producers. HIP (`gpu-router=HIP`,
 `hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane:
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
-CPU-reference fallback. Pong and ZX81 use the repository-wide
-`toolchain.lock` HIP slot. Coleco, SG-1000 and SMS select the single
+CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
+slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
+Coleco, SG-1000 and SMS select the single
 `toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
 Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
 lock, so all three consumers share the same HIP compiler cache slot.
 Local HIP tools
-come from `make toolchain-fes` for Pong/ZX81, `make toolchain-fes-coleco` for
+come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
+standard ZX81 socket, `make toolchain-fes-coleco` for
 Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
 for SMS. `make toolchain` remains GPU-router OFF for generic OSS experiments.
 `make toolchain` and `make toolchain-fes` share `build/toolchain`; the last
@@ -2507,7 +2509,8 @@ This is simulation, not a Quartus RBF or kit result.
 ## FES ZX81 Quartus bring-up
 
 `make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.0.0. It is not a Mistral/nextpnr payload. The board shell
+`fes.zx81` 1.0.0 legacy oracle package. It is not a Mistral/nextpnr payload
+and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
 reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
@@ -2535,8 +2538,13 @@ bring-up lane.
 
 ## FES ZX81 OSS package
 
+The HIP bus diagnostic writes disposable cart outputs to
+`build/zx81-bus-validation-cart-diagnostic/`. Sealed validation-cart archives
+live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
+diagnostic cleanup.
+
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
+`fes.zx81` 1.2.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use native
@@ -2558,7 +2566,7 @@ not change the sealed base shell or infer requirements from achieved Fmax.
 Socketed shells export a registered Z80-like edge (44-bit request, 20-bit
 response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
 active-high from the cart. CPU writes on that edge use TDP `A1WE` like the
-16 KiB pack; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
+validation cart; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
 Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
 `--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52 MHz
 net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
@@ -2566,14 +2574,14 @@ net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` th
 loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
 is readable; CPU writes still replace rows. The shifter loads a
 registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
-not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The 16 KiB pack is
-the first library cart on that edge; Zon X and QS Character Board RTL share
+not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The validation
+cart is the first consumer on that edge; Zon X and QS Character Board RTL share
 the plugs but are not library assets yet. Zon X channel A is a digital square
 on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
 into HDMI I2S0 when `RAM_PRESENT` is 0. Channel A period uses nested 4-bit
 LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.
 Diagnostic 904–907 remains an HPS bench and does not seal
-`fes.zx81`. The cart route also receives the fixed `fes.zx81-ram.socket/1` CRAM rectangle
+`fes.zx81`. The cart route also receives the fixed `fes.zx81-bus.socket/1` CRAM rectangle
 `1769,32,2806,7024` (exclusive upper bounds). The scoped compiler queries Mistral
 for each routing mux's physical configuration bits; nominal wire/tile locations
 do not determine those bits for long wires. Existing shell pip selections remain
@@ -2592,7 +2600,7 @@ the original bitwise algorithm. Golden Python output, a reference bit overlay,
 malformed frames and compressed/uncompressed input ownership tests preserve the
 previous byte and admission contracts.
 
-On the designated ARM kit, the exact sealed shell and RAM asset measured about
+On the designated ARM kit, the exact sealed shell and validation cart measured about
 59.7 seconds for staging and 60.2 seconds for restart adoption with the original
 transposing implementation. Direct frame validation reduced those measurements
 to 7.9 and 7.4 seconds, with identical linked bytes and composition identity.

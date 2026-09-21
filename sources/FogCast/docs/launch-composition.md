@@ -1,10 +1,10 @@
 # Launch composition
 
 **Status:** The existing library session path implements household Coleco
-firmware readiness and optional ZX81 RAM composition. Coleco exact-package
+firmware readiness and optional ZX81 expansion composition. Coleco exact-package
 video/audio/input evidence is recorded in the
 [playable application validation](../../../docs/validation/2026-09-21-playable-audio.md).
-The [ZX81 RAM guide](../../../docs/zx81-ram-expansion.md) documents its producer,
+The [ZX81 expansion-bus guide](../../../docs/zx81-expansion-bus.md) documents its producer,
 selection API and acceptance procedure. Removable media remains future work.
 
 **Related:**
@@ -85,7 +85,7 @@ display name or file extension.
 | --- | --- | --- | --- |
 | **Core** | Format-2 FPGA package (sealed manifest + RBF) | Before boot | `fes.pong`, `fes.zx81`, `fes.coleco` |
 | **Firmware** | BIOS / boot ROM the CPU fetches at reset | Before boot | Coleco 8 KiB BIOS (Phase 1) |
-| **Expansions** | Optional carts **linked at load** onto the core’s reserved socket | At load, before programming | ZX81 16K RAM pack via the proven nextpnr CRAM linker (Phase 2) |
+| **Expansions** | Optional carts **linked at load** onto the core’s registered expansion bus | At load, before programming | ZX81 expansion-bus validation cart via the proven nextpnr CRAM linker (Phase 2) |
 | **Primary media** | Cart, ROM, or the media the machine is meant to start with | Before boot, unless the package allows a media-less start | Coleco cart, Mega Drive `cartridge`, ZX81 `.p` tape |
 | **Secondary / removable media** | Disk, CD, or other media that can change after the machine is running | After boot; may change mid-session | Later disk/CD systems (Phase 3) |
 
@@ -101,13 +101,13 @@ built cart. At **load**, the existing static linker
 The kit programs one full-chip RBF. There is no place-and-route per
 combination and no sealed `fes.zx81-16k` versus `fes.zx81-1k` package.
 The 901 shell plus 900/903 carts already proved this overlay on kit; that
-linker is the ZX81 expansion example. Phase 2 uses it directly for the
-household 16K RAM pack. It does not invent a second “runtime device” path
+linker is the ZX81 expansion example. Phase 2 uses it directly for compatible
+bus carts. It does not invent a second “runtime device” path
 and it does not wait on a bitstream-per-expansion model.
 
-ZX81’s current first-slice package still compiles 16 KB RAM into the
-sealed RBF. That is today’s factory image, not the expansion slot. The
-slot is the load-time link of an optional RAM cart onto a socketed core.
+The standard ZX81 package contains 1 KiB of internal RAM and a vacant
+registered expansion bus. Optional bus carts are linked at load; the 16 KiB
+RAM cart exercises that path as a validation consumer.
 
 ## What is true now
 
@@ -188,8 +188,8 @@ Default order, unless a package declares a stricter recipe:
 
 Link-at-load versus bind-after-boot is the important split:
 
-- Expansions are part of the bitstream the kit programs. The 16K RAM pack
-  is linked before programming, the same way a real pack is plugged in
+- Expansions are part of the bitstream the kit programs. A bus cart is
+  linked before programming, the same way a real expansion is plugged in
   before power-on. Linking after BASIC has started is a different product;
   this model does not do that.
 - Firmware is bytes the CPU fetches at reset, not a CRAM cart. It still
@@ -272,7 +272,7 @@ and then try to generalize it.
 | --- | --- | --- |
 | **0 — this document** | Shared vocabulary, ownership, bind-before-boot vs later change, Ready rule | Code, ABI changes, kit time |
 | **1 — Coleco firmware slot + readiness** | Descriptor-declared firmware slot; household BIOS import; Unavailable when required firmware is missing; runtime bind before reset release | Permanent BIOS in the factory image; git-tracked BIOS; rewriting the cartridge mailbox into a BIOS loader for every core |
-| **2 — expansion slots** | Load-time CRAM link of optional carts, starting with ZX81 16K RAM on the proven nextpnr linker | A unique place-and-route / sealed bitstream per RAM size or per expansion combination |
+| **2 — expansion slots** | Load-time CRAM link of optional carts, starting with the ZX81 expansion bus on the proven nextpnr linker | A unique place-and-route / sealed bitstream per cart or expansion combination |
 | **3 — removable media / media-change** | Secondary slot and mid-session change without reprogramming the core | A claim that every core already supports disk swap |
 
 Phase 1 may keep the private `--bios` producer as a diagnostic compare. It
@@ -280,8 +280,8 @@ must not become the way a sofa title gets a BIOS.
 
 Phase 2 skips bitstream-per-expansion and goes directly to the linking
 system already proven on the ZX81 freeze-scaffold example (`link_static_rbf`
-overlay of an independent cart onto a reserved socket). The household 16K
-RAM pack is that cart on the library launch path. Do not add a parallel
+overlay of an independent cart onto a reserved bus rectangle). Compatible
+bus carts use that library launch path. Do not add a parallel
 runtime-device protocol.
 
 Phase 3 waits until a core actually has removable media. Do not overload

@@ -581,7 +581,7 @@ Capabilities NativeHardware::capabilities() const
 		computer.major = generated::FesSimpleComputerABIMajor;
 		computer.minor = generated::FesSimpleComputerABIMinor;
 		computer.interfaces = {
-			{"fes.expansion.zx81-ram", 1, 0},
+			{"fes.expansion.zx81-bus", 1, 0},
 			{generated::FesSimpleComputerInterfaceKeyboardID,
 				generated::FesSimpleComputerInterfaceKeyboardMajor,
 				generated::FesSimpleComputerInterfaceKeyboardMinor},

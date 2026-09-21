@@ -13,8 +13,11 @@ import (
 )
 
 const (
-	Slot             = "fes.expansion.zx81-ram"
-	Map              = "fes.zx81-ram.socket/1"
+	// Slot and Map describe the physical expansion bus. They deliberately do
+	// not name a particular cart or memory size; RAM, ROM and peripherals are
+	// bus consumers, not alternate shell interfaces.
+	Slot             = "fes.expansion.zx81-bus"
+	Map              = "fes.zx81-bus.socket/1"
 	Device           = "5CSEBA6U23I7"
 	MaxManifestBytes = 65536
 	MaxArchiveBytes  = maxRBFBytes + MaxManifestBytes + 4096
@@ -224,7 +227,7 @@ func Admit(shell Shell, asset Asset) error {
 		return err
 	}
 	if shell.Slot != Slot || shell.SlotMajor != 1 || shell.SlotMinor != 0 {
-		return errors.New("shell does not declare the supported RAM socket")
+		return errors.New("shell does not declare the supported ZX81 expansion bus")
 	}
 	if shell.PackageID != asset.Manifest.ShellPackageID || shell.BuildID != asset.Manifest.ShellBuildID ||
 		hash(shell.Payload) != asset.Manifest.ShellSHA256 {

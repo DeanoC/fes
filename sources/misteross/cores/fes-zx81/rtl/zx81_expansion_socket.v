@@ -3,7 +3,7 @@
 // the machine when RAM_PRESENT is 0. Peek is an FPGA diagnostic port, not
 // an edge pin. Two boundary FFs settle inside one 16-clock CPU phase.
 `include "zx81_bus_pack.vh"
-module zx81_ram_socket (
+module zx81_expansion_socket (
     input wire clock,
     input wire [15:0] cpu_addr,
     input wire [7:0] cpu_wdata,

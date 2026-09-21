@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnostic HIP of the socketed ZX81 Z80-like edge plus 16K pack.
+"""Diagnostic HIP of the socketed ZX81 Z80-like edge plus validation cart.
 
 Does not authenticate source identity and does not seal a package. Use the
 locked zx81-expansion compiler (nextpnr 74f26cc1). GPU 0 only.
@@ -17,7 +17,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_fes_zx81_oss as shell
-from scripts import build_zx81_ram_expansion as cart
+from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import _require_gpu_backend
 from scripts.search_placer_qor import route_after_synth
@@ -25,7 +25,7 @@ from scripts import zx81_expansion as expansion
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build/fes-zx81-socket-bus"
-CART_OUT = ROOT / "build/zx81-ram-expansion-bus"
+CART_OUT = ROOT / "build/zx81-bus-validation-cart-diagnostic"
 BUILD_ID = "0123456789abcdef0123456789abcdef"
 CRAM = CramRect(*cart.CRAM_REGION)
 WIDE_CRAM = CramRect(cart.CRAM_REGION[0], cart.CRAM_REGION[1], 3356, cart.CRAM_REGION[3])

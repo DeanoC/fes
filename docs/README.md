@@ -22,7 +22,7 @@ host software and target root filesystem.
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
 | Compose a freeze-scaffold FPGA cartridge onto an empty socket | [FPGA cartridge expansion](fpga-expansion.md) |
-| Select an independent ZX81 RAM pack through the normal library | [ZX81 RAM composition](zx81-ram-expansion.md) |
+| Select an independent ZX81 expansion-bus cart through the normal library | [ZX81 expansion bus](zx81-expansion-bus.md) |
 | Prepare one core without rebuilding the image, then run isolated acceptance | [Core developer workflow](core-development.md) |
 | Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
@@ -63,8 +63,8 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
-- [ZX81 optional RAM](validation/2026-09-21-zx81-ram-composition.md): exact
-  same-shell 1 KiB/16 KiB library launches, retained selection, clear/reload,
+- [ZX81 expansion validation cart](validation/2026-09-21-zx81-ram-composition.md):
+  exact same-shell 1 KiB/16 KiB library launches, retained selection, clear/reload,
   rejection continuity and original-kit restoration.
 
 - [Playable Catch and Coleco audio](validation/2026-09-21-playable-audio.md):

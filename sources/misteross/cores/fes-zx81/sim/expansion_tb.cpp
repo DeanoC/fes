@@ -14,7 +14,7 @@ static void tick(Vexpansion_machine &dut) {
 
 static uint8_t peek(Vexpansion_machine &dut, uint16_t address) {
     dut.peek_addr = address;
-    // The optional pack's diagnostic read crosses both socket registers.
+    // The optional cart's diagnostic read crosses both bus registers.
     for (unsigned i = 0; i < 3; ++i) tick(dut);
     return dut.peek_data;
 }

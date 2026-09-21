@@ -1224,7 +1224,7 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
-Coleco firmware and optional ZX81 RAM expansion use the normal library launch
+Coleco firmware and optional ZX81 expansion-bus carts use the normal library launch
 path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
 and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the

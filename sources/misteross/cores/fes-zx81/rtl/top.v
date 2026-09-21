@@ -115,7 +115,7 @@ module top #(
     (* keep *) wire [43:0] plug_addr;
     wire [19:0] plug_rdata;
     generate if (EXPANSION_SOCKET) begin : expansion
-        zx81_ram_socket socket (
+        zx81_expansion_socket socket (
             .clock(clk_sys),
             .cpu_addr(bus_addr),
             .cpu_wdata(bus_wdata),

@@ -1,10 +1,10 @@
 // The real ZX81 CPU/ULA and expansion edge, with an independently built
-// pack's logical interface. This is behavioral acceptance, not CRAM-link
-// evidence. PACK_PRESENT=0 keeps the vacant 1 KiB even if the pack netlist
+// cart's logical interface. This is behavioral acceptance, not CRAM-link
+// evidence. CART_PRESENT=0 keeps the vacant 1 KiB even if the cart netlist
 // is linked for simulation.
 `include "zx81_bus_pack.vh"
 module expansion_machine #(
-    parameter PACK_PRESENT = 0
+    parameter CART_PRESENT = 0
 ) (
     input wire clk_sys, reset,
     input wire [39:0] keyboard,
@@ -37,9 +37,9 @@ module expansion_machine #(
         .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
         .bus_rdata(bus_rdata), .bus_peek_data(bus_peek_data),
         .bus_dsel(bus_dsel), .bus_romcs(bus_romcs),
-        .bus_wait(bus_wait), .bus_ram_present(PACK_PRESENT != 0 && socket_ram_present)
+        .bus_wait(bus_wait), .bus_ram_present(CART_PRESENT != 0 && socket_ram_present)
     );
-    zx81_ram_socket socket (
+    zx81_expansion_socket socket (
         .clock(clk_sys),
         .cpu_addr(bus_addr),
         .cpu_wdata(bus_wdata),

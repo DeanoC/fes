@@ -246,11 +246,14 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
     if configuration != FES_TOOLCHAIN_CONFIGURATION:
         return ""
     try:
-        if lock_path.resolve() != (root / "toolchain.lock").resolve():
-            return ""
-    except OSError:
+        relative = lock_path.resolve().relative_to(root.resolve()).as_posix()
+    except (OSError, ValueError):
         return ""
-    return "; run `make toolchain-fes` to provision the FES HIP local toolchain"
+    target = {
+        "toolchain.lock": "toolchain-fes",
+        "toolchains/zx81-expansion.lock": "toolchain-fes-zx81",
+    }.get(relative)
+    return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
 
 def _authenticate_tools(

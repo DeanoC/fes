@@ -3,8 +3,8 @@
 Request 44 bits: A[15:0], Dwr[7:0], /MREQ /IORQ /RD /WR /M1 /RFSH, peek_a[13:0].
 Response 20 bits: Drd[7:0], peek_d[7:0], DSEL, ROMCS, WAIT, RAM_PRESENT.
 Vacant response FFs hold 0, so cart-to-CPU controls are active-high.
-CRAM map `fes.zx81-ram.socket/1` is the reserved rectangle, not the old
-pre-decoded 14-bit RAM window.
+CRAM map `fes.zx81-bus.socket/1` is the reserved rectangle for any compatible
+ZX81 bus cart. It is not the old pre-decoded 14-bit RAM window.
 """
 
 from __future__ import annotations

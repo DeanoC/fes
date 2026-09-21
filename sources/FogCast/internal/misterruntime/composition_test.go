@@ -19,7 +19,7 @@ func compositionResponse(t *testing.T) (Protocol2Response, expansion.Composition
 	active := r.ActivePackage
 	active.Descriptor.ABI.ID = "fes.simple-computer"
 	active.Observed.ABI.ID = "fes.simple-computer"
-	active.Descriptor.Interfaces = append(active.Descriptor.Interfaces, corepackage.Interface{ID: "fes.expansion.zx81-ram", Major: 1, Minor: 0, Required: false})
+	active.Descriptor.Interfaces = append(active.Descriptor.Interfaces, corepackage.Interface{ID: "fes.expansion.zx81-bus", Major: 1, Minor: 0, Required: false})
 	for i := range r.Capabilities.ABIs {
 		if r.Capabilities.ABIs[i].ID == "fes.simple-game" {
 			r.Capabilities.ABIs[i].ID = "fes.simple-computer"

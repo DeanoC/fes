@@ -57,7 +57,7 @@ func TestCompositionStageProducerArtifact(t *testing.T) {
 		text := strings.ReplaceAll(string(manifest), "fes.simple-game", "fes.simple-computer")
 		text = strings.ReplaceAll(text, "size = 12", fmt.Sprintf("size = %d", len(payload)))
 		text = strings.ReplaceAll(text, "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1", sha)
-		text += "\n[[interfaces]]\nid = \"fes.expansion.zx81-ram\"\nmajor = 1\nminor = 0\nrequired = false\n"
+		text += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n"
 		source = writeDirectory(t, []byte(text), payload)
 	}
 	manifest, err := os.ReadFile(filepath.Join(source, "manifest.toml"))

@@ -316,12 +316,12 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 		if i.ID == expansion.Slot {
 			count++
 			if i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("composition requires optional RAM socket 1.0")
+				return expansion.Shell{}, errors.New("composition requires optional ZX81 expansion bus 1.0")
 			}
 		}
 	}
 	if count != 1 {
-		return expansion.Shell{}, errors.New("composition requires exactly one RAM socket")
+		return expansion.Shell{}, errors.New("composition requires exactly one ZX81 expansion bus")
 	}
 	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: expansion.Slot, SlotMajor: 1}, nil
 }
