@@ -253,7 +253,7 @@ if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
 fi
 python3 - "$repo/build/native-inputs.toml" <<'PY' || fail 'production splash/idle lock schema is wrong'
 import sys, tomllib
-policy = tomllib.loads(open(sys.argv[1], 'rb').read())
+policy = tomllib.load(open(sys.argv[1], 'rb'))
 expected = {
     'repository': 'https://github.com/DeanoC/misteross',
     'commit': 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07',
