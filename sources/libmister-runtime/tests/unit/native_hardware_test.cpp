@@ -252,10 +252,11 @@ public:
 		++quiesce_calls;
 		return quiesce_result;
 	}
-	mister::native::VideoResult BringUp(const std::string& expected_core,
+	mister::native::VideoResult BringUp(const mister::native::IdleRecipe& idle,
 		std::uint64_t deadline) override
 	{
-		events_.push_back("idle.video:" + expected_core);
+		last_idle = idle;
+		events_.push_back("idle.video:" + idle.expected_core);
 		deadlines.push_back(deadline);
 		++calls;
 		return result;
@@ -263,6 +264,7 @@ public:
 	std::vector<std::string>& events_;
 	mister::native::VideoResult result;
 	mister::native::VideoQuiesceResult quiesce_result;
+	mister::native::IdleRecipe last_idle;
 	std::vector<std::uint64_t> quiesce_deadlines;
 	std::vector<std::uint64_t> deadlines;
 	int quiesce_calls = 0;
@@ -680,7 +682,8 @@ public:
 
 struct Fixture {
 	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
-		const mister::Profiles* profiles = nullptr)
+		const mister::Profiles* profiles = nullptr,
+		mister::native::IdleRecipe idle_recipe = mister::native::TransitionalMenuIdle())
 		: temporary(), events(), idle(temporary.File("idle.rbf", "idle")),
 		  rbf(temporary.File("megadrive.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
@@ -694,7 +697,7 @@ struct Fixture {
 			0x0001}), sink(),
 			hardware(opener, fpga, core, idle_video, game_video, input,
 			input_identity, clock, log, idle, {30000, 10000, 10000}, driver,
-			gp_driver, profiles, {"/tmp"})
+			gp_driver, profiles, {"/tmp"}, std::move(idle_recipe))
 	{
 		hardware.SetFaultSink(&sink);
 	}
@@ -826,8 +829,9 @@ bool WaitForState(mister::Runtime& runtime, mister::State state)
 }
 
 struct IntegratedFixture {
-	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr)
-		: native(gp_driver), profiles(BuildProfiles(native)),
+	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr,
+		mister::native::IdleRecipe idle_recipe = mister::native::TransitionalMenuIdle())
+		: native(gp_driver, nullptr, std::move(idle_recipe)), profiles(BuildProfiles(native)),
 		  runtime(native.hardware, profiles, native.log) {}
 	static mister::Profiles BuildProfiles(const Fixture& native)
 	{
@@ -1838,6 +1842,98 @@ void TestIdleRequiresVideo()
 		"idle.video:MENU",
 	}));
 	assert(fixture.idle_video.deadlines == std::vector<std::uint64_t>({10100}));
+	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
+		mister::native::ProgrammingProfile::mister_v1}));
+	assert(fixture.idle_video.last_idle.expected_core == "MENU");
+	assert(fixture.idle_video.last_idle.probe_core);
+	assert(fixture.idle_video.last_idle.enable_hps_framebuffer);
+}
+
+void TestDefinedIdleProgramsWithoutMenuChrome()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.expected_core = "OTHER";
+	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
+	recipe.probe_core = true;
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture(nullptr, nullptr, recipe);
+	fixture.idle_video.result.observed_core = "OTHER";
+	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
+	assert(idle.error.ok());
+	assert(idle.mutation_attempted);
+	assert(idle.observed_core == "OTHER");
+	assert(fixture.events == std::vector<std::string>({
+		"artifact.open:idle.rbf",
+		"idle.video.quiesce",
+		"fpga.program",
+		"idle.video:OTHER",
+	}));
+	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
+		mister::native::ProgrammingProfile::mister_v1}));
+	assert(fixture.idle_video.last_idle.expected_core == "OTHER");
+	assert(!fixture.idle_video.last_idle.enable_hps_framebuffer);
+}
+
+void TestIdleWithoutProbeDoesNotRequireMenuIdentity()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
+	recipe.probe_core = false;
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture(nullptr, nullptr, recipe);
+	fixture.idle_video.result.observed_core.clear();
+	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
+	assert(idle.error.ok());
+	assert(idle.mutation_attempted);
+	assert(idle.observed_core.empty());
+	assert(fixture.events == std::vector<std::string>({
+		"artifact.open:idle.rbf",
+		"idle.video.quiesce",
+		"fpga.program",
+		"idle.video:",
+	}));
+	assert(!fixture.idle_video.last_idle.probe_core);
+	assert(fixture.idle_video.last_idle.expected_core.empty());
+}
+
+void TestDefinedIdleCanUseNonMisterProgrammingProfile()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.programming_profile =
+		mister::native::ProgrammingProfile::development_contained_v1;
+	recipe.probe_core = false;
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture(nullptr, nullptr, recipe);
+	fixture.idle_video.result.observed_core.clear();
+	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
+	assert(idle.error.ok());
+	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
+		mister::native::ProgrammingProfile::development_contained_v1}));
+}
+
+void TestPlayPackageCleanupLoadsDefinedIdle()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.expected_core = "OTHER";
+	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
+	recipe.probe_core = true;
+	recipe.enable_hps_framebuffer = false;
+	IntegratedFixture fixture(nullptr, recipe);
+	fixture.native.idle_video.result.observed_core = "OTHER";
+	fixture.Start();
+	assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 1);
+	fixture.native.spi.sync_error = {
+		mister::ErrorCode::io_failed, "injected core failure"};
+	const mister::Error result = fixture.runtime.LaunchGame(fixture.Request());
+	assert(!result.ok());
+	assert(fixture.runtime.status().state == mister::State::idle);
+	assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
+	assert(Find(fixture.native.events, "idle.video:OTHER") <
+		fixture.native.events.size());
+	assert(fixture.native.fpga.profiles.size() >= 2);
+	assert(fixture.native.fpga.profiles.back() ==
+		mister::native::ProgrammingProfile::mister_v1);
+	assert(fixture.native.idle_video.last_idle.expected_core == "OTHER");
 }
 
 void TestIdlePreflightFailureCallsNeitherFpgaNorVideo()
@@ -2972,6 +3068,10 @@ int main()
 	TestDevelopmentLoadsMiSterRbfInExactOrderAndLeavesHdmiDown();
 	TestDevelopmentFailuresReportExactMutationBoundary();
 	TestIdleRequiresVideo();
+	TestDefinedIdleProgramsWithoutMenuChrome();
+	TestIdleWithoutProbeDoesNotRequireMenuIdentity();
+	TestDefinedIdleCanUseNonMisterProgrammingProfile();
+	TestPlayPackageCleanupLoadsDefinedIdle();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
@@ -2991,6 +3091,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 50 passed");
+	puts("native_hardware_test: 54 passed");
 	return 0;
 }

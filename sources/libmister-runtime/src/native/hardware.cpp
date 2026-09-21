@@ -143,10 +143,12 @@ NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
 	CoreDriver& mister_driver, CoreDriver* fes_gp_driver,
-	const Profiles* profiles, std::vector<std::string> package_roots)
+	const Profiles* profiles, std::vector<std::string> package_roots,
+	IdleRecipe idle_recipe)
 	: opener_(opener), fpga_(fpga), core_(core), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
+	  idle_recipe_(std::move(idle_recipe)),
 	  timeouts_(timeouts), mister_driver_(mister_driver),
 	  fes_gp_driver_(fes_gp_driver), contained_driver_(),
 	  driver_registry_(mister_driver_, fes_gp_driver_, contained_driver_),
@@ -887,7 +889,7 @@ HardwareResult NativeHardware::LoadIdle()
 				quiesce_mutation, driver.observed_core};
 	}
 	const NativeResult programmed = fpga_.Program(artifact,
-		ProgrammingProfile::mister_v1,
+		idle_recipe_.programming_profile,
 		Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("start", programmed);
 	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
@@ -897,15 +899,15 @@ HardwareResult NativeHardware::LoadIdle()
 		return {input_error.ok() ? error : input_error,
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
-	const VideoResult video = idle_video_.BringUp("MENU",
+	const VideoResult video = idle_video_.BringUp(idle_recipe_,
 		Deadline(clock_, timeouts_.video_ms));
 	if (!video.error.ok())
 		return {input_error.ok() ? CoreIoError(video.error) : input_error,
 			true, video.observed_core};
-	active_driver_ = &mister_driver_;
+	active_driver_ = ResolveDriver(idle_recipe_.programming_profile);
 	active_package_.reset();
 	active_context_ = {};
-	active_context_.expected_core = "MENU";
+	active_context_.expected_core = idle_recipe_.expected_core;
 	has_active_input_recipe_ = false;
 	return {input_error, true, video.observed_core};
 }

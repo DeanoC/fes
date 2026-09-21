@@ -267,6 +267,28 @@ void TestStartLoadsIdleOnceAndPublishesIdle()
 	assert(fixture.runtime.status().state == State::idle);
 }
 
+void TestNonMenuIdlePublishesIdleWithoutReboot()
+{
+	Fixture fixture;
+	fixture.hardware.idle_result.observed_core = "OTHER";
+	assert(fixture.runtime.Start().ok());
+	assert(fixture.hardware.idle_calls == 1);
+	assert(fixture.runtime.status().state == State::idle);
+	assert(fixture.runtime.status().error.ok());
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.status().state == State::idle);
+}
+
+void TestProbeLessIdlePublishesIdleWithoutReboot()
+{
+	Fixture fixture;
+	fixture.hardware.idle_result.observed_core.clear();
+	assert(fixture.runtime.Start().ok());
+	assert(fixture.hardware.idle_calls == 1);
+	assert(fixture.runtime.status().state == State::idle);
+	assert(fixture.runtime.status().error.ok());
+}
+
 void TestFailedStartRequiresReboot()
 {
 	Fixture fixture;
@@ -1043,6 +1065,8 @@ int main()
 	TestSaveFailurePreservesSessionForStopRetry();
 	TestSaveFailureInputRestoreFailureRequiresRecovery();
 	TestStartLoadsIdleOnceAndPublishesIdle();
+	TestNonMenuIdlePublishesIdleWithoutReboot();
+	TestProbeLessIdlePublishesIdleWithoutReboot();
 	TestFailedStartRequiresReboot();
 	TestValidationPrecedesHardwareMutation();
 	TestUnsupportedPackageLeavesRunningSessionExactlyUntouched();
@@ -1081,6 +1105,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 43 passed");
+	puts("runtime_test: 45 passed");
 	return 0;
 }

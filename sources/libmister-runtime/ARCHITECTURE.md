@@ -258,26 +258,38 @@ Native idle admission performs this exact sequence:
 ```text
 open locked idle RBF
   -> read-modify-write ADV7513 main power-down to present a clean link loss
-  -> program FPGA and release bridges/core hardware reset
-  -> toggle the FPGA core-ID strobe and sample GPI
-  -> assert menu-core software reset over user-I/O SPI
-  -> probe and require core identity MENU
-  -> locate ADV7513 main map 0x39 (PD/AD low, Programming Guide 0x72) on /dev/i2c-0 through /dev/i2c-2
-  -> apply the fixed ADV7513 initialization
-  -> send the fixed 1280x720@60 timing and PLL words
-  -> apply the fixed 720p ADV7513 mode registers
-  -> release menu-core software reset
-  -> emit the bounded ADV7513 wake edge and neutral core-input packet
-  -> configure and validate the Linux framebuffer, enable HPS framebuffer over SPI
-  -> require ADV7513 HPD and monitor-sense status
+  -> program FPGA with the idle recipe's ProgrammingProfile
+  -> idle video bring-up parameterized by that recipe:
+       -> synchronize and assert software reset over user-I/O SPI
+       -> probe core identity only when the recipe requests Probe
+       -> require the recipe's expected identity only when that string is
+          non-empty (transitional default: MENU)
+       -> locate ADV7513 main map 0x39 (PD/AD low, Programming Guide 0x72) on /dev/i2c-0 through /dev/i2c-2
+       -> apply the fixed ADV7513 initialization
+       -> send the fixed 1280x720@60 timing and PLL words
+       -> apply the fixed 720p ADV7513 mode registers
+       -> release software reset
+       -> emit the bounded ADV7513 wake edge and neutral core-input packet
+       -> configure and enable the Linux HPS framebuffer over SPI only when
+          the recipe declares framebuffer support
+       -> require ADV7513 HPD and monitor-sense status
   -> publish idle
 ```
 
-Proposed replacement of this MENU idle with a U-Boot splash RBF, a defined
-Stop idle, and an attract ABI package (rooms via one tenfoot renderer; no
-second kit catalog) is the FES parent design lock
-[Idle MENU → rooms](../../docs/idle-menu-rooms.md). This sequence remains
-the current implementation.
+`IdleRecipe` (`src/native/idle_recipe.hpp`) is the defined-idle contract:
+identity, `ProgrammingProfile`, Probe, and HPS framebuffer are recipe
+parameters, not hardcoded `BringUp("MENU")` plus required SPI `0x002f`.
+Production construction still uses `TransitionalMenuIdle()` (`mister_v1`,
+required `MENU` probe, HPS framebuffer enabled) so today's sealed Menu idle
+keeps working until a splash bitstream exists. A later splash may skip Probe,
+omit HPS framebuffer, and select a different programming profile; idle
+success does not require framebuffer enable. Do not infer identity from the
+idle RBF path or invent splash core-ID strings here.
+
+The FES parent design lock
+[Idle MENU → rooms](../../docs/idle-menu-rooms.md) still names U-Boot splash,
+defined Stop idle, and an attract ABI as later product steps. This slice
+implements the runtime contract only.
 
 When a game input session is open, `LoadIdle()` first prevents further input,
 joins its worker, attempts the session's final neutral packet, and closes its
@@ -346,7 +358,8 @@ Neutralization succeeds before reset release, and the generation-bound input
 worker starts before `running_game` becomes observable. Stop retires the
 active generation while save/input shutdown runs, restores it when save
 persistence fails, joins and neutralizes input through `LoadIdle()`, performs
-the existing Menu idle bring-up once, and publishes `idle` only on success. A
+the defined idle bring-up once (transitional default: Menu), and publishes
+`idle` only on success. A
 second launch repeats preflight and creates a new generation, descriptor
 session, and worker.
 
@@ -357,14 +370,14 @@ mutation releases that same boundary. After a mutation has begun, a failed
 launch gets exactly one cleanup attempt. Cleanup success returns to `idle` with
 the original error; cleanup failure returns `reboot_required`.
 An outgoing-driver quiesce failure that attempted protocol mutation retires
-that driver identity before cleanup, so the containment/Menu recovery does not
+that driver identity before cleanup, so the containment/defined-idle recovery does not
 repeat an ambiguously completed protocol command. A failure known to precede
 protocol mutation retains the driver and lets the single cleanup attempt make
 its ordinary quiesce decision.
 FES GP discovery authorizes that cleanup command only after all identity words
 arrive through a stable transport and the protocol header, ABI, and required
 capabilities match. A later build-ID mismatch retains the programmed driver's
-context for one hold-reset command before Menu programming. A transport,
+context for one hold-reset command before defined-idle programming. A transport,
 header, ABI, or required-capability failure retires it, so recovery sends no
 command to an unverified fabric.
 There is no retry loop, failover path, recovery coordinator, or second
@@ -583,27 +596,38 @@ power-loss capture, save states and host/cloud save synchronization.
 
 ## Idle framebuffer ownership
 
-`LinuxFramebuffer`, injected through `Framebuffer` into `MenuVideoBringup`,
-writes `8888 1 640 480 2560` to the MiSTer_fb module mode parameter on each
-idle bring-up. It reads fixed/variable framebuffer ioctls, requires packed
-truecolor 32-bit BGRX, no panning, 640×480 visible and virtual geometry, stride
-2560, sufficient backing bytes, and the reserved physical address 0x22001000.
-No fallback framebuffer or separately allocated DDR buffer is admitted.
+HPS framebuffer enable is an `IdleRecipe` flag, not a LoadIdle success
+requirement. `TransitionalMenuIdle()` still enables it so today's Menu idle
+keeps the 640×480 overlay. A defined idle that omits the flag skips Linux
+framebuffer configuration and SPI `0x002f`; HDMI then remains the programmed
+idle pixels.
 
-After neutral input, Menu bring-up sends user-I/O command 0x2f with enable/format
-0x8016, the validated address and geometry, scaling bounds (0,1279,0,719), and
-stride. A zero capability response is rejected. The already released Menu status remains zero. Main's framebuffer status
-helper shifts and masks its argument, leaving bits[8:5] zero; the apparent
-0x160 call-site argument is not a raw status word. All SPI operations share the existing absolute video deadline; Linux
-configuration checks that deadline before and after device operations. Device
-syscalls have no additional userspace interruption mechanism.
+When the recipe enables framebuffer, `LinuxFramebuffer`, injected through
+`Framebuffer` into `MenuVideoBringup`, writes `8888 1 640 480 2560` to the
+MiSTer_fb module mode parameter on each idle bring-up. It reads
+fixed/variable framebuffer ioctls, requires packed truecolor 32-bit BGRX, no
+panning, 640×480 visible and virtual geometry, stride 2560, sufficient
+backing bytes, and the reserved physical address 0x22001000. No fallback
+framebuffer or separately allocated DDR buffer is admitted.
 
-Stop already reloads Menu through this same path, so it restores framebuffer
-selection without a second display authority. Game video bring-up is unchanged.
-The launcher must pause presentation while a core owns HDMI and reopen/recheck
-its framebuffer mapping on confirmed return to idle. These words are derived
-from Main_MiSTer video_fb_enable and remain hardware-unaccepted until a dated
-exact-artifact diagnostic validates the selected Menu core and kernel.
+After neutral input, that bring-up sends user-I/O command 0x2f with
+enable/format 0x8016, the validated address and geometry, scaling bounds
+(0,1279,0,719), and stride. A zero capability response is rejected. The
+already released idle status remains zero. Main's framebuffer status helper
+shifts and masks its argument, leaving bits[8:5] zero; the apparent 0x160
+call-site argument is not a raw status word. All SPI operations share the
+existing absolute video deadline; Linux configuration checks that deadline
+before and after device operations. Device syscalls have no additional
+userspace interruption mechanism.
+
+Stop already reloads the defined idle through this same path, so a
+framebuffer-enabled recipe restores selection without a second display
+authority. Game video bring-up is unchanged. The launcher must pause
+presentation while a core owns HDMI and reopen/recheck its framebuffer
+mapping on confirmed return to idle when the idle recipe still enables HPS
+fb. These words are derived from Main_MiSTer video_fb_enable and remain
+hardware-unaccepted until a dated exact-artifact diagnostic validates the
+selected idle core and kernel.
 
 ## Described-core persistence
 

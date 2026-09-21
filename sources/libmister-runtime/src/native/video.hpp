@@ -4,6 +4,7 @@
 #pragma once
 
 #include "libmister-runtime/runtime.h"
+#include "native/idle_recipe.hpp"
 
 #include <cstdint>
 #include <string>
@@ -38,7 +39,7 @@ public:
 	virtual ~VideoBringup() {}
 	virtual VideoQuiesceResult Quiesce(
 		std::uint64_t absolute_deadline_ms) = 0;
-	virtual VideoResult BringUp(const std::string& expected_core,
+	virtual VideoResult BringUp(const IdleRecipe& idle,
 		std::uint64_t absolute_deadline_ms) = 0;
 };
 
@@ -65,8 +66,12 @@ public:
 		const VideoRecipe&);
 	VideoQuiesceResult Quiesce(
 		std::uint64_t absolute_deadline_ms) override;
-	VideoResult BringUp(const std::string& expected_core,
+	VideoResult BringUp(const IdleRecipe& idle,
 		std::uint64_t absolute_deadline_ms) override;
+	// Convenience for tests: transitional Menu video path with the given
+	// required identity (empty identity probes without requiring a match).
+	VideoResult BringUp(const std::string& expected_core,
+		std::uint64_t absolute_deadline_ms);
 
 private:
 	VideoResult PhaseFailure(const char*, const Error&,

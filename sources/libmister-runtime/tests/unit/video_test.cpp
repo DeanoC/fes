@@ -839,13 +839,73 @@ void TestOnlyExactTerminatedUppercaseMenuIdentityIsAccepted()
 		assert(fixture.ordered_calls == ExpectedAfterProbe());
 		++scenarios;
 	}
-	Fixture wrong_expectation;
-	wrong_expectation.spi.identity = "OTHER";
-	const auto result = wrong_expectation.video.BringUp("OTHER", kDeadline);
-	assert(result.error.code == mister::ErrorCode::io_failed);
-	ExpectFailure(wrong_expectation, result, "core_probe", "unexpected menu core");
-	assert(wrong_expectation.i2c.calls.empty());
-	assert(wrong_expectation.ordered_calls == ExpectedAfterProbe());
+}
+
+void TestConfiguredIdleIdentityIsAcceptedWithoutMenuChrome()
+{
+	mister::native::IdleRecipe recipe = mister::native::TransitionalMenuIdle();
+	recipe.expected_core = "OTHER";
+	Fixture fixture;
+	fixture.spi.identity = "OTHER";
+	const auto result = fixture.video.BringUp(recipe, kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core == "OTHER");
+	assert(CountEvent(fixture.events, "spi:probe") == 1);
+	assert(CountEvent(fixture.events, "spi:framebuffer") == 1);
+	++scenarios;
+}
+
+void TestIdleProbeWithoutRequiredIdentityDoesNotFail()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.probe_core = true;
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture;
+	fixture.spi.identity = "OTHER";
+	const auto result = fixture.video.BringUp(recipe, kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core == "OTHER");
+	assert(CountEvent(fixture.events, "spi:probe") == 1);
+	assert(CountEvent(fixture.events, "spi:framebuffer") == 0);
+	assert(fixture.framebuffer.calls == 0);
+	++scenarios;
+}
+
+void TestIdleWithoutProbeSkipsMenuIdentityCheck()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.probe_core = false;
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture;
+	fixture.spi.identity = "OTHER";
+	fixture.spi.invalid_identity = true;
+	const auto result = fixture.video.BringUp(recipe, kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core.empty());
+	assert(CountEvent(fixture.events, "spi:probe") == 0);
+	assert(CountEvent(fixture.events, "spi:framebuffer") == 0);
+	const std::vector<std::string> expected = {
+		"spi:core_sync", "spi:status_assert",
+		"i2c:select:/dev/i2c-1:0x39:0x41", "i2c:initialization",
+		"i2c:read:0x41", "spi:timing", "i2c:mode",
+		"spi:status_release", "i2c:hdmi_wake", "spi:buttons",
+		"i2c:read:0x42",
+	};
+	assert(fixture.events == expected);
+	++scenarios;
+}
+
+void TestIdleWithoutFramebufferSkipsHpsEnable()
+{
+	mister::native::IdleRecipe recipe = mister::native::TransitionalMenuIdle();
+	recipe.enable_hps_framebuffer = false;
+	Fixture fixture;
+	const auto result = fixture.video.BringUp(recipe, kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core == "MENU");
+	assert(CountEvent(fixture.events, "spi:framebuffer") == 0);
+	assert(fixture.framebuffer.calls == 0);
+	assert(CountEvent(fixture.events, "i2c:read:0x42") == 1);
 	++scenarios;
 }
 
@@ -1326,6 +1386,10 @@ int main()
 	TestResetAssertionFailureStopsAtAttempt();
 	TestProbeTransportAndMalformedFailuresStopAtProbe();
 	TestOnlyExactTerminatedUppercaseMenuIdentityIsAccepted();
+	TestConfiguredIdleIdentityIsAcceptedWithoutMenuChrome();
+	TestIdleProbeWithoutRequiredIdentityDoesNotFail();
+	TestIdleWithoutProbeSkipsMenuIdentityCheck();
+	TestIdleWithoutFramebufferSkipsHpsEnable();
 	TestNoAdvResponderStopsAtSelection();
 	TestEveryInitializationWriteFailureStopsAtThatExactWrite();
 	TestPostInitializationPowerReadFailureStopsBeforeTiming();

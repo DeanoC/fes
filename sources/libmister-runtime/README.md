@@ -90,7 +90,7 @@ start/exit, and typed ownership/handoff/program/abi/recovery fences. Join
 fields `flight_id`, `lease_gen`, and `run_id` are copied only when present. Replacing a running game
 with a package first joins and
 neutralizes the old input session; an ambiguously failed outgoing-driver
-quiesce is not repeated during the one bounded Menu recovery.
+quiesce is not repeated during the one bounded defined-idle recovery.
 
 Native launches keep short deadlines for core control, video, and input setup,
 then give each cartridge transfer its own 120-second deadline. The HPS SPI
@@ -177,13 +177,18 @@ save acceptance is pending. It adds no save states or host synchronization.
 
 ## Idle launcher display
 
-Native Menu bring-up now enables the MiSTer HPS framebuffer for a 640×480
-32-bit launcher surface scaled to the existing 1280×720 HDMI mode. The runtime
-configures and validates the Linux framebuffer and owns the SPI enable sequence;
-a launcher only writes pixels. Startup, Stop and failed-launch idle cleanup all
-repeat this setup. A configuration/enable failure prevents idle publication.
-This new display path is software-tested; exact-image hardware acceptance is
-pending and does not inherit the previous Mega Drive acceptance.
+Defined idle bring-up takes identity, programming profile, Probe, and HPS
+framebuffer from an `IdleRecipe`. Production still uses
+`TransitionalMenuIdle()`: required `MENU` identity, `mister_v1`, and the
+MiSTer HPS framebuffer for a 640×480 32-bit launcher surface scaled to the
+existing 1280×720 HDMI mode. The runtime configures and validates the Linux
+framebuffer and owns the SPI enable sequence only when that recipe declares
+support; a launcher only writes pixels. A framebuffer-less idle succeeds
+without SPI `0x002f`. Startup, Stop and failed-launch idle cleanup all share
+this path. When the recipe enables framebuffer, a configuration/enable
+failure prevents idle publication. This display path is software-tested;
+exact-image hardware acceptance is pending and does not inherit the previous
+Mega Drive acceptance.
 
 A protocol-2 `load_composed_core` request activates a statically linked ZX81 RAM
 expansion through the same lifecycle as `load_core`. It supplies the admitted
