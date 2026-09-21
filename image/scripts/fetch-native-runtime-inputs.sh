@@ -102,7 +102,7 @@ if [ "$native_mode" = package-only ]; then
           exit 2
         }
         case "$source_path" in
-          *..*) 
+          *..*)
             printf '%s\n' "fetch-native-runtime-inputs: $fetch_section path must not contain .." >&2
             exit 2
             ;;
