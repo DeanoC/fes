@@ -167,8 +167,10 @@ int main(int argc, char **argv) {
     cartridge[4] = 0x60;
     cartridge[5] = 0xd3;
     cartridge[6] = 0xc0;
-    cartridge[7] = 0x18;
-    cartridge[8] = 0xfe;
+    // Actual Z80 OUT writes exercise the complete PSG decode, including aliases.
+    const uint8_t audio_program[] = {0x3e,0x82,0xd3,0xe0,0x3e,0x03,0xd3,0xff,
+                                     0x3e,0x90,0xd3,0xf0,0x18,0xfe};
+    for (unsigned i=0;i<sizeof(audio_program);++i) cartridge[7+i]=audio_program[i];
 
     Vcoleco_machine dut;
     dut.clk_sys = 0;
@@ -198,6 +200,16 @@ int main(int argc, char **argv) {
     dut.reset = 0;
     for (unsigned i = 0; i != 250000; ++i)
         tick(dut, cartridge, registered_media_data);
+    unsigned audio_edges=0;
+    bool audio_sign=int16_t(dut.audio_sample)>0;
+    for(unsigned i=0;i<100000;++i) {
+        tick(dut, cartridge, registered_media_data);
+        const bool next=int16_t(dut.audio_sample)>0;
+        audio_edges += next != audio_sign;
+        audio_sign=next;
+        require(std::abs(int(int16_t(dut.audio_sample)))==8191, "CPU PSG OUT did not set volume");
+    }
+    require(audio_edges>=8 && audio_edges<=9, "CPU PSG tone rate is incorrect");
 
     require(peek(dut, 0x6000, registered_media_data) == 0x5a,
             "CPU did not write RAM");
@@ -214,6 +226,7 @@ int main(int argc, char **argv) {
     dut.media_size = uint16_t(replacement.size());
     for (unsigned i = 0; i != 4; ++i)
         tick(dut, replacement, registered_media_data);
+    require(dut.audio_sample==0, "hold/replacement must silence PSG");
     dut.media_ready = 1;
     for (unsigned i = 0; i != replacement.size() + 8; ++i)
         tick(dut, replacement, registered_media_data);

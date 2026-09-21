@@ -18,6 +18,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 const unavailableMessage = "target runtime is unavailable"
@@ -95,6 +96,7 @@ func NewRuntime(control Control, bootIDFile string, pollInterval, healthTimeout 
 }
 
 type CoreActivation struct {
+	Composition      *expansion.Composition
 	MediaStream      *protocol.MediaStreamCapability
 	PersistenceMode  string
 	PackageID        string
@@ -216,7 +218,13 @@ func (r *Runtime) LoadCoreOwned(admission, observation, operationOwner context.C
 	size int64, content io.Reader) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	return r.loadCoreOwned(admission, observation, operationOwner, size, content, "")
 }
+func (r *Runtime) LoadComposedCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (CoreActivation, bool, *protocol.APIError) {
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, true)
+}
 func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
+	return r.loadCoreOwnedMode(admission, observation, operationOwner, size, content, libraryID, false)
+}
+func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner context.Context, size int64, content io.Reader, libraryID string, composed bool) (activation CoreActivation, attempted bool, apiErr *protocol.APIError) {
 	if r.corePackageRoot == "" {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
@@ -224,7 +232,16 @@ func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.C
 	if !ok {
 		return CoreActivation{}, false, unsupportedOperationError()
 	}
-	staged, err := corepackage.Stage(admission, r.corePackageRoot, size, content)
+	var staged corepackage.Staged
+	var err error
+	if composed {
+		if _, ok := r.control.(protocol2CompositionControl); !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		staged, err = corepackage.StageComposition(admission, r.corePackageRoot, size, content)
+	} else {
+		staged, err = corepackage.Stage(admission, r.corePackageRoot, size, content)
+	}
 	if err != nil {
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
@@ -255,7 +272,7 @@ func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.C
 			mapProtocol2Error(inspection.CompatibilityError)
 	}
 	expectedMode := "volatile"
-	if libraryID != "" {
+	if libraryID != "" && !composed {
 		inspector, ok := r.control.(protocol2DataControl)
 		if !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -308,7 +325,10 @@ func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.C
 
 	var response Protocol2Response
 	var callErr error
-	if libraryID != "" {
+	if composed {
+		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
+		r.noteDispatch("load_composed_core", callErr == nil)
+	} else if libraryID != "" {
 		response, callErr = r.control.(protocol2LibraryControl).LoadLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot)
 		r.noteDispatch("load_library_core", callErr == nil)
 	} else {
@@ -375,7 +395,10 @@ func (r *Runtime) loadCoreOwned(admission, observation, operationOwner context.C
 	}
 	if response.State != "running_development" || response.Execution != "development" ||
 		response.ActivePackage == nil || response.ActivePackage.PackageID != staged.PackageID ||
+		!reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) ||
 		response.Generation == nil || *response.Generation == 0 {
+		r.retainRetired(staged)
+		cleanupStaged = false
 		return CoreActivation{}, true, unavailableError()
 	}
 	activation = activationFromProtocol2(staged.PackageID, staged.Descriptor, response)
@@ -400,6 +423,9 @@ func activationFromProtocol2(packageID string, descriptor corepackage.Descriptor
 	activation := CoreActivation{PackageID: packageID, Descriptor: descriptor, PersistenceMode: "volatile",
 		MediaStream:      response.Capabilities.MediaStream,
 		ActiveInterfaces: append([]Protocol2Interface(nil), response.Capabilities.ActiveInterfaces...)}
+	if response.ActivePackage != nil {
+		activation.Composition = cloneComposition(response.ActivePackage.Composition)
+	}
 	if response.ActivePackage != nil && response.ActivePackage.PersistenceMode != "" {
 		activation.PersistenceMode = response.ActivePackage.PersistenceMode
 	}
@@ -456,7 +482,7 @@ func (r *Runtime) observeLostCoreLoad(ctx context.Context, control protocol2Stat
 			return CoreActivation{}, coreLoadPreserved
 		}
 		if response.State == "running_development" && response.ActivePackage != nil &&
-			response.ActivePackage.PackageID == staged.PackageID && response.Generation != nil &&
+			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && response.Generation != nil &&
 			!sameGeneration(before.Generation, response.Generation) {
 			return activationFromProtocol2(staged.PackageID, staged.Descriptor, response), coreLoadConfirmed
 		}
@@ -477,7 +503,8 @@ func sameProtocol2RuntimeState(left, right Protocol2Response) bool {
 	}
 	return left.ActivePackage.PackageID == right.ActivePackage.PackageID &&
 		reflect.DeepEqual(left.ActivePackage.Descriptor, right.ActivePackage.Descriptor) &&
-		reflect.DeepEqual(left.ActivePackage.Observed, right.ActivePackage.Observed)
+		reflect.DeepEqual(left.ActivePackage.Observed, right.ActivePackage.Observed) &&
+		reflect.DeepEqual(left.ActivePackage.Composition, right.ActivePackage.Composition)
 }
 
 func equalOptionalString(left, right *string) bool {
@@ -686,7 +713,7 @@ func mapOptionalProtocol2Error(remote *Protocol2Error) *protocol.APIError {
 
 func matchingAdoptedPackage(adopted []corepackage.Staged, active Protocol2ActivePackage) int {
 	for index := range adopted {
-		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) {
+		if adopted[index].PackageID == active.PackageID && reflect.DeepEqual(adopted[index].Descriptor, active.Descriptor) && reflect.DeepEqual(adopted[index].Composition, active.Composition) {
 			return index
 		}
 	}
@@ -710,7 +737,7 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 	for index, value := range activation.ActiveInterfaces {
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
-	return &protocol.CorePackageStatus{PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
+	return &protocol.CorePackageStatus{Composition: cloneComposition(activation.Composition), PackageID: activation.PackageID, Generation: activation.Generation, PersistenceMode: activation.PersistenceMode,
 		MediaStream: activation.MediaStream,
 		ABI:         protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID, Major: uint16(activation.Descriptor.ABI.Major), Minor: uint16(activation.Descriptor.ABI.Minor)},
 		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
@@ -1332,4 +1359,16 @@ func (r *Runtime) reconcileActiveCore(response Protocol2Response, recovery bool)
 	activation := activationFromProtocol2(adopted[activeIndex].PackageID, adopted[activeIndex].Descriptor, response)
 	status.CorePackage = corePackageStatus(activation)
 	return status
+}
+
+func cloneComposition(value *expansion.Composition) *expansion.Composition {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+type protocol2CompositionControl interface {
+	LoadComposedCore(context.Context, string, string, string, string, expansion.Composition) (Protocol2Response, error)
 }

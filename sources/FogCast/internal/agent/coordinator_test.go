@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type fakeRuntime struct {
@@ -1910,5 +1911,16 @@ func TestFailedNativeLaunchClearsContentOnlyAfterConfirmedIdle(t *testing.T) {
 				t.Fatalf("confirmed cleanup not ready: %#v", status)
 			}
 		})
+	}
+}
+
+func TestCompositionStatusReturnsDefensiveCopy(t *testing.T) {
+	runtime := &fakeRuntime{reconciled: protocol.Status{State: protocol.StateActive, CorePackage: &protocol.CorePackageStatus{Composition: &expansion.Composition{ExpansionID: "original"}}}}
+	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator.Initialize(context.Background())
+	first := coordinator.Status()
+	first.CorePackage.Composition.ExpansionID = "changed"
+	if got := coordinator.Status().CorePackage.Composition.ExpansionID; got != "original" {
+		t.Fatalf("caller changed retained composition: %q", got)
 	}
 }

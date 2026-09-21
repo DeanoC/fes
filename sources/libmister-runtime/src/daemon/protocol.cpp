@@ -414,6 +414,17 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		AppendQuoted(&output, status.active_package.package_id);
 		output.Append(",\"descriptor\":");
 		AppendDescriptor(&output, status.active_package.descriptor);
+		const auto& composition=status.active_package.composition;
+		if (!composition.id.empty()) {
+			output.Append(",\"composition\":");
+			output.Append("{\"composition_id\":");AppendQuoted(&output,composition.id);
+			output.Append(",\"package_id\":");AppendQuoted(&output,composition.package_id);
+			output.Append(",\"expansion_id\":");AppendQuoted(&output,composition.expansion_id);
+			output.Append(",\"shell_sha256\":");AppendQuoted(&output,composition.shell_sha256);
+			output.Append(",\"payload_sha256\":");AppendQuoted(&output,composition.payload_sha256);
+			output.Append(",\"payload_size\":");output.Append(std::to_string(composition.payload_size));
+			output.Append("}");
+		}
 		output.Append(",\"persistence_mode\":");
 		AppendQuoted(&output, status.core_data.mode);
 		output.Append(",\"observed\":{\"abi\":");
@@ -498,6 +509,31 @@ Error ParseRequest(const std::string& line, Request* request)
 			if (!HasOnly(root, fields, 2, &error)) return error;
 			parsed.operation = operation->string_value == "status" ?
 				Operation::status : Operation::stop;
+		} else if (operation->string_value == "load_composed_core") {
+			const char* const fields[]={"protocol","operation","package_path","package_id","expansion_path","payload_path","composition"};
+			if (!HasOnly(root,fields,7,&error)) return error;
+			const std::string *path=nullptr,*id=nullptr,*expansion=nullptr,*payload=nullptr;
+			if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error) ||
+				!StringMember(root,"expansion_path",&expansion,&error) || !StringMember(root,"payload_path",&payload,&error)) return error;
+			if (!Path(*path) || !Path(*expansion) || !Path(*payload) || !PackageID(*id)) return Invalid("invalid composition paths or package identity");
+			const auto* tuple=Find(root,"composition");
+			if (!tuple || tuple->type!=json::Type::object) return Invalid("composition must be an object");
+			const char* const tuple_fields[]={"composition_id","package_id","expansion_id","shell_sha256","payload_sha256","payload_size"};
+			if (!HasOnly(*tuple,tuple_fields,6,&error)) return error;
+			auto& c=parsed.composition_request.composition;
+			std::string* destinations[]={&c.id,&c.package_id,&c.expansion_id,&c.shell_sha256,&c.payload_sha256};
+			for (unsigned i=0;i<5;++i) {
+				const std::string* value=nullptr;
+				if (!StringMember(*tuple,tuple_fields[i],&value,&error)) return error;
+				if (!PackageID(*value)) return Invalid("composition identities must be lowercase SHA-256");
+				*destinations[i]=*value;
+			}
+			const auto* size=Find(*tuple,"payload_size");
+			if (!size || size->type!=json::Type::integer || size->integer_value<40408 || size->integer_value>32*1024*1024 || c.package_id!=*id)
+				return Invalid("invalid composition size or package binding");
+			c.payload_size=static_cast<std::uint64_t>(size->integer_value);
+			parsed.operation=Operation::load_composed_core;parsed.package_path=*path;parsed.package_id=*id;
+			parsed.composition_request.expansion_path=*expansion;parsed.composition_request.payload_path=*payload;
 		} else if (operation->string_value == "inspect_core" ||
 			operation->string_value == "load_core") {
 			const char* const fields[] = {

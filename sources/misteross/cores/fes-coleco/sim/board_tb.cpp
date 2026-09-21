@@ -507,7 +507,7 @@ int main(int argc, char **argv) {
     bool toggle = false;
     require(board.gpi() == 0xf5000000u, "initial mailbox signature");
     board.exchange(toggle, 1, 4, 0, response(!toggle, false, 3), "identity tag");
-    board.exchange(toggle, 1, 7, 0, response(!toggle, false, 110), "native controller and stream capabilities");
+    board.exchange(toggle, 1, 7, 0, response(!toggle, false, 126), "native controller, audio and stream capabilities");
     board.row(toggle, 0, 0x11);
     board.exchange(toggle, 2, 0, 1, response(!toggle, true, 4), "release without media");
     for (unsigned i = 0; i < 32; ++i) {

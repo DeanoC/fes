@@ -43,3 +43,11 @@ func (c *Coordinator) coreData(ctx context.Context, size int64, body io.Reader, 
 	}
 	return runtime.UpdateCoreSettings(ctx, size, body, *u)
 }
+
+type composedCoreRuntime interface {
+	LoadComposedCoreOwned(context.Context, context.Context, context.Context, int64, io.Reader, string) (misterruntime.CoreActivation, bool, *protocol.APIError)
+}
+
+func (c *Coordinator) LoadComposedCore(ctx context.Context, size int64, body io.Reader, id string) (protocol.Status, *protocol.APIError) {
+	return c.loadCore(ctx, size, body, id, true)
+}

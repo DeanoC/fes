@@ -60,6 +60,8 @@ def plan(root, base, head="HEAD", jobs=2):
         for suffix in ("", "/appliance"):
             add("host", "Go tests " + (suffix or "host"), host + suffix,
                 ["go", "test", "-race", "./..."], tools=["cc"], files=["go.mod"])
+        add("host", "shared Go expansion linker tests", affected.EXPANSION_ROOT,
+            ["go", "test", "-race", "./..."], tools=["cc"], files=["go.mod"])
         add("host", "host UI tests", host, ["make", "test-ui"], tools=["node", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["runtime"]:
         add("runtime", "runtime software tests", affected.MODULE_ROOTS["runtime"],

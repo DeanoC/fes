@@ -133,7 +133,10 @@ input, state, video, or FPGA changes.
 
 After programming a FES package, activation resets the transport session and
 reads all 16 identity words under a two-second deadline, with each exchange
-bounded to 100 ms. It sends no destination control until the descriptor ABI,
+bounded to 100 ms. An exchange timeout records its opcode, index, request toggle and last observed
+acknowledgement, excluding argument and response payloads. It still poisons the
+session without retrying or extending the deadline.
+It sends no destination control until the descriptor ABI,
 capabilities, and build ID match. The fixed custom video path configures and
 validates the ADV7513 entirely over I2C, without issuing a MiSTer SPI timing or
 audio command. Application audio declarations select the I2S stereo recipe;
@@ -633,3 +636,23 @@ See [the complete local protocol and error contract](docs/core-persistence.md)
 for derived layout metadata, persistence modes, downgrade rejection, CAS,
 volatile development behavior and recovery envelopes. This implementation has
 software coverage only; no physical support claim is added.
+
+### Static composition admission
+
+`NativeHardware::AdmitCoreComposition` first performs normal sealed base-package
+admission, then opens expansion companions with descriptor-relative, no-follow
+traversal beneath the package roots. `core_composition.cpp` accepts the fixed
+canonical ZX81 RAM manifest grammar and verifies its manifest-derived expansion
+ID, exact base package/BUILD_ID/payload binding, cart digest and linked payload
+size/digest. The composition ID uses the shared `fes-composition-v1` domain and
+base/expansion/payload identities. Descriptor and GP identity remain the base's;
+only the FPGA programming artifact comes from the admitted composition.
+
+The network-facing target agent owns deterministic CRAM recomposition using the
+shared misteross implementation. Runtime admission verifies that agent-owned
+result and retains its open FD, rehashing it and the expansion files immediately
+before entering the existing physical transition. It does not implement a second
+linker, download paths, or reopen checked pathnames during programming. Failed
+admission leaves the current generation untouched. Successful activation carries
+the composition tuple in active status, and the ordinary retirement/recovery
+paths clear it together with package identity.

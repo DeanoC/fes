@@ -3,6 +3,7 @@ package misterruntime
 import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type Protocol2Contract struct {
@@ -37,6 +38,7 @@ type Protocol2Observed struct {
 }
 
 type Protocol2ActivePackage struct {
+	Composition     *expansion.Composition `json:"composition,omitempty"`
 	PersistenceMode string                 `json:"persistence_mode,omitempty"`
 	PackageID       string                 `json:"package_id"`
 	Descriptor      corepackage.Descriptor `json:"descriptor"`

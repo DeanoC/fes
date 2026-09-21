@@ -699,6 +699,34 @@ void TestApplicationResponseFixtures()
 		ApplicationResponseFixtures());
 }
 
+void TestCompositionProtocol()
+{
+ const std::string id(64, 'a');
+ const std::string tuple = "{\"composition_id\":\""+id+"\",\"package_id\":\""+id+
+ "\",\"expansion_id\":\""+id+"\",\"shell_sha256\":\""+id+"\",\"payload_sha256\":\""+id+"\",\"payload_size\":40408}";
+ const std::string input = "{\"protocol\":2,\"operation\":\"load_composed_core\",\"package_path\":\"/base\",\"package_id\":\""+id+
+ "\",\"expansion_path\":\"/expansion\",\"payload_path\":\"/composition/linked.rbf\",\"composition\":"+tuple+"}";
+ Request request;
+ assert(Parse(input, &request).ok());
+ assert(request.operation == Operation::load_composed_core);
+ assert(request.composition_request.composition.payload_size == 40408);
+ for (const auto& replacement : std::vector<std::pair<std::string,std::string>>{
+   {"40408", "-1"}, {"40408", "33554433"}, {"40408", "1.5"},
+   {"\"protocol\":2", "\"protocol\":1"}, {"\"payload_size\":40408", "\"unknown\":40408"},
+   {"/expansion", "\\u0000/expansion"}}) {
+   auto bad=input;bad.replace(bad.find(replacement.first),replacement.first.size(),replacement.second);
+   assert(!Parse(bad,&request).ok());
+ }
+ Status status;
+ status.active_package.package_id=id;
+ status.active_package.composition=request.composition_request.composition;
+ status.active_package.composition.id=id;
+ auto encoded=mister::daemon::EncodeResponse(2,true,status,"test");
+ assert(encoded.find("\"composition_id\":\""+id+"\"")!=std::string::npos);
+ status.active_package.composition={};
+ assert(mister::daemon::EncodeResponse(2,true,status,"test").find("\"composition\"")==std::string::npos);
+}
+
 int main(int argc, char** argv)
 {
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
@@ -711,6 +739,7 @@ int main(int argc, char** argv)
 		return 0;
 	}
 	assert(argc == 1);
+	TestCompositionProtocol();
 	TestControllerSnapshotRequest();
 	TestApplicationResponseFixtures();
 	TestMediaStreamResponseFixtures();

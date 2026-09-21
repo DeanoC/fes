@@ -3,7 +3,9 @@
 // Fixed first slice: ZX81, 16 KB RAM, PAL, no CHROMA/QS/YM2149/joystick.
 // Keyboard rows and .p tape come from the FES GP mailbox.
 
-module zx81_machine (
+module zx81_machine #(
+    parameter EXTERNAL_RAM = 0
+) (
     input  wire        clk_sys,
     input  wire        reset,
     input  wire [39:0] keyboard,
@@ -20,7 +22,12 @@ module zx81_machine (
     output wire        halt_n,
     output wire [15:0] cpu_addr,
     input  wire [15:0] peek_addr,
-    output wire [7:0]  peek_data
+    output wire [7:0]  peek_data,
+    output wire [13:0] ram_address,
+    output wire [7:0]  ram_write_data,
+    output wire        ram_write_enable,
+    input  wire [7:0]  external_ram_data,
+    input  wire [7:0]  external_peek_data
 );
     localparam [1:0] MEM_SIZE_16K = 2'd1;
     localparam ZX81 = 1'b1;
@@ -104,17 +111,25 @@ module zx81_machine (
     wire [15:0] ram_a = tapeloader ? {2'b01, tape_addr + 4'd8} : {2'b01, addr[13:0]};
 
     wire [7:0] ram_out;
+    assign ram_address = ram_a[13:0];
+    assign ram_write_data = tapeloader ? tape_in_byte_r : cpu_dout;
+    assign ram_write_enable = (~nWR & ~nMREQ & ram_e) | tapewrite_we;
+    generate if (EXTERNAL_RAM) begin : expansion_ram
+        assign ram_out = external_ram_data;
+        assign peek_data = external_peek_data;
+    end else begin : builtin_ram
     zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384)) ram_block (
         .clock(clk_sys),
-        .address_a(ram_a[13:0]),
-        .data_a(tapeloader ? tape_in_byte_r : cpu_dout),
-        .wren_a((~nWR & ~nMREQ & ram_e) | tapewrite_we),
+        .address_a(ram_address),
+        .data_a(ram_write_data),
+        .wren_a(ram_write_enable),
         .q_a(ram_out),
         .address_b(peek_addr[13:0]),
         .data_b(8'h00),
         .wren_b(1'b0),
         .q_b(peek_data)
     );
+    end endgenerate
 
     wire [12:0] rom_a = nRFSH ? addr[12:0] :
         {addr[12:9] + (addr[13] & ram_data_latch[7] & addr[8]), ram_data_latch[5:0], row_counter};

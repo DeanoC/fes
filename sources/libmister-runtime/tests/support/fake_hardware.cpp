@@ -13,6 +13,8 @@ class FakeAdmittedCore final : public mister::AdmittedCorePackage {
 public:
 	explicit FakeAdmittedCore(mister::CorePackageInfo info)
 		: AdmittedCorePackage(std::move(info)) {}
+	mister::CoreComposition composition() const override { return composition_; }
+	mister::CoreComposition composition_;
 };
 }
 
@@ -64,6 +66,15 @@ mister::Error FakeHardware::AdmitCorePackage(const std::string& directory,
 	output->reset(new FakeAdmittedCore(std::move(info)));
 	events.push_back("admit:" + directory);
 	return {};
+}
+
+mister::Error FakeHardware::AdmitCoreComposition(const std::string& directory,
+	const std::string& id, const mister::CoreCompositionRequest& request,
+	std::unique_ptr<mister::AdmittedCorePackage>* output)
+{
+	auto error = AdmitCorePackage(directory, id, output);
+	if (error.ok()) static_cast<FakeAdmittedCore*>(output->get())->composition_ = request.composition;
+	return error;
 }
 
 mister::Error FakeHardware::InspectCorePackage(const std::string& directory,

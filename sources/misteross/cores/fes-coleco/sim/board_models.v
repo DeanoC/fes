@@ -38,11 +38,14 @@ module cyclonev_hps_interface_peripheral_i2c (
     end
 endmodule
 
-module sys_pll (
+module coleco_system_pll (
     input wire refclk,
     input wire rst,
-    output reg outclk_0
+    output reg outclk_0,
+    output wire audio_clk, locked
 );
+    assign audio_clk = refclk;
+    assign locked = 1'b1;
     initial outclk_0 = 1'b0;
 endmodule
 

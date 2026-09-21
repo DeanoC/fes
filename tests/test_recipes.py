@@ -22,6 +22,13 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertTrue(recipes.FORMAT2_RECIPES)
         self.assertEqual({r.identity_version for r in recipes.FORMAT2_RECIPES.values()}, {2})
 
+    def test_original_game_uses_existing_recipe_contract(self):
+        recipe = recipes.recipe_for("fes.catch")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_catch")
+        self.assertEqual(recipe.producer_script, "scripts/build_fes_catch.py")
+        self.assertEqual(recipe.authenticate, "_authenticate_tools")
+        self.assertEqual(recipe.identity_version, 2)
+
     def assert_existing_descriptors(self):
         self.assertTrue(
             {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms"}

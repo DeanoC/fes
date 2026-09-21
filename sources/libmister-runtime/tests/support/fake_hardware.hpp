@@ -30,6 +30,8 @@ public:
 	}
 	mister::Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<mister::AdmittedCorePackage>*) override;
+	mister::Error AdmitCoreComposition(const std::string&, const std::string&,
+		const mister::CoreCompositionRequest&, std::unique_ptr<mister::AdmittedCorePackage>*) override;
 	mister::Error InspectCorePackage(const std::string&, const std::string&,
 		mister::CorePackageInspection*) override;
 	mister::Capabilities capabilities() const override { return supported; }

@@ -68,6 +68,8 @@ public:
 	Error RestoreInput(std::uint64_t generation) override;
 	Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*) override;
+	Error AdmitCoreComposition(const std::string&, const std::string&,
+		const CoreCompositionRequest&, std::unique_ptr<AdmittedCorePackage>*) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override;
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;

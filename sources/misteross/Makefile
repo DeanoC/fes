@@ -196,7 +196,33 @@ sim-fes-pong:
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/board_tb.cpp"
 	@build/sim/fes-pong-board/Vtop
 
-sim-fes-zx81:
+.PHONY: sim-fes-zx81-expansion
+sim-fes-zx81-expansion:
+	$(require_local_sim)
+	@for pack in 0 1; do \
+		mkdir -p build/sim/fes-zx81-expansion-$$pack; \
+		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
+		-GPACK_PRESENT=$$pack -DTV80_REFRESH=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$pack" \
+		cores/fes-zx81/sim/expansion_machine.v \
+		cores/fes-zx81/expansions/ram16k.v \
+		experiments/901_plugged_base/sim/mistral_ff_model.v \
+		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_ram_socket.v \
+		cores/fes-zx81/rtl/zx81_ram_pack.v cores/fes-zx81/rtl/tv80/tv80_core.v \
+		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
+		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-zx81/sim/expansion_tb.cpp" || exit $$?; \
+		if [ $$pack = 0 ]; then ramtop=0x4400; else ramtop=0x8000; fi; \
+		build/sim/fes-zx81-expansion-$$pack/Vexpansion_machine $$ramtop || exit $$?; \
+	done
+
+sim-fes-zx81: sim-fes-zx81-expansion
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-zx81-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -288,6 +314,7 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -296,6 +323,21 @@ sim-fes-coleco-vdp-io sim-fes-coleco-vdp-io-oss: coleco-vdp-diagnostic
 		"$(CURDIR)/cores/fes-coleco/sim/vdp_machine_tb.cpp"
 	@build/sim/$@/Vcoleco_machine build/diagnostics/fes-coleco/vdp-io.rom \
 		build/diagnostics/fes-coleco/vdp-io-16k.rom
+
+# Each board case is a separate CI shard. The shared build prerequisite runs
+.PHONY: sim-fes-coleco-audio
+sim-fes-coleco-audio:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-psg build/sim/fes-audio-output
+	$(VERILATOR) --cc --exe --build --top-module fes_sn76489 -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-psg" cores/fes-common/rtl/fes_sn76489.sv \
+		"$(CURDIR)/cores/fes-coleco/sim/psg_tb.cpp"
+	@build/sim/fes-psg/Vfes_sn76489
+	$(VERILATOR) --cc --exe --build --top-module fes_audio_output -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-audio-output" \
+		cores/fes-common/rtl/fes_audio_output.v cores/fes-common/rtl/fes_audio_i2s.v \
+		"$(CURDIR)/cores/fes-coleco/sim/audio_output_tb.cpp"
+	@build/sim/fes-audio-output/Vfes_audio_output
 
 # Each board case is a separate CI shard. The shared build prerequisite runs
 # once per lane in a Make invocation; diagnostics finish before their readers.
@@ -308,7 +350,31 @@ sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARG
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
 $(addsuffix -oss,$(COLECO_BOARD_TARGETS)): sim-fes-coleco-board-build-oss
 
-sim-fes-coleco-unit: sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io
+.PHONY: sim-fes-coleco-firmware sim-fes-coleco-firmware-oss
+sim-fes-coleco-firmware-oss: COLECO_FIRMWARE_FLAGS = -DFES_COLECO_OSS=1
+sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
+	$(require_local_sim)
+	@mkdir -p build/sim/$@
+	$(VERILATOR) --cc --exe --build --top-module firmware_model -Wall \
+		-DTV80_REFRESH=1 $(COLECO_FIRMWARE_FLAGS) \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/$@" \
+		cores/fes-coleco/sim/firmware_model.sv \
+		cores/fes-common/rtl/fes_sn76489.sv \
+		cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/fes_application_gp.v \
+		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/firmware_tb.cpp"
+	@build/sim/$@/Vfirmware_model
+
+sim-fes-coleco-unit: sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -334,6 +400,7 @@ sim-fes-coleco-unit: sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-colec
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine" \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -362,6 +429,7 @@ sim-fes-coleco-board-build:
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-board" \
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
 		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-coleco/rtl/coleco_machine.sv \
 		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/coleco_video_720p.v \
@@ -370,7 +438,7 @@ sim-fes-coleco-board-build:
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-coleco/sim/board_tb.cpp"
 
-sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss
+sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss sim-fes-coleco-vdp-io-oss sim-fes-coleco-firmware-oss
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
@@ -401,6 +469,7 @@ sim-fes-coleco-unit-oss: sim-fes-coleco-graphics-oss sim-fes-coleco-stream-oss s
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-coleco-machine-oss" \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -424,6 +493,7 @@ sim-fes-coleco-board-build-oss:
 		cores/fes-coleco/sim/board_models.v cores/fes-coleco/rtl/top.v \
 		cores/fes-common/rtl/fes_application_gp.v cores/fes-coleco/rtl/coleco_application_gp.v cores/fes-common/rtl/coleco_dpram.v \
 		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-common/rtl/fes_audio_i2s.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-coleco/rtl/coleco_machine.sv cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_video_720p.v \
 		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
@@ -676,6 +746,12 @@ toolchain:
 
 toolchain-fes:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+.PHONY: toolchain-zx81-expansion
+toolchain-zx81-expansion:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/zx81-expansion.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain/zx81-expansion") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-coleco:

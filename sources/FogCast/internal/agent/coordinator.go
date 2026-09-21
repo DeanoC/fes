@@ -437,7 +437,7 @@ func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, con
 func (c *Coordinator) LoadCore(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
 	return c.loadCore(parent, size, content, "")
 }
-func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string) (protocol.Status, *protocol.APIError) {
+func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "core_package", "size": size})
 	if !c.begin() {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
@@ -454,7 +454,13 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 	var activation misterruntime.CoreActivation
 	var attempted bool
 	var apiErr *protocol.APIError
-	if libraryID != "" {
+	if len(composition) == 1 && composition[0] {
+		composed, ok := c.runtime.(composedCoreRuntime)
+		if !ok {
+			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+		}
+		activation, attempted, apiErr = composed.LoadComposedCoreOwned(parent, observation, c.operationContext, size, content, libraryID)
+	} else if libraryID != "" {
 		library, ok := c.runtime.(libraryCoreRuntime)
 		if !ok {
 			return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
@@ -503,6 +509,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
+		Composition: activation.Composition,
 		MediaStream: activation.MediaStream,
 		PackageID:   activation.PackageID, Generation: activation.Generation,
 		ABI: protocol.RuntimeContract{ID: activation.Descriptor.ABI.ID,
@@ -708,6 +715,10 @@ func cloneStatus(status protocol.Status) protocol.Status {
 	copy.LastError = cloneAPIError(status.LastError)
 	if status.CorePackage != nil {
 		packageCopy := *status.CorePackage
+		if status.CorePackage.Composition != nil {
+			compositionCopy := *status.CorePackage.Composition
+			packageCopy.Composition = &compositionCopy
+		}
 		packageCopy.ActiveInterfaces = append([]protocol.RuntimeInterface(nil), status.CorePackage.ActiveInterfaces...)
 		if status.CorePackage.MediaStream != nil {
 			streamCopy := *status.CorePackage.MediaStream

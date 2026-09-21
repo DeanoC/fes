@@ -16,6 +16,16 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
 
 ## What works now
 
+- Coleco includes a TI SN76489 PSG (three tones and noise) at ports E0–FF,
+  feeding shared coherent PCM clock crossing and 48 kHz HDMI I2S. HOLD clears
+  the PSG and serializes silence while audio clocks continue. Host simulation
+  covers real CPU writes, tone/noise rates, attenuation and asynchronous stereo
+  transfer; routed and physical audio acceptance are separate checks.
+  System/audio share a dual-output PLL: 52.224/12.288 MHz. The reduced CPU
+  and logical raster run 0.43% faster than the previous 52 MHz profile;
+  HDMI pixel timing and 48 kHz sample rate stay fixed.
+  `make sim-fes-coleco-audio` runs the focused audio simulations.
+
 - Coleco fixed 32 KiB cartridges use the shared CRC-checked blob-stream endpoint;
   `make coleco-stream-diagnostic` emits BIOS-free upper-ROM CPU/video checks.
   Small cartridges retain the legacy 16 KiB mirrored map.
@@ -24,13 +34,20 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
   is held. Host simulations keep the parameter at its RTL default 0 and use the
   open `JP 0x8000` shim. The default package still ships that shim; household
   firmware binds at launch. `--bios` remains a separate private build-time
-  embed. Firmware mailbox behavior is software-tested; hardware acceptance is
-  pending.
+  embed. Firmware mailbox behavior is software-tested; exact-package household
+  BIOS, Frogger audio/input and lifecycle hardware evidence is recorded in
+  [the FES diagnostic](../../docs/validation/2026-09-21-playable-audio.md).
 - Shared controller ports: Coleco uses the composable application endpoint
   with two native digital gamepads and two twelve-key keypads.
   `make sim-fes-coleco` covers actual CPU reads and HDMI controller panels.
 - Composable application reference RTL and simulations: `make sim-fes-demo`
   checks video-only, gamepad/palette-media, and gamepad/stereo-audio configurations.
+  It also tests the original ROM-less FES Catch game, including shared mailbox
+  input, fixed video and stereo catch feedback. Build its sealed package with
+  `python3 scripts/build_fes_catch.py` (or FES `make core-dev` with
+  `--core fes.catch`); output is `build/fes-catch/core.rbf` plus the immutable
+  archive in `build/packages/`. See the FES
+  [custom application workflow](../../docs/core-development.md#build-and-play-an-original-application-fes-catch).
   `make build-fes-demo`, `make build-fes-demo-media`, and `make build-fes-demo-audio` use the authenticated
   HIP producer and require clean committed inputs. These new recipes have
   host simulation/recipe coverage; no routed-RBF or hardware acceptance is

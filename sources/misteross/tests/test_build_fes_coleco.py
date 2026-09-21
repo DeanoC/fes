@@ -44,6 +44,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesColecoTests(unittest.TestCase):
+    def test_both_producers_constrain_audio_pins(self):
+        from scripts import build_fes_coleco
+        for qsf in (build_fes_coleco.QSF_PINS, build_fes_coleco_oss.QSF):
+            text = (ROOT / qsf).read_text()
+            for port, pin in build_fes_coleco_oss.AUDIO_PINS.items():
+                self.assertIn(f"set_location_assignment {pin} -to {port}", text)
+                self.assertIn(f'set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to {port}', text)
+
+    def test_audio_evidence_rejects_missing_constant_and_wrong_pin_outputs(self):
+        import copy
+        pins = build_fes_coleco_oss.AUDIO_PINS
+        cells = {"audio_clock.pll": {"type": "altera_pll", "parameters": {
+            "output_clock_frequency0": "52.224 MHz", "output_clock_frequency1": "12.288 MHz",
+            "reference_clock_frequency": "50.0 MHz"}}}
+        ports = {}
+        for index, (port, pin) in enumerate(pins.items()):
+            ports[port] = {"direction": "output", "bits": [index]}
+            cells[port] = {"type": "MISTRAL_OB", "connections": {"PAD": [index], "I": [index+10]},
+                "attributes": {"LOC": pin, "IO_STANDARD": "3.3-V LVTTL", "NEXTPNR_BEL": "MISTRAL_IO.1"}}
+        design = {"modules": {"top": {"ports": ports, "cells": cells}}}
+        build_fes_coleco_oss._audio_evidence(design)
+        for field, value in (("LOC", "PIN_BAD"), ("IO_STANDARD", "1.8 V")):
+            wrong = copy.deepcopy(design)
+            wrong["modules"]["top"]["cells"]["HDMI_I2S"]["attributes"][field] = value
+            with self.assertRaises(BuildError): build_fes_coleco_oss._audio_evidence(wrong)
+        wrong = copy.deepcopy(design)
+        wrong["modules"]["top"]["cells"]["HDMI_I2S"]["connections"]["I"] = ["0"]
+        with self.assertRaises(BuildError): build_fes_coleco_oss._audio_evidence(wrong)
+        del design["modules"]["top"]["cells"]["audio_clock.pll"]
+        with self.assertRaises(BuildError): build_fes_coleco_oss._audio_evidence(design)
+
     def test_make_entrypoints_use_both_recipes(self) -> None:
         for target, recipe in (
             ("build-fes-coleco", "scripts/build_fes_coleco_oss.py"),
@@ -297,7 +328,7 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
-        self.assertEqual(global_pins["nextpnr"].commit, "d672fade461e8a1eba4d3f95895902d86f43b882")
+        self.assertEqual(global_pins["nextpnr"].commit, "30ac6f47bd94aec97467bee9fcd2ff09643fbc55")
 
     def test_oss_rejects_a_cpu_only_gpu_router_binary(self) -> None:
         with self.assertRaisesRegex(BuildError, "device backend"):
@@ -458,10 +489,10 @@ class BuildFesColecoTests(unittest.TestCase):
         fields = tomllib.loads(manifest.decode())
         self.assertEqual(fields["abi"], {"id": "fes.application", "major": 1, "minor": 0})
         self.assertEqual({i["id"] for i in fields["interfaces"]},
-                         {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60", "fes.firmware.blob"})
+                         {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60", "fes.firmware.blob", "fes.audio.pcm-s16-stereo-48k"})
         required = {i["id"] for i in fields["interfaces"] if i["required"]}
         optional = {i["id"] for i in fields["interfaces"] if not i["required"]}
-        self.assertEqual(required, {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60"})
+        self.assertEqual(required, {"fes.gamepad.ports", "fes.keypad.ports", "fes.media.blob", "fes.media.blob-stream", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
         self.assertEqual(optional, {"fes.firmware.blob"})
         self.assertIn("cores/fes-common/rtl/fes_application_gp.v", RTL_SOURCES)
         self.assertIn("cores/fes-coleco/rtl/coleco_application_gp.v", RTL_SOURCES)

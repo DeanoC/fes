@@ -44,9 +44,20 @@ class TestChangedTest(unittest.TestCase):
         result = self.plan()
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["cwd"] for c in host if c["argv"][0] == "go"],
-                         ["sources/FogCast", "sources/FogCast/appliance"])
+                         ["sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"])
         self.assertTrue(all(c["argv"] == ["go", "test", "-race", "./..."] for c in host if c["argv"][0] == "go"))
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
+
+    def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
+        self.change("sources/misteross/expansion/rbf.go", commit=True)
+        result = self.plan()
+        self.assertEqual(result["impact"]["cores"], [])
+        self.assertFalse(result["impact"]["lanes"]["fpga"])
+        self.assertTrue(result["impact"]["lanes"]["host"])
+        commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == "go"]
+        self.assertEqual({c["cwd"] for c in commands},
+                         {"sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"})
+        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "./..."] for c in commands))
 
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")

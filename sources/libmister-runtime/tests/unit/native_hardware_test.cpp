@@ -9,6 +9,7 @@
 #include "native/artifacts.hpp"
 #include "native/core_loader.hpp"
 #include "native/core_package.hpp"
+#include "native/sha256.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/generated/fes_application.hpp"
@@ -213,6 +214,9 @@ public:
 		events_.push_back("fpga.program");
 		profiles.push_back(profile);
 		programmed.push_back(BaseName(artifact.path()));
+		char first_byte = 0;
+		assert(pread(artifact.fd(), &first_byte, 1, 0) == 1);
+		programmed_first_bytes.push_back(first_byte);
 		deadlines.push_back(deadline);
 		++calls;
 		if (on_program) on_program();
@@ -224,6 +228,7 @@ public:
 	mister::native::NativeResult failure = {
 		{mister::ErrorCode::program_failed, "injected program failure"}, true};
 	std::vector<std::string> programmed;
+	std::vector<char> programmed_first_bytes;
 	std::vector<std::uint64_t> deadlines;
 	std::vector<mister::native::ProgrammingProfile> profiles;
 	std::function<void()> on_program;
@@ -2478,6 +2483,68 @@ void TestApplicationFirmwareStatusAdvertisesOptionalSlot()
 	assert(fixture.runtime.Stop().ok());
 }
 
+void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
+{
+	for (const bool mutate : {false, true}) {
+		std::vector<std::string> driver_events;
+		RecordingDriver driver(driver_events);
+		Fixture fixture(&driver);
+		TempDirectory package, expansion, composition;
+		std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
+		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
+		manifest += "\n[[interfaces]]\nid = \"fes.expansion.zx81-ram\"\nmajor = 1\nminor = 0\nrequired = false\n";
+		manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		package.File("manifest.toml", manifest);
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		mister::native::OpenedCorePackage base;
+		assert(mister::native::OpenCorePackage(package.path, "", &base).ok());
+		auto hash = [](const std::string& value) {
+			mister::native::Sha256 h; h.Update(value.data(), value.size());
+			return mister::native::Sha256Hex(h.Final());
+		};
+		const std::string cart(40408, 'c'), linked(40408, 'l');
+		expansion.File("cart.rbf", cart);
+		manifest = "{\"cart_sha256\":\"" + hash(cart) + "\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
+			"\"map\":\"fes.zx81-ram.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
+			"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
+			"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.expansion.zx81-ram\",\"slot_major\":1,\"slot_minor\":0}";
+		expansion.File("manifest.json", manifest);
+		mister::CoreCompositionRequest request;
+		request.expansion_path = expansion.path;
+		request.payload_path = composition.File("linked.rbf", linked);
+		auto& info = request.composition;
+		info.package_id = base.package_id;
+		info.shell_sha256 = base.descriptor.payload.sha256;
+		info.expansion_id = hash(std::string("fes-expansion-v1\0",17) + manifest);
+		info.payload_sha256 = hash(linked); info.payload_size = linked.size();
+		info.id = hash(std::string("fes-composition-v1\0",19) + info.package_id + std::string(1,'\0') + info.expansion_id + std::string(1,'\0') + info.payload_sha256);
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		const auto admission = fixture.hardware.AdmitCoreComposition(package.path, base.package_id, request, &admitted);
+		if (!admission.ok()) fprintf(stderr, "composition admission: %s\n", admission.message.c_str());
+		assert(admission.ok());
+		fixture.events.clear();
+		if (mutate) {
+			const int fd = open(request.payload_path.c_str(), O_WRONLY);
+			assert(fd >= 0 && pwrite(fd, "x", 1, 0) == 1); assert(close(fd) == 0);
+		} else {
+			assert(rename(request.payload_path.c_str(), (composition.path + "/retained.rbf").c_str()) == 0);
+			composition.files.back() = composition.path + "/retained.rbf";
+			composition.File("linked.rbf", std::string(40408, 'x'));
+		}
+		const auto result = fixture.hardware.LoadCore(std::move(admitted), 1);
+		if (mutate) {
+			assert(result.error.code == mister::ErrorCode::invalid_package);
+			assert(!result.mutation_attempted);
+			assert(fixture.events.empty() && driver_events.empty());
+		} else {
+			assert(result.error.ok());
+			assert(fixture.fpga.programmed == std::vector<std::string>{"linked.rbf"});
+			assert(fixture.fpga.programmed_first_bytes == std::vector<char>{'l'});
+		}
+	}
+}
+
 void TestActivationRechecksRetainedPayloadIdentityBeforeMutation()
 {
 	std::vector<std::string> gp_events;
@@ -2922,7 +2989,8 @@ int main()
 	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
+	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 49 passed");
+	puts("native_hardware_test: 50 passed");
 	return 0;
 }

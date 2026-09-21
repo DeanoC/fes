@@ -184,3 +184,17 @@ a launcher only writes pixels. Startup, Stop and failed-launch idle cleanup all
 repeat this setup. A configuration/enable failure prevents idle publication.
 This new display path is software-tested; exact-image hardware acceptance is
 pending and does not inherit the previous Mega Drive acceptance.
+
+A protocol-2 `load_composed_core` request activates a statically linked ZX81 RAM
+expansion through the same lifecycle as `load_core`. It supplies the admitted
+base `package_path`/`package_id`, a closed `expansion_path` containing canonical
+`manifest.json` and `cart.rbf`, a `payload_path` ending in `linked.rbf`, and a
+`composition` tuple (`composition_id`, `package_id`, `expansion_id`,
+`shell_sha256`, `payload_sha256`, `payload_size`). Only simple-computer 1.0
+packages declaring optional `fes.expansion.zx81-ram` 1.0 qualify. All companion
+paths must be beneath the existing trusted package roots. The target agent
+recomposes the payload; the runtime validates canonical identities, shell
+binding and retained file bytes before programming. Active status adds
+`active_package.composition` while retaining the base package and BUILD_ID.
+Plain activation and Stop clear composition status. This operation does not
+bind persistent library data or admit arbitrary replacement payloads.

@@ -187,6 +187,11 @@ public:
 	{
 		return hardware_.InspectCorePackage(directory, expected_id, inspection);
 	}
+	Error AdmitCoreComposition(const std::string& directory, const std::string& id,
+		const CoreCompositionRequest& request, std::unique_ptr<AdmittedCorePackage>* output) override
+	{
+		return hardware_.AdmitCoreComposition(directory, id, request, output);
+	}
 	Error PrepareCoreData(
 		AdmittedCorePackage* package, const std::string& root, CoreData* output) override
 	{

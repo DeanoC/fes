@@ -12,6 +12,8 @@ def main():
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args()
     for module, sources, bench in (
+        ("fes_catch_game", ["cores/fes-demo/rtl/fes_catch_game.v"], "catch_tb.cpp"),
+        ("fes_catch_audio", ["cores/fes-common/rtl/fes_audio_i2s.v", "cores/fes-demo/rtl/fes_catch_audio.v"], "catch_audio_tb.cpp"),
         ("fes_audio_i2s", ["cores/fes-common/rtl/fes_audio_i2s.v"], "audio_tb.cpp"),
         ("fes_demo_audio", ["cores/fes-common/rtl/fes_audio_i2s.v", "cores/fes-demo/rtl/fes_demo_audio.v"], "audio_tone_tb.cpp"),
     ):
@@ -83,6 +85,20 @@ def main():
         "cores/fes-demo/rtl/top.v", "cores/fes-demo/rtl/fes_demo_core.v", "cores/fes-demo/rtl/fes_demo_audio.v",
         "cores/fes-common/rtl/fes_application_gp.v", "cores/fes-common/rtl/fes_video_720p.v",
         "cores/fes-common/rtl/fes_audio_i2s.v", str(ROOT / "cores/fes-demo/sim/audio_board_tb.cpp"),
+    ], cwd=ROOT, check=True)
+    subprocess.run([str(output / "Vtop")], cwd=ROOT, check=True)
+
+    output = ROOT / "build/sim/fes-catch-board"
+    output.mkdir(parents=True, exist_ok=True)
+    subprocess.run([
+        args.verilator, "--cc", "--exe", "--build", "--top-module", "top",
+        "-Wall", "--public-flat-rw", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL", "-Wno-SYNCASYNCNET",
+        "-Icores/fes-common/generated", "--Mdir", str(output), "-DFES_DEMO_AUDIO", "-DFES_CATCH", "-GENABLE_GAMEPAD=1'b1",
+        "cores/fes-pong/sim/board_models.v", "cores/fes-demo/sim/audio_board_model.v",
+        "cores/fes-demo/rtl/top.v", "cores/fes-demo/rtl/fes_catch_game.v", "cores/fes-demo/rtl/fes_catch_core.v",
+        "cores/fes-demo/rtl/fes_catch_audio.v", "cores/fes-common/rtl/fes_application_gp.v",
+        "cores/fes-common/rtl/fes_video_720p.v", "cores/fes-common/rtl/fes_audio_i2s.v",
+        str(ROOT / "cores/fes-demo/sim/catch_board_tb.cpp"),
     ], cwd=ROOT, check=True)
     subprocess.run([str(output / "Vtop")], cwd=ROOT, check=True)
 

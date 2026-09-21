@@ -353,7 +353,7 @@ func TestSchemaSevenMigratesLegacyEntriesOnce(t *testing.T) {
 		}
 	}
 	var version int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 9 {
+	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 10 {
 		t.Fatalf("version = %d, %v", version, err)
 	}
 	rows, err := s.db.QueryContext(ctx, "PRAGMA foreign_key_check")

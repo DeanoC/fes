@@ -58,7 +58,7 @@ PLACER_CRITICALITY_EXPONENT = 5
 # constants (that would change BUILD_ID and invalidate the search).
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_QOR_BUDGET = 24
-PLACER_QOR_CLOCKS = (("clk_sys", 52.0), (None, 74.25))
+PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 COLECO_GPU_BACKEND = "hip"
 COLECO_GPU_ROUTER = "HIP"
 COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -78,7 +78,10 @@ ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"
 QSF = "cores/fes-coleco/constraints-oss.qsf"
 SDC = "cores/fes-coleco/clocks-oss.sdc"
 RTL_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-common/rtl/fes_sn76489.sv",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-coleco/rtl/coleco_application_gp.v",
@@ -294,7 +297,9 @@ def create_build_record(
             "gpu_architectures": COLECO_GPU_ARCHITECTURES,
             "gpu_backend": COLECO_GPU_BACKEND,
             "pixel_clock_hz": 74_250_000,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
+            "audio_clock_hz": 12_288_000,
+            "audio_sample_hz": 48_000,
             "reference_clock_hz": 50_000_000,
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
@@ -436,6 +441,35 @@ def _frequency_row(
     return name, constraint, achieved
 
 
+AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
+              "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
+
+
+def _audio_evidence(design: dict) -> None:
+    """Reject missing, constant or wrongly routed physical audio outputs."""
+    module = design["modules"][TOP]
+    cells = module.get("cells", {})
+    clocks = [cell for cell in cells.values()
+              if cell.get("type") == "altera_pll"
+              and cell.get("parameters", {}).get("output_clock_frequency0") == "52.224 MHz"
+              and cell.get("parameters", {}).get("output_clock_frequency1") == "12.288 MHz"]
+    if len(clocks) != 1 or clocks[0].get("parameters", {}).get("reference_clock_frequency") != "50.0 MHz":
+        raise BuildError("audio requires exactly one shared 52.224/12.288 MHz PLL")
+    for port, pin in AUDIO_PINS.items():
+        entry = module.get("ports", {}).get(port, {})
+        pads = [cell for cell in cells.values() if cell.get("type") == "MISTRAL_OB"
+                and cell.get("connections", {}).get("PAD") == entry.get("bits")]
+        if entry.get("direction") != "output" or len(pads) != 1:
+            raise BuildError(f"audio output {port} must have one output pad")
+        cell = pads[0]
+        attrs = cell.get("attributes", {})
+        source = cell.get("connections", {}).get("I", [])
+        if (attrs.get("LOC") != pin or attrs.get("IO_STANDARD") != "3.3-V LVTTL"
+                or not attrs.get("NEXTPNR_BEL", "").startswith("MISTRAL_IO.")
+                or len(source) != 1 or type(source[0]) is not int):
+            raise BuildError(f"audio output {port} has incorrect routing or electrical constraints")
+
+
 def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     routed = _read_json(output / "routed.json", "routed design")
@@ -443,6 +477,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise BuildError("routed design does not contain the top module")
     _i2c_evidence(synthesis, "synthesized")
     _i2c_evidence(routed, "routed")
+    _audio_evidence(routed)
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
@@ -459,11 +494,14 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    if "50 MHz -> 52 MHz" not in route_text:
-        raise BuildError("route log does not contain the 50-to-52 MHz system PLL")
+    if "50 MHz -> 52.224 MHz" not in route_text:
+        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
-    system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
+    system = _frequency_row(timing.get("fmax"), 52.224, "system clock")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
+    audio = _frequency_row(timing.get("fmax"), 12.288, "audio clock")
+    if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):
+        raise BuildError("route log must prove the 12.288 MHz audio PLL")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
         raise BuildError("timing report has no structured utilization data")
@@ -486,10 +524,12 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         "status": "pass",
         "route": {"status": "pass", "unrouted": False, "gpu_backend": gpu_backend},
         "timing": {
+            "audio": {"clock": audio[0], "constraint_mhz": audio[1],
+                      "requested_mhz": 12.288, "achieved_mhz": audio[2], "status": "pass"},
             "system": {
                 "clock": system[0],
                 "constraint_mhz": system[1],
-                "requested_mhz": 52.0,
+                "requested_mhz": 52.224,
                 "achieved_mhz": system[2],
                 "status": "pass",
             },
@@ -536,6 +576,7 @@ def _manifest(
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},

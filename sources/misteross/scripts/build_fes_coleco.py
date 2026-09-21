@@ -40,7 +40,9 @@ SDC = "cores/fes-coleco/clocks.sdc"
 RESET_ROM_HEX = "cores/fes-coleco/rtl/coleco_reset_rom.hex"
 RESET_ROM_MIF = "cores/fes-coleco/rtl/coleco_reset_rom.mif"
 VERILOG_SOURCES = (
-    "cores/fes-common/rtl/sys_pll.v",
+    "cores/fes-common/rtl/fes_audio_i2s.v",
+    "cores/fes-common/rtl/fes_audio_output.v",
+    "cores/fes-coleco/rtl/coleco_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
     "cores/fes-common/rtl/fes_application_gp.v",
     "cores/fes-coleco/rtl/coleco_application_gp.v",
@@ -56,6 +58,7 @@ VERILOG_SOURCES = (
     "cores/fes-coleco/rtl/top.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-common/rtl/fes_sn76489.sv",
     "cores/fes-coleco/rtl/coleco_machine.sv",
 )
 PINNED_INPUTS = (
@@ -162,7 +165,9 @@ def create_build_record(
             "pixel_clock_hz": 74_250_000,
             "reference_clock_hz": 50_000_000,
             "seed": 1,
-            "sys_clock_hz": 52_000_000,
+            "sys_clock_hz": 52_224_000,
+            "audio_clock_hz": 12_288_000,
+            "audio_sample_hz": 48_000,
             "top": TOP,
         },
     }
@@ -251,8 +256,10 @@ def _prepare_output(root: Path) -> Path:
 
 
 def require_clocks(sta_text: str) -> None:
-    if "52.0" not in sta_text and "52.00" not in sta_text:
-        raise BuildError("timing report does not mention the 52 MHz system clock")
+    if "52.224" not in sta_text:
+        raise BuildError("timing report does not mention the 52.224 MHz system clock")
+    if "12.288" not in sta_text:
+        raise BuildError("timing report does not mention the 12.288 MHz audio clock")
     if "74.25" not in sta_text and "74.27" not in sta_text:
         raise BuildError("timing report does not mention the 74.25 MHz pixel clock")
 
@@ -316,6 +323,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.application", "major": 1, "minor": 0},
         "interfaces": [
+            {"id": "fes.audio.pcm-s16-stereo-48k", "major": 1, "minor": 0, "required": True},
             {"id": "fes.gamepad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.keypad.ports", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},

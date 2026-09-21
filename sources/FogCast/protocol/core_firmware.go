@@ -48,8 +48,10 @@ func FirmwareAdmissionError(message string) *APIError {
 // CoreComposition is catalog-side slot fill for one library title. Ready
 // requires every required slot to be fillable on the current setup.
 type CoreComposition struct {
-	FirmwareRequired bool `json:"firmware_required"`
-	FirmwareReady    bool `json:"firmware_ready"`
+	ExpansionID      string `json:"expansion_id,omitempty"`
+	ExpansionReady   bool   `json:"expansion_ready,omitempty"`
+	FirmwareRequired bool   `json:"firmware_required"`
+	FirmwareReady    bool   `json:"firmware_ready"`
 }
 
 // FirmwareReady reports whether a title's firmware slot is composition-ready.

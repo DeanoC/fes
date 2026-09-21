@@ -1006,8 +1006,36 @@ void TestStreamBindingCapacityOwnershipAndStop()
 	assert(f.hardware.media_stream_calls == calls);
 }
 
+void TestCompositionUsesExistingLifecycle()
+{
+	Fixture f;
+	assert(f.runtime.Start().ok());
+	const std::string id(64, 'a');
+	mister::CoreCompositionRequest request;
+	request.composition.id = std::string(64, 'e');
+	request.composition.package_id = id;
+	assert(f.runtime.LoadComposedCore("/base", id, request).ok());
+	auto status = f.runtime.status();
+	assert(status.active_package.package_id == id);
+	assert(status.active_package.composition.id == request.composition.id);
+	const auto generation = status.generation;
+	const auto calls = f.hardware.core_calls;
+	f.hardware.admission_result = {ErrorCode::invalid_package, "invalid composition"};
+	assert(!f.runtime.LoadComposedCore("/bad", id, request).ok());
+	assert(f.runtime.status().generation == generation);
+	assert(f.runtime.status().active_package.composition.id == request.composition.id);
+	assert(f.hardware.core_calls == calls);
+	f.hardware.admission_result = {};
+	assert(f.runtime.LoadCore("/plain", id).ok());
+	assert(f.runtime.status().active_package.composition.id.empty());
+	assert(f.runtime.LoadComposedCore("/base", id, request).ok());
+	assert(f.runtime.Stop().ok());
+	assert(f.runtime.status().active_package.composition.id.empty());
+}
+
 int main()
 {
+	TestCompositionUsesExistingLifecycle();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
@@ -1053,6 +1081,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 42 passed");
+	puts("runtime_test: 43 passed");
 	return 0;
 }

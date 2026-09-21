@@ -26,7 +26,8 @@ Make parallelism; values from 1 through 32 are accepted.
 
 | Changed area | Selected checks |
 | --- | --- |
-| Host | Parent regressions/consumer consistency; actual host Go race tests, nested appliance Go race tests and host UI tests |
+| Host | Parent regressions/consumer consistency; host, appliance and shared expansion linker Go race tests; host UI tests |
+| `sources/misteross/expansion` Go module | Parent checks and host/target consumers, including the shared linker tests; no FPGA simulations |
 | Runtime | Parent checks, runtime software suite and host protocol consumers |
 | Shared contracts | All software lanes and their dependent consumers |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |

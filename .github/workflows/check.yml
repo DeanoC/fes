@@ -112,6 +112,9 @@ jobs:
           make test-ui
           cd appliance
           go test -race ./...
+      - name: Shared expansion linker tests
+        working-directory: sources/misteross/expansion
+        run: go test -race ./...
   runtime:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).runtime

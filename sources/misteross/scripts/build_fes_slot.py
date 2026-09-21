@@ -116,6 +116,7 @@ def place_cart(
     output_json: Path,
     output_rbf: Path,
     router: str,
+    slot_clock: str | None = None,
 ) -> None:
     nextpnr = _toolchain_bin("nextpnr-mistral")
     _require_scaffold_nextpnr(nextpnr)
@@ -145,6 +146,8 @@ def place_cart(
         "--write",
         str(output_json),
     ]
+    if slot_clock is not None:
+        command.extend(["--fes-slot-clock", slot_clock])
     _run(command, ROOT)
 
 
@@ -158,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sdc", type=Path, default=ROOT / "boards/de10nano/clocks.sdc")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--router", default="gpu")
+    parser.add_argument("--slot-clock", help="explicit clock net in a multi-clock frozen shell")
     parser.add_argument("--work", type=Path, default=None)
     args = parser.parse_args(argv)
     try:
@@ -174,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             output_json=composed_json,
             output_rbf=composed_rbf,
             router=args.router,
+            slot_clock=args.slot_clock,
         )
         overlay_files(
             _require_file(args.shell_rbf),

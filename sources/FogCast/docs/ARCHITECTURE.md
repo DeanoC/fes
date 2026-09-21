@@ -176,6 +176,11 @@ fallback.
 
 The native adapter reports ready only when `mister-runtime` reports `idle`.
 An idle Stop confirms that state without calling the runtime Stop operation.
+If the host holds no kit lease (for example after firmware admission rejects a
+launch), it first reads target status and accepts only clean idle with no
+development, package, error or recovery state. It does not claim ownership or
+send a target Stop merely to acknowledge idle; active or uncertain state still
+requires the existing ownership and recovery path.
 The native adapter admits Mega Drive, ordinary SNES and NES cartridges, and the
 registered ROM-less Pong profile.
 Mega Drive validates an absolute staged ROM and sends one local request using
@@ -1215,12 +1220,19 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
-Proposed work for expansion linking and later removable media remains in
-[launch composition](launch-composition.md). Phase 1 Coleco firmware is on
-the working library path below: a title may require a household firmware
-object, rooms/catalog **Ready** follows that fill, and `session/launch`
-binds firmware before cartridge media and reset release. Expansions are
-still proposed.
+Coleco firmware and optional ZX81 RAM expansion use the normal library launch
+path. A title may require a household firmware object; rooms/catalog **Ready**
+follows that fill, and `session/launch` binds firmware before cartridge media
+and reset release. Expansion selection binds an independently linked pack to
+the exact shell package. Later removable media work remains proposed in
+[launch composition](launch-composition.md).
+
+Library list, detail and variant responses report expansion selection and readiness
+independently of firmware requirements, including firmware-free ZX81 shells.
+Expansion admission distinguishes missing/invalid packs from catalog failures:
+missing titles retain not-found responses, concurrent choices retain conflict
+responses, and unexpected storage failures remain internal errors. Malformed
+archives or incompatible compositions are rejected as admission errors.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented

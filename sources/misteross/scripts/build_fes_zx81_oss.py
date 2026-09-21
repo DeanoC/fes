@@ -19,6 +19,7 @@ from scripts.fes_build_common import (
     BuildError,
     FES_GPU_ARCHITECTURES,
     FES_GPU_BACKEND,
+    EXPECTED_TOOL_COMMITS,
     _authenticate_tools,
     _cell_counts,
     _git,
@@ -34,12 +35,17 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, _parse_ints, route_after_synth
+from scripts import zx81_expansion
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-oss")
+SOCKET_OUTPUT_RELATIVE = Path("build/fes-zx81-socket")
+SOCKET_TOOLCHAIN_LOCK = "toolchains/zx81-expansion.lock"
+SOCKET_TOOL_COMMITS = {**EXPECTED_TOOL_COMMITS, "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
+                       "nextpnr": "74f26cc1a5554a70cfca89be27850ec90f857030"}
 RECIPE = "scripts/build_fes_zx81_oss.py"
 ABI_DEFINITION = "cores/fes-zx81/generated/fes_simple_computer.vh"
 QSF = "cores/fes-zx81/constraints-oss.qsf"
@@ -61,6 +67,7 @@ RTL_SOURCES = (
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-zx81/rtl/fes_computer_gp.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
+    "cores/fes-zx81/rtl/zx81_ram_socket.v",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
     "cores/fes-zx81/rtl/zx81_machine.sv",
     "cores/fes-zx81/rtl/t80pa.v",
@@ -72,9 +79,10 @@ RTL_SOURCES = (
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
-    "scripts/fes_build_common.py",
+    "scripts/fes_build_common.py", "scripts/zx81_expansion.py",
     ABI_DEFINITION,
     "toolchain.lock",
+    SOCKET_TOOLCHAIN_LOCK,
     QSF,
     SDC,
     "cores/fes-zx81/rtl/zx8x.hex",
@@ -178,6 +186,7 @@ def create_build_record(
     qor_mode: str = "first-pass",
     identity_version: int = 1,
     execution: dict | None = None,
+    socketed: bool = False,
 ) -> bytes:
     weights, budget = placement_policy(qor_mode)
     fields = {
@@ -208,6 +217,8 @@ def create_build_record(
             "top": TOP,
         },
     }
+    if socketed:
+        fields["parameters"]["expansion_socket"] = "zx81-ram-v1"
     if identity_version == 2:
         fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     elif identity_version != 1:
@@ -221,9 +232,12 @@ def build_commands(
     build_id: str,
     tools: Mapping[str, Path],
     seed: int = PLACER_SEEDS[0],
+    *,
+    socketed: bool = False,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    if output != root / OUTPUT_RELATIVE:
-        raise BuildError(f"FES ZX81 OSS output must be {root / OUTPUT_RELATIVE}")
+    relative = SOCKET_OUTPUT_RELATIVE if socketed else OUTPUT_RELATIVE
+    if output != root / relative:
+        raise BuildError(f"FES ZX81 OSS output must be {root / relative}")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
@@ -232,15 +246,16 @@ def build_commands(
     yosys_program = (
         f"read_verilog -sv -DTV80_REFRESH=1 -I cores/fes-zx81/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
+        + (f"chparam -set EXPANSION_SOCKET 1 {TOP}; " if socketed else "") +
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
-        f"stat; write_json {OUTPUT_RELATIVE.as_posix()}/synth.json"
+        f"stat; write_json {relative.as_posix()}/synth.json"
     )
     yosys = (str(tools["yosys"]), "-p", yosys_program)
     nextpnr = (
         str(tools["nextpnr-mistral"]),
-        "--json", f"{OUTPUT_RELATIVE.as_posix()}/synth.json",
+        "--json", f"{relative.as_posix()}/synth.json",
         "--device", TARGET,
-        "--qsf", QSF,
+        "--qsf", f"{relative.as_posix()}/socket.qsf" if socketed else QSF,
         "--sdc", SDC,
         "--freq", "74.25",
         "--seed", str(seed),
@@ -248,10 +263,10 @@ def build_commands(
         "--placer-heap-critexp", str(PLACER_CRITICALITY_EXPONENT),
         "--router", "gpu",
         "--timing-allow-fail",
-        "--rbf", f"{OUTPUT_RELATIVE.as_posix()}/core.rbf",
+        "--rbf", f"{relative.as_posix()}/core.rbf",
         "--compress-rbf",
-        "--write", f"{OUTPUT_RELATIVE.as_posix()}/routed.json",
-        "--report", f"{OUTPUT_RELATIVE.as_posix()}/timing.json",
+        "--write", f"{relative.as_posix()}/routed.json",
+        "--report", f"{relative.as_posix()}/timing.json",
         "--detailed-timing-report",
     )
     return yosys, nextpnr
@@ -266,8 +281,8 @@ def _clear_route_outputs(output: Path) -> None:
             path.unlink()
 
 
-def _prepare_output(root: Path) -> Path:
-    output = root / OUTPUT_RELATIVE
+def _prepare_output(root: Path, *, socketed: bool = False) -> Path:
+    output = root / (SOCKET_OUTPUT_RELATIVE if socketed else OUTPUT_RELATIVE)
     output.mkdir(parents=True, exist_ok=True)
     for name in BUILD_OUTPUTS:
         path = output / name
@@ -422,6 +437,10 @@ def _manifest(
             "toolchain": toolchain,
         },
     }
+    if record_fields["parameters"].get("expansion_socket") == "zx81-ram-v1":
+        fields["core"]["version"] = "1.1.0"
+        fields["core"]["description"] = "ZX81 with 1 KiB RAM and optional static-linked RAM expansion"
+        fields["interfaces"].append({"id": "fes.expansion.zx81-ram", "major": 1, "minor": 0, "required": False})
     return encode_manifest(fields)
 
 
@@ -434,6 +453,7 @@ def build(
     best_fmax: bool = False,
     gpu_devices: Sequence[int] = (),
     identity_version: int = 1,
+    socketed: bool = False,
 ) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -442,7 +462,8 @@ def build(
     qor_mode = "staged" if best_fmax else "first-pass"
     qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_tools(root, cache_root=cache_root)
+    tool_options = {"lock_path": root / SOCKET_TOOLCHAIN_LOCK, "expected_commits": SOCKET_TOOL_COMMITS, "toolchain_root": root / "build/toolchain/zx81-expansion"} if socketed else {}
+    authenticated = _authenticate_tools(root, cache_root=cache_root, **tool_options)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     if identity_version == 2:
         if len(gpu_devices) > 1:
@@ -452,25 +473,32 @@ def build(
     record = create_build_record(
         root, repository, revision, identities, qor_mode=qor_mode,
         identity_version=identity_version, execution=invocation.inputs if invocation else None,
+        socketed=socketed,
     )
-    output = _prepare_output(root)
+    output = _prepare_output(root, socketed=socketed)
+    relative = output.relative_to(root)
+    if socketed:
+        (output / "socket.qsf").write_text(zx81_expansion.shell_qsf((root / QSF).read_text()))
     _write_atomic(output / "build-inputs.json", record)
     try:
         build_id = build_identity(record)
         commands = build_commands(
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+            socketed=socketed,
         )
-        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=OUTPUT_RELATIVE)
+        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=relative)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
+        if socketed:
+            zx81_expansion.prepare_shell_netlist(output / "synth.json")
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
                 fixture=output / "synth.json",
                 dest=output,
                 device=TARGET,
-                qsf=root / QSF,
+                qsf=output / "socket.qsf" if socketed else root / QSF,
                 sdc=root / SDC,
                 freq="74.25",
                 seeds=PLACER_SEEDS,
@@ -506,7 +534,7 @@ def build(
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_tools(root, cache_root=cache_root, **tool_options)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
@@ -515,7 +543,7 @@ def build(
         if invocation:
             invocation.verify()
             if create_build_record(root, repository, revision, identities, qor_mode=qor_mode,
-                identity_version=identity_version, execution=invocation.inputs) != record:
+                identity_version=identity_version, execution=invocation.inputs, socketed=socketed) != record:
                 raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store)
     except Exception:
@@ -535,6 +563,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
+    parser.add_argument("--socket", action="store_true", help="build the vacant 1 KiB ZX81 RAM socket shell")
     parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
     parser.add_argument(
         "--best-fmax",
@@ -549,6 +578,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
+            if arguments.socket:
+                raise BuildError("socket builds require synthesis boundary validation; use the controlled build")
             if arguments.identity_version != 1:
                 raise BuildError("functional identity requires a controlled build")
             repository, revision = _require_clean_source(arguments.root)
@@ -572,6 +603,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cache_root=arguments.cache_root,
                 best_fmax=arguments.best_fmax,
                 identity_version=arguments.identity_version,
+                socketed=arguments.socket,
                 gpu_devices=_parse_ints(arguments.gpu_devices or ("0" if arguments.identity_version == 2 else "0,1"))
                     if arguments.best_fmax or arguments.identity_version == 2 else (),
             )

@@ -12,6 +12,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 var packageIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -360,6 +361,17 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		bundle, err := s.composeCoreEntry(ctx, entry, data)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if bundle != nil {
+			var transport bytes.Buffer
+			if err = bundle.Write(&transport); err != nil {
+				return coreLoadSource{}, expansionError(err)
+			}
+			return coreLoadSource{size: int64(transport.Len()), body: bytes.NewReader(transport.Bytes()), entry: &entry, composition: &bundle.Composition}, nil
+		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
 	response := protocol.CachedLaunchResponse{Status: status}
@@ -457,9 +469,10 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
-	size  int64
-	body  io.Reader
-	entry *catalog.CoreEntry
+	composition *expansion.Composition
+	size        int64
+	body        io.Reader
+	entry       *catalog.CoreEntry
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

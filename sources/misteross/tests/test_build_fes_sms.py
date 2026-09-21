@@ -162,8 +162,10 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(pins["yosys"].commit, SMS_TOOL_COMMITS["yosys"])
         self.assertEqual(pins["nextpnr"].commit, SMS_TOOL_COMMITS["nextpnr"])
         self.assertEqual(
-            (ROOT / "cores/fes-sms/clocks-oss.sdc").read_bytes(),
-            (ROOT / "cores/fes-coleco/clocks-oss.sdc").read_bytes(),
+            [line.strip() for line in
+             (ROOT / "cores/fes-sms/clocks-oss.sdc").read_text().splitlines()
+             if line.strip() and not line.lstrip().startswith("#")],
+            ["create_clock -name FPGA_CLK1_50 -period 20.000 [get_ports {FPGA_CLK1_50}]"],
         )
         sms_pins = (ROOT / "cores/fes-sms/constraints-oss.qsf").read_text(encoding="utf-8")
         coleco_pins = (ROOT / "cores/fes-coleco/constraints-oss.qsf").read_text(encoding="utf-8")
@@ -179,7 +181,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("HDMI_I2S0", coleco_pins)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
-        self.assertEqual(global_pins["nextpnr"].commit, "d672fade461e8a1eba4d3f95895902d86f43b882")
+        self.assertEqual(global_pins["nextpnr"].commit, "30ac6f47bd94aec97467bee9fcd2ff09643fbc55")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",

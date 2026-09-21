@@ -77,21 +77,37 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
+`ifdef FES_CATCH
+    wire catch_sound;
+    fes_catch_core core (
+        .pixel_clk(pixel_clk), .exec_reset(mailbox_reset), .buttons(mailbox_buttons),
+        .hdmi_rgb(HDMI_TX_D), .hdmi_de(HDMI_TX_DE),
+        .hdmi_hs(HDMI_TX_HS), .hdmi_vs(HDMI_TX_VS), .sound_toggle(catch_sound)
+    );
+`else
     fes_demo_core #(.ENABLE_MEDIA(ENABLE_MEDIA)) core (
         .pixel_clk(pixel_clk), .exec_reset(mailbox_reset), .buttons(mailbox_buttons),
         .palette({palette_red, palette_green, palette_blue}),
         .hdmi_rgb(HDMI_TX_D), .hdmi_de(HDMI_TX_DE),
         .hdmi_hs(HDMI_TX_HS), .hdmi_vs(HDMI_TX_VS)
     );
+`endif
 
     assign HDMI_TX_CLK = pixel_clk;
 `ifdef FES_DEMO_AUDIO
     wire audio_clk, audio_locked;
     fes_audio_pll audio_clock (.refclk(FPGA_CLK1_50), .clk(audio_clk), .locked(audio_locked));
+`ifdef FES_CATCH
+    fes_catch_audio audio (
+        .clk(audio_clk), .locked(audio_locked), .exec_reset(mailbox_reset),
+        .sound_toggle(catch_sound), .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+    );
+`else
     fes_demo_audio audio (
         .clk(audio_clk), .locked(audio_locked), .exec_reset(mailbox_reset),
         .buttons(mailbox_buttons), .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
     );
+`endif
     assign HDMI_MCLK = audio_clk;
 `endif
 endmodule

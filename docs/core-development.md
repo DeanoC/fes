@@ -94,6 +94,62 @@ host library. Imported media must survive that restart without reimport.
 
 ## Optional input diagnostic
 
+### Build and play an original application: FES Catch
+
+`fes.catch` is a small ROM-less game using the existing `fes.application` 1.0
+ABI, `fes.gamepad` 1.0, fixed 720p60 video and signed stereo 48 kHz audio.
+It needs no BIOS, cartridge, per-core host/runtime branch, or factory-image
+entry. Its producer is registered in `config/core-recipes.toml` and uses the
+same authenticated HIP tools and functional build identity as other recipes.
+
+From a clean committed checkout, simulate and prepare it:
+
+```sh
+make -C sources/misteross sim-fes-demo
+mkdir -p out/core-dev
+make core-dev CORE_DEV_ARGS='prepare --core fes.catch --output out/core-dev/catch-001'
+```
+
+The simulation includes gameplay, audio CDC and the full shell: actual video
+frames advance the game, mailbox gamepad state moves the paddle, and a catch
+event reaches the board's I2S pins. Preparation performs synthesis, routing,
+timing/electrical checks and package sealing; simulation alone does not produce
+an RBF or prove board acceptance. `prepared.json` names the frozen archive and
+its package identity. A new output directory preserves each candidate.
+
+Install that archive using the ordinary library commands (substitute the
+archive path and package ID from the preparation receipt):
+
+```sh
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-install /absolute/path/catch.fcore
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-check PACKAGE_ID
+out/native-integration-dev/fogcast --api http://127.0.0.1:8787 core-entry 'FES Catch' PACKAGE_ID
+```
+
+On the designated leased kit, select the resulting entry in the normal library
+and Play. Left/Right move the blue paddle; opposing directions cancel. Catch
+white targets for a short stereo chime and a point. The six yellow lamps at
+the upper left show score bits worth 1, 2, 4, 8, 16 and 32 from left to right;
+score saturates at 63. Three green bars show remaining lives. Three misses
+end the game with a red background. A restarts; holding A does not repeatedly
+reset play. Stop uses the usual runtime lifecycle, clearing gameplay and sound.
+No progress is persisted by this example.
+
+Use the frozen-candidate acceptance command above with the Catch preparation
+receipt to verify import, launch, Stop and host-restart/relaunch separately from
+visible gameplay and audible HDMI checks. Compatibility must advertise every
+required interface before launch. Hardware acceptance is recorded separately;
+the unit and board simulations are not physical controller or HDMI evidence.
+
+To adapt the example, start with
+`sources/misteross/cores/fes-demo/rtl/fes_catch_game.v`. The game consumes the
+shared frame tick, normalized buttons and playfield coordinates. The thin
+`fes_catch_core.v` connects shared video, and `fes_catch_audio.v` synchronizes
+an event toggle into the audio domain before generating PCM samples. The
+shared application shell owns transport, reset and board wiring. Keep package
+identity/source closure in the producer, register another recipe for a new core
+ID, and leave network/session handling in the existing host and runtime.
+
 ### ZX81 keyboard quick-start
 
 With the selected toolchain/package cache available, prepare a new candidate:

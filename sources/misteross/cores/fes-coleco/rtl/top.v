@@ -5,7 +5,7 @@
 `endif
 
 // DE10-Nano shell for the reduced ColecoVision machine. The mailbox and
-// machine remain in the 52 MHz system domain; the logical frame buffer crosses
+// machine remain in the 52.224 MHz system domain; the logical frame buffer crosses
 // to the independent 74.25 MHz HDMI pixel domain in coleco_video_720p.
 module top #(
     parameter [127:0] BUILD_ID = `FES_COLECO_BUILD_ID
@@ -17,7 +17,8 @@ module top #(
     output wire        HDMI_TX_HS,
     output wire        HDMI_TX_VS,
     inout  wire        HDMI_I2C_SCL,
-    inout  wire        HDMI_I2C_SDA
+    inout  wire        HDMI_I2C_SDA,
+    output wire        HDMI_MCLK, HDMI_SCLK, HDMI_LRCLK, HDMI_I2S
 );
     wire clk_sys;
     wire pixel_clk;
@@ -37,6 +38,14 @@ module top #(
     wire [7:0] logical_y;
     wire [3:0] logical_pixel;
     wire logical_blank;
+    wire [15:0] audio_sample;
+    wire audio_clk, audio_locked;
+    fes_audio_output audio (
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked), .hold(exec_reset),
+        .left_sample(audio_sample), .right_sample(audio_sample),
+        .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
+    );
+    assign HDMI_MCLK = audio_clk;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -74,10 +83,10 @@ module top #(
     );
 `endif
 
-    sys_pll system_clock (
+    coleco_system_pll system_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(clk_sys)
+        .outclk_0(clk_sys), .audio_clk(audio_clk), .locked(audio_locked)
     );
 
     pixel_pll video_clock (
@@ -124,6 +133,7 @@ module top #(
         .vdp_status(),
         .cpu_addr_debug(),
         .cpu_halt_n(),
+        .audio_sample(audio_sample),
         .firmware_we_a(firmware_write_enable[0]),
         .firmware_we_b(firmware_write_enable[1]),
         .firmware_addr(firmware_write_addr),

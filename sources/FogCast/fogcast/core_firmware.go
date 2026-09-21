@@ -65,6 +65,18 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			return nil, mapCoreEntryError(err)
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
+		if expansions, ok := s.catalog.(coreExpansionCatalog); ok {
+			selected, err := expansions.CoreEntryExpansion(ctx, id)
+			if err != nil {
+				return nil, expansionError(err)
+			}
+			comp.ExpansionID = selected.ExpansionID
+			if selected.ExpansionID != "" {
+				asset, assetErr := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
+				inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
+				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
+			}
+		}
 		if !entry.FirmwareRequired {
 			comp.FirmwareReady = true
 			out[id] = comp

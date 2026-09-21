@@ -1,0 +1,29 @@
+[tool.yosys]
+repo = "https://github.com/DeanoC/yosys.git"
+commit = "ec34fcf38986217af9b5558936044b7197d968a7"
+order = 10
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr d672fade; published DeanoC/yosys main merge."
+
+[tool.mistral]
+repo = "https://github.com/DeanoC/mistral.git"
+commit = "18db2489a63bd9fcfbb7ba727ac194e767e7dce3"
+order = 20
+rationale = "Reviewed Mistral PR #3 adds const physical routing-mux CRAM footprints and device dimensions on b28e30a. Exact seven offending muxes and 14 observed outside bits are covered by the standalone regression. Scoped ZX81 cart routing uses this API to enforce the fixed socket CRAM boundary; default and registered-memory locks retain their qualified library revisions."
+
+[tool.nextpnr]
+repo = "https://github.com/DeanoC/nextpnr.git"
+commit = "74f26cc1a5554a70cfca89be27850ec90f857030"
+order = 30
+rationale = "Reviewed nextpnr PR #73 preserves explicit socket clocks, bound shell RAM/constants, correct BUF LUT emission, validated complete pin/LAB snapshots and isolated frozen LAB placement. Revision 74f26cc1 adds a physical routing-mux CRAM fence and local cart constant drivers. The real sealed ZX81 shell plus RAM cart passes HIP routing, both declared clocks, identical header and zero outside-slot non-CRC differences. Published scoped feature revision; hardware acceptance is separate. Requires Mistral 18db248 and Yosys ec34fcf3. Default and registered-memory lanes remain separately pinned."
+
+[tool.verilator]
+repo = "https://github.com/verilator/verilator.git"
+commit = "5e4151e3e0c8ecf11d9845a93495f37a31b2f667"
+order = 40
+rationale = "Current lint and simulation baseline sampled 2026-08-26."
+
+[tool.openfpgaloader]
+repo = "https://github.com/trabucayre/openFPGALoader.git"
+commit = "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86"
+order = 50
+rationale = "Current DE10-Nano programmer baseline sampled 2026-08-26."

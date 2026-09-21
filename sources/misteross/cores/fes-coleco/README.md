@@ -9,7 +9,7 @@ retail-game compatibility.
 
 ## Implemented first slice
 
-- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
+- Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain.
 - Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
   16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
@@ -26,7 +26,12 @@ retail-game compatibility.
   keypad keys and two fire buttons through shared native controller ports.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio, expansion hardware, bank switching, full VDP modes,
+- TI SN76489A tone/noise synthesis at ports E0–FF with shared 48 kHz stereo
+  HDMI output. `make sim-fes-coleco-audio` checks PSG and coherent PCM transfer.
+  System/audio clocks share one 52.224/12.288 MHz PLL; the CPU/raster cadence is
+  0.43% faster than the earlier 52 MHz profile, while HDMI pixel timing is fixed.
+
+Expansion hardware, bank switching, full VDP modes,
 and cycle-perfect clocking remain outside this first slice. Native host/runtime
 selection follows the declared interfaces. Graphics II supports screen-third
 pattern/color addressing and register masks. The bounded sprite path includes
@@ -62,9 +67,14 @@ Quartus and OSS producers set `ENABLE_FIRMWARE=1` on `coleco_application_gp`.
 The shared mailbox then advertises capability bit 7 and accepts opcodes 15–17
 for an exact 8192-byte overlay while reset is held. Writes land in the machine's
 firmware dual-port RAM at `0x0000–0x1fff`. Firmware commit does not release
-execution; cartridge media still owns release. Host simulations leave
+execution; cartridge media still owns release. Existing video board simulations leave
 `ENABLE_FIRMWARE` at its RTL default 0, so they keep the open shim and do not
-advertise firmware. The default package declares `fes.firmware.blob` 1.0
+advertise firmware. `make sim-fes-coleco-firmware` and its `-oss` variant
+enable the production endpoint and connect it to the real machine RAM/CPU.
+They check every uploaded byte, malformed and incomplete transfers, reset
+ordering, and execution of an open test firmware that writes CPU RAM and
+halts. Both run with the normal Coleco unit suites; they use no private BIOS.
+The default package declares `fes.firmware.blob` 1.0
 optional so BIOS-free Graphics I titles share the firmware-capable bitstream.
 Household firmware binds at launch through FogCast/runtime; BIOS bytes stay
 out of git. Firmware mailbox behavior is software-tested; hardware acceptance
@@ -424,7 +434,7 @@ rejects a CPU-reference fallback in the route log. The seed is sealed with
 the recipe's build record because the embedded `BUILD_ID` changes the
 placement search space. The GPU router may report an early timing shortfall
 before its final repair pass, so the allowance lets routing complete while the
-recipe still requires the final structured 52 MHz and 74.25 MHz timing rows to
+recipe still requires the final structured 52.224 MHz, 74.25 MHz and 12.288 MHz timing rows to
 pass. Quartus does not consume the OSS lock or GPU toolchain.
 Neither build command programs hardware.
 

@@ -6,6 +6,7 @@
 #include "native/artifacts.hpp"
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
+#include "native/core_composition.hpp"
 #include "native/core_data.hpp"
 #include "native/core_loader.hpp"
 #include "native/diagnostic.hpp"
@@ -131,6 +132,8 @@ public:
 	CoreRecipe recipe_;
 	std::unique_ptr<CoreDataFile> data_file_;
 	CoreData data_;
+	std::unique_ptr<OpenedCoreComposition> composition_;
+	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
 } // namespace
@@ -388,6 +391,22 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	return {};
 }
 
+Error NativeHardware::AdmitCoreComposition(const std::string& directory,
+	const std::string& id, const CoreCompositionRequest& request,
+	std::unique_ptr<AdmittedCorePackage>* output)
+{
+	if (!output) return {ErrorCode::invalid_request, "missing admitted composition output", "request"};
+	std::unique_ptr<AdmittedCorePackage> package;
+	Error error=AdmitCorePackage(directory,id,&package);
+	if (!error.ok()) return error;
+	auto* native=dynamic_cast<NativeAdmittedCore*>(package.get());
+	std::unique_ptr<OpenedCoreComposition> composition(new OpenedCoreComposition);
+	error=OpenCoreComposition(package_roots_,native->opened_,request,composition.get());
+	if (!error.ok()) return error;
+	native->composition_=std::move(composition);
+	*output=std::move(package);return {};
+}
+
 Error NativeHardware::InspectCorePackage(const std::string& directory,
 	const std::string& expected_id, CorePackageInspection* output)
 {
@@ -560,6 +579,7 @@ Capabilities NativeHardware::capabilities() const
 		computer.major = generated::FesSimpleComputerABIMajor;
 		computer.minor = generated::FesSimpleComputerABIMinor;
 		computer.interfaces = {
+			{"fes.expansion.zx81-ram", 1, 0},
 			{generated::FesSimpleComputerInterfaceKeyboardID,
 				generated::FesSimpleComputerInterfaceKeyboardMajor,
 				generated::FesSimpleComputerInterfaceKeyboardMinor},
@@ -688,6 +708,7 @@ HardwareResult NativeHardware::LoadCore(
 		return {{ErrorCode::invalid_request,
 			"invalid admitted core package", "request"}, false, ""};
 	Error error = RecheckCorePackage(admitted->opened_);
+	if (error.ok() && admitted->composition_) error=RecheckCoreComposition(*admitted->composition_);
 	if (error.ok()) error = CheckCoreCompatibility(admitted->opened_.descriptor);
 	if (!error.ok()) return {error, false, ""};
 	ProgrammingProfile checked_profile;
@@ -734,7 +755,8 @@ HardwareResult NativeHardware::LoadCore(
 		return {stopped.ok() ? quiesced.error : WithPhase(stopped, "input"),
 			quiesced.mutation_attempted, quiesced.observed_core};
 	}
-	const NativeResult programmed = fpga_.Program(admitted->opened_.payload,
+	const NativeResult programmed = fpga_.Program(admitted->composition_ ?
+		admitted->composition_->payload : admitted->opened_.payload,
 		admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {

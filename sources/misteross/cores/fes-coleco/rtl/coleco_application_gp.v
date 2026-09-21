@@ -23,7 +23,7 @@ module coleco_application_gp #(
     wire [1:0] write_enable;
     fes_application_gp #(.ENABLE_CONTROLLER_PORTS(1), .ENABLE_KEYPAD_PORTS(1),
                           .ENABLE_MEDIA(1), .ENABLE_MEDIA_STREAM(1),
-                          .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
+                          .ENABLE_AUDIO(1), .ENABLE_FIRMWARE(ENABLE_FIRMWARE)) endpoint (
         .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
         .exec_reset(exec_reset), .buttons(),
         .controller_buttons(controller_buttons), .controller_keypad(controller_keypad),

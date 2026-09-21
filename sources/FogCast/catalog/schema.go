@@ -11,7 +11,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 const schemaV8 = `
 CREATE TABLE core_media_chunks (
@@ -162,6 +162,19 @@ CREATE TABLE core_firmware (
 PRAGMA user_version = 9;
 `
 
+const schemaV10 = `
+CREATE TABLE core_expansions (
+  expansion_id TEXT PRIMARY KEY,
+  media_id TEXT NOT NULL REFERENCES core_media(media_id),
+  shell_package_id TEXT NOT NULL
+);
+CREATE TABLE core_entry_expansions (
+  game_id TEXT PRIMARY KEY REFERENCES core_entries(game_id) ON DELETE CASCADE,
+  expansion_id TEXT NOT NULL REFERENCES core_expansions(expansion_id)
+);
+PRAGMA user_version = 10;
+`
+
 func migrateCoreMedia(ctx context.Context, connection *sql.Conn) error {
 	if _, err := connection.ExecContext(ctx, schemaV7); err != nil {
 		return err
@@ -258,6 +271,12 @@ func migrate(ctx context.Context, connection *sql.Conn) (err error) {
 	if version == 8 {
 		if _, err := connection.ExecContext(ctx, schemaV9); err != nil {
 			return fmt.Errorf("apply catalog schema version 9: %w", err)
+		}
+		version = 9
+	}
+	if version == 9 {
+		if _, err := connection.ExecContext(ctx, schemaV10); err != nil {
+			return fmt.Errorf("apply catalog schema version 10: %w", err)
 		}
 	}
 	if _, err := connection.ExecContext(ctx, "COMMIT"); err != nil {

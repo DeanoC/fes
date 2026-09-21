@@ -1414,7 +1414,17 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+		if selected.composition != nil {
+			composed, ok := client.(interface {
+				LoadComposedCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
+			})
+			if !ok {
+				return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
+			}
+			status, err = composed.LoadComposedCore(ctx, size, content, selected.entry.PackageID)
+		} else {
+			status, err = library.LoadLibraryCore(ctx, size, content, selected.entry.PackageID)
+		}
 	} else {
 		status, err = loader.LoadCore(ctx, size, content)
 	}
@@ -1434,7 +1444,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 
-	if selected.entry != nil && status.CorePackage.PackageID != selected.entry.PackageID {
+	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !reflect.DeepEqual(status.CorePackage.Composition, selected.composition)) {
 		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
 		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
 		recovered, stopErr := client.Stop(recoveryCtx)
@@ -1801,7 +1811,21 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	}
 	s.executionMu.Unlock()
 	stage = "target_stop"
-	status, err := client.Stop(ctx)
+	var status protocol.Status
+	var err error
+	idleWithoutLease := false
+	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
+		if lease := leased.KitLease(); lease != nil && !lease.Held() {
+			// A launch rejected before dispatch has no grant to stop with.
+			// Confirm clean idle without claiming the kit or mutating a peer's
+			// session. Unreachable, active or recovery states still fail closed.
+			status, err = client.Status(ctx)
+			idleWithoutLease = err == nil && validRecoveredDevelopmentStatus(status) && status.CorePackage == nil
+		}
+	}
+	if !idleWithoutLease {
+		status, err = client.Stop(ctx)
+	}
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
 		if targetDeadlineExpired && ambiguousTargetMutationError(err) && activeExecution != ExecutionFPGADevelopment {

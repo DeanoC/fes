@@ -10,6 +10,7 @@ MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
 LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms')
+EXPANSION_ROOT = 'sources/misteross/expansion'
 
 
 # Keep this software suite shared with test_changed. A producer edit validates
@@ -22,6 +23,7 @@ FPGA_SOFTWARE_TESTS = (
     'test_coleco_sim_shards.py',
 )
 FPGA_PRODUCER_HELPERS = {
+    'build_fes_catch.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'legacy_source.py', 'functional_execution.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
@@ -44,7 +46,8 @@ SHARED_RTL = {
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco'),
     'fes_video_720p.v': ('demo', 'pong'),
-    'fes_audio_i2s.v': ('demo',), 'fes_audio_pll.v': ('demo',),
+    'fes_audio_i2s.v': ('demo', 'coleco'), 'fes_audio_pll.v': ('demo',),
+    'fes_audio_output.v': ('coleco',), 'fes_sn76489.sv': ('coleco',),
 }
 
 
@@ -101,6 +104,10 @@ def plan(paths):
     reasons = []
     for path in sorted(set(paths)):
         if documentation(path):
+            continue
+        if path == EXPANSION_ROOT or path.startswith(EXPANSION_ROOT + '/'):
+            selected.update(('parent', 'host'))
+            reasons.append(f'{path}: shared Go expansion linker and host/target consumers; RTL unchanged')
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)

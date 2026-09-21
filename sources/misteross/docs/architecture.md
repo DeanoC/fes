@@ -89,6 +89,15 @@ claimed by these host-side identity and exporter tests.
 
 ### Composable application reference
 
+`fes.catch` is an original ROM-less application using the same shell and ABI.
+`fes_catch_game.v` advances paddle/target/score/lives state only on the shared
+video frame tick; `fes_catch_core.v` supplies the shared raster. A synchronized
+event toggle triggers a bounded stereo chime in `fes_catch_audio.v`, which
+uses `fes_audio_i2s.v` and the existing audio PLL. The Catch producer reuses
+the demo's board command/electrical checks and seals a functional-identity v2
+package. `make sim-fes-demo` covers gameplay, event audio and board mailbox
+integration. It adds no host/runtime core allowlist or factory package.
+
 `cores/fes-common/rtl/fes_application_gp.v` implements the new
 `fes.application` 1.0 mailbox (ABI tag 3). It preserves the existing GPO/GPI
 framing but does not present a keyboard or Pong-specific persistence service.
@@ -185,6 +194,42 @@ work. The autonomous and palette variants remain silent and keep their existing
 single-PLL configuration and board ports.
 
 ### Shared application audio
+
+Coleco also declares `fes.audio.pcm-s16-stereo-48k` and capability bit 4.
+Its shared `fes_sn76489.sv` consumes a one-cycle write strobe, chip-clock enable
+and data byte; console address decoding stays in `coleco_machine.sv`. Three
+10-bit tone dividers and a TI 15-bit noise register feed a signed 16-bit mono
+mix with 2 dB attenuation steps, duplicated into stereo. The programmable
+interface follows the [TI SN76489AN data sheet](https://map.grauw.nl/resources/sound/texas_instruments_sn76489an.pdf).
+The level table and latch/data approach reuse the earlier SMS implementation
+from misteross commit `6f56a8f`; Coleco uses TI SN76489A noise feedback/output
+delay and a period-zero reload of 1024, following the hardware-verified
+[MAME chip implementation](https://github.com/mamedev/mame/blob/master/src/devices/sound/sn76496.cpp).
+A fractional enable produces an
+average 3,579,545 Hz chip clock from the 52.224 MHz system clock. This preserves
+audio pitch independently of the reduced machine's CPU/video cadence.
+
+`fes_audio_output.v` connects system-domain signed stereo samples to the
+existing audio-domain serializer. A request/acknowledge handshake captures and
+holds both words together; only handshake bits pass through synchronizers.
+The source clock must continue running. One transfer is requested per stereo
+frame; the completed snapshot becomes a later output frame (bounded latency,
+not an audio FIFO). HOLD synchronizes into the audio domain and substitutes
+zero, while PLL unlock gates data immediately and resets framing. Transfer
+state survives lock loss to avoid interpreting a stale acknowledgement as a
+new sample. The custom tone demo remains a native audio-clock source and needs
+no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
+417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
+the separate video PLL. This raises the reduced CPU and logical raster cadence
+by 0.43% from the old 52 MHz profile; the CPU remains /16 (3.264 MHz), not
+cycle-accurate NTSC. HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
+The producer checks all three timing domains and each audio output pad before
+packaging. SG-1000/SMS keep their existing shared 52 MHz system PLL.
+
+`make sim-fes-coleco-audio` checks tone periods, attenuation, noise, coherent
+asynchronous stereo transfer, serial padding, hold and lock loss. The existing
+machine tests execute Z80 PSG OUT instructions in both memory timing models.
+These are host simulations, not proof of audible HDMI output on a receiver.
 
 The audio variant declares required `fes.audio.pcm-s16-stereo-48k` 1.0 and
 advertises application capability bit 4. It uses the existing execution hold
@@ -2149,7 +2194,12 @@ Commands, cart-authoring rules and kit probes live in the README
 [Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges)
 section. `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `d672fade` provides those flags after `make toolchain-fes`.
+The locked nextpnr `30ac6f47` provides those flags after `make toolchain-fes`.
+It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
+the earlier `d672fade` emitter could write all-ones masks despite successful
+simulation and timing. The selected PR #73 revision has an emitted-bitstream
+regression covering buffers, inversions, ordinary LUTs and initialized MLABs.
+That compiler regression does not replace hardware acceptance of rebuilt cores.
 `NEXTPNR_MISTRAL` overrides the binary. This path does not seal `fes.zx81`
 and is not FogCast format-3.
 
@@ -2491,6 +2541,38 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
+The independent ZX81 RAM-cart producer reloads an already routed shell with
+`--no-pack`, so it writes a separate generated SDC that explicitly constrains
+`clk_sys` to 52 MHz and `pixel_clk` to 74.25 MHz. Its recipe records those
+requirements and the SDC digest. Publication requires both clocks to meet
+their nominal and reported constraints, with only the existing picosecond
+quantization tolerance when identifying the reported frequencies. This does
+not change the sealed base shell or infer requirements from achieved Fmax.
+The cart route also receives the fixed `fes.zx81-ram.socket/1` CRAM rectangle
+`1769,32,2806,7024` (exclusive upper bounds). The scoped compiler queries Mistral
+for each routing mux's physical configuration bits; nominal wire/tile locations
+do not determine those bits for long wires. Existing shell pip selections remain
+fixed, and new muxes must fit the rectangle, including shared-net branches.
+Surviving cart constant inputs use local slot LUT drivers after control folding,
+so they do not depend on extending distant shell constant trees. Publication
+still compares the complete emitted header and CRAM against the original sealed
+shell and refuses any non-CRC change outside the fixed rectangle.
+The shared Go linker validates canonical frames directly in their encoded
+column order, including all padding, first/last markers, EDCRC and outer CRC16.
+The fixed socket spans every payload row (32 through 7023), so linking can copy
+whole validated columns without repeatedly transposing the full CRAM bit matrix.
+Outside columns must match except for the existing named CRC companion strips;
+those strips retain the base shell's bytes. CRC16 uses a table checked against
+the original bitwise algorithm. Golden Python output, a reference bit overlay,
+malformed frames and compressed/uncompressed input ownership tests preserve the
+previous byte and admission contracts.
+
+On the designated ARM kit, the exact sealed shell and RAM asset measured about
+59.7 seconds for staging and 60.2 seconds for restart adoption with the original
+transposing implementation. Direct frame validation reduced those measurements
+to 7.9 and 7.4 seconds, with identical linked bytes and composition identity.
+This is a host/target validation benchmark, not FPGA hardware acceptance; it
+does not extend request deadlines or bypass target recomposition.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,
