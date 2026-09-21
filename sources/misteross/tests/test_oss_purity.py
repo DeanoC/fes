@@ -150,6 +150,11 @@ class OssPipelinePurityTests(unittest.TestCase):
             "experiments/901_plugged_base/rtl/top.v",
             "experiments/901_plugged_base/pins.qsf",
             "experiments/903_wide_cart/rtl/cart.v",
+            "experiments/904_zx81_socket/rtl/top.v",
+            "experiments/904_zx81_socket/pins.qsf",
+            "experiments/905_zx81_ram16/rtl/cart.v",
+            "experiments/906_zx81_zonx/rtl/cart.v",
+            "experiments/907_zx81_qs_chrs/rtl/cart.v",
         ):
             destination = repository / relative
             destination.parent.mkdir(parents=True, exist_ok=True)

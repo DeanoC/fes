@@ -1,5 +1,8 @@
-// The real ZX81 CPU/ULA and RAM socket, with an independently built pack's
-// logical interface. This is behavioral acceptance, not CRAM-link evidence.
+// The real ZX81 CPU/ULA and expansion edge, with an independently built
+// pack's logical interface. This is behavioral acceptance, not CRAM-link
+// evidence. PACK_PRESENT=0 keeps the vacant 1 KiB even if the pack netlist
+// is linked for simulation.
+`include "zx81_bus_pack.vh"
 module expansion_machine #(
     parameter PACK_PRESENT = 0
 ) (
@@ -14,29 +17,52 @@ module expansion_machine #(
     input wire [15:0] peek_addr,
     output wire [7:0] peek_data
 );
-    wire [13:0] address, pack_address, pack_peek_address;
-    wire [7:0] write_data, read_data, pack_write_data, pack_data, pack_peek_data;
-    wire write_enable, pack_write_enable;
-    wire pack_present;
+    wire [15:0] bus_addr;
+    wire [7:0] bus_wdata, bus_rdata, bus_peek_data;
+    wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n;
+    wire bus_dsel, bus_romcs, bus_wait, socket_ram_present;
+    wire [`ZX81_BUS_REQ-1:0] plug_addr;
+    wire [`ZX81_BUS_RSP-1:0] cart_rdata, plug_rdata;
     zx81_machine #(.EXTERNAL_RAM(1)) machine (
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
         .tape_addr_out(tape_addr_out), .ce_6m5(ce_6m5), .video_pixel(video_pixel),
         .hblank(hblank), .vblank(vblank), .hsync_out(hsync_out), .vsync_out(vsync_out),
-        .halt_n(halt_n), .cpu_addr(cpu_addr), .peek_addr(peek_addr), .peek_data(),
-        .ram_address(address), .ram_write_data(write_data), .ram_write_enable(write_enable),
-        .external_ram_data(read_data), .external_peek_data(peek_data)
+        .halt_n(halt_n), .cpu_addr(cpu_addr), .peek_addr(peek_addr), .peek_data(peek_data),
+        .ram_address(), .ram_write_data(), .ram_write_enable(),
+        .external_ram_data(8'b0), .external_peek_data(8'b0),
+        .bus_addr(bus_addr), .bus_wdata(bus_wdata),
+        .bus_mreq_n(bus_mreq_n), .bus_iorq_n(bus_iorq_n),
+        .bus_rd_n(bus_rd_n), .bus_wr_n(bus_wr_n),
+        .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
+        .bus_rdata(bus_rdata), .bus_peek_data(bus_peek_data),
+        .bus_dsel(bus_dsel), .bus_romcs(bus_romcs),
+        .bus_wait(bus_wait), .bus_ram_present(PACK_PRESENT != 0 && socket_ram_present)
     );
     zx81_ram_socket socket (
-        .clock(clk_sys), .address(address), .write_data(write_data), .write_enable(write_enable),
-        .peek_address(peek_addr[13:0]), .read_data(read_data), .peek_data(peek_data),
-        .pack_present(PACK_PRESENT != 0 && pack_present), .pack_data(pack_data), .pack_peek_data(pack_peek_data),
-        .pack_address(pack_address), .pack_write_data(pack_write_data),
-        .pack_write_enable(pack_write_enable), .pack_peek_address(pack_peek_address)
+        .clock(clk_sys),
+        .cpu_addr(bus_addr),
+        .cpu_wdata(bus_wdata),
+        .cpu_mreq_n(bus_mreq_n),
+        .cpu_iorq_n(bus_iorq_n),
+        .cpu_rd_n(bus_rd_n),
+        .cpu_wr_n(bus_wr_n),
+        .cpu_m1_n(bus_m1_n),
+        .cpu_rfsh_n(bus_rfsh_n),
+        .peek_address(peek_addr[13:0]),
+        .bus_rdata(bus_rdata),
+        .bus_peek_data(bus_peek_data),
+        .bus_dsel(bus_dsel),
+        .bus_romcs(bus_romcs),
+        .bus_wait(bus_wait),
+        .bus_ram_present(socket_ram_present),
+        .plug_addr(plug_addr),
+        .plug_rdata_in(cart_rdata),
+        .plug_rdata(plug_rdata)
     );
     cart pack (
         .FPGA_CLK1_50(clk_sys),
-        .plug_addr({pack_peek_address, pack_write_enable, pack_write_data, pack_address}),
-        .plug_rdata({pack_present, pack_peek_data, pack_data})
+        .plug_addr(plug_addr),
+        .plug_rdata(cart_rdata)
     );
 endmodule

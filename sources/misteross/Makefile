@@ -59,6 +59,7 @@ help:
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
+		"  sim-fes-zx81-expansion  Test vacant 1 KiB and 16 KiB pack RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-unit[-oss]  Run focused Coleco unit/CPU simulations" \
@@ -132,13 +133,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
 
 stage-pong:
 	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
@@ -196,8 +197,28 @@ sim-fes-pong:
 		cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/fes-pong/sim/board_tb.cpp"
 	@build/sim/fes-pong-board/Vtop
 
-.PHONY: sim-fes-zx81-expansion
-sim-fes-zx81-expansion:
+.PHONY: sim-fes-zx81-bus sim-fes-zx81-expansion
+sim-fes-zx81-bus:
+	$(require_local_sim)
+	@for cart in ram16k zonx qs_chrs; do \
+		name=$$cart; if [ $$cart = qs_chrs ]; then name=qs; fi; \
+		mkdir -p build/sim/fes-zx81-bus-$$name; \
+		$(VERILATOR) --cc --exe --build --top-module expansion_bus_harness -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
+		-Wno-PINCONNECTEMPTY -Wno-DECLFILENAME -Wno-UNUSEDPARAM \
+		-Wno-SIMILARNAME \
+		-Icores/fes-zx81/rtl -Icores/fes-zx81/expansions \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-bus-$$name" \
+		cores/fes-zx81/sim/expansion_bus_harness.v \
+		cores/fes-zx81/expansions/$$cart.v \
+		experiments/901_plugged_base/sim/mistral_ff_model.v \
+		cores/fes-zx81/rtl/zx81_ram_socket.v cores/fes-zx81/rtl/zx81_dpram.v \
+		cores/fes-zx81/rtl/zx81_ram_pack.v \
+		"$(CURDIR)/cores/fes-zx81/sim/bus_tb.cpp" || exit $$?; \
+		build/sim/fes-zx81-bus-$$name/Vexpansion_bus_harness $$name || exit $$?; \
+	done
+
+sim-fes-zx81-expansion: sim-fes-zx81-bus
 	$(require_local_sim)
 	@for pack in 0 1; do \
 		mkdir -p build/sim/fes-zx81-expansion-$$pack; \
@@ -206,8 +227,8 @@ sim-fes-zx81-expansion:
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/rtl/tv80 \
+		-Wno-CASEX -Wno-BLKSEQ -Wno-SIMILARNAME $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-zx81/rtl -Icores/fes-zx81/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$pack" \
 		cores/fes-zx81/sim/expansion_machine.v \
 		cores/fes-zx81/expansions/ram16k.v \

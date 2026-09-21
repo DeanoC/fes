@@ -1,0 +1,5 @@
+# Clock pin plus the ZX81 expansion socket. Write plugs sit in columns 23 and 29.
+# Taller reserved rect fits a 16K pack (sixteen M10Ks in column 26).
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -entity top -to FPGA_CLK1_50
+set_global_assignment -name FES_RESERVED_RECT "25 1 27 32"

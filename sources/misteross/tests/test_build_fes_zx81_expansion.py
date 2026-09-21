@@ -16,7 +16,7 @@ from scripts import zx81_expansion as expansion
 class ZX81SocketProducerTests(unittest.TestCase):
     def fixture(self):
         cells = {}
-        requests = list(range(10, 47))
+        requests = list(range(10, 54))
         for name, bel in expansion.socket_bels().items():
             connection = {"CLK": [2], "Q": [100]}
             if name.startswith("plug_addr_ff_"):
@@ -35,7 +35,9 @@ class ZX81SocketProducerTests(unittest.TestCase):
             path.write_text(json.dumps(before))
             expansion.prepare_shell_netlist(path)
             cells = json.loads(path.read_text())["modules"]["top"]["cells"]
-        self.assertEqual(len(cells), 54)
+        self.assertEqual(expansion.REQUEST_BITS, 44)
+        self.assertEqual(expansion.RESPONSE_BITS, 20)
+        self.assertEqual(len(cells), 64)
         self.assertEqual(set(cells), set(expansion.socket_bels()))
         for name, cell in cells.items():
             self.assertEqual(cell, before["modules"]["top"]["cells"][expansion.SOCKET_PREFIX + name])
@@ -70,12 +72,31 @@ class ZX81SocketProducerTests(unittest.TestCase):
         shell, route = producer.build_commands(root, root / producer.SOCKET_OUTPUT_RELATIVE,
                                                "a" * 32, tools, socketed=True)
         self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
+        self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
         self.assertIn("build/fes-zx81-socket/synth.json", shell[-1])
         self.assertIn("build/fes-zx81-socket/socket.qsf", route)
         self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
         fixed, _ = producer.build_commands(root, root / producer.OUTPUT_RELATIVE, "a" * 32, tools)
         self.assertNotIn("chparam -set EXPANSION_SOCKET", fixed[-1])
         self.assertIn("build/fes-zx81-oss/synth.json", fixed[-1])
+
+    def test_library_carts_use_the_z80_edge_packing(self):
+        root = Path(__file__).resolve().parents[1]
+        pack = (root / "cores/fes-zx81/rtl/zx81_bus_pack.vh").read_text()
+        self.assertIn("`define ZX81_BUS_REQ 44", pack)
+        self.assertIn("`define ZX81_BUS_RSP 20", pack)
+        ram = (root / "cores/fes-zx81/expansions/ram16k.v").read_text()
+        zonx = (root / "cores/fes-zx81/expansions/zonx.v").read_text()
+        qs = (root / "cores/fes-zx81/expansions/qs_chrs.v").read_text()
+        self.assertIn("cpu_a[15:14] == 2'b01", ram)
+        self.assertIn("ZX81_BUS_RAM_PRESENT", pack)
+        self.assertIn("8'h8f", zonx)
+        self.assertIn("8'h0f", zonx)
+        self.assertIn("6'h21", qs)
+        machine = (root / "cores/fes-zx81/rtl/zx81_machine.sv").read_text()
+        self.assertIn("bus_dsel", machine)
+        self.assertIn("bus_romcs", machine)
+        self.assertIn("bus_ram_present", machine)
 
 
 class ZX81CartPublicationTests(unittest.TestCase):

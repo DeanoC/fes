@@ -2113,7 +2113,12 @@ BEL-locked outside reserved rect `25 1 27 16` (addr column 24, rdata
 `MISTRAL_FF.28.1.2` through `28.10.2`). GPI is
 `{SIGNATURE, plug_addr[5:0], plug_rdata}`. `900_expansion_bus` is cart A:
 one reserved M10K and the closed INIT oracle. `903_wide_cart` is cart B:
-four reserved M10Ks and a 2-bit decode on `plug_addr[11:10]`. Pass-1 P&R
+four reserved M10Ks and a 2-bit decode on `plug_addr[11:10]`.
+`904_zx81_socket` is the ZX81 expansion socket (`0xD904`) with write-data
+and mem/I/O strobe plugs and reserved rect `25 1 27 32`. `905_zx81_ram16`
+is a Sinclair `4000–7FFF` pack. `906_zx81_zonx` is a Zon X-81 AY
+register file. `907_zx81_qs_chrs` is the QS Character Board window at
+`8400–87FF`. Pass-1 P&R
 writes the 901 scaffold; pass-2 `--fes-scaffold --fes-cart` merges cart
 JSON, stitches plugs from those FF Q ports (Yosys aliases `plug_addr[5:0]`
 onto `gp_in[15:10]`), and routes the socket. `scripts/link_static_rbf.py`
@@ -2187,6 +2192,7 @@ then copies CRAM for tile columns 21–33
 (`experiments/901_plugged_base/link.toml`, `overlay_mode = "cram_rect"`,
 `require_slot_only`) onto the pass-1 shell and refuses bits outside that
 rectangle. Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
+A taller 904 occupancy also flips companion strips 43, 46, 47 and 50.
 `overlay_mode = "m10k_ram"` remains INIT-only for the 890/891/892 isolation
 trio.
 
@@ -2200,7 +2206,8 @@ the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
 regression covering buffers, inversions, ordinary LUTs and initialized MLABs.
 That compiler regression does not replace hardware acceptance of rebuilt cores.
-`NEXTPNR_MISTRAL` overrides the binary. This path does not seal `fes.zx81`
+`NEXTPNR_MISTRAL` overrides the binary. ZX81 carts compose onto
+`904_zx81_socket` with the same linker. This path does not seal `fes.zx81`
 and is not FogCast format-3.
 
 ## FES ColecoVision first slice
@@ -2541,14 +2548,32 @@ HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 The QSF omits Quartus `HPS_LOCATION`; the SDC constrains only the 50 MHz
 reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
-The independent ZX81 RAM-cart producer reloads an already routed shell with
+The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
 `clk_sys` to 52 MHz and `pixel_clk` to 74.25 MHz. Its recipe records those
 requirements and the SDC digest. Publication requires both clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
-The cart route also receives the fixed `fes.zx81-ram.socket/1` CRAM rectangle
+Socketed shells export a registered Z80-like edge (44-bit request, 20-bit
+response). Vacant response FFs hold 0, so ROMCS/WAIT/DSEL/RAM_PRESENT are
+active-high from the cart. CPU writes on that edge use TDP `A1WE` like the
+16 KiB pack; mixed-width `A1EN`/`A1BE` decoded but did not hold `POKE`/`OUT`.
+Cart M10K keep a distinct top clock port (`FPGA_CLK1_50`) so
+`--fes-slot-clock clk_sys` can splice the inferred IB onto the shell 52 MHz
+net; naming that port `clk_sys` leaves M10K on the pad output. During `/RFSH` the shell presents the ULA character-ROM address as the QS
+`8400–87FF` window so the same 1 KiB cell supplies glyphs. QS power-up
+loads Sinclair glyphs 0–63 (ROM `1E00–1FFF`) into that cell so boot text
+is readable; CPU writes still replace rows. The shifter loads a
+registered `rfsh_chr` hold that keeps the first ROMCS byte; `/RFSH` is
+not muxed into `cpu_din` (that loop stopped the FES GP mailbox). The 16 KiB pack is
+the first library cart on that edge; Zon X and QS Character Board RTL share
+the plugs but are not library assets yet. Zon X channel A is a digital square
+on `peek_d` (R0/R1 period, R7 enable, R8 level); the shell mixes that sample
+into HDMI I2S0 when `RAM_PRESENT` is 0. Channel A period uses nested 4-bit
+LUT counters so the cart does not place `ALUT_ARITH` carry in the slot.
+Diagnostic 904–907 remains an HPS bench and does not seal
+`fes.zx81`. The cart route also receives the fixed `fes.zx81-ram.socket/1` CRAM rectangle
 `1769,32,2806,7024` (exclusive upper bounds). The scoped compiler queries Mistral
 for each routing mux's physical configuration bits; nominal wire/tile locations
 do not determine those bits for long wires. Existing shell pip selections remain

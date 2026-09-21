@@ -155,7 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shell-json", type=Path, required=True)
     parser.add_argument("--shell-rbf", type=Path, required=True)
-    parser.add_argument("--cart", required=True, help="cart experiment name (900_expansion_bus or 903_wide_cart)")
+    parser.add_argument(
+        "--cart",
+        required=True,
+        help="cart experiment name (900_expansion_bus, 903_wide_cart, or 905/906/907 ZX81 carts)",
+    )
     parser.add_argument("--map", type=Path, default=ROOT / "experiments/901_plugged_base/link.toml")
     parser.add_argument("--qsf", type=Path, default=ROOT / "experiments/901_plugged_base/pins.qsf")
     parser.add_argument("--sdc", type=Path, default=ROOT / "boards/de10nano/clocks.sdc")

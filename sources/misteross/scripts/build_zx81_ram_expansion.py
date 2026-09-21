@@ -25,7 +25,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
-INPUTS = SOURCES + ("scripts/build_zx81_ram_expansion.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_ram_expansion.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
@@ -86,7 +86,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     (output / "clocks.sdc").write_bytes(clock_constraints)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
     commands = [
-        [str(tools["yosys"].path), "-p", f"read_verilog -sv {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
+        [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-zx81/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(shell / "routed.json"), "--device", "5CSEBA6U23I7",
          "--qsf", str(shell / "socket.qsf"), "--sdc", str(output / "clocks.sdc"), "--freq", "52",
          "--fes-scaffold", "--fes-cart", str(output / "cart.json"), "--fes-slot-clock", "clk_sys",

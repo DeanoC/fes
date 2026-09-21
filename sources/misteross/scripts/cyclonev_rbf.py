@@ -37,7 +37,9 @@ class DieInfo:
     # Pinned Mistral b28e30a sx120f constants from libmistral/cvd-sx120f.cc.
     # Column 42 is the documented ECC strip. Columns 41/45/49 sit on
     # noedcrc_zones (3491, ~3920, 4174) and only change as ~1024-row CRC
-    # companions of socket CRAM; they are not routing.
+    # companions of socket CRAM; they are not routing. A taller 16-cell
+    # occupancy also flips the neighbouring CRC strips 43/47/50 on the same
+    # ~1024-row cadence; those bits are rewritten when the RBF is saved.
 SX120F = DieInfo(
     name="sx120f",
     cram_sx=7605,
@@ -75,7 +77,7 @@ SX120F = DieInfo(
         6159, 6218, 6277, 6353, 6412, 6471, 6527, 6827, 6891, 6967,
         7026, 7085, 7144, 7220, 7279, 7355, 7416, 7448, 7524, 7583,
     ),
-    ecc_columns=(41, 42, 45, 49),
+    ecc_columns=(41, 42, 43, 45, 46, 47, 49, 50),
 )
 
 

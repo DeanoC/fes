@@ -17,7 +17,11 @@ module top #(
     output wire        HDMI_TX_HS,
     output wire        HDMI_TX_VS,
     inout  wire        HDMI_I2C_SCL,
-    inout  wire        HDMI_I2C_SDA
+    inout  wire        HDMI_I2C_SDA,
+    output wire        HDMI_I2S0,
+    output wire        HDMI_MCLK,
+    output wire        HDMI_LRCLK,
+    output wire        HDMI_SCLK
 );
     wire clk_sys;
     wire pixel_clk;
@@ -102,21 +106,45 @@ module top #(
 
     /* verilator lint_off PINCONNECTEMPTY */
     wire [13:0] ram_address;
-    wire [7:0] ram_write_data, ram_read_data;
+    wire [7:0] ram_write_data;
     wire ram_write_enable;
-    (* keep *) wire [36:0] plug_addr;
+    wire [15:0] bus_addr;
+    wire [7:0] bus_wdata, bus_rdata, bus_peek_data;
+    wire bus_mreq_n, bus_iorq_n, bus_rd_n, bus_wr_n, bus_m1_n, bus_rfsh_n;
+    wire bus_dsel, bus_romcs, bus_wait, bus_ram_present;
+    (* keep *) wire [43:0] plug_addr;
+    wire [19:0] plug_rdata;
     generate if (EXPANSION_SOCKET) begin : expansion
         zx81_ram_socket socket (
-            .clock(clk_sys), .address(ram_address), .write_data(ram_write_data),
-            .write_enable(ram_write_enable), .peek_address(14'b0),
-            .read_data(ram_read_data), .peek_data(),
-            .pack_present(1'b0), .pack_data(8'b0), .pack_peek_data(8'b0),
-            .pack_address(plug_addr[13:0]), .pack_write_data(plug_addr[21:14]),
-            .pack_write_enable(plug_addr[22]), .pack_peek_address(plug_addr[36:23])
+            .clock(clk_sys),
+            .cpu_addr(bus_addr),
+            .cpu_wdata(bus_wdata),
+            .cpu_mreq_n(bus_mreq_n),
+            .cpu_iorq_n(bus_iorq_n),
+            .cpu_rd_n(bus_rd_n),
+            .cpu_wr_n(bus_wr_n),
+            .cpu_m1_n(bus_m1_n),
+            .cpu_rfsh_n(bus_rfsh_n),
+            .peek_address(14'b0),
+            .bus_rdata(bus_rdata),
+            .bus_peek_data(bus_peek_data),
+            .bus_dsel(bus_dsel),
+            .bus_romcs(bus_romcs),
+            .bus_wait(bus_wait),
+            .bus_ram_present(bus_ram_present),
+            .plug_addr(plug_addr),
+            .plug_rdata_in(20'b0),
+            .plug_rdata(plug_rdata)
         );
     end else begin : fixed_memory
-        assign ram_read_data = 8'b0;
-        assign plug_addr = 37'b0;
+        assign bus_rdata = 8'b0;
+        assign bus_peek_data = 8'b0;
+        assign bus_dsel = 1'b0;
+        assign bus_romcs = 1'b0;
+        assign bus_wait = 1'b0;
+        assign bus_ram_present = 1'b0;
+        assign plug_addr = 44'b0;
+        assign plug_rdata = 20'b0;
     end endgenerate
     zx81_machine #(.EXTERNAL_RAM(EXPANSION_SOCKET)) machine (
         .clk_sys(clk_sys),
@@ -138,9 +166,27 @@ module top #(
         .peek_data(),
         .ram_address(ram_address), .ram_write_data(ram_write_data),
         .ram_write_enable(ram_write_enable),
-        .external_ram_data(ram_read_data), .external_peek_data(8'b0)
+        .external_ram_data(8'b0), .external_peek_data(8'b0),
+        .bus_addr(bus_addr), .bus_wdata(bus_wdata),
+        .bus_mreq_n(bus_mreq_n), .bus_iorq_n(bus_iorq_n),
+        .bus_rd_n(bus_rd_n), .bus_wr_n(bus_wr_n),
+        .bus_m1_n(bus_m1_n), .bus_rfsh_n(bus_rfsh_n),
+        .bus_rdata(bus_rdata), .bus_peek_data(bus_peek_data),
+        .bus_dsel(bus_dsel), .bus_romcs(bus_romcs),
+        .bus_wait(bus_wait), .bus_ram_present(bus_ram_present)
     );
     /* verilator lint_on PINCONNECTEMPTY */
+
+    wire signed [15:0] psg_sample = bus_ram_present ? 16'sd0
+        : $signed({1'b0, bus_peek_data, 7'b0});
+    zx81_hdmi_i2s hdmi_i2s (
+        .pixel_clk(pixel_clk),
+        .sample(psg_sample),
+        .mclk(HDMI_MCLK),
+        .sclk(HDMI_SCLK),
+        .lrclk(HDMI_LRCLK),
+        .i2s(HDMI_I2S0)
+    );
 
     zx81_video_720p video (
         .clk_sys(clk_sys),

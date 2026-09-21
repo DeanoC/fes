@@ -1,12 +1,28 @@
 # ZX81 RAM composition
 
 The optional RAM pack is a separately synthesized and routed FPGA component.
-The base `fes.zx81` 1.1 package has 1 KiB of mirrored RAM and one fixed RAM socket.
-A selected pack provides the full 16 KiB address window. The normal library
-launch composes the frozen shell and the selected pack; it does no synthesis,
-placement or routing. An unset selection loads the original sealed shell.
+The socketed `fes.zx81` 1.1 package has 1 KiB of mirrored RAM when the edge is
+vacant, and a registered Z80-like expansion bus (A, D, /MREQ /IORQ /RD /WR
+/M1 /RFSH in; D, ROMCS, WAIT, RAM_PRESENT, DSEL out). A selected 16 KiB pack
+decodes the physical `4000–7FFF` window on that bus. Zon X-81 and QS Character
+Board RTL uses the same plugs; they are not library assets yet. Cart cells
+keep a distinct `FPGA_CLK1_50` clock port so `--fes-slot-clock clk_sys` can
+splice the inferred IB onto the shell 52 MHz net. Zon X returns a digital channel-A square on `peek_d`
+and the shell mixes it into HDMI I2S0 when the 16K pack is absent. During ULA
+`/RFSH` the shell presents `{6'h21, char[6:0], row[2:0]}` on the edge so QS
+`8400–87FF` can supply glyphs. That window power-up copies Sinclair glyphs
+0–63 from ROM `1E00–1FFF` so the board boots with readable text; `POKE`
+still replaces rows. The shifter keeps the first socket `ROMCS`
+byte in `rfsh_chr`. `/RFSH` is not muxed into `cpu_din`. The normal
+library launch composes the frozen shell and the selected pack; it does no
+synthesis, placement or routing. An unset selection loads the original sealed
+shell.
 
-This feature uses the scoped `sources/misteross/toolchains/zx81-expansion.lock`.
+The CRAM map name remains `fes.zx81-ram.socket/1` (slot `fes.expansion.zx81-ram`
+1.0) so FogCast/runtime admission stays the same. The plug packing itself is
+the Z80-like edge, not the earlier pre-decoded 14-bit RAM port. Old RAM-port
+carts cannot overlay a bus shell: shell hashes differ. This feature uses the
+scoped `sources/misteross/toolchains/zx81-expansion.lock`.
 It does not change the factory ZX81 producer or its compiler selection.
 
 ## Producer
