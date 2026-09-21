@@ -25,7 +25,7 @@ from scripts import zx81_expansion as expansion
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "build/fes-zx81-socket-bus"
-CART_OUT = ROOT / "build/zx81-bus-validation-cart"
+CART_OUT = ROOT / "build/zx81-bus-validation-cart-diagnostic"
 BUILD_ID = "0123456789abcdef0123456789abcdef"
 CRAM = CramRect(*cart.CRAM_REGION)
 WIDE_CRAM = CramRect(cart.CRAM_REGION[0], cart.CRAM_REGION[1], 3356, cart.CRAM_REGION[3])

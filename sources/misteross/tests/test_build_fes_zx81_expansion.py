@@ -133,6 +133,32 @@ class ZX81SocketProducerTests(unittest.TestCase):
                     self.assertIn("-Wno-BLKSEQ", expansion.stdout)
 
 
+class ZX81DiagnosticCleanupTests(unittest.TestCase):
+    def test_diagnostic_restart_preserves_published_cart(self):
+        from scripts import hip_zx81_bus_socket as diagnostic
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / diagnostic.CART_OUT.relative_to(diagnostic.ROOT)
+            archive = root / "build/zx81-bus-validation-cart" / ("a" * 64) / "cart.tar"
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b"sealed cart")
+            output.mkdir(parents=True, exist_ok=True)
+            stale = output / "stale.rbf"
+            stale.write_bytes(b"old diagnostic")
+            # Stop at the first compiler invocation, after real directory cleanup.
+            with patch.object(diagnostic, "ROOT", root), patch.object(
+                diagnostic, "CART_OUT", output
+            ), patch.object(diagnostic.cart, "cart_clock_constraints", return_value=b"clocks"), patch.object(
+                diagnostic, "run", side_effect=RuntimeError("compiler boundary")
+            ):
+                with self.assertRaisesRegex(RuntimeError, "compiler boundary"):
+                    diagnostic.compose_cart({"yosys": Path("yosys")}, {})
+            self.assertEqual(archive.read_bytes(), b"sealed cart")
+            self.assertFalse(stale.exists())
+            self.assertEqual((output / "clocks.sdc").read_bytes(), b"clocks")
+
+
 class ZX81CartPublicationTests(unittest.TestCase):
     def setUp(self):
         self.stack = ExitStack()

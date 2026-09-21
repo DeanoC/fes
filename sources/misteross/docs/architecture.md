@@ -2538,6 +2538,11 @@ bring-up lane.
 
 ## FES ZX81 OSS package
 
+The HIP bus diagnostic writes disposable cart outputs to
+`build/zx81-bus-validation-cart-diagnostic/`. Sealed validation-cart archives
+live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
+diagnostic cleanup.
+
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
 `fes.zx81` 1.2.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
