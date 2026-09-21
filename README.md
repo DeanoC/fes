@@ -1,8 +1,8 @@
-# FES
+# FES - Fogger Expandable System
 
-Fogger Entertainment System contains the first-party source for FogCast and
-the native MiSTer system. One FES commit selects host, runtime, shared contracts
-and FPGA sources. Develop a feature across modules in one worktree and one PR.
+Fogger Expandable System is a OSS FPGA based on 'mister' (DE-10 Nano) that provides a different view on how a FPGA multiple system 
+should be. Compared to mister it currently supports only a few system but all use fully OSS toolchain (No Quartus!) and provide a 
+closer analog to real expansion and cartridge buses that many system had.
 
 Agents: read [AGENTS.md](AGENTS.md), then the
 [development guide](docs/development.md) and the selected component's guidance.
@@ -34,8 +34,7 @@ Main_MiSTer is an original implementation and test reference, not a production
 dependency. The target agent talks to the runtime's local socket; only the
 runtime controls hardware. The normal FES package route uses misteross's
 authenticated HIP/nextpnr producer. Quartus is a build-time oracle/check for
-systems not yet supported by nextpnr, never a launch dependency or hidden
-fallback.
+systems.
 
 ## Start
 
@@ -50,8 +49,6 @@ make check
 make host
 ```
 
-For an older submodule checkout, preserve component work and use a fresh clone
-for the migration; do not overwrite nested working repositories.
 `make check` verifies clean selected modules, package YAML,
 twenty generated consumers, twenty shared fixture copies and copied source
 pins. It needs Go,
