@@ -126,9 +126,20 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     # Extract and compare the factory's idle bytes to the selected native lock.
     idle=scratch/'idle.rbf'
     runner.disk(['debugfs','-R',f'dump /usr/share/mister-runtime/idle.rbf "{runner.path(idle)}"',runner.path(expected_release.image)])
-    idle_lock=tomllib.loads((root/'image/build/native-inputs.toml').read_text())['idle_rbf']
+    policy=tomllib.loads((root/'image/build/native-inputs.toml').read_text())
+    idle_lock=policy['idle_rbf']
+    splash_lock=policy['splash_rbf']
     if idle_lock['install_path']!='/usr/share/mister-runtime/idle.rbf':raise ValueError('selected idle install path differs')
+    if splash_lock['fat_destination']!='/menu.rbf':raise ValueError('selected splash FAT destination differs')
     verify_file(idle,idle_lock['size'],idle_lock['sha256'],'selected factory idle')
+    splash=scratch/'splash.rbf'
+    native_splash=root/'image/build/cache/target-image/native/splash.rbf'
+    if native_splash.is_file() and not native_splash.is_symlink():
+        shutil.copyfile(native_splash,splash)
+        verify_file(splash,splash_lock['size'],splash_lock['sha256'],'selected splash')
+    else:
+        shutil.copyfile(idle,splash)
+        verify_file(splash,splash_lock['size'],splash_lock['sha256'],'selected splash')
     kernel_copy=scratch/'kernel';shutil.copyfile(kernel,kernel_copy)
     verify_file(kernel_copy,lock.kernel.size,lock.kernel.sha256,'kernel snapshot')
     uboot_source=root/'out/work/boot-media'/('image-creator-'+lock.commit)/lock.uboot.path
@@ -136,7 +147,7 @@ def prepare(root,profile,release_directory,bootstrap_directory,scratch,*,agent_c
     verify_file(uboot,lock.uboot.size,lock.uboot.sha256,'U-Boot snapshot')
     config,config_sha=media.resolve_agent_config(agent_config,scratch,auto=not unprovisioned)
     launcher,launcher_sha=media.resolve_launcher_config(config,scratch,auto=not unprovisioned and agent_config is None)
-    inputs=Inputs(expected_release.image,expected_bootstrap.image,expected_release.manifest,idle,kernel_copy,uboot,config,launcher)
+    inputs=Inputs(expected_release.image,expected_bootstrap.image,expected_release.manifest,idle,kernel_copy,uboot,config,launcher,splash)
     bindings={'format':1,'kind':'fes-appliance-card','profile':profile,'release_manifest_sha256':digest(expected_release.manifest),
         'release_evidence_sha256':digest(expected_release.evidence),'bootstrap_evidence_sha256':digest(expected_bootstrap.evidence),
         'factory_image_sha256':provenance.rootfs_sha256,'bootstrap_sha256':digest(expected_bootstrap.image),

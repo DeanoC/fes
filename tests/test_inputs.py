@@ -82,10 +82,13 @@ class InputsTest(unittest.TestCase):
         self.assertEqual(result["libmister-runtime"], git(self.root / "sources/libmister-runtime", "rev-parse", "HEAD"))
 
     def test_assembly_lock_uses_selected_runtime_and_preserves_artifacts(self):
-        raw = "format = 1\n[mister_runtime]\ncommit = '" + "1" * 40 + "'\nmount_path = '/runtime-source'\n[idle_rbf]\ncommit = '" + "2" * 40 + "'\n"
+        raw = ("format = 1\n[mister_runtime]\ncommit = '" + "1" * 40 +
+               "'\nmount_path = '/runtime-source'\n[splash_rbf]\ncommit = '" + "4" * 40 +
+               "'\n[idle_rbf]\ncommit = '" + "2" * 40 + "'\n")
         selected = self.checker().selected_runtime_lock(raw, "3" * 40)
         self.assertIn("commit = '" + "3" * 40 + "'", selected)
         self.assertIn("commit = '" + "2" * 40 + "'", selected)
+        self.assertIn("commit = '" + "4" * 40 + "'", selected)
         self.assertIn("mount_path = '/runtime-source'", selected)
         with self.assertRaisesRegex(ValueError, "revision"):
             self.checker().selected_runtime_lock(raw, "invalid")

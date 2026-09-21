@@ -44,38 +44,91 @@ if [ "$native_mode" = package-only ]; then
     ' "$lock"
   }
   format=$(read_package_lock_value '' format)
-  repository=$(read_package_lock_value idle_rbf repository)
-  revision=$(read_package_lock_value idle_rbf commit)
-  source_path=$(read_package_lock_value idle_rbf path)
-  expected_sha=$(read_package_lock_value idle_rbf sha256)
-  expected_size=$(read_package_lock_value idle_rbf size)
-  [ "$format" = 1 ] &&
-    [ "$repository" = https://github.com/MiSTer-devel/Distribution_MiSTer ] &&
-    [ "$revision" = f7bde4becb452ca28f604ad9802bbed5c6b58e01 ] &&
-    [ "$source_path" = menu.rbf ] || {
-    printf '%s\n' 'fetch-native-runtime-inputs: idle lock identity is invalid' >&2
+  [ "$format" = 1 ] || {
+    printf '%s\n' 'fetch-native-runtime-inputs: lock format must be 1' >&2
     exit 2
   }
-  printf '%s\n' "$expected_sha" | grep -Eq '^[0-9a-f]{64}$' || exit 2
-  printf '%s\n' "$expected_size" | grep -Eq '^[1-9][0-9]*$' || exit 2
+
+  require_transitional_menu_identity() {
+    identity_section=$1
+    repository=$(read_package_lock_value "$identity_section" repository)
+    revision=$(read_package_lock_value "$identity_section" commit)
+    source_path=$(read_package_lock_value "$identity_section" path)
+    [ "$repository" = https://github.com/MiSTer-devel/Distribution_MiSTer ] &&
+      [ "$revision" = f7bde4becb452ca28f604ad9802bbed5c6b58e01 ] &&
+      [ "$source_path" = menu.rbf ] || {
+      printf '%s\n' "fetch-native-runtime-inputs: $identity_section lock identity is invalid" >&2
+      exit 2
+    }
+  }
+
+  fetch_locked_rbf() {
+    fetch_section=$1
+    dest=$2
+    require_transitional_menu_identity "$fetch_section"
+    repository=$(read_package_lock_value "$fetch_section" repository)
+    revision=$(read_package_lock_value "$fetch_section" commit)
+    source_path=$(read_package_lock_value "$fetch_section" path)
+    expected_sha=$(read_package_lock_value "$fetch_section" sha256)
+    expected_size=$(read_package_lock_value "$fetch_section" size)
+    printf '%s\n' "$expected_sha" | grep -Eq '^[0-9a-f]{64}$' || exit 2
+    printf '%s\n' "$expected_size" | grep -Eq '^[1-9][0-9]*$' || exit 2
+    if [ -f "$dest" ] && [ ! -L "$dest" ]; then
+      actual_sha=$(sha256sum "$dest" | awk '{print $1}')
+      actual_size=$(wc -c <"$dest" | tr -d ' ')
+      if [ "$actual_sha" = "$expected_sha" ] && [ "$actual_size" = "$expected_size" ]; then
+        chmod 0444 "$dest"
+        return 0
+      fi
+    fi
+    for sibling in "$cache/idle.rbf" "$cache/splash.rbf"; do
+      if [ "$sibling" != "$dest" ] && [ -f "$sibling" ] && [ ! -L "$sibling" ]; then
+        sibling_sha=$(sha256sum "$sibling" | awk '{print $1}')
+        sibling_size=$(wc -c <"$sibling" | tr -d ' ')
+        if [ "$sibling_sha" = "$expected_sha" ]; then
+          [ "$sibling_size" = "$expected_size" ] || {
+            printf '%s\n' "fetch-native-runtime-inputs: cached $fetch_section size does not match the lock" >&2
+            exit 1
+          }
+          cp -- "$sibling" "$dest"
+          chmod 0444 "$dest"
+          return 0
+        fi
+      fi
+    done
+    temporary=$(mktemp "$cache/.${dest##*/}.XXXXXX")
+    trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
+    url=https://raw.githubusercontent.com/${repository#https://github.com/}/$revision/$source_path
+    wget -q -O "$temporary" "$url"
+    actual_sha=$(sha256sum "$temporary" | awk '{print $1}')
+    [ "$actual_sha" = "$expected_sha" ] || {
+      printf '%s\n' "fetch-native-runtime-inputs: downloaded $fetch_section SHA-256 does not match the lock" >&2
+      exit 1
+    }
+    actual_size=$(wc -c <"$temporary" | tr -d ' ')
+    [ "$actual_size" = "$expected_size" ] || {
+      printf '%s\n' "fetch-native-runtime-inputs: downloaded $fetch_section size does not match the lock" >&2
+      exit 1
+    }
+    mv "$temporary" "$dest"
+    chmod 0444 "$dest"
+    trap - EXIT INT TERM
+  }
+
+  splash_destination=$(read_package_lock_value splash_rbf fat_destination)
+  [ "$splash_destination" = /menu.rbf ] || {
+    printf '%s\n' 'fetch-native-runtime-inputs: splash FAT destination must be /menu.rbf' >&2
+    exit 2
+  }
+  idle_install_path=$(read_package_lock_value idle_rbf install_path)
+  [ "$idle_install_path" = /usr/share/mister-runtime/idle.rbf ] || {
+    printf '%s\n' 'fetch-native-runtime-inputs: idle install path must be absolute and fixed' >&2
+    exit 2
+  }
+
   mkdir -p "$cache"
-  temporary=$(mktemp "$cache/.idle.rbf.XXXXXX")
-  trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
-  url=https://raw.githubusercontent.com/${repository#https://github.com/}/$revision/$source_path
-  wget -q -O "$temporary" "$url"
-  actual_sha=$(sha256sum "$temporary" | awk '{print $1}')
-  [ "$actual_sha" = "$expected_sha" ] || {
-    printf '%s\n' 'fetch-native-runtime-inputs: downloaded idle SHA-256 does not match the lock' >&2
-    exit 1
-  }
-  actual_size=$(wc -c <"$temporary" | tr -d ' ')
-  [ "$actual_size" = "$expected_size" ] || {
-    printf '%s\n' 'fetch-native-runtime-inputs: downloaded idle size does not match the lock' >&2
-    exit 1
-  }
-  mv "$temporary" "$cache/idle.rbf"
-  chmod 0444 "$cache/idle.rbf"
-  trap - EXIT INT TERM
+  fetch_locked_rbf idle_rbf "$cache/idle.rbf"
+  fetch_locked_rbf splash_rbf "$cache/splash.rbf"
   "$repo_root/scripts/native-extra-cores.sh" fetch "$cache"
   exit 0
 fi

@@ -25,6 +25,14 @@ format = 1
 commit = '$runtime_commit'
 mount_path = '/runtime-source'
 
+[splash_rbf]
+repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
+commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
+path = 'menu.rbf'
+sha256 = '$idle_sha'
+size = $idle_size
+fat_destination = '/menu.rbf'
+
 [idle_rbf]
 repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
 commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
@@ -125,9 +133,20 @@ export FES_PONG_PACKAGE_SELECTION="$selection"
 
 NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
 test -f "$cache/idle.rbf"
+test -f "$cache/splash.rbf"
 test "$(stat -c %a "$cache/idle.rbf")" = 444
+test "$(stat -c %a "$cache/splash.rbf")" = 444
+test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/splash.rbf" | awk '{print $1}')"
 test -f "$cache/fes-pong.package-selection.toml"
 test -d "$cache/core-packages/$package_id"
+
+awk 'BEGIN { skip=0 } /^\[splash_rbf\]/ { skip=1; next } /^\[/ { skip=0 } skip { next } { print }' \
+  "$lock" > "$fixture/idle-only.lock"
+if NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$fixture/idle-only.lock" \
+  sh "$repo/scripts/fetch-native-runtime-inputs.sh" \
+  >"$fixture/idle-only.out" 2>"$fixture/idle-only.err"; then
+  fail 'fetch accepted a lock without splash_rbf'
+fi
 
 if NATIVE_RUNTIME_MODE=format1 sh "$repo/scripts/fetch-native-runtime-inputs.sh" \
   >"$fixture/legacy.out" 2>"$fixture/legacy.err"; then
@@ -165,7 +184,7 @@ export CONTAINER_ARGS="$fixture/container-args"
 for source in "$standalone" "$mono/sources/libmister-runtime"; do
   actual_commit=$(git -C "$source" rev-parse HEAD)
   sed "s/$runtime_commit/$actual_commit/" "$lock" > "$fixture/selected.lock"
-  sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf"
+  sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf" "$cache/splash.rbf"
   if [ "$source" = "$standalone" ]; then
     selected_fogcast=$fogcast
     expected_mount=$standalone
@@ -180,7 +199,7 @@ for source in "$standalone" "$mono/sources/libmister-runtime"; do
     expected_fogcast_path=/fogcast/sources/FogCast
     # Generated host overlay does not dirty runtime scope.
     printf '%s\n' overlay > "$mono/sources/FogCast/build/generated"
-    sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf"
+    sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf" "$cache/splash.rbf"
   fi
   FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUNTIME_DIR="$source" \
     NATIVE_RUNTIME_INPUT_LOCK="$fixture/selected.lock" NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \

@@ -64,6 +64,7 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
 /usr/bin/install -m 0755 "$launcher" "$target/usr/sbin/fogcast-kit"
 
 runtime_commit=$(read_lock_value mister_runtime commit)
+splash_fat_destination=$(read_lock_value splash_rbf fat_destination)
 idle_repository=$(read_lock_value idle_rbf repository)
 idle_commit=$(read_lock_value idle_rbf commit)
 idle_path=$(read_lock_value idle_rbf path)
@@ -78,6 +79,10 @@ if [ "$native_mode" = package-only ]; then
   "$extra_cores" validate
   [ -f "$idle_input" ] && [ ! -L "$idle_input" ] || {
     printf '%s\n' 'native-post-build: idle input is not a regular non-symlink file' >&2
+    exit 1
+  }
+  [ "$splash_fat_destination" = /menu.rbf ] || {
+    printf '%s\n' 'native-post-build: splash FAT destination differs from image policy' >&2
     exit 1
   }
   [ "$idle_install_path" = /usr/share/mister-runtime/idle.rbf ] || {
