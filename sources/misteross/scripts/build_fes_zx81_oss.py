@@ -68,7 +68,9 @@ RTL_SOURCES = (
     "cores/fes-zx81/rtl/fes_computer_gp.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
     "cores/fes-zx81/rtl/zx81_ram_socket.v",
+    "cores/fes-zx81/rtl/zx81_bus_pack.vh",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
+    "cores/fes-zx81/rtl/zx81_hdmi_i2s.v",
     "cores/fes-zx81/rtl/zx81_machine.sv",
     "cores/fes-zx81/rtl/t80pa.v",
     "cores/fes-zx81/rtl/tv80/tv80_core.v",
@@ -218,7 +220,7 @@ def create_build_record(
         },
     }
     if socketed:
-        fields["parameters"]["expansion_socket"] = "zx81-ram-v1"
+        fields["parameters"]["expansion_socket"] = "zx81-bus-v1"
     if identity_version == 2:
         fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     elif identity_version != 1:
@@ -244,7 +246,7 @@ def build_commands(
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -I cores/fes-zx81/generated {sources}; "
+        f"read_verilog -sv -DTV80_REFRESH=1 -I cores/fes-zx81/generated -I cores/fes-zx81/rtl {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         + (f"chparam -set EXPANSION_SOCKET 1 {TOP}; " if socketed else "") +
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
@@ -437,9 +439,9 @@ def _manifest(
             "toolchain": toolchain,
         },
     }
-    if record_fields["parameters"].get("expansion_socket") == "zx81-ram-v1":
+    if record_fields["parameters"].get("expansion_socket") == "zx81-bus-v1":
         fields["core"]["version"] = "1.1.0"
-        fields["core"]["description"] = "ZX81 with 1 KiB RAM and optional static-linked RAM expansion"
+        fields["core"]["description"] = "ZX81 with 1 KiB RAM and optional Z80-like expansion edge"
         fields["interfaces"].append({"id": "fes.expansion.zx81-ram", "major": 1, "minor": 0, "required": False})
     return encode_manifest(fields)
 
@@ -563,7 +565,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--socket", action="store_true", help="build the vacant 1 KiB ZX81 RAM socket shell")
+    parser.add_argument("--socket", action="store_true", help="build the vacant 1 KiB ZX81 Z80-like expansion shell")
     parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
     parser.add_argument(
         "--best-fmax",

@@ -1,0 +1,15 @@
+device = "5CSEBA6U23I7"
+die = "sx120f"
+slot_column = 26
+slot_bels = ["MISTRAL_M10K.26.1.0"]
+overlay_mode = "cram_rect"
+require_slot_only = true
+
+# Tile columns 18-38: reserved BELs 25-27, plug FFs, write-strobe routing
+# (cols 18-19 and 37), and 905 clock-reconnect halo in col 38. Exclusive x1.
+# Classify ignores sx120f ECC/CRC columns 41-43, 45-47, 49 and 50.
+[cram_rect]
+x0 = 1617
+y0 = 32
+x1 = 3356
+y1 = 7024

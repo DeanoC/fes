@@ -215,6 +215,10 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "900_expansion_bus",
             "901_plugged_base",
             "903_wide_cart",
+            "904_zx81_socket",
+            "905_zx81_ram16",
+            "906_zx81_zonx",
+            "907_zx81_qs_chrs",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],

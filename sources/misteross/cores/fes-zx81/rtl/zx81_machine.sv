@@ -27,7 +27,21 @@ module zx81_machine #(
     output wire [7:0]  ram_write_data,
     output wire        ram_write_enable,
     input  wire [7:0]  external_ram_data,
-    input  wire [7:0]  external_peek_data
+    input  wire [7:0]  external_peek_data,
+    output wire [15:0] bus_addr,
+    output wire [7:0]  bus_wdata,
+    output wire        bus_mreq_n,
+    output wire        bus_iorq_n,
+    output wire        bus_rd_n,
+    output wire        bus_wr_n,
+    output wire        bus_m1_n,
+    output wire        bus_rfsh_n,
+    input  wire [7:0]  bus_rdata,
+    input  wire [7:0]  bus_peek_data,
+    input  wire        bus_dsel,
+    input  wire        bus_romcs,
+    input  wire        bus_wait,
+    input  wire        bus_ram_present
 );
     localparam [1:0] MEM_SIZE_16K = 2'd1;
     localparam ZX81 = 1'b1;
@@ -76,7 +90,9 @@ module zx81_machine #(
     );
 
     always_comb begin
-        case ({nMREQ, ~nM1 | nIORQ | nRD})
+        if (bus_dsel)
+            cpu_din = bus_rdata;
+        else case ({nMREQ, ~nM1 | nIORQ | nRD})
             2'b01: cpu_din = (~nM1 & nopgen) ? 8'h00 : mem_out;
             2'b10: cpu_din = io_dout;
             default: cpu_din = 8'hFF;
@@ -98,7 +114,12 @@ module zx81_machine #(
 
     logic [7:0] mem_out;
     always_comb begin
-        casex ({tapeloader, rom_e, ram_e})
+        // CPU window reads use DSEL. Do not fold /RFSH into this mux:
+        // nRFSH -> mem_out -> cpu_din -> T80 is a combinational loop and
+        // the FES GP mailbox stops acknowledging.
+        if (bus_dsel)
+            mem_out = bus_rdata;
+        else casex ({tapeloader, rom_e, ram_e})
             3'b1xx: mem_out = tape_loader_patch[addr - 13'h0347];
             3'b01x: mem_out = rom_out;
             3'b001: mem_out = ram_out;
@@ -115,8 +136,24 @@ module zx81_machine #(
     assign ram_write_data = tapeloader ? tape_in_byte_r : cpu_dout;
     assign ram_write_enable = (~nWR & ~nMREQ & ram_e) | tapewrite_we;
     generate if (EXTERNAL_RAM) begin : expansion_ram
-        assign ram_out = external_ram_data;
-        assign peek_data = external_peek_data;
+        wire [7:0] internal_data;
+        wire [7:0] internal_peek;
+        /* verilator lint_off UNUSEDSIGNAL */
+        wire unused_external = ^{external_ram_data, external_peek_data};
+        /* verilator lint_on UNUSEDSIGNAL */
+        zx81_dpram #(.ADDRWIDTH(10), .NUMWORDS(1024)) internal_ram (
+            .clock(clk_sys),
+            .address_a(ram_address[9:0]),
+            .data_a(ram_write_data),
+            .wren_a(ram_write_enable && !bus_ram_present),
+            .q_a(internal_data),
+            .address_b(peek_addr[9:0]),
+            .data_b(8'h00),
+            .wren_b(1'b0),
+            .q_b(internal_peek)
+        );
+        assign ram_out = bus_ram_present ? bus_rdata : internal_data;
+        assign peek_data = bus_ram_present ? bus_peek_data : internal_peek;
     end else begin : builtin_ram
     zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384)) ram_block (
         .clock(clk_sys),
@@ -133,7 +170,7 @@ module zx81_machine #(
 
     wire [12:0] rom_a = nRFSH ? addr[12:0] :
         {addr[12:9] + (addr[13] & ram_data_latch[7] & addr[8]), ram_data_latch[5:0], row_counter};
-    wire rom_e = ~addr[14] & ~addr[13] & (~addr[12] | ZX81) & low16k_e;
+    wire rom_e = ~addr[14] & ~addr[13] & (~addr[12] | ZX81) & low16k_e & ~bus_romcs;
     wire [7:0] rom_out;
 `ifdef QUARTUS
     localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.mif";
@@ -157,6 +194,13 @@ module zx81_machine #(
     reg [7:0] tape_in_byte, tape_in_byte_r;
     reg [7:0] tape_loader_patch[0:6];
     assign tape_addr_out = tape_addr;
+    assign bus_wdata = tapeloader ? tape_in_byte_r : cpu_dout;
+    assign bus_mreq_n = tapewrite_we ? 1'b0 : nMREQ;
+    assign bus_iorq_n = tapewrite_we ? 1'b1 : nIORQ;
+    assign bus_rd_n = tapewrite_we ? 1'b1 : nRD;
+    assign bus_wr_n = tapewrite_we ? 1'b0 : nWR;
+    assign bus_m1_n = tapewrite_we ? 1'b1 : nM1;
+    assign bus_rfsh_n = tapewrite_we ? 1'b1 : nRFSH;
 
     always @(posedge clk_sys) tape_in_byte <= tape_data;
 
@@ -201,6 +245,27 @@ module zx81_machine #(
     reg [7:0] ram_data_latch;
     reg nopgen_store;
     reg [2:0] row_counter;
+    // Present the ULA character-ROM address as the QS 1 KiB window during
+    // /RFSH. CPU A during refresh is I+R, which the board does not use.
+    wire [15:0] chr_fetch = {6'h21, ram_data_latch[6:0], row_counter};
+    assign bus_addr = tapewrite_we ? ram_a : (~nRFSH ? chr_fetch : addr);
+    // Hold the first settled cart byte. ROMCS is a short pulse through the
+    // socket FFs; later /RFSH clocks must not replace it with onboard ROM.
+    reg rfsh_from_cart;
+    reg [7:0] rfsh_chr;
+    always @(posedge clk_sys) begin
+        if (reset) begin
+            rfsh_from_cart <= 1'b0;
+            rfsh_chr <= 8'h00;
+        end else if (nRFSH) begin
+            rfsh_from_cart <= 1'b0;
+        end else if (bus_romcs) begin
+            rfsh_from_cart <= 1'b1;
+            rfsh_chr <= bus_rdata;
+        end else if (!rfsh_from_cart) begin
+            rfsh_chr <= mem_out;
+        end
+    end
     wire shifter_start = nMREQ & nopgen_store & ce_cpu_p & shifter_en & ~NMIlatch;
     reg [7:0] shifter_reg;
     reg inverse;
@@ -231,7 +296,7 @@ module zx81_machine #(
             shifter_reg <= {shifter_reg[6:0], 1'b0};
             paper_reg <= {paper_reg[6:0], 1'b0};
             if (~old_shifter_start & shifter_start) begin
-                shifter_reg <= (~nM1 & nopgen) ? 8'h0 : mem_out;
+                shifter_reg <= (~nM1 & nopgen) ? 8'h0 : rfsh_chr;
                 inverse <= ram_data_latch[7];
                 paper_reg <= 8'hFF;
             end
@@ -259,7 +324,7 @@ module zx81_machine #(
         end
     end
 
-    wire nWAIT = ~nHALT | nNMI;
+    wire nWAIT = (~nHALT | nNMI) & ~bus_wait;
     wire nNMI = ~NMIlatch | ~hsync;
 
     reg slow_mode;

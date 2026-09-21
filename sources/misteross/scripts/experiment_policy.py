@@ -6402,6 +6402,199 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "904_zx81_socket": ExperimentPolicy(
+            name="904_zx81_socket",
+            sources=("experiments/904_zx81_socket/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/904_zx81_socket/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=(
+                *_COMMON_SOURCE_PATTERNS,
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_FF": 74,
+            },
+            nobram=True,
+            require_read_clock_arc=False,
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/904_zx81_socket/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/904_zx81_socket/sim/mistral_ff_model.v",
+                    ),
+                    tb="experiments/904_zx81_socket/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "905_zx81_ram16": ExperimentPolicy(
+            name="905_zx81_ram16",
+            sources=("experiments/905_zx81_ram16/rtl/cart.v",),
+            top="cart",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/904_zx81_socket/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={"MISTRAL_M10K": 16},
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+                "HPS",
+                "MPU",
+                "ARM",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={"MISTRAL_M10K": 32},
+            required_synth_cells={"MISTRAL_M10K": 16},
+            nobram=False,
+            require_read_clock_arc=False,
+            synth_only=True,
+            yosys_post_synth="setattr -set FES_SLOT 1 c:*",
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/905_zx81_ram16/sim/wrap.v",
+                        "experiments/905_zx81_ram16/rtl/cart.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/905_zx81_ram16/sim/m10k_ram_model.v",
+                    ),
+                    tb="experiments/905_zx81_ram16/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "906_zx81_zonx": ExperimentPolicy(
+            name="906_zx81_zonx",
+            sources=("experiments/906_zx81_zonx/rtl/cart.v",),
+            top="cart",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/904_zx81_socket/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={"MISTRAL_M10K": 2},
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+                "HPS",
+                "MPU",
+                "ARM",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={"MISTRAL_M10K": 4},
+            required_synth_cells={"MISTRAL_M10K": 2},
+            nobram=False,
+            require_read_clock_arc=False,
+            synth_only=True,
+            yosys_post_synth="setattr -set FES_SLOT 1 c:*",
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/906_zx81_zonx/sim/wrap.v",
+                        "experiments/906_zx81_zonx/rtl/cart.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/906_zx81_zonx/sim/m10k_ram_model.v",
+                    ),
+                    tb="experiments/906_zx81_zonx/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "907_zx81_qs_chrs": ExperimentPolicy(
+            name="907_zx81_qs_chrs",
+            sources=("experiments/907_zx81_qs_chrs/rtl/cart.v",),
+            top="cart",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/904_zx81_socket/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={"MISTRAL_M10K": 1},
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+                "HPS",
+                "MPU",
+                "ARM",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={"MISTRAL_M10K": 2},
+            required_synth_cells={"MISTRAL_M10K": 1},
+            nobram=False,
+            require_read_clock_arc=False,
+            synth_only=True,
+            yosys_post_synth="setattr -set FES_SLOT 1 c:*",
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/907_zx81_qs_chrs/sim/wrap.v",
+                        "experiments/907_zx81_qs_chrs/rtl/cart.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/907_zx81_qs_chrs/sim/m10k_ram_model.v",
+                    ),
+                    tb="experiments/907_zx81_qs_chrs/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 

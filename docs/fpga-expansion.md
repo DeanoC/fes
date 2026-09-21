@@ -12,10 +12,11 @@ synthesis, placement or routing.
 ## Normal library use
 
 The [ZX81 RAM composition guide](zx81-ram-expansion.md) describes the implemented
-optional 16 KiB RAM pack. An ordinary entry selects an immutable expansion
-asset against an exact sealed 1 KiB shell. Clearing the selection loads that
-same original shell. Host and target independently verify composition bytes;
-the runtime programs the admitted payload and retains the base package identity.
+optional 16 KiB RAM pack on a registered Z80-like expansion edge. An ordinary
+entry selects an immutable expansion asset against an exact sealed 1 KiB shell.
+Clearing the selection loads that same original shell. Host and target
+independently verify composition bytes; the runtime programs the admitted
+payload and retains the base package identity.
 
 This uses the scoped `toolchains/zx81-expansion.lock` and a separate expansion
 archive; it does not change format-2 package seals or the factory package set.
@@ -23,14 +24,14 @@ Build, software verification and exact-kit acceptance remain separate evidence.
 
 ## Earlier development experiments
 
-From the FES repository root, create an isolated FES worktree and enter its
-misteross module:
+From the FES repository root, create one FES worktree and enter its
+misteross module. Do not create nested component worktrees:
 
 ```sh
-mkdir -p out/dev/expansion
+mkdir -p out/dev
 git worktree add -b fpga-expansion \
-  "$PWD/out/dev/expansion/fes" HEAD
-cd out/dev/expansion/fes/sources/misteross
+  "$PWD/out/dev/fpga-expansion" HEAD
+cd out/dev/fpga-expansion/sources/misteross
 ```
 
 Follow the misteross README
@@ -52,8 +53,13 @@ Never take over `fogcast@ai-dev-mac` or another owner's session.
 
 ## What FES does not do here
 
-- Image assembly does not install composed 900/901/903 artifacts.
+- Image assembly does not install composed 900/901/903/904–907 artifacts.
 - Parent `make build` / `make verify` do not exercise freeze-scaffold
   compose.
-- Experimental 900/901/903 loads remain separate from the described ZX81
+- Experimental 900/901/903/904–907 loads remain separate from the described ZX81
   package and expansion-asset library path above.
+
+ZX81 diagnostic carts (`904_zx81_socket` plus `905_zx81_ram16`,
+`906_zx81_zonx`, `907_zx81_qs_chrs`) remain an HPS-driven freeze-scaffold
+bench. They are not the sealed `fes.zx81` package. Library 16K / Zon X / QS
+RTL under `cores/fes-zx81/expansions/` targets the ZX81 CPU edge instead.

@@ -130,6 +130,12 @@ int main(int argc, char **argv) {
     dut.tape_size = 0;
     dut.tape_data = 0;
     dut.peek_addr = 0x400c;
+    dut.bus_rdata = 0;
+    dut.bus_peek_data = 0;
+    dut.bus_dsel = 0;
+    dut.bus_romcs = 0;
+    dut.bus_wait = 0;
+    dut.bus_ram_present = 0;
     dut.eval();
     for (int i = 0; i != 2048; ++i) tick(dut);
     dut.reset = 0;

@@ -430,6 +430,18 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
 - `903_wide_cart`, independent cart B: four slot cells and a 2-bit decode
   into the same 901 socket. Synth-only: `make oss EXP=903_wide_cart`.
   Verilator: `make sim EXP=903_wide_cart`.
+- `904_zx81_socket`, empty ZX81 expansion socket (`0xD904`) with write-data
+  and I/O/memory strobes plus a taller reserved rect `25 1 27 32`. Run
+  `make sim EXP=904_zx81_socket` and `make oss EXP=904_zx81_socket`.
+- `905_zx81_ram16`, Sinclair 16K pack window `4000–7FFF` (sixteen slot
+  M10Ks). Synth-only: `make oss EXP=905_zx81_ram16`. Verilator:
+  `make sim EXP=905_zx81_ram16`.
+- `906_zx81_zonx`, Bi-Pak Zon X-81 AY register file with `(port & 008F)`
+  select/data decode. Synth-only: `make oss EXP=906_zx81_zonx`. Verilator:
+  `make sim EXP=906_zx81_zonx`.
+- `907_zx81_qs_chrs`, QS Character Board 1 KiB window `8400–87FF`.
+  Synth-only: `make oss EXP=907_zx81_qs_chrs`. Verilator:
+  `make sim EXP=907_zx81_qs_chrs`.
 
 ## Freeze-scaffold cartridges
 
@@ -446,6 +458,10 @@ rectangle's CRAM from the pass-2 bitstream onto the pass-1 shell.
 | Cart A | `900_expansion_bus` | `cart` top, one BEL-locked `MISTRAL_M10K.26.1.0`, INIT oracle. No HPS, no signature. |
 | Cart B | `903_wide_cart` | Four slot M10Ks and a 2-bit decode on `plug_addr[11:10]`. Same plug names. |
 | Map | `experiments/901_plugged_base/link.toml` | `overlay_mode = "cram_rect"`, tile columns 21–33, `require_slot_only`. |
+| ZX81 socket | `904_zx81_socket` | Empty ZX81 plug. Signature `0xD904`. Adds `plug_wdata` (column 23) and mem/I/O strobes (column 29). Reserved rect `25 1 27 32`. |
+| 16K pack | `905_zx81_ram16` | Sinclair `4000–7FFF` window, sixteen column-26 M10Ks. |
+| Zon X-81 | `906_zx81_zonx` | AY register file, `(port & 008F)` select `xxDF`/`xxCF` and data `xx0F`. |
+| QS CHRS | `907_zx81_qs_chrs` | 1 KiB at `8400–87FF`, one slot M10K. |
 
 The 890/891/892 trio is the older INIT-only M10K overlay
 (`overlay_mode = "m10k_ram"`). Use 901 when the cart is unknown at shell
@@ -465,10 +481,24 @@ python3 scripts/build_fes_slot.py \
   --output build/oss/composed_901_plus_900.rbf
 ```
 
-Replace `--cart 900_expansion_bus` with `903_wide_cart` for cart B. The
-script synthesizes the cart, merges it into the routed shell with
+Replace `--cart 900_expansion_bus` with `903_wide_cart` for cart B. ZX81
+carts use the 904 shell, map and QSF:
+
+```sh
+make oss EXP=904_zx81_socket
+python3 scripts/build_fes_slot.py \
+  --shell-json build/oss/904_zx81_socket/routed.json \
+  --shell-rbf build/oss/904_zx81_socket/top.rbf \
+  --cart 905_zx81_ram16 \
+  --map experiments/904_zx81_socket/link.toml \
+  --qsf experiments/904_zx81_socket/pins.qsf \
+  --output build/oss/composed_904_plus_905.rbf
+```
+
+Replace `--cart 905_zx81_ram16` with `906_zx81_zonx` or `907_zx81_qs_chrs`.
+The script synthesizes the cart, merges it into the routed shell with
 `--fes-scaffold --fes-cart`, and runs `scripts/link_static_rbf.py overlay`.
-Locked nextpnr `d672fade` provides those flags. `NEXTPNR_MISTRAL` still
+Locked nextpnr `30ac6f47` provides those flags. `NEXTPNR_MISTRAL` still
 overrides the binary. A nextpnr without the flags fails closed. The linker
 writes `composed_901_plus_900.rbf.receipt.json` beside the output.
 
@@ -486,26 +516,36 @@ python3 scripts/link_static_rbf.py diff \
 ```
 
 `require_slot_only` refuses any CRAM bit outside the map rectangle.
-Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
+Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49. A taller 904
+occupancy also flips companion strips 43, 46, 47 and 50.
 
 ### Write another cart
 
 1. Independent experiment with `top = "cart"` and `synth_only`.
-2. Ports `plug_addr[15:0]` and `plug_rdata[9:0]` matching the shell.
-3. BEL-lock every slot cell inside reserved rect `25 1 27 16` (M10K column 26).
+2. Ports `plug_addr[15:0]` and `plug_rdata[9:0]` matching the shell. ZX81
+   carts also take `plug_wdata[7:0]`, `plug_mem_we`, `plug_io_we` and
+   `plug_io_rd`.
+3. BEL-lock every slot cell inside the shell reserved rect (901: `25 1 27 16`;
+   904: `25 1 27 32`, M10K column 26).
 4. `setattr -set FES_SLOT 1 c:*` after synth so nextpnr treats those cells as the cart.
-5. No HPS, LED, GPIO, or signature; the shell keeps `0xD901`.
+5. No HPS, LED, GPIO, or signature; the shell keeps `0xD901` or `0xD904`.
 6. Primitive `MISTRAL_FF` `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
-7. Compose with `--cart <experiment>` onto the same 901 shell. Do not rebuild the shell for a new cart.
+7. Compose with `--cart <experiment>` onto the matching shell. Do not rebuild the shell for a new cart.
 
 ### Kit probes
 
 Claim the designated kit with `scripts/kit.py session`. Load the RBF through
 the development-RBF path. Vacant 901:
 `experiments/901_plugged_base/hardware/probe.sh`. Composed cart A:
-`probe_cart.sh`. Cart B: `probe_cart_b.sh`. GPI is
-`{SIGNATURE, plug_addr[5:0], plug_rdata}`. This is a development-RBF
-diagnostic, not image acceptance, and it does not seal `fes.zx81`.
+`probe_cart.sh`. Cart B: `probe_cart_b.sh`. Vacant 904:
+`experiments/904_zx81_socket/hardware/probe.sh`. 16K pack:
+`probe_ram16.sh`. Zon X-81: `probe_zonx.sh`. QS CHRS: `probe_qs_chrs.sh`.
+GPI is `{SIGNATURE, plug_addr[5:0], plug_rdata}`. GPO for 904 is
+`{io_rd, io_we, mem_we, wdata[7:0], addr[15:0]}`. 904 probes settle
+addr/data with strobes low, then pulse; do not apply `0x13579BDF` (it is
+an I/O write to xxDF). This is a
+development-RBF diagnostic, not image acceptance, and it does not seal
+`fes.zx81`.
 
 - Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
   `make build-pong` stages the pinned MiSTer framework and compiles the wrapper

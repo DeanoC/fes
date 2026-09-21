@@ -1,38 +1,35 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// ZX81 memory socket: the empty shell contains only the original 1 KiB RAM.
-// The independent pack owns the complete 16 KiB window when present. Presence
-// is a linked fabric signal, never a host command or live hot-plug control.
+// ZX81 expansion edge: registered Z80-like plugs. Internal 1 KiB stays in
+// the machine when RAM_PRESENT is 0. Peek is an FPGA diagnostic port, not
+// an edge pin. Two boundary FFs settle inside one 16-clock CPU phase.
+`include "zx81_bus_pack.vh"
 module zx81_ram_socket (
     input wire clock,
-    input wire [13:0] address,
-    input wire [7:0] write_data,
-    input wire write_enable,
+    input wire [15:0] cpu_addr,
+    input wire [7:0] cpu_wdata,
+    input wire cpu_mreq_n,
+    input wire cpu_iorq_n,
+    input wire cpu_rd_n,
+    input wire cpu_wr_n,
+    input wire cpu_m1_n,
+    input wire cpu_rfsh_n,
     input wire [13:0] peek_address,
-    output wire [7:0] read_data,
-    output wire [7:0] peek_data,
-    input wire pack_present,
-    input wire [7:0] pack_data,
-    input wire [7:0] pack_peek_data,
-    output wire [13:0] pack_address,
-    output wire [7:0] pack_write_data,
-    output wire pack_write_enable,
-    output wire [13:0] pack_peek_address
+    output wire [7:0] bus_rdata,
+    output wire [7:0] bus_peek_data,
+    output wire bus_dsel,
+    output wire bus_romcs,
+    output wire bus_wait,
+    output wire bus_ram_present,
+    output wire [`ZX81_BUS_REQ-1:0] plug_addr,
+    input wire [`ZX81_BUS_RSP-1:0] plug_rdata_in,
+    output wire [`ZX81_BUS_RSP-1:0] plug_rdata
 );
-    wire [7:0] internal_data, internal_peek;
-    zx81_dpram #(.ADDRWIDTH(10), .NUMWORDS(1024)) internal_ram (
-        .clock(clock), .address_a(address[9:0]), .data_a(write_data),
-        .wren_a(write_enable && !present), .q_a(internal_data),
-        .address_b(peek_address[9:0]), .data_b(8'b0), .wren_b(1'b0),
-        .q_b(internal_peek)
-    );
-    // Fixed boundary registers are also the physical freeze-scaffold plugs.
-    // A CPU bus phase lasts sixteen system clocks, leaving the two boundary
-    // stages stable before sampling. One-cycle tape writes are delayed intact.
-    wire [36:0] plug_addr_d = {peek_address, write_enable && present, write_data, address};
-    wire [36:0] plug_addr;
-    wire [16:0] plug_rdata_d = {pack_present, pack_peek_data, pack_data};
-    wire [16:0] plug_rdata;
-    wire present = plug_rdata[16];
+    wire [`ZX81_BUS_REQ-1:0] plug_addr_d = {
+        peek_address,
+        cpu_rfsh_n, cpu_m1_n, cpu_wr_n, cpu_rd_n, cpu_iorq_n, cpu_mreq_n,
+        cpu_wdata, cpu_addr
+    };
+    wire [`ZX81_BUS_RSP-1:0] plug_rdata_d = plug_rdata_in;
 `define ZX81_SOCKET_FF(NAME, SITE, D, QOUT) \
     (* keep, BEL = SITE *) MISTRAL_FF NAME ( \
         .CLK(clock), .DATAIN(D), .Q(QOUT), .ACLR(1'b1), .ENA(1'b1), \
@@ -74,6 +71,13 @@ module zx81_ram_socket (
     `ZX81_SOCKET_FF(plug_addr_ff_34, "MISTRAL_FF.24.2.44", plug_addr_d[34], plug_addr[34])
     `ZX81_SOCKET_FF(plug_addr_ff_35, "MISTRAL_FF.24.2.46", plug_addr_d[35], plug_addr[35])
     `ZX81_SOCKET_FF(plug_addr_ff_36, "MISTRAL_FF.24.2.50", plug_addr_d[36], plug_addr[36])
+    `ZX81_SOCKET_FF(plug_addr_ff_37, "MISTRAL_FF.24.2.52", plug_addr_d[37], plug_addr[37])
+    `ZX81_SOCKET_FF(plug_addr_ff_38, "MISTRAL_FF.24.2.56", plug_addr_d[38], plug_addr[38])
+    `ZX81_SOCKET_FF(plug_addr_ff_39, "MISTRAL_FF.24.2.58", plug_addr_d[39], plug_addr[39])
+    `ZX81_SOCKET_FF(plug_addr_ff_40, "MISTRAL_FF.24.3.2", plug_addr_d[40], plug_addr[40])
+    `ZX81_SOCKET_FF(plug_addr_ff_41, "MISTRAL_FF.24.3.4", plug_addr_d[41], plug_addr[41])
+    `ZX81_SOCKET_FF(plug_addr_ff_42, "MISTRAL_FF.24.3.8", plug_addr_d[42], plug_addr[42])
+    `ZX81_SOCKET_FF(plug_addr_ff_43, "MISTRAL_FF.24.3.10", plug_addr_d[43], plug_addr[43])
     `ZX81_SOCKET_FF(plug_rdata_ff_0, "MISTRAL_FF.28.1.2", plug_rdata_d[0], plug_rdata[0])
     `ZX81_SOCKET_FF(plug_rdata_ff_1, "MISTRAL_FF.28.2.2", plug_rdata_d[1], plug_rdata[1])
     `ZX81_SOCKET_FF(plug_rdata_ff_2, "MISTRAL_FF.28.3.2", plug_rdata_d[2], plug_rdata[2])
@@ -91,11 +95,14 @@ module zx81_ram_socket (
     `ZX81_SOCKET_FF(plug_rdata_ff_14, "MISTRAL_FF.28.15.2", plug_rdata_d[14], plug_rdata[14])
     `ZX81_SOCKET_FF(plug_rdata_ff_15, "MISTRAL_FF.28.16.2", plug_rdata_d[15], plug_rdata[15])
     `ZX81_SOCKET_FF(plug_rdata_ff_16, "MISTRAL_FF.28.17.2", plug_rdata_d[16], plug_rdata[16])
+    `ZX81_SOCKET_FF(plug_rdata_ff_17, "MISTRAL_FF.28.18.2", plug_rdata_d[17], plug_rdata[17])
+    `ZX81_SOCKET_FF(plug_rdata_ff_18, "MISTRAL_FF.28.19.2", plug_rdata_d[18], plug_rdata[18])
+    `ZX81_SOCKET_FF(plug_rdata_ff_19, "MISTRAL_FF.28.20.2", plug_rdata_d[19], plug_rdata[19])
 `undef ZX81_SOCKET_FF
-    assign pack_address = plug_addr[13:0];
-    assign pack_write_data = plug_addr[21:14];
-    assign pack_write_enable = plug_addr[22];
-    assign pack_peek_address = plug_addr[36:23];
-    assign read_data = present ? plug_rdata[7:0] : internal_data;
-    assign peek_data = present ? plug_rdata[15:8] : internal_peek;
+    assign bus_rdata = plug_rdata[`ZX81_BUS_DRD];
+    assign bus_peek_data = plug_rdata[`ZX81_BUS_PEEK_D];
+    assign bus_dsel = plug_rdata[`ZX81_BUS_DSEL];
+    assign bus_romcs = plug_rdata[`ZX81_BUS_ROMCS];
+    assign bus_wait = plug_rdata[`ZX81_BUS_WAIT];
+    assign bus_ram_present = plug_rdata[`ZX81_BUS_RAM_PRESENT];
 endmodule
