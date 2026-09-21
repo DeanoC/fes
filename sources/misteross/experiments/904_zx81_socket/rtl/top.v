@@ -232,4 +232,3 @@ module top #(
     (* keep *) wire [10:0] plug_write_keep = {plug_wdata, plug_mem_we, plug_io_we, plug_io_rd};
     assign gp_in = {SIGNATURE, plug_addr[5:0], plug_rdata};
 endmodule
-
