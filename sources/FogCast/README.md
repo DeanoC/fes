@@ -90,8 +90,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   running agent can bind its identity through authenticated health at the
   configured address. The browser and tenfoot distinguish connection state
   from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
-- Host API loading of arbitrary development RBF files, with automatic reboot
-  recovery back to Menu for non-MiSTer cores on the conventional Main backend.
+- Explicit contained development-RBF diagnostics, with runtime-owned idle
+  recovery and separately requested reboot recovery when required.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the
@@ -156,13 +156,10 @@ Hardware acceptance of this new boot path is tracked separately from game tests.
 The normal FPGA launch path is:
 
 1. The browser sends a game ID to `POST /api/v1/session/launch`.
-2. The host resolves the catalog entry and uploads content to the target when
-   the target cache does not already contain it.
-3. The target agent creates a transient MGL and writes
-   `load_core <mgl>` to `/dev/MiSTer_cmd`.
-4. The MiSTer/Main-compatible process loads the RBF and game.
-5. FogCast observes `/tmp/CORENAME` for the active core. Stopping sends
-   `load_core <menu.rbf>` through the same command path.
+2. The host resolves an installed described FES package and its library context.
+3. The target agent coordinates transfer and the active session.
+4. libmister-runtime validates and programs the package through local protocol 2.
+5. Stop captures declared persistent data and restores the locked idle artifact.
 
 ## Source boundaries
 
@@ -193,9 +190,9 @@ lease_gen?, run_id?, layer, kind, severity, detail}`. `flight_id`, when present,
 is the canonical host UUID v4 from #205; lease generations and run IDs remain
 opaque join strings. The ring includes lease lifecycle events and the target/runtime
 hooks that can be observed locally (FIFO dispatch, descriptor open,
-CORENAME/Main transitions, and ownership/program/recovery fences). The native
+runtime transitions and ownership/program/recovery fences). The native
 adapter also drains `/run/mister-runtime.events.json` from mister-runtime into
-the same ring when that dump is present. Unavailable Main or `fpga_manager`
+the same ring when that dump is present. Unavailable runtime or `fpga_manager`
 observations are left absent rather than fabricated.
 
 Before an intentional reboot, while holding the current kit lease, persist the
@@ -399,58 +396,18 @@ Select+Start=stop). The FogCast virtual pad, virtual-bus devices, and
 `/dev/input/js*` duplicates stay excluded. See [kit launcher](docs/kit-launcher.md). Exact image and hardware
 evidence belong to FES.
 
-## Built-in native Pong (software integration)
+## FPGA packages and diagnostics
 
-Pong appears in the host catalog as game ID `pong` without adding a library or
-ROM. Launch it through the existing browser/session path, or
-`POST /api/v1/session/launch` with `{"game_id":"pong"}`. It requires the native
-runtime and installed `/usr/share/mister-runtime/cores/pong.rbf`; the Main
-backend does not support this ROM-less profile. Supplied media is rejected.
-This integration is software-tested; Pong RBF/image packaging and playable
-hardware acceptance is recorded separately by the FES integration task.
+FPGA products require installed described FES packages. Bare Pong, SNES, NES
+and Mega Drive game records no longer launch raw cores. Existing library rows,
+ROM caches and saves remain on disk. Non-FPGA host execution remains available.
 
-## Native SNES (software integration)
-
-SNES uses the existing library, cache, and session launch path with the native
-runtime and installed `/usr/share/mister-runtime/cores/snes.rbf`. FogCast passes
-one unchanged cartridge path (`.sfc`, `.smc`, or `.bin`); the runtime owns format
-validation, copier-header handling, and the required metadata transfer prefix.
-The initial runtime contract is ordinary LoROM/HiROM up to 4 MiB; enhancement
-chips, external firmware, and expanded mappings remain outside this slice.
-The native agent stores ordinary SNES battery saves per game and ROM beneath
-`/media/fat/fogcast/saves/snes`. The runtime restores them on launch and flushes
-them before a clean Stop, including system switching and lease cleanup. Saves
-survive cache eviction and target reboot; a write failure keeps Stop retryable
-and prevents successful lease release. Stop before rebooting: there is no
-power-loss autosaving, host synchronization, or save-state support. Cartridge
-copier-header variants have separate save identities. This persistence path is
-software-tested; hardware validation belongs to the selected FES integration. The native SNES package uses cartridge index 1; the native NES
-package uses filetype index `0x40`. The conventional Main selectors remain
-zero based (including index 0 for NES).
-
-The retained native gamepad includes A/B/X/Y/L/R/Select/Start and the D-pad.
-Existing MD C and Start codes keep their meaning. Host event normalization,
-lease delivery, and disconnect/Stop neutralization use the existing input path;
-this does not add a browser gamepad-capture UI. Tests use fake runtime/target
-and uinput calls; exact-image SNES hardware acceptance remains separate.
-
-## Development RBF path
-
-`POST /api/v1/session/development-rbf` accepts one bounded
-`application/octet-stream` body. On the conventional Main backend, FogCast
-installs it temporarily and loads it through `/dev/MiSTer_cmd`; Stop uses the
-existing reboot-required recovery handshake.
-
-The native backend supports the same API path for the existing
-MiSTer-compatible development ABI. It atomically stages the upload at
-`/tmp/fogcast-development/core.rbf`, asks `mister-runtime` to power down HDMI,
-program the FPGA, synchronize the core, and report development state without a
-game or system identity. HDMI stays down until Stop reloads the locked idle
-RBF. Raw development uploads have no video or input guarantee. The native
-image packages no development RBF. Its Mega Drive RBF is selected at build
-time as described below. The
-exact two-cycle acceptance and legacy rollback evidence is recorded in
-[native-development-rbf-baseline.md](docs/hardware/native-development-rbf-baseline.md).
+`POST /api/v1/session/development-rbf` is an explicit contained hardware
+diagnostic. It stages a bounded upload in `/tmp/fogcast-development/core.rbf`
+and programs it once through runtime protocol 2. It has no package ABI or
+media/video/input guarantee. Stop restores the locked idle artifact; actual
+recovery failure requires a separately requested reboot. Raw uploads remain
+volatile and are not image products.
 
 Format-2 `.fcore` development packages use
 `POST /api/v1/session/development-core` with a bounded
@@ -503,7 +460,7 @@ the existing hardware baseline does not silently qualify a different RBF.
 | Repository | Owns |
 | --- | --- |
 | `FogCast` | Host application, browser UI, catalog, target agent, content transfer, and launch requests |
-| `Main_MiSTer` | The MiSTer/Main implementation used by the target image |
+| `Main_MiSTer` | Comparison reference; not a production dependency |
 | `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
 Native image assembly lives in the FES `image/` recipe. FogCast keeps the

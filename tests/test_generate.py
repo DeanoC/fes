@@ -111,29 +111,6 @@ class GenerateTests(unittest.TestCase):
                 generate.regenerate(self.root,True,self.emit)
         self.assertEqual(self.snapshot(),before)
 
-    def test_report_updates_both_owned_source_pin_copies(self):
-        self.file('sources/misteross/cores.lock', b'[core.megadrive]\nrepo="old"\ncommit="old"\nrbf_path="old"\nrbf_sha256="old"\nrbf_size=1\nproject="old"\nkeep=true\n')
-        self.file('image/build/native-inputs.toml', b'[megadrive_rbf]\nrepository="old"\ncommit="old"\npath="old"\nsha256="old"\nsize=1\ninstall_path="/kept"\n')
-        def emitter(root,command,source):
-            if command=='report':
-                return b'core_source megadrive_mister\nrepository https://example.invalid/core\ncommit abc\nrbf_path core.rbf\nrbf_sha256 def\nrbf_size 123\nproject core.qpf\n'
-            return self.emit(root,command,source)
-        with patch.object(generate.consistency,'CORE_SOURCES',('megadrive',)):
-            generate.regenerate(self.root,True,emitter)
-            with patch.object(generate.consistency,'_run',side_effect=emitter):
-                self.assertEqual(generate.regenerate(self.root)['source_pin_copies'],2)
-            self.assertEqual(generate.regenerate(self.root,True,emitter)['updated'],0)
-        self.assertIn('keep=true', (self.root/'sources/misteross/cores.lock').read_text())
-        self.assertIn('install_path="/kept"', (self.root/'image/build/native-inputs.toml').read_text())
-
-    def test_toml_source_pin_updates_preserve_other_fields(self):
-        raw='[core.nes]\nrepo = "old"\ncommit = "old"\nkeep = 42\n[other]\nvalue = "same"\n'
-        rewritten=generate.rewrite_fields(raw,('core','nes'),{'repo':'new','commit':'a'*40})
-        self.assertIn('keep = 42',rewritten)
-        self.assertIn('value = "same"',rewritten)
-        self.assertEqual(generate.rewrite_fields(rewritten,('core','nes'),{'repo':'new','commit':'a'*40}),rewritten)
-        with self.assertRaisesRegex(ValueError,'explicit scalar'):
-            generate.rewrite_fields(raw,('core','nes'),{'missing':'bad'})
 
 
 if __name__=='__main__':

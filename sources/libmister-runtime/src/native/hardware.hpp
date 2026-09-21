@@ -17,10 +17,8 @@ namespace mister {
 namespace native {
 
 class Artifact;
-class SaveFile;
 class CoreDataFile;
 class ArtifactOpener;
-class CoreLoader;
 class FixedVideoBringup;
 class InputSession;
 struct InputDeviceIdentity;
@@ -36,9 +34,7 @@ struct NativeTimeouts {
 	std::uint32_t program_ms = 30000;
 	std::uint32_t core_io_ms = 10000;
 	std::uint32_t video_ms = 10000;
-	// Cartridge transfers use one deadline per media item. The Linux HPS SPI
-	// path performs a bounded MMIO handshake for every 16-bit word, so a
-	// normal core-control timeout is too short for larger ROMs.
+	// Stream-media snapshots and delivery have a separate finite deadline.
 	std::uint32_t media_io_ms = 120000;
 };
 
@@ -57,10 +53,9 @@ public:
 
 class NativeHardware final : public Hardware {
 public:
-	NativeHardware(ArtifactOpener&, FpgaManager&, CoreLoader&, VideoBringup&,
+	NativeHardware(ArtifactOpener&, FpgaManager&, VideoBringup&,
 		FixedVideoBringup&, InputSession&, const InputDeviceIdentity&, Clock&,
-		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver& mister_driver,
-		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr,
+		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver* fes_gp_driver,
 		std::vector<std::string> package_roots = {},
 		IdleRecipe idle_recipe = SplashIdle());
 	~NativeHardware();
@@ -83,13 +78,8 @@ public:
 	Capabilities capabilities() const override;
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t generation) override;
-	HardwareResult Launch(const PreparedLaunch&, std::uint64_t generation) override;
-	HardwareResult LoadDevelopmentRBF(const std::string&,
-		std::uint64_t generation = 0) override;
 	HardwareResult LoadContainedDevelopmentRBF(const std::string&,
 		std::uint64_t generation) override;
-	HardwareResult LoadDevelopmentRBF(const std::string&, ProgrammingProfile,
-		std::uint64_t generation = 0);
 	Error SetComputerKeyboard(std::uint64_t matrix) override;
 	Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad) override;
@@ -107,7 +97,6 @@ private:
 	void ForwardInputFault(std::uint64_t generation, Error);
 	ArtifactOpener& opener_;
 	FpgaManager& fpga_;
-	CoreLoader& core_;
 	VideoBringup& idle_video_;
 	FixedVideoBringup& game_video_;
 	InputSession& input_;
@@ -117,11 +106,9 @@ private:
 	std::string idle_rbf_;
 	IdleRecipe idle_recipe_;
 	NativeTimeouts timeouts_;
-	CoreDriver& mister_driver_;
 	CoreDriver* fes_gp_driver_;
 	ContainedCoreDriver contained_driver_;
 	CoreDriverRegistry driver_registry_;
-	const Profiles* profiles_;
 	std::vector<std::string> package_roots_;
 	CoreDriver* active_driver_;
 	CoreDriverContext active_context_;
@@ -136,9 +123,6 @@ private:
 	CoreData durable_data_;
 	std::vector<std::uint16_t> core_snapshot_;
 	bool core_data_flushed_ = false;
-	std::unique_ptr<SaveFile> save_;
-	std::vector<unsigned char> snapshot_;
-	bool save_flushed_ = false;
 };
 
 } // namespace native

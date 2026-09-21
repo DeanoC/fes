@@ -258,11 +258,6 @@ def generate_agent_config(host_config, scratch):
         content = (
             'listen_address = "0.0.0.0:8182"\n'
             f'token = {json.dumps(token, ensure_ascii=True)}\n'
-            'mister_process_comm = "MiSTer"\n'
-            'command_pipe = "/dev/MiSTer_cmd"\n'
-            'core_name_file = "/tmp/CORENAME"\n'
-            'menu_rbf = "/media/fat/menu.rbf"\n'
-            'mgl_directory = "/tmp/fogcast"\n'
         ).encode('utf-8')
         if target_id:
             content += f'target_id = "{target_id}"\n'.encode('ascii')

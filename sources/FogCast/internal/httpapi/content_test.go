@@ -24,8 +24,6 @@ type fakeContentController struct {
 	probeErr       *protocol.APIError
 	putResponse    protocol.CacheUploadResponse
 	putErr         *protocol.APIError
-	launchResponse protocol.CachedLaunchResponse
-	launchErr      *protocol.APIError
 	lookupResponse protocol.CachedIdentityResponse
 	lookupErr      *protocol.APIError
 
@@ -40,7 +38,6 @@ type fakeContentController struct {
 	probeKey    protocol.ContentKey
 	putSystem   protocol.System
 	putContent  protocol.ContentIdentity
-	launch      protocol.CachedLaunchRequest
 	lastLookup  string
 	put         func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, *protocol.APIError)
 }
@@ -72,12 +69,6 @@ func (f *fakeContentController) PutContent(ctx context.Context, system protocol.
 		return f.put(ctx, system, content, body)
 	}
 	return f.putResponse, f.putErr
-}
-
-func (f *fakeContentController) LaunchContent(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, *protocol.APIError) {
-	f.launchCalls++
-	f.launch = request
-	return f.launchResponse, f.launchErr
 }
 
 func (f *fakeContentController) LookupCachedIdentity(_ context.Context, gameID string) (protocol.CachedIdentityResponse, *protocol.APIError) {
@@ -114,9 +105,6 @@ func TestV2RoutesAreOptionalAndMethodsAreExact(t *testing.T) {
 		{method: http.MethodPost, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", wantAllow: "GET, PUT"},
 		{method: http.MethodDelete, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", wantAllow: "GET, PUT"},
 		{method: http.MethodOptions, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", wantAllow: "GET, PUT"},
-		{method: http.MethodGet, path: "/v2/launch", wantAllow: "POST"},
-		{method: http.MethodPut, path: "/v2/launch", wantAllow: "POST"},
-		{method: http.MethodOptions, path: "/v2/launch", wantAllow: "POST"},
 	}
 	for _, tt := range tests {
 		response := httptest.NewRecorder()
@@ -191,8 +179,6 @@ func TestV2NoncanonicalPathsAreExact404BeforeAuthentication(t *testing.T) {
 		{name: "encoded slash digest", method: http.MethodGet, path: "/v2/cache/snes/abc%2fdef?extension=sfc"},
 		{name: "literal backslash system", method: http.MethodGet, path: "/v2/cache/snes\\extra/" + v2Digest + "?extension=sfc"},
 		{name: "literal backslash digest", method: http.MethodGet, path: "/v2/cache/snes/abc\\def?extension=sfc"},
-		{name: "malformed escape", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%ZZ/launch"},
-		{name: "inconsistent escaped path", method: http.MethodPost, path: "/v2/launch", rawPath: "/v2/%63ache"},
 		{name: "ignored raw path hint", method: http.MethodGet, path: "/v2/cache/snes%20extra/" + v2Digest + "?extension=sfc", rawPath: "/v2/cache/snes extra/" + v2Digest},
 	}
 	for _, tt := range tests {
@@ -244,7 +230,6 @@ func TestV2AuthenticationRejectsEveryEndpointBeforeBodyRead(t *testing.T) {
 	}{
 		{name: "probe", method: http.MethodGet, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc"},
 		{name: "upload", method: http.MethodPut, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", length: 3, media: "application/octet-stream"},
-		{name: "launch", method: http.MethodPost, path: "/v2/launch", length: 3, media: "application/json"},
 	}
 	authorizations := []string{"", "test-token", "bearer test-token", "Bearer wrong", "Bearer test-token extra"}
 	for _, tt := range tests {
@@ -356,196 +341,6 @@ func TestV2ProbeRejectsControllerIdentityMismatch(t *testing.T) {
 			assertAPIError(t, response, http.StatusInternalServerError, protocol.CodeInternal)
 			if content.probeCalls != 1 {
 				t.Fatalf("probe calls = %d, want 1", content.probeCalls)
-			}
-		})
-	}
-}
-
-func TestV2LaunchRequiresExactMediaTypeStrictBoundedJSONAndValidIdentity(t *testing.T) {
-	valid := validLaunchJSON()
-	tests := []struct {
-		name  string
-		body  string
-		media string
-	}{
-		{name: "missing media type", body: valid},
-		{name: "wrong media type", body: valid, media: "text/plain"},
-		{name: "media type parameter", body: valid, media: "application/json; charset=utf-8"},
-		{name: "malformed", body: `{"game_id":`, media: "application/json"},
-		{name: "multiple objects", body: valid + `{}`, media: "application/json"},
-		{name: "unknown top field", body: strings.TrimSuffix(valid, "}") + `,"source":"/Volumes/private"}`, media: "application/json"},
-		{name: "unknown nested field", body: strings.Replace(valid, `"extension":"sfc"`, `"extension":"sfc","path":"/media/fat/fogcast/cache/private"`, 1), media: "application/json"},
-		{name: "oversized", body: strings.TrimSuffix(valid, "}") + `,"padding":"` + strings.Repeat("x", (64<<10)+1) + `"}`, media: "application/json"},
-		{name: "invalid game", body: strings.Replace(valid, "snes-synthetic", "../private", 1), media: "application/json"},
-		{name: "mixed system", body: strings.Replace(valid, `"system":"snes"`, `"system":"SNES"`, 1), media: "application/json"},
-		{name: "mixed digest", body: strings.Replace(valid, v2Digest, strings.ToUpper(v2Digest), 1), media: "application/json"},
-		{name: "mixed extension", body: strings.Replace(valid, `"extension":"sfc"`, `"extension":"SFC"`, 1), media: "application/json"},
-		{name: "zero size", body: strings.Replace(valid, `"size":3`, `"size":0`, 1), media: "application/json"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			content := &fakeContentController{}
-			request := newV2Request(http.MethodPost, "/v2/launch", strings.NewReader(tt.body), int64(len(tt.body)), tt.media)
-			response := serveContent(newContentHandler(content, discardLogger()), request)
-			if response.Code != http.StatusBadRequest && response.Code != http.StatusUnprocessableEntity {
-				t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
-			}
-			if content.launchCalls != 0 {
-				t.Fatalf("launch calls = %d, want 0", content.launchCalls)
-			}
-		})
-	}
-}
-
-func TestV2LaunchReturnsExactShapeAndRejectsControllerMismatch(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: v2Digest, Size: 3, Extension: "sfc"}
-	request := protocol.CachedLaunchRequest{GameID: "snes-synthetic", System: protocol.SystemSNES, Content: identity}
-	system := protocol.SystemSNES
-	gameID, expected, observed := request.GameID, "SNES", "SNES"
-	success := protocol.CachedLaunchResponse{
-		Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &expected, ObservedCore: &observed},
-		Content: identity,
-	}
-	content := &fakeContentController{launchResponse: success}
-	response := serveContent(newContentHandler(content, discardLogger()), newV2Request(http.MethodPost, "/v2/launch", strings.NewReader(validLaunchJSON()), int64(len(validLaunchJSON())), "application/json"))
-	wantBody := "{\"status\":{\"state\":\"active\",\"game_id\":\"snes-synthetic\",\"system\":\"snes\",\"expected_core\":\"SNES\",\"observed_core\":\"SNES\",\"last_error\":null},\"content\":{\"sha256\":\"" + v2Digest + "\",\"size\":3,\"extension\":\"sfc\"}}\n"
-	if response.Code != http.StatusOK || response.Body.String() != wantBody {
-		t.Fatalf("response = status %d, body %q", response.Code, response.Body.String())
-	}
-	if content.launchCalls != 1 || content.launch != request {
-		t.Fatalf("launch call = %d, %#v", content.launchCalls, content.launch)
-	}
-
-	tests := []struct {
-		name   string
-		mutate func(*protocol.CachedLaunchResponse)
-	}{
-		{name: "content", mutate: func(response *protocol.CachedLaunchResponse) { response.Content.Size++ }},
-		{name: "state", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.State = protocol.StateIdle }},
-		{name: "missing game", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.GameID = nil }},
-		{name: "game", mutate: func(response *protocol.CachedLaunchResponse) { other := "snes-other"; response.Status.GameID = &other }},
-		{name: "missing system", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.System = nil }},
-		{name: "system", mutate: func(response *protocol.CachedLaunchResponse) {
-			other := protocol.SystemMegaDrive
-			response.Status.System = &other
-		}},
-		{name: "missing expected core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ExpectedCore = nil }},
-		{name: "missing observed core", mutate: func(response *protocol.CachedLaunchResponse) { response.Status.ObservedCore = nil }},
-		{name: "wrong expected core", mutate: func(response *protocol.CachedLaunchResponse) {
-			other := "MegaDrive"
-			response.Status.ExpectedCore = &other
-		}},
-		{name: "wrong observed core", mutate: func(response *protocol.CachedLaunchResponse) {
-			other := "MegaDrive"
-			response.Status.ObservedCore = &other
-		}},
-		{name: "last error", mutate: func(response *protocol.CachedLaunchResponse) {
-			response.Status.LastError = &protocol.APIError{Code: protocol.CodeInternal, Message: "/Volumes/private/controller-error-" + strings.Repeat("x", 64<<10)}
-		}},
-		{name: "oversized expected core", mutate: func(response *protocol.CachedLaunchResponse) {
-			other := "SNES/private/" + strings.Repeat("x", 64<<10)
-			response.Status.ExpectedCore = &other
-		}},
-		{name: "oversized observed core", mutate: func(response *protocol.CachedLaunchResponse) {
-			other := "SNES/private/" + strings.Repeat("x", 64<<10)
-			response.Status.ObservedCore = &other
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mismatched := success
-			tt.mutate(&mismatched)
-			controller := &fakeContentController{launchResponse: mismatched}
-			got := serveContent(newContentHandler(controller, discardLogger()), newV2Request(http.MethodPost, "/v2/launch", strings.NewReader(validLaunchJSON()), int64(len(validLaunchJSON())), "application/json"))
-			assertAPIError(t, got, http.StatusInternalServerError, protocol.CodeInternal)
-		})
-	}
-}
-
-func TestV2LaunchSanitizesControllerStatusAndErrorsBeforeLogging(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: v2Digest, Size: 3, Extension: "sfc"}
-	privateGame := "controller-private-game-" + strings.Repeat("g", 64<<10)
-	privateSystem := protocol.System("controller-private-system-" + strings.Repeat("s", 64<<10))
-	privateState := protocol.State("controller-private-state-" + strings.Repeat("t", 64<<10))
-	privateCore := "controller-private-core-" + strings.Repeat("c", 64<<10)
-	privateMessage := "/Volumes/private/controller-message-" + strings.Repeat("m", 64<<10)
-	privateCode := protocol.ErrorCode("CONTROLLER_PRIVATE_CODE_" + strings.Repeat("e", 64<<10))
-	hostile := protocol.CachedLaunchResponse{
-		Status: protocol.Status{
-			State:        privateState,
-			GameID:       &privateGame,
-			System:       &privateSystem,
-			ExpectedCore: &privateCore,
-			ObservedCore: &privateCore,
-			LastError:    &protocol.APIError{Code: privateCode, Message: privateMessage},
-		},
-		Content: identity,
-	}
-	tests := []struct {
-		name       string
-		controller *protocol.APIError
-		wantStatus int
-		wantCode   protocol.ErrorCode
-		wantBody   string
-	}{
-		{
-			name:       "known controller error",
-			controller: &protocol.APIError{Code: protocol.CodeTransferFailed, Message: privateMessage},
-			wantStatus: http.StatusBadRequest,
-			wantCode:   protocol.CodeTransferFailed,
-			wantBody:   "{\"error\":{\"code\":\"TRANSFER_FAILED\",\"message\":\"content transfer failed\"}}\n",
-		},
-		{
-			name:       "unknown controller error",
-			controller: &protocol.APIError{Code: privateCode, Message: privateMessage},
-			wantStatus: http.StatusInternalServerError,
-			wantCode:   protocol.CodeInternal,
-			wantBody:   "{\"error\":{\"code\":\"INTERNAL\",\"message\":\"content operation failed internally\"}}\n",
-		},
-		{
-			name:       "invalid success status",
-			wantStatus: http.StatusInternalServerError,
-			wantCode:   protocol.CodeInternal,
-			wantBody:   "{\"error\":{\"code\":\"INTERNAL\",\"message\":\"content operation failed internally\"}}\n",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			controller := &fakeContentController{launchResponse: hostile, launchErr: tt.controller}
-			var logs bytes.Buffer
-			response := serveContent(newContentHandler(controller, slog.New(slog.NewJSONHandler(&logs, nil))), newV2Request(http.MethodPost, "/v2/launch", strings.NewReader(validLaunchJSON()), int64(len(validLaunchJSON())), "application/json"))
-
-			assertAPIError(t, response, tt.wantStatus, tt.wantCode)
-			if response.Body.String() != tt.wantBody {
-				t.Fatalf("body = %q, want %q", response.Body.String(), tt.wantBody)
-			}
-			logText := logs.String()
-			for _, want := range []string{`"game_id":"snes-synthetic"`, `"system":"snes"`, `"digest":"` + v2Digest + `"`, `"size":3`, `"error_code":"` + string(tt.wantCode) + `"`} {
-				if !strings.Contains(logText, want) {
-					t.Errorf("logs missing request-derived field %s", want)
-				}
-			}
-			privateFields := []struct {
-				name  string
-				value string
-			}{
-				{name: "game", value: privateGame},
-				{name: "system", value: string(privateSystem)},
-				{name: "state", value: string(privateState)},
-				{name: "core", value: privateCore},
-				{name: "message", value: privateMessage},
-				{name: "code", value: string(privateCode)},
-			}
-			for _, private := range privateFields {
-				if strings.Contains(response.Body.String(), private.value) || strings.Contains(logText, private.value) {
-					t.Errorf("oversized controller-private %s reached response or logs", private.name)
-				}
-			}
-			if strings.Contains(logText, `"state":`) {
-				t.Errorf("invalid controller state reached logs")
-			}
-			if len(response.Body.String()) > 256 || logs.Len() > 2048 {
-				t.Errorf("sanitized output is unbounded: response=%d log=%d", response.Body.Len(), logs.Len())
 			}
 		})
 	}
@@ -790,31 +585,6 @@ func TestV2CacheIndexIsLeaseFreeAuthenticatedGET(t *testing.T) {
 	query := serveContent(handler, newV2Request(http.MethodGet, "/v2/cache?extra=1", nil, 0, ""))
 	if query.Code != http.StatusBadRequest {
 		t.Fatalf("query status=%d body=%s", query.Code, query.Body.String())
-	}
-}
-
-func TestV2LaunchLogsSafeIdentityWithoutLoggingBody(t *testing.T) {
-	identity := protocol.ContentIdentity{SHA256: v2Digest, Size: 3, Extension: "sfc"}
-	system := protocol.SystemSNES
-	gameID, expected, observed := "snes-synthetic", "SNES", "SNES"
-	controller := &fakeContentController{launchResponse: protocol.CachedLaunchResponse{
-		Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &expected, ObservedCore: &observed},
-		Content: identity,
-	}}
-	var logs bytes.Buffer
-	response := serveContent(newContentHandler(controller, slog.New(slog.NewJSONHandler(&logs, nil))), newV2Request(http.MethodPost, "/v2/launch", strings.NewReader(validLaunchJSON()), int64(len(validLaunchJSON())), "application/json"))
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
-	}
-	for _, want := range []string{
-		`"method":"POST"`, `"route":"/v2/launch"`, `"status":200`, `"game_id":"snes-synthetic"`, `"system":"snes"`, `"digest":"` + v2Digest + `"`, `"size":3`, `"state":"active"`,
-	} {
-		if !strings.Contains(logs.String(), want) {
-			t.Errorf("logs missing %s: %s", want, logs.String())
-		}
-	}
-	if strings.Contains(logs.String(), `"content"`) || strings.Contains(logs.String(), validLaunchJSON()) {
-		t.Fatalf("logs contain request body: %s", logs.String())
 	}
 }
 

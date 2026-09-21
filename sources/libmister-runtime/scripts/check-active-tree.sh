@@ -71,22 +71,18 @@ artifacts.o
 core_composition.o
 core_data.o
 core_driver.o
-core_loader.o
 core_package.o
 diagnostic.o
 fes_gp.o
 fpga_manager.o
-framebuffer.o
 hardware.o
 i2c.o
 input.o
 linux_input.o
 mmio.o
 production_hardware.o
-profile.o
 runtime.o
 sha256.o
-spi.o
 video.o
 video_recipe.o
 EOF
@@ -139,7 +135,11 @@ check_header_rebuilds() {
 	local dependencies=$temporary/$label.dependencies
 	touch -r "$root/$header" "$timestamp"
 	find "$build/src" -type f -name '*.d' -exec grep -Fl -- "$header" {} + \
-		| LC_ALL=C sort >"$dependencies"
+		| while IFS= read -r dependency; do
+			source=${dependency%.d}.cpp
+			[[ $source != */linux_input.cpp ]] || source=${source%linux_input.cpp}input.cpp
+			[[ -f ${source/$build\//$root\/} ]] && printf '%s\n' "$dependency"
+		done | LC_ALL=C sort >"$dependencies"
 	[[ -s "$dependencies" ]] || {
 		echo "$label header has no recorded object dependencies" >&2
 		exit 1

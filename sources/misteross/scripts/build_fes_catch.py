@@ -30,15 +30,14 @@ def _require_clean_source(root, *, identity_version=2):
 
 @guard_functional_source
 def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None):
-    fields = json.loads(demo.create_build_record(root, repository, revision, identities, audio=True))
+    fields = demo.record_fields(root, repository, revision, identities, audio=True)
     fields.update(recipe=RECIPE, abi_definition=demo.ABI_DEFINITION,
                   recipe_sha256=board._sha256(root / RECIPE))
     fields["parameters"]["application"] = "catch"
-    if identity_version == 2:
-        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
-            execution, pinned_inputs=PINNED_INPUTS)
-    elif identity_version != 1:
+    if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
+    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
+        execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 def manifest(record, evidence, repository, revision, identities):
@@ -57,18 +56,18 @@ def build(root=ROOT, package_store=None, *, cache_root=None, identity_version=2,
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     tools = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in tools.items()}
-    invocation = FunctionalInvocation(tools, gpu_device) if identity_version == 2 else None
+    invocation = FunctionalInvocation(tools, gpu_device)
     output = None
     try:
         record = create_build_record(root, repository, revision, identities,
-            identity_version=identity_version, execution=invocation.inputs if invocation else None)
+            identity_version=identity_version, execution=invocation.inputs)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=demo.BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
         commands = demo.build_commands(root, build_identity(record),
             {name: tools[name].path for name in ("yosys", "nextpnr-mistral")}, audio=True, catch=True)
-        options = {"env": invocation.env, "audit_source_root": root} if invocation else {}
+        options = {"env": invocation.env, "audit_source_root": root}
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT, **options)
-        route = commands[1] + (("--gpu-device", str(gpu_device)) if invocation else ())
+        route = commands[1] + (("--gpu-device", str(gpu_device)))
         board._run_tool(route, root, output / "nextpnr.log", output_relative=OUTPUT, **options)
         evidence = demo.board_evidence.validate_build_evidence(output, root, audio=True,
             ordinary_resources=demo.ORDINARY_RESOURCES, required_resources=demo.REQUIRED_RESOURCES,
@@ -77,8 +76,7 @@ def build(root=ROOT, package_store=None, *, cache_root=None, identity_version=2,
         evidence.update(build_id=build_identity(record), device=board.TARGET, tools=identities,
             top="top", inputs={p: board._sha256(root / p) for p in sorted(PINNED_INPUTS)},
             audio_pins={"status": "pass", "pins": demo.AUDIO_PINS})
-        if invocation:
-            evidence["execution"] = invocation.inputs
+        evidence["execution"] = invocation.inputs
         board._write_atomic(output / "build-summary.json", (json.dumps(evidence, sort_keys=True, indent=2) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities)
         board._write_atomic(output / "manifest.toml", encoded)
@@ -87,26 +85,24 @@ def build(root=ROOT, package_store=None, *, cache_root=None, identity_version=2,
             raise board.BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
             raise board.BuildError("source identity changed during build")
-        if invocation:
-            invocation.verify()
-            if create_build_record(root, repository, revision, identities,
-                identity_version=identity_version, execution=invocation.inputs) != record:
-                raise board.BuildError("functional source inputs changed during build")
+        invocation.verify()
+        if create_build_record(root, repository, revision, identities,
+            identity_version=identity_version, execution=invocation.inputs) != record:
+            raise board.BuildError("functional source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
         if output is not None:
             board._invalidate_failed_artifact(output)
         raise
     finally:
-        if invocation:
-            invocation.close()
+        invocation.close()
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--package-output", type=Path)
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
     args = parser.parse_args()
     try:

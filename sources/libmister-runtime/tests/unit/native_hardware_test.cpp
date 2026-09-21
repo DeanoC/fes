@@ -4,14 +4,13 @@
 #include "capture_log.hpp"
 #include "fake_input.hpp"
 #include "fake_mmio.hpp"
-#include "snes_save_spi.hpp"
 #include "linux/production_hardware.hpp"
 #include "native/artifacts.hpp"
-#include "native/core_loader.hpp"
 #include "native/core_package.hpp"
 #include "native/sha256.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
+#include "native/generated/de10_nano.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/hardware.hpp"
@@ -19,7 +18,6 @@
 #include "native/input.hpp"
 #include "native/linux/i2c.hpp"
 #include "native/linux/input.hpp"
-#include "native/linux/spi.hpp"
 #include "native/video.hpp"
 #include "native/video_recipe.hpp"
 
@@ -98,13 +96,6 @@ std::string BaseName(const std::string& path)
 	return slash == std::string::npos ? path : path.substr(slash + 1);
 }
 
-std::string BasicNesRom()
-{
-	std::string bytes(16u + 2u * 16384u + 1u * 8192u, '\0');
-	bytes[0] = 'N'; bytes[1] = 'E'; bytes[2] = 'S'; bytes[3] = 0x1a;
-	bytes[4] = 2; bytes[5] = 1;
-	return bytes;
-}
 
 std::string ReadText(const std::string& path)
 {
@@ -132,23 +123,6 @@ void ReplaceAll(std::string* text, const std::string& from,
 	}
 }
 
-void PopulateMisterPackage(TempDirectory* package, bool with_system)
-{
-	std::string manifest = ReadText(
-		"tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
-	ReplaceAll(&manifest, "fes-gp-v1", "mister-v1");
-	ReplaceAll(&manifest, "fes.simple-game", "mister");
-	ReplaceAll(&manifest, "required = true", "required = false");
-	if (with_system) {
-		const std::string version = "version = \"0.1.0\"";
-		const std::size_t position = manifest.find(version);
-		assert(position != std::string::npos);
-		manifest.insert(position + version.size(), "\nsystem = \"megadrive\"");
-	}
-	package->File("manifest.toml", manifest);
-	package->File("core.rbf", ReadText(
-		"tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
-}
 
 class LedgerLog final : public mister::LogSink {
 public:
@@ -362,93 +336,6 @@ private:
 	bool selection_pending_ = false;
 };
 
-class RecordingSpi final : public mister::native::Spi {
-public:
-	RecordingSpi(std::vector<std::string>& events, RecordingI2c& i2c)
-		: events_(events), i2c_(i2c) {}
-	mister::Error SynchronizeCore(std::uint64_t deadline) override
-	{
-		deadlines.push_back(deadline);
-		events_.push_back("core.sync");
-		return sync_error;
-	}
-	mister::Error Exchange(std::uint8_t target,
-		const std::vector<std::uint16_t>& request,
-		std::vector<std::uint16_t>* response, std::uint64_t deadline) override
-	{
-		deadlines.push_back(deadline);
-		requests.push_back(request);
-		if (save_spi && !request.empty() && (request[0] == 0x53 || request[0] == 0x1e ||
-		    request[0] == 0x1c || request[0] == 0x1d || request[0] == 0x16 || request[0] == 0x17 || request[0] == 0x18)) {
-			if (request[0] == 0x18) events_.push_back("save.snapshot");
-			if (request[0] == 0x17) events_.push_back("save.restore");
-			auto error = save_spi->Exchange(target, request, response, deadline);
-			if (!error.ok()) return error;
-		}
-		if (request.empty()) return {mister::ErrorCode::io_failed, "empty"};
-		std::string event;
-		if (request[0] == 0x0014) {
-			event = "core.probe:" + observed_core;
-			events_.push_back(event);
-			if (!probe_error.ok()) {
-				const mister::Error error = probe_error;
-				probe_error = {};
-				return error;
-			}
-			response->assign(request.size(), 0);
-			std::size_t index = 1;
-			for (unsigned char byte : observed_core) (*response)[index++] = byte;
-			(*response)[index] = ';';
-		} else if (request[0] == 0x001e) {
-			if (status_calls % 3 == 0) event = "core.reset.assert";
-			else if (status_calls % 3 == 1) event = "core.status.initial";
-			else event = "core.reset.release";
-			events_.push_back(event);
-			++status_calls;
-		} else if (request[0] == 0x0055) {
-			event = "core.media.select:" + std::to_string(request.at(1));
-			events_.push_back(event);
-		} else if (request[0] == 0x0056) {
-			event = "core.media.extension:.bin";
-			events_.push_back(event);
-		} else if (request[0] == 0x0053 && request.at(1) == 0x00ff) {
-			event = "core.media.enable";
-			events_.push_back(event);
-		} else if (request[0] == 0x0054) {
-			event = "core.media.data:all bytes once";
-			events_.push_back(event);
-		} else if (request[0] == 0x0029) {
-			event = "core.media.complete";
-			events_.push_back(event);
-		} else if (request[0] == 0x0020) {
-			event = "video.timing:menu_720p60";
-			events_.push_back(event);
-			i2c_.MarkTiming();
-		} else if (request ==
-			std::vector<std::uint16_t>({0x0001, 0x0000})) {
-			event = "core.buttons.neutral";
-			events_.push_back(event);
-		} else if (request == std::vector<std::uint16_t>({0x0026, 0x0000})) {
-			event = "audio.volume:0";
-			events_.push_back(event);
-		}
-		if (!fail_event.empty() && event == fail_event) {
-			fail_event.clear();
-			return {mister::ErrorCode::io_failed, "injected core failure"};
-		}
-		return {};
-	}
-	std::vector<std::string>& events_;
-	RecordingI2c& i2c_;
-	std::string observed_core = "MegaDrive";
-	mister::Error probe_error;
-	std::vector<std::uint64_t> deadlines;
-	std::vector<std::vector<std::uint16_t>> requests;
-	mister::Error sync_error;
-	std::string fail_event;
-	std::size_t status_calls = 0;
-	mister_test::SnesSaveSpi* save_spi = nullptr;
-};
 
 class RecordingInput final : public mister::native::InputSession {
 public:
@@ -549,8 +436,8 @@ private:
 class RetainingNativeInput final : public mister::native::InputSession {
 public:
 	RetainingNativeInput(mister::native::InputDevice& device,
-		mister::native::Spi& spi, mister::native::Clock& clock)
-		: native_(device, spi, clock, 25) {}
+		mister::native::Clock& clock)
+		: native_(device, clock, 25) {}
 	mister::Error Open(const mister::native::InputDeviceIdentity& identity,
 		const mister::InputRecipe& recipe, std::uint64_t deadline,
 		mister::native::ButtonWriter writer = {}) override
@@ -682,45 +569,22 @@ public:
 
 struct Fixture {
 	explicit Fixture(mister::native::CoreDriver* gp_driver = nullptr,
-		const mister::Profiles* profiles = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::TransitionalMenuIdle())
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
 		: temporary(), events(), idle(temporary.File("idle.rbf", "idle")),
 		  rbf(temporary.File("megadrive.rbf", "game")),
 		  media_two(temporary.File("two.bin", "22")),
 		  media_zero(temporary.File("zero.bin", "0")),
 		  rom(temporary.File("sonic2.bin", "sonic")), opener(events), mmio(), fpga(events),
-		  i2c(events), spi(events, i2c), core(spi), idle_video(events), clock(100),
-		  driver(mmio, core, clock),
-		  log(events), game_video(spi, i2c, clock, log,
+		  i2c(events), idle_video(events), clock(100),
+		  log(events), game_video(i2c, clock, log,
 			mister::native::Menu720p60Recipe()), input(events, clock),
 		  input_identity({"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001,
 			0x0001}), sink(),
-			hardware(opener, fpga, core, idle_video, game_video, input,
-			input_identity, clock, log, idle, {30000, 10000, 10000}, driver,
-			gp_driver, profiles, {"/tmp"}, std::move(idle_recipe))
+			hardware(opener, fpga, idle_video, game_video, input,
+			input_identity, clock, log, idle, {30000, 10000, 10000},
+			gp_driver, {"/tmp"}, std::move(idle_recipe))
 	{
 		hardware.SetFaultSink(&sink);
-	}
-	mister::PreparedLaunch Launch() const
-	{
-		mister::PreparedLaunch launch;
-		launch.system = "megadrive";
-		launch.expected_core = "MegaDrive";
-		launch.rbf = rbf;
-		launch.media.push_back({2, media_two});
-		launch.media.push_back({0, media_zero});
-		launch.core = {0x1111, 0x2222, 0x3333,
-			mister::FileWireFormat::little_endian_byte_pairs};
-		launch.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
-			0x0010, 0x0020, 0x0040, 0x0080};
-		return launch;
-	}
-	mister::PreparedLaunch MegaDriveLaunch() const
-	{
-		mister::PreparedLaunch launch = Launch();
-		launch.media.clear();
-		launch.media.push_back({1, rom, 32u * 1024u * 1024u});
-		return launch;
 	}
 	TempDirectory temporary;
 	std::vector<std::string> events;
@@ -733,11 +597,8 @@ struct Fixture {
 	mister_test::FakeMmio mmio;
 	RecordingFpga fpga;
 	RecordingI2c i2c;
-	RecordingSpi spi;
-	mister::native::CoreLoader core;
 	RecordingVideo idle_video;
 	FixedClock clock;
-	mister::native::MisterCoreDriver driver;
 	LedgerLog log;
 	mister::native::FixedVideoBringup game_video;
 	RecordingInput input;
@@ -830,33 +691,9 @@ bool WaitForState(mister::Runtime& runtime, mister::State state)
 
 struct IntegratedFixture {
 	explicit IntegratedFixture(mister::native::CoreDriver* gp_driver = nullptr,
-		mister::native::IdleRecipe idle_recipe = mister::native::TransitionalMenuIdle())
-		: native(gp_driver, nullptr, std::move(idle_recipe)), profiles(BuildProfiles(native)),
-		  runtime(native.hardware, profiles, native.log) {}
-	static mister::Profiles BuildProfiles(const Fixture& native)
-	{
-		mister::Profile profile;
-		profile.system = "megadrive";
-		profile.expected_core = "MegaDrive";
-		profile.rbf = native.rbf;
-		profile.media.push_back({"cartridge", 1, true, {".bin"},
-			32u * 1024u * 1024u});
-		profile.core = {0x1111, 0x2222, 0x3333,
-			mister::FileWireFormat::little_endian_byte_pairs};
-		profile.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
-			0x0010, 0x0020, 0x0040, 0x0080};
-		mister::Profiles profiles;
-		assert(profiles.Add(std::move(profile)).ok());
-		return profiles;
-	}
-	mister::Launch Request() const
-	{
-		mister::Launch launch;
-		launch.system = "megadrive";
-		launch.rbf = native.rbf;
-		launch.media.push_back({"cartridge", native.rom});
-		return launch;
-	}
+		mister::native::IdleRecipe idle_recipe = mister::native::SplashIdle())
+		: native(gp_driver, std::move(idle_recipe)),
+		  runtime(native.hardware, native.log) {}
 	void Start()
 	{
 		assert(runtime.Start().ok());
@@ -864,62 +701,10 @@ struct IntegratedFixture {
 		native.log.Clear();
 	}
 	Fixture native;
-	mister::Profiles profiles;
 	mister::Runtime runtime;
 };
 
-const std::vector<std::string> kSuccessfulLaunch = {
-	"profile.validate:megadrive",
-	"input.resolve:FogCast Virtual Gamepad",
-	"artifact.open:megadrive.rbf",
-	"artifact.open:sonic2.bin",
-	"media.sort:1",
-	"video.quiesce",
-	"fpga.program",
-	"core.sync",
-	"core.reset.assert",
-	"core.probe:MegaDrive",
-	"core.status.initial",
-	"core.media.select:1",
-	"core.media.extension:.bin",
-	"core.media.enable",
-	"core.media.data:all bytes once",
-	"core.media.complete",
-	"video.adv.initialize",
-	"video.timing:menu_720p60",
-	"video.adv.mode",
-	"core.buttons.neutral",
-	"video.link.ready",
-	"audio.volume:0",
-	"input.neutral",
-	"core.reset.release",
-	"input.start:1",
-	"runtime.running_game",
-};
 
-void TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder()
-{
-	Fixture fixture;
-	const mister::HardwareResult result = fixture.hardware.Launch(fixture.Launch(), 1);
-	assert(result.error.ok() && result.mutation_attempted);
-	assert(result.observed_core == "MegaDrive");
-	assert(fixture.events[0] == "input.resolve:FogCast Virtual Gamepad");
-	assert(fixture.events[1] == "artifact.open:megadrive.rbf");
-	assert(fixture.events[2] == "artifact.open:two.bin");
-	assert(fixture.events[3] == "artifact.open:zero.bin");
-	assert(Find(fixture.events, "video.quiesce") == 5);
-	assert(Find(fixture.events, "fpga.program") == 6);
-	assert(Find(fixture.events, "core.sync") == 7);
-	assert(Find(fixture.events, "core.reset.assert") == 8);
-	assert(Find(fixture.events, "core.probe:MegaDrive") == 9);
-	assert(Find(fixture.events, "core.status.initial") == 10);
-	assert(Find(fixture.events, "core.media.select:0") <
-		Find(fixture.events, "core.media.select:2"));
-	assert(Find(fixture.events, "input.neutral") <
-		Find(fixture.events, "core.reset.release"));
-	assert(Find(fixture.events, "core.reset.release") <
-		Find(fixture.events, "input.start:1"));
-}
 
 void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 {
@@ -941,7 +726,7 @@ void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 	bool outgoing_reset_seen = false;
 	fixture.native.fpga.on_program = [&] {
 		if (fixture.native.fpga.calls == 2)
-			outgoing_reset_seen = !fixture.native.mmio.writes.empty() &&
+			outgoing_reset_seen = fixture.native.mmio.writes.empty() &&
 				driver_events.empty();
 	};
 	const std::string package_id =
@@ -971,7 +756,7 @@ void TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver()
 	};
 	assert(fixture.runtime.Stop().ok());
 	assert(fixture.native.fpga.profiles.back() ==
-		mister::native::ProgrammingProfile::mister_v1);
+		mister::native::ProgrammingProfile::development_contained_v1);
 }
 
 void TestProductionFesInputDisconnectAndGenerationRetirement()
@@ -986,25 +771,25 @@ void TestProductionFesInputDisconnectAndGenerationRetirement()
 	mister_test::FakeMmio mmio;
 	RecordingFpga fpga(events);
 	RecordingI2c i2c(events);
-	RecordingSpi spi(events, i2c);
-	CoreLoader core(spi);
+
+
 	RecordingVideo idle_video(events);
 	FixedClock clock(100);
-	MisterCoreDriver mister_driver(mmio, core, clock);
+
 	LedgerLog log(events);
-	FixedVideoBringup game_video(spi, i2c, clock, log,
+	FixedVideoBringup game_video(i2c, clock, log,
 		Menu720p60Recipe());
 	mister_test::FakeInputDevice device;
-	RetainingNativeInput input(device, spi, clock);
+	RetainingNativeInput input(device, clock);
 	const InputDeviceIdentity identity = {
 		"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
 	FesGp transport(mmio, clock);
 	FesGpCoreDriver gp_driver(transport);
 	RecordingFaultSink sink;
 	const std::string idle = temporary.File("idle.rbf", "idle");
-	NativeHardware hardware(opener, fpga, core, idle_video, game_video,
+	NativeHardware hardware(opener, fpga, idle_video, game_video,
 		input, identity, clock, log, idle, {30000, 10000, 10000},
-		mister_driver, &gp_driver, nullptr, {"/tmp"});
+		&gp_driver, {"/tmp"});
 	hardware.SetFaultSink(&sink);
 	const std::string package_id =
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
@@ -1066,22 +851,22 @@ void TestOnlyVerifiedFesGpMismatchIsQuiescedDuringIdleRecovery()
 		mister_test::FakeMmio mmio;
 		RecordingFpga fpga(events);
 		RecordingI2c i2c(events);
-		RecordingSpi spi(events, i2c);
-		CoreLoader core(spi);
+
+
 		RecordingVideo idle_video(events);
 		FixedClock clock(100);
-		MisterCoreDriver mister_driver(mmio, core, clock);
+
 		LedgerLog log(events);
-		FixedVideoBringup game_video(spi, i2c, clock, log,
+		FixedVideoBringup game_video(i2c, clock, log,
 			Menu720p60Recipe());
 		RecordingInput input(events, clock);
 		const InputDeviceIdentity identity = {
 			"FogCast Virtual Gamepad", 0x0006, 0x0000, 0x0001, 0x0001};
 		FesGp transport(mmio, clock);
 		FesGpCoreDriver gp_driver(transport);
-		NativeHardware hardware(opener, fpga, core, idle_video, game_video,
+		NativeHardware hardware(opener, fpga, idle_video, game_video,
 			input, identity, clock, log, temporary.File("idle.rbf", "idle"),
-			{30000, 10000, 10000}, mister_driver, &gp_driver, nullptr, {"/tmp"});
+			{30000, 10000, 10000}, &gp_driver, {"/tmp"});
 		const std::string package_id =
 			"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
 		std::unique_ptr<mister::AdmittedCorePackage> admitted;
@@ -1128,60 +913,12 @@ void TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords()
 	assert(startup.mmio.writes.empty());
 
 	Fixture contained;
-	assert(contained.hardware.LoadDevelopmentRBF(contained.rbf,
-		mister::native::ProgrammingProfile::development_contained_v1).error.ok());
+	assert(contained.hardware.LoadContainedDevelopmentRBF(contained.rbf, 1).error.ok());
 	contained.mmio.writes.clear();
 	assert(contained.hardware.LoadIdle().error.ok());
 	assert(contained.mmio.writes.empty());
 }
 
-void TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem()
-{
-	mister::Profile profile;
-	profile.system = "megadrive";
-	profile.expected_core = "MegaDrive";
-	profile.rbf = "/cores/megadrive.rbf";
-	profile.core = {0x1111, 0x2222, 0x3333,
-		mister::FileWireFormat::little_endian_byte_pairs};
-	profile.input = {1, 0x02, 0x0008, 0x0004, 0x0002, 0x0001,
-		0x0010, 0x0020, 0x0040, 0x0080};
-	mister::Profiles profiles;
-	assert(profiles.Add(profile).ok());
-	Fixture fixture(nullptr, &profiles);
-	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
-	assert(runtime.Start().ok());
-	TempDirectory package;
-	PopulateMisterPackage(&package, true);
-	mister::native::OpenedCorePackage inspected;
-	assert(mister::native::OpenCorePackage(package.path, "", &inspected).ok());
-	assert(runtime.LoadCore(package.path, inspected.package_id).ok());
-	const mister::Status status = runtime.status();
-	assert(status.state == mister::State::running_development);
-	assert(status.execution == mister::Execution::development);
-	assert(status.system.empty());
-	assert(status.active_package.descriptor.core.system == "megadrive");
-	assert(status.declared_core == "fes.pong");
-	assert(status.core == "MegaDrive");
-	assert(fixture.input.open_calls == 0);
-	assert(fixture.fpga.profiles.back() ==
-		mister::native::ProgrammingProfile::mister_v1);
-
-	TempDirectory unknown_package;
-	PopulateMisterPackage(&unknown_package, true);
-	std::string manifest = ReadText(unknown_package.path + "/manifest.toml");
-	ReplaceAll(&manifest, "system = \"megadrive\"", "system = \"unknown\"");
-	assert(unlink((unknown_package.path + "/manifest.toml").c_str()) == 0);
-	unknown_package.files.erase(unknown_package.files.begin());
-	unknown_package.File("manifest.toml", manifest);
-	mister::native::OpenedCorePackage unknown_inspection;
-	assert(mister::native::OpenCorePackage(unknown_package.path, "",
-		&unknown_inspection).ok());
-	std::unique_ptr<mister::AdmittedCorePackage> admitted;
-	assert(fixture.hardware.AdmitCorePackage(unknown_package.path,
-		unknown_inspection.package_id, &admitted).code ==
-		mister::ErrorCode::unknown_system);
-	assert(!admitted);
-}
 
 void TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision()
 {
@@ -1271,65 +1008,7 @@ void TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision()
 	}
 }
 
-void TestRunningGameInputIsRetiredBeforePackageProgramming()
-{
-	std::vector<std::string> driver_events;
-	RecordingDriver gp(driver_events);
-	IntegratedFixture fixture(&gp);
-	fixture.Start();
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	assert(fixture.native.input.HasActiveCallback());
-	fixture.native.events.clear();
-	TempDirectory package;
-	PopulateFesGpPackage(&package);
-	fixture.native.fpga.on_program = [&] {
-		if (fixture.native.fpga.calls != 3) return;
-		assert(Find(fixture.native.events, "input.stop") <
-			Find(fixture.native.events, "video.quiesce"));
-		assert(Find(fixture.native.events, "input.final-neutral") <
-			Find(fixture.native.events, "video.quiesce"));
-		assert(!fixture.native.input.HasActiveCallback());
-	};
-	const std::string package_id =
-		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0";
-	assert(fixture.runtime.LoadCore(package.path, package_id).ok());
-	assert(fixture.native.input.stop_calls == 1);
-	assert(fixture.native.input.HasActiveCallback());
-	assert(fixture.runtime.status().state == mister::State::running_development);
 
-	fixture.native.fpga.on_program = {};
-	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	assert(fixture.native.input.open_calls == 3);
-	assert(fixture.native.input.start_calls == 3);
-	assert(fixture.native.input.generations ==
-		std::vector<std::uint64_t>({1, 2, 3}));
-	assert(fixture.native.input.HasActiveCallback());
-}
-
-void TestPackageReplacementInputStopFailureUsesOneMenuRecovery()
-{
-	std::vector<std::string> driver_events;
-	RecordingDriver gp(driver_events);
-	IntegratedFixture fixture(&gp);
-	fixture.Start();
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	fixture.native.input.stop_error = {
-		mister::ErrorCode::io_failed, "injected replacement input stop failure"};
-	TempDirectory package;
-	PopulateFesGpPackage(&package);
-	const mister::Error error = fixture.runtime.LoadCore(package.path,
-		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0");
-	assert(error.code == mister::ErrorCode::io_failed);
-	assert(error.message == "injected replacement input stop failure");
-	assert(fixture.runtime.status().state == mister::State::idle);
-	assert(fixture.native.input.stop_calls == 1);
-	assert(!fixture.native.input.HasActiveCallback());
-	assert(fixture.native.fpga.calls == 3);
-	assert(driver_events.empty());
-	assert(fixture.native.fpga.profiles.back() ==
-		mister::native::ProgrammingProfile::mister_v1);
-}
 
 void TestPackageReplacementQuiesceFailureRespectsMutationBoundary()
 {
@@ -1376,7 +1055,7 @@ void TestPackageReplacementQuiesceFailureRespectsMutationBoundary()
 		assert(gp.quiesce_generations == std::vector<std::uint64_t>({1}));
 		assert(gp.start_generations == std::vector<std::uint64_t>({1}));
 		assert(fixture.native.fpga.profiles.back() ==
-			mister::native::ProgrammingProfile::mister_v1);
+			mister::native::ProgrammingProfile::development_contained_v1);
 	}
 }
 
@@ -1393,7 +1072,7 @@ void TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery()
 		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0");
 	assert(error.code == mister::ErrorCode::program_failed);
 	assert(fixture.native.fpga.calls == 3);
-	assert(fixture.native.mmio.writes.size() == 1);
+	assert(fixture.native.mmio.writes.empty());
 	assert(events.empty());
 	assert(fixture.runtime.status().state == mister::State::idle);
 }
@@ -1420,413 +1099,19 @@ void TestDriverFaultCallbackRejectsOldPackageGeneration()
 	assert(fixture.native.fpga.calls == 5);
 }
 
-void TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming()
-{
-	Fixture launch;
-	assert(launch.hardware.Launch(launch.MegaDriveLaunch(), 1).error.ok());
-	assert(Count(launch.events, "video.quiesce") == 1);
-	assert(Find(launch.events, "video.quiesce") <
-		Find(launch.events, "fpga.program"));
-	assert(launch.i2c.deadlines[0] == 10100);
-	assert(launch.i2c.deadlines[1] == 10100);
 
-	Fixture idle;
-	assert(idle.hardware.LoadIdle().error.ok());
-	assert(Count(idle.events, "idle.video.quiesce") == 1);
-	assert(Find(idle.events, "idle.video.quiesce") <
-		Find(idle.events, "fpga.program"));
-	assert(idle.idle_video.quiesce_deadlines ==
-		std::vector<std::uint64_t>({10100}));
-}
 
-void TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput()
-{
-	Fixture launch;
-	launch.i2c.select_error = {
-		mister::ErrorCode::io_failed, "injected HDMI quiesce failure"};
-	const mister::HardwareResult launch_result = launch.hardware.Launch(
-		launch.MegaDriveLaunch(), 1);
-	assert(launch_result.error.code == mister::ErrorCode::io_failed);
-	assert(launch_result.error.message == "injected HDMI quiesce failure");
-	assert(!launch_result.mutation_attempted);
-	assert(launch.fpga.calls == 0);
-	assert(launch.input.stop_calls == 1);
 
-	Fixture write_failure;
-	write_failure.i2c.fail_event = "video.quiesce";
-	const mister::HardwareResult write_result = write_failure.hardware.Launch(
-		write_failure.MegaDriveLaunch(), 1);
-	assert(write_result.error.code == mister::ErrorCode::io_failed);
-	assert(write_result.mutation_attempted);
-	assert(write_failure.fpga.calls == 0);
-	assert(write_failure.input.stop_calls == 1);
 
-	Fixture idle;
-	idle.idle_video.quiesce_result.error = {
-		mister::ErrorCode::io_failed, "injected idle HDMI quiesce failure"};
-	idle.idle_video.quiesce_result.mutation_attempted = false;
-	const mister::HardwareResult idle_result = idle.hardware.LoadIdle();
-	assert(idle_result.error.code == mister::ErrorCode::io_failed);
-	assert(idle_result.error.message == "injected idle HDMI quiesce failure");
-	assert(!idle_result.mutation_attempted);
-	assert(idle.fpga.calls == 0);
-}
 
-void TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo()
-{
-	Fixture success;
-	const mister::HardwareResult result = success.hardware.Launch(
-		success.MegaDriveLaunch(), 1);
-	assert(result.error.ok());
-	assert(Count(success.events, "core.sync") == 1);
-	assert(Find(success.events, "fpga.program") <
-		Find(success.events, "core.sync"));
-	assert(Find(success.events, "core.sync") <
-		Find(success.events, "core.reset.assert"));
 
-	Fixture failure;
-	failure.spi.sync_error = {
-		mister::ErrorCode::io_failed, "injected core synchronization failure"};
-	const mister::HardwareResult failed = failure.hardware.Launch(
-		failure.MegaDriveLaunch(), 1);
-	assert(failed.error.code == mister::ErrorCode::io_failed);
-	assert(failed.error.message == "injected core synchronization failure");
-	assert(failed.mutation_attempted);
-	assert(Count(failure.events, "core.sync") == 1);
-	assert(Find(failure.events, "core.reset.assert") == failure.events.size());
-	assert(Find(failure.events, "core.probe:MegaDrive") == failure.events.size());
-	assert(Find(failure.events, "core.media.select:1") == failure.events.size());
-	assert(Find(failure.events, "video.adv.initialize") == failure.events.size());
-	assert(Find(failure.events, "core.reset.release") == failure.events.size());
-	assert(Find(failure.events, "input.start:1") == failure.events.size());
-}
 
-void TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning()
-{
-	IntegratedFixture fixture;
-	fixture.Start();
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	assert(fixture.native.events == kSuccessfulLaunch);
-	const mister::Status status = fixture.runtime.status();
-	assert(status.state == mister::State::running_game);
-	assert(status.execution == mister::Execution::game);
-	assert(status.system == "megadrive");
-	assert(status.core == "MegaDrive");
-	assert(fixture.native.input.identities.size() == 1);
-	const mister::native::InputDeviceIdentity& identity =
-		fixture.native.input.identities[0];
-	assert(identity.name == "FogCast Virtual Gamepad");
-	assert(identity.bus == 0x0006 && identity.vendor == 0x0000);
-	assert(identity.product == 0x0001 && identity.version == 0x0001);
-	assert(fixture.native.input.open_deadlines ==
-		std::vector<std::uint64_t>({10100}));
-	assert(fixture.native.input.neutral_deadlines ==
-		std::vector<std::uint64_t>({10100}));
-}
 
-void TestAllInputAndArtifactPreflightCompletesBeforeProgramming()
-{
-	IntegratedFixture missing_input;
-	missing_input.Start();
-	missing_input.native.input.open_error = {
-		mister::ErrorCode::io_failed, "gamepad missing"};
-	assert(missing_input.runtime.LaunchGame(missing_input.Request()).code ==
-		mister::ErrorCode::io_failed);
-	assert(missing_input.native.events == std::vector<std::string>({
-		"profile.validate:megadrive",
-		"input.resolve:FogCast Virtual Gamepad",
-	}));
-	assert(missing_input.native.fpga.calls == 1);
-	assert(missing_input.native.input.stop_calls == 0);
 
-	IntegratedFixture missing_rbf;
-	missing_rbf.Start();
-	missing_rbf.native.opener.fail_call = 2;
-	assert(missing_rbf.runtime.LaunchGame(missing_rbf.Request()).code ==
-		mister::ErrorCode::io_failed);
-	assert(Find(missing_rbf.native.events, "fpga.program") ==
-		missing_rbf.native.events.size());
-	assert(missing_rbf.native.input.stop_calls == 1);
 
-	IntegratedFixture missing_rom;
-	missing_rom.Start();
-	missing_rom.native.opener.fail_call = 3;
-	assert(missing_rom.runtime.LaunchGame(missing_rom.Request()).code ==
-		mister::ErrorCode::io_failed);
-	assert(Find(missing_rom.native.events, "artifact.open:megadrive.rbf") <
-		Find(missing_rom.native.events, "artifact.open:sonic2.bin"));
-	assert(Find(missing_rom.native.events, "fpga.program") ==
-		missing_rom.native.events.size());
-	assert(missing_rom.native.input.stop_calls == 1);
-}
 
-void TestOversizedRomIsRejectedBeforeFpgaAndClosesPreflightInput()
-{
-	Fixture fixture;
-	mister::PreparedLaunch launch = fixture.MegaDriveLaunch();
-	launch.media[0].maximum_size = 4;
-	const mister::HardwareResult result = fixture.hardware.Launch(launch, 1);
-	assert(result.error.code == mister::ErrorCode::io_failed);
-	assert(result.error.message.find("artifact exceeds size limit") !=
-		std::string::npos);
-	assert(!result.mutation_attempted);
-	assert(fixture.fpga.calls == 0);
-	assert(Find(fixture.events, "fpga.program") == fixture.events.size());
-	assert(fixture.input.stop_calls == 1);
-}
 
-void TestEveryPostProgramPhaseFailureGetsOneIdleCleanup()
-{
-	const std::vector<std::string> phases = {
-		"video.quiesce", "program", "core.sync", "core.reset.assert",
-		"core.probe:MegaDrive",
-		"core.status.initial", "core.media.select:1",
-		"core.media.extension:.bin", "core.media.enable",
-		"core.media.data:all bytes once", "core.media.complete",
-		"video.adv.initialize", "video.timing:menu_720p60",
-		"video.adv.mode", "core.buttons.neutral", "video.link.ready", "audio.volume:0",
-		"input.neutral",
-		"core.reset.release", "input.start",
-	};
-	for (const std::string& phase : phases) {
-		IntegratedFixture fixture;
-		fixture.Start();
-		if (phase == "program") {
-			fixture.native.fpga.fail_call = fixture.native.fpga.calls + 1;
-		} else if (phase == "core.sync") {
-			fixture.native.spi.sync_error = {
-				mister::ErrorCode::io_failed, "injected core failure"};
-		} else if (phase == "core.probe:MegaDrive") {
-			fixture.native.spi.probe_error = {
-				mister::ErrorCode::io_failed, "injected core failure"};
-		} else if (phase.find("video.") == 0 &&
-			phase != "video.timing:menu_720p60") {
-			fixture.native.i2c.fail_event = phase;
-		} else if (phase == "input.neutral") {
-			fixture.native.input.neutral_error = {
-				mister::ErrorCode::io_failed, "injected input neutral failure"};
-		} else if (phase == "input.start") {
-			fixture.native.input.start_error = {
-				mister::ErrorCode::io_failed, "injected input start failure"};
-		} else {
-			fixture.native.spi.fail_event = phase;
-		}
-		const mister::Error result = fixture.runtime.LaunchGame(fixture.Request());
-		assert(!result.ok());
-		const std::string expected_phase =
-			phase == "video.quiesce" ? "quiesce" :
-			phase == "program" ? "programming" :
-			phase.find("video.") == 0 || phase == "core.buttons.neutral" ||
-				phase == "audio.volume:0" ? "video" :
-			phase.find("input.") == 0 ? "input" : "transport";
-		assert(result.phase == expected_phase);
-		assert(fixture.runtime.status().state == mister::State::idle);
-		assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
-		assert(Count(fixture.native.fpga.programmed, "megadrive.rbf") ==
-			(phase == "video.quiesce" ? 0 : 1));
-		assert(fixture.native.input.stop_calls == 1);
-		assert(Find(fixture.native.events, "runtime.running_game") ==
-			fixture.native.events.size());
-	}
-}
 
-void TestCleanupFailureAndDirectInputStopErrorRequireReboot()
-{
-	IntegratedFixture idle_failure;
-	idle_failure.Start();
-	idle_failure.native.spi.fail_event = "core.reset.assert";
-	idle_failure.native.idle_video.result.error = {
-		mister::ErrorCode::io_failed, "idle video cleanup failed"};
-	assert(idle_failure.runtime.LaunchGame(idle_failure.Request()).code ==
-		mister::ErrorCode::idle_failed);
-	assert(idle_failure.runtime.status().state == mister::State::reboot_required);
-	assert(Count(idle_failure.native.fpga.programmed, "idle.rbf") == 2);
-	assert(idle_failure.native.input.stop_calls == 1);
-
-	IntegratedFixture stop_failure;
-	stop_failure.Start();
-	stop_failure.native.spi.fail_event = "core.reset.assert";
-	stop_failure.native.input.stop_error = {
-		mister::ErrorCode::io_failed, "input cancellation failed"};
-	assert(stop_failure.runtime.LaunchGame(stop_failure.Request()).code ==
-		mister::ErrorCode::idle_failed);
-	const mister::Status status = stop_failure.runtime.status();
-	assert(status.state == mister::State::reboot_required);
-	assert(status.error.message == "input cancellation failed");
-	assert(Count(stop_failure.native.fpga.programmed, "idle.rbf") == 2);
-}
-
-void TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh()
-{
-	IntegratedFixture fixture;
-	fixture.Start();
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	fixture.native.events.clear();
-	assert(fixture.runtime.Stop().ok());
-	assert(fixture.native.events == std::vector<std::string>({
-		"input.stop",
-		"input.final-neutral",
-		"artifact.open:idle.rbf",
-		"idle.video.quiesce",
-		"fpga.program",
-		"idle.video:MENU",
-		"runtime.idle",
-	}));
-	fixture.native.events.clear();
-	std::vector<std::string> second = kSuccessfulLaunch;
-	second[Find(second, "input.start:1")] = "input.start:2";
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	assert(fixture.native.events == second);
-	assert(fixture.native.input.descriptors == std::vector<int>({1, 2}));
-	assert(fixture.native.input.workers == std::vector<int>({1, 2}));
-	assert(fixture.native.input.generations ==
-		std::vector<std::uint64_t>({1, 2}));
-	assert(fixture.native.input.stop_calls == 1);
-}
-
-void TestManualStopPreservesInputCancellationErrorAfterAttemptingIdle()
-{
-	IntegratedFixture fixture;
-	fixture.Start();
-	assert(fixture.runtime.LaunchGame(fixture.Request()).ok());
-	fixture.native.input.stop_error = {
-		mister::ErrorCode::io_failed, "direct cancellation failure"};
-	assert(fixture.runtime.Stop().code == mister::ErrorCode::idle_failed);
-	const mister::Status status = fixture.runtime.status();
-	assert(status.state == mister::State::reboot_required);
-	assert(status.error.message == "direct cancellation failure");
-	assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
-}
-
-void TestInputCallbackReportsTheGenerationThroughTheHardwareBoundary()
-{
-	Fixture fixture;
-	assert(fixture.hardware.Launch(fixture.MegaDriveLaunch(), 41).error.ok());
-	fixture.input.Report({mister::ErrorCode::io_failed, "input read failed"});
-	assert(fixture.sink.faults.size() == 1);
-	assert(fixture.sink.faults[0].generation == 41);
-	assert(fixture.sink.faults[0].error.code == mister::ErrorCode::io_failed);
-	assert(fixture.sink.faults[0].error.message == "input read failed");
-}
-
-void TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection()
-{
-	Fixture fixture;
-	mister::PreparedLaunch launch = fixture.Launch();
-	launch.core.file_wire = static_cast<mister::FileWireFormat>(99);
-	const mister::HardwareResult result = fixture.hardware.Launch(launch, 1);
-	assert(result.error.code == mister::ErrorCode::io_failed);
-	assert(result.error.message == "unsupported file wire format");
-	assert(result.mutation_attempted);
-	assert(Find(fixture.events, "core.reset.assert") < fixture.events.size());
-	assert(Find(fixture.events, "core.status.initial") < fixture.events.size());
-	assert(Find(fixture.events, "core.media.select:0") == fixture.events.size());
-	assert(Find(fixture.events, "core.media.select:2") == fixture.events.size());
-}
-
-void TestDevelopmentLoadsMiSterRbfInExactOrderAndLeavesHdmiDown()
-{
-	Fixture fixture;
-	fixture.i2c.on_quiesce = [&fixture] { fixture.clock.now_ = 200; };
-	fixture.fpga.on_program = [&fixture] { fixture.clock.now_ = 300; };
-	const mister::HardwareResult result =
-		fixture.hardware.LoadDevelopmentRBF(fixture.rbf);
-	assert(result.error.ok());
-	assert(result.mutation_attempted);
-	assert(result.observed_core == "MegaDrive");
-	assert(fixture.events == std::vector<std::string>({
-		"artifact.open:megadrive.rbf",
-		"video.quiesce",
-		"fpga.program",
-		"core.sync",
-		"core.probe:MegaDrive",
-	}));
-	assert(fixture.i2c.deadlines ==
-		std::vector<std::uint64_t>({10100, 10100}));
-	assert(fixture.fpga.deadlines ==
-		std::vector<std::uint64_t>({30200}));
-	assert(fixture.spi.deadlines ==
-		std::vector<std::uint64_t>({10300, 10300}));
-	assert(fixture.idle_video.calls == 0);
-	assert(fixture.input.open_calls == 0);
-	assert(fixture.input.neutral_deadlines.empty());
-	assert(fixture.input.start_calls == 0);
-	assert(fixture.input.stop_calls == 0);
-}
-
-void TestDevelopmentFailuresReportExactMutationBoundary()
-{
-	Fixture preflight;
-	preflight.opener.fail_call = 1;
-	const mister::HardwareResult preflight_result =
-		preflight.hardware.LoadDevelopmentRBF(preflight.rbf);
-	assert(preflight_result.error.code == mister::ErrorCode::io_failed);
-	assert(!preflight_result.mutation_attempted);
-	assert(preflight.i2c.deadlines.empty());
-	assert(preflight.fpga.calls == 0);
-	assert(preflight.spi.deadlines.empty());
-
-	Fixture deadline;
-	deadline.clock.now_ = std::numeric_limits<std::uint64_t>::max();
-	const mister::HardwareResult deadline_result =
-		deadline.hardware.LoadDevelopmentRBF(deadline.rbf);
-	assert(deadline_result.error.code == mister::ErrorCode::io_failed);
-	assert(deadline_result.error.message == "deadline exceeded");
-	assert(!deadline_result.mutation_attempted);
-	assert(deadline.i2c.deadlines.empty());
-	assert(deadline.fpga.calls == 0);
-	assert(deadline.spi.deadlines.empty());
-
-	Fixture select;
-	select.i2c.select_error = {
-		mister::ErrorCode::io_failed, "injected HDMI select failure"};
-	const mister::HardwareResult select_result =
-		select.hardware.LoadDevelopmentRBF(select.rbf);
-	assert(select_result.error.code == mister::ErrorCode::io_failed);
-	assert(select_result.error.message == "injected HDMI select failure");
-	assert(!select_result.mutation_attempted);
-	assert(select.fpga.calls == 0);
-	assert(select.spi.deadlines.empty());
-
-	Fixture write;
-	write.i2c.fail_event = "video.quiesce";
-	const mister::HardwareResult write_result =
-		write.hardware.LoadDevelopmentRBF(write.rbf);
-	assert(write_result.error.code == mister::ErrorCode::io_failed);
-	assert(write_result.mutation_attempted);
-	assert(write.fpga.calls == 0);
-	assert(write.spi.deadlines.empty());
-
-	Fixture program;
-	program.fpga.result = {
-		{mister::ErrorCode::program_failed, "injected program failure"}, false};
-	const mister::HardwareResult program_result =
-		program.hardware.LoadDevelopmentRBF(program.rbf);
-	assert(program_result.error.code == mister::ErrorCode::program_failed);
-	assert(program_result.mutation_attempted);
-	assert(program.spi.deadlines.empty());
-
-	Fixture synchronize;
-	synchronize.spi.sync_error = {
-		mister::ErrorCode::io_failed, "injected synchronization failure"};
-	const mister::HardwareResult synchronize_result =
-		synchronize.hardware.LoadDevelopmentRBF(synchronize.rbf);
-	assert(synchronize_result.error.code == mister::ErrorCode::io_failed);
-	assert(synchronize_result.error.message == "injected synchronization failure");
-	assert(synchronize_result.mutation_attempted);
-	assert(synchronize.events.back() == "core.sync");
-
-	Fixture probe;
-	probe.spi.probe_error = {
-		mister::ErrorCode::io_failed, "injected observation failure"};
-	const mister::HardwareResult probe_result =
-		probe.hardware.LoadDevelopmentRBF(probe.rbf);
-	assert(probe_result.error.code == mister::ErrorCode::io_failed);
-	assert(probe_result.error.message == "injected observation failure");
-	assert(probe_result.mutation_attempted);
-	assert(probe_result.observed_core.empty());
-	assert(probe.events.back() == "core.probe:MegaDrive");
-}
 
 void TestIdleRequiresVideo()
 {
@@ -1839,66 +1124,19 @@ void TestIdleRequiresVideo()
 		"artifact.open:idle.rbf",
 		"idle.video.quiesce",
 		"fpga.program",
-		"idle.video:MENU",
+		"idle.video:",
 	}));
 	assert(fixture.idle_video.deadlines == std::vector<std::uint64_t>({10100}));
 	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
-		mister::native::ProgrammingProfile::mister_v1}));
-	assert(fixture.idle_video.last_idle.expected_core == "MENU");
-	assert(fixture.idle_video.last_idle.probe_core);
-	assert(fixture.idle_video.last_idle.enable_hps_framebuffer);
-}
-
-void TestDefinedIdleProgramsWithoutMenuChrome()
-{
-	mister::native::IdleRecipe recipe;
-	recipe.expected_core = "OTHER";
-	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
-	recipe.probe_core = true;
-	recipe.enable_hps_framebuffer = false;
-	Fixture fixture(nullptr, nullptr, recipe);
-	fixture.idle_video.result.observed_core = "OTHER";
-	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
-	assert(idle.error.ok());
-	assert(idle.mutation_attempted);
-	assert(idle.observed_core == "OTHER");
-	assert(fixture.events == std::vector<std::string>({
-		"artifact.open:idle.rbf",
-		"idle.video.quiesce",
-		"fpga.program",
-		"idle.video:OTHER",
-	}));
-	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
-		mister::native::ProgrammingProfile::mister_v1}));
-	assert(fixture.idle_video.last_idle.expected_core == "OTHER");
-	assert(!fixture.idle_video.last_idle.enable_hps_framebuffer);
-}
-
-void TestIdleWithoutProbeDoesNotRequireMenuIdentity()
-{
-	mister::native::IdleRecipe recipe;
-	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
-	recipe.probe_core = false;
-	recipe.enable_hps_framebuffer = false;
-	Fixture fixture(nullptr, nullptr, recipe);
-	fixture.idle_video.result.observed_core.clear();
-	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
-	assert(idle.error.ok());
-	assert(idle.mutation_attempted);
-	assert(idle.observed_core.empty());
-	assert(fixture.events == std::vector<std::string>({
-		"artifact.open:idle.rbf",
-		"idle.video.quiesce",
-		"fpga.program",
-		"idle.video:",
-	}));
-	assert(!fixture.idle_video.last_idle.probe_core);
+		mister::native::ProgrammingProfile::development_contained_v1}));
 	assert(fixture.idle_video.last_idle.expected_core.empty());
 }
+
+
 
 void TestSplashIdleProgramsWithoutProbeOrFramebuffer()
 {
-	Fixture fixture(nullptr, nullptr, mister::native::SplashIdle());
+	Fixture fixture(nullptr, mister::native::SplashIdle());
 	fixture.idle_video.result.observed_core.clear();
 	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
 	assert(idle.error.ok());
@@ -1907,53 +1145,9 @@ void TestSplashIdleProgramsWithoutProbeOrFramebuffer()
 	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
 		mister::native::ProgrammingProfile::development_contained_v1}));
 	assert(fixture.idle_video.last_idle.expected_core.empty());
-	assert(!fixture.idle_video.last_idle.probe_core);
-	assert(!fixture.idle_video.last_idle.enable_hps_framebuffer);
-	assert(!mister::native::IdleUsesMisterUserIo(fixture.idle_video.last_idle));
 }
 
-void TestDefinedIdleCanUseNonMisterProgrammingProfile()
-{
-	mister::native::IdleRecipe recipe;
-	recipe.programming_profile =
-		mister::native::ProgrammingProfile::development_contained_v1;
-	recipe.probe_core = false;
-	recipe.enable_hps_framebuffer = false;
-	Fixture fixture(nullptr, nullptr, recipe);
-	fixture.idle_video.result.observed_core.clear();
-	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
-	assert(idle.error.ok());
-	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
-		mister::native::ProgrammingProfile::development_contained_v1}));
-	assert(fixture.idle_video.last_idle.programming_profile ==
-		mister::native::ProgrammingProfile::development_contained_v1);
-	assert(!mister::native::IdleUsesMisterUserIo(fixture.idle_video.last_idle));
-}
 
-void TestPlayPackageCleanupLoadsDefinedIdle()
-{
-	mister::native::IdleRecipe recipe;
-	recipe.expected_core = "OTHER";
-	recipe.programming_profile = mister::native::ProgrammingProfile::mister_v1;
-	recipe.probe_core = true;
-	recipe.enable_hps_framebuffer = false;
-	IntegratedFixture fixture(nullptr, recipe);
-	fixture.native.idle_video.result.observed_core = "OTHER";
-	fixture.Start();
-	assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 1);
-	fixture.native.spi.sync_error = {
-		mister::ErrorCode::io_failed, "injected core failure"};
-	const mister::Error result = fixture.runtime.LaunchGame(fixture.Request());
-	assert(!result.ok());
-	assert(fixture.runtime.status().state == mister::State::idle);
-	assert(Count(fixture.native.fpga.programmed, "idle.rbf") == 2);
-	assert(Find(fixture.native.events, "idle.video:OTHER") <
-		fixture.native.events.size());
-	assert(fixture.native.fpga.profiles.size() >= 2);
-	assert(fixture.native.fpga.profiles.back() ==
-		mister::native::ProgrammingProfile::mister_v1);
-	assert(fixture.native.idle_video.last_idle.expected_core == "OTHER");
-}
 
 void TestIdlePreflightFailureCallsNeitherFpgaNorVideo()
 {
@@ -2000,472 +1194,22 @@ void TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup()
 		"artifact.open:idle.rbf",
 		"idle.video.quiesce",
 		"fpga.program",
-		"idle.video:MENU",
+		"idle.video:",
 	}));
 }
 
-void TestLaunchNeverCallsIdleVideo()
-{
-	Fixture fixture;
-	assert(fixture.hardware.Launch(fixture.Launch(), 1).error.ok());
-	assert(fixture.idle_video.calls == 0);
-}
 
-void TestOneAbsoluteDeadlinePerNativeStage()
-{
-	Fixture fixture;
-	assert(fixture.hardware.Launch(fixture.Launch(), 1).error.ok());
-	assert(fixture.fpga.deadlines.size() == 1);
-	assert(fixture.fpga.deadlines[0] == 30100);
-	assert(!fixture.spi.deadlines.empty());
-	for (std::uint64_t deadline : fixture.spi.deadlines)
-		assert(deadline == 10100 || deadline == 120100);
-	assert(fixture.idle_video.calls == 0);
-}
 
-void TestMediaTransferGetsDedicatedDeadline()
-{
-	Fixture fixture;
-	assert(fixture.hardware.Launch(fixture.MegaDriveLaunch(), 1).error.ok());
-	assert(fixture.spi.deadlines.size() > 4);
-	for (std::size_t index = 0; index < 4; ++index)
-		assert(fixture.spi.deadlines[index] == 10100);
-	std::uint64_t largest = 0;
-	for (std::uint64_t deadline : fixture.spi.deadlines)
-		largest = std::max(largest, deadline);
-	assert(largest == 120100);
-}
 
-void TestPostVideoCoreStageGetsFreshDeadline()
-{
-	Fixture fixture;
-	fixture.input.reject_expired_deadline = true;
-	fixture.i2c.on_link_ready = [&fixture] { fixture.clock.now_ = 10101; };
-	const mister::HardwareResult result = fixture.hardware.Launch(
-		fixture.Launch(), 1);
-	assert(result.error.ok());
-	assert(fixture.input.neutral_deadlines ==
-		std::vector<std::uint64_t>({20101}));
-	assert(!fixture.spi.deadlines.empty());
-	assert(fixture.spi.deadlines.back() == 20101);
-}
 
-void TestPreflightAndProgramFailuresIncludeQuiesceMutation()
-{
-	Fixture preflight;
-	preflight.opener.fail_call = 2;
-	const auto open_result = preflight.hardware.Launch(preflight.Launch(), 1);
-	assert(open_result.error.code == mister::ErrorCode::io_failed);
-	assert(!open_result.mutation_attempted);
-	assert(preflight.fpga.calls == 0 && preflight.spi.deadlines.empty());
-	Fixture before;
-	before.fpga.result = {{mister::ErrorCode::program_failed, "before"}, false};
-	const auto before_result = before.hardware.Launch(before.Launch(), 1);
-	assert(before_result.error.code == mister::ErrorCode::program_failed);
-	assert(before_result.mutation_attempted);
-	Fixture after;
-	after.fpga.result = {{mister::ErrorCode::program_failed, "after"}, true};
-	const auto after_result = after.hardware.Launch(after.Launch(), 1);
-	assert(after_result.error.code == mister::ErrorCode::program_failed);
-	assert(after_result.mutation_attempted);
-}
 
-void TestEveryConcretePreflightRejectionPerformsZeroHardwareWork()
-{
-	Fixture missing;
-	mister::PreparedLaunch missing_launch = missing.Launch();
-	missing_launch.rbf = missing.temporary.path + "/missing.rbf";
-	assert(missing.hardware.Launch(missing_launch, 1).error.code ==
-		mister::ErrorCode::io_failed);
-	assert(missing.fpga.calls == 0 && missing.spi.deadlines.empty());
 
-	Fixture directory;
-	mister::PreparedLaunch directory_launch = directory.Launch();
-	directory_launch.rbf = directory.temporary.path;
-	assert(directory.hardware.Launch(directory_launch, 1).error.code ==
-		mister::ErrorCode::io_failed);
-	assert(directory.fpga.calls == 0 && directory.spi.deadlines.empty());
 
-	Fixture zero;
-	mister::PreparedLaunch zero_launch = zero.Launch();
-	zero_launch.rbf = zero.temporary.File("empty.rbf", "");
-	assert(zero.hardware.Launch(zero_launch, 1).error.code ==
-		mister::ErrorCode::io_failed);
-	assert(zero.fpga.calls == 0 && zero.spi.deadlines.empty());
 
-	Fixture oversize;
-	mister::PreparedLaunch oversize_launch = oversize.Launch();
-	oversize_launch.rbf = oversize.temporary.SparseFile("large.rbf",
-		32u * 1024u * 1024u + 1u);
-	assert(oversize.hardware.Launch(oversize_launch, 1).error.code ==
-		mister::ErrorCode::io_failed);
-	assert(oversize.fpga.calls == 0 && oversize.spi.deadlines.empty());
-}
 
-void TestProbeMismatchAndIoRetainObservedCoreAndMutation()
-{
-	Fixture mismatch;
-	mismatch.spi.observed_core = "OTHER";
-	const auto mismatch_result = mismatch.hardware.Launch(mismatch.Launch(), 1);
-	assert(mismatch_result.error.code == mister::ErrorCode::core_mismatch);
-	assert(mismatch_result.error.phase == "identity");
-	assert(mismatch_result.error.expected == "MegaDrive");
-	assert(mismatch_result.error.observed == "OTHER");
-	assert(mismatch_result.mutation_attempted);
-	assert(mismatch_result.observed_core == "OTHER");
-	Fixture io;
-	io.spi.probe_error = {mister::ErrorCode::io_failed, "probe"};
-	const auto io_result = io.hardware.Launch(io.Launch(), 1);
-	assert(io_result.error.code == mister::ErrorCode::io_failed);
-	assert(io_result.error.phase == "transport");
-	assert(io_result.mutation_attempted);
-	assert(io_result.observed_core.empty());
-}
 
-void TestNativeLoggingNamesPhasesAndConfirmedCore()
-{
-	Fixture fixture;
-	assert(fixture.hardware.Launch(fixture.Launch(), 1).error.ok());
-	const auto records = fixture.log.records();
-	bool preflight = false;
-	bool program = false;
-	bool sync = false;
-	bool probe = false;
-	bool configure = false;
-	bool media = false;
-	for (const auto& record : records) {
-		preflight = preflight || record.phase == "preflight";
-		program = program || record.phase == "program";
-		sync = sync || (record.phase == "sync" && record.core == "MegaDrive");
-		probe = probe || (record.phase == "probe" && record.core == "MegaDrive");
-		configure = configure || record.phase == "configure";
-		media = media || record.phase == "media";
-	}
-	assert(preflight && program && sync && probe && configure && media);
-}
 
-void TestSnesProductionTransformPreflightAndLifecycle()
-{
-	mister::Launch request;
-	request.system = "snes";
-	request.rbf = "/usr/share/mister-runtime/cores/snes.rbf";
-	request.media.push_back({"cartridge", "/tmp/game.sfc"});
-	mister::PreparedLaunch prepared;
-	const auto& production = mister::ProductionProfiles();
-	assert(production.Prepare(request, &prepared).ok());
-	assert(prepared.expected_core == "SNES" && prepared.media.size() == 1);
-	assert(prepared.media[0].index == 1 && prepared.media[0].transform == mister::MediaTransform::snes_cartridge);
-	assert(prepared.input.c == 0 && prepared.input.x == 0x40 && prepared.input.start == 0x800);
-	request.save_path = "/saves/test.srm";
-	assert(production.Prepare(request, &prepared).ok() && prepared.save_path == request.save_path);
-	request.save_path = "relative.srm";
-	assert(!production.Prepare(request, &prepared).ok());
-	request.save_path.clear();
 
-	Fixture fixture;
-	std::string bytes(32768, 0);
-	bytes[0] = 0x78;
-	bytes[0x7fd5] = 0x20; bytes[0x7fd7] = 5;
-	bytes[0x7fdc] = static_cast<char>(0xcb); bytes[0x7fdd] = static_cast<char>(0xed);
-	bytes[0x7fde] = 0x34; bytes[0x7fdf] = 0x12; bytes[0x7ffd] = static_cast<char>(0x80);
-	const std::string rom = fixture.temporary.File("snes.bin", bytes);
-	const std::string rbf = fixture.temporary.File("snes.rbf", "fixture");
-	mister::Profile profile;
-	profile.system = prepared.system; profile.expected_core = prepared.expected_core;
-	profile.rbf = rbf; profile.core = prepared.core; profile.input = prepared.input;
-	profile.media.push_back({"cartridge", 1, true, {".bin"}, 0x400200, mister::MediaTransform::snes_cartridge});
-	mister::Profiles profiles;
-	assert(profiles.Add(profile).ok());
-	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
-	assert(runtime.Start().ok());
-	fixture.spi.observed_core = "SNES";
-	request.rbf = rbf;
-	request.media[0].path = fixture.rom; // Too short, before programming.
-	const int calls = fixture.fpga.calls;
-	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
-	assert(fixture.fpga.calls == calls);
-	assert(runtime.status().state == mister::State::idle);
-	request.media[0].path = rom;
-	for (int cycle = 0; cycle < 2; ++cycle) {
-		fixture.events.clear();
-		assert(runtime.LaunchGame(request).ok());
-		assert(runtime.status().system == "snes" && runtime.status().core == "SNES");
-		assert(Find(fixture.events, "core.media.select:1") < Find(fixture.events, "audio.volume:0"));
-		assert(Count(fixture.events, "core.media.data:all bytes once") == 9);
-		assert(runtime.Stop().ok());
-		assert(runtime.status().state == mister::State::idle);
-	}
-	fixture.spi.fail_event = "core.media.data:all bytes once";
-	assert(runtime.LaunchGame(request).code == mister::ErrorCode::io_failed);
-	assert(runtime.status().state == mister::State::idle);
-}
-
-void TestNativeSaveStopAndWriteRetry()
-{
-	Fixture f;
-	mister_test::SnesSaveSpi backup;
-	backup.ram.assign(2048, 0xff);
-	f.spi.save_spi = &backup;
-	f.spi.observed_core = "SNES";
-	std::string bytes(32768, 0);
-	bytes[0] = 0x78; bytes[0x7fd5] = 0x20; bytes[0x7fd6] = 2;
-	bytes[0x7fd7] = 5; bytes[0x7fd8] = 1;
-	bytes[0x7fdc] = char(0xcb); bytes[0x7fdd] = char(0xed);
-	bytes[0x7fde] = 0x34; bytes[0x7fdf] = 0x12; bytes[0x7ffd] = char(0x80);
-	auto launch = f.MegaDriveLaunch();
-	launch.system = "snes"; launch.expected_core = "SNES";
-	launch.core = {1, 1, 0, mister::FileWireFormat::little_endian_byte_pairs};
-	launch.media = {{1, f.temporary.File("battery.sfc", bytes), 0x400200, mister::MediaTransform::snes_cartridge}};
-	launch.save_path = f.temporary.path + "/battery.srm";
-	const std::string rejected = f.temporary.File("wrong.srm", "truncated");
-	const auto destination = launch.save_path;
-	launch.save_path = rejected;
-	const int before = f.fpga.calls;
-	assert(!f.hardware.Launch(launch, 1).error.ok());
-	assert(f.fpga.calls == before);
-	launch.save_path = destination;
-	assert(f.hardware.Launch(launch, 1).error.ok());
-	assert(backup.mounted && backup.image_size == 0);
-	assert(access(launch.save_path.c_str(), F_OK) != 0);
-	backup.ram[0] = 0x42;
-	// Force atomic rename failure after the snapshot. Resuming play must discard
-	// those stale bytes so the retry captures current RAM.
-	assert(mkdir(launch.save_path.c_str(), 0700) == 0);
-	assert(f.hardware.FlushSave().code == mister::ErrorCode::save_failed);
-	assert(backup.snapshots == 1);
-	assert(Find(f.events, "input.stop") < Find(f.events, "save.snapshot"));
-	const int programs = f.fpga.calls;
-	const int input_opens = f.input.open_calls;
-	const int input_starts = f.input.start_calls;
-	const mister::native::ButtonWriter retired_writer = f.input.writers.back();
-	backup.ram[0] = 0x99;
-	assert(f.hardware.RestoreInput(1).ok());
-	assert(f.input.open_calls == input_opens + 1 &&
-		f.input.start_calls == input_starts + 1);
-	assert(f.input.generations.back() == 1);
-	const std::size_t requests_before_retired = f.spi.requests.size();
-	assert(retired_writer(0x10, 998).ok());
-	assert(f.spi.requests.size() == requests_before_retired);
-	assert(f.input.Deliver(0x20, 999).ok());
-	assert(f.spi.requests.size() == requests_before_retired + 1);
-	assert((f.spi.requests.back() ==
-		std::vector<std::uint16_t>{0x0002, 0x0020}));
-	assert(rmdir(launch.save_path.c_str()) == 0);
-	assert(f.hardware.FlushSave().ok());
-	f.temporary.files.push_back(launch.save_path);
-	assert(backup.snapshots == 2 && f.fpga.calls == programs);
-	mister::native::SaveFile saved;
-	assert(saved.Prepare(launch.save_path, 2048).ok() && saved.bytes()[0] == 0x99);
-	assert(f.hardware.LoadIdle().error.ok());
-	assert(f.hardware.FlushSave().ok() && backup.snapshots == 2);
-	backup = mister_test::SnesSaveSpi{};
-	backup.ram.assign(2048, 0xff);
-	f.events.clear();
-	assert(f.hardware.Launch(launch, 2).error.ok());
-	assert(backup.ram[0] == 0x99);
-	assert(Find(f.events, "save.restore") < Find(f.events, "input.start:2"));
-	// Generic fault/failed-launch cleanup never publishes SRAM.
-	backup.ram[0] = 0x77;
-	assert(f.hardware.LoadIdle().error.ok());
-	assert(backup.snapshots == 0);
-	mister::native::SaveFile intact;
-	assert(intact.Prepare(launch.save_path, 2048).ok() && intact.bytes()[0] == 0x99);
-	backup = mister_test::SnesSaveSpi{};
-	backup.ram.assign(2048, 0xff);
-	f.input.start_error = {mister::ErrorCode::io_failed, "input start failed"};
-	assert(!f.hardware.Launch(launch, 3).error.ok());
-	assert(f.hardware.LoadIdle().error.ok());
-	assert(f.hardware.FlushSave().ok() && backup.snapshots == 0);
-}
-
-void TestPongProductionProfileAndRomlessLifecycle()
-{
-	mister::Launch request;
-	request.system = "pong";
-	request.rbf = "/usr/share/mister-runtime/cores/pong.rbf";
-	mister::PreparedLaunch prepared;
-	const mister::Profiles& production = mister::ProductionProfiles();
-	assert(production.Prepare(request, &prepared).ok());
-	assert(prepared.expected_core == "Pong" && prepared.media.empty());
-	assert(prepared.core.reset_assert_word == 1 && prepared.core.initial_status_word == 1);
-	assert(prepared.core.reset_release_word == 0);
-	assert(prepared.input.player_command == 2 && prepared.input.up == 8);
-	assert(prepared.input.down == 4 && prepared.input.start == 0x80);
-	request.media.push_back({"cartridge", "/tmp/unused.bin"});
-	assert(production.Prepare(request, &prepared).code == mister::ErrorCode::invalid_request);
-	request.media.clear();
-	request.rbf = "/tmp/unowned.rbf";
-	assert(production.Prepare(request, &prepared).code == mister::ErrorCode::invalid_request);
-	request.rbf = "/usr/share/mister-runtime/cores/pong.rbf";
-	assert(production.Prepare(request, &prepared).ok());
-
-	Fixture fixture;
-	const std::string pong = fixture.temporary.File("pong.rbf", "software-fixture");
-	mister::Profile profile;
-	profile.system = prepared.system;
-	profile.expected_core = prepared.expected_core;
-	profile.rbf = pong; // Only the artifact location differs from production.
-	profile.core = prepared.core;
-	profile.input = prepared.input;
-	mister::Profiles profiles;
-	assert(profiles.Add(profile).ok());
-	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
-	assert(runtime.Start().ok());
-	fixture.spi.observed_core = "Pong";
-	request.rbf = pong;
-	const int before = fixture.fpga.calls;
-	request.media.push_back({"cartridge", fixture.rom});
-	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
-	assert(fixture.fpga.calls == before);
-	request.media.clear();
-	request.rbf = fixture.rbf;
-	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
-	assert(fixture.fpga.calls == before);
-	request.rbf = pong;
-	for (int cycle = 0; cycle < 2; ++cycle) {
-		fixture.events.clear();
-		assert(runtime.LaunchGame(request).ok());
-		assert(runtime.status().state == mister::State::running_game);
-		assert(runtime.status().system == "pong" && runtime.status().core == "Pong");
-		for (const std::string& event : fixture.events)
-			assert(event.find("core.media.") != 0);
-		const std::vector<std::string> ordered = {"artifact.open:pong.rbf", "video.quiesce",
-			"fpga.program", "core.sync", "core.reset.assert", "core.probe:Pong",
-			"core.status.initial", "video.adv.initialize", "audio.volume:0", "input.neutral",
-			"core.reset.release", "input.start:" + std::to_string(cycle + 1), "runtime.running_game"};
-		std::size_t previous = 0;
-		for (const std::string& event : ordered) {
-			const std::size_t index = Find(fixture.events, event);
-			assert(index < fixture.events.size() && index >= previous);
-			previous = index;
-		}
-		assert(runtime.Stop().ok());
-		assert(runtime.status().state == mister::State::idle);
-	}
-}
-
-void TestNesProductionProfileAndPreflight()
-{
-	mister::Launch request;
-	request.system = "nes";
-	request.rbf = "/usr/share/mister-runtime/cores/nes.rbf";
-	request.media.push_back({"cartridge", "/tmp/game.nes"});
-	mister::PreparedLaunch prepared;
-	const mister::Profiles& production = mister::ProductionProfiles();
-	assert(production.Prepare(request, &prepared).ok());
-	assert(prepared.expected_core == "NES" && prepared.media.size() == 1);
-	assert(prepared.media[0].index == 0x40 &&
-		prepared.media[0].transform == mister::MediaTransform::nes_cartridge);
-	assert(prepared.core.file_wire ==
-		mister::FileWireFormat::little_endian_bytes);
-	assert(prepared.input.a == 0x10 && prepared.input.b == 0x20 &&
-		prepared.input.select == 0x400 && prepared.input.start == 0x800);
-
-	Fixture fixture;
-	const std::string nes_rbf = fixture.temporary.File("nes.rbf", "software-fixture");
-	const std::string malformed = fixture.temporary.File("game.nes", "bad");
-	const std::string valid = fixture.temporary.File("valid.nes", BasicNesRom());
-	mister::Profile profile;
-	profile.system = prepared.system;
-	profile.expected_core = prepared.expected_core;
-	profile.rbf = nes_rbf;
-	profile.core = prepared.core;
-	profile.input = prepared.input;
-	profile.media.push_back({"cartridge", 0x40, true, {".nes"},
-		32u * 1024u * 1024u, mister::MediaTransform::nes_cartridge});
-	mister::Profiles profiles;
-	assert(profiles.Add(profile).ok());
-	mister::Runtime runtime(fixture.hardware, profiles, fixture.log);
-	assert(runtime.Start().ok());
-	fixture.spi.observed_core = "NES";
-	request.rbf = nes_rbf;
-	request.media[0].path = malformed;
-	const int before = fixture.fpga.calls;
-	assert(runtime.LaunchGame(request).code == mister::ErrorCode::invalid_request);
-	assert(fixture.fpga.calls == before);
-	request.media[0].path = valid;
-	assert(runtime.LaunchGame(request).ok());
-	assert(runtime.status().system == "nes" && runtime.status().core == "NES");
-	assert(runtime.Stop().ok());
-}
-
-void TestProductionConstructionOwnsRealIdleHardware()
-{
-	const mister::Profiles& profiles = mister::ProductionProfiles();
-	mister::Launch launch;
-	launch.system = "megadrive";
-	launch.rbf = "/usr/share/mister-runtime/cores/megadrive.rbf";
-	launch.media.push_back({"cartridge", "/media/fat/fogcast/cache/sonic2.bin"});
-	mister::PreparedLaunch prepared;
-	assert(profiles.Prepare(launch, &prepared).ok());
-	assert(prepared.system == "megadrive");
-	assert(prepared.expected_core == "MegaDrive");
-	assert(prepared.media.size() == 1 && prepared.media[0].index == 1);
-	assert(prepared.core.reset_assert_word == 0x0001);
-	assert(prepared.core.initial_status_word == 0x0001);
-	assert(prepared.core.reset_release_word == 0x0000);
-	assert(prepared.core.file_wire ==
-		mister::FileWireFormat::little_endian_byte_pairs);
-	assert(prepared.input.player_count == 1);
-	assert(prepared.input.player_command == 0x02);
-	assert(prepared.input.up == 0x0008);
-	assert(prepared.input.down == 0x0004);
-	assert(prepared.input.left == 0x0002);
-	assert(prepared.input.right == 0x0001);
-	assert(prepared.input.a == 0x0010);
-	assert(prepared.input.b == 0x0020);
-	assert(prepared.input.c == 0x0040);
-	assert(prepared.input.start == 0x0080);
-
-	mister::PreparedLaunch unchanged;
-	unchanged.system = "sentinel";
-	launch.system = "sms";
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::unknown_system);
-	assert(unchanged.system == "sentinel");
-	launch.system = "megadrive";
-	launch.settings.push_back({"region", "pal"});
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::invalid_request);
-	assert(unchanged.system == "sentinel");
-	launch.settings.clear();
-	launch.media[0].path = "/media/fat/fogcast/cache/sonic2.zip";
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::invalid_request);
-	assert(unchanged.system == "sentinel");
-	launch.media[0].path = "/media/fat/fogcast/cache/sonic2.bin";
-	launch.media.push_back({"cartridge", "/media/fat/fogcast/cache/sonic2.md"});
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::invalid_request);
-	assert(unchanged.system == "sentinel");
-	launch.media.pop_back();
-	launch.media.push_back({"bios", "/media/fat/fogcast/cache/bios.bin"});
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::invalid_request);
-	assert(unchanged.system == "sentinel");
-	launch.media.pop_back();
-	launch.rbf = "/usr/share/mister-runtime/cores/other.rbf";
-	assert(profiles.Prepare(launch, &unchanged).code ==
-		mister::ErrorCode::invalid_request);
-	assert(unchanged.system == "sentinel");
-	mister_test::CaptureLog log;
-	std::unique_ptr<mister::Hardware> hardware;
-	const mister::Error created = mister::CreateProductionHardware(log, &hardware);
-	assert(created.ok());
-	assert(hardware);
-	const mister::HardwareResult idle = hardware->LoadIdle();
-	assert(idle.error.code == mister::ErrorCode::io_failed);
-	assert(idle.error.message.find(
-		"/definitely-missing/libmister-runtime/idle.rbf") != std::string::npos);
-	assert(!idle.mutation_attempted);
-	TempDirectory package;
-	PopulateFesGpPackage(&package);
-	std::unique_ptr<mister::AdmittedCorePackage> admitted;
-	assert(hardware->AdmitCorePackage(package.path,
-		"b131f98291e946c63d94a4b73f13f7ef9efe1bafda9f96ae1a13a2bff5f2a2f0",
-		&admitted).code == mister::ErrorCode::invalid_package);
-	assert(!admitted);
-}
 
 void TestUnavailableHardwareRemainsFailureOnly()
 {
@@ -2475,8 +1219,7 @@ void TestUnavailableHardwareRemainsFailureOnly()
 		mister::CreateUnavailableHardware(reason);
 	assert(hardware);
 	assert(hardware->LoadIdle().error.code == mister::ErrorCode::io_failed);
-	assert(hardware->Launch({}, 1).error.code == mister::ErrorCode::io_failed);
-	assert(hardware->LoadDevelopmentRBF("/x").error.code ==
+	assert(hardware->LoadContainedDevelopmentRBF("/x", 1).error.code ==
 		mister::ErrorCode::io_failed);
 	assert(hardware->LoadContainedDevelopmentRBF("/x", 1).error.code ==
 		mister::ErrorCode::io_failed);
@@ -2505,8 +1248,8 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(available.fpga.programmed.empty() && gp_events.empty());
 	const mister::Capabilities capabilities = available.hardware.capabilities();
 	assert(capabilities.programming_profiles == std::vector<std::string>({
-		"development-contained-v1", "fes-gp-v1", "mister-v1"}));
-	assert(capabilities.abis.size() == 4);
+		"development-contained-v1", "fes-gp-v1"}));
+	assert(capabilities.abis.size() == 3);
 	assert(capabilities.abis[0].id == "fes.application");
 	assert(capabilities.abis[0].interfaces.size() == 8);
 	assert(capabilities.abis[0].interfaces[1].id == "fes.firmware.blob");
@@ -2514,7 +1257,6 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
 	assert(capabilities.abis[1].id == "fes.simple-computer");
 	assert(capabilities.abis[2].id == "fes.simple-game");
-	assert(capabilities.abis[3].id == "mister");
 
 	Fixture unavailable;
 	assert(unavailable.hardware.InspectCorePackage(package.path, id,
@@ -2523,7 +1265,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(inspection.compatibility_error.code == mister::ErrorCode::unsupported_abi);
 	assert(inspection.compatibility_error.phase == "compatibility");
 	assert(unavailable.hardware.capabilities().programming_profiles ==
-		std::vector<std::string>({"development-contained-v1", "mister-v1"}));
+		std::vector<std::string>({"development-contained-v1"}));
 	assert(unavailable.hardware.InspectCorePackage(package.path,
 		std::string(64, '0'), &inspection).code ==
 		mister::ErrorCode::invalid_package);
@@ -3059,58 +1801,23 @@ int main()
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();
-	TestNativeSaveStopAndWriteRetry();
-	TestEveryCoreTransitionQuiescesHdmiBeforeFpgaProgramming();
-	TestQuiesceFailureStopsBeforeFpgaMutationAndClosesLaunchInput();
-	TestLaunchUsesExactCoreRecipeAndExplicitMediaFormatInOrder();
 	TestFesGpPackageUsesSelectedDriverAndReturnsToMenuThroughThatDriver();
 	TestProductionFesInputDisconnectAndGenerationRetirement();
 	TestOnlyVerifiedFesGpMismatchIsQuiescedDuringIdleRecovery();
 	TestUnknownAndContainedFabricReceiveNoMisterQuiesceWords();
-	TestPackagedMisterIsExplicitDevelopmentAndValidatesDeclaredSystem();
 	TestDriverIdentifyStartAndQuiesceFailuresHaveOneRecoveryDecision();
 	TestPackageReplacementQuiesceFailureRespectsMutationBoundary();
-	TestRunningGameInputIsRetiredBeforePackageProgramming();
-	TestPackageReplacementInputStopFailureUsesOneMenuRecovery();
 	TestMutatingProgramFailureForgetsOutgoingDriverBeforeRecovery();
 	TestDriverFaultCallbackRejectsOldPackageGeneration();
-	TestLaunchSynchronizesTheProgrammedCoreBeforeAnyCoreIo();
-	TestRuntimeLaunchUsesTheCompleteProductionOrderBeforePublishingRunning();
-	TestAllInputAndArtifactPreflightCompletesBeforeProgramming();
-	TestOversizedRomIsRejectedBeforeFpgaAndClosesPreflightInput();
-	TestEveryPostProgramPhaseFailureGetsOneIdleCleanup();
-	TestCleanupFailureAndDirectInputStopErrorRequireReboot();
-	TestStopOrdersInputBeforeIdleAndImmediateRelaunchIsFresh();
-	TestManualStopPreservesInputCancellationErrorAfterAttemptingIdle();
-	TestInputCallbackReportsTheGenerationThroughTheHardwareBoundary();
-	TestLaunchRejectsUnsupportedPreparedMediaFormatBeforeFileSelection();
-	TestDevelopmentLoadsMiSterRbfInExactOrderAndLeavesHdmiDown();
-	TestDevelopmentFailuresReportExactMutationBoundary();
 	TestIdleRequiresVideo();
-	TestDefinedIdleProgramsWithoutMenuChrome();
-	TestIdleWithoutProbeDoesNotRequireMenuIdentity();
 	TestSplashIdleProgramsWithoutProbeOrFramebuffer();
-	TestDefinedIdleCanUseNonMisterProgrammingProfile();
-	TestPlayPackageCleanupLoadsDefinedIdle();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
 	TestIdleFpgaFailureAfterQuiesceReportsHardwareMutation();
 	TestIdleVideoFailureIsAttemptedIoFailureWithoutCleanup();
-	TestLaunchNeverCallsIdleVideo();
-	TestOneAbsoluteDeadlinePerNativeStage();
-	TestMediaTransferGetsDedicatedDeadline();
-	TestPostVideoCoreStageGetsFreshDeadline();
-	TestPreflightAndProgramFailuresIncludeQuiesceMutation();
-	TestEveryConcretePreflightRejectionPerformsZeroHardwareWork();
-	TestProbeMismatchAndIoRetainObservedCoreAndMutation();
-	TestNativeLoggingNamesPhasesAndConfirmedCore();
-	TestSnesProductionTransformPreflightAndLifecycle();
-	TestPongProductionProfileAndRomlessLifecycle();
-	TestNesProductionProfileAndPreflight();
-	TestProductionConstructionOwnsRealIdleHardware();
 	TestUnavailableHardwareRemainsFailureOnly();
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 55 passed");
+	puts("native_hardware_test: 24 passed");
 	return 0;
 }

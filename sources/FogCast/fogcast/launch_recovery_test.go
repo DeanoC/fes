@@ -21,7 +21,7 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
-func TestLibraryLaunchRecoversRetainedLegacyFailure(t *testing.T) {
+func TestLibraryLaunchRecoversRetainedIdleFailure(t *testing.T) {
 	for _, mode := range []string{"recover", "cleanup-fails", "cleanup-save-error", "foreign-owner", "unsafe-save", "unsafe-recovery", "unsafe-package", "unsafe-game", "unsafe-development", "unsafe-phase", "cancel", "unclean-stop", "reboot-response", "invalid-package", "invalid-media", "incompatible-package"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx := context.Background()
@@ -48,16 +48,8 @@ func TestLibraryLaunchRecoversRetainedLegacyFailure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.EnsureBuiltinPong(ctx); err != nil {
-				t.Fatal(err)
-			}
-			client.nativeLaunch = func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
-				client.statusResult = protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}}
-				return client.statusResult, client.statusResult.LastError
-			}
-			if _, err := s.Launch(ctx, catalog.BuiltinPongID, nil); err == nil || client.nativeLaunchCalls != 1 {
-				t.Fatalf("legacy launch err=%v calls=%d", err, client.nativeLaunchCalls)
-			}
+			// Reconstruct a retained idle transport failure without invoking a retired launch API.
+			client.statusResult = protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}}
 			if mode == "invalid-package" {
 				s.corePackages, err = corepackage.NewStore(filepath.Join(root, "empty-packages"))
 				if err != nil {

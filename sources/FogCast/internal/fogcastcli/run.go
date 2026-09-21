@@ -20,7 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -591,11 +591,11 @@ func systemLabel(system protocol.System) string {
 }
 
 func publicCore(value *string) *string {
-	if value == nil {
+	if value == nil || len(*value) == 0 || len(*value) > 96 {
 		return nil
 	}
-	if *value != "MENU" {
-		if !core.DefaultRegistry().RecognizesObserved(*value) {
+	for _, c := range *value {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-') {
 			return nil
 		}
 	}

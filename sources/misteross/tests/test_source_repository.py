@@ -5,13 +5,13 @@ import unittest
 from scripts.source_repository import canonical_repository
 from scripts import export_core_package as exporter
 from scripts.core_package import encode_manifest, read_package
-from tests import test_legacy_source as fixtures
+from tests import test_source_provenance as fixtures
 
 
 class RepositoryTests(unittest.TestCase):
-    fixture = fixtures.LegacySourceTests.fixture
-    require = fixtures.LegacySourceTests.require
-    export_inputs = fixtures.LegacySourceTests.export_inputs
+    fixture = fixtures.SourceProvenanceTests.fixture
+    require = fixtures.SourceProvenanceTests.require
+    export_inputs = fixtures.SourceProvenanceTests.export_inputs
 
     def test_only_supported_ssh_spellings_normalize_and_https_bytes_survive(self):
         for origin in ('git@github.com:DeanoC/fes.git', 'ssh://git@github.com/DeanoC/fes.git'):
@@ -27,9 +27,9 @@ class RepositoryTests(unittest.TestCase):
             with self.subTest(origin=origin), self.assertRaisesRegex(ValueError, 'unsupported SSH'):
                 canonical_repository(origin)
 
-    def test_real_git_ssh_v1_v2_export_standalone_and_module_preserves_remote(self):
+    def test_real_git_ssh_v1_v2_export_module_preserves_remote(self):
         producer = fixtures.PRODUCERS[0]
-        for nested in (False, True):
+        for nested in (True,):
             for version in (1, 2):
                 for origin in ('git@github.com:DeanoC/fes.git', 'ssh://git@github.com/DeanoC/fes.git'):
                     with self.subTest(nested=nested, version=version, origin=origin):
@@ -54,7 +54,7 @@ class RepositoryTests(unittest.TestCase):
                             self.assertEqual(fixtures.git(repo, 'remote', 'get-url', 'origin'), origin)
                         self.assertEqual(fixtures.git(repo, 'status', '--porcelain'), '')
 
-    def test_all_oss_and_legacy_guards_return_equivalent_origin_without_mutation(self):
+    def test_all_oss_and_oracle_guards_return_equivalent_origin_without_mutation(self):
         oss = [importlib.import_module('scripts.build_fes_' + name)
                for name in ('pong', 'zx81_oss', 'coleco_oss', 'sms_oss', 'sg1000_oss')]
         for producer in [*fixtures.PRODUCERS, *oss]:

@@ -19,10 +19,10 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import legacy_source
+from scripts import source_provenance
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package
-from scripts.rebuild_core import (
+from scripts.quartus_tools import (
     RebuildError,
     locate_quartus,
     quartus_version_line,
@@ -59,7 +59,8 @@ VHDL_SOURCES = (
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
-    "scripts/legacy_source.py",
+    "scripts/source_provenance.py",
+    "scripts/quartus_tools.py",
     ABI_DEFINITION,
     QSF_PINS,
     SDC,
@@ -123,7 +124,7 @@ def _regular_input(root: Path, relative: str) -> Path:
 
 def require_clean_source(root: Path) -> tuple[str, str]:
     try:
-        return legacy_source.require_clean_source(root, PINNED_INPUTS)
+        return source_provenance.require_clean_source(root, PINNED_INPUTS)
     except ValueError as exc:
         raise BuildError(str(exc)) from exc
 
@@ -150,9 +151,9 @@ def create_build_record(
         "format": 1,
         "repository": repository,
         "revision": revision,
-        "recipe": legacy_source.context(root).qualify(RECIPE),
+        "recipe": source_provenance.context(root).qualify(RECIPE),
         "recipe_sha256": _sha256(_regular_input(root, RECIPE)),
-        "abi_definition": legacy_source.context(root).qualify(ABI_DEFINITION),
+        "abi_definition": source_provenance.context(root).qualify(ABI_DEFINITION),
         "abi_definition_sha256": _sha256(_regular_input(root, ABI_DEFINITION)),
         "dependencies": {},
         "tools": dict(tool_identities),
@@ -393,7 +394,7 @@ def build(
             {
                 "build_id": build_id,
                 "device": TARGET,
-                "inputs": {legacy_source.context(root).qualify(relative): _sha256(root / relative)
+                "inputs": {source_provenance.context(root).qualify(relative): _sha256(root / relative)
                            for relative in sorted(PINNED_INPUTS)},
                 "tools": identities,
                 "top": TOP,

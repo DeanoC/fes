@@ -6,7 +6,6 @@
 #include "daemon/server.hpp"
 #include "fake_hardware.hpp"
 #include "linux/stderr_log.hpp"
-#include "test_profiles.hpp"
 
 #include <assert.h>
 #include <errno.h>
@@ -30,16 +29,16 @@
 
 namespace {
 
-const char kStatus[] = "{\"protocol\":1,\"operation\":\"status\"}";
-const char kStop[] = "{\"protocol\":1,\"operation\":\"stop\"}";
+const char kStatus[] = "{\"protocol\":2,\"operation\":\"status\"}";
+const char kStop[] = "{\"protocol\":2,\"operation\":\"stop\"}";
 const char kDevelopment[] =
-	"{\"protocol\":1,\"operation\":\"load_development_rbf\","
-	"\"rbf\":\"/cores/development.rbf\"}";
-const char kLaunch[] =
-	"{\"protocol\":1,\"operation\":\"launch\","
-	"\"system\":\"test_cart\",\"rbf\":\"/cores/test.rbf\","
-	"\"media\":{\"cartridge\":\"/games/test.bin\"},"
-	"\"settings\":{\"region\":\"auto\"}}";
+	"{\"protocol\":2,\"operation\":\"load_development_rbf\","
+	"\"rbf\":\"/tmp/fogcast-development/core.rbf\","
+	"\"programming_profile\":\"development-contained-v1\"}";
+const char kLoad[] =
+	"{\"protocol\":2,\"operation\":\"load_core\","
+	"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
+	"\"package_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}";
 const char kPackageId[] =
 	"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -96,18 +95,9 @@ private:
 	std::vector<mister::LogRecord> records_;
 };
 
-mister::Profiles BuildProfiles()
-{
-	mister::Profiles profiles;
-	assert(profiles.Add(mister_test::CartProfile()).ok());
-	return profiles;
-}
-
 struct Fixture {
-	Fixture() : profiles(BuildProfiles()), hardware(), log(),
-		runtime(hardware, profiles, log) {}
+	Fixture() : hardware(), log(), runtime(hardware, log) {}
 	void Start() { assert(runtime.Start().ok()); }
-	mister::Profiles profiles;
 	mister_test::FakeHardware hardware;
 	TestLog log;
 	mister::Runtime runtime;
@@ -407,7 +397,7 @@ void TestIncompleteAndOversizedRequestsAreInvalidThenClose()
 	{
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
 		int descriptor = Connect(temporary.Entry("runtime.sock"));
-		SendAll(descriptor, "{\"protocol\":1");
+		SendAll(descriptor, "{\"protocol\":2");
 		assert(shutdown(descriptor, SHUT_WR) == 0);
 		std::string response = ReadToEof(descriptor);
 		assert(close(descriptor) == 0);
@@ -449,9 +439,9 @@ void TestIdleStopAcknowledgesSaveAdmissionFailure()
 {
 	Fixture fixture;
 	fixture.Start();
-	fixture.hardware.launch_result = {{mister::ErrorCode::save_failed, "wrong save size"}, false, ""};
+	fixture.hardware.core_result = {{mister::ErrorCode::save_failed, "wrong save size"}, false, ""};
 	mister::daemon::Controller controller(fixture.runtime, "save-test");
-	const auto rejected = controller.Handle(kLaunch);
+	const auto rejected = controller.Handle(kLoad);
 	Contains(rejected, "\"ok\":false");
 	Contains(rejected, "\"state\":\"idle\"");
 	Contains(rejected, "\"code\":\"save_failed\"");
@@ -499,7 +489,7 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	Fixture fixture;
 	fixture.Start();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	Contains(controller.Handle(kLaunch), "\"state\":\"running_game\"");
+	Contains(controller.Handle(kDevelopment), "\"state\":\"running_development\"");
 	Contains(controller.Handle(
 		std::string("{\"protocol\":2,\"operation\":\"load_core\",\"package_path\":\"/packages/custom\",\"package_id\":\"") +
 		kPackageId + "\"}"),
@@ -509,7 +499,7 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	bool launch = false, load_core = false, stop = false;
 	for (const auto& event : capture.events()) {
 		if (event.kind != "fifo.consume") continue;
-		if (mister_test::HasString(event, "operation", "launch") &&
+		if (mister_test::HasString(event, "operation", "load_development_rbf") &&
 			mister_test::HasBool(event, "ok", true))
 			launch = true;
 		if (mister_test::HasString(event, "operation", "load_core") &&
@@ -551,19 +541,19 @@ void TestMutationRequestsEmitFifoConsumeAndOptionalDump()
 	mister::InstallDiagnosticSink(nullptr);
 }
 
-void TestLaunchDevelopmentAndStopMapIdentityAndState()
+void TestPackageDevelopmentAndStopMapIdentityAndState()
 {
 	TempDirectory temporary;
 	Fixture fixture;
 	fixture.Start();
 	{
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
-		std::string response = Exchange(temporary.Entry("runtime.sock"), kLaunch);
-		Contains(response, "\"state\":\"running_game\"");
-		Contains(response, "\"execution\":\"game\"");
-		Contains(response, "\"system\":\"test_cart\"");
-		Contains(response, "\"core\":\"TESTCART\"");
-		assert(fixture.hardware.launch_calls == 1);
+		std::string response = Exchange(temporary.Entry("runtime.sock"), kLoad);
+		Contains(response, "\"state\":\"running_development\"");
+		Contains(response, "\"execution\":\"development\"");
+		Contains(response, "\"system\":null");
+		Contains(response, "\"core\":\"custom-core\"");
+		assert(fixture.hardware.core_calls == 1);
 
 		response = Exchange(temporary.Entry("runtime.sock"), kStop);
 		Contains(response, "\"state\":\"idle\"");
@@ -589,8 +579,8 @@ void TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket()
 	fixture.Start();
 	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
 	const std::string response = Exchange(temporary.Entry("runtime.sock"),
-		"{\"protocol\":1,\"operation\":\"load_development_rbf\","
-		"\"rbf\":\"/cores/real.rbf\\u0000ignored.rbf\"}");
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\","
+		"\"rbf\":\"/tmp/fogcast-development/real.rbf\\u0000ignored.rbf\",\"programming_profile\":\"development-contained-v1\"}");
 	Contains(response, "\"ok\":false");
 	Contains(response, "\"code\":\"invalid_request\"");
 	assert(fixture.hardware.development_calls == 0);
@@ -624,12 +614,11 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	assert(fixture.hardware.core_generations == std::vector<std::uint64_t>({1}));
 
 	response = controller.Handle(kStatus);
-	Contains(response, "\"protocol\":1");
+	Contains(response, "\"protocol\":2");
 	Contains(response, "\"state\":\"running_development\"");
 	Contains(response, "\"system\":null");
-	assert(response.find("capabilities") == std::string::npos);
-	assert(response.find("active_package") == std::string::npos);
-	assert(response.find("generation") == std::string::npos);
+	Contains(response, "\"active_package\":{");
+	Contains(response, "\"generation\":1");
 
 	response = controller.Handle("{\"protocol\":2,\"operation\":\"stop\"}");
 	Contains(response, "\"state\":\"idle\"");
@@ -642,30 +631,28 @@ void TestProtocol2InspectionActivationDiagnosticAndBothStops()
 	Contains(response, "\"active_interfaces\":[]");
 	Contains(response, "\"generation\":2");
 	assert(fixture.hardware.contained_development_calls == 1);
-	response = controller.Handle("{\"protocol\":1,\"operation\":\"stop\"}");
-	Contains(response, "\"protocol\":1");
+	response = controller.Handle("{\"protocol\":2,\"operation\":\"stop\"}");
+	Contains(response, "\"protocol\":2");
 	Contains(response, "\"state\":\"idle\"");
 }
 
-void TestProtocol1ProjectsAProtocol2OnlyActivationFailure()
+void TestProtocol1RequestsAreRejectedWithoutMutation()
 {
 	Fixture fixture;
 	fixture.Start();
-	fixture.hardware.core_result = {
-		{mister::ErrorCode::unsupported_interface,
-			"required interface unavailable", "compatibility"}, false, ""};
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = controller.Handle(std::string(
-		"{\"protocol\":2,\"operation\":\"load_core\","
-		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
-		"\"package_id\":\"") + kPackageId + "\"}");
-	Contains(response, "\"code\":\"unsupported_interface\"");
-	Contains(response, "\"phase\":\"compatibility\"");
-	const std::string legacy = controller.Handle(kStatus);
-	Contains(legacy, "\"protocol\":1");
-	Contains(legacy, "\"code\":\"invalid_request\"");
-	assert(legacy.find("phase") == std::string::npos);
-	assert(legacy.find("capabilities") == std::string::npos);
+	Contains(controller.Handle(kLoad), "\"generation\":1");
+	for (const std::string operation : {"status", "stop", "launch", "load_development_rbf"}) {
+		const std::string response = controller.Handle(
+			"{\"protocol\":1,\"operation\":\"" + operation + "\"}");
+		Contains(response, "\"protocol\":2");
+		Contains(response, "\"code\":\"unsupported_protocol\"");
+		Contains(response, "\"phase\":\"request\"");
+		Contains(response, "\"generation\":1");
+	}
+	assert(fixture.hardware.idle_calls == 1);
+	assert(fixture.hardware.core_calls == 1);
+	assert(fixture.hardware.development_calls == 0);
 }
 
 void TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope()
@@ -720,17 +707,17 @@ void TestStatusFromAnotherConnectionObservesStarting()
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
 		std::string launch_response;
 		std::thread launch([&]() {
-			launch_response = Exchange(temporary.Entry("runtime.sock"), kLaunch);
+			launch_response = Exchange(temporary.Entry("runtime.sock"), kLoad);
 		});
 		fixture.hardware.WaitUntilLaunchEntered();
 		const std::string status = Exchange(temporary.Entry("runtime.sock"), kStatus);
 		Contains(status, "\"ok\":true");
 		Contains(status, "\"state\":\"starting\"");
-		Contains(status, "\"execution\":\"game\"");
-		Contains(status, "\"system\":\"test_cart\"");
+		Contains(status, "\"execution\":\"development\"");
+		Contains(status, "\"system\":null");
 		fixture.hardware.ReleaseLaunch();
 		launch.join();
-		Contains(launch_response, "\"state\":\"running_game\"");
+		Contains(launch_response, "\"state\":\"running_development\"");
 	}
 }
 
@@ -743,7 +730,7 @@ void TestConcurrentMutationReturnsBusy()
 	{
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
 		std::thread launch([&]() {
-			Exchange(temporary.Entry("runtime.sock"), kLaunch);
+			Exchange(temporary.Entry("runtime.sock"), kLoad);
 		});
 		fixture.hardware.WaitUntilLaunchEntered();
 		const std::string response = Exchange(temporary.Entry("runtime.sock"),
@@ -762,13 +749,13 @@ void TestCleanupFailureReturnsRebootRequiredIdleFailed()
 	TempDirectory temporary;
 	Fixture fixture;
 	fixture.Start();
-	fixture.hardware.launch_result = {
+	fixture.hardware.core_result = {
 		{mister::ErrorCode::io_failed, "launch failed"}, true, ""};
 	fixture.hardware.idle_result = {
 		{mister::ErrorCode::program_failed, "cleanup failed"}, true, ""};
 	{
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
-		const std::string response = Exchange(temporary.Entry("runtime.sock"), kLaunch);
+		const std::string response = Exchange(temporary.Entry("runtime.sock"), kLoad);
 		Contains(response, "\"ok\":false");
 		Contains(response, "\"state\":\"reboot_required\"");
 		Contains(response, "\"code\":\"idle_failed\"");
@@ -776,7 +763,7 @@ void TestCleanupFailureReturnsRebootRequiredIdleFailed()
 	}
 }
 
-void TestProtocol2PublishesRuntimeRecoveryPhaseAndV1OmitsMetadata()
+void TestProtocol2PublishesRuntimeRecoveryPhase()
 {
 	Fixture fixture;
 	fixture.Start();
@@ -801,11 +788,7 @@ void TestProtocol2PublishesRuntimeRecoveryPhaseAndV1OmitsMetadata()
 	Contains(stopped, "\"phase\":\"recovery\"");
 	Contains(stopped, "\"expected\":\"MENU\"");
 	Contains(stopped, "\"observed\":\"OTHER\"");
-	const std::string legacy = controller.Handle(kStop);
-	Contains(legacy, "\"code\":\"idle_failed\"");
-	assert(legacy.find("phase") == std::string::npos);
-	assert(legacy.find("expected") == std::string::npos);
-	assert(legacy.find("observed") == std::string::npos);
+
 }
 
 void TestSocketStopThenImmediateRelaunchUsesANewGeneration()
@@ -814,16 +797,16 @@ void TestSocketStopThenImmediateRelaunchUsesANewGeneration()
 	Fixture fixture;
 	fixture.Start();
 	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
-	Contains(Exchange(temporary.Entry("runtime.sock"), kLaunch),
-		"\"state\":\"running_game\"");
+	Contains(Exchange(temporary.Entry("runtime.sock"), kLoad),
+		"\"state\":\"running_development\"");
 	Contains(Exchange(temporary.Entry("runtime.sock"), kStop),
 		"\"state\":\"idle\"");
 	const std::string relaunched = Exchange(temporary.Entry("runtime.sock"),
-		kLaunch);
-	Contains(relaunched, "\"state\":\"running_game\"");
-	Contains(relaunched, "\"system\":\"test_cart\"");
-	Contains(relaunched, "\"core\":\"TESTCART\"");
-	assert(fixture.hardware.launch_generations ==
+		kLoad);
+	Contains(relaunched, "\"state\":\"running_development\"");
+	Contains(relaunched, "\"system\":null");
+	Contains(relaunched, "\"core\":\"custom-core\"");
+	assert(fixture.hardware.core_generations ==
 		std::vector<std::uint64_t>({1, 2}));
 }
 
@@ -863,26 +846,24 @@ void TestSocketStatusObservesAsynchronousInputFaultCleanup()
 	assert(fixture.hardware.idle_calls == 2);
 }
 
-void TestProtocol1StatusAfterProtocol2MisterPackageKeepsNullSystem()
+void TestRetiredLaunchAndUnprofiledRBFDoNotReplacePackage()
 {
 	Fixture fixture;
 	fixture.Start();
-	fixture.hardware.core_info.system = "pong";
-	fixture.hardware.core_info.descriptor.core.system = "pong";
-	fixture.hardware.core_info.descriptor.target.programming_profile =
-		"mister-v1";
-	fixture.hardware.core_info.descriptor.abi = {"mister", 1, 0};
-	fixture.hardware.core_info.descriptor.interfaces.clear();
 	mister::daemon::Controller controller(fixture.runtime, "test-version");
-	const std::string response = controller.Handle(std::string(
-		"{\"protocol\":2,\"operation\":\"load_core\","
-		"\"package_path\":\"/tmp/fogcast-development/core-packages/test\","
-		"\"package_id\":\"") + kPackageId + "\"}");
-	Contains(response, "\"system\":null");
-	Contains(response, "\"system\":\"pong\"");
-	const std::string legacy = controller.Handle(kStatus);
-	Contains(legacy, "\"state\":\"running_development\"");
-	Contains(legacy, "\"system\":null");
+	Contains(controller.Handle(kLoad), "\"generation\":1");
+	for (const std::string request : {
+		"{\"protocol\":2,\"operation\":\"launch\",\"system\":\"pong\"}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/fogcast-development/core.rbf\"}",
+		"{\"protocol\":2,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/fogcast-development/core.rbf\",\"programming_profile\":\"mister-v1\"}"}) {
+		const std::string response = controller.Handle(request);
+		Contains(response, "\"code\":\"invalid_request\"");
+		Contains(response, "\"generation\":1");
+		Contains(response, "\"core\":\"custom-core\"");
+	}
+	assert(fixture.hardware.idle_calls == 1);
+	assert(fixture.hardware.core_calls == 1);
+	assert(fixture.hardware.development_calls == 0);
 }
 
 void TestReconstructedRuntimeDoesNotPreserveAGame()
@@ -893,7 +874,7 @@ void TestReconstructedRuntimeDoesNotPreserveAGame()
 		Fixture first;
 		first.Start();
 		RunningServer server(first.runtime, path);
-		Contains(Exchange(path, kLaunch), "\"state\":\"running_game\"");
+		Contains(Exchange(path, kLoad), "\"state\":\"running_development\"");
 	}
 	struct stat missing;
 	assert(lstat(path.c_str(), &missing) < 0 && errno == ENOENT);
@@ -918,16 +899,16 @@ void TestLostLaunchResponseIsReconciledByStatus()
 	{
 		RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
 		const int descriptor = Connect(temporary.Entry("runtime.sock"));
-		SendAll(descriptor, std::string(kLaunch) + "\n");
+		SendAll(descriptor, std::string(kLoad) + "\n");
 		assert(close(descriptor) == 0);
 		fixture.hardware.WaitUntilLaunchEntered();
 		fixture.hardware.ReleaseLaunch();
-		assert(fixture.log.WaitFor("launch", "running"));
+		assert(fixture.log.WaitFor("load_core", "running"));
 		const std::string response = Exchange(temporary.Entry("runtime.sock"), kStatus);
 		Contains(response, "\"ok\":true");
-		Contains(response, "\"state\":\"running_game\"");
-		Contains(response, "\"system\":\"test_cart\"");
-		Contains(response, "\"core\":\"TESTCART\"");
+		Contains(response, "\"state\":\"running_development\"");
+		Contains(response, "\"system\":null");
+		Contains(response, "\"core\":\"custom-core\"");
 	}
 }
 
@@ -943,12 +924,12 @@ void TestRequestStopWaitsAndRemovesOnlyItsOwnSocket()
 		fixture.hardware.BlockLaunch();
 		RunningServer server(fixture.runtime, path);
 		const int descriptor = Connect(path);
-		SendAll(descriptor, std::string(kLaunch) + "\n");
+		SendAll(descriptor, std::string(kLoad) + "\n");
 		fixture.hardware.WaitUntilLaunchEntered();
 		server.RequestStop();
 		assert(!server.finished());
 		fixture.hardware.ReleaseLaunch();
-		Contains(ReadToEof(descriptor), "\"state\":\"running_game\"");
+		Contains(ReadToEof(descriptor), "\"state\":\"running_development\"");
 		assert(close(descriptor) == 0);
 		server.Join();
 		assert(server.result().ok());
@@ -988,7 +969,7 @@ void TestRequestStopPreventsListenerDescriptorReuseUntilServeReturns()
 	mister::Error serve_result;
 	std::thread serving([&]() { serve_result = server.Serve(); });
 	const int client = Connect(temporary.Entry("runtime.sock"));
-	SendAll(client, std::string(kLaunch) + "\n");
+	SendAll(client, std::string(kLoad) + "\n");
 	fixture.hardware.WaitUntilLaunchEntered();
 
 	server.RequestStop();
@@ -996,7 +977,7 @@ void TestRequestStopPreventsListenerDescriptorReuseUntilServeReturns()
 	assert(replacement >= 0);
 	const bool listener_number_was_reused = replacement == listener_slot;
 	fixture.hardware.ReleaseLaunch();
-	Contains(ReadToEof(client), "\"state\":\"running_game\"");
+	Contains(ReadToEof(client), "\"state\":\"running_development\"");
 	assert(close(client) == 0);
 	serving.join();
 	assert(serve_result.ok());
@@ -1110,17 +1091,12 @@ void TestConfirmedStaleSocketIsRemovedAndReboundOnce()
 	assert(unlink(fifo.c_str()) == 0);
 }
 
-void TestSocketLaunchEmitsDirectRuntimeIdentityAndPhases()
+void TestSocketPackageLoadEmitsDirectRuntimeIdentityAndPhases()
 {
 	Fixture direct;
 	direct.Start();
 	direct.log.Clear();
-	mister::Launch launch;
-	launch.system = "test_cart";
-	launch.rbf = "/cores/test.rbf";
-	launch.media.push_back({"cartridge", "/games/test.bin"});
-	launch.settings.push_back({"region", "auto"});
-	assert(direct.runtime.LaunchGame(launch).ok());
+	assert(direct.runtime.LoadCore("/tmp/fogcast-development/core-packages/test", kPackageId).ok());
 
 	TempDirectory temporary;
 	Fixture socket;
@@ -1128,16 +1104,16 @@ void TestSocketLaunchEmitsDirectRuntimeIdentityAndPhases()
 	socket.log.Clear();
 	{
 		RunningServer server(socket.runtime, temporary.Entry("runtime.sock"));
-		Contains(Exchange(temporary.Entry("runtime.sock"), kLaunch),
-			"\"state\":\"running_game\"");
+		Contains(Exchange(temporary.Entry("runtime.sock"), kLoad),
+			"\"state\":\"running_development\"");
 	}
-	const auto direct_records = OperationRecords(direct.log.Records(), "launch");
-	const auto socket_records = OperationRecords(socket.log.Records(), "launch");
+	const auto direct_records = OperationRecords(direct.log.Records(), "load_core");
+	const auto socket_records = OperationRecords(socket.log.Records(), "load_core");
 	AssertSameRecords(direct_records, socket_records);
 	assert(socket_records.size() == 3);
 	assert(socket_records[1].phase == "starting");
-	assert(socket_records[1].system == "test_cart");
-	assert(socket_records[1].core == "TESTCART");
+	assert(socket_records[1].system.empty());
+	assert(socket_records[1].core == "custom-core");
 	assert(socket_records[2].phase == "running");
 }
 
@@ -1146,10 +1122,10 @@ void TestOversizedHardwareErrorUsesBoundedValidFallback()
 	TempDirectory temporary;
 	Fixture fixture;
 	fixture.Start();
-	fixture.hardware.launch_result = {
+	fixture.hardware.core_result = {
 		{mister::ErrorCode::io_failed, std::string(70000, 'x')}, false, ""};
 	RunningServer server(fixture.runtime, temporary.Entry("runtime.sock"));
-	AssertBoundedFallback(Exchange(temporary.Entry("runtime.sock"), kLaunch));
+	AssertBoundedFallback(Exchange(temporary.Entry("runtime.sock"), kLoad));
 }
 
 void TestOversizedVersionUsesBoundedValidFallback()
@@ -1206,19 +1182,19 @@ int main()
 	TestIncompleteAndOversizedRequestsAreInvalidThenClose();
 	TestPersistenceMutationsEmitFifoCompletionOnRejection();
 	TestMutationRequestsEmitFifoConsumeAndOptionalDump();
-	TestLaunchDevelopmentAndStopMapIdentityAndState();
+	TestPackageDevelopmentAndStopMapIdentityAndState();
 	TestProtocol2InspectionActivationDiagnosticAndBothStops();
-	TestProtocol1ProjectsAProtocol2OnlyActivationFailure();
+	TestProtocol1RequestsAreRejectedWithoutMutation();
 	TestInvalidProtocol2RequestKeepsTheNegotiatedEnvelope();
 	TestIncompatibleInspectionIsSuccessfulAndDoesNotMutate();
 	TestDecodedNulPathIsRejectedBeforeHardwareOverTheSocket();
 	TestStatusFromAnotherConnectionObservesStarting();
 	TestConcurrentMutationReturnsBusy();
 	TestCleanupFailureReturnsRebootRequiredIdleFailed();
-	TestProtocol2PublishesRuntimeRecoveryPhaseAndV1OmitsMetadata();
+	TestProtocol2PublishesRuntimeRecoveryPhase();
 	TestSocketStopThenImmediateRelaunchUsesANewGeneration();
 	TestSocketStatusObservesAsynchronousInputFaultCleanup();
-	TestProtocol1StatusAfterProtocol2MisterPackageKeepsNullSystem();
+	TestRetiredLaunchAndUnprofiledRBFDoNotReplacePackage();
 	TestReconstructedRuntimeDoesNotPreserveAGame();
 	TestLostLaunchResponseIsReconciledByStatus();
 	TestRequestStopWaitsAndRemovesOnlyItsOwnSocket();
@@ -1226,7 +1202,7 @@ int main()
 	TestSecondServerRefusesToStealLiveListener();
 	TestFullBacklogLiveOwnerProbeDoesNotBlock();
 	TestConfirmedStaleSocketIsRemovedAndReboundOnce();
-	TestSocketLaunchEmitsDirectRuntimeIdentityAndPhases();
+	TestSocketPackageLoadEmitsDirectRuntimeIdentityAndPhases();
 	TestOversizedVersionUsesBoundedValidFallback();
 	TestOversizedHardwareErrorUsesBoundedValidFallback();
 	TestDevelopmentInventsNoIdentityAndStderrEscapesFields();

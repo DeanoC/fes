@@ -22,9 +22,7 @@ import (
 type fakeController struct {
 	health        protocol.Health
 	status        protocol.Status
-	launchErr     *protocol.APIError
 	stopErr       *protocol.APIError
-	launchRequest protocol.LaunchRequest
 	healthVersion string
 	statusCalls   int
 	launchCalls   int
@@ -90,12 +88,6 @@ func (f *fakeController) Health(version string) protocol.Health {
 func (f *fakeController) Status() protocol.Status {
 	f.statusCalls++
 	return f.status
-}
-
-func (f *fakeController) Launch(_ context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
-	f.launchCalls++
-	f.launchRequest = request
-	return f.status, f.launchErr
 }
 
 func (f *fakeController) Stop(context.Context) (protocol.Status, *protocol.APIError) {
@@ -325,11 +317,9 @@ func TestAuthenticationRequiresExactlyOneAuthorizationHeader(t *testing.T) {
 		media  string
 	}{
 		{name: "v1 status", method: http.MethodGet, path: "/v1/status"},
-		{name: "v1 launch", method: http.MethodPost, path: "/v1/launch", body: `{"game_id":"snes-test","system":"snes","rom_path":"/media/fat/games/SNES/test.sfc"}`},
 		{name: "v1 stop", method: http.MethodPost, path: "/v1/stop"},
 		{name: "v2 probe", method: http.MethodGet, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc"},
 		{name: "v2 upload", method: http.MethodPut, path: "/v2/cache/snes/" + v2Digest + "?extension=sfc", body: "rom", media: "application/octet-stream"},
-		{name: "v2 launch", method: http.MethodPost, path: "/v2/launch", body: validLaunchJSON(), media: "application/json"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -410,7 +400,6 @@ func TestAPIContract(t *testing.T) {
 		path          string
 		body          string
 		authorization string
-		launchErr     *protocol.APIError
 		wantStatus    int
 		wantCode      protocol.ErrorCode
 	}{
@@ -419,15 +408,12 @@ func TestAPIContract(t *testing.T) {
 		{name: "status token without bearer scheme", method: http.MethodGet, path: "/v1/status", authorization: "test-token", wantStatus: http.StatusUnauthorized, wantCode: protocol.CodeUnauthorized},
 		{name: "status wrong auth", method: http.MethodGet, path: "/v1/status", authorization: "Bearer wrong", wantStatus: http.StatusUnauthorized, wantCode: protocol.CodeUnauthorized},
 		{name: "status valid auth", method: http.MethodGet, path: "/v1/status", authorization: "Bearer test-token", wantStatus: http.StatusOK},
-		{name: "launch unknown field", method: http.MethodPost, path: "/v1/launch", authorization: "Bearer test-token", body: `{"game_id":"megadrive-test","system":"megadrive","rom_path":"/media/fat/games/MegaDrive/test.md","rbf":"bad"}`, wantStatus: http.StatusBadRequest, wantCode: protocol.CodeBadRequest},
-		{name: "launch active", method: http.MethodPost, path: "/v1/launch", authorization: "Bearer test-token", body: `{"game_id":"megadrive-test","system":"megadrive","rom_path":"/media/fat/games/MegaDrive/test.md"}`, wantStatus: http.StatusOK},
-		{name: "launch missing ROM", method: http.MethodPost, path: "/v1/launch", authorization: "Bearer test-token", body: `{"game_id":"megadrive-test","system":"megadrive","rom_path":"/media/fat/games/MegaDrive/test.md"}`, launchErr: &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "missing"}, wantStatus: http.StatusNotFound, wantCode: protocol.CodeROMNotFound},
 		{name: "stop", method: http.MethodPost, path: "/v1/stop", authorization: "Bearer test-token", wantStatus: http.StatusOK},
 		{name: "stop body rejected", method: http.MethodPost, path: "/v1/stop", authorization: "Bearer test-token", body: `{}`, wantStatus: http.StatusBadRequest, wantCode: protocol.CodeBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			controller := &fakeController{health: protocol.Health{Ready: true}, status: active, launchErr: tt.launchErr}
+			controller := &fakeController{health: protocol.Health{Ready: true}, status: active}
 			handler := httpapi.New(controller, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)))
 			request := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 			if tt.authorization != "" {
@@ -456,34 +442,6 @@ func TestAPIContract(t *testing.T) {
 			if tt.name == "health without auth" && controller.healthVersion != "0.1.0" {
 				t.Fatalf("health version = %q", controller.healthVersion)
 			}
-			if tt.name == "launch active" && controller.launchRequest.GameID != "megadrive-test" {
-				t.Fatalf("launch request = %#v", controller.launchRequest)
-			}
-		})
-	}
-}
-
-func TestLaunchRejectsMalformedMultipleAndOversizedJSON(t *testing.T) {
-	t.Parallel()
-	tests := map[string]string{
-		"malformed": `{"game_id":`,
-		"multiple":  `{"game_id":"one","system":"snes","rom_path":"/one.sfc"} {"game_id":"two"}`,
-		"oversized": `{"game_id":"snes-test","system":"snes","rom_path":"/` + strings.Repeat("x", 64<<10) + `.sfc"}`,
-	}
-	for name, body := range tests {
-		t.Run(name, func(t *testing.T) {
-			handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)))
-			request := httptest.NewRequest(http.MethodPost, "/v1/launch", strings.NewReader(body))
-			request.Header.Set("Authorization", "Bearer test-token")
-			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, request)
-			if response.Code != http.StatusBadRequest {
-				t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
-			}
-			var envelope protocol.ErrorEnvelope
-			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil || envelope.Error.Code != protocol.CodeBadRequest {
-				t.Fatalf("error envelope = %#v, decode error = %v", envelope, err)
-			}
 		})
 	}
 }
@@ -510,9 +468,9 @@ func TestAPIErrorStatusMapping(t *testing.T) {
 	}
 	for code, wantStatus := range tests {
 		t.Run(string(code), func(t *testing.T) {
-			controller := &fakeController{launchErr: &protocol.APIError{Code: code, Message: "failure"}}
+			controller := &fakeController{stopErr: &protocol.APIError{Code: code, Message: "failure"}}
 			handler := httpapi.New(controller, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(io.Discard, nil)))
-			request := httptest.NewRequest(http.MethodPost, "/v1/launch", strings.NewReader(`{"game_id":"snes-test","system":"snes","rom_path":"/media/fat/games/SNES/test.sfc"}`))
+			request := httptest.NewRequest(http.MethodPost, "/v1/stop", nil)
 			request.Header.Set("Authorization", "Bearer test-token")
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
@@ -536,9 +494,8 @@ func TestV1GoldenResponsesRemainUnchangedWithContentOption(t *testing.T) {
 		auth   bool
 		want   string
 	}{
-		{name: "health", method: http.MethodGet, path: "/v1/health", want: "{\"api_version\":\"v1\",\"agent_version\":\"0.1.0\",\"ready\":true,\"mister_process\":true,\"command_pipe\":true}\n"},
+		{name: "health", method: http.MethodGet, path: "/v1/health", want: "{\"api_version\":\"v1\",\"agent_version\":\"0.1.0\",\"ready\":true}\n"},
 		{name: "status", method: http.MethodGet, path: "/v1/status", auth: true, want: "{\"state\":\"active\",\"game_id\":\"snes-test\",\"system\":\"snes\",\"expected_core\":\"SNES\",\"observed_core\":\"SNES\",\"last_error\":null}\n"},
-		{name: "launch", method: http.MethodPost, path: "/v1/launch", auth: true, body: `{"game_id":"snes-test","system":"snes","rom_path":"/media/fat/games/SNES/test.sfc"}`, want: "{\"state\":\"active\",\"game_id\":\"snes-test\",\"system\":\"snes\",\"expected_core\":\"SNES\",\"observed_core\":\"SNES\",\"last_error\":null}\n"},
 		{name: "stop", method: http.MethodPost, path: "/v1/stop", auth: true, want: "{\"state\":\"idle\",\"game_id\":null,\"system\":null,\"expected_core\":null,\"observed_core\":null,\"last_error\":null}\n"},
 		{name: "unauthorized", method: http.MethodGet, path: "/v1/status", want: "{\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"missing or incorrect bearer token\"}}\n"},
 	}
@@ -546,7 +503,7 @@ func TestV1GoldenResponsesRemainUnchangedWithContentOption(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("content=%t/%s", withContent, tt.name), func(t *testing.T) {
 				controller := &fakeController{
-					health: protocol.Health{APIVersion: "v1", AgentVersion: "0.1.0", Ready: true, MiSTerProcess: true, CommandPipe: true},
+					health: protocol.Health{APIVersion: "v1", AgentVersion: "0.1.0", Ready: true},
 					status: active,
 				}
 				var handler http.Handler
@@ -614,15 +571,37 @@ func TestHealthRevealsTargetIdentityOnlyToAuthenticatedCaller(t *testing.T) {
 func TestTokenAndBodyNeverAppearInLogs(t *testing.T) {
 	var logs bytes.Buffer
 	handler := httpapi.New(&fakeController{status: protocol.Status{State: protocol.StateActive}}, "test-token", "0.1.0", slog.New(slog.NewJSONHandler(&logs, nil)))
-	request := httptest.NewRequest(http.MethodPost, "/v1/launch", strings.NewReader(`{"game_id":"megadrive-test","system":"megadrive","rom_path":"/media/fat/games/MegaDrive/private.md"}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/stop", strings.NewReader(`{"game_id":"megadrive-test","system":"megadrive","rom_path":"/media/fat/games/MegaDrive/private.md"}`))
 	request.Header.Set("Authorization", "Bearer test-token")
 	handler.ServeHTTP(httptest.NewRecorder(), request)
 	if strings.Contains(logs.String(), "test-token") || strings.Contains(logs.String(), "/media/fat/games") {
 		t.Fatalf("secret request data leaked in logs: %s", logs.String())
 	}
-	for _, field := range []string{`"game_id":"megadrive-test"`, `"system":"megadrive"`, `"state":"active"`} {
+	for _, field := range []string{`"route":"/v1/stop"`, `"status":400`} {
 		if !strings.Contains(logs.String(), field) {
 			t.Fatalf("request log %s does not contain %s", logs.String(), field)
 		}
+	}
+}
+
+func TestRetiredRawLaunchRoutesAreAbsentWithoutMutation(t *testing.T) {
+	controller := &fakeController{}
+	content := &fakeContentController{}
+	handler := httpapi.New(controller, "test-token", "test", discardLogger(), httpapi.WithContent(content))
+	for _, path := range []string{"/v1/launch", "/v2/launch"} {
+		for _, authorization := range []string{"", "Bearer test-token"} {
+			body := &observedReader{data: []byte("private payload"), err: io.EOF}
+			request := httptest.NewRequest(http.MethodPost, path, nil)
+			request.Body = io.NopCloser(body)
+			request.Header.Set("Authorization", authorization)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusNotFound || body.reads != 0 {
+				t.Fatalf("%s: status=%d reads=%d", path, response.Code, body.reads)
+			}
+		}
+	}
+	if controller.launchCalls != 0 || content.launchCalls != 0 || controller.stopCalls != 0 {
+		t.Fatal("retired route mutated runtime")
 	}
 }

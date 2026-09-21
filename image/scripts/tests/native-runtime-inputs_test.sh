@@ -255,10 +255,12 @@ for tree in "$standalone" "$mono"; do
   git -C "$tree" -c user.name=Test -c user.email=test@example.invalid add .
   git -C "$tree" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
 done
+export IMAGE_TEST_REPO=$repo
 cat > "$fake_bin/container" <<'CONTAINER'
 #!/bin/sh
 set -eu
 if [ "$1" = run ]; then printf '%s\n' "$@" > "$CONTAINER_ARGS"; fi
+sh "$IMAGE_TEST_REPO/scripts/tests/fake-image-container.sh" "$@"
 CONTAINER
 chmod +x "$fake_bin/container"
 export CONTAINER_ARGS="$fixture/container-args"
@@ -293,7 +295,7 @@ for source in "$standalone" "$mono/sources/libmister-runtime"; do
   fi
   FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUNTIME_DIR="$source" \
     NATIVE_RUNTIME_INPUT_LOCK="$fixture/selected.lock" NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \
-    TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" TARGET_IMAGE_DEV_CONTAINER=1 \
+    TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" \
     sh "$repo/scripts/target-image-container.sh" run /bin/true
   grep -Fxq "$expected_mount:/runtime-source:ro" "$CONTAINER_ARGS" || fail 'runtime Git root was not mounted'
   grep -Fxq "FES_RUNTIME_SOURCE_PATH=$expected_prefix" "$CONTAINER_ARGS" || fail 'runtime module path missing'

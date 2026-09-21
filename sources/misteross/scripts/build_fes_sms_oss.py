@@ -161,30 +161,9 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str, str]:
-    root = Path(root).resolve()
-    actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
-        raise BuildError(f"source root does not match Git checkout root: {root}")
-    revision = _git(root, "rev-parse", "HEAD")
-    if HEX40_RE.fullmatch(revision) is None:
-        raise BuildError("source HEAD is not a full lowercase Git commit")
-    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
-        raise BuildError("source checkout must be clean before build and export")
-    repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
-    if len(repositories) != 1:
-        raise BuildError("source checkout must have exactly one origin URL")
-    for relative in PINNED_INPUTS:
-        _regular_input(root, relative)
-        try:
-            _git(root, "ls-files", "--error-unmatch", "--", relative)
-        except BuildError as exc:
-            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
-    try:
-        repository = canonical_repository(repositories[0])
-    except ValueError as exc:
-        raise BuildError(str(exc)) from exc
-    return repository, revision
+def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
+    from scripts.fes_build_common import _require_clean_source as require_source
+    return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
 @guard_functional_source
@@ -194,7 +173,7 @@ def create_build_record(
     revision: str,
     tool_identities: Mapping[str, str],
     *,
-    identity_version: int = 1,
+    identity_version: int = 2,
     execution: dict | None = None,
 ) -> bytes:
     fields = {
@@ -226,10 +205,9 @@ def create_build_record(
             "top": TOP,
         },
     }
-    if identity_version == 2:
-        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
-    elif identity_version != 1:
+    if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -460,7 +438,7 @@ def _manifest(
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 1, gpu_device: int = 0) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -468,9 +446,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_sms_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    invocation = FunctionalInvocation(authenticated, gpu_device) if identity_version == 2 else None
+    invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-        identity_version=identity_version, execution=invocation.inputs if invocation else None)
+        identity_version=identity_version, execution=invocation.inputs)
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -479,7 +457,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             root, output, build_id,
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
         )
-        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=OUTPUT_RELATIVE)
+        _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
         try:
@@ -498,7 +476,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 mode="first-pass",
                 extra=("--router", ROUTER),
                 required=PLACER_QOR_CLOCKS,
-                **({"gpu_devices": (gpu_device,), "env": invocation.env, "audit_source_root": root} if invocation else {}),
+                **({"gpu_devices": (gpu_device,), "env": invocation.env, "audit_source_root": root}),
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -506,8 +484,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         evidence["route"]["placer_seed"] = winner.seed
         evidence["route"]["placer_heap_timingweight"] = winner.weight
         evidence["route"]["placer_qor_mode"] = "first-pass"
-        if invocation:
-            evidence["execution"] = invocation.inputs
+        evidence["execution"] = invocation.inputs
         evidence.update(
             {
                 "build_id": build_id,
@@ -529,11 +506,10 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
         if (final_repository, final_revision) != (repository, revision):
             raise BuildError("source identity changed during build")
-        if invocation:
-            invocation.verify()
-            if create_build_record(root, repository, revision, identities,
-                identity_version=identity_version, execution=invocation.inputs) != record:
-                raise BuildError("functional source inputs changed during build")
+        invocation.verify()
+        if create_build_record(root, repository, revision, identities,
+            identity_version=identity_version, execution=invocation.inputs) != record:
+            raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store)
     except Exception:
         for name in ("core.rbf", "manifest.toml", "build-summary.json"):
@@ -542,8 +518,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 path.unlink()
         raise
     finally:
-        if invocation:
-            invocation.close()
+        invocation.close()
 
 
 def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
@@ -588,7 +563,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument(
         "--synth-only",
@@ -597,21 +572,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     arguments = parser.parse_args(argv)
     try:
-        if arguments.identity_version == 2 and arguments.print_commands and not arguments.synth_only:
+        if arguments.print_commands and not arguments.synth_only:
             raise BuildError("functional identity requires a full controlled build")
         if arguments.print_commands:
             root = arguments.root.resolve()
-            if arguments.synth_only:
-                for relative in PINNED_INPUTS:
-                    _regular_input(root, relative)
-                authenticated = _authenticate_sms_tools(root, cache_root=arguments.cache_root)
-                build_id = "0" * 32
-            else:
-                repository, revision = _require_clean_source(arguments.root)
-                authenticated = _authenticate_sms_tools(arguments.root, cache_root=arguments.cache_root)
-                identities = {name: tool.identity for name, tool in authenticated.items()}
-                record = create_build_record(arguments.root, repository, revision, identities)
-                build_id = build_identity(record)
+            for relative in PINNED_INPUTS:
+                _regular_input(root, relative)
+            authenticated = _authenticate_sms_tools(root, cache_root=arguments.cache_root)
+            build_id = "0" * 32
             yosys, nextpnr = build_commands(
                 root,
                 root / OUTPUT_RELATIVE,
@@ -619,8 +587,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
             )
             print(" ".join(yosys))
-            if not arguments.synth_only:
-                print(" ".join(nextpnr))
             return 0
         if arguments.synth_only:
             evidence = synth(arguments.root, cache_root=arguments.cache_root)

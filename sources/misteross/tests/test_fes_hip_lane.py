@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 from unittest.mock import patch
 
@@ -86,20 +87,17 @@ def _write_local_zx81_tools(root: Path, *, nextpnr_config: str | None) -> Path:
 
 
 class FesHipLaneTests(unittest.TestCase):
-    def test_producer_cli_defaults_functional_identity_and_retains_explicit_v1(self) -> None:
+    def test_producer_cli_defaults_functional_identity_and_rejects_v1(self):
         from scripts import build_fes_sms_oss, build_fes_sg1000_oss
         for producer in (build_fes_pong, build_fes_zx81_oss, build_fes_coleco_oss,
                          build_fes_sms_oss, build_fes_sg1000_oss):
-            for arguments, expected in (([], 2), (["--identity-version", "1"], 1)):
-                with self.subTest(producer=producer.__name__, version=expected), \
-                        patch.object(producer, "build", return_value=Path("/pkg")) as built:
-                    self.assertEqual(producer.main(arguments), 0)
-                    self.assertEqual(built.call_args.kwargs.get("identity_version", 1), expected)
-                    if producer is build_fes_zx81_oss and expected == 2:
-                        self.assertTrue(built.call_args.kwargs["socketed"])
+            with self.subTest(producer=producer.__name__), patch.object(producer, "build", return_value=Path("/pkg")) as built:
+                self.assertEqual(producer.main([]), 0)
+                self.assertEqual(built.call_args.kwargs["identity_version"], 2)
+                with self.assertRaises(SystemExit):
+                    producer.main(["--identity-version", "1"])
         for producer in (build_fes_sms_oss, build_fes_sg1000_oss):
-            with self.subTest(diagnostic=producer.__name__), \
-                    patch.object(producer, "synth", return_value={"synthesis_cells": {}}) as synth:
+            with patch.object(producer, "synth", return_value={"synthesis_cells": {}}) as synth:
                 self.assertEqual(producer.main(["--synth-only"]), 0)
                 synth.assert_called_once()
 
@@ -221,7 +219,7 @@ class FesHipLaneTests(unittest.TestCase):
         tools = {"yosys": Path("/yosys"), "nextpnr-mistral": Path("/nextpnr-mistral")}
         _, pong_nextpnr = build_commands(ROOT, ROOT / "build/fes-pong", "00112233445566778899aabbccddeeff", tools)
         self.assertEqual(pong_nextpnr[pong_nextpnr.index("--router") + 1], "gpu")
-        pong_record = json.loads(create_build_record(ROOT, "https://example.invalid/m.git", "a" * 40, {"yosys": "x"}))
+        pong_record = json.loads(create_build_record(ROOT, "https://example.invalid/m.git", "a" * 40, {"yosys": "x"}, execution=EXECUTION))
         self.assertEqual(pong_record["parameters"]["router"], "gpu")
         self.assertEqual(pong_record["parameters"]["gpu_backend"], "hip")
         self.assertEqual(pong_record["parameters"]["gpu_architectures"], HIP_ARCHITECTURES)
@@ -230,7 +228,7 @@ class FesHipLaneTests(unittest.TestCase):
             ROOT, ROOT / ZX81_OUTPUT, "00112233445566778899aabbccddeeff", tools
         )
         self.assertEqual(zx81_nextpnr[zx81_nextpnr.index("--router") + 1], "gpu")
-        zx81_record = json.loads(zx81_create_build_record(ROOT, "https://example.invalid/m.git", "a" * 40, {"yosys": "x"}))
+        zx81_record = json.loads(zx81_create_build_record(ROOT, "https://example.invalid/m.git", "a" * 40, {"yosys": "x"}, execution=EXECUTION))
         self.assertEqual(zx81_record["parameters"]["router"], "gpu")
         self.assertEqual(zx81_record["parameters"]["gpu_backend"], "hip")
         self.assertEqual(zx81_record["parameters"]["gpu_architectures"], HIP_ARCHITECTURES)
@@ -271,7 +269,9 @@ class FesHipLaneTests(unittest.TestCase):
                 if log.name == "yosys.log":
                     (log.parent / "synth.json").write_text("{}\n", encoding="utf-8")
 
+            init_source(root)
             with (
+                patch.object(build_fes_pong, "FunctionalInvocation", FakeInvocation),
                 patch.object(build_fes_pong, "_require_clean_source",
                              return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
                 patch.object(build_fes_pong, "_authenticate_tools", side_effect=authenticate),
@@ -392,3 +392,11 @@ class FesHipLaneTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

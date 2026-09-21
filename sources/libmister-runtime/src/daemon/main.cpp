@@ -49,7 +49,7 @@ int main()
 		hardware = mister::CreateUnavailableHardware(unavailable);
 	}
 
-	mister::Runtime runtime(*hardware, mister::ProductionProfiles(), log);
+	mister::Runtime runtime(*hardware, log);
 	const mister::Error startup = runtime.Start();
 	if (!startup.ok())
 		log.Write({"daemon_start", "", "", "failure", startup});

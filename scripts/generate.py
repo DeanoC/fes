@@ -3,10 +3,8 @@ import argparse
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import tempfile
-import tomllib
 
 try:
     from . import consistency
@@ -43,34 +41,6 @@ def require_tracked_modules(root):
             raise ValueError('--write requires tracked modules, not gitlinks; import modules before regenerating')
 
 
-def rewrite_fields(raw, sections, values):
-    """Rewrite only known scalar fields, preserving all unrelated TOML values."""
-    before = tomllib.loads(raw)
-    table = before
-    for section in sections:
-        table = table[section]
-    header = '.'.join(sections)
-    match = re.search(r'(?m)^\[' + re.escape(header) + r'\][ \t]*(?:#[^\n]*)?\n', raw)
-    if match is None:
-        raise ValueError(f'cannot regenerate noncanonical TOML section {header}; use explicit table syntax')
-    end = re.search(r'(?m)^\[', raw[match.end():])
-    stop = match.end() + end.start() if end else len(raw)
-    body = raw[match.end():stop]
-    for field, value in values.items():
-        if table.get(field) == value:
-            continue
-        encoded = str(value) if isinstance(value, int) else json.dumps(value, ensure_ascii=False)
-        body, count = re.subn(r'(?m)^' + re.escape(field) + r'[ \t]*=.*$',
-                              lambda _: field + ' = ' + encoded, body)
-        if count != 1:
-            raise ValueError(f'cannot regenerate {header}.{field}; expected one explicit scalar field')
-    result = raw[:match.end()] + body + raw[stop:]
-    table.update(values)
-    if tomllib.loads(result) != before:
-        raise ValueError('source pin regeneration changed unrelated TOML values')
-    return result
-
-
 def regenerate(root, write=False, emitter=None):
     root = Path(root).absolute()
     if any(part.is_symlink() for part in (root, *root.parents)):
@@ -83,10 +53,6 @@ def regenerate(root, write=False, emitter=None):
         mapped.extend((('mister-packages', source), (owner, destination)))
     for owner, source, consumer, destination in consistency.COMPONENT_FIXTURES:
         mapped.extend(((owner, source), (consumer, destination)))
-    for core in consistency.CORE_SOURCES:
-        mapped.extend((('mister-packages', f'packages/source/{core}_mister.yaml'), ('misteross', 'cores.lock')))
-        if core == 'megadrive':
-            mapped.append(('FES', 'image/build/native-inputs.toml'))
     for owner, relative in mapped:
         member = safe(root, (sources[owner] / relative).relative_to(root))
         if member.is_dir():
@@ -114,8 +80,7 @@ def regenerate(root, write=False, emitter=None):
             raise ValueError(f'conflicting generated outputs: {destination}')
         staged[destination] = data
 
-    definitions = {row[1] for row in consistency.GENERATED} | {
-        f'packages/source/{core}_mister.yaml' for core in consistency.CORE_SOURCES}
+    definitions = {row[1] for row in consistency.GENERATED}
     for definition in sorted(definitions):
         path('mister-packages', definition)
         emit(packages, 'validate', definition)
@@ -145,28 +110,6 @@ def regenerate(root, write=False, emitter=None):
         stage(path(owner, destination), path('mister-packages', source).read_bytes())
     for owner, source, consumer, destination in consistency.COMPONENT_FIXTURES:
         stage(path(consumer, destination), path(owner, source).read_bytes())
-    for core in consistency.CORE_SOURCES:
-        report = {}
-        for line in emit(packages, 'report', f'packages/source/{core}_mister.yaml').decode().splitlines():
-            parts = line.split(None, 1)
-            if len(parts) != 2 or parts[0] in report:
-                raise ValueError('unexpected core source report')
-            report[parts[0]] = parts[1]
-        if report.get('core_source') != core + '_mister':
-            raise ValueError('unexpected core source identity')
-        report['rbf_size'] = int(report['rbf_size'])
-        copies = [('misteross', 'cores.lock', ('core', core),
-                   {'repository': 'repo', 'commit': 'commit', 'rbf_path': 'rbf_path',
-                    'rbf_sha256': 'rbf_sha256', 'rbf_size': 'rbf_size', 'project': 'project'})]
-        if core == 'megadrive':
-            copies.append(('FES', 'image/build/native-inputs.toml', ('megadrive_rbf',),
-                           {'repository': 'repository', 'commit': 'commit', 'rbf_path': 'path',
-                            'rbf_sha256': 'sha256', 'rbf_size': 'size'}))
-        for owner, filename, sections, fields in copies:
-            target = path(owner, filename)
-            raw = staged.get(target, target.read_bytes()).decode()
-            # Multiple core tables share cores.lock; accumulate owned updates.
-            staged[target] = rewrite_fields(raw, sections, {field: report[key] for key, field in fields.items()}).encode()
     if deleted & (set(staged) | canonical):
         raise ValueError('overlapping fixture ownership would delete a canonical or generated file')
     changed = 0

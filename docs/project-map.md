@@ -44,9 +44,9 @@ and coordinates the session. The runtime performs the physical transitions.
 The FPGA executes the loaded core. Quartus and misteross are build-time tools;
 a game launch does not compile an FPGA design.
 
-This is the FES native path. FogCast also retains a conventional Main-based
-backend for its standalone use. Main_MiSTer is a reference for this parent
-integration, not a production dependency of its native image.
+FPGA products run only as described FES packages through local protocol 2.
+Explicit contained raw-RBF diagnostics remain available for hardware bring-up.
+Main_MiSTer is a comparison reference, not a supported launch backend.
 
 ## How a build fits together
 

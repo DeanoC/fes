@@ -1,5 +1,10 @@
 # SNES cartridge saves
 
+> Historical reference: these raw-game paths were retired by the
+> [package-only cleanup](validation/2026-09-21-fpga-compat-cleanup.md).
+> Current products use [described packages](core-packages.md) and
+> [core persistence](core-persistence.md). Existing save files are preserved.
+
 Native SNES saves preserve ordinary battery-backed cartridge RAM. Use the game's
 own save feature, then Stop in FogCast before switching systems or rebooting.
 The next launch of the same game and ROM restores that RAM before play starts.

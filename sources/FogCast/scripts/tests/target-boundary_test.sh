@@ -63,7 +63,7 @@ for dir in protocol corepackage kitlease hostclient; do
 done
 
 # Target implementation must not import host, UI, or targetclient.
-for dir in internal/agent internal/httpapi internal/mister internal/misterruntime internal/input internal/targetcache internal/applianceupdate internal/flightdiag; do
+for dir in internal/agent internal/httpapi internal/misterruntime internal/input internal/targetcache internal/applianceupdate internal/flightdiag; do
   if [ ! -d "$root/$dir" ]; then
     continue
   fi

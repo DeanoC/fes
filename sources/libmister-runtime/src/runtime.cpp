@@ -88,8 +88,8 @@ std::vector<SupportedInterface> ActiveInterfaces(
 
 class Runtime::Impl final : public HardwareFaultSink {
 public:
-	Impl(Hardware& hardware, const Profiles& profiles, LogSink& log)
-		: mutex_(), condition_(), hardware_(hardware), profiles_(profiles),
+	Impl(Hardware& hardware, LogSink& log)
+		: mutex_(), condition_(), hardware_(hardware),
 		  log_(log), status_(), faults_(), busy_(false), started_(false),
 		  stopping_(false), next_generation_(0), active_generation_(0),
 		  pending_fault_generation_(0), fault_thread_(&Impl::DrainFaults, this)
@@ -201,88 +201,6 @@ public:
 		return {};
 	}
 
-	Error LaunchGame(const mister::Launch& launch)
-	{
-		LogRecord rejection;
-		bool rejected = false;
-		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			if (busy_ || !started_ || status_.state != State::idle) {
-				rejection = {"launch", launch.system, "", "validate",
-					Busy("runtime is not idle")};
-				rejected = true;
-			} else {
-				busy_ = true;
-			}
-		}
-		if (rejected) {
-			log_.Write(rejection);
-			EmitBusyFence("launch");
-			return rejection.error;
-		}
-
-		PreparedLaunch prepared;
-		const Error validation = profiles_.Prepare(launch, &prepared);
-		if (!validation.ok()) {
-			{
-				std::lock_guard<std::mutex> lock(mutex_);
-				status_.error = validation;
-				busy_ = false;
-			}
-			Log("launch", launch.system, "", "validate", validation);
-			return validation;
-		}
-		Log("launch", prepared.system, prepared.expected_core, "validate");
-		std::uint64_t generation = 0;
-		{
-			std::lock_guard<std::mutex> lock(mutex_);
-			generation = ++next_generation_;
-			active_generation_ = generation;
-			status_.state = State::starting;
-			status_.execution = Execution::game;
-			status_.system = prepared.system;
-			status_.core = prepared.expected_core;
-			status_.error = {};
-		}
-		Log("launch", prepared.system, prepared.expected_core, "starting");
-
-		HardwareResult result = hardware_.Launch(prepared, generation);
-		if (result.error.ok() && result.observed_core != prepared.expected_core) {
-			result.error = {ErrorCode::core_mismatch,
-				"observed core does not match profile", "identity",
-				prepared.expected_core, result.observed_core};
-			result.mutation_attempted = true;
-			EmitDiagnostic(kDiagnosticLayerRuntime, kDiagnosticKindFenceAbi, "error",
-				{
-					DiagnosticString("operation", "launch"),
-					DiagnosticBool("ok", false),
-					DiagnosticString("expected", prepared.expected_core),
-					DiagnosticString("observed", result.observed_core),
-				});
-		}
-		if (result.error.ok()) {
-			{
-				std::lock_guard<std::mutex> lock(mutex_);
-				status_.state = State::running_game;
-				status_.execution = Execution::game;
-				status_.system = prepared.system;
-				status_.core = result.observed_core;
-				status_.generation = generation;
-				status_.error = {};
-			}
-			Log("launch", prepared.system, result.observed_core, "running");
-			{
-				std::lock_guard<std::mutex> lock(mutex_);
-				busy_ = false;
-			}
-			condition_.notify_all();
-			return {};
-		}
-		return FinishLaunchFailure("launch", prepared.system,
-			result.observed_core.empty() ? prepared.expected_core : result.observed_core,
-			result);
-	}
-
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr)
 	{
@@ -298,8 +216,7 @@ public:
 				rejected = true;
 			} else {
 				busy_ = true;
-				replacing = status_.state == State::running_game ||
-					status_.state == State::running_development;
+				replacing = status_.state == State::running_development;
 			}
 		}
 		if (rejected) {
@@ -464,7 +381,7 @@ public:
 		return error;
 	}
 
-	Error LoadDevelopmentRBF(const std::string& rbf, bool contained = false)
+	Error LoadDevelopmentRBF(const std::string& rbf)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -504,9 +421,7 @@ public:
 			status_.execution = Execution::development;
 		}
 		Log("load_development_rbf", "", "", "starting");
-		const HardwareResult result = contained ?
-			hardware_.LoadContainedDevelopmentRBF(rbf, generation) :
-			hardware_.LoadDevelopmentRBF(rbf, generation);
+		const HardwareResult result = hardware_.LoadContainedDevelopmentRBF(rbf, generation);
 		if (result.error.ok()) {
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
@@ -676,8 +591,7 @@ public:
 				status_.error = {};
 				immediate = {"stop", "", "", "idle", {}};
 				return_immediately = true;
-			} else if (status_.state != State::running_game &&
-				status_.state != State::running_development) {
+			} else if (status_.state != State::running_development) {
 				immediate = {"stop", status_.system, status_.core, "validate",
 					Busy("runtime is not stoppable")};
 				return_immediately = true;
@@ -842,8 +756,7 @@ public:
 				if (fault.generation == 0 ||
 					fault.generation != active_generation_ ||
 					fault.generation != pending_fault_generation_ ||
-					(status_.state != State::running_game &&
-					 status_.state != State::running_development))
+					status_.state != State::running_development)
 					continue;
 				busy_ = true;
 				active_generation_ = 0;
@@ -886,7 +799,6 @@ public:
 	mutable std::mutex mutex_;
 	std::condition_variable condition_;
 	Hardware& hardware_;
-	const Profiles& profiles_;
 	LogSink& log_;
 	Status status_;
 	std::deque<HardwareFault> faults_;
@@ -899,14 +811,13 @@ public:
 	std::thread fault_thread_;
 };
 
-Runtime::Runtime(Hardware& hardware, const Profiles& profiles, LogSink& log)
-	: impl_(new Impl(hardware, profiles, log)) {}
+Runtime::Runtime(Hardware& hardware, LogSink& log)
+	: impl_(new Impl(hardware, log)) {}
 
 Runtime::~Runtime() = default;
 
 Error Runtime::Start() { return impl_->Start(); }
 Status Runtime::status() const { return impl_->status(); }
-Error Runtime::LaunchGame(const Launch& launch) { return impl_->LaunchGame(launch); }
 Error Runtime::LoadCore(const std::string& directory,
 	const std::string& expected_package_id)
 {
@@ -941,10 +852,6 @@ Error Runtime::InspectCore(const std::string& directory,
 {
 	return impl_->InspectCore(directory, expected_package_id, output);
 }
-Error Runtime::LoadDevelopmentRBF(const std::string& rbf)
-{
-	return impl_->LoadDevelopmentRBF(rbf);
-}
 Error Runtime::SetController(const std::string& package_id, std::uint64_t generation,
 	std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad)
 {
@@ -972,7 +879,7 @@ Error Runtime::LoadComputerMediaStream(const std::string& path,
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {
-	return impl_->LoadDevelopmentRBF(rbf, true);
+	return impl_->LoadDevelopmentRBF(rbf);
 }
 Error Runtime::Stop() { return impl_->Stop(); }
 
@@ -1010,7 +917,6 @@ const char* StateName(State state)
 	switch (state) {
 	case State::idle: return "idle";
 	case State::starting: return "starting";
-	case State::running_game: return "running_game";
 	case State::running_development: return "running_development";
 	case State::reboot_required: return "reboot_required";
 	}
@@ -1021,7 +927,6 @@ const char* ExecutionName(Execution execution)
 {
 	switch (execution) {
 	case Execution::none: return "none";
-	case Execution::game: return "game";
 	case Execution::development: return "development";
 	}
 	return "invalid";

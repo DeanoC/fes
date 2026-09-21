@@ -69,10 +69,8 @@ public:
 	std::function<void()> on_restore_input;
 	mister::Error restore_input_result;
 	std::vector<std::uint64_t> restored_input_generations;
-	mister::HardwareResult Launch(const mister::PreparedLaunch&,
-		std::uint64_t generation) override;
 	mister::HardwareResult LoadDevelopmentRBF(const std::string&,
-		std::uint64_t generation) override;
+		std::uint64_t generation);
 	mister::HardwareResult LoadContainedDevelopmentRBF(const std::string&,
 		std::uint64_t generation) override;
 	void BlockLaunch();
@@ -104,7 +102,6 @@ public:
 	int contained_development_calls = 0;
 	int fault_sink_sets;
 	bool idle_without_fault_sink;
-	std::vector<mister::PreparedLaunch> launches;
 	std::vector<std::uint64_t> launch_generations;
 	std::vector<std::string> development_rbfs;
 	std::vector<std::uint64_t> development_generations;

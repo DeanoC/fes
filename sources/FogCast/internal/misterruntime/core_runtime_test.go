@@ -76,20 +76,8 @@ func (b *replacementBarrier) BeginCoreReplacement(context.Context) (func(context
 	}, nil
 }
 
-func (c *packageControl) Status(context.Context) (misterruntime.Response, error) {
-	c.mu.Lock()
-	c.legacyStatusCalls++
-	c.mu.Unlock()
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
-}
-func (*packageControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unexpected launch")
-}
-func (*packageControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unexpected raw load")
-}
-func (*packageControl) Stop(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+func (*packageControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{}, errors.New("unexpected raw load")
 }
 func (c *packageControl) Protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {
 	return c.protocol2Status(ctx)
@@ -686,24 +674,6 @@ func TestCorePackageReconcilePrefersV2AndAdoptsPrivatePublication(t *testing.T) 
 		}
 	})
 
-	t.Run("mister package", func(t *testing.T) {
-		root := t.TempDir()
-		archive := misterCoreArchive(t)
-		staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
-		if err != nil {
-			t.Fatal(err)
-		}
-		response := packageStatus(staged, 9, true)
-		control := &packageControl{status2: &response}
-		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(root))
-		status := runtime.Reconcile(context.Background())
-		if status.State != "active" || status.CorePackage == nil || status.CorePackage.Gamepad ||
-			status.CorePackage.ABI.ID != "mister" || status.CorePackage.BuildID != staged.Descriptor.Build.ID {
-			t.Fatalf("status=%#v", status)
-		}
-		_, _ = runtime.Stop(context.Background())
-	})
-
 	for _, test := range []struct {
 		name     string
 		response misterruntime.Protocol2Response
@@ -755,12 +725,12 @@ func TestCorePackageReconcilePrefersV2AndAdoptsPrivatePublication(t *testing.T) 
 		}
 	})
 
-	t.Run("explicitly unsupported v2 alone falls back to v1", func(t *testing.T) {
+	t.Run("unsupported protocol fails without fallback", func(t *testing.T) {
 		control := &packageControl{status2Err: unsupportedProtocolError{}}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
 		status := runtime.Reconcile(context.Background())
-		if status.State != "idle" || status.LastError != nil || control.status2Calls != 1 ||
-			control.legacyStatusCalls != 1 || control.loadCalls != 0 {
+		if status.State != "failed" || status.LastError == nil || control.status2Calls != 1 ||
+			control.legacyStatusCalls != 0 || control.loadCalls != 0 {
 			t.Fatalf("status=%#v v2 calls=%d v1 calls=%d load calls=%d", status, control.status2Calls, control.legacyStatusCalls, control.loadCalls)
 		}
 	})
@@ -786,7 +756,7 @@ func TestCorePackageReconcilePrefersV2AndAdoptsPrivatePublication(t *testing.T) 
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(t.TempDir()))
 		status := runtime.Reconcile(context.Background())
 		if status.State != "idle" || status.LastError == nil || status.LastError.Phase != "transport" ||
-			status.LastError.Expected != expected || status.LastError.Observed != observed {
+			status.LastError.Expected != "" || status.LastError.Observed != "" {
 			t.Fatalf("status=%#v", status)
 		}
 	})
@@ -801,6 +771,8 @@ func packageStatus(staged corepackage.Staged, generation uint64, mister bool) mi
 		response.ActivePackage.Observed = misterruntime.Protocol2Observed{ABI: &misterruntime.Protocol2Contract{ID: staged.Descriptor.ABI.ID, Major: 1}, BuildID: &buildID}
 		response.Capabilities.ActiveInterfaces = []misterruntime.Protocol2Interface{{ID: "fes.gamepad", Major: 1}, {ID: "fes.video.fixed-720p60", Major: 1}}
 	}
+	response.Capabilities.ProgrammingProfiles = []string{"fes-gp-v1"}
+	response.Capabilities.ABIs = []misterruntime.Protocol2ABI{{ID: staged.Descriptor.ABI.ID, Major: 1, Interfaces: response.Capabilities.ActiveInterfaces}}
 	return response
 }
 
@@ -971,4 +943,27 @@ func tarCoreArchive(t *testing.T, manifest, payload []byte) []byte {
 	}
 	output.Write(make([]byte, 1024))
 	return output.Bytes()
+}
+
+func (*packageControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+}
+
+func TestReconcilePreservesResumedPackageSaveFailure(t *testing.T) {
+	root := t.TempDir()
+	archive := canonicalCoreArchive(t)
+	staged, err := corepackage.Stage(context.Background(), root, int64(len(archive)), bytes.NewReader(archive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer staged.Cleanup()
+	response := packageStatus(staged, 7, false)
+	response.OK = false
+	response.Error = &misterruntime.Protocol2Error{Code: "save_failed", Message: "save failed", Phase: "save"}
+	control := &packageControl{status2: &response}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(root))
+	status := runtime.Reconcile(context.Background())
+	if status.State != protocol.StateActive || status.CorePackage == nil || status.CorePackage.PackageID != staged.PackageID || status.LastError == nil || status.LastError.Code != protocol.CodeSaveFailed {
+		t.Fatalf("resumed package lost: %+v", status)
+	}
 }

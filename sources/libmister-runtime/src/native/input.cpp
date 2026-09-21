@@ -3,7 +3,6 @@
 
 #include "native/input.hpp"
 
-#include "native/linux/spi.hpp"
 
 #include <array>
 #include <limits>
@@ -52,9 +51,9 @@ std::uint64_t AddDeadline(std::uint64_t now, std::uint32_t duration)
 
 class NativeInputSession::Impl {
 public:
-	Impl(InputDevice& device, Spi& spi, Clock& clock,
+	Impl(InputDevice& device, Clock& clock,
 		std::uint32_t delivery_timeout_ms)
-		: device_(device), spi_(spi), clock_(clock),
+		: device_(device), clock_(clock),
 		  delivery_timeout_ms_(delivery_timeout_ms) {}
 
 	~Impl()
@@ -69,6 +68,7 @@ public:
 		if (opened_ || worker_.joinable()) return Invalid("input session is already open");
 		if (identity.name.empty() || identity.name.find('\0') != std::string::npos)
 			return Invalid("invalid input identity");
+		if (!writer) return Invalid("missing described-core button writer");
 		if (!ValidRecipe(recipe)) return Invalid("invalid input recipe");
 		Error error = device_.Open(identity, deadline);
 		if (!error.ok()) return error;
@@ -260,8 +260,7 @@ private:
 	Error Send(std::uint16_t map, std::uint64_t deadline)
 	{
 		if (writer_) return writer_(map, deadline);
-		return spi_.Exchange(kUserIoTarget, {recipe_.player_command, map},
-			nullptr, deadline);
+		return Invalid("input requires a described-core button writer");
 	}
 
 	void Fault(std::uint64_t generation, Error error)
@@ -297,7 +296,6 @@ private:
 	}
 
 	InputDevice& device_;
-	Spi& spi_;
 	Clock& clock_;
 	std::uint32_t delivery_timeout_ms_;
 	std::mutex mutex_;
@@ -317,9 +315,9 @@ private:
 	std::int32_t vertical_ = 0;
 };
 
-NativeInputSession::NativeInputSession(InputDevice& device, Spi& spi,
+NativeInputSession::NativeInputSession(InputDevice& device,
 	Clock& clock, std::uint32_t delivery_timeout_ms)
-	: impl_(new Impl(device, spi, clock, delivery_timeout_ms)) {}
+	: impl_(new Impl(device, clock, delivery_timeout_ms)) {}
 
 NativeInputSession::~NativeInputSession() = default;
 

@@ -109,18 +109,6 @@ func validatePath(path string) (string, error) {
 			return "", err
 		}
 		return resolved.Platform.ID, nil
-	case "system":
-		sys, err := pack.LoadSystem(path)
-		if err != nil {
-			return "", err
-		}
-		return sys.ID, nil
-	case "core_source":
-		src, err := pack.LoadCoreSource(path)
-		if err != nil {
-			return "", err
-		}
-		return src.ID, nil
 	case "abi":
 		abi, err := pack.LoadABI(path)
 		if err != nil {
@@ -134,7 +122,7 @@ func validatePath(path string) (string, error) {
 		}
 		return profiles.ID, nil
 	default:
-		return "", fmt.Errorf("%s: kind %q is not platform, system, core_source, abi, or programming_profiles", path, kind)
+		return "", fmt.Errorf("%s: kind %q is not platform, abi, or programming_profiles", path, kind)
 	}
 }
 
@@ -150,20 +138,8 @@ func reportPath(path string) error {
 			return err
 		}
 		return resolved.Report(os.Stdout)
-	case "system":
-		sys, err := pack.LoadSystem(path)
-		if err != nil {
-			return err
-		}
-		return sys.Report(os.Stdout)
-	case "core_source":
-		src, err := pack.LoadCoreSource(path)
-		if err != nil {
-			return err
-		}
-		return src.Report(os.Stdout)
 	default:
-		return fmt.Errorf("%s: kind %q is not platform, system, or core_source", path, kind)
+		return fmt.Errorf("%s: kind %q is not platform", path, kind)
 	}
 }
 
@@ -173,12 +149,6 @@ func emitGoPath(path string) (string, error) {
 		return "", err
 	}
 	switch kind {
-	case "system":
-		sys, err := pack.LoadSystem(path)
-		if err != nil {
-			return "", err
-		}
-		return emitgo.GenerateSystem(sys)
 	case "abi":
 		abi, err := pack.LoadABI(path)
 		if err != nil {
@@ -192,7 +162,7 @@ func emitGoPath(path string) (string, error) {
 		}
 		return emitgo.GenerateProgrammingProfiles(profiles)
 	default:
-		return "", fmt.Errorf("%s: emit-go expects kind system, abi, or programming_profiles, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-go expects kind abi, or programming_profiles, got %q", path, kind)
 	}
 }
 
@@ -208,12 +178,6 @@ func emitPath(path string) (string, error) {
 			return "", err
 		}
 		return emitcpp.Generate(resolved)
-	case "system":
-		sys, err := pack.LoadSystem(path)
-		if err != nil {
-			return "", err
-		}
-		return emitcpp.GenerateSystem(sys)
 	case "abi":
 		abi, err := pack.LoadABI(path)
 		if err != nil {
@@ -227,7 +191,7 @@ func emitPath(path string) (string, error) {
 		}
 		return emitcpp.GenerateProgrammingProfiles(profiles)
 	default:
-		return "", fmt.Errorf("%s: emit-cpp expects kind platform, system, abi, or programming_profiles, got %q", path, kind)
+		return "", fmt.Errorf("%s: emit-cpp expects kind platform, abi, or programming_profiles, got %q", path, kind)
 	}
 }
 
@@ -271,38 +235,8 @@ func diffOracle(packagePath, oraclePath string) error {
 		}
 		fmt.Printf("ok %d oracle constants (%s)\n", len(oracle.Constants), oracle.Source.Commit)
 		return nil
-	case "system":
-		sys, err := pack.LoadSystem(packagePath)
-		if err != nil {
-			return err
-		}
-		oracle, err := pack.LoadSystemOracle(oraclePath)
-		if err != nil {
-			return err
-		}
-		problems := pack.DiffSystemOracle(sys, oracle)
-		if err := printProblems(problems); err != nil {
-			return err
-		}
-		fmt.Printf("ok %s profile (%s)\n", sys.ID, oracle.Source.Commit)
-		return nil
-	case "core_source":
-		src, err := pack.LoadCoreSource(packagePath)
-		if err != nil {
-			return err
-		}
-		oracle, err := pack.LoadCoreSourceOracle(oraclePath)
-		if err != nil {
-			return err
-		}
-		problems := pack.DiffCoreSourceOracle(src, oracle)
-		if err := printProblems(problems); err != nil {
-			return err
-		}
-		fmt.Printf("ok %s pin (%s)\n", src.ID, oracle.Source.Commit)
-		return nil
 	default:
-		return fmt.Errorf("%s: kind %q is not platform, system, or core_source", packagePath, kind)
+		return fmt.Errorf("%s: kind %q is not platform", packagePath, kind)
 	}
 }
 
@@ -317,17 +251,17 @@ func printProblems(problems []string) error {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `mister-packages — validate and emit hardware and system packages
+	fmt.Fprintf(os.Stderr, `mister-packages — validate and emit hardware and ABI packages
 
 Commands:
   validate [package.yaml]
   report [package.yaml]
   emit-cpp [package.yaml]
-  emit-go [system.yaml|abi.yaml|programming.yaml]
+  emit-go [abi.yaml|programming.yaml]
   emit-verilog [abi.yaml]
   diff-oracle <package.yaml> <oracle.yaml>
 
 Default package is packages/platform/de10_nano.yaml.
-Package kind is platform, system, core_source, abi, or programming_profiles.
+Package kind is platform, abi, or programming_profiles.
 `)
 }

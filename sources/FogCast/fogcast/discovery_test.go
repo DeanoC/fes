@@ -70,96 +70,6 @@ func TestReconnectValidatesIdentityAndNeverMutates(t *testing.T) {
 	}
 }
 
-func TestReconnectBootChangeClearsLocalSessionBeforeNewLaunch(t *testing.T) {
-	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
-	var mu sync.Mutex
-	boot := "old"
-	state := protocol.StateIdle
-	generation := "one"
-	held := false
-	var claims, launches, stops int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		switch r.URL.Path {
-		case "/v1/health":
-			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: boot, Ready: true})
-		case "/v1/kit/lease":
-			leaseState := "free"
-			if held {
-				leaseState = "held"
-			}
-			json.NewEncoder(w).Encode(targetclient.KitOwnership{State: leaseState, Generation: generation, Owner: "test"})
-		case "/v1/kit/claim":
-			claims++
-			held = true
-			json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"state": "held", "generation": generation, "expires_in_ms": 60000}, "token": generation})
-		case "/v1/launch":
-			launches++
-			state = protocol.StateActive
-			json.NewEncoder(w).Encode(protocol.Status{State: state, GameID: stringPtr("pong"), System: systemPtr(protocol.SystemPong), ExpectedCore: stringPtr("Pong"), ObservedCore: stringPtr("Pong")})
-		case "/v1/status":
-			json.NewEncoder(w).Encode(protocol.Status{State: state})
-		default:
-			stops++
-			t.Errorf("unexpected cleanup %s", r.URL.Path)
-		}
-	}))
-	defer server.Close()
-	base, _ := url.Parse(server.URL)
-	lease := targetclient.NewKitLease(base, "secret", server.Client(), "test", "test")
-	client := targetclient.NewClient(base, "secret", server.Client()).WithKitLease(lease)
-	game := catalog.Game{ID: "pong", System: "pong", LibraryID: "builtin-pong", Kind: "builtin", State: catalog.SourceStateAvailable, RootOnline: true}
-	s := newService(Config{Targets: []TargetConfig{{Name: "kit", TargetID: id, Address: server.URL, Agent: "secret", Enabled: true}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
-	defer func() {
-		mu.Lock()
-		held = false
-		mu.Unlock()
-		_, _ = client.AdoptEndpoint(context.Background(), base, true)
-	}()
-	resets := 0
-	s.SetTargetReset(func() { resets++ })
-	if _, err := s.Launch(context.Background(), "pong", nil); err != nil {
-		t.Fatal(err)
-	}
-	mu.Lock()
-	boot = "new"
-	generation = "two"
-	held = false
-	state = protocol.StateIdle
-	mu.Unlock()
-	if _, err := s.Health(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if resets != 1 || s.activeExecution != "" || client.HasKitGrant() {
-		t.Fatalf("stale session reset=%d execution=%s grant=%v", resets, s.activeExecution, client.HasKitGrant())
-	}
-	var concurrent sync.WaitGroup
-	for i := 0; i < 6; i++ {
-		concurrent.Add(1)
-		go func() {
-			defer concurrent.Done()
-			if _, err := s.Status(context.Background()); err != nil {
-				t.Error(err)
-			}
-		}()
-	}
-	concurrent.Add(1)
-	go func() {
-		defer concurrent.Done()
-		if _, err := s.Launch(context.Background(), "pong", nil); err != nil {
-			t.Error(err)
-		}
-	}()
-	concurrent.Wait()
-	mu.Lock()
-	defer mu.Unlock()
-	if claims != 2 || launches != 2 || stops != 0 {
-		t.Fatalf("claim=%d launch=%d cleanup=%d", claims, launches, stops)
-	}
-	// Discard final test grant locally to stop renewal without mutating the peer.
-}
-
 func TestReconnectCancellationBackoffAndDuplicateConcurrentLookup(t *testing.T) {
 	base, _ := url.Parse("http://127.0.0.1:1")
 	s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa", Address: base.String(), Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", nil))
@@ -338,7 +248,7 @@ func TestProtocolMismatchIsVisibleAndDoesNotLaunch(t *testing.T) {
 	if got := s.TargetConnection(); got.State != "version_mismatch" || got.Message == "" {
 		t.Fatalf("%+v", got)
 	}
-	if _, err := s.Launch(context.Background(), "megadrive-sonic-the-hedgehog-2-world-rev-a-a6e9fedc03e1", nil); err == nil {
+	if _, err := s.Health(context.Background()); err == nil {
 		t.Fatal("launch succeeded")
 	} else if apiErr, ok := err.(*protocol.APIError); !ok || apiErr.Code != protocol.CodeVersionMismatch {
 		t.Fatalf("err=%v", err)

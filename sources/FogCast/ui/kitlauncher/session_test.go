@@ -427,7 +427,7 @@ func writeAgentTestConfig(t *testing.T, launcherPath, agentURL string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := fmt.Sprintf("listen_address = %q\ntoken = %q\nmister_process_comm = %q\ncommand_pipe = %q\ncore_name_file = %q\nmenu_rbf = %q\nmgl_directory = %q\n", net.JoinHostPort(host, port), "agent-token", "/dev/null", "/dev/null", "/dev/null", "/dev/null", "/tmp")
+	body := fmt.Sprintf("listen_address = %q\ntoken = %q\n", net.JoinHostPort(host, port), "agent-token")
 	if err := os.WriteFile(filepath.Join(filepath.Dir(launcherPath), "agent.toml"), []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}

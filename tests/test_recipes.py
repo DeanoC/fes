@@ -181,11 +181,15 @@ class RecipeDataTest(unittest.TestCase):
             with self.subTest(unknown=field), self.assertRaises(ValueError):
                 self.load_document(document)
 
-    def test_omitted_identity_version_preserves_legacy_registry_compatibility(self):
-        document = self.document()
-        for entry in document["recipes"]:
-            del entry["identity_version"]
-        self.assertEqual({r.identity_version for r in self.load_document(document).values()}, {1})
+    def test_identity_version_must_be_explicitly_two(self):
+        for value in (None, 1):
+            document = self.document()
+            if value is None:
+                del document["recipes"][0]["identity_version"]
+            else:
+                document["recipes"][0]["identity_version"] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.load_document(document)
 
     def test_invalid_field_values_rejected(self):
         cases = {
@@ -294,7 +298,7 @@ class RecipeResolverTest(unittest.TestCase):
         recipe = recipes.recipe_for("fes.zx81")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
-            payload = b'{"canonical":true}\n'
+            payload = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             caller = {"ROCM_PATH": "/opt/rocm", "HIPCC": "/opt/rocm/bin/hipcc", "PYTHON": "python3"}
             with patch.object(module, "authenticate_misteross_origin"), \
                  patch.object(module.subprocess, "check_output", return_value=payload) as check:
@@ -312,13 +316,13 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_resolver_uses_descriptor_core_id_and_selection_filename(self):
         module = self.module()
-        recipe = replace(recipes.recipe_for("fes.coleco"), identity_version=1)
+        recipe = recipes.recipe_for("fes.coleco")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"
             store.mkdir(parents=True)
             identity = "a" * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             sidecar = store / f"{identity}.build-inputs.json"
             sidecar.write_bytes(record)
             sidecar.chmod(0o444)
@@ -347,12 +351,12 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_package_miss_builds_selected_producer_once_and_reuse_builds_none(self):
         module = self.module()
-        recipe = replace(recipes.recipe_for("fes.zx81"), identity_version=1)
+        recipe = recipes.recipe_for("fes.zx81")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"
             identity = "a" * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             payload_sha = __import__("hashlib").sha256(b"payload").hexdigest()
             inspected = {
                 "package_id": identity,
@@ -387,13 +391,13 @@ class RecipeResolverTest(unittest.TestCase):
 
     def test_mismatched_package_core_id_is_rejected(self):
         module = self.module()
-        recipe = replace(recipes.recipe_for("fes.zx81"), identity_version=1)
+        recipe = recipes.recipe_for("fes.zx81")
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
             store = source / "build/packages"
             store.mkdir(parents=True)
             identity = "a" * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             sidecar = store / f"{identity}.build-inputs.json"
             sidecar.write_bytes(record)
             sidecar.chmod(0o444)

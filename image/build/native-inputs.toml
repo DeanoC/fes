@@ -22,11 +22,3 @@ path = 'sealed/fes-splash.rbf'
 sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
 size = 1961783
 install_path = '/usr/share/mister-runtime/idle.rbf'
-
-[megadrive_rbf]
-repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
-commit = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
-path = 'releases/MegaDrive_20260603.rbf'
-sha256 = '0cd43ea2c96e726999f04924713ca090ae73829f3ab08109c6b552cebeba0839'
-size = 4296864
-install_path = '/usr/share/mister-runtime/cores/megadrive.rbf'

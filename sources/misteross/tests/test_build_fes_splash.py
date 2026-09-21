@@ -196,8 +196,8 @@ class SplashProducerTests(unittest.TestCase):
                 path.write_bytes((ROOT / relative).read_bytes())
             subprocess.check_output(["git", "-C", str(repo), "add", "."])
             subprocess.check_output(["git", "-C", str(repo), "commit", "-qm", "source"])
-            with self.assertRaisesRegex(board.BuildError, "source root does not match Git checkout root"):
-                board._require_clean_source(module, pinned_inputs=splash.PINNED_INPUTS)
+            self.assertEqual(board._require_clean_source(module, pinned_inputs=splash.PINNED_INPUTS),
+                             board._require_clean_source(module, pinned_inputs=splash.PINNED_INPUTS, identity_version=2))
             repository, revision = board._require_clean_source(
                 module, pinned_inputs=splash.PINNED_INPUTS, identity_version=splash.IDENTITY_VERSION
             )

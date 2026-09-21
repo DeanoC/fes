@@ -38,7 +38,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	grant := claimKit(t, manager)
 	controller := &fakeController{}
 	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/launch", "/v1/stop", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
+	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
 		for _, token := range []string{"", "foreign"} {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			request.Header.Set("Authorization", "Bearer bearer")
@@ -78,7 +78,7 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	}
 	content := &fakeContentController{}
 	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithContent(content))
-	for _, path := range []string{"/v1/launch", "/v1/cast/start", "/v1/development/rbf"} {
+	for _, path := range []string{"/v1/cast/start", "/v1/development/rbf"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Authorization", "Bearer bearer")
 		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)
@@ -93,8 +93,8 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	launch.Header.Set(httpapi.KitLeaseHeader, grant.Token)
 	launchResponse := httptest.NewRecorder()
 	handler.ServeHTTP(launchResponse, launch)
-	if launchResponse.Code == http.StatusForbidden {
-		t.Fatal("hostless owner denied cached launch")
+	if launchResponse.Code != http.StatusNotFound {
+		t.Fatal("retired cached launch route remains")
 	}
 	stop := httptest.NewRequest(http.MethodPost, "/v1/stop", nil)
 	stop.Header.Set("Authorization", "Bearer bearer")

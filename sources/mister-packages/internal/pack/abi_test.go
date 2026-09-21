@@ -98,15 +98,6 @@ func TestLoadABIFesSimpleComputerContract(t *testing.T) {
 	}
 }
 
-func TestLoadABIMisterHasNoFabricTag(t *testing.T) {
-	abi, err := LoadABI(filepath.Join(repoRoot(t), "packages", "abi", "mister.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if abi.ID != "mister" || abi.Major != 1 || abi.Tag != 0 {
-		t.Fatalf("ABI = %#v", abi)
-	}
-}
 
 func TestLoadABIRejectsDuplicateAndUnknownFields(t *testing.T) {
 	dir := t.TempDir()
@@ -264,15 +255,11 @@ func TestLoadProgrammingProfilesKeepsDiagnosticProfileUnpaired(t *testing.T) {
 	if profiles.Platform != "de10_nano" || profiles.Device != "5CSEBA6U23I7" {
 		t.Fatalf("registry target = %#v", profiles)
 	}
-	if len(profiles.Profiles) != 3 {
+	if len(profiles.Profiles) != 2 {
 		t.Fatalf("profiles = %#v", profiles.Profiles)
 	}
 	for _, profile := range profiles.Profiles {
 		switch profile.ID {
-		case "mister-v1":
-			if len(profile.ABIs) != 1 || profile.ABIs[0].ID != "mister" || profile.ABIs[0].Major != 1 || profile.DiagnosticOnly {
-				t.Fatalf("mister profile = %#v", profile)
-			}
 		case "fes-gp-v1":
 			if profile.DiagnosticOnly || len(profile.ABIs) != 3 {
 				t.Fatalf("FES GP profile = %#v", profile)

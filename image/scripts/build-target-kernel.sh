@@ -131,10 +131,10 @@ inside_build() {
   checkout_defconfig=$(sha256sum "$kernel/arch/arm/configs/MiSTer_defconfig" | awk '{print $1}')
   test "$checkout_defconfig" = "$defconfig_sha256"
 
-  cross=/target-image-output/work-2-prod/host/bin/arm-buildroot-linux-gnueabihf-
-  toolchain_host=/target-image-output/work-2-prod/host
+  cross=/target-image-output/work-2-native-dev/host/bin/arm-buildroot-linux-gnueabihf-
+  toolchain_host=/target-image-output/work-2-native-dev/host
   test -x "${cross}gcc" || {
-    printf '%s\n' 'build-target-kernel: canonical production Buildroot toolchain is missing' >&2
+    printf '%s\n' 'build-target-kernel: native Buildroot toolchain is missing' >&2
     exit 1
   }
 

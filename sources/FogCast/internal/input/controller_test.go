@@ -23,17 +23,11 @@ type barrierPackageControl struct {
 	beforeLoad func()
 }
 
-func (*barrierPackageControl) Status(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+func (*barrierPackageControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{}, errors.New("unexpected raw load")
 }
-func (*barrierPackageControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unexpected launch")
-}
-func (*barrierPackageControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unexpected raw load")
-}
-func (*barrierPackageControl) Stop(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+func (*barrierPackageControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 func (*barrierPackageControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
 	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil

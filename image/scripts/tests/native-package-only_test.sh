@@ -236,10 +236,12 @@ sed -i "s/core_id = 'fes.pong'/core_id = 'fes.zx81'/" "$fixture/zx81.package-sel
 chmod 0444 "$fixture/zx81.package-selection.toml"
 
 container=$fixture/container
+export IMAGE_TEST_REPO=$repo
 cat >"$container" <<'CONTAINER'
 #!/bin/sh
 set -eu
 printf '%s\n' "$@" >>"$CONTAINER_LOG"
+sh "$IMAGE_TEST_REPO/scripts/tests/fake-image-container.sh" "$@"
 case "$1" in
   image|build) exit 0 ;;
   run) exit 0 ;;
@@ -248,7 +250,7 @@ esac
 CONTAINER
 chmod +x "$container"
 export CONTAINER_LOG=$fixture/container.log
-TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
+TARGET_IMAGE_CONTAINER_RUNTIME="$container" \
   sh "$repo/scripts/target-image-container.sh" fetch /work/test-fetch
 grep -Fqx -- 'FES_PACKAGE_IDS=fes.pong,fes.zx81,fes.coleco' "$CONTAINER_LOG"
 previous_line=0

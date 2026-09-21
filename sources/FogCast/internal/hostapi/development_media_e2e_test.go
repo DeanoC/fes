@@ -20,7 +20,6 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/fogcastcli"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/httpapi"
@@ -206,7 +205,7 @@ func testMediaEndToEnd(t *testing.T, stream bool) {
 		t.Fatal(err)
 	}
 	native := misterruntime.NewRuntime(misterruntime.NewClient(socket), "", time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(filepath.Join(dir, "packages")))
-	coordinator := agent.New(native, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator := agent.New(native, time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	defer manager.Close()

@@ -19,9 +19,8 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-func TestPongDiscoveryAndLaunchThroughPublicSessionAPI(t *testing.T) {
-	t.Run("ordinary stop", func(t *testing.T) { testPongPublicSession(t, false) })
-	t.Run("lost stop response reconciles then releases", func(t *testing.T) { testPongPublicSession(t, true) })
+func TestRawPongIsNotSeededOrLaunchedThroughPublicSessionAPI(t *testing.T) {
+	testPongPublicSession(t, false)
 }
 func testPongPublicSession(t *testing.T, delayedStop bool) {
 	var statusMu sync.Mutex
@@ -52,20 +51,9 @@ func testPongPublicSession(t *testing.T, delayedStop bool) {
 			releases.Add(1)
 			json.NewEncoder(w).Encode(map[string]string{"state": "free"})
 			return
-		case "/v1/launch":
-			if r.Header.Get("X-FogCast-Kit-Lease") != "test-lease" {
-				t.Error("missing kit lease")
-			}
-			var request protocol.LaunchRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Error(err)
-			}
-			if request != (protocol.LaunchRequest{GameID: "pong", System: protocol.SystemPong}) {
-				t.Errorf("not ROM-less: %#v", request)
-			}
+		case "/v1/launch", "/v2/launch":
 			launches++
-			coreName := "Pong"
-			status = protocol.Status{State: protocol.StateActive, GameID: &request.GameID, System: &request.System, ExpectedCore: &coreName, ObservedCore: &coreName}
+			t.Error("retired raw launch reached target")
 		case "/v1/stop":
 			status = protocol.Status{State: protocol.StateIdle}
 			if delayedStop {
@@ -103,22 +91,14 @@ func testPongPublicSession(t *testing.T, delayedStop bool) {
 	handler := hostapi.New(service)
 	get := httptest.NewRecorder()
 	handler.ServeHTTP(get, httptest.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/games?platform=pong&grouped=1&availability=ready", nil))
-	if get.Code != 200 || !strings.Contains(get.Body.String(), `"id":"pong"`) || !strings.Contains(get.Body.String(), `"kind":"builtin"`) {
+	if get.Code != 200 || strings.Contains(get.Body.String(), `"id":"pong"`) {
 		t.Fatalf("discovery=%d %s", get.Code, get.Body.String())
 	}
 	post := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/v1/session/launch", strings.NewReader(`{"game_id":"pong"}`))
 	request.Header.Set("Content-Type", "application/json")
 	handler.ServeHTTP(post, request)
-	if post.Code != 200 || launches != 1 || !strings.Contains(post.Body.String(), `"state":"active"`) || !strings.Contains(post.Body.String(), `"game_id":"pong"`) {
-		t.Fatalf("launch=%d %s (%d dispatches)", post.Code, post.Body.String(), launches)
-	}
-	stop := httptest.NewRecorder()
-	handler.ServeHTTP(stop, httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/v1/session/stop", nil))
-	if stop.Code != 200 || !strings.Contains(stop.Body.String(), `"state":"idle"`) {
-		t.Fatalf("stop=%d %s", stop.Code, stop.Body.String())
-	}
-	if releases.Load() != 1 {
-		t.Fatalf("explicit Stop returned idle without releasing: releases=%d", releases.Load())
+	if post.Code != http.StatusNotFound || launches != 0 {
+		t.Fatalf("retired raw game launch=%d %s (%d dispatches)", post.Code, post.Body.String(), launches)
 	}
 }

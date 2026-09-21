@@ -211,7 +211,8 @@ void TestDescriptorFieldsAndCompatibilityAreSeparate()
 	incompatible.target.programming_profile = "mister-v1";
 	incompatible.abi = {"mister", 1, 0};
 	incompatible.interfaces.clear();
-	assert(mister::native::CheckCoreCompatibility(incompatible).ok());
+	assert(mister::native::CheckCoreCompatibility(incompatible).code ==
+		mister::ErrorCode::unsupported_programming_profile);
 	incompatible.abi.minor = 1;
 	assert(!mister::native::CheckCoreCompatibility(incompatible).ok());
 	incompatible = descriptor;

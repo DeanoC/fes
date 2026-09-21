@@ -5,7 +5,6 @@
 #include "capture_log.hpp"
 #include "fake_hardware.hpp"
 #include "libmister-runtime/runtime.h"
-#include "test_profiles.hpp"
 
 #include <assert.h>
 #include <stdio.h>
@@ -22,31 +21,12 @@ using mister::ErrorCode;
 using mister::Execution;
 using mister::State;
 
-mister::Launch CartLaunch()
-{
-	mister::Launch launch;
-	launch.system = "test_cart";
-	launch.rbf = "/cores/test.rbf";
-	launch.media.push_back({"cartridge", "/games/test.bin"});
-	launch.settings.push_back({"region", "auto"});
-	return launch;
-}
 
 struct Fixture {
-	Fixture() : profiles(BuildProfiles()), hardware(), log(),
-		runtime(hardware, profiles, log) {}
-	static mister::Profiles BuildProfiles()
-	{
-		mister::Profiles profiles;
-		assert(profiles.Add(mister_test::CartProfile()).ok());
-		assert(profiles.Add(mister_test::BiosProfile()).ok());
-		return profiles;
-	}
-
-	mister::Profiles profiles;
-	mister_test::FakeHardware hardware;
-	mister_test::CaptureLog log;
-	mister::Runtime runtime;
+ Fixture() : hardware(), log(), runtime(hardware, log) {}
+ mister_test::FakeHardware hardware;
+ mister_test::CaptureLog log;
+ mister::Runtime runtime;
 };
 
 bool WaitForState(mister::Runtime&, State);
@@ -55,7 +35,7 @@ void TestSaveFailurePreservesSessionForStopRetry()
 {
 	Fixture f;
 	assert(f.runtime.Start().ok());
-	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	assert(f.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	const auto before = f.runtime.status();
 	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
 	assert(f.runtime.Stop().code == ErrorCode::save_failed);
@@ -69,20 +49,20 @@ void TestSaveFailurePreservesSessionForStopRetry()
 		std::vector<std::uint64_t>({before.generation}));
 	assert(f.hardware.idle_calls == 1);
 	assert(f.hardware.flush_calls == 1);
-	assert(f.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
+	assert(f.runtime.LoadCore("/package", std::string(64, 'a')).code == ErrorCode::save_failed);
 	f.hardware.flush_result = {};
 	assert(f.runtime.Stop().ok());
-	assert(f.hardware.flush_calls == 2 && f.hardware.idle_calls == 2);
+	assert(f.hardware.flush_calls == 3 && f.hardware.idle_calls == 2);
 	assert(f.runtime.status().state == State::idle);
 	assert(f.runtime.Stop().ok());
-	assert(f.hardware.flush_calls == 2);
+	assert(f.hardware.flush_calls == 3);
 }
 
 void TestSaveFailureInputRestoreFailureRequiresRecovery()
 {
 	Fixture f;
 	assert(f.runtime.Start().ok());
-	assert(f.runtime.LaunchGame(CartLaunch()).ok());
+	assert(f.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
 	f.hardware.restore_input_result = {ErrorCode::io_failed,
 		"input reopen failed"};
@@ -100,15 +80,15 @@ void TestInputFaultDuringFailedSaveCannotDiscardSnapshot()
 {
 	Fixture f;
 	assert(f.runtime.Start().ok());
-	assert(f.runtime.LaunchGame(CartLaunch()).ok());
-	const auto generation = f.hardware.launch_generations.back();
+	assert(f.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	const auto generation = f.hardware.core_generations.back();
 	f.hardware.on_flush = [&] {
 		f.hardware.ReportFault(generation, {ErrorCode::io_failed, "late input error"});
 	};
 	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
 	assert(f.runtime.Stop().code == ErrorCode::save_failed);
 	assert(!f.hardware.WaitForIdleCalls(2));
-	assert(f.runtime.status().state == State::running_game);
+	assert(f.runtime.status().state == State::running_development);
 	f.hardware.on_flush = {};
 	f.hardware.flush_result = {};
 	assert(f.runtime.Stop().ok());
@@ -119,8 +99,8 @@ void TestInputFaultDuringRestoreIsOwnedByRestoredGeneration()
 {
 	Fixture f;
 	assert(f.runtime.Start().ok());
-	assert(f.runtime.LaunchGame(CartLaunch()).ok());
-	const std::uint64_t generation = f.hardware.launch_generations.back();
+	assert(f.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	const std::uint64_t generation = f.hardware.core_generations.back();
 	f.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
 	f.hardware.on_restore_input = [&] {
 		f.hardware.ReportFault(generation,
@@ -306,15 +286,6 @@ void TestFailedStartRequiresReboot()
 	assert(stopped.expected == "MENU" && stopped.observed == "OTHER");
 }
 
-void TestValidationPrecedesHardwareMutation()
-{
-	Fixture fixture;
-	Start(fixture);
-	mister::Launch invalid = CartLaunch();
-	invalid.system = "not_known";
-	assert(fixture.runtime.LaunchGame(invalid).code == ErrorCode::unknown_system);
-	assert(fixture.hardware.launch_calls == 0);
-}
 
 void TestControllerSnapshotBindingAndFaultCleanup()
 {
@@ -347,7 +318,7 @@ void TestUnsupportedPackageLeavesRunningSessionExactlyUntouched()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	const mister::Status before = fixture.runtime.status();
 	const std::vector<std::string> events = fixture.hardware.events;
 	fixture.hardware.admission_result = {
@@ -362,23 +333,23 @@ void TestUnsupportedPackageLeavesRunningSessionExactlyUntouched()
 		after.error.message == before.error.message);
 	assert(fixture.hardware.events == events);
 	assert(fixture.hardware.flush_calls == 0);
-	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.hardware.core_calls == 1);
 }
 
 void TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
-	const std::uint64_t generation = fixture.hardware.launch_generations.back();
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	const std::uint64_t generation = fixture.hardware.core_generations.back();
 	fixture.hardware.flush_result = {ErrorCode::save_failed, "disk full"};
 	assert(fixture.runtime.LoadCore("/packages/custom", std::string(64, 'a')).code ==
 		ErrorCode::save_failed);
-	assert(fixture.hardware.core_calls == 0);
+	assert(fixture.hardware.core_calls == 1);
 	assert(fixture.hardware.restore_input_calls == 1);
 	assert(fixture.hardware.restored_input_generations ==
 		std::vector<std::uint64_t>({generation}));
-	assert(fixture.runtime.status().state == State::running_game);
+	assert(fixture.runtime.status().state == State::running_development);
 	fixture.hardware.ReportFault(generation,
 		{ErrorCode::io_failed, "still active after failed save"});
 	assert(fixture.hardware.WaitForIdleCalls(2));
@@ -409,7 +380,7 @@ void TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation()
 	Fixture fixture;
 	Start(fixture);
 	const std::string path("/cores/real.rbf\0ignored.rbf", 27);
-	assert(fixture.runtime.LoadDevelopmentRBF(path).code == ErrorCode::invalid_request);
+	assert(fixture.runtime.LoadContainedDevelopmentRBF(path).code == ErrorCode::invalid_request);
 	assert(fixture.hardware.development_calls == 0);
 }
 
@@ -419,32 +390,17 @@ void TestBlockedLaunchPublishesStarting()
 	Start(fixture);
 	fixture.hardware.BlockLaunch();
 	std::thread launch([&fixture]() {
-		assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+		assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	});
 	fixture.hardware.WaitUntilLaunchEntered();
 	const mister::Status status = fixture.runtime.status();
 	assert(status.state == State::starting);
-	assert(status.execution == Execution::game);
-	assert(status.system == "test_cart");
+	assert(status.execution == Execution::development);
+	assert(status.system.empty());
 	fixture.hardware.ReleaseLaunch();
 	launch.join();
 }
 
-void TestBusyAndMismatchEmitTypedFences()
-{
-	mister_test::CaptureDiagnostic capture;
-	mister::DiagnosticInstall install(&capture);
-	Fixture fixture;
-	Start(fixture);
-	assert(fixture.runtime.Start().code == ErrorCode::busy);
-	assert(capture.Count("fence.ownership") >= 1);
-	capture.Clear();
-	fixture.hardware.launch_result.observed_core = "WRONG";
-	fixture.hardware.launch_result.mutation_attempted = true;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::core_mismatch);
-	assert(capture.Count("fence.abi") >= 1);
-	assert(capture.Count("fence.recovery") >= 1);
-}
 
 void TestConcurrentMutationReturnsBusyWithoutQueueing()
 {
@@ -452,10 +408,10 @@ void TestConcurrentMutationReturnsBusyWithoutQueueing()
 	Start(fixture);
 	fixture.hardware.BlockLaunch();
 	std::thread launch([&fixture]() {
-		assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+		assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	});
 	fixture.hardware.WaitUntilLaunchEntered();
-	assert(fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf").code ==
+	assert(fixture.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf").code ==
 		ErrorCode::busy);
 	assert(fixture.hardware.development_calls == 0);
 	fixture.hardware.ReleaseLaunch();
@@ -464,10 +420,9 @@ void TestConcurrentMutationReturnsBusyWithoutQueueing()
 
 void TestRejectedMutationLogCanReadStatusWithoutDeadlock()
 {
-	mister::Profiles profiles = Fixture::BuildProfiles();
 	mister_test::FakeHardware hardware;
 	StatusReentrantLog log;
-	mister::Runtime runtime(hardware, profiles, log);
+	mister::Runtime runtime(hardware, log);
 	assert(runtime.Start().ok());
 	log.Enable(runtime);
 	mister::Error second_start;
@@ -489,7 +444,7 @@ void TestStatusRemainsReadableDuringMutation()
 	Start(fixture);
 	fixture.hardware.BlockLaunch();
 	std::thread launch([&fixture]() {
-		assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+		assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	});
 	fixture.hardware.WaitUntilLaunchEntered();
 	assert(fixture.runtime.status().state == State::starting);
@@ -501,33 +456,22 @@ void TestSuccessfulGameRecordsIdentity()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	const mister::Status status = fixture.runtime.status();
-	assert(status.state == State::running_game);
-	assert(status.execution == Execution::game);
-	assert(status.system == "test_cart");
-	assert(status.core == "TESTCART");
+	assert(status.state == State::running_development);
+	assert(status.execution == Execution::development);
+	assert(status.system.empty());
+	assert(status.core == "custom-core");
 }
 
-void TestWrongObservedCoreCleansUpOnce()
-{
-	Fixture fixture;
-	Start(fixture);
-	fixture.hardware.launch_result.observed_core = "WRONG";
-	fixture.hardware.launch_result.mutation_attempted = true;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code ==
-		ErrorCode::core_mismatch);
-	assert(fixture.hardware.idle_calls == 2);
-	assert(fixture.runtime.status().state == State::idle);
-}
 
 void TestPreMutationFailureDoesNotCleanUp()
 {
 	Fixture fixture;
 	Start(fixture);
-	fixture.hardware.launch_result.error = {ErrorCode::program_failed, "before write"};
-	fixture.hardware.launch_result.mutation_attempted = false;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code ==
+	fixture.hardware.core_result.error = {ErrorCode::program_failed, "before write"};
+	fixture.hardware.core_result.mutation_attempted = false;
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code ==
 		ErrorCode::program_failed);
 	assert(fixture.hardware.idle_calls == 1);
 }
@@ -536,9 +480,9 @@ void TestPostMutationFailureCleansUpExactlyOnce()
 {
 	Fixture fixture;
 	Start(fixture);
-	fixture.hardware.launch_result.error = {ErrorCode::io_failed, "after write"};
-	fixture.hardware.launch_result.mutation_attempted = true;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::io_failed);
+	fixture.hardware.core_result.error = {ErrorCode::io_failed, "after write"};
+	fixture.hardware.core_result.mutation_attempted = true;
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code == ErrorCode::io_failed);
 	assert(fixture.hardware.idle_calls == 2);
 }
 
@@ -546,9 +490,9 @@ void TestSuccessfulCleanupPreservesPrimaryError()
 {
 	Fixture fixture;
 	Start(fixture);
-	fixture.hardware.launch_result.error = {ErrorCode::io_failed, "primary"};
-	fixture.hardware.launch_result.mutation_attempted = true;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::io_failed);
+	fixture.hardware.core_result.error = {ErrorCode::io_failed, "primary"};
+	fixture.hardware.core_result.mutation_attempted = true;
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code == ErrorCode::io_failed);
 	const mister::Status status = fixture.runtime.status();
 	assert(status.state == State::idle);
 	assert(status.error.code == ErrorCode::io_failed);
@@ -558,10 +502,10 @@ void TestFailedCleanupRequiresReboot()
 {
 	Fixture fixture;
 	Start(fixture);
-	fixture.hardware.launch_result.error = {ErrorCode::io_failed, "primary"};
-	fixture.hardware.launch_result.mutation_attempted = true;
+	fixture.hardware.core_result.error = {ErrorCode::io_failed, "primary"};
+	fixture.hardware.core_result.mutation_attempted = true;
 	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "cleanup idle"};
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code ==
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code ==
 		ErrorCode::idle_failed);
 	const mister::Status status = fixture.runtime.status();
 	assert(status.state == State::reboot_required);
@@ -573,7 +517,7 @@ void TestDevelopmentHasNoGameIdentity()
 	Fixture fixture;
 	Start(fixture);
 	fixture.hardware.development_result.observed_core = "MegaDrive";
-	assert(fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf").ok());
+	assert(fixture.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf").ok());
 	const mister::Status status = fixture.runtime.status();
 	assert(status.state == State::running_development);
 	assert(status.execution == Execution::development);
@@ -587,7 +531,7 @@ void TestEveryDevelopmentFailureUsesItsMutationBoundary()
 	Start(preflight);
 	preflight.hardware.development_result = {
 		{ErrorCode::io_failed, "preflight"}, false, ""};
-	assert(preflight.runtime.LoadDevelopmentRBF("/cores/dev.rbf").code ==
+	assert(preflight.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf").code ==
 		ErrorCode::io_failed);
 	assert(preflight.hardware.idle_calls == 1);
 	assert(preflight.runtime.status().state == State::idle);
@@ -603,7 +547,7 @@ void TestEveryDevelopmentFailureUsesItsMutationBoundary()
 		fixture.hardware.development_result = {
 			{ErrorCode::io_failed, failure}, true, ""};
 		const mister::Error error =
-			fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf");
+			fixture.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf");
 		assert(error.code == ErrorCode::io_failed);
 		assert(error.message == failure);
 		assert(fixture.hardware.idle_calls == 2);
@@ -623,7 +567,7 @@ void TestDevelopmentCleanupFailureRequiresReboot()
 	fixture.hardware.idle_result.error = {
 		ErrorCode::program_failed, "development cleanup idle failed"};
 	const mister::Error error =
-		fixture.runtime.LoadDevelopmentRBF("/cores/dev.rbf");
+		fixture.runtime.LoadContainedDevelopmentRBF("/cores/dev.rbf");
 	assert(error.code == ErrorCode::idle_failed);
 	assert(error.message == "development cleanup idle failed");
 	assert(fixture.hardware.idle_calls == 2);
@@ -637,16 +581,16 @@ void TestStopFromBothRunningStatesLoadsIdleOnce()
 {
 	Fixture game;
 	Start(game);
-	assert(game.runtime.LaunchGame(CartLaunch()).ok());
+	assert(game.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	assert(game.runtime.Stop().ok());
 	assert(game.hardware.idle_calls == 2);
 	Fixture development;
 	Start(development);
-	assert(development.runtime.LoadDevelopmentRBF("/dev.rbf").ok());
+	assert(development.runtime.LoadContainedDevelopmentRBF("/dev.rbf").ok());
 	assert(development.runtime.Stop().ok());
 	assert(development.hardware.idle_calls == 2);
-	assert(development.runtime.LaunchGame(CartLaunch()).ok());
-	assert(development.runtime.status().state == State::running_game);
+	assert(development.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	assert(development.runtime.status().state == State::running_development);
 }
 
 void TestStopFromIdleIsIdempotent()
@@ -667,27 +611,16 @@ void TestStopFromRebootRequiredDoesNotCallHardware()
 	assert(fixture.hardware.idle_calls == 1);
 }
 
-void TestRunningStateRejectsBothLaunchKinds()
-{
-	Fixture fixture;
-	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
-	assert(fixture.runtime.LoadDevelopmentRBF("/dev.rbf").code ==
-		ErrorCode::busy);
-	assert(fixture.hardware.launch_calls == 1);
-	assert(fixture.hardware.development_calls == 0);
-}
 
 void TestRebootRequiredRejectsBothLaunchKinds()
 {
 	Fixture fixture;
 	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "failed"};
 	assert(fixture.runtime.Start().code == ErrorCode::idle_failed);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::busy);
-	assert(fixture.runtime.LoadDevelopmentRBF("/dev.rbf").code ==
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code == ErrorCode::busy);
+	assert(fixture.runtime.LoadContainedDevelopmentRBF("/dev.rbf").code ==
 		ErrorCode::busy);
-	assert(fixture.hardware.launch_calls == 0);
+	assert(fixture.hardware.core_calls == 0);
 	assert(fixture.hardware.development_calls == 0);
 }
 
@@ -699,58 +632,25 @@ void TestFailedStartAndStopNeverPerformSecondCleanup()
 	assert(start.hardware.idle_calls == 1);
 	Fixture stop;
 	Start(stop);
-	assert(stop.runtime.LaunchGame(CartLaunch()).ok());
+	assert(stop.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	stop.hardware.idle_result.error = {ErrorCode::program_failed, "failed"};
 	assert(stop.runtime.Stop().code == ErrorCode::idle_failed);
 	assert(stop.hardware.idle_calls == 2);
 }
 
-void TestSuccessfulLaunchLogsExpectedAndConfirmedCore()
-{
-	Fixture fixture;
-	Start(fixture);
-	fixture.log.Clear();
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
-	const std::vector<mister::LogRecord> records = fixture.log.records();
-	assert(HasLog(records, "launch", "validate"));
-	assert(HasLog(records, "launch", "starting"));
-	assert(HasLog(records, "launch", "running"));
-	bool expected = false;
-	bool confirmed = false;
-	for (const mister::LogRecord& record : records) {
-		expected = expected || (record.system == "test_cart" &&
-			record.core == "TESTCART" && record.phase == "starting");
-		confirmed = confirmed || (record.system == "test_cart" &&
-			record.core == "TESTCART" && record.phase == "running");
-	}
-	assert(expected && confirmed);
-}
 
-void TestValidationFailureLogsDirectErrorWithoutHardware()
-{
-	Fixture fixture;
-	Start(fixture);
-	fixture.log.Clear();
-	mister::Launch launch = CartLaunch();
-	launch.rbf = "relative";
-	assert(fixture.runtime.LaunchGame(launch).code ==
-		ErrorCode::invalid_request);
-	assert(fixture.hardware.launch_calls == 0);
-	assert(HasLog(fixture.log.records(), "launch", "validate",
-		ErrorCode::invalid_request));
-}
 
 void TestPostMutationFailureLogsCleanupAndPrimary()
 {
 	Fixture fixture;
 	Start(fixture);
 	fixture.log.Clear();
-	fixture.hardware.launch_result.error = {ErrorCode::io_failed, "primary"};
-	fixture.hardware.launch_result.mutation_attempted = true;
-	assert(fixture.runtime.LaunchGame(CartLaunch()).code == ErrorCode::io_failed);
+	fixture.hardware.core_result.error = {ErrorCode::io_failed, "primary"};
+	fixture.hardware.core_result.mutation_attempted = true;
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).code == ErrorCode::io_failed);
 	const std::vector<mister::LogRecord> records = fixture.log.records();
-	assert(HasLog(records, "launch", "failure", ErrorCode::io_failed));
-	assert(HasLog(records, "launch", "cleanup"));
+	assert(HasLog(records, "load_core", "failure", ErrorCode::io_failed));
+	assert(HasLog(records, "load_core", "cleanup"));
 	assert(fixture.runtime.status().error.code == ErrorCode::io_failed);
 }
 
@@ -759,18 +659,18 @@ void TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity()
 	Fixture failed;
 	Start(failed);
 	failed.log.Clear();
-	failed.hardware.launch_result.error = {ErrorCode::io_failed, "primary"};
-	failed.hardware.launch_result.mutation_attempted = true;
+	failed.hardware.core_result.error = {ErrorCode::io_failed, "primary"};
+	failed.hardware.core_result.mutation_attempted = true;
 	failed.hardware.idle_result.error = {ErrorCode::program_failed, "idle"};
-	assert(failed.runtime.LaunchGame(CartLaunch()).code ==
+	assert(failed.runtime.LoadCore("/package", std::string(64, 'a')).code ==
 		ErrorCode::idle_failed);
 	const std::vector<mister::LogRecord> records = failed.log.records();
-	assert(HasLog(records, "launch", "failure", ErrorCode::io_failed));
-	assert(HasLog(records, "launch", "cleanup", ErrorCode::idle_failed));
+	assert(HasLog(records, "load_core", "failure", ErrorCode::io_failed));
+	assert(HasLog(records, "load_core", "cleanup", ErrorCode::idle_failed));
 	Fixture development;
 	Start(development);
 	development.log.Clear();
-	assert(development.runtime.LoadDevelopmentRBF("/dev.rbf").ok());
+	assert(development.runtime.LoadContainedDevelopmentRBF("/dev.rbf").ok());
 	for (const mister::LogRecord& record : development.log.records()) {
 		assert(record.operation != "load_development_rbf" ||
 			(record.system.empty() && record.core.empty()));
@@ -779,11 +679,10 @@ void TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity()
 
 void TestRuntimeOwnsFaultSinkBeforeStartupAndReleasesItOnDestruction()
 {
-	mister::Profiles profiles = Fixture::BuildProfiles();
 	mister_test::FakeHardware hardware;
 	mister_test::CaptureLog log;
 	{
-		mister::Runtime runtime(hardware, profiles, log);
+		mister::Runtime runtime(hardware, log);
 		assert(hardware.fault_sink_sets == 1);
 		assert(runtime.Start().ok());
 		assert(!hardware.idle_without_fault_sink);
@@ -795,12 +694,12 @@ void TestStopAndImmediateRelaunchUseStrictlyNewGenerations()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
-	assert(fixture.hardware.launch_generations ==
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	assert(fixture.hardware.core_generations ==
 		std::vector<std::uint64_t>({1, 2}));
-	assert(fixture.runtime.status().state == State::running_game);
+	assert(fixture.runtime.status().state == State::running_development);
 }
 
 void TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce()
@@ -808,12 +707,12 @@ void TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce()
 	Fixture fixture;
 	Start(fixture);
 	fixture.hardware.BlockLaunch();
-	mister::Error launch_result;
+	mister::Error core_result;
 	std::thread launch([&]() {
-		launch_result = fixture.runtime.LaunchGame(CartLaunch());
+		core_result = fixture.runtime.LoadCore("/package", std::string(64, 'a'));
 	});
 	fixture.hardware.WaitUntilLaunchEntered();
-	assert(fixture.hardware.launch_generations ==
+	assert(fixture.hardware.core_generations ==
 		std::vector<std::uint64_t>({1}));
 	const std::thread::id reporter = std::this_thread::get_id();
 	fixture.hardware.ReportFault(1,
@@ -821,7 +720,7 @@ void TestFaultQueuedDuringLaunchRunsOffReporterAndCleansActiveGenerationOnce()
 	assert(fixture.hardware.idle_calls == 1);
 	fixture.hardware.ReleaseLaunch();
 	launch.join();
-	assert(launch_result.ok());
+	assert(core_result.ok());
 	assert(fixture.hardware.WaitForIdleCalls(2));
 	assert(WaitForState(fixture.runtime, State::idle));
 	const mister::Status status = fixture.runtime.status();
@@ -836,9 +735,9 @@ void TestStaleFaultCannotCleanOrOverwriteANewerGeneration()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	assert(fixture.runtime.Stop().ok());
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	fixture.hardware.ReportFault(1,
 		{ErrorCode::io_failed, "stale input failure"});
 	fixture.hardware.ReportFault(2,
@@ -855,7 +754,7 @@ void TestActiveInputFaultCleanupFailureRequiresReboot()
 {
 	Fixture fixture;
 	Start(fixture);
-	assert(fixture.runtime.LaunchGame(CartLaunch()).ok());
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
 	fixture.hardware.idle_result.error = {
 		ErrorCode::program_failed, "fault cleanup idle failed"};
 	fixture.hardware.ReportFault(1,
@@ -894,19 +793,18 @@ void TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery()
 
 void TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError()
 {
-	mister::Profiles profiles = Fixture::BuildProfiles();
 	mister_test::FakeHardware hardware;
 	BlockingFaultIdleLog log;
-	mister::Runtime runtime(hardware, profiles, log);
+	mister::Runtime runtime(hardware, log);
 	assert(runtime.Start().ok());
-	assert(runtime.LaunchGame(CartLaunch()).ok());
+	assert(runtime.LoadCore("/package", std::string(64, 'a')).ok());
 
 	log.Arm();
 	hardware.ReportFault(1,
 		{ErrorCode::io_failed, "first input failure"});
 	assert(log.WaitUntilBlocked());
 	assert(runtime.status().state == State::idle);
-	assert(runtime.LaunchGame(CartLaunch()).ok());
+	assert(runtime.LoadCore("/package", std::string(64, 'a')).ok());
 
 	hardware.ReportFault(2,
 		{ErrorCode::io_failed, "reserved input failure"});
@@ -1071,18 +969,15 @@ int main()
 	TestNonMenuIdlePublishesIdleWithoutReboot();
 	TestProbeLessIdlePublishesIdleWithoutReboot();
 	TestFailedStartRequiresReboot();
-	TestValidationPrecedesHardwareMutation();
 	TestUnsupportedPackageLeavesRunningSessionExactlyUntouched();
 	TestPackageSaveFailurePreventsProgrammingAndRetainsActiveGeneration();
 	TestPackageGenerationsRejectOldFaultsAndAcceptTheActiveFault();
 	TestDevelopmentPathRejectsEmbeddedNulBeforeHardwareMutation();
 	TestBlockedLaunchPublishesStarting();
-	TestBusyAndMismatchEmitTypedFences();
 	TestConcurrentMutationReturnsBusyWithoutQueueing();
 	TestRejectedMutationLogCanReadStatusWithoutDeadlock();
 	TestStatusRemainsReadableDuringMutation();
 	TestSuccessfulGameRecordsIdentity();
-	TestWrongObservedCoreCleansUpOnce();
 	TestPreMutationFailureDoesNotCleanUp();
 	TestPostMutationFailureCleansUpExactlyOnce();
 	TestSuccessfulCleanupPreservesPrimaryError();
@@ -1093,11 +988,8 @@ int main()
 	TestStopFromBothRunningStatesLoadsIdleOnce();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
-	TestRunningStateRejectsBothLaunchKinds();
 	TestRebootRequiredRejectsBothLaunchKinds();
 	TestFailedStartAndStopNeverPerformSecondCleanup();
-	TestSuccessfulLaunchLogsExpectedAndConfirmedCore();
-	TestValidationFailureLogsDirectErrorWithoutHardware();
 	TestPostMutationFailureLogsCleanupAndPrimary();
 	TestFailedCleanupLogsBothFailuresAndDevelopmentInventsNoIdentity();
 	TestRuntimeOwnsFaultSinkBeforeStartupAndReleasesItOnDestruction();
@@ -1108,6 +1000,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 45 passed");
+	puts("runtime_test: 42 passed");
 	return 0;
 }

@@ -7,11 +7,6 @@ description: >-
 platform: de10_nano
 device: 5CSEBA6U23I7
 profiles:
-  - id: mister-v1
-    diagnostic_only: false
-    abis:
-      - id: mister
-        major: 1
   - id: fes-gp-v1
     diagnostic_only: false
     abis:

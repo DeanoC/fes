@@ -27,7 +27,7 @@ host software and target root filesystem.
 | Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
 | Review the historical Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
-| Develop and validate SNES cartridge saves | [SNES saves](snes-saves.md) |
+| Review retired SNES cartridge-save behavior | [SNES saves](snes-saves.md) |
 | Use described-core settings and progress | [Core persistence](core-persistence.md) |
 | Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
@@ -73,6 +73,8 @@ and is not current-profile acceptance.
   ZX81 expansion is covered by its separate record above; appliance release
   acceptance remains separate.
 
+- [FPGA package-only cleanup](validation/2026-09-21-fpga-compat-cleanup.md):
+  uncommitted software cleanup, retained diagnostics, test results and integration gates.
 - [Consolidated development](validation/2026-09-20-consolidated-development.md):
   preserved histories, contributor/cache rehearsals, three FPGA packages,
   reproducible native image and exact Coleco/software diagnostics with restoration.

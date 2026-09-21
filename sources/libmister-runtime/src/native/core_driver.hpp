@@ -13,20 +13,16 @@ namespace mister {
 namespace native {
 
 class Clock;
-class CoreLoader;
 class Mmio;
 enum class ProgrammingProfile {
-	mister_v1,
 	fes_gp_v1,
 	development_contained_v1,
 };
 
 struct CoreDriverContext {
 	const CoreDescriptor* descriptor = nullptr;
-	const CoreRecipe* mister_recipe = nullptr;
 	std::string expected_core;
 	std::uint64_t generation = 0;
-	std::uint16_t player_command = 0;
 	std::function<void(std::uint64_t, Error)> report_fault;
 };
 
@@ -68,22 +64,6 @@ public:
 		std::uint64_t absolute_deadline_ms) = 0;
 };
 
-class MisterCoreDriver final : public CoreDriver {
-public:
-	MisterCoreDriver(Mmio&, CoreLoader&, Clock&);
-	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult Identify(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult NeutralizeButtons(const CoreDriverContext&, std::uint64_t) override;
-	CoreDriverResult SetButtons(const CoreDriverContext&, std::uint16_t,
-		std::uint64_t) override;
-	CoreDriverResult Start(const CoreDriverContext&, std::uint64_t) override;
-
-private:
-	Mmio& mmio_;
-	CoreLoader& core_;
-	Clock& clock_;
-};
-
 class ContainedCoreDriver final : public CoreDriver {
 public:
 	CoreDriverResult Quiesce(const CoreDriverContext&, std::uint64_t) override;
@@ -96,13 +76,12 @@ public:
 
 class CoreDriverRegistry {
 public:
-	CoreDriverRegistry(CoreDriver& mister, CoreDriver* fes_gp,
+	CoreDriverRegistry(CoreDriver* fes_gp,
 		CoreDriver& contained);
 	Error Resolve(const CoreDescriptor&, ProgrammingProfile*, CoreDriver**) const;
 	CoreDriver* Resolve(ProgrammingProfile) const;
 
 private:
-	CoreDriver& mister_;
 	CoreDriver* fes_gp_;
 	CoreDriver& contained_;
 };

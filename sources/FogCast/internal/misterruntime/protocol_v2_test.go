@@ -53,8 +53,8 @@ func TestProtocol2DecoderConsumesFrozenRuntimeFixturesExactly(t *testing.T) {
 		t.Fatalf("maximum generation lost precision: %#v, %v", maximum.Generation, err)
 	}
 	for index, line := range fixtureLines(t, "protocol-v1-responses.jsonl") {
-		if _, err := decodeResponse([]byte(line)); err != nil {
-			t.Fatalf("protocol-v1 line %d: %v", index+1, err)
+		if _, err := decodeProtocol2Response([]byte(line)); err == nil {
+			t.Fatalf("retired protocol-v1 line %d accepted: %v", index+1, err)
 		}
 	}
 }
@@ -62,20 +62,19 @@ func TestProtocol2DecoderConsumesFrozenRuntimeFixturesExactly(t *testing.T) {
 func TestProtocol2DecoderRejectsClosedShapeAndSemanticViolations(t *testing.T) {
 	valid := fixtureLines(t, "protocol-v2.jsonl")[1]
 	inspection := fixtureLines(t, "protocol-v2.jsonl")[3]
-	mister := fixtureLines(t, "protocol-v2-edge-responses.jsonl")[3]
 	cases := map[string]string{
 		"unknown field":                  strings.Replace(valid, `"inspected_package":null`, `"inspected_package":null,"extra":0`, 1),
 		"duplicate field":                strings.Replace(valid, `"version":"fixture"`, `"version":"fixture","version":"again"`, 1),
 		"missing field":                  strings.Replace(valid, `,"inspected_package":null`, ``, 1),
 		"generation zero":                strings.Replace(valid, `"generation":null`, `"generation":0`, 1),
-		"unsorted profiles":              strings.Replace(valid, `"development-contained-v1","fes-gp-v1","mister-v1"`, `"mister-v1","fes-gp-v1","development-contained-v1"`, 1),
+		"unsorted profiles":              strings.Replace(valid, `"development-contained-v1","fes-gp-v1"`, `"fes-gp-v1","development-contained-v1"`, 1),
 		"duplicate ABI":                  strings.Replace(valid, `],"active_interfaces":[]`, `,{"id":"fes.simple-game","major":1,"minor":0,"interfaces":[]}],"active_interfaces":[]`, 1),
 		"unknown phase":                  strings.Replace(valid, `"error":null`, `"error":{"code":"io_failed","message":"failed","phase":"other"}`, 1),
 		"null interface array":           strings.Replace(valid, `"active_interfaces":[]`, `"active_interfaces":null`, 1),
 		"null ABI minor":                 strings.Replace(valid, `"minor":0,"interfaces"`, `"minor":null,"interfaces"`, 1),
 		"null description":               strings.Replace(inspection, `"description":"Synthetic test-only core bundle fixture; never deploy."`, `"description":null`, 1),
 		"null required":                  strings.Replace(inspection, `"required":true`, `"required":null`, 1),
-		"explicit empty optional system": strings.Replace(mister, `"system":"pong"`, `"system":""`, 1),
+		"explicit empty optional system": strings.Replace(valid, `"system":null`, `"system":""`, 1),
 	}
 	for name, line := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -108,12 +107,12 @@ func TestLoadCoreNegotiatesReadOnlyThenMutatesExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestLoadCoreFallsBackOnlyFromValidReadOnlyUnsupportedProtocol(t *testing.T) {
+func TestLoadCoreRejectsRetiredProtocolWithoutMutation(t *testing.T) {
 	unsupported := `{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unsupported_protocol","message":"unsupported protocol"},"version":"old"}` + "\n"
 	fixture := newSequenceSocketFixture(t, []string{unsupported})
 	_, err := NewClient(fixture.path).LoadCore(context.Background(),
 		"/tmp/fogcast-development/core-packages/fixture", fixturePackageID)
-	if !errors.Is(err, errProtocol2Unsupported) {
+	if err == nil {
 		t.Fatalf("error = %v", err)
 	}
 	if got := fixture.wait(t); len(got) != 1 || got[0] != `{"protocol":2,"operation":"status"}` {
@@ -283,7 +282,7 @@ func TestProtocol2RejectsContradictoryCompatibilityAndActiveEvidence(t *testing.
 		`"active_interfaces":[{"id":"fes.gamepad","major":1,"minor":0}]`,
 		`"active_interfaces":[{"id":"fes.gamepad","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]`, 1)
 	cases := map[string]string{
-		"compatible profile absent": strings.Replace(inspection, `"fes-gp-v1",`, ``, 1),
+		"compatible profile absent": strings.Replace(inspection, `,"fes-gp-v1"`, ``, 1),
 		"compatible ABI absent":     strings.Replace(inspection, `"id":"fes.simple-game"`, `"id":"vendor.other"`, 1),
 		"compatible required interface absent": strings.Replace(inspection,
 			`,{"id":"fes.video.fixed-720p60","major":1,"minor":0}`, ``, 1),
@@ -304,16 +303,12 @@ func TestProtocol2RejectsContradictoryCompatibilityAndActiveEvidence(t *testing.
 func TestProtocol2ActivePackageRequiresRegistryAndProfileObservationSemantics(t *testing.T) {
 	lines := fixtureLines(t, "protocol-v2.jsonl")
 	fes := lines[5]
-	mister := fixtureLines(t, "protocol-v2-edge-responses.jsonl")[3]
 	video := `,{"id":"fes.video.fixed-720p60","major":1,"minor":0}`
 	cases := map[string]string{
 		"required interface absent from ABI and active lists": strings.ReplaceAll(fes, video, ""),
 		"fes gp observed identity absent": strings.Replace(fes,
 			`"observed":{"abi":{"id":"fes.simple-game","major":1,"minor":0},"build_id":"0123456789abcdef0123456789abcdef"}`,
 			`"observed":{"abi":null,"build_id":null}`, 1),
-		"mister observed identity present": strings.Replace(mister,
-			`"observed":{"abi":null,"build_id":null}`,
-			`"observed":{"abi":{"id":"mister","major":1,"minor":0},"build_id":"0123456789abcdef0123456789abcdef"}`, 1),
 	}
 	for name, response := range cases {
 		t.Run(name, func(t *testing.T) {

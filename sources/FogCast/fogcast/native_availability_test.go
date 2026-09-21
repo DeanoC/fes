@@ -13,8 +13,6 @@ import (
 
 func TestNativeAdmissionWithQueuedTargetWriter(t *testing.T) {
 	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
-	target := targetByName(s.targets, s.selectedTarget)
-	s.rememberNativeAvailability(target, protocol.Health{NativeCores: &protocol.NativeCoreAvailability{Version: 1, Systems: []protocol.System{}}}, nil)
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	writerDone := make(chan struct{})
@@ -43,46 +41,9 @@ func TestNativeAdmissionWithQueuedTargetWriter(t *testing.T) {
 	}
 }
 
-func TestNativeAvailabilityProjectionAndIsolation(t *testing.T) {
-	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
-	target := targetByName(s.targets, s.selectedTarget)
-	cores := &protocol.NativeCoreAvailability{Version: 1, Systems: []protocol.System{protocol.SystemPong}}
-	s.rememberNativeAvailability(target, protocol.Health{NativeCores: cores}, nil)
-	cores.Systems[0] = protocol.SystemSNES
-	if !s.PlatformLaunchable(protocol.SystemPong) || s.PlatformLaunchable(protocol.SystemSNES) || !s.PlatformLaunchable(catalog.CorePlatform) {
-		t.Fatal("projection lost copied capability or package exception")
-	}
-	s.rememberNativeAvailability(target, protocol.Health{}, errors.New("observation failed"))
-	if s.PlatformLaunchable(protocol.SystemPong) {
-		t.Fatal("failure retained positive capability")
-	}
-	for _, capability := range []*protocol.NativeCoreAvailability{
-		{Version: 1, Systems: []protocol.System{}}, {Version: 2, Systems: []protocol.System{protocol.SystemPong}}, {Version: 1, Systems: nil},
-	} {
-		s.rememberNativeAvailability(target, protocol.Health{NativeCores: capability}, nil)
-		if s.PlatformLaunchable(protocol.SystemPong) {
-			t.Fatal("unknown/empty capability admitted native core")
-		}
-	}
-	s.rememberNativeAvailability(target, protocol.Health{}, nil)
-	if !s.PlatformLaunchable(protocol.SystemPong) {
-		t.Fatal("older Main contract broken")
-	}
-	// A new endpoint must not inherit the previous endpoint's capability.
-	s.targets[0].Address = "http://new-target.invalid"
-	s.nativeAvailabilityMu.RLock()
-	_, found := s.nativeAvailability[nativeKey(s.targets[0])]
-	s.nativeAvailabilityMu.RUnlock()
-	if found {
-		t.Fatal("observation survived target rebinding")
-	}
-}
-
 func TestBuiltinPongUnavailableRejectedBeforeMutation(t *testing.T) {
 	client := &fakeServiceClient{}
 	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
-	target := targetByName(s.targets, s.selectedTarget)
-	s.rememberNativeAvailability(target, protocol.Health{NativeCores: &protocol.NativeCoreAvailability{Version: 1, Systems: []protocol.System{}}}, nil)
 	_, _, err := s.launchGame(context.Background(), catalog.Game{ID: "pong", System: protocol.SystemPong, Kind: catalog.SourceKindBuiltin}, nil)
 	var api *protocol.APIError
 	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation || api.Phase != "admission" {
@@ -96,8 +57,6 @@ func TestBuiltinPongUnavailableRejectedBeforeMutation(t *testing.T) {
 func TestNativeAvailabilityOnlyResolvedHostExecutionBypasses(t *testing.T) {
 	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, &fakeServiceClient{})
 	s.hostExecutor = &fakeHostExecutor{}
-	target := targetByName(s.targets, s.selectedTarget)
-	s.rememberNativeAvailability(target, protocol.Health{NativeCores: &protocol.NativeCoreAvailability{Version: 1, Systems: []protocol.System{}}}, nil)
 	game := catalog.Game{System: protocol.SystemSNES}
 	if s.PlatformLaunchable(game.System) || s.nativeCatalogAdmission(context.Background(), game) == nil {
 		t.Fatal("merely having a host executor bypassed native admission")
@@ -114,5 +73,36 @@ func TestNativeUnavailableDiagnosticIsSafe(t *testing.T) {
 		if got != "Legacy core is unavailable on this target; choose an installed FPGA package." || phase != "admission" {
 			t.Fatalf("%q %q", got, phase)
 		}
+	}
+}
+
+func TestRawBuiltinRejectedWithoutLegacyAvailability(t *testing.T) {
+	client := &fakeServiceClient{}
+	s := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	_, _, err := s.launchGame(context.Background(), catalog.Game{
+		ID: "pong", System: protocol.SystemPong, Kind: catalog.SourceKindBuiltin,
+	}, nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation || api.Phase != "admission" {
+		t.Fatalf("raw FPGA game must require a package: %v", err)
+	}
+	if client.nativeLaunchCalls != 0 {
+		t.Fatal("retired launch was dispatched")
+	}
+}
+
+func TestRetiredGameCannotStopActivePackage(t *testing.T) {
+	client := &fakeServiceClient{}
+	game := catalog.Game{ID: "pong", System: protocol.SystemPong, Kind: catalog.SourceKindBuiltin}
+	s := newTestService(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{}, client)
+	s.activePackageID, s.activePackageGeneration = "retained-package", 7
+	s.activeExecution, s.activeTarget = ExecutionFPGANative, s.selectedTarget
+	_, err := s.LaunchOn(context.Background(), game.ID, "", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeUnsupportedOperation || api.Phase != "admission" {
+		t.Fatalf("raw FPGA game must fail admission: %v", err)
+	}
+	if client.stopCalls != 0 || client.nativeLaunchCalls != 0 || client.launchCalls != 0 || s.activePackageID != "retained-package" || s.activePackageGeneration != 7 {
+		t.Fatalf("rejected launch changed active package or dispatched: stop=%d native=%d cached=%d id=%q generation=%d", client.stopCalls, client.nativeLaunchCalls, client.launchCalls, s.activePackageID, s.activePackageGeneration)
 	}
 }

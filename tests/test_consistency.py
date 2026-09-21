@@ -84,14 +84,12 @@ class ConsistencyTest(unittest.TestCase):
 
     def test_selected_sources_and_validation_coverage(self):
         self.assertEqual(self.module.check(self.root, self.sources), {
-            'generated_files': 20, 'source_pin_copies': 4, 'fixture_copies': 20})
+            'generated_files': 12, 'source_pin_copies': 0, 'fixture_copies': 20})
         self.assertEqual({source for command, source in self.calls if command == 'validate'}, {
-            'packages/platform/de10_nano.yaml', 'packages/system/megadrive.yaml',
-            'packages/system/pong.yaml', 'packages/system/snes.yaml', 'packages/system/nes.yaml',
+            'packages/platform/de10_nano.yaml',
             'packages/abi/fes_simple_game.yaml', 'packages/abi/fes_simple_computer.yaml',
             'packages/abi/fes_application.yaml',
-            'packages/programming/de10_nano.yaml',
-            'packages/source/megadrive_mister.yaml', 'packages/source/snes_mister.yaml', 'packages/source/nes_mister.yaml'})
+            'packages/programming/de10_nano.yaml'})
 
     def test_shared_fixture_copy_drift(self):
         fixture_copies = [(component, destination, None)
@@ -148,24 +146,7 @@ class ConsistencyTest(unittest.TestCase):
                     self.module.check(self.root, self.sources)
                 path.write_bytes(b'generated\n')
 
-    def test_copied_pin_drift(self):
-        for path in (self.core, self.fog):
-            with self.subTest(path=path):
-                original = path.read_text()
-                path.write_text(original.replace('commit="abc"', 'commit="changed"'))
-                with self.assertRaisesRegex(ValueError, 'commit.*differs'):
-                    self.module.check(self.root, self.sources)
-                path.write_text(original)
 
-    def test_snes_copied_pin_drift(self):
-        original = self.core.read_text()
-        for field, value in (('commit', 'abc'), ('rbf_sha256', 'def'), ('project', 'SNES.qpf')):
-            with self.subTest(field=field):
-                md, snes = original.split('[core.snes]')
-                self.core.write_text(md + '[core.snes]' + snes.replace(f'{field}="{value}"', f'{field}="changed"'))
-                with self.assertRaisesRegex(ValueError, rf'core.snes.{field} differs'):
-                    self.module.check(self.root, self.sources)
-        self.core.write_text(original)
 
     def test_yaml_validation_failure_propagates(self):
         import subprocess

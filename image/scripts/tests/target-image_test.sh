@@ -24,67 +24,52 @@ grep -Fq 'fes.coleco' "$container_script"
 ! grep -Eq 'NATIVE_RUNTIME_MEGADRIVE_FILE|NATIVE_RUNTIME_MEGADRIVE_SELECTION_FILE|PONG_RBF_BUNDLE|SNES_RBF_BUNDLE|NES_RBF_BUNDLE' \
   "$build_script" "$container_script" "$verify_script"
 
-for variant in prod dev native-dev; do
-  TARGET_IMAGE_TEST_MODE=1 sh "$build_script" \
-    --validate-inside-path "$variant" \
-    "/target-image-output/work-1-$variant" \
-    "/work/build/output/target-image/work-1-$variant/images/rootfs.ext4"
+TARGET_IMAGE_TEST_MODE=1 sh "$build_script" --validate-inside-path native-dev \
+  /target-image-output/work-1-native-dev \
+  /work/build/output/target-image/work-1-native-dev/images/rootfs.ext4
+for variant in prod dev --fast-dev; do
+  if sh "$build_script" "$variant" >"$fixture/rejected.log" 2>&1; then
+    echo "retired image variant accepted: $variant" >&2; exit 1
+  fi
+  grep -Fq usage "$fixture/rejected.log"
 done
-if TARGET_IMAGE_TEST_MODE=1 NATIVE_RUNTIME_MODE=format1 \
-  sh "$build_script" --validate-inside-path prod \
-  /target-image-output/work-1-prod \
-  /work/build/output/target-image/work-1-prod/images/rootfs.ext4 \
-  >/dev/null 2>&1; then
-  echo 'target image builder accepted the retired format-1 mode' >&2
-  exit 1
-fi
-
-for rejected_path in \
-  /target-image-output/../work \
-  /target-image-output/work-1-unknown \
-  /target-image-output/work-2-prod; do
-  if TARGET_IMAGE_TEST_MODE=1 sh "$build_script" \
-    --validate-inside-path prod "$rejected_path" \
-    /work/build/output/target-image/work-1-prod/images/rootfs.ext4 \
-    >/dev/null 2>&1; then
-    echo "inside path validator accepted $rejected_path" >&2
-    exit 1
+for rejected_path in /target-image-output/../work /target-image-output/work-1-unknown /target-image-output/work-2-native-dev; do
+  if TARGET_IMAGE_TEST_MODE=1 sh "$build_script" --validate-inside-path native-dev "$rejected_path" \
+      /work/build/output/target-image/work-1-native-dev/images/rootfs.ext4 >/dev/null 2>&1; then
+    echo "unsafe build path accepted: $rejected_path" >&2; exit 1
   fi
 done
 
-fake_build=$fixture/fake-build
-cat >"$fake_build" <<'FAKE_BUILD'
+# Exercise native two-pass publication with a deterministic package-record helper.
+mkdir -p "$fixture/recipe/scripts"
+cp "$build_script" "$fixture/recipe/scripts/build-target-image.sh"
+cat > "$fixture/recipe/scripts/native-extra-cores.sh" <<'HELPER'
 #!/bin/sh
 set -eu
-variant=$1
-output=$2
-epoch=$3
-printf '%s|%s|%s\n' "$variant" "$output" "$epoch" >>"$TARGET_IMAGE_BUILD_LOG"
-mkdir -p "$output/images"
-printf 'image-%s\n' "$variant" >"$output/images/rootfs.ext4"
-FAKE_BUILD
-chmod 0755 "$fake_build"
-
-output_root=$fixture/output
-build_log=$fixture/build.log
-TARGET_IMAGE_TEST_MODE=1 \
-TARGET_IMAGE_BUILD_ONCE="$fake_build" \
-TARGET_IMAGE_BUILD_LOG="$build_log" \
-TARGET_IMAGE_OUTPUT_ROOT="$output_root" \
-  sh "$build_script" prod
-test -f "$output_root/prod/linux.img"
-test "$(wc -l <"$build_log" | tr -d ' ')" -eq 2
-grep -Fq "prod|$output_root/work-1-prod|1751459412" "$build_log"
-grep -Fq "prod|$output_root/work-2-prod|1751459412" "$build_log"
-test "$(cat "$output_root/prod/linux.img")" = image-prod
-
-before=$(wc -l <"$build_log" | tr -d ' ')
-printf '%s\n' stale >"$output_root/prod/linux.img"
-TARGET_IMAGE_TEST_MODE=1 \
-TARGET_IMAGE_OUTPUT_ROOT="$output_root" \
-  sh "$build_script" --promote-existing prod
-test "$(cat "$output_root/prod/linux.img")" = image-prod
-test "$(wc -l <"$build_log" | tr -d ' ')" -eq "$before"
+[ "$1" = copy-records ]
+mkdir -p "$3"
+printf 'format = 2\n' > "$3/fes-pong.package-selection.toml"
+HELPER
+chmod +x "$fixture/recipe/scripts/native-extra-cores.sh"
+cat > "$fixture/fake-build" <<'BUILD'
+#!/bin/sh
+set -eu
+mkdir -p "$2/images"
+printf 'native-image\n' > "$2/images/rootfs.ext4"
+case "$2:${DIFFER:-0}" in *work-2-native-dev:1) printf changed >> "$2/images/rootfs.ext4" ;; esac
+BUILD
+chmod +x "$fixture/fake-build"
+export TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_BUILD_ONCE="$fixture/fake-build"
+export TARGET_IMAGE_OUTPUT_ROOT="$fixture/output" FES_PACKAGE_IDS=fes.pong
+sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
+test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
+sh "$fixture/recipe/scripts/build-target-image.sh" --promote-existing native-dev
+if DIFFER=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/differ.log" 2>&1; then
+  echo 'native image accepted differing two-pass bytes' >&2; exit 1
+fi
+grep -Fq 'not reproducible' "$fixture/differ.log"
+test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
+unset TARGET_IMAGE_BUILD_ONCE TARGET_IMAGE_OUTPUT_ROOT FES_PACKAGE_IDS
 
 make_log=$fixture/make.log
 make -s -C "$repo" -n \

@@ -75,7 +75,7 @@ public:
 
 class NativeInputSession final : public InputSession {
 public:
-	NativeInputSession(InputDevice&, Spi&, Clock&,
+	NativeInputSession(InputDevice&, Clock&,
 		std::uint32_t delivery_timeout_ms);
 	~NativeInputSession();
 	NativeInputSession(const NativeInputSession&) = delete;
