@@ -448,6 +448,38 @@ function draw() end`
 	}
 }
 
+func TestRefreshCachedGamesMakesFroggerReadyWithoutMovingFocus(t *testing.T) {
+	svc := &fakeServices{
+		games: []hostclient.Game{
+			{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true},
+		},
+	}
+	src := `
+function load()
+  library.query({ q = "Frogger" }, function(games, err)
+    destination.set{ kind = "game", label = "Frogger", query = "Frogger", platform = "fpga", matches = games }
+  end)
+end
+function draw() gfx.rect(0,0,10,10,'#fff') end`
+	r := newRoom(t, memPack(t, "frogger", src, nil), Options{Services: svc})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return r.Destination().Availability == AvailUnavailable })
+	d := r.Destination()
+	if d.Confirm() != ConfirmImportFirmware || d.Action != "Import Coleco BIOS." {
+		t.Fatalf("unavailable dest %+v", d)
+	}
+	label := d.Label
+	ready := svc.games[0]
+	ready.FirmwareReady = true
+	r.RefreshCachedGames([]hostclient.Game{ready})
+	got := r.Destination()
+	if got.Availability != AvailReady || got.Confirm() != ConfirmLaunch || got.Action != "Play" || got.Label != label {
+		t.Fatalf("refreshed dest %+v", got)
+	}
+}
+
 func TestPlayHistoryLuaDoesNotConflatePlayedAndCompleted(t *testing.T) {
 	svc := &fakeServices{
 		games: []hostclient.Game{

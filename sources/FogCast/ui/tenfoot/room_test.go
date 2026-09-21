@@ -258,7 +258,7 @@ func waitFor(t *testing.T, app *App, what string, pred func(Snapshot) bool) Snap
 		time.Sleep(5 * time.Millisecond)
 	}
 	snap := app.Snapshot()
-	t.Fatalf("timed out waiting for %s: room=%+v picker=%+v status=%q", what, snap.Room.Open, snap.RoomPicker.Open, snap.Status)
+	t.Fatalf("timed out waiting for %s: room=%+v picker=%+v fw=%+v launch=%+v loading=%v status=%q", what, snap.Room.Open, snap.RoomPicker.Open, snap.FirmwarePicker.Open, snap.Launch, snap.Loading, snap.Status)
 	return snap
 }
 

@@ -118,7 +118,7 @@ func launchOverlayPanel(snap Snapshot) (rectI, bool) {
 }
 
 func roomDestGeom(snap Snapshot) (rectI, bool) {
-	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || launchOverlayVisible(snap) {
+	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || snap.FirmwarePicker.Open || launchOverlayVisible(snap) {
 		return rectI{}, false
 	}
 	if !snap.Room.Destination.Set() {
@@ -170,6 +170,46 @@ func roomChoicePanel(snap Snapshot) (listPanel, bool) {
 		y = g.contentTop() + 8
 	}
 	start := snap.Room.Choice.Index - visible/2
+	if start < 0 {
+		start = 0
+	}
+	if start > rows-visible {
+		start = rows - visible
+	}
+	if start < 0 {
+		start = 0
+	}
+	return listPanel{X: x, Y: y, W: panelW, H: panelH, HeaderH: headerH, FooterH: footerH, RowH: rowH, Start: start, Visible: visible}, true
+}
+
+func firmwarePickerPanel(snap Snapshot) (listPanel, bool) {
+	if !snap.FirmwarePicker.Open {
+		return listPanel{}, false
+	}
+	rows := len(snap.FirmwarePicker.Rows)
+	if rows < 1 {
+		rows = 1
+	}
+	g := snap.Grid
+	panelW := 640
+	if max := g.contentWidth() - 48; panelW > max {
+		panelW = max
+	}
+	if panelW < 280 {
+		panelW = g.contentWidth()
+	}
+	headerH, footerH, rowH := 48, 52, 44
+	visible := rows
+	if visible > 8 {
+		visible = 8
+	}
+	panelH := headerH + footerH + visible*rowH + 8
+	x := g.contentLeft() + (g.contentWidth()-panelW)/2
+	y := g.contentTop() + (g.contentHeight()-panelH)/2
+	if y < g.contentTop()+8 {
+		y = g.contentTop() + 8
+	}
+	start := snap.FirmwarePicker.Index - visible/2
 	if start < 0 {
 		start = 0
 	}
