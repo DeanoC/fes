@@ -2557,6 +2557,22 @@ Surviving cart constant inputs use local slot LUT drivers after control folding,
 so they do not depend on extending distant shell constant trees. Publication
 still compares the complete emitted header and CRAM against the original sealed
 shell and refuses any non-CRC change outside the fixed rectangle.
+The shared Go linker validates canonical frames directly in their encoded
+column order, including all padding, first/last markers, EDCRC and outer CRC16.
+The fixed socket spans every payload row (32 through 7023), so linking can copy
+whole validated columns without repeatedly transposing the full CRAM bit matrix.
+Outside columns must match except for the existing named CRC companion strips;
+those strips retain the base shell's bytes. CRC16 uses a table checked against
+the original bitwise algorithm. Golden Python output, a reference bit overlay,
+malformed frames and compressed/uncompressed input ownership tests preserve the
+previous byte and admission contracts.
+
+On the designated ARM kit, the exact sealed shell and RAM asset measured about
+59.7 seconds for staging and 60.2 seconds for restart adoption with the original
+transposing implementation. Direct frame validation reduced those measurements
+to 7.9 and 7.4 seconds, with identical linked bytes and composition identity.
+This is a host/target validation benchmark, not FPGA hardware acceptance; it
+does not extend request deadlines or bypass target recomposition.
 nextpnr `5909feb5` forms the 50→52 MHz integer on the 520 MHz feedback
 profile (`M=52 N=5 C6=10`). Place-and-route uses the deterministic seed order
 10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34 with heap timing weight 1000,

@@ -107,7 +107,14 @@ func TestUncompressedInput(t *testing.T) {
 	}
 	raw := append(bytes.Clone(cart[:headerBytes]), framed...)
 	raw = append(raw, postamble()...)
-	result, err := Link(shell, raw)
+	shellFrames, _, err := decompress(shell[headerBytes:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawShell := append(bytes.Clone(shell[:headerBytes]), shellFrames...)
+	rawShell = append(rawShell, postamble()...)
+	shellBefore, cartBefore := bytes.Clone(rawShell), bytes.Clone(raw)
+	result, err := Link(rawShell, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +124,9 @@ func TestUncompressedInput(t *testing.T) {
 	}
 	if !bytes.Equal(result, compressed) {
 		t.Fatal("compressed and uncompressed cart compose differently")
+	}
+	if !bytes.Equal(rawShell, shellBefore) || !bytes.Equal(raw, cartBefore) {
+		t.Fatal("modified uncompressed caller bytes")
 	}
 }
 
@@ -135,5 +145,65 @@ func TestFramingRejectsRecomputedOuterCRC(t *testing.T) {
 		if _, err := loadRBF(invalid); err == nil {
 			t.Fatalf("accepted noncanonical frame at %d", offset)
 		}
+	}
+}
+
+func TestCRC16TableMatchesBitReference(t *testing.T) {
+	reference := func(data []byte) uint16 {
+		crc := uint16(0xffff)
+		for _, value := range data {
+			for bit := 0; bit < 8; bit++ {
+				feedback := (uint16(value>>bit) ^ crc) & 1
+				crc >>= 1
+				if feedback != 0 {
+					crc ^= 0xa001
+				}
+			}
+		}
+		return crc
+	}
+	data := make([]byte, 4096)
+	for i := range data {
+		data[i] = byte(i*73 + i/7)
+	}
+	for _, length := range []int{0, 1, 2, 190, 914, 916, 4096} {
+		if got, want := crc16(data[:length]), reference(data[:length]); got != want {
+			t.Fatalf("length %d CRC %04x != %04x", length, got, want)
+		}
+	}
+}
+
+func TestFrameDomainLinkMatchesBitOverlay(t *testing.T) {
+	base := loadedRBF{header: make([]byte, headerBytes), cram: make([]byte, cramBytes)}
+	for y := 32; y < cramHeight; y += 17 {
+		for x := 0; x < cramWidth; x += 31 {
+			setCramBit(base.cram, x, y, byte((x+y)%2))
+		}
+	}
+	cart := loadedRBF{header: bytes.Clone(base.header), cram: bytes.Clone(base.cram)}
+	for y := 32; y < cramHeight; y += 13 {
+		for x := 1769; x < 2806; x += 11 {
+			setCramBit(cart.cram, x, y, cramBit(cart.cram, x, y)^1)
+		}
+	}
+	// Allowed companion differences must remain the original shell's bytes.
+	setCramBit(cart.cram, 3500, 100, cramBit(cart.cram, 3500, 100)^1)
+	shellBytes, cartBytes := saveRBF(base), saveRBF(cart)
+	shellCopy, cartCopy := bytes.Clone(shellBytes), bytes.Clone(cartBytes)
+	got, err := Link(shellBytes, cartBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for y := 32; y < cramHeight; y++ {
+		for x := 1769; x < 2806; x++ {
+			setCramBit(base.cram, x, y, cramBit(cart.cram, x, y))
+		}
+	}
+	want := saveRBF(base)
+	if !bytes.Equal(got, want) {
+		t.Fatal("frame-domain output differs from bit-domain overlay")
+	}
+	if !bytes.Equal(shellBytes, shellCopy) || !bytes.Equal(cartBytes, cartCopy) {
+		t.Fatal("modified caller bytes")
 	}
 }

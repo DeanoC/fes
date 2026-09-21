@@ -26,19 +26,40 @@ var crcZones = [...]int{318, 1121, 2099, 3059, 3491, 4174, 4940, 5862, 6530, 760
 
 type loadedRBF struct{ header, cram []byte }
 
+var crc16Table = func() [256]uint16 {
+	var table [256]uint16
+	for value := range table {
+		crc := uint16(value)
+		for bit := 0; bit < 8; bit++ {
+			if crc&1 != 0 {
+				crc = (crc >> 1) ^ 0xa001
+			} else {
+				crc >>= 1
+			}
+		}
+		table[value] = crc
+	}
+	return table
+}()
+
 func crc16(data []byte) uint16 {
 	crc := uint16(0xffff)
 	for _, value := range data {
-		for bit := 0; bit < 8; bit++ {
-			feedback := (uint16(value>>bit) ^ crc) & 1
-			crc >>= 1
-			if feedback != 0 {
-				crc ^= 0xa001
-			}
-		}
+		crc = crc>>8 ^ crc16Table[byte(crc)^value]
 	}
 	return crc
 }
+
+var frameDataMask = func() [frameBytes]byte {
+	var mask [frameBytes]byte
+	for y := 32; y < cramHeight; y++ {
+		pos := frameBit(y)
+		mask[pos/8] |= 1 << (pos % 8)
+	}
+	return mask
+}()
+
+type framedRBF struct{ header, frames []byte }
 
 func crc32Frame(data []byte) uint32 {
 	crc := uint32(1)
@@ -148,9 +169,12 @@ func postamble() []byte {
 	return result
 }
 
-func loadRBF(data []byte) (loadedRBF, error) {
+// loadFrames validates the same canonical frame representation as packFrames,
+// directly in wire order. Avoiding row/column bit transposition is important on
+// the target ARM CPU; framing, padding, EDCRC and outer CRC remain checked.
+func loadFrames(data []byte) (framedRBF, error) {
 	if len(data) < headerBytes || len(data) > maxRBFBytes {
-		return loadedRBF{}, errors.New("invalid RBF size")
+		return framedRBF{}, errors.New("invalid RBF size")
 	}
 	rest := data[headerBytes:]
 	var framed []byte
@@ -159,20 +183,50 @@ func loadRBF(data []byte) (loadedRBF, error) {
 		var err error
 		framed, consumed, err = decompress(rest)
 		if err != nil {
-			return loadedRBF{}, err
+			return framedRBF{}, err
 		}
 	} else {
-		framed = rest[:consumed]
+		framed = bytes.Clone(rest[:consumed])
 	}
 	if !bytes.Equal(rest[consumed:], postamble()) {
-		return loadedRBF{}, errors.New("invalid RBF postamble")
+		return framedRBF{}, errors.New("invalid RBF postamble")
+	}
+	zoneIndex := 0
+	for x := 0; x < cramWidth; x++ {
+		frame := framed[x*frameBytes : (x+1)*frameBytes]
+		var expected [frameBytes]byte
+		for i, mask := range frameDataMask {
+			expected[i] = frame[i] & mask
+		}
+		if x == 0 {
+			expected[0], expected[1], expected[2] = 0x84, 0x3e, 0x01
+		}
+		if x == cramWidth-1 {
+			expected[0], expected[1], expected[2] = 0x42, 0x9f, 0
+		}
+		zone := crcZones[zoneIndex]
+		if x < zone {
+			binary.LittleEndian.PutUint32(expected[frameBytes-8:], crc32Frame(expected[:]))
+		}
+		if x == zone+255 {
+			zoneIndex++
+		}
+		binary.LittleEndian.PutUint16(expected[frameBytes-2:], crc16(expected[:frameBytes-2]))
+		if !bytes.Equal(frame, expected[:]) {
+			return framedRBF{}, fmt.Errorf("invalid CRAM framing, padding or CRC/EDCRC at column %d", x)
+		}
+	}
+	return framedRBF{header: bytes.Clone(data[:headerBytes]), frames: framed}, nil
+}
+
+func loadRBF(data []byte) (loadedRBF, error) {
+	framed, err := loadFrames(data)
+	if err != nil {
+		return loadedRBF{}, err
 	}
 	cram := make([]byte, cramBytes)
 	for x := 0; x < cramWidth; x++ {
-		frame := framed[x*frameBytes : (x+1)*frameBytes]
-		if crc16(frame[:frameBytes-2]) != binary.LittleEndian.Uint16(frame[frameBytes-2:]) {
-			return loadedRBF{}, fmt.Errorf("invalid CRAM frame CRC at column %d", x)
-		}
+		frame := framed.frames[x*frameBytes : (x+1)*frameBytes]
 		for y := 32; y < cramHeight; y++ {
 			pos := frameBit(y)
 			if frame[pos/8]&(1<<(pos%8)) != 0 {
@@ -180,10 +234,7 @@ func loadRBF(data []byte) (loadedRBF, error) {
 			}
 		}
 	}
-	if !bytes.Equal(framed, packFrames(cram)) {
-		return loadedRBF{}, errors.New("invalid CRAM framing, padding or EDCRC")
-	}
-	return loadedRBF{header: bytes.Clone(data[:headerBytes]), cram: cram}, nil
+	return loadedRBF{header: framed.header, cram: cram}, nil
 }
 
 func packFrames(cram []byte) []byte {
@@ -231,34 +282,34 @@ func crcCompanionColumn(x int) bool {
 // region, any ORAM/PRAM header change, malformed framing or CRC rejects before
 // returning an artifact. Caller-owned input slices are never modified.
 func Link(shell, cart []byte) ([]byte, error) {
-	base, err := loadRBF(shell)
+	base, err := loadFrames(shell)
 	if err != nil {
 		return nil, fmt.Errorf("shell: %w", err)
 	}
-	addition, err := loadRBF(cart)
+	addition, err := loadFrames(cart)
 	if err != nil {
 		return nil, fmt.Errorf("cart: %w", err)
 	}
 	if !bytes.Equal(base.header, addition.header) {
 		return nil, errors.New("cart changes shell ORAM/PRAM header")
 	}
-	for i, value := range base.cram {
-		changed := value ^ addition.cram[i]
-		for bit := 0; changed != 0; bit, changed = bit+1, changed>>1 {
-			if changed&1 == 0 {
-				continue
-			}
-			pos := i*8 + bit
-			x, y := pos%cramWidth, pos/cramWidth
-			if !insideSocket(x, y) && !crcCompanionColumn(x) {
+	for x := 0; x < cramWidth; x++ {
+		before := base.frames[x*frameBytes : (x+1)*frameBytes]
+		after := addition.frames[x*frameBytes : (x+1)*frameBytes]
+		if insideSocket(x, 32) {
+			copy(before, after)
+			continue
+		}
+		if crcCompanionColumn(x) || bytes.Equal(before, after) {
+			continue
+		}
+		for y := 32; y < cramHeight; y++ {
+			pos := frameBit(y)
+			if (before[pos/8]^after[pos/8])&(1<<(pos%8)) != 0 {
 				return nil, fmt.Errorf("cart changes CRAM outside socket at %d,%d", x, y)
 			}
 		}
 	}
-	for y := 32; y < cramHeight; y++ {
-		for x := 1769; x < 2806; x++ {
-			setCramBit(base.cram, x, y, cramBit(addition.cram, x, y))
-		}
-	}
-	return saveRBF(base), nil
+	result := append(base.header, compress(base.frames)...)
+	return append(result, postamble()...), nil
 }
