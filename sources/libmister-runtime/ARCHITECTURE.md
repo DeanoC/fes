@@ -273,6 +273,12 @@ open locked idle RBF
   -> publish idle
 ```
 
+Proposed replacement of this MENU idle with a U-Boot splash RBF, a defined
+Stop idle, and an attract ABI package (rooms via one tenfoot renderer; no
+second kit catalog) is the FES parent design lock
+[Idle MENU → rooms](../../docs/idle-menu-rooms.md). This sequence remains
+the current implementation.
+
 When a game input session is open, `LoadIdle()` first prevents further input,
 joins its worker, attempts the session's final neutral packet, and closes its
 descriptors. At process startup there is no input session, so the same idle

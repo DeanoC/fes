@@ -52,6 +52,10 @@ and is not current-profile acceptance.
   this document; Phase 1 is Coleco firmware readiness; Phase 2 is ZX81 16K
   linked at load (not a bitstream per expansion); Phase 3 is removable
   media. Docs only; no factory BIOS install.
+- [Idle MENU → rooms](idle-menu-rooms.md): design lock replacing kit MENU
+  idle with a rooms-driven path through FES ABI. Cold-boot splash is board
+  firmware; attract is an ABI; kit-as-host is the same FogCast host, not a
+  second catalog. Docs only; Deano owns merge.
 
 ## What has been verified
 
