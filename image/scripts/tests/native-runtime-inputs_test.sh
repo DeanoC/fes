@@ -140,6 +140,13 @@ test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/
 test -f "$cache/fes-pong.package-selection.toml"
 test -d "$cache/core-packages/$package_id"
 
+chmod u+w "$cache/splash.rbf"
+printf '%s\n' 'stale splash bytes' >"$cache/splash.rbf"
+chmod 0444 "$cache/splash.rbf"
+NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/splash.rbf" | awk '{print $1}')"
+test "$(stat -c %a "$cache/splash.rbf")" = 444
+
 awk 'BEGIN { skip=0 } /^\[splash_rbf\]/ { skip=1; next } /^\[/ { skip=0 } skip { next } { print }' \
   "$lock" > "$fixture/idle-only.lock"
 if NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$fixture/idle-only.lock" \
@@ -160,6 +167,13 @@ if NATIVE_RUNTIME_MODE=unsupported sh "$repo/scripts/verify-native-runtime-input
   >"$fixture/verify-unsupported.out" 2>"$fixture/verify-unsupported.err"; then
   fail 'verifier accepted an unsupported runtime mode'
 fi
+if NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$lock" "$fogcast" "$cache/idle.rbf" \
+  >"$fixture/verify-idle-only.out" 2>"$fixture/verify-idle-only.err"; then
+  fail 'verifier accepted idle-only arguments'
+fi
+grep -Fq 'IDLE_FILE SPLASH_FILE' "$fixture/verify-idle-only.err" || \
+  fail 'idle-only rejection did not require SPLASH_FILE'
 printf '%s\n' 'native runtime package-only inputs passed'
 
 # Real Git provenance: standalone checkouts and full-FES module snapshots.
@@ -181,11 +195,20 @@ if [ "$1" = run ]; then printf '%s\n' "$@" > "$CONTAINER_ARGS"; fi
 CONTAINER
 chmod +x "$fake_bin/container"
 export CONTAINER_ARGS="$fixture/container-args"
+printf '%s\n' 'tampered splash' >"$fixture/tampered.splash"
+chmod 0444 "$fixture/tampered.splash"
 for source in "$standalone" "$mono/sources/libmister-runtime"; do
   actual_commit=$(git -C "$source" rev-parse HEAD)
   sed "s/$runtime_commit/$actual_commit/" "$lock" > "$fixture/selected.lock"
   sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf" "$cache/splash.rbf"
   if [ "$source" = "$standalone" ]; then
+    if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+      "$fixture/selected.lock" "$source" "$cache/idle.rbf" "$fixture/tampered.splash" \
+      >"$fixture/verify-tampered.out" 2>"$fixture/verify-tampered.err"; then
+      fail 'verifier accepted a tampered splash payload'
+    fi
+    grep -Fq 'splash SHA-256 does not match the lock' "$fixture/verify-tampered.err" || \
+      fail 'tampered splash was not rejected for SHA-256'
     selected_fogcast=$fogcast
     expected_mount=$standalone
     expected_prefix=.
@@ -210,13 +233,17 @@ for source in "$standalone" "$mono/sources/libmister-runtime"; do
   grep -Fxq "$expected_fogcast_mount:/fogcast:ro" "$CONTAINER_ARGS" || fail 'FogCast Git root was not mounted'
   grep -Fxq "FOGCAST_DIR=$expected_fogcast_path" "$CONTAINER_ARGS" || fail 'FogCast module path missing'
   printf '%s\n' dirty > "$source/README"
-  if sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$source" "$cache/idle.rbf" > /dev/null 2>&1; then
+  if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+    "$fixture/selected.lock" "$source" "$cache/idle.rbf" "$cache/splash.rbf" \
+    > /dev/null 2>&1; then
     fail 'dirty runtime module was accepted'
   fi
   git -C "$source" restore README
 done
 mkdir -p "$mono/other-runtime"
-if sh "$repo/scripts/verify-native-runtime-inputs.sh" "$fixture/selected.lock" "$mono/other-runtime" "$cache/idle.rbf" > /dev/null 2>&1; then
+if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
+  "$fixture/selected.lock" "$mono/other-runtime" "$cache/idle.rbf" "$cache/splash.rbf" \
+  > /dev/null 2>&1; then
   fail 'arbitrary nested runtime path was accepted'
 fi
 printf '%s\n' 'standalone and monorepo runtime verification/container mounts passed'

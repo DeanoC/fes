@@ -90,8 +90,12 @@ if [ "$native_mode" = package-only ]; then
             printf '%s\n' "fetch-native-runtime-inputs: cached $fetch_section size does not match the lock" >&2
             exit 1
           }
-          cp -- "$sibling" "$dest"
-          chmod 0444 "$dest"
+          temporary=$(mktemp "$cache/.${dest##*/}.XXXXXX")
+          trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
+          cp -- "$sibling" "$temporary"
+          chmod 0444 "$temporary"
+          mv "$temporary" "$dest"
+          trap - EXIT INT TERM
           return 0
         fi
       fi

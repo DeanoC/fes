@@ -13,14 +13,14 @@ case "$native_mode" in
 esac
 
 if [ "$native_mode" = package-only ]; then
-  [ "$#" -eq 3 ] || [ "$#" -eq 4 ] || {
-    printf '%s\n' 'usage: verify-native-runtime-inputs.sh LOCK RUNTIME_SOURCE IDLE_FILE [SPLASH_FILE] (package-only)' >&2
+  [ "$#" -eq 4 ] || {
+    printf '%s\n' 'usage: verify-native-runtime-inputs.sh LOCK RUNTIME_SOURCE IDLE_FILE SPLASH_FILE (package-only)' >&2
     exit 2
   }
   lock=$1
   runtime_source=$2
   idle_file=$3
-  splash_file=${4:-}
+  splash_file=$4
   [ -f "$lock" ] || {
     printf '%s\n' 'verify-native-runtime-inputs: lock is not a regular file' >&2
     exit 2
@@ -168,15 +168,7 @@ if [ "$native_mode" = package-only ]; then
     exit 1
   }
   idle_sha=$(verify_locked_rbf_file idle_rbf "$idle_file" idle)
-  splash_sha=$(read_package_lock_value splash_rbf sha256)
-  if [ -n "$splash_file" ]; then
-    splash_sha=$(verify_locked_rbf_file splash_rbf "$splash_file" splash)
-  else
-    printf '%s\n' "$splash_sha" | grep -Eq '^[0-9a-f]{64}$' || {
-      printf '%s\n' 'verify-native-runtime-inputs: splash SHA-256 is invalid' >&2
-      exit 2
-    }
-  fi
+  splash_sha=$(verify_locked_rbf_file splash_rbf "$splash_file" splash)
   "$repo_root/scripts/native-extra-cores.sh" verify \
     "${NATIVE_RUNTIME_CACHE:-$repo_root/build/cache/target-image/native}"
   printf 'runtime_commit=%s\nidle_sha256=%s\nsplash_sha256=%s\n' \
