@@ -6,7 +6,9 @@ and removable media) is in the selected FogCast
 [launch composition](../sources/FogCast/docs/launch-composition.md) design.
 The locked idle RBF is still sealed MiSTer `menu.rbf`; the proposed
 replacement (U-Boot splash, attract ABI, rooms via one tenfoot renderer) is
-[Idle MENU → rooms](idle-menu-rooms.md).
+[Idle MENU → rooms](idle-menu-rooms.md). Phase 2 execution (splash +
+defined Stop idle, not MENU chrome) is
+[the Phase 2 brief](idle-menu-rooms-phase2.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image

@@ -56,6 +56,10 @@ and is not current-profile acceptance.
   idle with a rooms-driven path through FES ABI. Cold-boot splash is board
   firmware; attract is an ABI; kit-as-host is the same FogCast host, not a
   second catalog. Docs only; Deano owns merge.
+- [Idle MENU → rooms — Phase 2 execution](idle-menu-rooms-phase2.md):
+  splash RBF + defined Stop idle (not MENU chrome). Workstream owners,
+  ordered PR slices, engineering questions. Does not reopen the lock.
+  Docs only; Deano owns merge.
 
 ## What has been verified
 
