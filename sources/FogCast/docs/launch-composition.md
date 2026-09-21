@@ -105,9 +105,9 @@ linker is the ZX81 expansion example. Phase 2 uses it directly for compatible
 bus carts. It does not invent a second “runtime device” path
 and it does not wait on a bitstream-per-expansion model.
 
-ZX81’s current first-slice package still compiles 16 KB RAM into the
-sealed RBF. That is today’s factory image, not the expansion slot. The
-slot is the load-time link of an optional bus cart onto the registered edge.
+The standard ZX81 package contains 1 KiB of internal RAM and a vacant
+registered expansion bus. Optional bus carts are linked at load; the 16 KiB
+RAM cart exercises that path as a validation consumer.
 
 ## What is true now
 

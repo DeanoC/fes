@@ -1,7 +1,7 @@
 # FES ZX81
 
 The first slice is a ROM-less `fes.simple-computer` 1.0 package (`fes.zx81`
-1.2.0) with 16 KB RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+1.2.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
 fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
