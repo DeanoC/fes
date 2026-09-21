@@ -477,7 +477,15 @@ func (a *App) doFirmwareImport(ctx context.Context, gen int, path string, refres
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.firmwarePickerOpen || a.firmwarePickerGen != gen {
+	current := a.firmwarePickerGen == gen
+	if err == nil {
+		// The picker may have been dismissed while the host operation was in
+		// flight. The refreshed library rows are still valid for the app and
+		// room cache, but an older operation must not change a newer picker's
+		// busy/error state.
+		a.applyFirmwareGamesLocked(games)
+	}
+	if !current {
 		return
 	}
 	a.firmwarePickerBusy = false
@@ -486,7 +494,6 @@ func (a *App) doFirmwareImport(ctx context.Context, gen int, path string, refres
 		a.status = a.firmwarePickerStatus
 		return
 	}
-	a.applyFirmwareGamesLocked(games)
 	a.closeFirmwarePickerLocked()
 	a.status = "Coleco BIOS imported. Ready titles can Play."
 }

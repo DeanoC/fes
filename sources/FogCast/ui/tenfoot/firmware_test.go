@@ -204,14 +204,59 @@ function draw() gfx.rect(0,0,10,10,'#fff') end
 	}
 }
 
+func TestDismissedFirmwarePickerStillRefreshes(t *testing.T) {
+	dir := t.TempDir()
+	bios := filepath.Join(dir, "coleco.bios")
+	payload := bytes.Repeat([]byte{0x55, 0xaa}, int(protocol.FirmwareBytes/2))
+	if err := os.WriteFile(bios, payload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := newFirmwareHost(t)
+	h.importStarted = make(chan struct{}, 1)
+	h.importRelease = make(chan struct{})
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "frogger catalog", func(s Snapshot) bool {
+		return len(s.Games) == 1 && !s.Loading
+	})
+	app.mu.Lock()
+	app.hostSettings.Libraries = []hostclient.LibraryRoot{{ID: "usb", System: "coleco", Root: dir}}
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "BIOS picker", func(s Snapshot) bool { return s.FirmwarePicker.Open })
+	selectLibraryRoot(t, app, dir)
+	selectNamedRow(t, app, "coleco.bios")
+	app.HandleCommand(CmdSelect, time.Now())
+	select {
+	case <-h.importStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("BIOS import did not start")
+	}
+	app.HandleCommand(CmdHome, time.Now())
+	if app.Snapshot().FirmwarePicker.Open {
+		t.Fatal("Home did not dismiss the BIOS picker")
+	}
+	close(h.importRelease)
+	snap := waitFor(t, app, "dismissed picker refresh", func(s Snapshot) bool {
+		return len(s.Games) == 1 && s.Games[0].FirmwareReady && !s.FirmwarePicker.Open
+	})
+	if h.importCount() != 1 || h.selectCount() != 1 || snap.Games[0].LaunchBlock() != "" {
+		t.Fatalf("dismissed import did not refresh: games=%+v imports=%d selects=%d", snap.Games, h.importCount(), h.selectCount())
+	}
+}
+
 type firmwareHost struct {
-	mu       sync.Mutex
-	launches []string
-	imports  int
-	selects  int
-	ready    bool
-	session  string
-	server   *httptest.Server
+	mu            sync.Mutex
+	launches      []string
+	imports       int
+	selects       int
+	ready         bool
+	session       string
+	server        *httptest.Server
+	importStarted chan struct{}
+	importRelease chan struct{}
 }
 
 func newFirmwareHost(t *testing.T) *firmwareHost {
@@ -235,6 +280,15 @@ func newFirmwareHost(t *testing.T) *firmwareHost {
 			h.mu.Unlock()
 			_, _ = io.WriteString(w, body)
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/core-media":
+			if h.importStarted != nil {
+				select {
+				case h.importStarted <- struct{}{}:
+				default:
+				}
+			}
+			if h.importRelease != nil {
+				<-h.importRelease
+			}
 			body, _ := io.ReadAll(r.Body)
 			if int64(len(body)) != protocol.FirmwareBytes {
 				http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"size"}}`, http.StatusBadRequest)
