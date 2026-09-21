@@ -281,12 +281,15 @@ void TestNonMenuIdlePublishesIdleWithoutReboot()
 
 void TestProbeLessIdlePublishesIdleWithoutReboot()
 {
+	mister_test::CaptureDiagnostic capture;
+	mister::DiagnosticInstall install(&capture);
 	Fixture fixture;
 	fixture.hardware.idle_result.observed_core.clear();
 	assert(fixture.runtime.Start().ok());
 	assert(fixture.hardware.idle_calls == 1);
 	assert(fixture.runtime.status().state == State::idle);
 	assert(fixture.runtime.status().error.ok());
+	assert(capture.Count("corename.change") == 0);
 }
 
 void TestFailedStartRequiresReboot()

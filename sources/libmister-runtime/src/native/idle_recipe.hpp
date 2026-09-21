@@ -12,13 +12,15 @@ namespace native {
 
 // Defined startup/Stop idle. Identity, FPGA programming profile, Probe, and
 // HPS framebuffer are recipe parameters rather than hardcoded MENU chrome.
-// Production uses TransitionalMenuIdle() until a splash bitstream exists.
-// Callers must not infer identity from the idle RBF path.
+// Production uses SplashIdle(): sealed misteross splash, no Probe, no HPS
+// framebuffer, contained ADV-only HDMI. TransitionalMenuIdle() remains for
+// historical Menu tests. Callers must not infer identity from the idle RBF
+// path or invent a splash core-ID string.
 struct IdleRecipe {
 	// Empty: idle does not require a probed core identity.
 	std::string expected_core;
 	ProgrammingProfile programming_profile = ProgrammingProfile::mister_v1;
-	// False: skip user-io Probe (command 0x0014). A later splash may have none.
+	// False: skip user-io Probe (command 0x0014). Splash has none.
 	bool probe_core = true;
 	// False: skip HPS framebuffer SPI 0x002f. Idle still succeeds. Only
 	// mister_v1 user-I/O can enable it; contained idles use ADV-only HDMI.
@@ -32,6 +34,18 @@ inline IdleRecipe TransitionalMenuIdle()
 	recipe.programming_profile = ProgrammingProfile::mister_v1;
 	recipe.probe_core = true;
 	recipe.enable_hps_framebuffer = true;
+	return recipe;
+}
+
+// Sealed fes-splash.rbf: no user-io Probe, no 0x002f, ADV7513 HDMI only.
+// programming_profile is development_contained_v1 so LoadIdle does not
+// issue Menu SPI (sync/reset/timing/buttons). expected_core stays empty.
+inline IdleRecipe SplashIdle()
+{
+	IdleRecipe recipe;
+	recipe.programming_profile = ProgrammingProfile::development_contained_v1;
+	recipe.probe_core = false;
+	recipe.enable_hps_framebuffer = false;
 	return recipe;
 }
 

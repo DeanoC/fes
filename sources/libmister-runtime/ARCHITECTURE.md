@@ -283,19 +283,17 @@ open locked idle RBF
 `IdleRecipe` (`src/native/idle_recipe.hpp`) is the defined-idle contract:
 identity, `ProgrammingProfile`, Probe, and HPS framebuffer are recipe
 parameters, not hardcoded `BringUp("MENU")` plus required SPI `0x002f`.
-Production construction still uses `TransitionalMenuIdle()` (`mister_v1`,
-required `MENU` probe, HPS framebuffer enabled) so today's sealed Menu idle
-keeps working until a splash bitstream exists. `mister_v1` keeps the Menu
-user-I/O path. A contained splash selects `development-contained-v1` and
-uses ADV-only HDMI bring-up so missing Probe/user-I/O cannot stall idle
-into `reboot_required`. A later splash may also skip Probe and HPS
-framebuffer on `mister_v1`. Do not infer identity from the idle RBF path
-or invent splash core-ID strings here.
+Production construction uses `SplashIdle()` (`development-contained-v1`,
+no Probe, no HPS framebuffer) so sealed misteross splash HDMI is ADV-only
+and cannot stall into `reboot_required` on missing Menu user-I/O.
+`TransitionalMenuIdle()` (`mister_v1`, required `MENU` probe, HPS
+framebuffer enabled) remains for historical Menu tests. Do not infer
+identity from the idle RBF path or invent splash core-ID strings.
 
 The FES parent design lock
-[Idle MENU → rooms](../../docs/idle-menu-rooms.md) still names U-Boot splash,
-defined Stop idle, and an attract ABI as later product steps. This slice
-implements the runtime contract only.
+[Idle MENU → rooms](../../docs/idle-menu-rooms.md) still names attract ABI
+and rooms-on-HDMI as later product steps. Production Stop idle is the
+sealed splash recipe, not Menu chrome.
 
 When a game input session is open, `LoadIdle()` first prevents further input,
 joins its worker, attempts the session's final neutral packet, and closes its
@@ -603,10 +601,10 @@ power-loss capture, save states and host/cloud save synchronization.
 ## Idle framebuffer ownership
 
 HPS framebuffer enable is an `IdleRecipe` flag, not a LoadIdle success
-requirement. `TransitionalMenuIdle()` still enables it so today's Menu idle
-keeps the 640×480 overlay. A defined idle that omits the flag skips Linux
-framebuffer configuration and SPI `0x002f`; HDMI then remains the programmed
-idle pixels.
+requirement. Production `SplashIdle()` omits it, so HDMI stays the
+programmed splash pixels. `TransitionalMenuIdle()` still enables the
+640×480 overlay for historical Menu tests. A defined idle that omits the
+flag skips Linux framebuffer configuration and SPI `0x002f`.
 
 When the recipe enables framebuffer, `LinuxFramebuffer`, injected through
 `Framebuffer` into `MenuVideoBringup`, writes `8888 1 640 480 2560` to the

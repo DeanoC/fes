@@ -911,12 +911,19 @@ void TestIdleWithoutFramebufferSkipsHpsEnable()
 
 mister::native::IdleRecipe ContainedIdleRecipe()
 {
-	mister::native::IdleRecipe recipe;
-	recipe.programming_profile =
-		mister::native::ProgrammingProfile::development_contained_v1;
-	recipe.probe_core = false;
-	recipe.enable_hps_framebuffer = false;
-	return recipe;
+	return mister::native::SplashIdle();
+}
+
+void TestSplashIdleOmitsProbeFramebufferAndCoreId()
+{
+	const mister::native::IdleRecipe recipe = mister::native::SplashIdle();
+	assert(recipe.expected_core.empty());
+	assert(recipe.programming_profile ==
+		mister::native::ProgrammingProfile::development_contained_v1);
+	assert(!recipe.probe_core);
+	assert(!recipe.enable_hps_framebuffer);
+	assert(!mister::native::IdleUsesMisterUserIo(recipe));
+	++scenarios;
 }
 
 void TestContainedIdleUsesAdvOnlyPathWithoutUserIo()
@@ -1448,6 +1455,7 @@ int main()
 	TestIdleProbeWithoutRequiredIdentityDoesNotFail();
 	TestIdleWithoutProbeSkipsMenuIdentityCheck();
 	TestIdleWithoutFramebufferSkipsHpsEnable();
+	TestSplashIdleOmitsProbeFramebufferAndCoreId();
 	TestContainedIdleUsesAdvOnlyPathWithoutUserIo();
 	TestContainedIdleIgnoresFramebufferAndProbeFlags();
 	TestContainedIdleExpiredDeadlineMakesNoSpiCall();

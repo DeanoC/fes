@@ -49,23 +49,9 @@ if [ "$native_mode" = package-only ]; then
     exit 2
   }
 
-  require_transitional_menu_identity() {
-    identity_section=$1
-    repository=$(read_package_lock_value "$identity_section" repository)
-    revision=$(read_package_lock_value "$identity_section" commit)
-    source_path=$(read_package_lock_value "$identity_section" path)
-    [ "$repository" = https://github.com/MiSTer-devel/Distribution_MiSTer ] &&
-      [ "$revision" = f7bde4becb452ca28f604ad9802bbed5c6b58e01 ] &&
-      [ "$source_path" = menu.rbf ] || {
-      printf '%s\n' "fetch-native-runtime-inputs: $identity_section lock identity is invalid" >&2
-      exit 2
-    }
-  }
-
   fetch_locked_rbf() {
     fetch_section=$1
     dest=$2
-    require_transitional_menu_identity "$fetch_section"
     repository=$(read_package_lock_value "$fetch_section" repository)
     revision=$(read_package_lock_value "$fetch_section" commit)
     source_path=$(read_package_lock_value "$fetch_section" path)

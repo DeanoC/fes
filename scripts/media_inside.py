@@ -71,8 +71,9 @@ class Provenance:
                      'idle_sha256', 'splash_sha256'):
             if not isinstance(getattr(self, name), str) or not re.fullmatch('[0-9a-f]{64}', getattr(self, name)):
                 raise ValueError('invalid media provenance digest')
-        if (self.profile != 'native-integration-dev' or self.idle_path != 'menu.rbf'
-                or self.splash_path != 'menu.rbf'
+        if (self.profile != 'native-integration-dev'
+                or not isinstance(self.idle_path, str) or not self.idle_path
+                or not isinstance(self.splash_path, str) or not self.splash_path
                 or not isinstance(self.idle_repository, str) or not self.idle_repository.startswith('https://')
                 or not isinstance(self.splash_repository, str) or not self.splash_repository.startswith('https://')
                 or type(self.idle_size) is not int or self.idle_size <= 0

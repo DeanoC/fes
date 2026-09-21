@@ -4,11 +4,13 @@ For persistent Pong settings and best rally, see [core persistence](core-persist
 Proposed multi-slot launch composition (core, firmware, expansions, primary
 and removable media) is in the selected FogCast
 [launch composition](../sources/FogCast/docs/launch-composition.md) design.
-The locked idle RBF is still sealed MiSTer `menu.rbf`; the proposed
-replacement (U-Boot splash, attract ABI, rooms via one tenfoot renderer) is
-[Idle MENU → rooms](idle-menu-rooms.md). Phase 2 execution (splash +
-defined Stop idle, not MENU chrome) is
-[the Phase 2 brief](idle-menu-rooms-phase2.md).
+The locked splash and Stop-idle RBFs are the sealed misteross
+`fes-splash.rbf` (FAT `/menu.rbf` and rootfs
+`/usr/share/mister-runtime/idle.rbf`). Attract ABI and rooms via one
+tenfoot renderer remain later phases; see
+[Idle MENU → rooms](idle-menu-rooms.md). Phase 2 slices 1–4 (named
+slots, defined `LoadIdle`, sealed splash pin) are
+[the Phase 2 brief](idle-menu-rooms-phase2.md); slices 5–6 remain.
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image

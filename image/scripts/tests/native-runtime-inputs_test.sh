@@ -26,17 +26,17 @@ commit = '$runtime_commit'
 mount_path = '/runtime-source'
 
 [splash_rbf]
-repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
-commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
-path = 'menu.rbf'
+repository = 'https://github.com/DeanoC/misteross'
+commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+path = 'sealed/fes-splash.rbf'
 sha256 = '$idle_sha'
 size = $idle_size
 fat_destination = '/menu.rbf'
 
 [idle_rbf]
-repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
-commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
-path = 'menu.rbf'
+repository = 'https://github.com/DeanoC/misteross'
+commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+path = 'sealed/fes-splash.rbf'
 sha256 = '$idle_sha'
 size = $idle_size
 install_path = '/usr/share/mister-runtime/idle.rbf'
@@ -48,6 +48,7 @@ cat >"$fake_bin/wget" <<'WGET'
 #!/bin/sh
 set -eu
 output=
+printf '%s\n' "$*" >> "$WGET_LOG"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -O) output=$2; shift 2 ;;
@@ -58,6 +59,8 @@ test -n "$output"
 cp "$FAKE_IDLE" "$output"
 WGET
 chmod +x "$fake_bin/wget"
+export WGET_LOG=$fixture/wget.log
+: > "$WGET_LOG"
 
 selector=$fogcast/bin/target-image-lock-linux-amd64
 cat >"$selector" <<'SELECTOR'
@@ -132,6 +135,8 @@ export FES_PONG_PACKAGE_DIR="$package"
 export FES_PONG_PACKAGE_SELECTION="$selection"
 
 NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+grep -Fq 'https://raw.githubusercontent.com/DeanoC/misteross/a2af7fdd58d8e5d288892aeda38e8dc226aaed07/sealed/fes-splash.rbf' \
+  "$WGET_LOG" || fail 'fetch did not wget the locked misteross splash path'
 test -f "$cache/idle.rbf"
 test -f "$cache/splash.rbf"
 test "$(stat -c %a "$cache/idle.rbf")" = 444
@@ -246,6 +251,25 @@ if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
   > /dev/null 2>&1; then
   fail 'arbitrary nested runtime path was accepted'
 fi
+python3 - "$repo/build/native-inputs.toml" <<'PY' || fail 'production splash/idle lock schema is wrong'
+import sys, tomllib
+policy = tomllib.loads(open(sys.argv[1], 'rb').read())
+expected = {
+    'repository': 'https://github.com/DeanoC/misteross',
+    'commit': 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07',
+    'path': 'sealed/fes-splash.rbf',
+    'sha256': 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6',
+    'size': 1961783,
+}
+for section in ('splash_rbf', 'idle_rbf'):
+    for key, value in expected.items():
+        if policy[section][key] != value:
+            raise SystemExit(f'{section}.{key}={policy[section][key]!r}')
+if policy['splash_rbf']['fat_destination'] != '/menu.rbf':
+    raise SystemExit('splash fat_destination')
+if policy['idle_rbf']['install_path'] != '/usr/share/mister-runtime/idle.rbf':
+    raise SystemExit('idle install_path')
+PY
 printf '%s\n' 'standalone and monorepo runtime verification/container mounts passed'
 cat > "$fixture/site.mk" <<EOF
 include $repo/buildroot/package/mister-runtime/mister-runtime.mk

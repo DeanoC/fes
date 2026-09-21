@@ -178,17 +178,17 @@ save acceptance is pending. It adds no save states or host synchronization.
 ## Idle launcher display
 
 Defined idle bring-up takes identity, programming profile, Probe, and HPS
-framebuffer from an `IdleRecipe`. Production still uses
-`TransitionalMenuIdle()`: required `MENU` identity, `mister_v1`, and the
-MiSTer HPS framebuffer for a 640×480 32-bit launcher surface scaled to the
-existing 1280×720 HDMI mode. The runtime configures and validates the Linux
-framebuffer and owns the SPI enable sequence only when that recipe declares
-support; a launcher only writes pixels. A framebuffer-less idle succeeds
-without SPI `0x002f`. Startup, Stop and failed-launch idle cleanup all share
-this path. When the recipe enables framebuffer, a configuration/enable
-failure prevents idle publication. This display path is software-tested;
-exact-image hardware acceptance is pending and does not inherit the previous
-Mega Drive acceptance.
+framebuffer from an `IdleRecipe`. Production uses `SplashIdle()`: empty
+core identity, `development-contained-v1`, no Probe, and no HPS
+framebuffer. HDMI bring-up is ADV7513-only (the contained / FixedVideo
+path). `TransitionalMenuIdle()` remains available for historical Menu
+tests (`MENU` probe, `mister_v1`, 640×480 overlay). The runtime configures
+the Linux framebuffer and owns the SPI enable sequence only when a recipe
+declares support. A framebuffer-less idle succeeds without SPI `0x002f`.
+Startup, Stop and failed-launch idle cleanup all share this path. Startup
+does not emit a hardcoded `"MENU"` core name. This display path is
+software-tested; exact-image hardware acceptance is pending and does not
+inherit the previous Mega Drive acceptance.
 
 A protocol-2 `load_composed_core` request activates a statically linked ZX81
 expansion-bus cart through the same lifecycle as `load_core`. It supplies the admitted

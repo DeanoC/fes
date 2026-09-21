@@ -49,25 +49,6 @@ if [ "$native_mode" = package-only ]; then
     ' "$lock"
   }
 
-  require_transitional_menu_identity() {
-    identity_section=$1
-    repository=$(read_package_lock_value "$identity_section" repository)
-    revision=$(read_package_lock_value "$identity_section" commit)
-    source_path=$(read_package_lock_value "$identity_section" path)
-    [ "$repository" = https://github.com/MiSTer-devel/Distribution_MiSTer ] || {
-      printf '%s\n' "verify-native-runtime-inputs: $identity_section repository does not match the fixed source" >&2
-      exit 2
-    }
-    [ "$revision" = f7bde4becb452ca28f604ad9802bbed5c6b58e01 ] || {
-      printf '%s\n' "verify-native-runtime-inputs: $identity_section commit does not match the fixed source" >&2
-      exit 2
-    }
-    [ "$source_path" = menu.rbf ] || {
-      printf '%s\n' "verify-native-runtime-inputs: $identity_section path does not match the fixed source" >&2
-      exit 2
-    }
-  }
-
   verify_locked_rbf_file() {
     verify_section=$1
     verify_file=$2
@@ -111,8 +92,6 @@ if [ "$native_mode" = package-only ]; then
     printf '%s\n' 'verify-native-runtime-inputs: lock format must be 1' >&2
     exit 2
   }
-  require_transitional_menu_identity splash_rbf
-  require_transitional_menu_identity idle_rbf
   splash_destination=$(read_package_lock_value splash_rbf fat_destination)
   [ "$splash_destination" = /menu.rbf ] || {
     printf '%s\n' 'verify-native-runtime-inputs: splash FAT destination must be /menu.rbf' >&2

@@ -4,19 +4,19 @@ format = 1
 mount_path = '/runtime-source'
 
 [splash_rbf]
-repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
-commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
-path = 'menu.rbf'
-sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'
-size = 2452588
+repository = 'https://github.com/DeanoC/misteross'
+commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+path = 'sealed/fes-splash.rbf'
+sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
+size = 1961783
 fat_destination = '/menu.rbf'
 
 [idle_rbf]
-repository = 'https://github.com/MiSTer-devel/Distribution_MiSTer'
-commit = 'f7bde4becb452ca28f604ad9802bbed5c6b58e01'
-path = 'menu.rbf'
-sha256 = '821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934'
-size = 2452588
+repository = 'https://github.com/DeanoC/misteross'
+commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+path = 'sealed/fes-splash.rbf'
+sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
+size = 1961783
 install_path = '/usr/share/mister-runtime/idle.rbf'
 
 [megadrive_rbf]
