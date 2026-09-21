@@ -278,49 +278,60 @@ VideoResult MenuVideoBringup::BringUp(const IdleRecipe& idle,
 	std::uint64_t deadline)
 {
 	VideoResult result;
+	const bool mister_user_io = IdleUsesMisterUserIo(idle);
 	if (clock_.NowMs() >= deadline)
-		return PhaseFailure("core_reset",
+		return PhaseFailure(mister_user_io ? "core_reset" : "hdmi_init",
 			{ErrorCode::io_failed, "deadline exceeded"}, result);
 
-	Error error = spi_.SynchronizeCore(deadline);
-	if (!error.ok()) return PhaseFailure("core_sync", error, result);
-	PhaseSuccess("core_sync", &result, log_);
+	Error error;
+	if (mister_user_io) {
+		error = spi_.SynchronizeCore(deadline);
+		if (!error.ok()) return PhaseFailure("core_sync", error, result);
+		PhaseSuccess("core_sync", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_reset", error, result);
-	PhaseSuccess("core_reset", &result, log_);
+		error = spi_.Exchange(kUserIoTarget, kAssertedStatus, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_reset", error, result);
+		PhaseSuccess("core_reset", &result, log_);
 
-	if (idle.probe_core) {
-		error = core_.Probe(&result.observed_core, deadline);
-		if (!error.ok()) return PhaseFailure("core_probe", error, result);
-		if (!idle.expected_core.empty() &&
-			result.observed_core != idle.expected_core)
-			return PhaseFailure("core_probe",
-				{ErrorCode::io_failed, "unexpected idle core"}, result);
-		PhaseSuccess("core_probe", &result, log_);
+		if (idle.probe_core) {
+			error = core_.Probe(&result.observed_core, deadline);
+			if (!error.ok()) return PhaseFailure("core_probe", error, result);
+			if (!idle.expected_core.empty() &&
+				result.observed_core != idle.expected_core)
+				return PhaseFailure("core_probe",
+					{ErrorCode::io_failed, "unexpected idle core"}, result);
+			PhaseSuccess("core_probe", &result, log_);
+		}
 	}
 
 	error = InitializeAdv(i2c_, recipe_, deadline, &result);
 	if (!error.ok()) return PhaseFailure("hdmi_init", error, result);
 	PhaseSuccess("hdmi_init", &result, log_);
 
-	error = ApplyMode(spi_, i2c_, recipe_, deadline);
+	if (mister_user_io)
+		error = ApplyMode(spi_, i2c_, recipe_, deadline);
+	else
+		error = ApplyFixedMode(i2c_, recipe_, deadline);
 	if (!error.ok()) return PhaseFailure("video_timing", error, result);
 	PhaseSuccess("video_timing", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_release", error, result);
-	PhaseSuccess("core_release", &result, log_);
+	if (mister_user_io) {
+		error = spi_.Exchange(kUserIoTarget, kReleasedStatus, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_release", error, result);
+		PhaseSuccess("core_release", &result, log_);
+	}
 
 	error = WakeAdv(i2c_, deadline);
 	if (!error.ok()) return PhaseFailure("hdmi_wake", error, result);
 	PhaseSuccess("hdmi_wake", &result, log_);
 
-	error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
-	if (!error.ok()) return PhaseFailure("core_input", error, result);
-	PhaseSuccess("core_input", &result, log_);
+	if (mister_user_io) {
+		error = spi_.Exchange(kUserIoTarget, kNeutralButtons, nullptr, deadline);
+		if (!error.ok()) return PhaseFailure("core_input", error, result);
+		PhaseSuccess("core_input", &result, log_);
+	}
 
-	if (idle.enable_hps_framebuffer) {
+	if (mister_user_io && idle.enable_hps_framebuffer) {
 		FramebufferMode mode;
 		error = framebuffer_.Prepare(deadline, &mode);
 		if (error.ok()) error = ValidateMenuFramebuffer(mode);

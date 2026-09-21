@@ -1909,6 +1909,9 @@ void TestDefinedIdleCanUseNonMisterProgrammingProfile()
 	assert(idle.error.ok());
 	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
 		mister::native::ProgrammingProfile::development_contained_v1}));
+	assert(fixture.idle_video.last_idle.programming_profile ==
+		mister::native::ProgrammingProfile::development_contained_v1);
+	assert(!mister::native::IdleUsesMisterUserIo(fixture.idle_video.last_idle));
 }
 
 void TestPlayPackageCleanupLoadsDefinedIdle()

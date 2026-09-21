@@ -260,6 +260,7 @@ open locked idle RBF
   -> read-modify-write ADV7513 main power-down to present a clean link loss
   -> program FPGA with the idle recipe's ProgrammingProfile
   -> idle video bring-up parameterized by that recipe:
+       mister_v1 (transitional Menu default):
        -> synchronize and assert software reset over user-I/O SPI
        -> probe core identity only when the recipe requests Probe
        -> require the recipe's expected identity only when that string is
@@ -273,6 +274,9 @@ open locked idle RBF
        -> configure and enable the Linux HPS framebuffer over SPI only when
           the recipe declares framebuffer support
        -> require ADV7513 HPD and monitor-sense status
+       contained / non-mister idle:
+       -> ADV7513 initialization, I2C-only 720p mode, wake, and link verify
+          with no user-I/O SPI (no Probe, timing words, buttons, or 0x002f)
   -> publish idle
 ```
 
@@ -281,10 +285,12 @@ identity, `ProgrammingProfile`, Probe, and HPS framebuffer are recipe
 parameters, not hardcoded `BringUp("MENU")` plus required SPI `0x002f`.
 Production construction still uses `TransitionalMenuIdle()` (`mister_v1`,
 required `MENU` probe, HPS framebuffer enabled) so today's sealed Menu idle
-keeps working until a splash bitstream exists. A later splash may skip Probe,
-omit HPS framebuffer, and select a different programming profile; idle
-success does not require framebuffer enable. Do not infer identity from the
-idle RBF path or invent splash core-ID strings here.
+keeps working until a splash bitstream exists. `mister_v1` keeps the Menu
+user-I/O path. A contained splash selects `development-contained-v1` and
+uses ADV-only HDMI bring-up so missing Probe/user-I/O cannot stall idle
+into `reboot_required`. A later splash may also skip Probe and HPS
+framebuffer on `mister_v1`. Do not infer identity from the idle RBF path
+or invent splash core-ID strings here.
 
 The FES parent design lock
 [Idle MENU → rooms](../../docs/idle-menu-rooms.md) still names U-Boot splash,

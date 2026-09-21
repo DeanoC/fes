@@ -909,6 +909,64 @@ void TestIdleWithoutFramebufferSkipsHpsEnable()
 	++scenarios;
 }
 
+mister::native::IdleRecipe ContainedIdleRecipe()
+{
+	mister::native::IdleRecipe recipe;
+	recipe.programming_profile =
+		mister::native::ProgrammingProfile::development_contained_v1;
+	recipe.probe_core = false;
+	recipe.enable_hps_framebuffer = false;
+	return recipe;
+}
+
+void TestContainedIdleUsesAdvOnlyPathWithoutUserIo()
+{
+	Fixture fixture;
+	fixture.spi.sync_error = {mister::ErrorCode::io_failed,
+		"contained idle must not synchronize MiSTer user-I/O"};
+	fixture.spi.fail_call_index = 0;
+	const auto result = fixture.video.BringUp(ContainedIdleRecipe(), kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core.empty());
+	assert(fixture.spi.calls.empty());
+	assert(fixture.framebuffer.calls == 0);
+	assert(CountEvent(fixture.events, "spi:core_sync") == 0);
+	assert(CountEvent(fixture.events, "spi:probe") == 0);
+	assert(CountEvent(fixture.events, "spi:timing") == 0);
+	assert(CountEvent(fixture.events, "spi:buttons") == 0);
+	assert(CountEvent(fixture.events, "spi:framebuffer") == 0);
+	assert(CountEvent(fixture.events, "i2c:select:/dev/i2c-1:0x39:0x41") == 1);
+	assert(CountEvent(fixture.events, "i2c:read:0x42") == 1);
+	++scenarios;
+}
+
+void TestContainedIdleIgnoresFramebufferAndProbeFlags()
+{
+	mister::native::IdleRecipe recipe = ContainedIdleRecipe();
+	recipe.probe_core = true;
+	recipe.expected_core = "MENU";
+	recipe.enable_hps_framebuffer = true;
+	Fixture fixture;
+	fixture.spi.identity = "OTHER";
+	fixture.spi.fail_call_index = 0;
+	const auto result = fixture.video.BringUp(recipe, kDeadline);
+	assert(result.error.ok());
+	assert(result.observed_core.empty());
+	assert(fixture.spi.calls.empty());
+	assert(fixture.framebuffer.calls == 0);
+	++scenarios;
+}
+
+void TestContainedIdleExpiredDeadlineMakesNoSpiCall()
+{
+	Fixture fixture({100});
+	const auto result = fixture.video.BringUp(ContainedIdleRecipe(), kDeadline);
+	ExpectFailure(fixture, result, "hdmi_init", "deadline exceeded");
+	assert(fixture.spi.calls.empty());
+	assert(fixture.events.empty());
+	++scenarios;
+}
+
 void TestNoAdvResponderStopsAtSelection()
 {
 	Fixture fixture;
@@ -1390,6 +1448,9 @@ int main()
 	TestIdleProbeWithoutRequiredIdentityDoesNotFail();
 	TestIdleWithoutProbeSkipsMenuIdentityCheck();
 	TestIdleWithoutFramebufferSkipsHpsEnable();
+	TestContainedIdleUsesAdvOnlyPathWithoutUserIo();
+	TestContainedIdleIgnoresFramebufferAndProbeFlags();
+	TestContainedIdleExpiredDeadlineMakesNoSpiCall();
 	TestNoAdvResponderStopsAtSelection();
 	TestEveryInitializationWriteFailureStopsAtThatExactWrite();
 	TestPostInitializationPowerReadFailureStopsBeforeTiming();
