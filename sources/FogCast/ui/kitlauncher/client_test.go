@@ -68,6 +68,31 @@ func TestLoadConfigAcceptsOptionalInputProfile(t *testing.T) {
 	}
 }
 
+func TestLoadConfigAcceptsHPSFramebuffer(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "launcher.json")
+	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","hps_framebuffer":true}`
+	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.HPSFramebuffer {
+		t.Fatal("hps_framebuffer was not loaded")
+	}
+	if err := SaveConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.HPSFramebuffer {
+		t.Fatal("hps_framebuffer did not round-trip")
+	}
+}
+
 func TestLoadConfigAcceptsOptionalShelf(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "launcher.json")
 	body := `{"api":"http://127.0.0.1:8789","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","shelf":"megadrive"}`

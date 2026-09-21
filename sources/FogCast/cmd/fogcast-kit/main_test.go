@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -1117,5 +1118,40 @@ func TestKitMetaLineUsesASCIISeparator(t *testing.T) {
 	}
 	if kitMetaLine("") != "" {
 		t.Fatal("empty")
+	}
+}
+
+func TestOpenTemporaryLinuxFBLeavesSplashAlone(t *testing.T) {
+	opened := false
+	splash := kitlauncher.Model{
+		Session:   kitlauncher.Session{State: "idle"},
+		WheelOpen: true,
+		Message:   kitlauncher.OfflineMessage,
+	}
+	dev, err := openTemporaryLinuxFB(splash, "/dev/fb0", func(string) (*gfx.LinuxFB, error) {
+		opened = true
+		return nil, nil
+	})
+	if opened || dev != nil || err != nil {
+		t.Fatalf("splash dev=%v err=%v opened=%v", dev, err, opened)
+	}
+	active := splash
+	active.Session.HPSFramebuffer = true
+	active.Session.State = "active"
+	dev, err = openTemporaryLinuxFB(active, "/dev/fb0", func(string) (*gfx.LinuxFB, error) {
+		opened = true
+		return nil, nil
+	})
+	if opened || dev != nil || err != nil {
+		t.Fatalf("active dev=%v err=%v opened=%v", dev, err, opened)
+	}
+	shelf := splash
+	shelf.Session.HPSFramebuffer = true
+	dev, err = openTemporaryLinuxFB(shelf, "/dev/fb0", func(string) (*gfx.LinuxFB, error) {
+		opened = true
+		return nil, errors.New("framebuffer unavailable")
+	})
+	if !opened || dev != nil || err == nil || !strings.Contains(err.Error(), "framebuffer unavailable") {
+		t.Fatalf("overlay dev=%v err=%v opened=%v", dev, err, opened)
 	}
 }

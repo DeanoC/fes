@@ -67,9 +67,12 @@ type SessionResult struct {
 	DevelopmentSessionState string
 	CorePackage             *SessionCorePackage
 	CoreKeyboard            bool
-	ErrorCode               string
-	ErrorMessage            string
-	FlightID                string
+	// HPSFramebuffer is set when the session JSON includes hps_framebuffer.
+	// Nil means the host did not say whether this idle enables SPI 0x002f.
+	HPSFramebuffer *bool
+	ErrorCode      string
+	ErrorMessage   string
+	FlightID       string
 }
 
 // ReadResponseBody reads one bounded HTTP response body. It rejects a body
@@ -158,6 +161,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		DevelopmentActive       *bool               `json:"development_active"`
 		DevelopmentSessionState string              `json:"development_session_state"`
 		CorePackage             *SessionCorePackage `json:"core_package"`
+		HPSFramebuffer          *bool               `json:"hps_framebuffer"`
 		Error                   *struct {
 			Code    string `json:"code"`
 			Message string `json:"message"`
@@ -180,6 +184,7 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	result.Input = wire.Input
 	result.DevelopmentSessionState = strings.TrimSpace(wire.DevelopmentSessionState)
 	result.CorePackage = wire.CorePackage
+	result.HPSFramebuffer = wire.HPSFramebuffer
 	switch {
 	case wire.DevelopmentActive != nil:
 		result.Development = *wire.DevelopmentActive

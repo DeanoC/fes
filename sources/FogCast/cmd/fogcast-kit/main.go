@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -183,11 +184,16 @@ func run() error {
 	} else if id := theme.NormalizePack(th.Name); id != "" && strings.TrimSpace(*themeSpec) == "" {
 		c.Theme = id
 	}
-	d, err := gfx.OpenLinuxFB(c.Framebuffer)
-	if err != nil {
-		return err
-	}
-	defer d.Close()
+	// Open linuxfb only when an idle that still enables the HPS framebuffer
+	// actually paints. Splash idle (no 0x002f) must not fail the service or
+	// blank FPGA splash pixels when /dev/fb0 is missing.
+	var d *gfx.LinuxFB
+	defer func() {
+		if d != nil {
+			d.Close()
+		}
+	}()
+	fbNoted := false
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	client := kitlauncher.NewClient(c)
@@ -216,6 +222,20 @@ func run() error {
 	audioSource := audioreact.Combined{Measured: measured, Idle: audioreact.IdlePulse{Enabled: audioEnabled}}
 	wasConnected := false
 	present := func(m kitlauncher.Model) {
+		if !kitlauncher.ShouldPaintHDMI(m) {
+			return
+		}
+		if d == nil {
+			opened, err := openTemporaryLinuxFB(m, c.Framebuffer, gfx.OpenLinuxFB)
+			if opened == nil {
+				if err != nil && !fbNoted {
+					fbNoted = true
+					log.Printf("kit hdmi: HPS framebuffer unavailable: %v; leaving splash visible", err)
+				}
+				return
+			}
+			d = opened
+		}
 		if m.Connected && !wasConnected {
 			covers.ClearFailed()
 			stills.ClearFailed()
@@ -384,6 +404,19 @@ func run() error {
 		return err
 	}
 	return kitlauncher.Run(ctx, client, present, func() (kitlauncher.Pad, error) { return controller.OpenWith(remap) })
+}
+
+// openTemporaryLinuxFB opens the HPS framebuffer for a temporary overlay.
+// Splash idle and an active game return a nil device and a nil error so the
+// caller leaves FPGA pixels alone. An open error is reported and is not fatal.
+func openTemporaryLinuxFB(m kitlauncher.Model, path string, open func(string) (*gfx.LinuxFB, error)) (*gfx.LinuxFB, error) {
+	if !kitlauncher.ShouldPaintHDMI(m) {
+		return nil, nil
+	}
+	if open == nil {
+		return nil, fmt.Errorf("linuxfb opener unavailable")
+	}
+	return open(path)
 }
 
 func loadKitTheme(flagSpec, configSpec string) (theme.Theme, error) {

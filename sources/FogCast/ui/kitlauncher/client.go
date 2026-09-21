@@ -26,7 +26,11 @@ type Config struct {
 	Theme        string `json:"theme,omitempty"`
 	Shelf        string `json:"shelf,omitempty"`
 	AudioChrome  bool   `json:"audio_chrome,omitempty"`
-	path         string `json:"-"`
+	// HPSFramebuffer is the kit-local idle contract until a session
+	// observation overrides it. False matches SplashIdle: no SPI 0x002f,
+	// so the kit must not paint linuxfb over FPGA splash pixels.
+	HPSFramebuffer bool   `json:"hps_framebuffer,omitempty"`
+	path           string `json:"-"`
 }
 
 func LoadConfig(path string) (Config, error) {
@@ -60,23 +64,25 @@ func SaveConfig(c Config) error {
 		return nil
 	}
 	out := struct {
-		API          string `json:"api"`
-		Token        string `json:"token"`
-		TargetID     string `json:"target_id"`
-		Framebuffer  string `json:"framebuffer,omitempty"`
-		InputProfile string `json:"input_profile,omitempty"`
-		Theme        string `json:"theme,omitempty"`
-		Shelf        string `json:"shelf,omitempty"`
-		AudioChrome  bool   `json:"audio_chrome,omitempty"`
+		API            string `json:"api"`
+		Token          string `json:"token"`
+		TargetID       string `json:"target_id"`
+		Framebuffer    string `json:"framebuffer,omitempty"`
+		InputProfile   string `json:"input_profile,omitempty"`
+		Theme          string `json:"theme,omitempty"`
+		Shelf          string `json:"shelf,omitempty"`
+		AudioChrome    bool   `json:"audio_chrome,omitempty"`
+		HPSFramebuffer bool   `json:"hps_framebuffer,omitempty"`
 	}{
-		API:          c.API,
-		Token:        c.Token,
-		TargetID:     c.TargetID,
-		Framebuffer:  c.Framebuffer,
-		InputProfile: c.InputProfile,
-		Theme:        c.Theme,
-		Shelf:        normalizeShelf(c.Shelf),
-		AudioChrome:  c.AudioChrome,
+		API:            c.API,
+		Token:          c.Token,
+		TargetID:       c.TargetID,
+		Framebuffer:    c.Framebuffer,
+		InputProfile:   c.InputProfile,
+		Theme:          c.Theme,
+		Shelf:          normalizeShelf(c.Shelf),
+		AudioChrome:    c.AudioChrome,
+		HPSFramebuffer: c.HPSFramebuffer,
 	}
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
@@ -147,6 +153,12 @@ type Session struct {
 		SessionID string `json:"session_id"`
 	} `json:"input"`
 	CorePackage *CorePackageSession `json:"core_package,omitempty"`
+	// HPSFramebuffer is true when this idle still enables the HPS
+	// framebuffer (SPI 0x002f). Splash idle leaves it false.
+	HPSFramebuffer bool `json:"hps_framebuffer,omitempty"`
+	// HPSFramebufferKnown is true when this observation included the field.
+	// An omitted field keeps the previous kit value.
+	HPSFramebufferKnown bool `json:"-"`
 }
 
 type CorePackageSession struct {
@@ -201,6 +213,10 @@ func (c *Client) Session(ctx context.Context) (Session, error) {
 
 func adaptSession(result hostclient.SessionResult) Session {
 	session := Session{State: result.State, GameID: result.GameID, Execution: result.Execution}
+	if result.HPSFramebuffer != nil {
+		session.HPSFramebuffer = *result.HPSFramebuffer
+		session.HPSFramebufferKnown = true
+	}
 	if result.Input != nil {
 		session.Input.State = result.Input.State
 		session.Input.Ready = result.Input.Ready
@@ -225,4 +241,14 @@ func adaptSession(result hostclient.SessionResult) Session {
 	}
 	session.CorePackage = packageSession
 	return session
+}
+
+// applyObservedSession keeps the kit's HPS framebuffer bit when this
+// observation did not say. A present field, including explicit false,
+// replaces it.
+func applyObservedSession(current, observed Session) Session {
+	if !observed.HPSFramebufferKnown {
+		observed.HPSFramebuffer = current.HPSFramebuffer
+	}
+	return observed
 }

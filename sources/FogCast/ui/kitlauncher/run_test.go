@@ -209,7 +209,7 @@ func TestUnavailableHostStillRendersAndExits(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	draws := 0
-	err := Run(ctx, NewClient(Config{API: server.URL}), func(Model) { draws++ }, func() (Pad, error) { return nil, errors.New("no pad") })
+	err := Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(Model) { draws++ }, func() (Pad, error) { return nil, errors.New("no pad") })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +409,7 @@ func TestRunKeepsCatalogWhenCoreStatusUnavailable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	var observed atomic.Bool
-	err := Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+	err := Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(m Model) {
 		if m.Connected && len(m.Catalog) == 1 && m.CoreStatusUnavailable {
 			observed.Store(true)
 			cancel()
@@ -426,7 +426,7 @@ func TestRunKeepsCatalogWhenCoreStatusUnavailable(t *testing.T) {
 func writeKitConfig(t *testing.T, dir, api string) Config {
 	t.Helper()
 	p := filepath.Join(dir, "launcher.json")
-	body := `{"api":"` + api + `","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a"}`
+	body := `{"api":"` + api + `","token":"12345678901234567890123456789012","target_id":"73dc9f5f-1a12-4a95-a820-a9b4e600769a","hps_framebuffer":true}`
 	if err := os.WriteFile(p, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +556,7 @@ func TestLaunchPresentsLoadingBeforeDispatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	ready := false
-	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+	_ = Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(m Model) {
 		if m.Busy && m.Message == "Loading game" {
 			loading.Store(true)
 		}
@@ -629,7 +629,7 @@ func TestRunEntersAttractFromHostPlaylist(t *testing.T) {
 	defer cancel()
 	var once atomic.Bool
 	var title atomic.Value
-	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+	_ = Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(m Model) {
 		if !m.AttractActive {
 			return
 		}
@@ -654,7 +654,7 @@ func TestRunDismissesAttractOnPadAndKeepsFocus(t *testing.T) {
 	var armed, dismissed atomic.Bool
 	var focusBefore, focusAfter atomic.Int64
 	focusBefore.Store(-1)
-	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+	_ = Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(m Model) {
 		if m.AttractActive && !armed.Load() {
 			focusBefore.Store(int64(m.Focus))
 			armed.Store(true)
@@ -729,7 +729,7 @@ func TestRunFetchesPresentationWhileDetailOpen(t *testing.T) {
 	defer cancel()
 	var ready atomic.Bool
 	var gotStudio atomic.Bool
-	_ = Run(ctx, NewClient(Config{API: server.URL}), func(m Model) {
+	_ = Run(ctx, NewClient(Config{API: server.URL, HPSFramebuffer: true}), func(m Model) {
 		if len(m.Games) > 0 {
 			ready.Store(true)
 		}
