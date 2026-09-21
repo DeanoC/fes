@@ -188,7 +188,7 @@ class SplashProducerTests(unittest.TestCase):
             subprocess.check_output(["git", "-C", str(repo), "config", "user.name", "Fixture"])
             subprocess.check_output(["git", "-C", str(repo), "config", "user.email", "fixture@example.invalid"])
             subprocess.check_output(
-                ["git", "-C", str(repo), "remote", "add", "origin", "https://github.com/DeanoC/fes.git"]
+                ["git", "-C", str(repo), "remote", "add", "origin", "https://example.invalid/fes.git"]
             )
             for relative in splash.PINNED_INPUTS:
                 path = module / relative
@@ -201,7 +201,7 @@ class SplashProducerTests(unittest.TestCase):
             repository, revision = board._require_clean_source(
                 module, pinned_inputs=splash.PINNED_INPUTS, identity_version=splash.IDENTITY_VERSION
             )
-            self.assertEqual(repository, "https://github.com/DeanoC/fes.git")
+            self.assertEqual(repository, "https://example.invalid/fes.git")
             self.assertEqual(
                 revision,
                 subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
