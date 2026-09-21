@@ -4,6 +4,7 @@ import subprocess
 import json
 import os
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -200,3 +201,23 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn(b"repository = ", manifest)
         self.assertIn(b"revision = \"" + (b"a" * 40) + b"\"", manifest)
         self.assertNotIn(b"recipe = ", manifest)
+
+    def test_socket_manifest_exposes_bus_not_a_cart_type(self) -> None:
+        record = (
+            b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
+            b'"revision":"' + (b"a" * 40) + b'","recipe":"scripts/build_fes_zx81_oss.py",'
+            b'"recipe_sha256":"' + (b"b" * 64) + b'","abi_definition":"x",'
+            b'"abi_definition_sha256":"' + (b"c" * 64) + b'","dependencies":{},'
+            b'"tools":{},"parameters":{"expansion_socket":"zx81-bus-v1"}}'
+        )
+        manifest = _manifest(
+            record,
+            {"build_id": "d" * 32, "rbf": {"size": 16, "sha256": "e" * 64}},
+            "https://github.com/DeanoC/misteross.git", "a" * 40,
+            {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
+        )
+        fields = tomllib.loads(manifest.decode())
+        self.assertEqual(fields["core"]["version"], "1.2.0")
+        interfaces = {item["id"] for item in fields["interfaces"]}
+        self.assertIn("fes.expansion.zx81-bus", interfaces)
+        self.assertNotIn("fes.expansion.zx81-ram", interfaces)

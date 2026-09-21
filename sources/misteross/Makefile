@@ -61,7 +61,7 @@ help:
 		"  build-fes-demo-audio  Seal gamepad/stereo-tone application with HIP nextpnr" \
 		"  sim-fes-pong  Test the FES GP mailbox and fixed 720p Pong shell" \
 		"  sim-fes-zx81  Test the FES simple-computer GP mailbox, ZX81 machine and 720p raster" \
-		"  sim-fes-zx81-expansion  Test vacant 1 KiB and 16 KiB pack RAMTOP on the Z80-like edge" \
+		"  sim-fes-zx81-expansion  Test vacant 1 KiB and validation-cart RAMTOP on the Z80-like edge" \
 		"  sim-fes-coleco  Test the FES application ColecoVision slice and native controller ports" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-unit[-oss]  Run focused Coleco unit/CPU simulations" \
@@ -214,7 +214,7 @@ sim-fes-zx81-bus:
 		cores/fes-zx81/sim/expansion_bus_harness.v \
 		cores/fes-zx81/expansions/$$cart.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
-		cores/fes-zx81/rtl/zx81_ram_socket.v cores/fes-zx81/rtl/zx81_dpram.v \
+		cores/fes-zx81/rtl/zx81_expansion_socket.v cores/fes-zx81/rtl/zx81_dpram.v \
 		cores/fes-zx81/rtl/zx81_ram_pack.v \
 		"$(CURDIR)/cores/fes-zx81/sim/bus_tb.cpp" || exit $$?; \
 		build/sim/fes-zx81-bus-$$name/Vexpansion_bus_harness $$name || exit $$?; \
@@ -222,27 +222,27 @@ sim-fes-zx81-bus:
 
 sim-fes-zx81-expansion: sim-fes-zx81-bus
 	$(require_local_sim)
-	@for pack in 0 1; do \
-		mkdir -p build/sim/fes-zx81-expansion-$$pack; \
+	@for cart in 0 1; do \
+		mkdir -p build/sim/fes-zx81-expansion-$$cart; \
 		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
-		-GPACK_PRESENT=$$pack -DTV80_REFRESH=1 \
+		-GCART_PRESENT=$$cart -DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_SIMILARNAME) $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-zx81/rtl -Icores/fes-zx81/rtl/tv80 \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$pack" \
+		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$cart" \
 		cores/fes-zx81/sim/expansion_machine.v \
 		cores/fes-zx81/expansions/ram16k.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
 		cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
-		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_ram_socket.v \
+		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_expansion_socket.v \
 		cores/fes-zx81/rtl/zx81_ram_pack.v cores/fes-zx81/rtl/tv80/tv80_core.v \
 		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
 		cores/fes-zx81/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-zx81/sim/expansion_tb.cpp" || exit $$?; \
-		if [ $$pack = 0 ]; then ramtop=0x4400; else ramtop=0x8000; fi; \
-		build/sim/fes-zx81-expansion-$$pack/Vexpansion_machine $$ramtop || exit $$?; \
+		if [ $$cart = 0 ]; then ramtop=0x4400; else ramtop=0x8000; fi; \
+		build/sim/fes-zx81-expansion-$$cart/Vexpansion_machine $$ramtop || exit $$?; \
 	done
 
 sim-fes-zx81: sim-fes-zx81-expansion

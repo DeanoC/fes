@@ -433,8 +433,8 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
 - `904_zx81_socket`, empty ZX81 expansion socket (`0xD904`) with write-data
   and I/O/memory strobes plus a taller reserved rect `25 1 27 32`. Run
   `make sim EXP=904_zx81_socket` and `make oss EXP=904_zx81_socket`.
-- `905_zx81_ram16`, Sinclair 16K pack window `4000–7FFF` (sixteen slot
-  M10Ks). Synth-only: `make oss EXP=905_zx81_ram16`. Verilator:
+- `905_zx81_ram16`, Sinclair 16K validation-cart window `4000–7FFF` (sixteen
+  slot M10Ks). Synth-only: `make oss EXP=905_zx81_ram16`. Verilator:
   `make sim EXP=905_zx81_ram16`.
 - `906_zx81_zonx`, Bi-Pak Zon X-81 AY register file with `(port & 008F)`
   select/data decode. Synth-only: `make oss EXP=906_zx81_zonx`. Verilator:
@@ -459,7 +459,7 @@ rectangle's CRAM from the pass-2 bitstream onto the pass-1 shell.
 | Cart B | `903_wide_cart` | Four slot M10Ks and a 2-bit decode on `plug_addr[11:10]`. Same plug names. |
 | Map | `experiments/901_plugged_base/link.toml` | `overlay_mode = "cram_rect"`, tile columns 21–33, `require_slot_only`. |
 | ZX81 socket | `904_zx81_socket` | Empty ZX81 plug. Signature `0xD904`. Adds `plug_wdata` (column 23) and mem/I/O strobes (column 29). Reserved rect `25 1 27 32`. |
-| 16K pack | `905_zx81_ram16` | Sinclair `4000–7FFF` window, sixteen column-26 M10Ks. |
+| 16K validation cart | `905_zx81_ram16` | Sinclair `4000–7FFF` window, sixteen column-26 M10Ks. |
 | Zon X-81 | `906_zx81_zonx` | AY register file, `(port & 008F)` select `xxDF`/`xxCF` and data `xx0F`. |
 | QS CHRS | `907_zx81_qs_chrs` | 1 KiB at `8400–87FF`, one slot M10K. |
 
@@ -583,8 +583,8 @@ the scoped `toolchains/zx81-expansion.lock` HIP slot, routes with `--router gpu`
 and rejects a CPU-reference fallback. Provision the local HIP tools with
 `make toolchain-fes-zx81` (`make toolchain` stays GPU-router OFF for generic OSS
 experiments). Pass `CACHE_ROOT=/absolute/cache` for a shared compiler slot;
-omit it for the local HIP install. It synthesizes the standard socketed board
-shell with Verilog T80pa/TV80 and M10K allowed, and seals
+omit it for the local HIP install. It synthesizes the standard board shell with
+the registered expansion bus, Verilog T80pa/TV80 and M10K allowed, and seals
 `build/fes-zx81-oss/` when the 52 MHz
 system clock and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses
 the 520 MHz PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is

@@ -2493,7 +2493,7 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 		std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
 		ReplaceAll(&manifest, "fes.simple-game", "fes.simple-computer");
 		ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard");
-		manifest += "\n[[interfaces]]\nid = \"fes.expansion.zx81-ram\"\nmajor = 1\nminor = 0\nrequired = false\n";
+		manifest += "\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 1\nminor = 0\nrequired = false\n";
 		manifest += "\n[[interfaces]]\nid = \"fes.media.blob\"\nmajor = 1\nminor = 0\nrequired = true\n";
 		package.File("manifest.toml", manifest);
 		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
@@ -2506,9 +2506,9 @@ void TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation()
 		const std::string cart(40408, 'c'), linked(40408, 'l');
 		expansion.File("cart.rbf", cart);
 		manifest = "{\"cart_sha256\":\"" + hash(cart) + "\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
-			"\"map\":\"fes.zx81-ram.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
+			"\"map\":\"fes.zx81-bus.socket/1\",\"recipe_sha256\":\"" + std::string(64,'c') + "\",\"revision\":\"" + std::string(40,'d') +
 			"\",\"shell_build_id\":\"" + base.descriptor.build.id + "\",\"shell_package_id\":\"" + base.package_id +
-			"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.expansion.zx81-ram\",\"slot_major\":1,\"slot_minor\":0}";
+			"\",\"shell_sha256\":\"" + base.descriptor.payload.sha256 + "\",\"slot\":\"fes.expansion.zx81-bus\",\"slot_major\":1,\"slot_minor\":0}";
 		expansion.File("manifest.json", manifest);
 		mister::CoreCompositionRequest request;
 		request.expansion_path = expansion.path;

@@ -789,7 +789,7 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		}
 		socket := false
 		for _, i := range active.Descriptor.Interfaces {
-			if i.ID == "fes.expansion.zx81-ram" && i.Major == 1 && i.Minor == 0 && !i.Required {
+			if i.ID == "fes.expansion.zx81-bus" && i.Major == 1 && i.Minor == 0 && !i.Required {
 				socket = true
 			}
 		}

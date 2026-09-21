@@ -68,7 +68,7 @@ RTL_SOURCES = (
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-zx81/rtl/fes_computer_gp.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
-    "cores/fes-zx81/rtl/zx81_ram_socket.v",
+    "cores/fes-zx81/rtl/zx81_expansion_socket.v",
     "cores/fes-zx81/rtl/zx81_bus_pack.vh",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
     "cores/fes-zx81/rtl/zx81_hdmi_i2s.v",
@@ -450,9 +450,9 @@ def _manifest(
         },
     }
     if record_fields["parameters"].get("expansion_socket") == "zx81-bus-v1":
-        fields["core"]["version"] = "1.1.0"
-        fields["core"]["description"] = "ZX81 with 1 KiB RAM and optional Z80-like expansion edge"
-        fields["interfaces"].append({"id": "fes.expansion.zx81-ram", "major": 1, "minor": 0, "required": False})
+        fields["core"]["version"] = "1.2.0"
+        fields["core"]["description"] = "ZX81 with a registered Z80-like expansion bus"
+        fields["interfaces"].append({"id": "fes.expansion.zx81-bus", "major": 1, "minor": 0, "required": False})
     return encode_manifest(fields)
 
 

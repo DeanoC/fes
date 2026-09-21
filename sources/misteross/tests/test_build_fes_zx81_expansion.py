@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import build_fes_zx81_oss as producer
-from scripts import build_zx81_ram_expansion as cart_producer
+from scripts import build_zx81_bus_validation_cart as cart_producer
 from scripts import zx81_expansion as expansion
 
 
@@ -148,7 +148,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
                            ("routed.json", b"{}"), ("socket.qsf", b"pins")):
             (self.shell / name).write_bytes(data)
         package = SimpleNamespace(manifest_bytes=b"manifest", payload_bytes=b"shell",
-            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-ram",
+            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-bus",
             "major": 1, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
         tools = {name: SimpleNamespace(path=Path("/tools") / name, identity={"name": name})
                  for name in ("yosys", "nextpnr-mistral")}

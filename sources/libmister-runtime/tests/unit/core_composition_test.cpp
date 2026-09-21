@@ -22,13 +22,13 @@ struct Fixture {
 		assert(mkdir((root+"/expansion").c_str(),0700)==0);
 		assert(mkdir((root+"/composition").c_str(),0700)==0);
 		base.package_id=std::string(64,'a');base.descriptor.abi={"fes.simple-computer",1,0};
-		base.descriptor.interfaces={{"fes.expansion.zx81-ram",1,0,false}};
+		base.descriptor.interfaces={{"fes.expansion.zx81-bus",1,0,false}};
 		base.descriptor.target.device="5CSEBA6U23I7";
 		base.descriptor.build.id=std::string(32,'b');base.descriptor.payload.sha256=Hash("base");
 		manifest="{\"cart_sha256\":\""+Hash(cart)+"\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
-			"\"map\":\"fes.zx81-ram.socket/1\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
+			"\"map\":\"fes.zx81-bus.socket/1\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
 			"\",\"shell_build_id\":\""+base.descriptor.build.id+"\",\"shell_package_id\":\""+base.package_id+
-			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\"fes.expansion.zx81-ram\",\"slot_major\":1,\"slot_minor\":0}";
+			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\"fes.expansion.zx81-bus\",\"slot_major\":1,\"slot_minor\":0}";
 		request.expansion_path=root+"/expansion";request.payload_path=root+"/composition/linked.rbf";
 		request.composition.package_id=base.package_id;request.composition.shell_sha256=base.descriptor.payload.sha256;
 		request.composition.payload_sha256=Hash(linked);request.composition.payload_size=linked.size();
@@ -96,10 +96,10 @@ void RejectBytesAndPaths() {
 }
 void SharedGoIdentityVector() {
  // Produced independently by misteross/expansion TestAssetRoundTripAndComposition.
- const std::string manifest = R"VECTOR({"cart_sha256":"ebf60623524409a830b87c6aa99f50b61e648bd268d74b63a5163eff417f9def","cart_size":1816338,"device":"5CSEBA6U23I7","format":1,"map":"fes.zx81-ram.socket/1","recipe_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","revision":"dddddddddddddddddddddddddddddddddddddddd","shell_build_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","shell_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","shell_sha256":"f38894e270e9e2771e157ebdf8767e92ad58d63de0764e7b03afdef0842ec5a0","slot":"fes.expansion.zx81-ram","slot_major":1,"slot_minor":0})VECTOR";
- assert(Hash(std::string("fes-expansion-v1\0",17)+manifest)=="b64e946ac7c9c19ca9b87a7cddd4039e0af502b947c15778dbc549099e9b19ef");
+ const std::string manifest = R"VECTOR({"cart_sha256":"ebf60623524409a830b87c6aa99f50b61e648bd268d74b63a5163eff417f9def","cart_size":1816338,"device":"5CSEBA6U23I7","format":1,"map":"fes.zx81-bus.socket/1","recipe_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","revision":"dddddddddddddddddddddddddddddddddddddddd","shell_build_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","shell_package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","shell_sha256":"f38894e270e9e2771e157ebdf8767e92ad58d63de0764e7b03afdef0842ec5a0","slot":"fes.expansion.zx81-bus","slot_major":1,"slot_minor":0})VECTOR";
+ assert(Hash(std::string("fes-expansion-v1\0",17)+manifest)=="f0d17b28a77c63ee338391caf258c854007e6e5854997cd8aeeb1ffc7a59b808");
  const std::string identity=std::string("fes-composition-v1\0",19)+std::string(64,'a')+
-  std::string(1,'\0')+"b64e946ac7c9c19ca9b87a7cddd4039e0af502b947c15778dbc549099e9b19ef"+std::string(1,'\0')+"8be0d02e30165a365e563e52c8d6adea541f68fd1941c8c98f88f480dedba5fd";
- assert(Hash(identity)=="f92a9029d3b2d744cdc3a35b3b43f171fe4d907e4c0f72924aee6e9207866024");
+  std::string(1,'\0')+"f0d17b28a77c63ee338391caf258c854007e6e5854997cd8aeeb1ffc7a59b808"+std::string(1,'\0')+"8be0d02e30165a365e563e52c8d6adea541f68fd1941c8c98f88f480dedba5fd";
+ assert(Hash(identity)=="2c13493d7e935b366908cd17a97c6e741083dddbdeeab6bb985366a52b460b4b");
 }
 int main() {SharedGoIdentityVector();ValidAndRetained();RejectBindings();RejectBytesAndPaths();}

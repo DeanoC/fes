@@ -1,11 +1,10 @@
 # FES ZX81
 
 The first slice is a ROM-less `fes.simple-computer` 1.0 package (`fes.zx81`
-1.1.0) with 16 KB RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
-fixed 720p60 HDMI and a registered Z80-like expansion edge. There is no ZX80,
+1.2.0) with 16 KB RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
+fixed 720p60 HDMI and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
-package carries the vacant edge; compatible 16 KiB RAM expansion assets can
-use it without changing the package ABI.
+package carries the vacant bus; carts are independent bus consumers.
 
 FES installs this package as part of the ordered native package-only image set.
 The host library path is `core-install` / `core-entry` /
@@ -21,7 +20,7 @@ ROM-less FPGA cores. See
 | Core ID | `fes.zx81` |
 | ABI | `fes.simple-computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (required); `fes.expansion.zx81-ram` (optional) |
+| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
 | Stop | existing package Select+Start |

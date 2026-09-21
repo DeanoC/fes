@@ -10,7 +10,7 @@ import (
 )
 
 // Geometry and framing are pinned to the DE10-Nano sx120f die and the ZX81
-// RAM socket v1. Callers cannot enlarge the permitted overlay rectangle.
+// ZX81 expansion bus v1. Callers cannot enlarge the permitted overlay rectangle.
 const (
 	cramWidth      = 7605
 	cramHeight     = 7024
@@ -278,7 +278,7 @@ func crcCompanionColumn(x int) bool {
 	return (x >= 3488 && x < 3847) || (x >= 3921 && x < 3980) || (x >= 4171 && x < 4471)
 }
 
-// Link overlays the fixed ZX81 RAM socket. Every non-CRC change outside that
+// Link overlays the fixed ZX81 expansion bus. Every non-CRC change outside that
 // region, any ORAM/PRAM header change, malformed framing or CRC rejects before
 // returning an artifact. Caller-owned input slices are never modified.
 func Link(shell, cart []byte) ([]byte, error) {

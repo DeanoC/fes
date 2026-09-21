@@ -18,15 +18,15 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_fes_zx81_oss as shell
-from scripts import build_zx81_ram_expansion as ram
+from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
 from scripts.fes_build_common import _require_gpu_backend
 from scripts.hip_zx81_bus_socket import validate_overlay_timing
 
 ROOT = Path(__file__).resolve().parents[1]
 SHELL_OUT = ROOT / "build/fes-zx81-socket-bus"
-LIBRARY_CRAM = CramRect(*ram.CRAM_REGION)
-WIDE_CRAM = CramRect(ram.CRAM_REGION[0], ram.CRAM_REGION[1], 3356, ram.CRAM_REGION[3])
+LIBRARY_CRAM = CramRect(*cart.CRAM_REGION)
+WIDE_CRAM = CramRect(cart.CRAM_REGION[0], cart.CRAM_REGION[1], 3356, cart.CRAM_REGION[3])
 
 CARTS = {
     "zonx": {
@@ -61,7 +61,7 @@ def compose_cart(name: str, tools: dict[str, Path], env: dict[str, str]) -> None
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
-    (out / "clocks.sdc").write_bytes(ram.cart_clock_constraints(ROOT))
+    (out / "clocks.sdc").write_bytes(cart.cart_clock_constraints(ROOT))
     sources = " ".join(spec["sources"])
     run(
         [
@@ -85,9 +85,9 @@ def compose_cart(name: str, tools: dict[str, Path], env: dict[str, str]) -> None
             "--fes-scaffold",
             "--fes-cart", str(out / "cart.json"),
             "--fes-slot-clock", "clk_sys",
-            "--fes-cram-region", ",".join(str(value) for value in ram.CRAM_REGION),
+            "--fes-cram-region", ",".join(str(value) for value in cart.CRAM_REGION),
             "--no-pack",
-            "--seed", str(ram.PLACER_SEED),
+            "--seed", str(cart.PLACER_SEED),
             "--router", "gpu",
             "--gpu-device", "0",
             "--rbf", str(out / "cart.rbf"),

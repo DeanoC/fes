@@ -1,5 +1,5 @@
 // Drive the registered ZX81 expansion edge without the CPU. CART is the
-// independently synthesized pack (`module cart`) linked for this run.
+// independently synthesized cart (`module cart`) linked for this run.
 `include "zx81_bus_pack.vh"
 module expansion_bus_harness (
     input wire clk,
@@ -21,7 +21,7 @@ module expansion_bus_harness (
 );
     wire [`ZX81_BUS_REQ-1:0] plug_addr;
     wire [`ZX81_BUS_RSP-1:0] cart_rdata, plug_rdata;
-    zx81_ram_socket socket (
+    zx81_expansion_socket socket (
         .clock(clk),
         .cpu_addr(cpu_addr),
         .cpu_wdata(cpu_wdata),

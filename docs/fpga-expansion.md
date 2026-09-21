@@ -11,12 +11,11 @@ synthesis, placement or routing.
 
 ## Normal library use
 
-The [ZX81 RAM composition guide](zx81-ram-expansion.md) describes the implemented
-optional 16 KiB RAM pack on a registered Z80-like expansion edge. An ordinary
-entry selects an immutable expansion asset against an exact sealed 1 KiB shell.
-Clearing the selection loads that same original shell. Host and target
-independently verify composition bytes; the runtime programs the admitted
-payload and retains the base package identity.
+The [ZX81 expansion-bus guide](zx81-expansion-bus.md) describes the registered
+Z80-like edge and its validation cart. An ordinary entry may select an immutable
+bus asset against an exact sealed shell. Clearing the selection loads that same
+original shell. Host and target independently verify composition bytes; the
+runtime programs the admitted payload and retains the base package identity.
 
 This uses the scoped `toolchains/zx81-expansion.lock` and a separate expansion
 archive; it does not change format-2 package seals or the factory package set.
