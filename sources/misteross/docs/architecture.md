@@ -314,13 +314,15 @@ not a policy selector for those producers. HIP (`gpu-router=HIP`,
 `hip-architectures=gfx1100;gfx1201`) is the standard FES nextpnr lane:
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
-CPU-reference fallback. Pong and ZX81 use the repository-wide
-`toolchain.lock` HIP slot. Coleco, SG-1000 and SMS select the single
+CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
+slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
+Coleco, SG-1000 and SMS select the single
 `toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
 Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
 lock, so all three consumers share the same HIP compiler cache slot.
 Local HIP tools
-come from `make toolchain-fes` for Pong/ZX81, `make toolchain-fes-coleco` for
+come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
+standard ZX81 socket, `make toolchain-fes-coleco` for
 Coleco, `make toolchain-fes-sg1000` for SG-1000, and `make toolchain-fes-sms`
 for SMS. `make toolchain` remains GPU-router OFF for generic OSS experiments.
 `make toolchain` and `make toolchain-fes` share `build/toolchain`; the last
@@ -2507,7 +2509,8 @@ This is simulation, not a Quartus RBF or kit result.
 ## FES ZX81 Quartus bring-up
 
 `make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 recipe for
-`fes.zx81` 1.0.0. It is not a Mistral/nextpnr payload. The board shell
+`fes.zx81` 1.0.0 legacy oracle package. It is not a Mistral/nextpnr payload
+and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
 reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
@@ -2536,7 +2539,7 @@ bring-up lane.
 ## FES ZX81 OSS package
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.0.0 package. It authenticates the pinned tools, writes
+`fes.zx81` 1.1.0 package. It authenticates the scoped ZX81 socket tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use native

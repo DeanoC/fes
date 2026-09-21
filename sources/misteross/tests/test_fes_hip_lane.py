@@ -60,6 +60,31 @@ def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
     return install
 
 
+def _write_local_zx81_tools(root: Path, *, nextpnr_config: str | None) -> Path:
+    lock = root / build_fes_zx81_oss.SOCKET_TOOLCHAIN_LOCK
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_bytes((ROOT / build_fes_zx81_oss.SOCKET_TOOLCHAIN_LOCK).read_bytes())
+    install = root / "build/toolchain/zx81-expansion/install/bin"
+    install.mkdir(parents=True)
+    pins = load_lock(lock)
+    for lock_name, binary_name in (
+        ("yosys", "yosys"),
+        ("mistral", "mistral-cv"),
+        ("nextpnr", "nextpnr-mistral"),
+    ):
+        binary = install / binary_name
+        _write_fake_tool(binary, lock_name)
+        evidence = root / "build/toolchain/zx81-expansion/build" / lock_name
+        evidence.mkdir(parents=True)
+        commit = pins[lock_name].commit
+        (evidence / f".built-{commit}").write_text(f"commit={commit}\n")
+        digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+        (evidence / f".digest-{commit}.sha256").write_text(f"{digest}\n")
+        if lock_name == "nextpnr" and nextpnr_config is not None:
+            (evidence / f".config-{commit}.txt").write_text(f"{nextpnr_config}\n")
+    return install
+
+
 class FesHipLaneTests(unittest.TestCase):
     def test_producer_cli_defaults_functional_identity_and_retains_explicit_v1(self) -> None:
         from scripts import build_fes_sms_oss, build_fes_sg1000_oss
@@ -70,6 +95,8 @@ class FesHipLaneTests(unittest.TestCase):
                         patch.object(producer, "build", return_value=Path("/pkg")) as built:
                     self.assertEqual(producer.main(arguments), 0)
                     self.assertEqual(built.call_args.kwargs.get("identity_version", 1), expected)
+                    if producer is build_fes_zx81_oss and expected == 2:
+                        self.assertTrue(built.call_args.kwargs["socketed"])
         for producer in (build_fes_sms_oss, build_fes_sg1000_oss):
             with self.subTest(diagnostic=producer.__name__), \
                     patch.object(producer, "synth", return_value={"synthesis_cells": {}}) as synth:
@@ -265,21 +292,29 @@ class FesHipLaneTests(unittest.TestCase):
                 with self.subTest(module=module.__name__, stamp=stamp):
                     with tempfile.TemporaryDirectory() as directory:
                         root = Path(directory)
-                        _write_local_root_tools(root, nextpnr_config=stamp)
+                        (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
+                            root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            with self.assertRaisesRegex(BuildError, r"make toolchain-fes"):
+                            hint = r"make toolchain-fes-zx81" if module is build_fes_zx81_oss else r"make toolchain-fes"
+                            with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
 
     def test_local_hip_stamp_from_toolchain_fes_lane_authenticates_pong_and_zx81(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            install = _write_local_zx81_tools(root, nextpnr_config=HIP_CONFIGURATION)
+            with patch.dict(os.environ, {}, clear=True):
+                authenticated = build_fes_zx81_oss._authenticate_tools(root)
+                self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
+                self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+
+            root = Path(directory) / "pong"
+            root.mkdir()
             install = _write_local_root_tools(root, nextpnr_config=HIP_CONFIGURATION)
             with patch.dict(os.environ, {}, clear=True):
-                for module in (build_fes_pong, build_fes_zx81_oss):
-                    with self.subTest(module=module.__name__):
-                        authenticated = module._authenticate_tools(root)
-                        self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
-                        self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+                authenticated = build_fes_pong._authenticate_tools(root)
+                self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
+                self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
 
     def test_toolchain_fes_provisions_root_lock_hip_lane(self) -> None:
         result = subprocess.run(
@@ -298,10 +333,23 @@ class FesHipLaneTests(unittest.TestCase):
         self.assertNotIn("build/toolchain/fes-coleco", result.stdout)
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(makefile, r"\.PHONY:.*\btoolchain-fes\b")
-        self.assertIn("toolchain-fes  Build the repository-local HIP toolchain for FES Pong/ZX81", makefile)
+        self.assertIn("toolchain-fes  Build the repository-local HIP toolchain for FES Pong", makefile)
+        self.assertIn("toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket", makefile)
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("make toolchain-fes", readme)
         self.assertIn("make toolchain", readme)
+
+        zx81 = subprocess.run(
+            ["make", "-n", "toolchain-fes-zx81"],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(zx81.returncode, 0, zx81.stderr)
+        self.assertIn("toolchains/zx81-expansion.lock", zx81.stdout)
+        self.assertIn("build/toolchain/zx81-expansion", zx81.stdout)
 
     def test_make_forwards_cache_root_to_fes_producers(self) -> None:
         cache = "/tmp/fes-explicit-cache"

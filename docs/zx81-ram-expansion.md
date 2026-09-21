@@ -21,15 +21,16 @@ shell.
 The CRAM map name remains `fes.zx81-ram.socket/1` (slot `fes.expansion.zx81-ram`
 1.0) so FogCast/runtime admission stays the same. The plug packing itself is
 the Z80-like edge, not the earlier pre-decoded 14-bit RAM port. Old RAM-port
-carts cannot overlay a bus shell: shell hashes differ. This feature uses the
-scoped `sources/misteross/toolchains/zx81-expansion.lock`.
-It does not change the factory ZX81 producer or its compiler selection.
+carts cannot overlay a bus shell: shell hashes differ. The standard `fes.zx81`
+producer now builds this socketed shell with the scoped
+`sources/misteross/toolchains/zx81-expansion.lock`; `--legacy` is reserved for
+diagnostic builds of the pre-expansion shell.
 
 ## Producer
 
-Build the scoped compiler with `make -C sources/misteross toolchain-zx81-expansion`.
-Build the shell with `python3 scripts/build_fes_zx81_oss.py --socket --gpu-devices N`
-from `sources/misteross`. Keep its sealed package and `build/fes-zx81-socket`
+Build the scoped compiler with `make -C sources/misteross toolchain-fes-zx81`.
+Build the standard shell with `python3 scripts/build_fes_zx81_oss.py --gpu-devices N`
+from `sources/misteross`. Keep its sealed package and `build/fes-zx81-oss`
 frozen routing evidence together. A shell is built once for any number of
 independently built compatible carts.
 
@@ -37,7 +38,7 @@ Build a cart with:
 
 ```
 python3 scripts/build_zx81_ram_expansion.py \
-  --shell build/fes-zx81-socket --package build/packages/SHELL_PACKAGE_ID --gpu N
+  --shell build/fes-zx81-oss --package build/packages/SHELL_PACKAGE_ID --gpu N
 ```
 
 The result is a two-member archive: canonical `manifest.json` and `cart.rbf`.

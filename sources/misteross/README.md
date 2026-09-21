@@ -570,20 +570,22 @@ ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
 through the tape-loader patch, and 1650×750 HDMI timing for the scaled
 raster. It is simulation, not a Quartus RBF or kit evidence.
 
-`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 oracle
-recipe for package `fes.zx81` 1.0.0; it is not a nextpnr fallback. Set
+`make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 legacy oracle
+recipe for package `fes.zx81` 1.0.0; it is not a nextpnr fallback or the
+standard package. Set
 `QUARTUS_ROOTDIR=/absolute/path/to/intelFPGA_lite/17.0/quartus`. It requires a
 clean committed tree, writes `build/fes-zx81-quartus/build-inputs.json`,
 embeds that build id, and seals a format-2 package when timing passes. This
 does not program hardware.
 
 `make build-fes-zx81` authenticates Yosys, nextpnr-mistral and Mistral against
-the repository-wide `toolchain.lock` HIP slot, routes with `--router gpu`,
+the scoped `toolchains/zx81-expansion.lock` HIP slot, routes with `--router gpu`,
 and rejects a CPU-reference fallback. Provision the local HIP tools with
-`make toolchain-fes` (`make toolchain` stays GPU-router OFF for generic OSS
+`make toolchain-fes-zx81` (`make toolchain` stays GPU-router OFF for generic OSS
 experiments). Pass `CACHE_ROOT=/absolute/cache` for a shared compiler slot;
-omit it for the local HIP install. It synthesizes the board shell with Verilog
-T80pa/TV80 and M10K allowed, and seals `build/fes-zx81-oss/` when the 52 MHz
+omit it for the local HIP install. It synthesizes the standard socketed board
+shell with Verilog T80pa/TV80 and M10K allowed, and seals
+`build/fes-zx81-oss/` when the 52 MHz
 system clock and 74.25 MHz pixel clock pass timing. The 52 MHz integer uses
 the 520 MHz PLL feedback profile (M=52 N=5 C6=10). Recipe presence alone is
 no RBF, timing or hardware-support evidence. The command never programs a kit.
@@ -857,25 +859,29 @@ is selected only by an explicit `--cache-root PATH` on the producer CLI or by
 `make build-fes-coleco`, `make build-fes-sg1000`, and `make build-fes-sms`,
 not by ambient `FES_TOOLCHAIN_CACHE_ROOT`.
 Omitting `--cache-root` / `CACHE_ROOT` keeps the repository-local HIP
-toolchain from `make toolchain-fes` (Pong/ZX81), `make toolchain-fes-coleco`,
+toolchain from `make toolchain-fes` (Pong), `make toolchain-fes-zx81` (standard
+ZX81), `make toolchain-fes-coleco`,
 `make toolchain-fes-sg1000`, or `make toolchain-fes-sms`.
-Pong and ZX81 authenticate the repository-wide `toolchain.lock` HIP slot
-(`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). Coleco, SG-1000 and SMS
-share `toolchains/registered-memory.lock` and the same HIP lane without aliasing
-the root-lock cache slot. This one lock retains the exact qualified lock bytes.
+Pong authenticates the repository-wide `toolchain.lock` HIP slot
+(`gpu-router=HIP; hip-architectures=gfx1100;gfx1201`). The standard ZX81
+authenticates the scoped `toolchains/zx81-expansion.lock` slot. Coleco, SG-1000
+and SMS share `toolchains/registered-memory.lock` and the same HIP lane without
+aliasing another lock's cache slot. Each lock retains its exact qualified bytes.
 Quartus recipes remain oracle-only for ZX81, Coleco, SG-1000, and SMS and
 are not a nextpnr fallback.
 An empty shared cache is provisioned with the same Make variable used by the
 producer recipes:
 
     CACHE_ROOT=/absolute/cache make toolchain-fes
+    CACHE_ROOT=/absolute/cache make toolchain-fes-zx81
     CACHE_ROOT=/absolute/cache make toolchain-fes-coleco
     CACHE_ROOT=/absolute/cache make toolchain-fes-sg1000
     CACHE_ROOT=/absolute/cache make toolchain-fes-sms
     CACHE_ROOT=/absolute/cache make doctor-strict
 
-`toolchain-fes` populates the root-lock HIP slot. Coleco, SG-1000, and SMS
-toolchain targets populate the Coleco-lock HIP slot. Later producer commands
+`toolchain-fes` populates the root-lock HIP slot; `toolchain-fes-zx81` populates
+the scoped ZX81 slot. Coleco, SG-1000, and SMS toolchain targets populate the
+Coleco-lock HIP slot. Later producer commands
 reuse those verified slots. An explicit
 FES_TOOLCHAIN_CACHE_ROOT is still supported for callers that already use the
 internal spelling; if both variables are set they must name the same absolute

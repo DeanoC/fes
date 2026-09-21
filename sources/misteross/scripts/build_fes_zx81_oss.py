@@ -20,7 +20,7 @@ from scripts.fes_build_common import (
     FES_GPU_ARCHITECTURES,
     FES_GPU_BACKEND,
     EXPECTED_TOOL_COMMITS,
-    _authenticate_tools,
+    _authenticate_tools as _authenticate_oss_tools,
     _cell_counts,
     _git,
     _i2c_evidence,
@@ -42,7 +42,8 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 OUTPUT_RELATIVE = Path("build/fes-zx81-oss")
-SOCKET_OUTPUT_RELATIVE = Path("build/fes-zx81-socket")
+SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
+LEGACY_OUTPUT_RELATIVE = Path("build/fes-zx81-legacy")
 SOCKET_TOOLCHAIN_LOCK = "toolchains/zx81-expansion.lock"
 SOCKET_TOOL_COMMITS = {**EXPECTED_TOOL_COMMITS, "mistral": "18db2489a63bd9fcfbb7ba727ac194e767e7dce3",
                        "nextpnr": "74f26cc1a5554a70cfca89be27850ec90f857030"}
@@ -132,6 +133,15 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 
 
+def _authenticate_tools(root: Path, *, socketed: bool = True, **kwargs):
+    """Authenticate the standard socket lane unless legacy mode is explicit."""
+    if socketed:
+        kwargs.setdefault("lock_path", Path(root) / SOCKET_TOOLCHAIN_LOCK)
+        kwargs.setdefault("expected_commits", SOCKET_TOOL_COMMITS)
+        kwargs.setdefault("toolchain_root", Path(root) / "build/toolchain/zx81-expansion")
+    return _authenticate_oss_tools(root, **kwargs)
+
+
 def _regular_input(root: Path, relative: str) -> Path:
     path = root / relative
     current = root
@@ -188,7 +198,7 @@ def create_build_record(
     qor_mode: str = "first-pass",
     identity_version: int = 1,
     execution: dict | None = None,
-    socketed: bool = False,
+    socketed: bool = True,
 ) -> bytes:
     weights, budget = placement_policy(qor_mode)
     fields = {
@@ -235,9 +245,9 @@ def build_commands(
     tools: Mapping[str, Path],
     seed: int = PLACER_SEEDS[0],
     *,
-    socketed: bool = False,
+    socketed: bool = True,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    relative = SOCKET_OUTPUT_RELATIVE if socketed else OUTPUT_RELATIVE
+    relative = OUTPUT_RELATIVE if socketed else LEGACY_OUTPUT_RELATIVE
     if output != root / relative:
         raise BuildError(f"FES ZX81 OSS output must be {root / relative}")
     if HEX32_RE.fullmatch(build_id) is None:
@@ -283,8 +293,8 @@ def _clear_route_outputs(output: Path) -> None:
             path.unlink()
 
 
-def _prepare_output(root: Path, *, socketed: bool = False) -> Path:
-    output = root / (SOCKET_OUTPUT_RELATIVE if socketed else OUTPUT_RELATIVE)
+def _prepare_output(root: Path, *, socketed: bool = True) -> Path:
+    output = root / (OUTPUT_RELATIVE if socketed else LEGACY_OUTPUT_RELATIVE)
     output.mkdir(parents=True, exist_ok=True)
     for name in BUILD_OUTPUTS:
         path = output / name
@@ -455,7 +465,7 @@ def build(
     best_fmax: bool = False,
     gpu_devices: Sequence[int] = (),
     identity_version: int = 1,
-    socketed: bool = False,
+    socketed: bool = True,
 ) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -464,8 +474,7 @@ def build(
     qor_mode = "staged" if best_fmax else "first-pass"
     qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    tool_options = {"lock_path": root / SOCKET_TOOLCHAIN_LOCK, "expected_commits": SOCKET_TOOL_COMMITS, "toolchain_root": root / "build/toolchain/zx81-expansion"} if socketed else {}
-    authenticated = _authenticate_tools(root, cache_root=cache_root, **tool_options)
+    authenticated = _authenticate_tools(root, cache_root=cache_root, socketed=socketed)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     if identity_version == 2:
         if len(gpu_devices) > 1:
@@ -536,7 +545,7 @@ def build(
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_tools(root, cache_root=cache_root, **tool_options)
+        final_tools = _authenticate_tools(root, cache_root=cache_root, socketed=socketed)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
@@ -565,7 +574,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--socket", action="store_true", help="build the vacant 1 KiB ZX81 Z80-like expansion shell")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--socket", dest="socketed", action="store_true", default=True,
+                      help="build the standard registered Z80-like expansion shell (default)")
+    mode.add_argument("--legacy", dest="socketed", action="store_false",
+                      help="build the pre-expansion shell as a diagnostic artifact")
     parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
     parser.add_argument(
         "--best-fmax",
@@ -580,20 +593,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
-            if arguments.socket:
-                raise BuildError("socket builds require synthesis boundary validation; use the controlled build")
+            if arguments.socketed:
+                raise BuildError("standard socket builds require synthesis boundary validation; use --legacy with --print-commands")
             if arguments.identity_version != 1:
                 raise BuildError("functional identity requires a controlled build")
             repository, revision = _require_clean_source(arguments.root)
-            authenticated = _authenticate_tools(arguments.root, cache_root=arguments.cache_root)
+            authenticated = _authenticate_tools(
+                arguments.root, cache_root=arguments.cache_root, socketed=arguments.socketed)
             identities = {name: tool.identity for name, tool in authenticated.items()}
-            record = create_build_record(arguments.root, repository, revision, identities)
+            record = create_build_record(
+                arguments.root, repository, revision, identities, socketed=arguments.socketed)
             build_id = build_identity(record)
             yosys, nextpnr = build_commands(
                 arguments.root.resolve(),
-                (arguments.root.resolve() / OUTPUT_RELATIVE),
+                (arguments.root.resolve() / LEGACY_OUTPUT_RELATIVE),
                 build_id,
                 {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
+                socketed=arguments.socketed,
             )
             print(" ".join(yosys))
             print(" ".join(nextpnr))
@@ -605,7 +621,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cache_root=arguments.cache_root,
                 best_fmax=arguments.best_fmax,
                 identity_version=arguments.identity_version,
-                socketed=arguments.socket,
+                socketed=arguments.socketed,
                 gpu_devices=_parse_ints(arguments.gpu_devices or ("0" if arguments.identity_version == 2 else "0,1"))
                     if arguments.best_fmax or arguments.identity_version == 2 else (),
             )

@@ -46,7 +46,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.zx81": {
                 "producer_script": "scripts/build_fes_zx81_oss.py",
                 "producer_module": "scripts.build_fes_zx81_oss",
-                "lock_path": "toolchain.lock",
+                "lock_path": "toolchains/zx81-expansion.lock",
                 "selection_filename": "fes-zx81.package-selection.toml",
                 "authenticate": "_authenticate_tools",
                 "package_dir_env": "FES_ZX81_PACKAGE_DIR",
@@ -90,7 +90,7 @@ class RecipeRegistryTest(unittest.TestCase):
         zx81 = recipes.recipe_for("fes.zx81")
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
-        self.assertEqual(pong.lock_path, zx81.lock_path)
+        self.assertNotEqual(pong.lock_path, zx81.lock_path)
         self.assertNotEqual(coleco.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, pong.lock_path)
         self.assertEqual(sms.lock_path, coleco.lock_path)

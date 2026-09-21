@@ -66,19 +66,32 @@ class ZX81SocketProducerTests(unittest.TestCase):
                     expansion.prepare_shell_netlist(path)
                 self.assertEqual(path.read_text(), content)
 
-    def test_socket_build_keeps_factory_output_separate_and_reserves_socket(self):
-        root = Path("/source")
+    def test_socket_build_uses_the_standard_output_and_reserves_socket(self):
+        root = Path(__file__).resolve().parents[1]
         tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
-        shell, route = producer.build_commands(root, root / producer.SOCKET_OUTPUT_RELATIVE,
+        shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
                                                "a" * 32, tools, socketed=True)
         self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
         self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
-        self.assertIn("build/fes-zx81-socket/synth.json", shell[-1])
-        self.assertIn("build/fes-zx81-socket/socket.qsf", route)
+        self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
+        self.assertIn("build/fes-zx81-oss/socket.qsf", route)
         self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
-        fixed, _ = producer.build_commands(root, root / producer.OUTPUT_RELATIVE, "a" * 32, tools)
+        fixed, _ = producer.build_commands(root, root / producer.LEGACY_OUTPUT_RELATIVE,
+                                           "a" * 32, tools, socketed=False)
         self.assertNotIn("chparam -set EXPANSION_SOCKET", fixed[-1])
-        self.assertIn("build/fes-zx81-oss/synth.json", fixed[-1])
+        self.assertIn("build/fes-zx81-legacy/synth.json", fixed[-1])
+
+    def test_standard_build_defaults_to_socketed_shell(self):
+        root = Path(__file__).resolve().parents[1]
+        tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
+        shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
+                                               "a" * 32, tools)
+        self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
+        self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
+        self.assertIn("build/fes-zx81-oss/socket.qsf", route)
+        record = json.loads(producer.create_build_record(
+            root, "https://github.com/DeanoC/misteross.git", "a" * 40, {"yosys": "x"}))
+        self.assertEqual(record["parameters"]["expansion_socket"], "zx81-bus-v1")
 
     def test_library_carts_use_the_z80_edge_packing(self):
         root = Path(__file__).resolve().parents[1]

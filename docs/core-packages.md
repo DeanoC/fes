@@ -18,7 +18,8 @@ package set, while focused profiles may select a smaller package set.
 selection filename is `fes-sms.package-selection.toml`. It is not in the
 factory image closed set. The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
-compiler lock serves the factory Pong/ZX81 route; Coleco, SG-1000 and SMS share
+compiler lock serves factory Pong; the standard ZX81 socket uses
+`toolchains/zx81-expansion.lock`; Coleco, SG-1000 and SMS share
 `toolchains/registered-memory.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
@@ -77,6 +78,14 @@ FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   FES_TOOLCHAIN_GPU_ROUTER=HIP \
   FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
   make -C "$work" doctor-strict
+# Seed the standard ZX81 socket slot when the ZX81 package is selected:
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  make -C "$work" toolchain-fes-zx81
+FES_TOOLCHAIN_CACHE_ROOT="$cache" \
+  FES_TOOLCHAIN_LOCKFILE=toolchains/zx81-expansion.lock \
+  FES_TOOLCHAIN_GPU_ROUTER=HIP \
+  FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' \
+  make -C "$work" doctor-strict
 # Seed the Coleco slot when Coleco packages are selected:
 FES_TOOLCHAIN_CACHE_ROOT="$cache" \
   make -C "$work" toolchain-fes-coleco
@@ -89,7 +98,7 @@ make dev
 ```
 
 `FES_TOOLCHAIN_CACHE_ROOT` selects the parent shared-cache root; `CACHE_ROOT`
-is not a substitute for it. The `toolchain-fes` and
+is not a substitute for it. The `toolchain-fes`, `toolchain-fes-zx81` and
 `toolchain-fes-coleco` targets compile the authenticated HIP/nextpnr tools into
 their respective slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.

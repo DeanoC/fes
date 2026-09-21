@@ -37,6 +37,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 parameters = record["parameters"]
                 self.assertEqual(parameters["placer_heap_timingweights"], ",".join(map(str, weights)))
                 self.assertEqual(parameters["placer_qor_budget"], budget)
+                self.assertEqual(parameters["expansion_socket"], "zx81-bus-v1")
         with self.assertRaises(BuildError):
             build_fes_zx81_oss.placement_policy("unknown")
 
@@ -81,7 +82,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
     def test_oss_auth_uses_verified_shared_tools_directly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
-            request, manifest = publish_shared_toolchain(base, gpu_router="HIP")
+            request, manifest = publish_shared_toolchain(
+                base, lock_path=ROOT / build_fes_zx81_oss.SOCKET_TOOLCHAIN_LOCK, gpu_router="HIP")
             with patch.dict(
                 os.environ,
                 {"PATH": str(base), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "ignored-cache")},
@@ -120,6 +122,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertNotIn("-nobram", program)
         self.assertNotIn("T80pa.vhd", program)
         self.assertIn("cores/fes-zx81/rtl/top.v", program)
+        self.assertIn("chparam -set EXPANSION_SOCKET 1 top", program)
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
         self.assertIn("--seed", nextpnr)
@@ -134,10 +137,18 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("--timing-allow-fail", nextpnr)
         self.assertNotIn("--tmg-ripup", nextpnr)
         joined = " ".join(nextpnr)
-        self.assertIn("cores/fes-zx81/constraints-oss.qsf", joined)
+        self.assertIn("build/fes-zx81-oss/socket.qsf", joined)
         self.assertIn("cores/fes-zx81/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-zx81/clocks.sdc", joined)
-        self.assertNotIn("cores/fes-zx81/constraints.qsf ", joined)
+        self.assertNotIn("cores/fes-zx81/constraints-oss.qsf", joined)
+
+    def test_standard_authentication_uses_the_socket_toolchain(self) -> None:
+        with patch.object(build_fes_zx81_oss, "_authenticate_oss_tools") as authenticate:
+            build_fes_zx81_oss._authenticate_tools(ROOT, cache_root=Path("/cache"))
+        authenticate.assert_called_once()
+        kwargs = authenticate.call_args.kwargs
+        self.assertEqual(kwargs["lock_path"], ROOT / build_fes_zx81_oss.SOCKET_TOOLCHAIN_LOCK)
+        self.assertEqual(kwargs["toolchain_root"], ROOT / "build/toolchain/zx81-expansion")
 
     def test_oss_top_uses_mistral_io_without_quartus(self) -> None:
         top = (ROOT / "cores/fes-zx81/rtl/top.v").read_text(encoding="utf-8")
