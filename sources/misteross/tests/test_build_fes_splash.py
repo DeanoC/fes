@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import os
+import subprocess
 import tempfile
 import tomllib
 import unittest
@@ -109,7 +110,9 @@ class SplashProducerTests(unittest.TestCase):
             with self.assertRaisesRegex(board.BuildError, "dirty"):
                 splash.build(ROOT)
             tools.assert_not_called()
-            source.assert_called_once_with(ROOT, pinned_inputs=splash.PINNED_INPUTS)
+            source.assert_called_once_with(
+                ROOT, pinned_inputs=splash.PINNED_INPUTS, identity_version=splash.IDENTITY_VERSION
+            )
 
     def test_shared_cache_is_rejected(self):
         with patch.dict(os.environ, {"FES_TOOLCHAIN_CACHE_ROOT": "/tmp/cache"}, clear=False):
@@ -149,6 +152,60 @@ class SplashProducerTests(unittest.TestCase):
             ROOT, "https://example.invalid/repo", "b" * 40, {"yosys": "y"}
         )
         self.assertNotEqual(build_identity(record), build_identity(other))
+
+    def test_source_and_recheck_use_monorepo_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in splash.PINNED_INPUTS:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((ROOT / relative).read_bytes())
+            tools = {name: board.AuthenticatedTool(Path("/auth") / name, name)
+                     for name in ("yosys", "nextpnr-mistral", "mistral")}
+            identity = ("https://github.com/DeanoC/fes.git", "a" * 40)
+
+            def run(command, cwd, log, **kwargs):
+                (root / splash.OUTPUT_RELATIVE / "core.rbf").write_bytes(b"ok")
+
+            with patch.object(board, "_require_clean_source", return_value=identity) as source, \
+                 patch.object(splash, "authenticate_oss_tools", return_value=tools), \
+                 patch.object(board, "_run_tool", side_effect=run), \
+                 patch.object(splash, "validate_build_evidence",
+                              return_value={"rbf": {"sha256": "c" * 64, "size": 2}}):
+                self.assertEqual(splash.build(root), root / splash.OUTPUT_RELATIVE / "core.rbf")
+            self.assertEqual(source.call_count, 2)
+            for call in source.call_args_list:
+                self.assertEqual(call.args, (root,))
+                self.assertEqual(call.kwargs["pinned_inputs"], splash.PINNED_INPUTS)
+                self.assertEqual(call.kwargs["identity_version"], splash.IDENTITY_VERSION)
+
+    def test_require_clean_source_accepts_fes_nested_module(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo = Path(temporary)
+            module = repo / "sources/misteross"
+            module.mkdir(parents=True)
+            subprocess.check_output(["git", "-C", str(repo), "init", "-q"])
+            subprocess.check_output(["git", "-C", str(repo), "config", "user.name", "Fixture"])
+            subprocess.check_output(["git", "-C", str(repo), "config", "user.email", "fixture@example.invalid"])
+            subprocess.check_output(
+                ["git", "-C", str(repo), "remote", "add", "origin", "https://github.com/DeanoC/fes.git"]
+            )
+            for relative in splash.PINNED_INPUTS:
+                path = module / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((ROOT / relative).read_bytes())
+            subprocess.check_output(["git", "-C", str(repo), "add", "."])
+            subprocess.check_output(["git", "-C", str(repo), "commit", "-qm", "source"])
+            with self.assertRaisesRegex(board.BuildError, "source root does not match Git checkout root"):
+                board._require_clean_source(module, pinned_inputs=splash.PINNED_INPUTS)
+            repository, revision = board._require_clean_source(
+                module, pinned_inputs=splash.PINNED_INPUTS, identity_version=splash.IDENTITY_VERSION
+            )
+            self.assertEqual(repository, "https://github.com/DeanoC/fes.git")
+            self.assertEqual(
+                revision,
+                subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
+            )
 
 
 if __name__ == "__main__":

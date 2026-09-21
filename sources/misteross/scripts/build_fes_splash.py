@@ -40,6 +40,9 @@ PINNED_INPUTS = (
     SDC,
     *RTL_SOURCES,
 )
+# FES checkout root is the parent of sources/misteross. Version 1 requires
+# those paths to be identical and rejects a normal in-tree splash build.
+IDENTITY_VERSION = 2
 BUILD_OUTPUTS = (
     "synth.json",
     "routed.json",
@@ -315,7 +318,9 @@ def build(root: Path = ROOT, *, synth_only: bool = False) -> Path:
             raise
         return output / "synth.json"
 
-    repository, revision = board._require_clean_source(root, pinned_inputs=PINNED_INPUTS)
+    repository, revision = board._require_clean_source(
+        root, pinned_inputs=PINNED_INPUTS, identity_version=IDENTITY_VERSION
+    )
     authenticated = authenticate_oss_tools(root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     record = create_build_record(root, repository, revision, identities)
@@ -348,7 +353,9 @@ def build(root: Path = ROOT, *, synth_only: bool = False) -> Path:
         final_tools = authenticate_oss_tools(root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise board.BuildError("authenticated tool identity changed during build")
-        if board._require_clean_source(root, pinned_inputs=PINNED_INPUTS) != (repository, revision):
+        if board._require_clean_source(
+            root, pinned_inputs=PINNED_INPUTS, identity_version=IDENTITY_VERSION
+        ) != (repository, revision):
             raise board.BuildError("source identity changed during build")
         return output / "core.rbf"
     except Exception:
