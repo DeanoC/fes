@@ -72,6 +72,8 @@ interrupted when another operator stopped its private host; that operator
 confirmed the action in the coordination channel. None is relabeled as an
 overall pass.
 
-The optional ZX81 RAM composition still needs its own final routed cartridge
-and same-shell 1 KiB/16 KiB hardware acceptance. These results do not qualify
-later compiler changes, later software artifacts, or the assembled appliance.
+ZX81 RAM composition was still pending at this run. Its subsequent independent
+cart and same-shell 1 KiB/16 KiB acceptance are recorded in the
+[separate ZX81 validation](2026-09-21-zx81-ram-composition.md).
+These Catch/Coleco results do not qualify later compiler changes, later software
+artifacts, or the assembled appliance.

@@ -83,6 +83,10 @@ no new settings/save-data policy is inferred from the asset or title name.
 
 ## Validation
 
+The [2026-09-21 exact-artifact record](validation/2026-09-21-zx81-ram-composition.md)
+records five normal-library launches, visible 1 KiB/16 KiB RAM sizing,
+selection retention/clearing, negative admission and original-kit restoration.
+
 `make -C sources/misteross sim-fes-zx81-expansion` boots the actual ZX81 machine
 with and without the pack and checks RAMTOP and visible output. The standalone
 Go module under `sources/misteross/expansion` tests exact Python golden bytes,

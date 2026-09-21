@@ -22,6 +22,7 @@ host software and target root filesystem.
 | Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
 | Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
 | Compose a freeze-scaffold FPGA cartridge onto an empty socket | [FPGA cartridge expansion](fpga-expansion.md) |
+| Select an independent ZX81 RAM pack through the normal library | [ZX81 RAM composition](zx81-ram-expansion.md) |
 | Prepare one core without rebuilding the image, then run isolated acceptance | [Core developer workflow](core-development.md) |
 | Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
 | Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
@@ -54,10 +55,15 @@ and is not current-profile acceptance.
 
 ## What has been verified
 
+- [ZX81 optional RAM](validation/2026-09-21-zx81-ram-composition.md): exact
+  same-shell 1 KiB/16 KiB library launches, retained selection, clear/reload,
+  rejection continuity and original-kit restoration.
+
 - [Playable Catch and Coleco audio](validation/2026-09-21-playable-audio.md):
   exact-package normal-library video, audio, input, household BIOS readiness,
   switching and host-restart diagnostics with original-kit restoration.
-  ZX81 expansion and appliance release acceptance remain separate.
+  ZX81 expansion is covered by its separate record above; appliance release
+  acceptance remains separate.
 
 - [Consolidated development](validation/2026-09-20-consolidated-development.md):
   preserved histories, contributor/cache rehearsals, three FPGA packages,

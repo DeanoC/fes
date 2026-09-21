@@ -1,8 +1,11 @@
 # Launch composition
 
-**Status:** Phase 0 model is current. Phase 1 (Coleco firmware slot + Ready
-gate) is implemented in software on the existing library session path. It is
-not a kit HIL or hardware-acceptance claim.
+**Status:** The existing library session path implements household Coleco
+firmware readiness and optional ZX81 RAM composition. Coleco exact-package
+video/audio/input evidence is recorded in the
+[playable application validation](../../../docs/validation/2026-09-21-playable-audio.md).
+The [ZX81 RAM guide](../../../docs/zx81-ram-expansion.md) documents its producer,
+selection API and acceptance procedure. Removable media remains future work.
 
 **Related:**
 
@@ -295,14 +298,15 @@ This Phase 0 PR, and the model it sets, explicitly do **not**:
   path, or raw RBF
 - claim retail Coleco compatibility from BIOS bind alone
 
-## Next integration step
+## Current integration
 
-Phase 1 software is in this tree. Remaining Phase 1 kit work is separately
-authorized and is not claimed here: leased Coleco bind of household BIOS
-before reset, Frogger versus Graphics I on HDMI, no factory BIOS install.
+Firmware and expansion selection use the normal library launch path. The
+host and target independently link selected expansion assets; the runtime
+programs the checked payload while retaining the original shell identity.
+No compiler runs during launch. Physical acceptance applies only to the
+artifacts in the linked validation records, not every future package or image.
 
-Phase 2 is the next model slice: load-time CRAM link of optional carts,
-starting with ZX81 16K RAM on the proven nextpnr linker. Software tests
-and descriptor fixtures still come before any leased kit run.
+The earlier phase descriptions above retain the rationale and sequence of
+the design. They do not supersede the current operator guides.
 
 FES parent merges stay Deano’s.
