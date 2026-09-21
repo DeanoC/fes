@@ -16,6 +16,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts import build_fes_pong as board
+from scripts import fes_de10nano_evidence as board_evidence
 from scripts.export_core_package import build_identity, encode_build_record
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,8 @@ RTL_SOURCES = (
 PINNED_INPUTS = (
     RECIPE,
     CONTRACT,
+    "scripts/fes_build_common.py",
+    "scripts/fes_de10nano_evidence.py",
     "toolchain.lock",
     QSF,
     SDC,
@@ -185,8 +188,8 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     source_root = Path(source_root)
     synthesis = board._read_json(output / "synth.json", "synthesis evidence")
     routed = board._read_json(output / "routed.json", "routed design")
-    board._pll_cell_parameters(synthesis, "synthesized")
-    board._pll_cell_parameters(routed, "routed")
+    board_evidence._pll_cell_parameters(synthesis, "synthesized")
+    board_evidence._pll_cell_parameters(routed, "routed")
     board._i2c_evidence(synthesis, "synthesized")
     board._i2c_evidence(routed, "routed")
     counts = board._cell_counts(synthesis)
@@ -205,13 +208,13 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise board.BuildError("route log does not prove a complete routed design")
     if "falling back to the cpu reference backend" in route_text.lower():
         raise board.BuildError("route log shows a GPU-router fallback; splash uses the default CPU router")
-    reference = board._reference_clock_evidence(source_root, route_text)
+    reference = board_evidence._reference_clock_evidence(source_root, route_text)
 
     timing = board._read_json(output / "timing.json", "timing report")
     fmax = timing.get("fmax")
     if not isinstance(fmax, dict) or len(fmax) != 1:
         raise board.BuildError("timing report must contain the single pixel sequential domain")
-    pixel = board._frequency_rows(fmax, 74.25, "pixel clock")
+    pixel = board_evidence._frequency_rows(fmax, 74.25, "pixel clock")
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
         raise board.BuildError("timing report has no structured utilization data")
