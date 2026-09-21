@@ -96,7 +96,7 @@ For an available, matched game, **Confirm** launches directly. The focused panel
 | Checking | Library match still resolving | Honest wait / progress; never silent no-op |
 | Missing | No matching game in this household’s library | Explanation + resolution action |
 | Needs a choice | Several editions match; no preference saved | Force a clear choice; remember for household |
-| Unavailable | Matched, but a requirement blocks play | Reason + specific next action |
+| Unavailable | Matched, but a requirement blocks play | Reason + specific next action. Missing Coleco BIOS Confirm opens the household file picker (Import Coleco BIOS). Other blocks still open Details. |
 | Ready | Can launch through the current setup | Launch (Play) |
 
 Missing locations remain on the authored map so structure survives. Confirm must **never** silently do nothing.

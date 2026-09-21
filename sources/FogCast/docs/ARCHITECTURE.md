@@ -695,6 +695,10 @@ local file path; no browser file picker and no host file-list API). That POST
 is the same public `application/octet-stream` session endpoint. Sofa chrome
 labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
+Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
+a firmware-required title opens a local file picker and posts
+`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`. That is not a
+development RBF load.
 
 ## FES appliance releases
 
@@ -1223,16 +1227,18 @@ renderers over the same session model and do not own physical transitions.
 Coleco firmware and optional ZX81 RAM expansion use the normal library launch
 path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
-and reset release. Expansion selection binds an independently linked pack to
-the exact shell package. Later removable media work remains proposed in
-[launch composition](launch-composition.md).
+and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
+existing media/firmware APIs. Expansion selection binds an independently linked
+pack to the exact shell package. Later removable media work remains proposed
+in [launch composition](launch-composition.md).
 
-Library list, detail and variant responses report expansion selection and readiness
-independently of firmware requirements, including firmware-free ZX81 shells.
-Expansion admission distinguishes missing/invalid packs from catalog failures:
-missing titles retain not-found responses, concurrent choices retain conflict
-responses, and unexpected storage failures remain internal errors. Malformed
-archives or incompatible compositions are rejected as admission errors.
+Library list, detail and variant responses report expansion selection and
+readiness independently of firmware requirements, including firmware-free ZX81
+shells. Expansion admission distinguishes missing/invalid packs from catalog
+failures: missing titles retain not-found responses, concurrent choices retain
+conflict responses, and unexpected storage failures remain internal errors.
+Malformed archives or incompatible compositions are rejected as admission
+errors.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented

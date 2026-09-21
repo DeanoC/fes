@@ -487,7 +487,11 @@ pinned rooms, recently played games, installed rooms, and the full
 library; `-home rooms` (or Settings › Home Left/Right) starts there.
 When several editions match, Confirm and Details force a choice unless a
 household preference is already saved (`libraryuser` via the edition-preferences
-host API). Room logical-action bindings live in
+host API). A firmware-required title with an empty household BIOS slot is
+**Unavailable**; Confirm opens a pad-friendly file picker that imports an
+8192-byte Coleco BIOS through `POST /api/v1/core-media` and
+`PUT /api/v1/library/firmware`. Back closes the picker without moving the
+selected location. Room logical-action bindings live in
 [rooms-controller-bindings.md](../rooms-controller-bindings.md). Packs are
 one directory each under `-rooms DIR`, `FOGCAST_ROOMS`, `tenfoot.json`
 `rooms_dir`, or `<config>/FogCast/rooms`; the embedded `example.*` rooms

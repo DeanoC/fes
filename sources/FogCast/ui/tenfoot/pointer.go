@@ -22,6 +22,7 @@ const (
 	PointerRoomChoice
 	PointerRoomDestination
 	PointerLaunchOverlay
+	PointerFirmwarePicker
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -63,6 +64,8 @@ func (k PointerKind) String() string {
 		return "room-destination"
 	case PointerLaunchOverlay:
 		return "launch-overlay"
+	case PointerFirmwarePicker:
+		return "firmware-picker"
 	default:
 		return "none"
 	}
@@ -136,6 +139,15 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 	if panel, ok := roomPickerPanel(snap); ok {
 		if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.RoomPicker.Rows) {
 			return PointerHit{Kind: PointerRoomPicker, Index: idx}
+		}
+		if panel.contains(x, y) {
+			return PointerHit{}
+		}
+		return PointerHit{Kind: PointerBackdrop}
+	}
+	if panel, ok := firmwarePickerPanel(snap); ok {
+		if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.FirmwarePicker.Rows) {
+			return PointerHit{Kind: PointerFirmwarePicker, Index: idx}
 		}
 		if panel.contains(x, y) {
 			return PointerHit{}
@@ -270,6 +282,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		FocusDetail:     a.focusDetailLocked(),
 		Room:            a.roomSnapshotLocked(false),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 	}
 }
 
@@ -307,6 +320,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 	case PointerRoomPicker:
 		if hit.Index >= 0 {
 			a.roomPickerIndex = hit.Index
+		}
+	case PointerFirmwarePicker:
+		if hit.Index >= 0 && hit.Index < len(a.firmwarePickerRows) {
+			a.firmwarePickerIndex = hit.Index
 		}
 	case PointerRoomChoice:
 		if hit.Index >= 0 && hit.Index < len(a.roomChoice) {
@@ -351,6 +368,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleViewPickerLocked(CmdSelect)
 	case PointerRoomPicker:
 		a.handleRoomPickerLocked(CmdSelect)
+	case PointerFirmwarePicker:
+		a.handleFirmwarePickerLocked(CmdSelect)
 	case PointerRoomChoice:
 		a.handleRoomChoiceLocked(CmdSelect)
 	case PointerLaunchOverlay:
@@ -385,6 +404,8 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 		a.handleViewPickerLocked(CmdBack)
 	case a.roomPickerOpen:
 		a.handleRoomPickerLocked(CmdBack)
+	case a.firmwarePickerOpen:
+		a.handleFirmwarePickerLocked(CmdBack)
 	case a.settingsOpen:
 		a.handleSettingsLocked(CmdBack)
 	case a.filtersOpen:

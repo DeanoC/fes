@@ -170,7 +170,9 @@ fogcast --api http://127.0.0.1:8787 --json core-entry 'Frogger' PACKAGE_ID blob 
 fogcast --api http://127.0.0.1:8787 --json core-firmware-select none
 ```
 
-`GET`/`PUT /api/v1/library/firmware` is the same slot. Graphics I / graphics-i
+`GET`/`PUT /api/v1/library/firmware` is the same slot. Tenfoot/rooms Confirm
+on **Import Coleco BIOS.** posts those same endpoints from a local file picker
+(Home, configured library roots, and a path OSK). Graphics I / graphics-i
 omit the title-level flag and stay Ready without BIOS. The private `--bios`
 producer is not this path.
 

@@ -447,17 +447,17 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		return RoomSnapshot{}
 	}
 	snap := RoomSnapshot{
-		Open:        true,
-		ID:          a.room.ID(),
-		Title:       a.room.Title(),
-		Frame:       a.roomFrame,
-		Err:         a.roomErr,
-		OffsetX:     a.grid.contentLeft(),
-		OffsetY:     a.grid.contentTop(),
-		Width:       a.grid.contentWidth(),
-		Height:      a.grid.contentHeight(),
-		Destination: a.roomDestinationLocked(),
-		Choice:      a.roomChoiceSnapshotLocked(),
+		Open:          true,
+		ID:            a.room.ID(),
+		Title:         a.room.Title(),
+		Frame:         a.roomFrame,
+		Err:           a.roomErr,
+		OffsetX:       a.grid.contentLeft(),
+		OffsetY:       a.grid.contentTop(),
+		Width:         a.grid.contentWidth(),
+		Height:        a.grid.contentHeight(),
+		Destination:   a.roomDestinationLocked(),
+		Choice:        a.roomChoiceSnapshotLocked(),
 		Parents:       a.roomParentIDsLocked(),
 		ReducedMotion: a.room.ReducedMotion(),
 	}
@@ -492,7 +492,14 @@ func (a *App) roomHintLocked() string {
 	if a.roomChoiceOpen {
 		return roomChoiceHint(kind)
 	}
+	if a.firmwarePickerOpen {
+		return firmwarePickerHint(kind)
+	}
 	if a.detailOpen {
+		dest := a.roomDestinationLocked()
+		if dest.Confirm() == rooms.ConfirmImportFirmware {
+			return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+		}
 		return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 	}
 	dest := a.roomDestinationLocked()
