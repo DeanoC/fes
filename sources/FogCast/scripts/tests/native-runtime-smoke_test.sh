@@ -178,11 +178,11 @@ cat > "$expected_inputs" <<'EOF'
 format=1
 mister_runtime_commit=1111111111111111111111111111111111111111
 mister_agent_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-idle_repository=https://github.com/MiSTer-devel/Distribution_MiSTer
-idle_commit=f7bde4becb452ca28f604ad9802bbed5c6b58e01
-idle_path=menu.rbf
-idle_sha256=821bcf66181a00ff550e4a4110dc11c9fa8e68d38e9cb5558b3ddb99ca938934
-idle_size=2452588
+idle_repository=sources/misteross
+idle_commit=a2af7fdd58d8e5d288892aeda38e8dc226aaed07
+idle_path=sealed/fes-splash.rbf
+idle_sha256=f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6
+idle_size=1961783
 idle_install_path=/usr/share/mister-runtime/idle.rbf
 megadrive_origin=upstream
 megadrive_abi=mister

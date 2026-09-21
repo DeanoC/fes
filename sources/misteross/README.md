@@ -3,6 +3,8 @@
 This module builds small experimental RBF files for the MiSTer/DE10-Nano
 Cyclone V FPGA (`5CSEBA6U23I7`). It exists to make ordinary MiSTer core
 development possible with both the open-source Mistral toolchain and Quartus.
+FES `sources/misteross` is the source of truth. Do not open day-to-day PRs
+against standalone `https://github.com/DeanoC/misteross`.
 
 Shared producer operations live in `scripts/fes_build_common.py`; fixed
 DE10-Nano video/audio evidence lives in `scripts/fes_de10nano_evidence.py`.
@@ -53,6 +55,16 @@ select one qualified compiler lock, `toolchains/registered-memory.lock`.
   host simulation/recipe coverage; no routed-RBF or hardware acceptance is
   claimed for the audio extension. The audio demo emits 1000/500 Hz stereo at
   48 kHz; Right doubles both tones. See [application development](docs/architecture.md#composable-application-reference).
+- Board-firmware HDMI splash (U-Boot / intended Stop-idle bitstream):
+  `make sim-fes-splash` checks CTA-770.3 1280×720p60 timing, the FogCast/FES
+  mark plus autonomous motion, and the HPS I2C ADV7513 bridge. `make
+  build-fes-splash` is the generic OSS Yosys/nextpnr-mistral producer. It
+  writes `build/fes-splash/core.rbf` plus provenance for FES `native-inputs`
+  and does **not** seal a format-2 play package. The tracked seal is
+  `sealed/fes-splash.rbf`. The core has no MiSTer user-io (`0x0014` Probe /
+  `0x002f` HPS fb); U-Boot and `LoadIdle` must not Probe. See
+  [board-firmware splash](cores/fes-splash/README.md) and
+  [architecture](docs/architecture.md#board-firmware-splash).
 - Verilator simulation for the included experiments.
 - A pinned repository-local Yosys, nextpnr-mistral, Mistral, and
   openFPGALoader toolchain.
@@ -767,6 +779,11 @@ build/cores/nes/releases/NES_20260823.rbf              # upstream
 build/rebuild/nes/nes.rbf                               # our rebuild
 build/bundles/nes/<rbf-sha256>/nes.rbf                 # exported
 build/bundles/nes/<rbf-sha256>/nes-rbf.toml             # manifest
+build/fes-splash/core.rbf                                # OSS board-firmware splash RBF
+build/fes-splash/build-inputs.json                       # pre-synthesis canonical inputs
+build/fes-splash/build-summary.json                      # timing/resource/tool evidence when sealed
+build/fes-splash/native-inputs-snippet.toml              # FES [splash_rbf]/[idle_rbf] pin candidate
+sealed/fes-splash.rbf                                    # tracked FES-local splash/idle seal
 build/fes-pong/core.rbf                                 # standalone FES Pong build
 build/fes-pong/build-inputs.json                        # pre-synthesis canonical inputs
 build/fes-pong/build-summary.json                       # timing/resource/tool evidence

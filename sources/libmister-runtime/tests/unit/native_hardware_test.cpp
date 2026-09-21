@@ -1896,6 +1896,22 @@ void TestIdleWithoutProbeDoesNotRequireMenuIdentity()
 	assert(fixture.idle_video.last_idle.expected_core.empty());
 }
 
+void TestSplashIdleProgramsWithoutProbeOrFramebuffer()
+{
+	Fixture fixture(nullptr, nullptr, mister::native::SplashIdle());
+	fixture.idle_video.result.observed_core.clear();
+	const mister::HardwareResult idle = fixture.hardware.LoadIdle();
+	assert(idle.error.ok());
+	assert(idle.mutation_attempted);
+	assert(idle.observed_core.empty());
+	assert(fixture.fpga.profiles == std::vector<mister::native::ProgrammingProfile>({
+		mister::native::ProgrammingProfile::development_contained_v1}));
+	assert(fixture.idle_video.last_idle.expected_core.empty());
+	assert(!fixture.idle_video.last_idle.probe_core);
+	assert(!fixture.idle_video.last_idle.enable_hps_framebuffer);
+	assert(!mister::native::IdleUsesMisterUserIo(fixture.idle_video.last_idle));
+}
+
 void TestDefinedIdleCanUseNonMisterProgrammingProfile()
 {
 	mister::native::IdleRecipe recipe;
@@ -3073,6 +3089,7 @@ int main()
 	TestIdleRequiresVideo();
 	TestDefinedIdleProgramsWithoutMenuChrome();
 	TestIdleWithoutProbeDoesNotRequireMenuIdentity();
+	TestSplashIdleProgramsWithoutProbeOrFramebuffer();
 	TestDefinedIdleCanUseNonMisterProgrammingProfile();
 	TestPlayPackageCleanupLoadsDefinedIdle();
 	TestIdlePreflightFailureCallsNeitherFpgaNorVideo();
@@ -3094,6 +3111,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 54 passed");
+	puts("native_hardware_test: 55 passed");
 	return 0;
 }

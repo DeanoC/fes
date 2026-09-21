@@ -41,7 +41,7 @@ foreground session. Surfaces attaching by session id is later session work.
 | Kit launcher | linux/armv7 | FogCast binary, FES `image/` install | `fogcast_kit_sha256` in `build-inputs` |
 | Runtime daemon | linux/armv7 | libmister-runtime via FES `image/` | `mister_runtime_commit` in `build-inputs` |
 | Rootfs / appliance image | ARMv7 ext4 | FES `image/` recipe | `image.json`, appliance `image_sha256` |
-| Idle RBF | FPGA bitstream | Distribution_MiSTer pin | `idle_sha256` |
+| Splash / idle RBF | FPGA bitstream | in-tree `sources/misteross/sealed/fes-splash.rbf` | `splash.sha256` / `idle_sha256` |
 | Catalog cores | FPGA bitstream | misteross bundles | `*_sha256` / selection records |
 | Format-2 package | manifest + RBF | misteross | package id + payload sha |
 | ABI snapshot | generated C++/Go | mister-packages | `make check` consumers |

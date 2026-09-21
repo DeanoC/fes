@@ -153,11 +153,11 @@ class MediaTests(unittest.TestCase):
         (self.fogcast / 'build').mkdir(parents=True, exist_ok=True)
         digest_idle = hashlib.sha256(b'idle').hexdigest()
         (self.root / 'image/build/native-inputs.toml').write_text(
-            '[splash_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
-            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + digest_idle
+            '[splash_rbf]\nrepository="https://github.com/DeanoC/misteross"\n'
+            'commit="' + 'd' * 40 + '"\npath="sealed/fes-splash.rbf"\nsize=4\nsha256="' + digest_idle
             + '"\nfat_destination="/menu.rbf"\n'
-            '[idle_rbf]\nrepository="https://github.com/MiSTer-devel/Distribution_MiSTer"\n'
-            'commit="' + 'd' * 40 + '"\npath="menu.rbf"\nsize=4\nsha256="' + digest_idle
+            '[idle_rbf]\nrepository="https://github.com/DeanoC/misteross"\n'
+            'commit="' + 'd' * 40 + '"\npath="sealed/fes-splash.rbf"\nsize=4\nsha256="' + digest_idle
             + '"\ninstall_path="/usr/share/mister-runtime/idle.rbf"\n')
 
     def build(self, config=None):

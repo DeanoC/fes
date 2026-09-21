@@ -49,23 +49,9 @@ if [ "$native_mode" = package-only ]; then
     exit 2
   }
 
-  require_transitional_menu_identity() {
-    identity_section=$1
-    repository=$(read_package_lock_value "$identity_section" repository)
-    revision=$(read_package_lock_value "$identity_section" commit)
-    source_path=$(read_package_lock_value "$identity_section" path)
-    [ "$repository" = https://github.com/MiSTer-devel/Distribution_MiSTer ] &&
-      [ "$revision" = f7bde4becb452ca28f604ad9802bbed5c6b58e01 ] &&
-      [ "$source_path" = menu.rbf ] || {
-      printf '%s\n' "fetch-native-runtime-inputs: $identity_section lock identity is invalid" >&2
-      exit 2
-    }
-  }
-
   fetch_locked_rbf() {
     fetch_section=$1
     dest=$2
-    require_transitional_menu_identity "$fetch_section"
     repository=$(read_package_lock_value "$fetch_section" repository)
     revision=$(read_package_lock_value "$fetch_section" commit)
     source_path=$(read_package_lock_value "$fetch_section" path)
@@ -102,8 +88,69 @@ if [ "$native_mode" = package-only ]; then
     done
     temporary=$(mktemp "$cache/.${dest##*/}.XXXXXX")
     trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
-    url=https://raw.githubusercontent.com/${repository#https://github.com/}/$revision/$source_path
-    wget -q -O "$temporary" "$url"
+    case "$repository" in
+      sources/*)
+        fes_root=${FES_ROOT:-}
+        if [ -z "$fes_root" ] && [ -n "${FOGCAST_DIR:-}" ]; then
+          fes_root=$(git -C "$FOGCAST_DIR" rev-parse --show-toplevel 2>/dev/null || true)
+        fi
+        if [ -z "$fes_root" ]; then
+          fes_root=$(CDPATH='' cd -- "$repo_root/.." && pwd)
+        fi
+        printf '%s\n' "$source_path" | grep -Eq '^[A-Za-z0-9._][A-Za-z0-9._/-]*$' || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section path is not a relative in-tree file" >&2
+          exit 2
+        }
+        case "$source_path" in
+          *..*)
+            printf '%s\n' "fetch-native-runtime-inputs: $fetch_section path must not contain .." >&2
+            exit 2
+            ;;
+        esac
+        fes_root=$(CDPATH='' cd -- "$fes_root" && pwd -P)
+        local_file=$fes_root/$repository/$source_path
+        case "$local_file" in
+          "$fes_root/sources/"*) : ;;
+          *)
+            printf '%s\n' "fetch-native-runtime-inputs: $fetch_section local path escaped the FES tree" >&2
+            exit 2
+            ;;
+        esac
+        [ -f "$local_file" ] && [ ! -L "$local_file" ] || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section in-tree pin is missing: $local_file" >&2
+          exit 1
+        }
+        cp -- "$local_file" "$temporary"
+        ;;
+      https://github.com/*)
+        owner_repo=${repository#https://github.com/}
+        owner_repo=${owner_repo%.git}
+        printf '%s\n' "$owner_repo" | grep -Eq '^[^/[:space:]]+/[^/[:space:]]+$' || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository is not owner/repo" >&2
+          exit 2
+        }
+        github_token=${GITHUB_TOKEN:-${GH_TOKEN:-}}
+        if [ -n "$github_token" ]; then
+          url=https://api.github.com/repos/$owner_repo/contents/$source_path?ref=$revision
+          if ! wget -q --header="Authorization: Bearer $github_token" \
+              --header="Accept: application/vnd.github.raw" \
+              -O "$temporary" "$url"; then
+            printf '%s\n' "fetch-native-runtime-inputs: authenticated GitHub download of $fetch_section failed" >&2
+            exit 1
+          fi
+        else
+          url=https://raw.githubusercontent.com/$owner_repo/$revision/$source_path
+          if ! wget -q -O "$temporary" "$url"; then
+            printf '%s\n' "fetch-native-runtime-inputs: unauthenticated download of $fetch_section failed. Private GitHub pins require GITHUB_TOKEN or GH_TOKEN with contents:read." >&2
+            exit 1
+          fi
+        fi
+        ;;
+      *)
+        printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository must be sources/* or a github.com HTTPS URL" >&2
+        exit 2
+        ;;
+    esac
     actual_sha=$(sha256sum "$temporary" | awk '{print $1}')
     [ "$actual_sha" = "$expected_sha" ] || {
       printf '%s\n' "fetch-native-runtime-inputs: downloaded $fetch_section SHA-256 does not match the lock" >&2

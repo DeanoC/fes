@@ -28,6 +28,12 @@ artifact formats. The user's current request defines the scope.
 10. Commits are coherent and describe the working result, not a chain of
     status or evidence documents.
 
+## Source of truth
+
+FES `sources/misteross` is the source of truth. Do **not** open day-to-day
+PRs against standalone `https://github.com/DeanoC/misteross`. That URL in
+`config/source-imports.toml` is historical import provenance only.
+
 ## Repository boundary
 
 - This repository ends at the RBF artifact boundary. FogCast owns host

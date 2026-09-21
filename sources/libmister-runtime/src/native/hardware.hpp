@@ -62,7 +62,7 @@ public:
 		LogSink&, std::string idle_rbf, NativeTimeouts, CoreDriver& mister_driver,
 		CoreDriver* fes_gp_driver = nullptr, const Profiles* profiles = nullptr,
 		std::vector<std::string> package_roots = {},
-		IdleRecipe idle_recipe = TransitionalMenuIdle());
+		IdleRecipe idle_recipe = SplashIdle());
 	~NativeHardware();
 	void SetFaultSink(HardwareFaultSink*) override;
 	HardwareResult LoadIdle() override;

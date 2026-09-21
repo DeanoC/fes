@@ -57,9 +57,9 @@ and is not current-profile acceptance.
   firmware; attract is an ABI; kit-as-host is the same FogCast host, not a
   second catalog. Docs only; Deano owns merge.
 - [Idle MENU → rooms — Phase 2 execution](idle-menu-rooms-phase2.md):
-  splash RBF + defined Stop idle (not MENU chrome). Slice 1 names FES
-  splash vs Stop-idle policy slots. Remaining slices 2–6. Does not reopen
-  the lock. Deano owns merge.
+  splash RBF + defined Stop idle (not MENU chrome). Slices 1–4 name
+  slots, define `LoadIdle`, and pin sealed misteross splash. Remaining
+  slices 5–6. Does not reopen the lock. Deano owns merge.
 
 ## What has been verified
 

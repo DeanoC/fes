@@ -166,7 +166,7 @@ public:
 			  &ProductionProfiles(),
 			  {"/tmp/fogcast-development/core-packages",
 			   "/usr/share/mister-runtime/core-packages"},
-			  native::TransitionalMenuIdle()) {}
+			  native::SplashIdle()) {}
 
 	void SetFaultSink(HardwareFaultSink* sink) override
 	{

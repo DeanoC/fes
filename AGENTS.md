@@ -22,7 +22,7 @@ See [the documentation index](docs/README.md) to distinguish them.
 | Component selection, compatibility, orchestration, system assembly and integration evidence | FES |
 | UI, game library, host services, network-facing target agent | FogCast |
 | FPGA programming, physical lifecycle, media/input delivery and hardware recovery | libmister-runtime |
-| FPGA source builds, RBF provenance, simulations and compiler recipes | misteross |
+| FPGA source builds, RBF provenance, simulations and compiler recipes | misteross (`sources/misteross`; do not use standalone `DeanoC/misteross`) |
 | Shared board/protocol/source definitions and their schema/emitter | mister-packages |
 
 Main_MiSTer is a comparison reference, not a production dependency. Keep

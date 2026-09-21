@@ -1,0 +1,135 @@
+{
+  "build_id": "48cb79e2d36a93e970b297e556c648ff",
+  "device": "5CSEBA6U23I7",
+  "format2_package": false,
+  "inputs": {
+    "boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
+    "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
+    "cores/fes-splash/constraints.qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
+    "cores/fes-splash/idle-contract.toml": "15f38a30e636dcbaade06275e53a356181983cf18a70996f06c0cc1fb16fb524",
+    "cores/fes-splash/rtl/fes_splash_core.v": "208068fcf974ccc06b0c2c5e01b63b86ec801896aa2f1d67493754feaf3fe4bd",
+    "cores/fes-splash/rtl/top.v": "7fd3a73b33759f8005df4a9528d693da9035898daa29cb396b50381610d6e8b8",
+    "scripts/build_fes_splash.py": "7115370f3519d9107dec0e188e84a036d31dc1dd0b3a78f4ae5fbb9b2c2f5c47",
+    "toolchain.lock": "545e11885f52022dfa5073c95bf39e4d17e6488f142568afdf61642cbe9e95b5"
+  },
+  "rbf": {
+    "sha256": "f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6",
+    "size": 1961783
+  },
+  "resources": {
+    "MISTRAL_BUF": {
+      "available": 0,
+      "used": 10
+    },
+    "MISTRAL_CLKENA": {
+      "available": 8,
+      "used": 1
+    },
+    "MISTRAL_COMB": {
+      "available": 83820,
+      "used": 573
+    },
+    "MISTRAL_FF": {
+      "available": 167640,
+      "used": 29
+    },
+    "MISTRAL_IO": {
+      "available": 472,
+      "used": 31
+    },
+    "MISTRAL_M10K": {
+      "available": 553,
+      "used": 0
+    },
+    "MISTRAL_MUL18X18": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL18X19_COMBINED": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL27X27": {
+      "available": 112,
+      "used": 0
+    },
+    "MISTRAL_MUL9X9": {
+      "available": 336,
+      "used": 0
+    },
+    "altera_pll": {
+      "available": 6,
+      "used": 1
+    },
+    "cyclonev_hps_interface_mpu_general_purpose": {
+      "available": 1,
+      "used": 0
+    },
+    "cyclonev_hps_interface_peripheral_i2c": {
+      "available": 4,
+      "used": 1
+    },
+    "cyclonev_oscillator": {
+      "available": 1,
+      "used": 0
+    }
+  },
+  "route": {
+    "router": "default",
+    "status": "pass",
+    "unrouted": false
+  },
+  "status": "pass",
+  "synthesis_cells": {
+    "$logic_and": 2,
+    "$specify2": 7,
+    "$specify3": 2,
+    "$specrule": 7,
+    "MISTRAL_ALUT2": 17,
+    "MISTRAL_ALUT3": 40,
+    "MISTRAL_ALUT4": 33,
+    "MISTRAL_ALUT5": 9,
+    "MISTRAL_ALUT6": 6,
+    "MISTRAL_ALUT_ARITH": 463,
+    "MISTRAL_CLKBUF": 1,
+    "MISTRAL_FF": 29,
+    "MISTRAL_IB": 1,
+    "MISTRAL_IO": 2,
+    "MISTRAL_NOT": 10,
+    "MISTRAL_OB": 28,
+    "altera_pll": 1,
+    "cyclonev_hps_interface_peripheral_i2c": 1
+  },
+  "timing": {
+    "pixel": {
+      "achieved_mhz": 171.55601501464844,
+      "clock": "pixel_clk",
+      "constraint_mhz": 74.25006866455078,
+      "requested_mhz": 74.25,
+      "status": "pass"
+    },
+    "reference": {
+      "clock": "FPGA_CLK1_50",
+      "constraint_mhz": 50.0,
+      "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+      "requested_mhz": 50.0,
+      "status": "pass"
+    },
+    "status": "pass"
+  },
+  "tools": {
+    "mistral": "commit=b28e30a36b5139aaed5a5d361a30b542e6b7c758; sha256=b695fec274f7bb912b5295cf9ae5589c6c9d3c3babce26b759f5ee583ae60f62",
+    "nextpnr-mistral": "commit=d672fade461e8a1eba4d3f95895902d86f43b882; sha256=99efae612d68249cef7592c46375ba10ac3711fb5b2f02d2a41c6f8f63d469ac; gpu-router=OFF; hip-architectures=unused",
+    "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=5c8ed4037cd6fe8a2d8995d49bfbf68d56c3d88544f092f0d0b0e0999dac60aa"
+  },
+  "top": "top",
+  "user_io": {
+    "core_id": "",
+    "hps_fb": false,
+    "probe": false
+  }
+}

@@ -197,8 +197,8 @@ card, verify all of the following before releasing the lease:
   and installed runtime Stop-idle artifact
   (`/usr/share/mister-runtime/idle.rbf`) with `rootfs.sha256`, `kernel.sha256`,
   `splash.sha256`, and `idle.sha256` in `fes-media.toml`. Splash and Stop-idle
-  are independent slots; their hashes may match while the transitional pin
-  reuses today's sealed Menu bytes for both.
+  are independent slots; their hashes currently match because both slots
+  reuse the sealed misteross splash bitstream until a second idle exists.
 - Compare the installed rootfs, agent, runtime, kernel, splash, idle artifact and all
   selected package payloads before exact-artifact acceptance. Run:
 
