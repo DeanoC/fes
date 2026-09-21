@@ -4,6 +4,9 @@ For persistent Pong settings and best rally, see [core persistence](core-persist
 Proposed multi-slot launch composition (core, firmware, expansions, primary
 and removable media) is in the selected FogCast
 [launch composition](../sources/FogCast/docs/launch-composition.md) design.
+The locked idle RBF is still sealed MiSTer `menu.rbf`; the proposed
+replacement (U-Boot splash, attract ABI, rooms via one tenfoot renderer) is
+[Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
 `fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image
