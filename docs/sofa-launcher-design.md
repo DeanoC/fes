@@ -6,6 +6,10 @@ complete on the designated kit. The launcher now consumes the merged shared
 the separate UI task. This task supplies host, runtime, controller and boot
 interfaces plus the kit integration view.
 
+The product path that retires this MENU + kit-grid HDMI idle is the FES
+design lock [Idle MENU → rooms](idle-menu-rooms.md). This page remains the
+current on-kit launcher description.
+
 ## Outcome
 
 With the configured FogCast host running, powering on the designated kit shows
