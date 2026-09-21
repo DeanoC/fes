@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -14,6 +15,73 @@ import (
 	"testing"
 	"time"
 )
+
+func TestExpansionErrorClassification(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code protocol.ErrorCode
+	}{
+		{"missing title", catalog.ErrCoreEntryNotFound, protocol.CodeROMNotFound},
+		{"selection conflict", catalog.ErrCoreEntryConflict, protocol.CodeStaleRevision},
+		{"invalid entry", catalog.ErrInvalidCoreEntry, protocol.CodeBadRequest},
+		{"missing pack", catalog.ErrCoreExpansionNotFound, protocol.CodeBadRequest},
+		{"invalid pack", catalog.ErrInvalidCoreExpansion, protocol.CodeBadRequest},
+		{"store failure", errors.New("private database details"), protocol.CodeInternal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var api *protocol.APIError
+			if err := expansionError(fmt.Errorf("wrapped: %w", tc.err)); !errors.As(err, &api) || api.Code != tc.code {
+				t.Fatalf("expected %s, got %v", tc.code, err)
+			}
+			if strings.Contains(api.Message, "private database details") {
+				t.Fatal("exposed storage error details")
+			}
+		})
+	}
+	if expansionError(nil) != nil {
+		t.Fatal("nil error changed")
+	}
+}
+
+func TestClearExpansionPreservesCatalogErrors(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		t.Run(fmt.Sprint(closed), func(t *testing.T) {
+			ctx := context.Background()
+			store, err := catalog.OpenContext(ctx, filepath.Join(t.TempDir(), "catalog.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			want := protocol.CodeROMNotFound
+			if closed {
+				store.Close()
+				want = protocol.CodeInternal
+			}
+			service := newService(Config{RequestTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+			_, err = service.SelectCoreEntryExpansion(ctx, "missing-title", strings.Repeat("a", 64), "", "")
+			var api *protocol.APIError
+			if !errors.As(err, &api) || api.Code != want {
+				t.Fatalf("expected %s, got %v", want, err)
+			}
+		})
+	}
+}
+
+func TestMalformedExpansionImportRemainsAdmissionError(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.OpenContext(ctx, filepath.Join(t.TempDir(), "catalog.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := newService(Config{}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+	_, err = service.ImportCoreExpansion(ctx, 3, strings.NewReader("bad"))
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest || api.Phase != "admission" {
+		t.Fatalf("expected admission error, got %v", err)
+	}
+}
 
 type unavailableExpansionCatalog struct {
 	*catalog.Store

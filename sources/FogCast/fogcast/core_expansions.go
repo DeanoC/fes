@@ -24,10 +24,10 @@ func expansionError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, catalog.ErrCoreEntryConflict) {
-		return canonicalError(protocol.CodeStaleRevision, nil)
+	if errors.Is(err, catalog.ErrCoreExpansionNotFound) || errors.Is(err, catalog.ErrInvalidCoreExpansion) {
+		return &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "selected expansion is unavailable or incompatible with the exact core package"}
 	}
-	return &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission", Message: "selected expansion is unavailable or incompatible with the exact core package"}
+	return mapCoreEntryError(err)
 }
 func (s *Service) ImportCoreExpansion(ctx context.Context, size int64, body io.Reader) (catalog.CoreExpansion, error) {
 	store, ok := s.catalog.(coreExpansionCatalog)
@@ -43,14 +43,14 @@ func (s *Service) ImportCoreExpansion(ctx context.Context, size int64, body io.R
 	}
 	asset, err := expansion.ReadAsset(bytes.NewReader(data))
 	if err != nil {
-		return catalog.CoreExpansion{}, expansionError(err)
+		return catalog.CoreExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
 	_, base, err := s.readInstalledCore(ctx, asset.Manifest.ShellPackageID)
 	if err != nil {
 		return catalog.CoreExpansion{}, err
 	}
 	if _, err = corepackage.ComposeArchive(base, asset); err != nil {
-		return catalog.CoreExpansion{}, expansionError(err)
+		return catalog.CoreExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
 	result, err := store.ImportCoreExpansion(ctx, asset)
 	return result, expansionError(err)
@@ -89,7 +89,7 @@ func (s *Service) SelectCoreEntryExpansion(ctx context.Context, gameID, packageI
 			return catalog.CoreEntryExpansion{}, err
 		}
 		if _, err = corepackage.ComposeArchive(base, asset); err != nil {
-			return catalog.CoreEntryExpansion{}, expansionError(err)
+			return catalog.CoreEntryExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 		}
 	}
 	value, err := store.SelectCoreEntryExpansion(ctx, gameID, packageID, expected, id)
@@ -113,7 +113,7 @@ func (s *Service) composeCoreEntry(ctx context.Context, entry catalog.CoreEntry,
 	}
 	bundle, err := corepackage.ComposeArchive(base, asset)
 	if err != nil {
-		return nil, expansionError(err)
+		return nil, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
 	return &bundle, nil
 }

@@ -1229,6 +1229,10 @@ the exact shell package. Later removable media work remains proposed in
 
 Library list, detail and variant responses report expansion selection and readiness
 independently of firmware requirements, including firmware-free ZX81 shells.
+Expansion admission distinguishes missing/invalid packs from catalog failures:
+missing titles retain not-found responses, concurrent choices retain conflict
+responses, and unexpected storage failures remain internal errors. Malformed
+archives or incompatible compositions are rejected as admission errors.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented
