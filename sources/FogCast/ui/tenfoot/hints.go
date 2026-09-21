@@ -2,8 +2,10 @@ package tenfoot
 
 import (
 	"fmt"
-	"github.com/DeanoC/FogCast/ui/shared"
 	"strings"
+
+	"github.com/DeanoC/FogCast/ui/rooms"
+	"github.com/DeanoC/FogCast/ui/shared"
 )
 
 func selectWord(kind InputKind) string {
@@ -224,6 +226,12 @@ func (s Snapshot) HeaderHint() string {
 	if s.RoomPicker.Open {
 		return roomPickerHint(kind)
 	}
+	if s.FirmwarePicker.Open {
+		if h := strings.TrimSpace(s.FirmwarePicker.Hint); h != "" {
+			return h
+		}
+		return firmwarePickerHint(kind)
+	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
 			return backWord(kind) + " home"
@@ -243,7 +251,16 @@ func (s Snapshot) HeaderHint() string {
 			}
 			return roomChoiceHint(kind)
 		}
+		if s.FirmwarePicker.Open {
+			if h := strings.TrimSpace(s.FirmwarePicker.Hint); h != "" {
+				return h
+			}
+			return firmwarePickerHint(kind)
+		}
 		if s.Detail.Open {
+			if s.Room.Destination.Confirm() == rooms.ConfirmImportFirmware {
+				return selectWord(kind) + " import  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
+			}
 			return selectWord(kind) + " play  " + backWord(kind) + " close  " + settingsWord(kind) + " settings"
 		}
 		action := strings.TrimSpace(s.Room.Destination.Action)

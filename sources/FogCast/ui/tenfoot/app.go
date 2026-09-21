@@ -248,6 +248,7 @@ type Snapshot struct {
 	DebugHUD        DebugHUDSnapshot
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
+	FirmwarePicker  FirmwarePickerSnapshot
 	ReducedMotion   bool
 }
 
@@ -392,28 +393,37 @@ type App struct {
 	devLoadPhase           string
 	devLoadMessage         string
 
-	roomsIndex        *rooms.Index
-	roomsDir          string
-	homeRooms         bool
-	pinnedRooms       []string
-	reducedMotion     bool
-	homeRecents       []hostclient.Game
-	homeRecentsErr    string
-	homeRecentsLoaded bool
-	homeRecentsGen    int
-	room              *rooms.Instance
-	roomStack         []*rooms.Instance
-	roomFrame         rooms.Frame
-	roomErr           string
-	roomWasParked     bool
-	roomPickerOpen    bool
-	roomPickerIndex   int
-	roomCoverSem      chan struct{}
-	roomDetail        hostclient.Game
-	roomChoiceOpen    bool
-	roomChoiceIndex   int
-	roomChoice        []hostclient.Game
-	roomPicks         map[string]string
+	roomsIndex            *rooms.Index
+	roomsDir              string
+	homeRooms             bool
+	pinnedRooms           []string
+	reducedMotion         bool
+	homeRecents           []hostclient.Game
+	homeRecentsErr        string
+	homeRecentsLoaded     bool
+	homeRecentsGen        int
+	room                  *rooms.Instance
+	roomStack             []*rooms.Instance
+	roomFrame             rooms.Frame
+	roomErr               string
+	roomWasParked         bool
+	roomPickerOpen        bool
+	roomPickerIndex       int
+	roomCoverSem          chan struct{}
+	roomDetail            hostclient.Game
+	roomChoiceOpen        bool
+	roomChoiceIndex       int
+	roomChoice            []hostclient.Game
+	roomPicks             map[string]string
+	firmwarePickerOpen    bool
+	firmwarePickerAtRoots bool
+	firmwarePickerBusy    bool
+	firmwarePickerIndex   int
+	firmwarePickerGen     int
+	firmwarePickerPath    string
+	firmwarePickerStatus  string
+	firmwarePickerRows    []FirmwarePickerRow
+	firmwarePickerGame    hostclient.Game
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -584,7 +594,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
-	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked()
+	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -595,6 +605,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
 	case CmdLayoutCycle:
+		if a.firmwarePickerOpen {
+			return
+		}
 		if roomOwnsInput {
 			a.handleRoomLocked(cmd)
 			return
@@ -608,9 +621,15 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.sessionStopOfferedLocked() {
 			return
 		}
+		if a.firmwarePickerOpen {
+			a.closeFirmwarePickerLocked()
+		}
 		a.toggleRoomPickerLocked()
 		return
 	case CmdSettings:
+		if a.firmwarePickerOpen {
+			a.closeFirmwarePickerLocked()
+		}
 		if a.settingsOpen {
 			a.closeSettingsLocked()
 		} else {
@@ -618,6 +637,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	case CmdFilters:
+		if a.firmwarePickerOpen {
+			return
+		}
 		if roomOwnsInput {
 			a.handleRoomLocked(cmd)
 			return
@@ -635,6 +657,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
+		return
+	}
+	if a.firmwarePickerOpen {
+		a.handleFirmwarePickerLocked(cmd)
 		return
 	}
 	if a.roomPickerOpen && !a.sessionStopOfferedLocked() {
@@ -1289,6 +1315,7 @@ func (a *App) Snapshot() Snapshot {
 		DebugHUD:        a.debugHUDSnapshotLocked(),
 		Room:            a.roomSnapshotLocked(true),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
+		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
 		ReducedMotion:   a.reducedMotion,
 	}
 }
@@ -1403,6 +1430,8 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 			snap.Buffer = shared.MaskSecret(a.settingsOSKField.Buffer)
 		case settingsOSKDevelopmentPath:
 			snap.Prompt = "DIAGNOSTIC RBF path"
+		case settingsOSKFirmwarePath:
+			snap.Prompt = "Coleco BIOS path"
 		}
 		return a.withOSKHintLocked(snap)
 	}
@@ -1719,6 +1748,10 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		return
 	}
 	a.clearStaleDevelopmentLoadLocked()
+	if missingFirmwareGame(game) {
+		a.openFirmwarePickerLocked(game)
+		return
+	}
 	if reason := launchBlockReason(game); reason != "" {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {

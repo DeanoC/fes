@@ -198,15 +198,17 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			}
 		}
 		g := hostclient.Game{
-			ID:         id,
-			Title:      optString(row, "title"),
-			System:     optString(row, "system"),
-			Genre:      optString(row, "genre"),
-			Year:       optString(row, "year"),
-			Region:     optString(row, "region"),
-			State:      optString(row, "state"),
-			Launchable: optBool(row, "launchable"),
-			RootOnline: true,
+			ID:               id,
+			Title:            optString(row, "title"),
+			System:           optString(row, "system"),
+			Genre:            optString(row, "genre"),
+			Year:             optString(row, "year"),
+			Region:           optString(row, "region"),
+			State:            optString(row, "state"),
+			Launchable:       optBool(row, "launchable"),
+			RootOnline:       true,
+			FirmwareRequired: optBool(row, "firmware_required"),
+			FirmwareReady:    optBool(row, "firmware_ready"),
 		}
 		g = applyPlayFacts(g, row)
 		if g.State == "" && g.Launchable {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
@@ -24,7 +25,8 @@ func TestApplicationSessionAttachesOnlyDeclaredInput(t *testing.T) {
 					ABI: protocol.RuntimeContract{ID: "fes.application", Major: 1}, BuildID: strings.Repeat("b", 32),
 					Gamepad: gamepad, ActiveInterfaces: interfaces}}
 			input := &fakeRemoteInput{status: host.RemoteInputStatus{State: host.RemoteInputAttached, Ready: true}}
-			service := &fakeService{execution: fogcast.ExecutionFPGADevelopment,
+			service := &fakeService{execution: fogcast.ExecutionFPGANative,
+				game:   catalog.Game{ID: game, Kind: catalog.SourceKindCorePackage},
 				status: active, launch: protocol.CachedLaunchResponse{Status: active}}
 			handler := hostapi.New(service, hostapi.WithRemoteInput(input))
 			response := launchSession(t, handler, game)
@@ -32,7 +34,7 @@ func TestApplicationSessionAttachesOnlyDeclaredInput(t *testing.T) {
 			if gamepad {
 				want = 1
 			}
-			if response.Code != http.StatusOK || len(input.attach) != want || len(input.detach) != 1 {
+			if response.Code != http.StatusOK || len(input.attach) != want || len(input.detach) != 1 || !strings.Contains(response.Body.String(), `"execution":"fpga_native"`) {
 				t.Fatalf("response=%d %s input attaches=%v", response.Code, response.Body.String(), input.attach)
 			}
 		})

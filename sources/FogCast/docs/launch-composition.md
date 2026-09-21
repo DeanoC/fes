@@ -141,8 +141,11 @@ Present tense, current FES `sources/FogCast` and the ordered package set:
 - Household firmware is one content-addressed `firmware` slot in catalog
   schema 9 (`core_firmware` pointing at `core_media`). Import is ordinary
   core-media; `GET`/`PUT /api/v1/library/firmware` and
-  `fogcast core-firmware-select` bind or clear the slot. No BIOS bytes are
-  stored in git. The factory image stays BIOS-free.
+  `fogcast core-firmware-select` bind or clear the slot. Tenfoot/rooms Confirm
+  on **Unavailable** (“Import Coleco BIOS.”) opens a pad-friendly file picker
+  that posts the same APIs: `POST /api/v1/core-media` then
+  `PUT /api/v1/library/firmware`. No BIOS bytes are stored in git. The factory
+  image stays BIOS-free.
 - Library launch still posts `game_id` to `POST /api/v1/session/launch`.
   When a title requires firmware, the host admits the household object
   **before** package activation, programs the core, binds firmware
@@ -231,7 +234,7 @@ blocks play”) from **Ready**. Composition uses that same split.
 | Situation | State | Confirm |
 | --- | --- | --- |
 | Core package missing | Missing / Unavailable | Explain install; do not launch |
-| Core present, required firmware missing | **Unavailable** | “Coleco BIOS required” (or the slot’s honest name) plus a household-import action. Not Ready. |
+| Core present, required firmware missing | **Unavailable** | “Coleco BIOS required… Import Coleco BIOS.” Confirm opens the household file picker. Not Ready. |
 | Core present, optional expansion unset | Ready, with the unbound expansion omitted | Launch the 1K (or otherwise default) composition; Details can offer the 16K pack |
 | Required primary media missing | Unavailable | Same as today’s application-blob rejection, surfaced in the panel |
 | All required slots filled and target gates pass | Ready | Play |
@@ -305,6 +308,9 @@ host and target independently link selected expansion assets; the runtime
 programs the checked payload while retaining the original shell identity.
 No compiler runs during launch. Physical acceptance applies only to the
 artifacts in the linked validation records, not every future package or image.
+The sofa/tenfoot household BIOS picker is implemented, while exact-kit
+evidence remains tied to named validation records. Physical acceptance applies
+only to those artifacts, not every future package or image.
 
 The earlier phase descriptions above retain the rationale and sequence of
 the design. They do not supersede the current operator guides.

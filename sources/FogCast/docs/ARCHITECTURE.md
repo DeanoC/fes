@@ -695,6 +695,10 @@ local file path; no browser file picker and no host file-list API). That POST
 is the same public `application/octet-stream` session endpoint. Sofa chrome
 labels the result DIAGNOSTIC: HDMI and input may be down, and it is not a
 playable game session. Stop uses the ordinary session Stop-to-idle path.
+Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
+a firmware-required title opens a local file picker and posts
+`POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`. That is not a
+development RBF load.
 
 ## FES appliance releases
 
@@ -1223,16 +1227,18 @@ renderers over the same session model and do not own physical transitions.
 Coleco firmware and optional ZX81 RAM expansion use the normal library launch
 path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
-and reset release. Expansion selection binds an independently linked pack to
-the exact shell package. Later removable media work remains proposed in
-[launch composition](launch-composition.md).
+and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
+existing media/firmware APIs. Expansion selection binds an independently linked
+pack to the exact shell package. Later removable media work remains proposed
+in [launch composition](launch-composition.md).
 
-Library list, detail and variant responses report expansion selection and readiness
-independently of firmware requirements, including firmware-free ZX81 shells.
-Expansion admission distinguishes missing/invalid packs from catalog failures:
-missing titles retain not-found responses, concurrent choices retain conflict
-responses, and unexpected storage failures remain internal errors. Malformed
-archives or incompatible compositions are rejected as admission errors.
+Library list, detail and variant responses report expansion selection and
+readiness independently of firmware requirements, including firmware-free ZX81
+shells. Expansion admission distinguishes missing/invalid packs from catalog
+failures: missing titles retain not-found responses, concurrent choices retain
+conflict responses, and unexpected storage failures remain internal errors.
+Malformed archives or incompatible compositions are rejected as admission
+errors.
 
 `fes.application` 1.0 packages compose fixed 720p60 video with optional presence
 of normalized gamepad and raw blob/stream media interfaces. Each implemented
@@ -1327,6 +1333,19 @@ records the library identity only for the exact confirmed package generation.
 Changing the selection affects future launches. Runtime status stays truthful;
 the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
+Replacing a recognized-ABI native package session with a cartridge or host-only
+title stops the package-load target and clears package ownership first. True
+Diagnostic sessions still require an explicit Stop.
+
+Library titles whose installed package has a recognized play ABI
+(`fes.simple-computer` 1.0, `fes.simple-game` 1.0, or `fes.application` 1.0)
+resolve to `execution: fpga_native`. `fpga_development` remains the no-ABI
+fallback and the explicit LoadDevelopmentRBF / development-core path. Target
+status may still report `development: true` for the package-load transport;
+the host session and catalog labels follow the ABI policy, not that flag.
+After a host restart, an in-progress recognized-ABI package session is
+reconstructed as `fpga_native` from that CorePackage ABI. A raw development
+RBF or unknown ABI still reconstructs as `fpga_development`.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
 database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.

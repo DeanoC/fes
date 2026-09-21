@@ -450,6 +450,60 @@ func (r *Instance) CachedGame(id string) (hostclient.Game, bool) {
 	return g, ok
 }
 
+// RefreshCachedGames updates host catalog rows the script already saw and
+// reclassifies the published destination when those rows are the match set.
+// It does not move focus or call the script.
+func (r *Instance) RefreshCachedGames(games []hostclient.Game) {
+	if r == nil {
+		return
+	}
+	if r.games == nil {
+		r.games = map[string]hostclient.Game{}
+	}
+	for _, g := range games {
+		id := strings.TrimSpace(g.ID)
+		if id == "" {
+			continue
+		}
+		r.games[id] = g
+	}
+	if r.dest.Kind != KindGame || len(r.dest.Matches) == 0 {
+		return
+	}
+	for i, m := range r.dest.Matches {
+		if g, ok := r.games[m.ID]; ok {
+			r.dest.Matches[i] = g
+		}
+	}
+	if id := strings.TrimSpace(r.dest.GameID); id != "" {
+		if g, ok := r.games[id]; ok {
+			r.dest.GameID = g.ID
+			r.dest.Label = firstNonEmpty(r.dest.Label, g.Title)
+			r.dest.System = firstNonEmpty(r.dest.System, g.System)
+		}
+	}
+	state, matches := ClassifyGames(r.dest.Matches, r.dest.Query)
+	r.dest.Availability = state
+	r.dest.Matches = matches
+	if state == AvailReady && len(matches) == 1 && strings.TrimSpace(r.dest.GameID) == "" {
+		r.dest.GameID = matches[0].ID
+	}
+	if r.dest.System == "" && len(matches) == 1 {
+		r.dest.System = matches[0].System
+	}
+	r.dest.FillCopy()
+	r.dest.FillHistory()
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func (r *Instance) fail(err error) error {
 	if r.fatal == nil {
 		r.fatal = fmt.Errorf("room %s: %w", r.pack.ID, err)

@@ -53,6 +53,32 @@ func TestGamesListDoesNotLookupMetadataAndKeepsIdentityFields(t *testing.T) {
 	}
 }
 
+func TestGamesListCorePackageUsesNativePlayUnlessNoABI(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		execution string
+		want      string
+	}{
+		{name: "recognized ABI", execution: fogcast.ExecutionFPGANative, want: `"execution":"fpga_native"`},
+		{name: "no ABI fallback", execution: fogcast.ExecutionFPGADevelopment, want: `"execution":"fpga_development"`},
+		{name: "default catalog row", want: `"execution":"fpga_native"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service := &fakeService{
+				execution: test.execution,
+				games: []catalog.Game{{
+					ID: "fpga-coleco", Title: "ColecoVision", System: catalog.CorePlatform,
+					Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
+				}},
+			}
+			response := serve(t, hostapi.New(service), http.MethodGet, "/api/v1/games")
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), test.want) {
+				t.Fatalf("status=%d body=%s want %s", response.Code, response.Body.String(), test.want)
+			}
+		})
+	}
+}
+
 type compositionFailService struct {
 	fakeService
 }
