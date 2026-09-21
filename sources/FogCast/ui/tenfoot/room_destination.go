@@ -97,6 +97,7 @@ func (a *App) loadEditionPreferences(ctx context.Context) {
 
 func (a *App) closeRoomOverlaysLocked() {
 	a.closeDetailLocked()
+	a.closeFirmwarePickerLocked()
 	a.roomChoiceOpen = false
 	a.roomChoice = nil
 	a.roomChoiceIndex = 0
@@ -120,6 +121,10 @@ func (a *App) handleRoomLocked(cmd Command) {
 	}
 	if a.launchOverlayActiveLocked() {
 		a.handleLaunchOverlayLocked(cmd)
+		return
+	}
+	if a.firmwarePickerOpen {
+		a.handleFirmwarePickerLocked(cmd)
 		return
 	}
 	if a.roomChoiceOpen {
@@ -241,6 +246,13 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	case rooms.ConfirmExplain:
 		a.status = dest.Status
 		a.openRoomDetailsLocked()
+		return true
+	case rooms.ConfirmImportFirmware:
+		if game, ok := dest.Game(); ok {
+			a.openFirmwarePickerLocked(game)
+			return true
+		}
+		a.openFirmwarePickerLocked(hostclient.Game{})
 		return true
 	case rooms.ConfirmLaunch:
 		if a.launch.Phase == "launching" {

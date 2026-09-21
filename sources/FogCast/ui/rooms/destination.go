@@ -37,6 +37,7 @@ const (
 	ConfirmOpenLibrary
 	ConfirmChoose
 	ConfirmExplain
+	ConfirmImportFirmware
 	ConfirmLaunch
 	ConfirmEnterRoom
 	ConfirmOpenLibraryBrowse
@@ -223,6 +224,9 @@ func (d Destination) Confirm() ConfirmIntent {
 	case AvailNeedsChoice:
 		return ConfirmChoose
 	case AvailUnavailable:
+		if len(d.Matches) > 0 && d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
+			return ConfirmImportFirmware
+		}
 		return ConfirmExplain
 	case AvailReady:
 		return ConfirmLaunch

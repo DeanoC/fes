@@ -104,7 +104,7 @@ func TestDestinationCopyAndConfirmNeverNoOp(t *testing.T) {
 			dest:    Destination{Kind: KindGame, Availability: AvailUnavailable, Matches: []hostclient.Game{blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)}},
 			status:  "Coleco BIOS required. Import household firmware before Play.",
 			action:  "Import Coleco BIOS.",
-			confirm: ConfirmExplain,
+			confirm: ConfirmImportFirmware,
 		},
 		{
 			name:    "ready",
@@ -214,6 +214,15 @@ func TestApplyEditionPreferenceSkipsReaskWhenSavedMatchExists(t *testing.T) {
 	got := ApplyEditionPreference(unavail, "nes-smb-usa")
 	if got.Availability != AvailUnavailable || got.Confirm() != ConfirmExplain {
 		t.Fatalf("preferred unavailable %+v confirm=%v", got, got.Confirm())
+	}
+	firmware := blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)
+	fwDest := Destination{
+		Kind: KindGame, Query: "Frogger", Platform: "fpga",
+		Availability: AvailNeedsChoice, Matches: []hostclient.Game{firmware, jp},
+	}
+	fwGot := ApplyEditionPreference(fwDest, "fpga-frogger")
+	if fwGot.Availability != AvailUnavailable || fwGot.Confirm() != ConfirmImportFirmware {
+		t.Fatalf("preferred missing firmware %+v confirm=%v", fwGot, fwGot.Confirm())
 	}
 	if DestinationPreferenceKey(dest) != "super mario bros|nes" {
 		t.Fatalf("key %q", DestinationPreferenceKey(dest))

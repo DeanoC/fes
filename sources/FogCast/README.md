@@ -543,8 +543,9 @@ For the target image, fixture details, deployment, and live launch checks,
 read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). The current process
 boundaries and source entry points are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Proposed multi-slot launch composition (firmware, expansions, removable
-media) is in [docs/launch-composition.md](docs/launch-composition.md).
+Phase 1 Coleco firmware (household BIOS slot, Ready gate, sofa import picker)
+is in [docs/launch-composition.md](docs/launch-composition.md). Expansions and
+removable media remain proposed.
 
 Native image assembly defaults to Mega Drive; the explicit
 `NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed

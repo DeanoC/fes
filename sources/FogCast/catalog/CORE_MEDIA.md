@@ -9,7 +9,9 @@ comparable values expose IDs and metadata, never filesystem paths:
   household firmware (Coleco Frogger). BIOS-free diagnostics omit the flag.
 - CoreFirmware is one household slot (`firmware`) whose MediaID is a core-media
   digest. Coleco BIOS must be exactly 8192 bytes. Clearing the slot deletes the
-  pointer, not the stored object. No BIOS/ROM bytes are stored in git.
+  pointer, not the stored object. No BIOS/ROM bytes are stored in git. Tenfoot
+  imports through the same `POST /api/v1/core-media` and
+  `PUT /api/v1/library/firmware` APIs as the CLI.
 - CoreMedia contains MediaID and Size.
 - MaxCoreMediaBytes is protocol.MaxContentBytes (32 MiB), independent of target
   development-media limits. CoreMediaChunkBytes is 64 KiB.
