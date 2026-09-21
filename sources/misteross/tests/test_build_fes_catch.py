@@ -23,38 +23,42 @@ class CatchProducerTests(unittest.TestCase):
 
     def test_real_source_identity_and_generic_interfaces(self):
         # A monorepo-shaped clean source exercises the same closure as core-dev.
-        with tempfile.TemporaryDirectory() as temporary:
-            repo = Path(temporary)
-            root = repo / "sources/misteross"
-            for relative in ("scripts", "boards", "cores/fes-demo", "cores/fes-common", "cores/fes-pong"):
-                shutil.copytree(ROOT / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
-            shutil.copy(ROOT / "toolchain.lock", root / "toolchain.lock")
-            def git(*args):
-                return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
-            git("init", "-q"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.invalid")
-            git("add", "."); git("commit", "-qm", "source")
-            execution = {"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}
-            def record():
-                return catch.create_build_record(root, "https://example.invalid/source", git("rev-parse", "HEAD"),
-                    {"yosys": "test"}, execution=execution)
-            before = record()
-            fields = json.loads(before)
-            self.assertEqual(fields["format"], 2)
-            self.assertEqual(fields["source_path"], "sources/misteross")
-            self.assertTrue(set(catch.GAME_SOURCES) <= fields["source_inputs"].keys())
-            (repo / "README.md").write_text("Unrelated docs")
-            git("add", "."); git("commit", "-qm", "docs")
-            self.assertEqual(build_identity(before), build_identity(record()))
-            path = root / catch.GAME_SOURCES[0]
-            path.write_text(path.read_text() + "\n")
-            self.assertNotEqual(build_identity(before), build_identity(record()))
-            manifest = tomllib.loads(catch.manifest(before, {"rbf": {"size": 4, "sha256": "b"*64}},
-                "https://example.invalid/source", fields["revision"], {"yosys": "test"}).decode())
-            self.assertEqual(manifest["core"]["id"], "fes.catch")
-            self.assertEqual(manifest["abi"], {"id": "fes.application", "major": 1, "minor": 0})
-            self.assertEqual({i["id"] for i in manifest["interfaces"]},
-                {"fes.gamepad", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
-            self.assertNotIn("media", manifest)
+        # Git objects can still be non-empty while TemporaryDirectory rmtree runs
+        # (CI overlay); drop .git with ignore_errors before the context exits.
+        temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(temporary.cleanup)
+        repo = Path(temporary.name)
+        root = repo / "sources/misteross"
+        for relative in ("scripts", "boards", "cores/fes-demo", "cores/fes-common", "cores/fes-pong"):
+            shutil.copytree(ROOT / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copy(ROOT / "toolchain.lock", root / "toolchain.lock")
+        def git(*args):
+            return subprocess.check_output(["git", "-C", str(repo), *args], text=True).strip()
+        git("init", "-q"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.invalid")
+        git("add", "."); git("commit", "-qm", "source")
+        self.addCleanup(shutil.rmtree, repo / ".git", ignore_errors=True)
+        execution = {"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}
+        def record():
+            return catch.create_build_record(root, "https://example.invalid/source", git("rev-parse", "HEAD"),
+                {"yosys": "test"}, execution=execution)
+        before = record()
+        fields = json.loads(before)
+        self.assertEqual(fields["format"], 2)
+        self.assertEqual(fields["source_path"], "sources/misteross")
+        self.assertTrue(set(catch.GAME_SOURCES) <= fields["source_inputs"].keys())
+        (repo / "README.md").write_text("Unrelated docs")
+        git("add", "."); git("commit", "-qm", "docs")
+        self.assertEqual(build_identity(before), build_identity(record()))
+        path = root / catch.GAME_SOURCES[0]
+        path.write_text(path.read_text() + "\n")
+        self.assertNotEqual(build_identity(before), build_identity(record()))
+        manifest = tomllib.loads(catch.manifest(before, {"rbf": {"size": 4, "sha256": "b"*64}},
+            "https://example.invalid/source", fields["revision"], {"yosys": "test"}).decode())
+        self.assertEqual(manifest["core"]["id"], "fes.catch")
+        self.assertEqual(manifest["abi"], {"id": "fes.application", "major": 1, "minor": 0})
+        self.assertEqual({i["id"] for i in manifest["interfaces"]},
+            {"fes.gamepad", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"})
+        self.assertNotIn("media", manifest)
 
     def test_commands_use_shared_shell_and_isolated_output(self):
         synth, route = demo.build_commands(ROOT, "a"*32,
