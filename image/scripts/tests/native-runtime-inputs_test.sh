@@ -133,6 +133,7 @@ export NATIVE_RUNTIME_CACHE="$cache"
 export FES_PACKAGE_IDS=fes.pong
 export FES_PONG_PACKAGE_DIR="$package"
 export FES_PONG_PACKAGE_SELECTION="$selection"
+unset GITHUB_TOKEN GH_TOKEN
 
 NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
 grep -Fq 'https://raw.githubusercontent.com/DeanoC/misteross/a2af7fdd58d8e5d288892aeda38e8dc226aaed07/sealed/fes-splash.rbf' \
@@ -151,6 +152,45 @@ chmod 0444 "$cache/splash.rbf"
 NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
 test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/splash.rbf" | awk '{print $1}')"
 test "$(stat -c %a "$cache/splash.rbf")" = 444
+
+auth_cache=$fixture/auth-cache
+mkdir "$auth_cache"
+: > "$WGET_LOG"
+NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_CACHE="$auth_cache" \
+  GITHUB_TOKEN=fixture-github-token \
+  sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+grep -Fq 'https://api.github.com/repos/DeanoC/misteross/contents/sealed/fes-splash.rbf?ref=a2af7fdd58d8e5d288892aeda38e8dc226aaed07' \
+  "$WGET_LOG" || fail 'authenticated fetch did not use the GitHub contents API'
+grep -Fq 'Authorization: Bearer fixture-github-token' "$WGET_LOG" || \
+  fail 'authenticated fetch did not send the GitHub token'
+grep -Fq 'Accept: application/vnd.github.raw' "$WGET_LOG" || \
+  fail 'authenticated fetch did not request raw GitHub contents'
+! grep -Fq 'raw.githubusercontent.com' "$WGET_LOG" || \
+  fail 'authenticated fetch still used unauthenticated raw.githubusercontent.com'
+test "$(sha256sum "$auth_cache/idle.rbf" | awk '{print $1}')" = "$idle_sha"
+
+failing_wget=$fixture/fail-wget
+mkdir "$failing_wget"
+cat >"$failing_wget/wget" <<'WGET'
+#!/bin/sh
+printf '%s\n' "$*" >> "$WGET_LOG"
+exit 8
+WGET
+chmod +x "$failing_wget/wget"
+empty_cache=$fixture/empty-cache
+mkdir "$empty_cache"
+: > "$WGET_LOG"
+if PATH="$failing_wget:$PATH" NATIVE_RUNTIME_MODE=package-only \
+  NATIVE_RUNTIME_CACHE="$empty_cache" \
+  sh "$repo/scripts/fetch-native-runtime-inputs.sh" \
+  >"$fixture/missing-token.out" 2>"$fixture/missing-token.err"; then
+  fail 'unauthenticated private fetch succeeded'
+fi
+grep -Fq 'Private GitHub pins require GITHUB_TOKEN or GH_TOKEN' \
+  "$fixture/missing-token.err" || \
+  fail 'missing credential did not fail with a hard GitHub token error'
+! grep -Fq 'fixture-github-token' "$fixture/missing-token.err" || \
+  fail 'credential failure printed a token'
 
 awk 'BEGIN { skip=0 } /^\[splash_rbf\]/ { skip=1; next } /^\[/ { skip=0 } skip { next } { print }' \
   "$lock" > "$fixture/idle-only.lock"

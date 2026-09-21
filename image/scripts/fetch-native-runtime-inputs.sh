@@ -88,8 +88,35 @@ if [ "$native_mode" = package-only ]; then
     done
     temporary=$(mktemp "$cache/.${dest##*/}.XXXXXX")
     trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
-    url=https://raw.githubusercontent.com/${repository#https://github.com/}/$revision/$source_path
-    wget -q -O "$temporary" "$url"
+    case "$repository" in
+      https://github.com/*) : ;;
+      *)
+        printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository must be a github.com HTTPS URL" >&2
+        exit 2
+        ;;
+    esac
+    owner_repo=${repository#https://github.com/}
+    owner_repo=${owner_repo%.git}
+    printf '%s\n' "$owner_repo" | grep -Eq '^[^/[:space:]]+/[^/[:space:]]+$' || {
+      printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository is not owner/repo" >&2
+      exit 2
+    }
+    github_token=${GITHUB_TOKEN:-${GH_TOKEN:-}}
+    if [ -n "$github_token" ]; then
+      url=https://api.github.com/repos/$owner_repo/contents/$source_path?ref=$revision
+      if ! wget -q --header="Authorization: Bearer $github_token" \
+          --header="Accept: application/vnd.github.raw" \
+          -O "$temporary" "$url"; then
+        printf '%s\n' "fetch-native-runtime-inputs: authenticated GitHub download of $fetch_section failed" >&2
+        exit 1
+      fi
+    else
+      url=https://raw.githubusercontent.com/$owner_repo/$revision/$source_path
+      if ! wget -q -O "$temporary" "$url"; then
+        printf '%s\n' "fetch-native-runtime-inputs: unauthenticated download of $fetch_section failed. Private GitHub pins require GITHUB_TOKEN or GH_TOKEN with contents:read." >&2
+        exit 1
+      fi
+    fi
     actual_sha=$(sha256sum "$temporary" | awk '{print $1}')
     [ "$actual_sha" = "$expected_sha" ] || {
       printf '%s\n' "fetch-native-runtime-inputs: downloaded $fetch_section SHA-256 does not match the lock" >&2

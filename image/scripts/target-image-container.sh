@@ -99,6 +99,13 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ "$mode" = fetch ]; then
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      set -- --env "GITHUB_TOKEN=$GITHUB_TOKEN" "$@"
+    elif [ -n "${GH_TOKEN:-}" ]; then
+      set -- --env "GH_TOKEN=$GH_TOKEN" "$@"
+    fi
+  fi
   set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
   for package_core in $package_ids_reverse; do
     case "$package_core" in

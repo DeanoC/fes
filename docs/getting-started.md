@@ -212,6 +212,7 @@ and input behavior require separate hardware checks of the exact image.
 | `source checkout is dirty` | Run focused tests during iteration, then commit the reviewed module changes before a selected-source build |
 | Generated consumer or copied source-pin drift | Update the authoritative definition, run `make generate`, review all consumer edits, then `make check-generated` |
 | Generated runtime lock is stale | Regenerate through the FES build path; artifact policy belongs to `image/build/native-inputs.toml` |
+| Private splash/idle fetch failed / requires `GITHUB_TOKEN` | Export `GITHUB_TOKEN` or `GH_TOKEN` with `contents:read` on private `DeanoC/misteross`, then retry the image fetch. Do not make that repository public. |
 | Missing Quartus | Only relevant to a documented oracle/check for a system not yet supported by nextpnr; the default package-only path uses HIP/nextpnr |
 | Build already running | Coordinate with its operator; one parent build owns this checkout at a time |
 | Verify reports stale outputs | Run the matching `make build`; a development receipt cannot replace a clean image receipt |

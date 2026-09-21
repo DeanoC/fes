@@ -77,6 +77,14 @@ module paths and subtree identities accompany the root commit. They do not inven
 child commits or consume uncommitted task changes. The generated runtime lock is
 a declared assembly overlay, never an input to commit into FogCast.
 
+Private GitHub splash/idle pins (misteross `sealed/fes-splash.rbf`) are
+fetched by `image/scripts/fetch-native-runtime-inputs.sh`. Set
+`GITHUB_TOKEN` or `GH_TOKEN` with `contents:read` on that repository
+before `make dev` / `make image` / `make build` on a clean cache. The
+image fetch container forwards the token; the offline build (`run`)
+container does not. Public GitHub pins still use unauthenticated
+`raw.githubusercontent.com` when no token is set.
+
 The compiler and immutable core-package caches default to the primary FES
 checkout's `out/cache`, shared by its worktrees. `FES_CACHE_ROOT` can select another
 absolute stable location. Cached FPGA packages keep their original manifest,

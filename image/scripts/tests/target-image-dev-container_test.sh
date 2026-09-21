@@ -46,6 +46,20 @@ PATH="$fake_bin:$PATH" \
 grep -Fq -- '--platform linux/amd64' "$docker_log"
 grep -Fq -- 'fogcast-target-image-dev-build' "$docker_log"
 ! grep -Fq -- '--network none' "$docker_log"
+! grep -Fq -- 'GITHUB_TOKEN' "$docker_log"
+! grep -Fq -- 'GH_TOKEN' "$docker_log"
+
+: > "$docker_log"
+GITHUB_TOKEN=fixture-github-token \
+TARGET_IMAGE_CONTAINER_RUNTIME=$fake_docker \
+TARGET_IMAGE_DEV_CONTAINER=1 \
+TARGET_IMAGE_DOCKER_LOG=$docker_log \
+PATH="$fake_bin:$PATH" \
+  sh "$repo/scripts/target-image-container.sh" fetch true
+grep -Fq -- '--env GITHUB_TOKEN=fixture-github-token' "$docker_log" || {
+  echo 'fetch container did not receive GITHUB_TOKEN' >&2
+  exit 1
+}
 
 : > "$docker_log"
 TARGET_IMAGE_CONTAINER_RUNTIME=$fake_docker \
@@ -57,5 +71,7 @@ TARGET_IMAGE_DEV_PLATFORM=linux/arm64 \
 grep -Fq -- '--platform linux/arm64' "$docker_log"
 grep -Fq -- '--network none' "$docker_log"
 grep -Fq -- 'fogcast-target-image-dev-build' "$docker_log"
+! grep -Fq -- 'GITHUB_TOKEN' "$docker_log"
+! grep -Fq -- 'GH_TOKEN' "$docker_log"
 
 echo 'target image native development container tests passed'

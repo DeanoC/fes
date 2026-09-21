@@ -45,10 +45,13 @@ second idle bitstream exists:
 - **idle** (`idle_rbf`) — rootfs `LoadIdle()`.
   `install_path = '/usr/share/mister-runtime/idle.rbf'`.
 
-Fetch/verify require both slots, wget
-`raw.githubusercontent.com/<repo>/<commit>/<path>`, and check hash,
-size, `/menu.rbf`, and the idle install path. They do **not** require
-Distribution_MiSTer Menu identity
+Fetch/verify require both slots and check hash, size, `/menu.rbf`, and
+the idle install path. They do **not** require Distribution_MiSTer Menu
+identity. A GitHub pin with `GITHUB_TOKEN` or `GH_TOKEN` downloads via
+the authenticated contents API (`Accept: application/vnd.github.raw`).
+Without a token, fetch tries unauthenticated `raw.githubusercontent.com`
+and fails with a hard credential error if that 404s (private misteross
+splash). Image fetch containers pass the token in fetch mode only.
 ([`image/scripts/fetch-native-runtime-inputs.sh`](../image/scripts/fetch-native-runtime-inputs.sh),
 [`image/scripts/verify-native-runtime-inputs.sh`](../image/scripts/verify-native-runtime-inputs.sh)).
 Equal splash/idle bytes reuse a sibling cache copy. Rootfs install
@@ -176,10 +179,10 @@ Distribution_MiSTer `menu.rbf` as the only legal idle. Production
 
 **Success:** lock pins misteross sealed splash for both slots; fetch and
 verify no longer require Distribution_MiSTer Menu identity; production
-`LoadIdle()` uses `SplashIdle()`. Offline tests assert the lock schema
-and verify-against-fixture. Live `raw.githubusercontent.com` fetch of
-the private misteross blob is a **HARD_NEED** for image assembly (this
-sandbox got HTTP 404 without repo credentials). No HIL required.
+`LoadIdle()` uses `SplashIdle()`. Offline tests assert the lock schema,
+authenticated contents-API fetch, and a loud missing-token failure.
+Live image assembly needs `GITHUB_TOKEN` or `GH_TOKEN` with
+`contents:read` on private misteross. No HIL required.
 
 ### 5. Kit HDMI after Stop without MENU chrome
 
