@@ -285,6 +285,59 @@ func TestSessionStatusReconstructsRecognizedABIPackagePlayAsNative(t *testing.T)
 	}
 }
 
+func TestSessionLaunchOnSecondTargetDoesNotStopABIPackagePlay(t *testing.T) {
+	core, packageGame := "fes.coleco", "core-coleco"
+	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core, GameID: &packageGame,
+		CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 3,
+			ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, BuildID: strings.Repeat("b", 32), Gamepad: true}}
+	order := []string{}
+	cartridgeID, system, cartCore := "snes-spare", protocol.SystemSNES, "SNES"
+	cartridge := protocol.Status{State: protocol.StateActive, GameID: &cartridgeID, System: &system, ExpectedCore: &cartCore, ObservedCore: &cartCore}
+	service := &fakeService{
+		execution:     fogcast.ExecutionFPGANative,
+		game:          catalog.Game{ID: packageGame, Kind: catalog.SourceKindCorePackage},
+		status:        active,
+		launch:        protocol.CachedLaunchResponse{Status: active},
+		stopped:       protocol.Status{State: protocol.StateIdle},
+		sessionTarget: "dev",
+		order:         &order,
+	}
+	handler := hostapi.New(service)
+	if out := launchSession(t, handler, packageGame); out.Code != http.StatusOK {
+		t.Fatalf("package launch = %d %s", out.Code, out.Body.String())
+	}
+
+	service.game = catalog.Game{ID: cartridgeID, Kind: catalog.SourceKindRaw}
+	service.launch = protocol.CachedLaunchResponse{Status: cartridge}
+	order = order[:0]
+	service.order = &order
+	out := launchSessionOn(t, handler, cartridgeID, "spare")
+	if out.Code != http.StatusOK || service.launchCalls != 2 || service.launchTarget != "spare" {
+		t.Fatalf("second-target launch = %d %s calls=%d target=%q", out.Code, out.Body.String(), service.launchCalls, service.launchTarget)
+	}
+	if got := strings.Join(order, ","); got != "" {
+		t.Fatalf("replacement order = %q, want no Stop of target A", got)
+	}
+}
+
+func TestSessionNonIdleDevelopmentWithoutMarkerBlocksCatalogLaunch(t *testing.T) {
+	observed := "DEVCORE"
+	for _, state := range []protocol.State{protocol.StateLaunching, protocol.StateFailed} {
+		t.Run(string(state), func(t *testing.T) {
+			service := &fakeService{
+				execution: fogcast.ExecutionFPGANative,
+				game:      catalog.Game{ID: "snes-replacement", Kind: catalog.SourceKindRaw},
+				status:    protocol.Status{State: state, Development: true, ObservedCore: &observed},
+				launch:    protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}},
+			}
+			out := launchSession(t, hostapi.New(service), "snes-replacement")
+			if out.Code != http.StatusConflict || service.launchCalls != 0 {
+				t.Fatalf("launch = %d %s calls=%d", out.Code, out.Body.String(), service.launchCalls)
+			}
+		})
+	}
+}
+
 func TestSessionCartridgeLaunchStopsReconstructedABIPackagePlayAfterRestart(t *testing.T) {
 	core := "fes.zx81"
 	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &core,

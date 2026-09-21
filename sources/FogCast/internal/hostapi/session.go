@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -456,7 +457,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	if development {
 		return sessionResult{}, developmentMustStopError()
 	}
-	if err := s.stopPackageOwnedForReplacement(ctx); err != nil {
+	if err := s.stopPackageOwnedForReplacement(ctx, target); err != nil {
 		return sessionResult{}, err
 	}
 
@@ -781,12 +782,28 @@ func (s *sessionCoordinator) stopServiceForReplacement() (protocol.Status, error
 	return s.service.Stop(stopCtx)
 }
 
-func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context) error {
+func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool {
+	requestedTarget = strings.TrimSpace(requestedTarget)
+	packageOwnerTarget = strings.TrimSpace(packageOwnerTarget)
+	if requestedTarget == "" || packageOwnerTarget == "" {
+		return true
+	}
+	return requestedTarget == packageOwnerTarget
+}
+
+func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context, requestedTarget string) error {
 	s.mu.Lock()
 	packageOwned := s.packageOwned
 	previousExecution := s.execution
 	s.mu.Unlock()
 	if !packageOwned {
+		return nil
+	}
+	packageOwnerTarget := ""
+	if binder, ok := s.service.(interface{ SessionTarget() (string, string) }); ok {
+		packageOwnerTarget, _ = binder.SessionTarget()
+	}
+	if !packageReplacementApplies(requestedTarget, packageOwnerTarget) {
 		return nil
 	}
 	if s.remoteInput != nil {
@@ -1127,8 +1144,9 @@ func exactIdleStatus(status protocol.Status) bool {
 }
 
 func reconstructedSessionExecution(st protocol.Status) (execution string, packageOwned bool) {
-	if st.Development && (st.State == protocol.StateActive || st.State == protocol.StateStopping) {
-		if st.CorePackage != nil && fogcast.RecognizedPlayABI(st.CorePackage.ABI.ID, int64(st.CorePackage.ABI.Major), int64(st.CorePackage.ABI.Minor)) {
+	if st.Development && st.State != protocol.StateIdle {
+		if (st.State == protocol.StateActive || st.State == protocol.StateStopping) &&
+			st.CorePackage != nil && fogcast.RecognizedPlayABI(st.CorePackage.ABI.ID, int64(st.CorePackage.ABI.Major), int64(st.CorePackage.ABI.Minor)) {
 			return fogcast.ExecutionFPGANative, true
 		}
 		return fogcast.ExecutionFPGADevelopment, st.CorePackage != nil

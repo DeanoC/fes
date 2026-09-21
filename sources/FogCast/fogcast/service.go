@@ -778,6 +778,12 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	s.executionMu.Lock()
+	packageOwnerTarget := ""
+	if s.activePackageID != "" {
+		packageOwnerTarget = s.activeTarget
+	}
+	s.executionMu.Unlock()
 	if err := s.bindLaunchTarget(target); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -797,7 +803,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 
-	if err := s.stopPackageOwnedForCatalogLaunch(ctx); err != nil {
+	if err := s.stopPackageOwnedForCatalogLaunch(ctx, packageOwnerTarget); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	s.targetMu.RLock()
@@ -1666,16 +1672,26 @@ func preserveCorePackageError(err error) error {
 	return canonicalRemoteError(err, protocol.CodeTransferFailed)
 }
 
+func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool {
+	requestedTarget = strings.TrimSpace(requestedTarget)
+	packageOwnerTarget = strings.TrimSpace(packageOwnerTarget)
+	if requestedTarget == "" || packageOwnerTarget == "" {
+		return true
+	}
+	return requestedTarget == packageOwnerTarget
+}
+
 // Caller holds lifecycle admission and must not hold targetMu.
-func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context) error {
+func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, packageOwnerTarget string) error {
 	s.executionMu.Lock()
 	development := s.activeExecution == ExecutionFPGADevelopment
 	packageOwned := s.activePackageID != ""
+	boundTarget := s.activeTarget
 	s.executionMu.Unlock()
 	if development {
 		return canonicalError(protocol.CodeBusy, nil)
 	}
-	if !packageOwned {
+	if !packageOwned || !packageReplacementApplies(boundTarget, packageOwnerTarget) {
 		return nil
 	}
 	timeout := s.uploadTimeout
@@ -1694,32 +1710,35 @@ func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context) error {
 func (s *Service) adoptObservedForeground(status *protocol.Status) {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	if status.Development && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+	if status.Development && status.State != protocol.StateIdle {
 		s.selectedTargetReconciled = false
 		s.selectedTargetRepairAllowed = false
+		confirmedPackage := status.State == protocol.StateActive || status.State == protocol.StateStopping
 		if s.activeExecution == "" {
-			if status.CorePackage != nil && recognizedPlayContract(status.CorePackage.ABI) {
+			if confirmedPackage && status.CorePackage != nil && recognizedPlayContract(status.CorePackage.ABI) {
 				s.activeExecution = ExecutionFPGANative
 			} else {
 				s.activeExecution = ExecutionFPGADevelopment
 			}
 			s.retainSessionTargetLocked()
 			s.activeGameID, s.activeSystem = "", ""
-			if status.CorePackage != nil {
+			if confirmedPackage && status.CorePackage != nil {
 				s.activePackageID, s.activePackageGeneration = status.CorePackage.PackageID, status.CorePackage.Generation
 			} else {
 				s.activePackageID, s.activePackageGeneration = "", 0
 			}
 		}
-		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation {
-			if s.activeGameID != "" {
-				status.GameID = stringPtr(s.activeGameID)
-				status.System = systemPtr(s.activeSystem)
-			}
-		} else {
-			s.activePackageID, s.activePackageGeneration = "", 0
-			if s.activeExecution != ExecutionHostOnly {
-				s.activeGameID, s.activeSystem = "", ""
+		if confirmedPackage {
+			if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation {
+				if s.activeGameID != "" {
+					status.GameID = stringPtr(s.activeGameID)
+					status.System = systemPtr(s.activeSystem)
+				}
+			} else {
+				s.activePackageID, s.activePackageGeneration = "", 0
+				if s.activeExecution != ExecutionHostOnly {
+					s.activeGameID, s.activeSystem = "", ""
+				}
 			}
 		}
 		if s.packageRejection != nil {
