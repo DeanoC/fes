@@ -1,5 +1,9 @@
 # Open MiSTer FPGA development environment
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/misteross/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 This module builds small experimental RBF files for the MiSTer/DE10-Nano
 Cyclone V FPGA (`5CSEBA6U23I7`). It exists to make ordinary MiSTer core
 development possible with both the open-source Mistral toolchain and Quartus.

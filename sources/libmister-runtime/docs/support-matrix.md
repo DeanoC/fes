@@ -50,7 +50,7 @@ Hardware-supported systems: 1 (`megadrive`).
 Acceptance date: 2026-09-04. Accepted runtime commit:
 `443b603de991b56b5f4d0d11c5bc88a3f83fad13`. Exact native image SHA-256:
 `95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e`.
-The [FogCast native Mega Drive baseline](https://github.com/DeanoC/FogCast/blob/main/docs/hardware/native-megadrive-baseline.md)
+The [FogCast native Mega Drive baseline](../../FogCast/docs/hardware/native-megadrive-baseline.md)
 records the accepted FogCast source, reproducibility gates, boot and installed
 identities, six consecutive public launch/input/Stop cycles, individually
 inspected HDMI frames, and successful legacy rollback.

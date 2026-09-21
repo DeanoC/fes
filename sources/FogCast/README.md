@@ -1,5 +1,9 @@
 # FogCast
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/FogCast/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 FogCast is a host application and MiSTer target agent for browsing and
 launching a large multi-system game library. The host owns the UI, catalog,
 and content selection; the MiSTer is a small, directly controlled target.

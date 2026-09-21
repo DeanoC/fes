@@ -1,5 +1,9 @@
 # mister-packages
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/mister-packages/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 Board, SoC, MMIO, and system-profile packages for FogCast and
 libmister-runtime. This repository is the source of truth for those
 descriptions. A small Go emitter turns them into headers and reports.

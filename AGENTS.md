@@ -1,5 +1,9 @@
 # Working in FES
 
+The four first-party modules develop only in this FES repository. Their former
+standalone repositories are archived; never send feature work or PRs there.
+Go import paths and dated provenance may retain the old names.
+
 ## Start every task here
 
 1. Read [README.md](README.md) and [the project map](docs/project-map.md).

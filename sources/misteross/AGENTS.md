@@ -1,5 +1,9 @@
 # misteross working policy
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/misteross/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 ## Start here
 
 Read `README.md` and `docs/architecture.md` before changing build lanes or
