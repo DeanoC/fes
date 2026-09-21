@@ -89,34 +89,68 @@ if [ "$native_mode" = package-only ]; then
     temporary=$(mktemp "$cache/.${dest##*/}.XXXXXX")
     trap '/bin/rm -f -- "$temporary"' EXIT INT TERM
     case "$repository" in
-      https://github.com/*) : ;;
+      sources/*)
+        fes_root=${FES_ROOT:-}
+        if [ -z "$fes_root" ] && [ -n "${FOGCAST_DIR:-}" ]; then
+          fes_root=$(git -C "$FOGCAST_DIR" rev-parse --show-toplevel 2>/dev/null || true)
+        fi
+        if [ -z "$fes_root" ]; then
+          fes_root=$(CDPATH='' cd -- "$repo_root/.." && pwd)
+        fi
+        printf '%s\n' "$source_path" | grep -Eq '^[A-Za-z0-9._][A-Za-z0-9._/-]*$' || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section path is not a relative in-tree file" >&2
+          exit 2
+        }
+        case "$source_path" in
+          *..*) 
+            printf '%s\n' "fetch-native-runtime-inputs: $fetch_section path must not contain .." >&2
+            exit 2
+            ;;
+        esac
+        fes_root=$(CDPATH='' cd -- "$fes_root" && pwd -P)
+        local_file=$fes_root/$repository/$source_path
+        case "$local_file" in
+          "$fes_root/sources/"*) : ;;
+          *)
+            printf '%s\n' "fetch-native-runtime-inputs: $fetch_section local path escaped the FES tree" >&2
+            exit 2
+            ;;
+        esac
+        [ -f "$local_file" ] && [ ! -L "$local_file" ] || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section in-tree pin is missing: $local_file" >&2
+          exit 1
+        }
+        cp -- "$local_file" "$temporary"
+        ;;
+      https://github.com/*)
+        owner_repo=${repository#https://github.com/}
+        owner_repo=${owner_repo%.git}
+        printf '%s\n' "$owner_repo" | grep -Eq '^[^/[:space:]]+/[^/[:space:]]+$' || {
+          printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository is not owner/repo" >&2
+          exit 2
+        }
+        github_token=${GITHUB_TOKEN:-${GH_TOKEN:-}}
+        if [ -n "$github_token" ]; then
+          url=https://api.github.com/repos/$owner_repo/contents/$source_path?ref=$revision
+          if ! wget -q --header="Authorization: Bearer $github_token" \
+              --header="Accept: application/vnd.github.raw" \
+              -O "$temporary" "$url"; then
+            printf '%s\n' "fetch-native-runtime-inputs: authenticated GitHub download of $fetch_section failed" >&2
+            exit 1
+          fi
+        else
+          url=https://raw.githubusercontent.com/$owner_repo/$revision/$source_path
+          if ! wget -q -O "$temporary" "$url"; then
+            printf '%s\n' "fetch-native-runtime-inputs: unauthenticated download of $fetch_section failed. Private GitHub pins require GITHUB_TOKEN or GH_TOKEN with contents:read." >&2
+            exit 1
+          fi
+        fi
+        ;;
       *)
-        printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository must be a github.com HTTPS URL" >&2
+        printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository must be sources/* or a github.com HTTPS URL" >&2
         exit 2
         ;;
     esac
-    owner_repo=${repository#https://github.com/}
-    owner_repo=${owner_repo%.git}
-    printf '%s\n' "$owner_repo" | grep -Eq '^[^/[:space:]]+/[^/[:space:]]+$' || {
-      printf '%s\n' "fetch-native-runtime-inputs: $fetch_section repository is not owner/repo" >&2
-      exit 2
-    }
-    github_token=${GITHUB_TOKEN:-${GH_TOKEN:-}}
-    if [ -n "$github_token" ]; then
-      url=https://api.github.com/repos/$owner_repo/contents/$source_path?ref=$revision
-      if ! wget -q --header="Authorization: Bearer $github_token" \
-          --header="Accept: application/vnd.github.raw" \
-          -O "$temporary" "$url"; then
-        printf '%s\n' "fetch-native-runtime-inputs: authenticated GitHub download of $fetch_section failed" >&2
-        exit 1
-      fi
-    else
-      url=https://raw.githubusercontent.com/$owner_repo/$revision/$source_path
-      if ! wget -q -O "$temporary" "$url"; then
-        printf '%s\n' "fetch-native-runtime-inputs: unauthenticated download of $fetch_section failed. Private GitHub pins require GITHUB_TOKEN or GH_TOKEN with contents:read." >&2
-        exit 1
-      fi
-    fi
     actual_sha=$(sha256sum "$temporary" | awk '{print $1}')
     [ "$actual_sha" = "$expected_sha" ] || {
       printf '%s\n' "fetch-native-runtime-inputs: downloaded $fetch_section SHA-256 does not match the lock" >&2

@@ -36,9 +36,9 @@ composition stay unchanged.
 
 Image policy
 [`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
-names two artifact classes. Both pin the sealed misteross splash
-(`sealed/fes-splash.rbf` at `a2af7fdd…`, sha256 `f165fdb8…`) until a
-second idle bitstream exists:
+names two artifact classes. Both pin the in-tree misteross splash
+(`sources/misteross/sealed/fes-splash.rbf`, seal tip `a2af7fdd…`,
+sha256 `f165fdb8…`) until a second idle bitstream exists:
 
 - **splash** (`splash_rbf`) — FAT / U-Boot. `fat_destination = '/menu.rbf'`.
   Filename stays `menu.rbf` / `core=menu.rbf`; U-Boot is not resealed.
@@ -47,11 +47,11 @@ second idle bitstream exists:
 
 Fetch/verify require both slots and check hash, size, `/menu.rbf`, and
 the idle install path. They do **not** require Distribution_MiSTer Menu
-identity. A GitHub pin with `GITHUB_TOKEN` or `GH_TOKEN` downloads via
-the authenticated contents API (`Accept: application/vnd.github.raw`).
-Without a token, fetch tries unauthenticated `raw.githubusercontent.com`
-and fails with a hard credential error if that 404s (private misteross
-splash). Image fetch containers pass the token in fetch mode only.
+identity. Splash/idle copy from FES `sources/misteross/sealed/` and do
+not wget standalone `DeanoC/misteross`. Other private GitHub pins still
+use `GITHUB_TOKEN` / `GH_TOKEN` plus the contents API. Work splash/idle
+recipe changes in FES `sources/misteross`; the old standalone repo is
+retired for day-to-day work.
 ([`image/scripts/fetch-native-runtime-inputs.sh`](../image/scripts/fetch-native-runtime-inputs.sh),
 [`image/scripts/verify-native-runtime-inputs.sh`](../image/scripts/verify-native-runtime-inputs.sh)).
 Equal splash/idle bytes reuse a sibling cache copy. Rootfs install
@@ -101,7 +101,7 @@ Agree files before parallel edits ([agent workflow](agent-workflow.md)).
 
 | Workstream | Strawman owner | What Phase 2 changes | What it must not do |
 | --- | --- | --- | --- |
-| **A. Splash RBF source/build** | misteross recipe + FES seal into `native-inputs.toml` (and media lock). Not a format-2 play package. | Sealed `sealed/fes-splash.rbf` (misteross #81). Idle contract: no Probe, no `0x002f`, ADV7513 HDMI, empty core-ID. | Do not register it in `config/core-recipes.toml` as `fes.*`. Do not treat `fes-demo` / Pong / MENU as the splash. |
+| **A. Splash RBF source/build** | misteross recipe in FES `sources/misteross` + FES seal into `native-inputs.toml` (and media lock). Not a format-2 play package. | In-tree `sources/misteross/sealed/fes-splash.rbf` (misteross #80/#81 absorbed). Idle contract: no Probe, no `0x002f`, ADV7513 HDMI, empty core-ID. Standalone `DeanoC/misteross` is retired for day-to-day work. | Do not register it in `config/core-recipes.toml` as `fes.*`. Do not treat `fes-demo` / Pong / MENU as the splash. Do not fetch splash from the old GitHub repo. |
 | **B. Image / media split** | FES `image/` + `scripts/media*.py` + `boot-media.lock.toml` | U-Boot `core=` (FAT splash) and runtime idle (rootfs `LoadIdle` artifact) **may diverge**. Fetch, verify, post-build, media receipt, appliance media (`scripts/appliance_media*.py`) name both classes. | Do not keep a hidden “they are the same bytes” check once splash exists. Do not reintroduce Main / `/dev/MiSTer_cmd`. |
 | **C. `LoadIdle` contract** | libmister-runtime | Identity, programming profile, and video/fb bring-up become an explicit **defined idle**, not hardcoded MENU chrome. Startup, Stop, and failed-launch cleanup share that path. | Do not load attract-as-ABI (phase 4). Do not infer splash identity from a filename. |
 | **D. Kit HDMI after Stop** | FogCast `fogcast-kit` / `ui/kitlauncher` | When MENU chrome is gone: HDMI shows splash / defined idle. Catalog grid is **not** the Phase 2 product. linuxfb overlay only if the idle bitstream still enables HPS fb. | Do not ship rooms on kit HDMI. Do not grow an offline catalog. Do not claim FC2D (`ui/gfx/fpga_protocol.md` remains a software stub). |
@@ -156,7 +156,8 @@ fail idle when the idle recipe says so; play-package cleanup still
 `native-inputs` in slice 4.
 
 **Do:** Logo + motion bitstream. Not rooms, not attract ABI, not
-`config/core-recipes.toml`. misteross #81 seals `sealed/fes-splash.rbf`
+`config/core-recipes.toml`. misteross #80/#81 live in FES
+`sources/misteross` (`sealed/fes-splash.rbf`)
 and documents the idle contract (no Probe, no `0x002f`, empty core-ID,
 ADV7513 HDMI, OSS nextpnr).
 
@@ -177,12 +178,10 @@ filename `menu.rbf` / `core=menu.rbf`. Verify no longer assumes
 Distribution_MiSTer `menu.rbf` as the only legal idle. Production
 `LoadIdle()` uses `SplashIdle()`.
 
-**Success:** lock pins misteross sealed splash for both slots; fetch and
-verify no longer require Distribution_MiSTer Menu identity; production
-`LoadIdle()` uses `SplashIdle()`. Offline tests assert the lock schema,
-authenticated contents-API fetch, and a loud missing-token failure.
-Live image assembly needs `GITHUB_TOKEN` or `GH_TOKEN` with
-`contents:read` on private misteross. No HIL required.
+**Success:** lock pins the in-tree misteross sealed splash for both
+slots; fetch and verify no longer require Distribution_MiSTer Menu
+identity; production `LoadIdle()` uses `SplashIdle()`. Clean assembly
+does not need a misteross GitHub token. No HIL required.
 
 ### 5. Kit HDMI after Stop without MENU chrome
 

@@ -135,9 +135,30 @@ export FES_PONG_PACKAGE_DIR="$package"
 export FES_PONG_PACKAGE_SELECTION="$selection"
 unset GITHUB_TOKEN GH_TOKEN
 
-NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+local_root=$fixture/fes-local
+mkdir -p "$local_root/sources/misteross/sealed"
+cp "$idle" "$local_root/sources/misteross/sealed/fes-splash.rbf"
+chmod 0444 "$local_root/sources/misteross/sealed/fes-splash.rbf"
+local_lock=$fixture/local.lock
+sed -e "s#https://github.com/DeanoC/misteross#sources/misteross#" "$lock" > "$local_lock"
+: > "$WGET_LOG"
+NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$local_lock" \
+  NATIVE_RUNTIME_CACHE="$cache" FES_ROOT="$local_root" \
+  sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+test ! -s "$WGET_LOG" || fail 'in-tree splash/idle fetch used wget'
+test -f "$cache/idle.rbf"
+test -f "$cache/splash.rbf"
+test "$(stat -c %a "$cache/idle.rbf")" = 444
+test "$(stat -c %a "$cache/splash.rbf")" = 444
+test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/splash.rbf" | awk '{print $1}')"
+
+github_cache=$fixture/github-cache
+mkdir "$github_cache"
+: > "$WGET_LOG"
+NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_CACHE="$github_cache" \
+  sh "$repo/scripts/fetch-native-runtime-inputs.sh"
 grep -Fq 'https://raw.githubusercontent.com/DeanoC/misteross/a2af7fdd58d8e5d288892aeda38e8dc226aaed07/sealed/fes-splash.rbf' \
-  "$WGET_LOG" || fail 'fetch did not wget the locked misteross splash path'
+  "$WGET_LOG" || fail 'fetch did not wget the locked GitHub splash path'
 test -f "$cache/idle.rbf"
 test -f "$cache/splash.rbf"
 test "$(stat -c %a "$cache/idle.rbf")" = 444
@@ -149,7 +170,8 @@ test -d "$cache/core-packages/$package_id"
 chmod u+w "$cache/splash.rbf"
 printf '%s\n' 'stale splash bytes' >"$cache/splash.rbf"
 chmod 0444 "$cache/splash.rbf"
-NATIVE_RUNTIME_MODE=package-only sh "$repo/scripts/fetch-native-runtime-inputs.sh"
+NATIVE_RUNTIME_MODE=package-only NATIVE_RUNTIME_INPUT_LOCK="$local_lock" \
+  FES_ROOT="$local_root" sh "$repo/scripts/fetch-native-runtime-inputs.sh"
 test "$(sha256sum "$cache/idle.rbf" | awk '{print $1}')" = "$(sha256sum "$cache/splash.rbf" | awk '{print $1}')"
 test "$(stat -c %a "$cache/splash.rbf")" = 444
 
@@ -295,7 +317,7 @@ python3 - "$repo/build/native-inputs.toml" <<'PY' || fail 'production splash/idl
 import sys, tomllib
 policy = tomllib.load(open(sys.argv[1], 'rb'))
 expected = {
-    'repository': 'https://github.com/DeanoC/misteross',
+    'repository': 'sources/misteross',
     'commit': 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07',
     'path': 'sealed/fes-splash.rbf',
     'sha256': 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6',

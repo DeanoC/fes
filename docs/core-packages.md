@@ -4,8 +4,8 @@ For persistent Pong settings and best rally, see [core persistence](core-persist
 Proposed multi-slot launch composition (core, firmware, expansions, primary
 and removable media) is in the selected FogCast
 [launch composition](../sources/FogCast/docs/launch-composition.md) design.
-The locked splash and Stop-idle RBFs are the sealed misteross
-`fes-splash.rbf` (FAT `/menu.rbf` and rootfs
+The locked splash and Stop-idle RBFs are the in-tree misteross seal
+`sources/misteross/sealed/fes-splash.rbf` (FAT `/menu.rbf` and rootfs
 `/usr/share/mister-runtime/idle.rbf`). Attract ABI and rooms via one
 tenfoot renderer remain later phases; see
 [Idle MENU → rooms](idle-menu-rooms.md). Phase 2 slices 1–4 (named

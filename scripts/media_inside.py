@@ -74,8 +74,10 @@ class Provenance:
         if (self.profile != 'native-integration-dev'
                 or not isinstance(self.idle_path, str) or not self.idle_path
                 or not isinstance(self.splash_path, str) or not self.splash_path
-                or not isinstance(self.idle_repository, str) or not self.idle_repository.startswith('https://')
-                or not isinstance(self.splash_repository, str) or not self.splash_repository.startswith('https://')
+                or not isinstance(self.idle_repository, str) or not (
+                    self.idle_repository.startswith('https://') or self.idle_repository.startswith('sources/'))
+                or not isinstance(self.splash_repository, str) or not (
+                    self.splash_repository.startswith('https://') or self.splash_repository.startswith('sources/'))
                 or type(self.idle_size) is not int or self.idle_size <= 0
                 or type(self.splash_size) is not int or self.splash_size <= 0):
             raise ValueError('invalid media provenance profile or splash/idle source')

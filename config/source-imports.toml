@@ -21,6 +21,10 @@ imported_commit = "079b4548d5ab84c094686e00df4fbbe658f4f613"
 tree = "872410eac9da779de8de48bb842da8c9b2cc47bd"
 history_ref = "refs/imports/libmister-runtime"
 
+# misteross URL/commit/tree below are historical import provenance from the
+# gitlink cutover. Do not open day-to-day PRs against standalone
+# DeanoC/misteross; work in FES sources/misteross. Subsequent splash/seal
+# work (#80, #81) is ordinary FES module history, not a second import.
 [imports."misteross"]
 path = "sources/misteross"
 repository = "https://github.com/DeanoC/misteross.git"

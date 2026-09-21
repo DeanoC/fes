@@ -178,7 +178,7 @@ cat > "$expected_inputs" <<'EOF'
 format=1
 mister_runtime_commit=1111111111111111111111111111111111111111
 mister_agent_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-idle_repository=https://github.com/DeanoC/misteross
+idle_repository=sources/misteross
 idle_commit=a2af7fdd58d8e5d288892aeda38e8dc226aaed07
 idle_path=sealed/fes-splash.rbf
 idle_sha256=f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6

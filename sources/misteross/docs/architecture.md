@@ -184,6 +184,43 @@ effect. These digital models do not prove PLL lock, electrical timing or actual
 HDMI output. This implementation has simulation and producer-unit-test evidence;
 new routed artifacts and exact-artifact hardware acceptance remain outstanding.
 
+### Board-firmware splash
+
+`cores/fes-splash/` is the U-Boot / intended Stop-idle splash bitstream: a
+FogCast/FES mark plus autonomous motion on HDMI. It is board firmware. It is
+not rooms, not attract ABI, and not a format-2 play package. FES pins the
+tracked `sealed/fes-splash.rbf` in `image/build/native-inputs.toml`. Work on
+this recipe in FES `sources/misteross`; standalone `DeanoC/misteross` is
+retired for day-to-day work.
+
+Video is CTA-770.3 1280×720p60 at the checked 50→74.25 MHz fractional PLL,
+full-frame (the play-shell 320×240 mapping is not used). Linux programs the
+ADV7513 through the HPS I2C bridge at X52/Y60. The core has no HPS GP mailbox
+and no MiSTer user-io: command `0x0014` Probe has no responder, and command
+`0x002f` HPS framebuffer is absent. There is no observed core-ID string.
+U-Boot does not Probe. FES IdleRecipe must omit Probe and HPS fb.
+
+`make sim-fes-splash` checks three full 1650×750 frames, the mark, motion, and
+the I2C low-or-release board path. It writes `build/sim/fes-splash-frames/`
+for visual inspection. `make build-fes-splash` (`scripts/build_fes_splash.py`)
+is the generic OSS Yosys/nextpnr-mistral lane (GPU-router OFF, default
+router, no HIP). It reuses the Pong PLL wrapper and the shared 50 MHz SDC,
+keeps splash-owned HDMI/I2C QSF, and writes:
+
+```text
+build/fes-splash/core.rbf
+build/fes-splash/build-inputs.json
+build/fes-splash/build-summary.json
+build/fes-splash/native-inputs-snippet.toml
+sealed/fes-splash.rbf
+```
+
+The tracked `sealed/` copy is the FES `[splash_rbf]` / `[idle_rbf]` pin.
+Reuse splash bytes for Stop idle; keep FAT `/menu.rbf` / `core=menu.rbf` as
+the filename until a U-Boot reseal. A sealed RBF requires a clean committed
+tree and `make toolchain`. `--synth-only` is a dirty-tree Yosys probe.
+Quartus is not part of this recipe. No build command programs hardware.
+
 To author another application, reuse the endpoint and fixed-video shell,
 implement its image/asset consumer, declare only implemented interfaces, and
 add a producer with tracked source closure and an exact manifest. Keep board
@@ -2847,6 +2884,10 @@ The integration outputs are:
 ```text
 build/oss/<experiment>/top.rbf
 build/oracle/<experiment>/top.rbf
+build/fes-splash/core.rbf
+build/fes-splash/build-inputs.json
+build/fes-splash/native-inputs-snippet.toml
+sealed/fes-splash.rbf
 build/cores/<name>/releases/*.rbf
 build/rebuild/<name>/<name>.rbf
 build/current/<name>.rbf

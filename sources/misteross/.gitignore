@@ -20,6 +20,8 @@ __pycache__/
 *.rbf
 !tests/fixtures/core-bundle-v2/payloads/empty.rbf
 !tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf
+!sealed/fes-splash.rbf
+!sealed/fes-splash.build-summary.json
 *.sof
 *.smsg
 *.rpt

@@ -1,0 +1,36 @@
+# Board-firmware splash contract for FES IdleRecipe / native-inputs.
+# This is not a format-2 play ABI and not a MiSTer user-io identity.
+
+[identity]
+# The bitstream has no SPI user-io responder. Command 0x0014 Probe has
+# nothing to read. Do not invent SPLASH or FESIDLE. U-Boot does not Probe.
+# LoadIdle must omit Probe.
+probe = false
+core_id = ""
+
+[user_io]
+# No Menu user-io. No HPS framebuffer over 0x002f.
+command_0x0014_probe = false
+command_0x002f_hps_fb = false
+
+[hdmi]
+standard = "CTA-770.3 1280x720p60"
+pixel_clock_hz = 74250000
+h_total = 1650
+h_active = 1280
+h_front = 110
+h_sync = 40
+v_total = 750
+v_active = 720
+v_front = 5
+v_sync = 5
+hsync_polarity = "positive"
+vsync_polarity = "positive"
+
+[adv7513]
+# Linux programs the transmitter through the HPS I2C bridge. There is no
+# Menu video bring-up and no required HPS framebuffer.
+hps_i2c = true
+hps_i2c_bel = "cyclonev_hps_interface_peripheral_i2c.52.60.0"
+scl_pin = "PIN_U10"
+sda_pin = "PIN_AA4"

@@ -4,7 +4,7 @@ format = 1
 mount_path = '/runtime-source'
 
 [splash_rbf]
-repository = 'https://github.com/DeanoC/misteross'
+repository = 'sources/misteross'
 commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
 path = 'sealed/fes-splash.rbf'
 sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
@@ -12,7 +12,7 @@ size = 1961783
 fat_destination = '/menu.rbf'
 
 [idle_rbf]
-repository = 'https://github.com/DeanoC/misteross'
+repository = 'sources/misteross'
 commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
 path = 'sealed/fes-splash.rbf'
 sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'

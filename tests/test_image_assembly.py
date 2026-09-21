@@ -1,5 +1,6 @@
 """FES image/ is the native image recipe; FogCast supplies agent and kit."""
 from pathlib import Path
+import hashlib
 import tomllib
 import unittest
 
@@ -41,7 +42,7 @@ class ImageAssemblyTest(unittest.TestCase):
     def test_splash_and_idle_pin_sealed_misteross_splash(self):
         policy = tomllib.loads((IMAGE / 'build/native-inputs.toml').read_text())
         expected = {
-            'repository': 'https://github.com/DeanoC/misteross',
+            'repository': 'sources/misteross',
             'commit': 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07',
             'path': 'sealed/fes-splash.rbf',
             'sha256': 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6',
@@ -53,6 +54,15 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertEqual(policy['splash_rbf']['fat_destination'], '/menu.rbf')
         self.assertEqual(policy['idle_rbf']['install_path'],
                          '/usr/share/mister-runtime/idle.rbf')
+        sealed = ROOT / 'sources/misteross/sealed/fes-splash.rbf'
+        self.assertTrue(sealed.is_file(), 'in-tree splash seal is missing')
+        self.assertEqual(sealed.stat().st_size, expected['size'])
+        self.assertEqual(hashlib.sha256(sealed.read_bytes()).hexdigest(),
+                         expected['sha256'])
+        fetch = (IMAGE / 'scripts/fetch-native-runtime-inputs.sh').read_text()
+        self.assertIn('sources/*)', fetch)
+        self.assertNotIn("repository = 'https://github.com/DeanoC/misteross'",
+                         (IMAGE / 'build/native-inputs.toml').read_text())
         for relative in ('scripts/fetch-native-runtime-inputs.sh',
                          'scripts/verify-native-runtime-inputs.sh'):
             text = (IMAGE / relative).read_text()
