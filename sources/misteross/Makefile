@@ -6,8 +6,9 @@ CORE ?= megadrive
 ARTIFACT ?= rebuild
 PYTHON ?= python3
 VERILATOR ?= verilator
-# Older supported Verilator releases do not define this warning category.
+# Older supported Verilator releases do not define these warning categories.
 VERILATOR_PROCASSINIT = $(shell $(VERILATOR) -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT)
+VERILATOR_SIMILARNAME = $(shell $(VERILATOR) -Wno-SIMILARNAME --version >/dev/null 2>&1 && echo -Wno-SIMILARNAME)
 PONG_FRAMEWORK ?= $(CURDIR)/build/frameworks/template
 PROGRAM_TRANSPORT ?= mister
 MISTER_HOST ?=
@@ -206,7 +207,7 @@ sim-fes-zx81-bus:
 		$(VERILATOR) --cc --exe --build --top-module expansion_bus_harness -Wall \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-WIDTHTRUNC -Wno-WIDTHEXPAND \
 		-Wno-PINCONNECTEMPTY -Wno-DECLFILENAME -Wno-UNUSEDPARAM \
-		-Wno-SIMILARNAME \
+		$(VERILATOR_SIMILARNAME) \
 		-Icores/fes-zx81/rtl -Icores/fes-zx81/expansions \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-bus-$$name" \
 		cores/fes-zx81/sim/expansion_bus_harness.v \
@@ -227,7 +228,7 @@ sim-fes-zx81-expansion: sim-fes-zx81-bus
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
-		-Wno-CASEX -Wno-BLKSEQ -Wno-SIMILARNAME $(VERILATOR_PROCASSINIT) \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_SIMILARNAME) $(VERILATOR_PROCASSINIT) \
 		-Icores/fes-zx81/rtl -Icores/fes-zx81/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$pack" \
 		cores/fes-zx81/sim/expansion_machine.v \

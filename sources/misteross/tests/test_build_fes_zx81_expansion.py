@@ -98,6 +98,27 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("bus_romcs", machine)
         self.assertIn("bus_ram_present", machine)
 
+    def test_zx81_bus_sim_probes_similarname_warning(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            compiler = Path(temporary) / "verilator"
+            for supported in (False, True):
+                with self.subTest(supported=supported):
+                    compiler.write_text("#!/bin/sh\nexit " + ("0" if supported else "1") + "\n")
+                    compiler.chmod(0o755)
+                    result = subprocess.run(
+                        ["make", "-n", "sim-fes-zx81-bus", f"VERILATOR={compiler}"],
+                        cwd=root, text=True, capture_output=True, check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual("-Wno-SIMILARNAME" in result.stdout, supported)
+                    self.assertIn("-Wno-UNUSEDPARAM", result.stdout)
+                    expansion = subprocess.run(
+                        ["make", "-n", "sim-fes-zx81-expansion", f"VERILATOR={compiler}"],
+                        cwd=root, text=True, capture_output=True, check=False)
+                    self.assertEqual(expansion.returncode, 0, expansion.stderr)
+                    self.assertEqual("-Wno-SIMILARNAME" in expansion.stdout, supported)
+                    self.assertIn("-Wno-BLKSEQ", expansion.stdout)
+
 
 class ZX81CartPublicationTests(unittest.TestCase):
     def setUp(self):
