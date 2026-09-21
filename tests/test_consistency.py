@@ -203,9 +203,9 @@ class ConsistencyTest(unittest.TestCase):
         required = (
             'make rollback-media GENERATION=', 'make verify-media', 'exclusive media lease',
             'generations/<image-sha256>/<evidence-sha256>', 'two independent',
-            'rootfs.sha256', 'kernel.sha256', 'idle.sha256',
+            'rootfs.sha256', 'kernel.sha256', 'splash.sha256', 'idle.sha256',
             '/media/fat/fogcast/agent.toml',
-            'installed rootfs, agent, runtime, kernel, idle artifact',
+            'installed rootfs, agent, runtime, kernel, splash, idle artifact',
             'core-packages', 'fes.pong', 'fes.zx81', 'fes.coleco',
         )
         for needle in required:

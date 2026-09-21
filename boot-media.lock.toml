@@ -28,6 +28,8 @@ chs_end = "feffff"
 path = "uboot.img"
 size = 515141
 sha256 = "e2d46cf9fe1ec40ca2c9c7409870249f267e06f70e5736dc6d30b4e21fe62a64"
+# core=menu.rbf is the locked U-Boot filename for the splash slot. Policy
+# names that artifact splash; changing the filename requires resealing U-Boot.
 environment = [
   "mmcroot=/dev/mmcblk0p1",
   "bootimage=/linux/zImage_dtb",

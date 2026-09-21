@@ -389,15 +389,20 @@ def published_package(output, configuration, profile):
 
 def provenance_for(root, fogcast, cold):
     try:
-        idle = tomllib.loads((root / 'image/build/native-inputs.toml').read_text())['idle_rbf']
+        policy = tomllib.loads((root / 'image/build/native-inputs.toml').read_text())
+        idle = policy['idle_rbf']
+        splash = policy['splash_rbf']
         if idle['install_path'] != '/usr/share/mister-runtime/idle.rbf':
             raise ValueError('noncanonical idle destination')
+        if splash['fat_destination'] != '/menu.rbf':
+            raise ValueError('noncanonical splash FAT destination')
         return Provenance(cold['fes_revision'], PROFILE,
             hashlib.sha256(json.dumps(recipe_fingerprint(cold_build.MEDIA_RECIPE_FILES), sort_keys=True).encode()).hexdigest(),
             cold['image_receipt_sha256'], cold['child_manifest_sha256'],
-            idle['repository'], idle['commit'], idle['path'], idle['size'], idle['sha256'])
+            idle['repository'], idle['commit'], idle['path'], idle['size'], idle['sha256'],
+            splash['repository'], splash['commit'], splash['path'], splash['size'], splash['sha256'])
     except (OSError, KeyError, TypeError, ValueError):
-        raise ValueError('selected media provenance or native idle lock is invalid') from None
+        raise ValueError('selected media provenance or native splash/idle lock is invalid') from None
 
 
 def prepare(root, profile):
@@ -433,9 +438,12 @@ def prepare(root, profile):
     lock = MediaLock.load(root / 'boot-media.lock.toml')
     payloads = resolve_payloads(root, lock, cold_build.run)
     image = root / 'image'
-    inputs = ImageInputs(output / 'linux.img', image / 'build/cache/target-image/native/idle.rbf',
-                         payloads.kernel, payloads.uboot, provenance=provenance_for(root, fogcast, cold))
+    native_cache = image / 'build/cache/target-image/native'
+    inputs = ImageInputs(output / 'linux.img', native_cache / 'idle.rbf',
+                         payloads.kernel, payloads.uboot, provenance=provenance_for(root, fogcast, cold),
+                         splash=native_cache / 'splash.rbf')
     verify_file(inputs.idle, inputs.provenance.idle_size, inputs.provenance.idle_sha256, "idle provenance")
+    verify_file(inputs.splash_payload(), inputs.provenance.splash_size, inputs.provenance.splash_sha256, "splash provenance")
     env = dict(env, NATIVE_RUNTIME_MODE=mode,
                TARGET_IMAGE_OUTPUT_VOLUME=cold_build.output_volume(root, profile),
                TARGET_IMAGE_CONTAINER_RUNTIME=os.environ.get('CONTAINER_RUNTIME', 'docker'),
@@ -854,8 +862,10 @@ class Runner:
         return '/work/' + str(Path(path).relative_to(self.root))
 
     def arguments(self, inputs):
-        return [item for name in ('rootfs', 'idle', 'kernel', 'uboot')
-                for item in ('--' + name, self.path(getattr(inputs, name)))]
+        items = [item for name in ('rootfs', 'idle', 'kernel', 'uboot')
+                 for item in ('--' + name, self.path(getattr(inputs, name)))]
+        items += ['--splash', self.path(inputs.splash_payload())]
+        return items
 
     @contextmanager
     def provenance_file(self, inputs):

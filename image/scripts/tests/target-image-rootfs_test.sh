@@ -52,6 +52,14 @@ format = 1
 commit = '1111111111111111111111111111111111111111'
 mount_path = '/runtime-source'
 
+[splash_rbf]
+repository = 'https://fixture.invalid/idle'
+commit = '2222222222222222222222222222222222222222'
+path = 'menu.rbf'
+sha256 = '$idle_sha'
+size = $idle_size
+fat_destination = '/menu.rbf'
+
 [idle_rbf]
 repository = 'https://fixture.invalid/idle'
 commit = '2222222222222222222222222222222222222222'

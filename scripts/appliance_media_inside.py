@@ -67,11 +67,16 @@ class Inputs:
     uboot: Path
     agent_config: Path | None = None
     launcher_config: Path | None = None
+    splash: Path | None = None
+
+    def splash_payload(self):
+        return self.splash if self.splash is not None else self.idle
 
     def boot_inputs(self):
         return base.ImageInputs(self.bootstrap,self.idle,self.kernel,self.uboot,
             agent_config=self.agent_config,launcher_config=self.launcher_config,
-            launcher_config_sha256=digest(self.launcher_config) if self.launcher_config else None)
+            launcher_config_sha256=digest(self.launcher_config) if self.launcher_config else None,
+            splash=self.splash_payload())
 
 
 def check_inputs(inputs,lock,scratch):
@@ -83,14 +88,15 @@ def check_inputs(inputs,lock,scratch):
     # The factory owns idle.rbf. The minimal bootstrap intentionally has no RBF.
     factory_inputs=base.ImageInputs(inputs.factory,inputs.idle,inputs.kernel,inputs.uboot,
         agent_config=inputs.agent_config,launcher_config=inputs.launcher_config,
-        launcher_config_sha256=digest(inputs.launcher_config) if inputs.launcher_config else None)
+        launcher_config_sha256=digest(inputs.launcher_config) if inputs.launcher_config else None,
+        splash=inputs.splash_payload())
     base.check_inputs(factory_inputs,lock,scratch)
     oldroot=base.run('debugfs','-R','stat /.fes-bootstrap',inputs.factory)
     if 'Type: directory' not in oldroot:
         raise ValueError('factory lacks the required /.fes-bootstrap mount directory')
     # Reserve the factory, Good, Previous and a staged candidate simultaneously.
     required=4*inputs.factory.stat().st_size+sum(Path(getattr(inputs,name)).stat().st_size
-        for name in ('bootstrap','idle','kernel'))+(16<<20)
+        for name in ('bootstrap','kernel'))+inputs.splash_payload().stat().st_size+(16<<20)
     if required > layout.partition_1.sector_count*layout.sector_size:
         raise ValueError('appliance payloads leave insufficient update and rollback capacity')
     if inputs.launcher_config and not inputs.agent_config:
@@ -100,7 +106,7 @@ def check_inputs(inputs,lock,scratch):
 
 def owned_files(inputs,manifest):
     image=manifest['image_sha256']
-    owned={'/menu.rbf':inputs.idle,'/linux/zImage_dtb':inputs.kernel,'/linux/linux.img':inputs.bootstrap,
+    owned={'/menu.rbf':inputs.splash_payload(),'/linux/zImage_dtb':inputs.kernel,'/linux/linux.img':inputs.bootstrap,
         f'/fogcast/releases/images/{image}.img':inputs.factory,
         f'/fogcast/releases/manifests/{image}.json':inputs.manifest}
     if inputs.agent_config:owned['/fogcast/agent.toml']=inputs.agent_config

@@ -11,6 +11,7 @@ grep -Fqx 'name: FOGCAST_TARGET' "$repo/buildroot/external.desc"
 grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-target-image.sh"
+grep -Fq '/work/build/cache/target-image/native/splash.rbf' "$repo/scripts/build-target-image.sh"
 
 for legacy_target in target-image-fetch target-images target-image-dev target-image-verify target-image-qemu-smoke; do
   legacy_body=$(
