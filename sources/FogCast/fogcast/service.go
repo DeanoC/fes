@@ -657,6 +657,12 @@ func (s *Service) DevelopmentActive(ctx context.Context) (bool, error) {
 	return development, err
 }
 
+func (s *Service) ActivePackageOwned() bool {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	return s.activePackageID != ""
+}
+
 // DevelopmentSessionState returns both development admission and execution
 // ownership reconstructed by the same authoritative target observation.
 func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, error) {
@@ -669,18 +675,35 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 	if execution != "" {
 		return false, execution, nil
 	}
-	status, err := s.Status(ctx)
-	if err != nil {
+	if _, err := s.Status(ctx); err != nil {
 		return false, "", err
 	}
 	s.executionMu.Lock()
 	execution = s.activeExecution
 	s.executionMu.Unlock()
-	return status.Development && status.State != protocol.StateIdle, execution, nil
+	return execution == ExecutionFPGADevelopment, execution, nil
+}
+
+// RecognizedPlayABI reports whether a format-2 package ABI is a normal FES
+// play profile. Unknown or empty ABIs stay on the Diagnostic development path.
+func RecognizedPlayABI(id string, major, minor int64) bool {
+	switch id {
+	case "fes.simple-computer", "fes.simple-game", "fes.application":
+		return major == 1 && minor == 0
+	default:
+		return false
+	}
+}
+
+func recognizedPlayContract(abi protocol.RuntimeContract) bool {
+	return RecognizedPlayABI(abi.ID, int64(abi.Major), int64(abi.Minor))
 }
 
 func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (string, error) {
 	if game.Kind == catalog.SourceKindCorePackage {
+		if s.corePackageHasRecognizedPlayABI(ctx, game.ID) {
+			return ExecutionFPGANative, nil
+		}
 		return ExecutionFPGADevelopment, nil
 	}
 	execution, err := s.executionResolver.Resolve(ctx, game)
@@ -694,6 +717,26 @@ func (s *Service) resolveExecution(ctx context.Context, game catalog.Game) (stri
 		return ExecutionFPGANative, nil
 	}
 	return execution, nil
+}
+
+func (s *Service) corePackageHasRecognizedPlayABI(ctx context.Context, gameID string) bool {
+	if s.corePackages == nil {
+		return false
+	}
+	store, ok := s.catalog.(coreEntryCatalog)
+	if !ok {
+		return false
+	}
+	entry, err := store.CoreEntry(ctx, gameID)
+	if err != nil {
+		return false
+	}
+	inspection, _, err := s.corePackages.Read(ctx, entry.PackageID)
+	if err != nil {
+		return false
+	}
+	abi := inspection.Descriptor.ABI
+	return RecognizedPlayABI(abi.ID, abi.Major, abi.Minor)
 }
 
 func (s *Service) SetDebug(debug func(string)) {
@@ -754,11 +797,8 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 
-	s.executionMu.Lock()
-	developmentActive := s.activeExecution == ExecutionFPGADevelopment
-	s.executionMu.Unlock()
-	if developmentActive {
-		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBusy, nil)
+	if err := s.stopPackageOwnedForCatalogLaunch(ctx); err != nil {
+		return protocol.CachedLaunchResponse{}, err
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -1486,6 +1526,9 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	}
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionFPGADevelopment
+	if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
+		s.activeExecution = ExecutionFPGANative
+	}
 	s.retainSessionTargetLocked()
 	s.activeGameID, s.activeSystem = "", ""
 	s.activePackageID, s.activePackageGeneration = "", 0
@@ -1623,6 +1666,97 @@ func preserveCorePackageError(err error) error {
 	return canonicalRemoteError(err, protocol.CodeTransferFailed)
 }
 
+// Caller holds lifecycle admission and must not hold targetMu.
+func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context) error {
+	s.executionMu.Lock()
+	development := s.activeExecution == ExecutionFPGADevelopment
+	packageOwned := s.activePackageID != ""
+	s.executionMu.Unlock()
+	if development {
+		return canonicalError(protocol.CodeBusy, nil)
+	}
+	if !packageOwned {
+		return nil
+	}
+	timeout := s.uploadTimeout
+	stopCtx, cancel := serviceTimeout(ctx, timeout)
+	defer cancel()
+	stopped, err := s.stopLocked(stopCtx, ctx, timeout)
+	if err != nil {
+		return err
+	}
+	if !validRecoveredDevelopmentStatus(stopped) {
+		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
+	}
+	return nil
+}
+
+func (s *Service) adoptObservedForeground(status *protocol.Status) {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	if status.Development && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == "" {
+			if status.CorePackage != nil && recognizedPlayContract(status.CorePackage.ABI) {
+				s.activeExecution = ExecutionFPGANative
+			} else {
+				s.activeExecution = ExecutionFPGADevelopment
+			}
+			s.retainSessionTargetLocked()
+			s.activeGameID, s.activeSystem = "", ""
+			if status.CorePackage != nil {
+				s.activePackageID, s.activePackageGeneration = status.CorePackage.PackageID, status.CorePackage.Generation
+			} else {
+				s.activePackageID, s.activePackageGeneration = "", 0
+			}
+		}
+		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation {
+			if s.activeGameID != "" {
+				status.GameID = stringPtr(s.activeGameID)
+				status.System = systemPtr(s.activeSystem)
+			}
+		} else {
+			s.activePackageID, s.activePackageGeneration = "", 0
+			if s.activeExecution != ExecutionHostOnly {
+				s.activeGameID, s.activeSystem = "", ""
+			}
+		}
+		if s.packageRejection != nil {
+			rejection := *s.packageRejection
+			status.LastError = &rejection
+			status.GameID = nil
+			status.System = nil
+		}
+		return
+	}
+	if status.State == protocol.StateActive {
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == "" {
+			s.activeExecution = ExecutionFPGANative
+			s.retainSessionTargetLocked()
+			if status.GameID != nil {
+				s.activeGameID = *status.GameID
+			}
+			if status.System != nil {
+				s.activeSystem = *status.System
+			}
+		}
+		return
+	}
+	if status.State == protocol.StateIdle {
+		s.selectedTargetReconciled = true
+		s.selectedTargetRepairAllowed = false
+		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
+			s.clearForegroundPlayLocked()
+		}
+		return
+	}
+	s.selectedTargetReconciled = false
+	s.selectedTargetRepairAllowed = false
+}
+
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
 	defer cancel()
@@ -1673,62 +1807,7 @@ func (s *Service) Status(parent context.Context) (protocol.Status, error) {
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	if status.Development && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
-		s.executionMu.Lock()
-		s.selectedTargetReconciled = false
-		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == "" {
-			s.activeExecution = ExecutionFPGADevelopment
-			s.retainSessionTargetLocked()
-			s.activeGameID, s.activeSystem = "", ""
-			s.activePackageID, s.activePackageGeneration = "", 0
-		}
-
-		if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation && s.activeGameID != "" {
-			status.GameID = stringPtr(s.activeGameID)
-			status.System = systemPtr(s.activeSystem)
-		} else {
-			s.activePackageID, s.activePackageGeneration = "", 0
-			if s.activeExecution != ExecutionHostOnly {
-				s.activeGameID, s.activeSystem = "", ""
-			}
-		}
-		if s.packageRejection != nil {
-			rejection := *s.packageRejection
-			status.LastError = &rejection
-			status.GameID = nil
-			status.System = nil
-		}
-		s.executionMu.Unlock()
-	} else if status.State == protocol.StateActive {
-		s.executionMu.Lock()
-		s.selectedTargetReconciled = false
-		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == "" {
-			s.activeExecution = ExecutionFPGANative
-			s.retainSessionTargetLocked()
-			if status.GameID != nil {
-				s.activeGameID = *status.GameID
-			}
-			if status.System != nil {
-				s.activeSystem = *status.System
-			}
-		}
-		s.executionMu.Unlock()
-	} else if status.State == protocol.StateIdle {
-		s.executionMu.Lock()
-		s.selectedTargetReconciled = true
-		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-			s.clearForegroundPlayLocked()
-		}
-		s.executionMu.Unlock()
-	} else {
-		s.executionMu.Lock()
-		s.selectedTargetReconciled = false
-		s.selectedTargetRepairAllowed = false
-		s.executionMu.Unlock()
-	}
+	s.adoptObservedForeground(&status)
 	s.executionMu.Lock()
 	if s.packageRejection != nil {
 		rejection := *s.packageRejection

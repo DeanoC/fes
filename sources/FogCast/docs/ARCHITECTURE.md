@@ -1333,6 +1333,19 @@ records the library identity only for the exact confirmed package generation.
 Changing the selection affects future launches. Runtime status stays truthful;
 the host adds its explicit library association and does not infer one after a
 restart. Existing ordinary cartridge launch and Stop paths remain in place.
+Replacing a recognized-ABI native package session with a cartridge or host-only
+title stops the package-load target and clears package ownership first. True
+Diagnostic sessions still require an explicit Stop.
+
+Library titles whose installed package has a recognized play ABI
+(`fes.simple-computer` 1.0, `fes.simple-game` 1.0, or `fes.application` 1.0)
+resolve to `execution: fpga_native`. `fpga_development` remains the no-ABI
+fallback and the explicit LoadDevelopmentRBF / development-core path. Target
+status may still report `development: true` for the package-load transport;
+the host session and catalog labels follow the ABI policy, not that flag.
+After a host restart, an in-progress recognized-ABI package session is
+reconstructed as `fpga_native` from that CorePackage ABI. A raw development
+RBF or unknown ABI still reconstructs as `fpga_development`.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
 database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.

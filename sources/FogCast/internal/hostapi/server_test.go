@@ -91,7 +91,22 @@ func (s *fakeService) DevelopmentActive(context.Context) (bool, error) {
 	return s.status.Development && s.status.State != protocol.StateIdle, s.statusErr
 }
 func (s *fakeService) DevelopmentSessionState(context.Context) (bool, string, error) {
+	if s.reconstructedExecution != "" {
+		return s.reconstructedExecution == fogcast.ExecutionFPGADevelopment, s.reconstructedExecution, s.statusErr
+	}
+	if s.status.Development && (s.status.State == protocol.StateActive || s.status.State == protocol.StateStopping) {
+		if s.status.CorePackage != nil && fogcast.RecognizedPlayABI(s.status.CorePackage.ABI.ID, int64(s.status.CorePackage.ABI.Major), int64(s.status.CorePackage.ABI.Minor)) {
+			return false, fogcast.ExecutionFPGANative, s.statusErr
+		}
+		return true, fogcast.ExecutionFPGADevelopment, s.statusErr
+	}
+	if s.status.State == protocol.StateActive {
+		return false, fogcast.ExecutionFPGANative, s.statusErr
+	}
 	return s.status.Development && s.status.State != protocol.StateIdle, s.reconstructedExecution, s.statusErr
+}
+func (s *fakeService) ActivePackageOwned() bool {
+	return s.status.CorePackage != nil
 }
 func (s *fakeService) Game(context.Context, string) (catalog.Game, error) { return s.game, s.gameErr }
 func (s *fakeService) Health(context.Context) (protocol.Health, error)    { return s.health, s.healthErr }

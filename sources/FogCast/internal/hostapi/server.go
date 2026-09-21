@@ -803,9 +803,6 @@ func publicGame(game catalog.Game) gameResult {
 		CanonicalTitle: canonical, Region: game.Region, Revision: game.Revision, DumpFlags: game.DumpFlags,
 		GroupKey: game.GroupKey, VariantCount: game.VariantCount, Genre: game.Genre, Year: game.Year,
 	}
-	if game.Kind == catalog.SourceKindCorePackage {
-		result.Execution = fogcast.ExecutionFPGADevelopment
-	}
 	if result.VariantCount <= 0 {
 		result.VariantCount = 1
 	}

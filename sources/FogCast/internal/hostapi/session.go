@@ -53,6 +53,10 @@ type sessionDevelopmentStateService interface {
 	DevelopmentSessionState(context.Context) (bool, string, error)
 }
 
+type sessionPackageOwnerService interface {
+	ActivePackageOwned() bool
+}
+
 type sessionProgress struct {
 	Stage   string `json:"stage"`
 	Message string `json:"message"`
@@ -101,6 +105,7 @@ type sessionCoordinator struct {
 	mediaHandle     MediaHandle
 	mediaGeneration uint64
 	execution       string
+	packageOwned    bool
 	mediaState      string
 	terminalStatus  *protocol.Status
 	inputBinding    sessionInputBinding
@@ -285,8 +290,16 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 
 	result := s.publicSession(st, nil)
 	s.mu.Lock()
-	if st.State == protocol.StateIdle && s.execution == fogcast.ExecutionFPGADevelopment {
+	if s.execution == "" {
+		if execution, packageOwned := reconstructedSessionExecution(st); execution != "" {
+			s.execution = execution
+			s.packageOwned = packageOwned
+			s.terminalStatus = nil
+		}
+	}
+	if st.State == protocol.StateIdle && (s.execution == fogcast.ExecutionFPGADevelopment || s.packageOwned) {
 		s.execution = ""
+		s.packageOwned = false
 		s.terminalStatus = nil
 	}
 	if s.execution != "" {
@@ -420,9 +433,13 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 			execution = resolved
 		}
 	}
-	if execution == fogcast.ExecutionFPGADevelopment {
+	packageLaunch := execution == fogcast.ExecutionFPGADevelopment
+	if game, err := s.service.Game(ctx, id); err == nil && game.Kind == catalog.SourceKindCorePackage {
+		packageLaunch = true
+	}
+	if packageLaunch {
 		response, err := s.launchGame(ctx, id, target, nil)
-		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch", stamp)
+		result, err := s.finishCoreLoad(ctx, response.Status, err, "session.launch", stamp, execution)
 		if err == nil && result.State == protocol.StateActive {
 			if recorder, ok := s.service.(interface {
 				RecordPlay(context.Context, string) error
@@ -438,6 +455,9 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	}
 	if development {
 		return sessionResult{}, developmentMustStopError()
+	}
+	if err := s.stopPackageOwnedForReplacement(ctx); err != nil {
+		return sessionResult{}, err
 	}
 
 	if s.remoteInput != nil {
@@ -590,9 +610,11 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 			switch {
 			case observed.Development && observed.State != protocol.StateIdle:
 				s.execution = fogcast.ExecutionFPGADevelopment
+				s.packageOwned = false
 				s.terminalStatus = nil
 			case observed.State == protocol.StateIdle:
 				s.execution = ""
+				s.packageOwned = false
 				s.terminalStatus = nil
 			}
 			s.mu.Unlock()
@@ -602,6 +624,7 @@ func (s *sessionCoordinator) loadDevelopmentRBF(ctx context.Context, size int64,
 	s.beginFlight()
 	s.mu.Lock()
 	s.execution = fogcast.ExecutionFPGADevelopment
+	s.packageOwned = false
 	s.mediaHandle = nil
 	s.mediaState = ""
 	s.terminalStatus = nil
@@ -624,13 +647,15 @@ func (s *sessionCoordinator) loadDevelopmentCore(ctx context.Context, size int64
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
 	status, err := loader.LoadCore(ctx, size, content)
-	return s.finishCoreLoad(ctx, status, err, "session.development_core", stamp)
+	return s.finishCoreLoad(ctx, status, err, "session.development_core", stamp, fogcast.ExecutionFPGADevelopment)
 }
 
 // finishCoreLoad shares the confirmed-package ownership transition between
 // explicit development loading and package-backed library entries.
+// execution is the host play label: recognized-ABI library titles use
+// FPGANative; no-ABI and LoadDevelopmentCore stay FPGADevelopment.
 // The caller holds observationMu and the coordinator operation admission.
-func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol.Status, err error, event string, stamp clientStamp) (sessionResult, error) {
+func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol.Status, err error, event string, stamp clientStamp, execution string) (sessionResult, error) {
 	var identityErr *protocol.APIError
 	if errors.As(err, &identityErr) && identityErr.Phase == "identity" {
 		status.LastError = identityErr
@@ -651,6 +676,7 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 		preserveHostOnly := hostOnlyCorePackageCleanupFailure(previousExecution, status, err)
 		if !preserveHostOnly {
 			s.execution = ""
+			s.packageOwned = false
 			s.terminalStatus = nil
 		}
 		s.mu.Unlock()
@@ -662,9 +688,13 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 		}
 		return sessionResult{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target package state is unavailable", Phase: "recovery"}
 	}
+	if execution == "" {
+		execution = fogcast.ExecutionFPGADevelopment
+	}
 	s.mu.Lock()
 	previousExecution := s.execution
-	s.execution = fogcast.ExecutionFPGADevelopment
+	s.execution = execution
+	s.packageOwned = true
 	s.terminalStatus = nil
 	s.mu.Unlock()
 	// Publish the confirmed target owner before cleaning up the retired host
@@ -688,11 +718,11 @@ func (s *sessionCoordinator) finishCoreLoad(ctx context.Context, status protocol
 	if detachErr == nil && s.remoteInput != nil && inputEligibleStatus(status) {
 		core := sessionCore(status)
 		if core == "" || s.attachInputForStatus(ctx, status) != nil {
-			return sessionResult{}, s.stopAfterFailedAttach(fogcast.ExecutionFPGADevelopment)
+			return sessionResult{}, s.stopAfterFailedAttach(execution)
 		}
 	}
 	result := s.publicSession(status, nil)
-	result.Execution = fogcast.ExecutionFPGADevelopment
+	result.Execution = execution
 	s.recordStamp(event, result, nil, stamp)
 	if err != nil {
 		return result, err
@@ -749,6 +779,33 @@ func (s *sessionCoordinator) stopServiceForReplacement() (protocol.Status, error
 	stopCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return s.service.Stop(stopCtx)
+}
+
+func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context) error {
+	s.mu.Lock()
+	packageOwned := s.packageOwned
+	previousExecution := s.execution
+	s.mu.Unlock()
+	if !packageOwned {
+		return nil
+	}
+	if s.remoteInput != nil {
+		if err := s.detachInputNow(ctx, "session_replace"); err != nil {
+			return remoteInputError()
+		}
+	}
+	if err := s.stopMediaBounded(previousExecution); err != nil {
+		return err
+	}
+	stopped, err := s.service.Stop(ctx)
+	if err != nil {
+		return err
+	}
+	if !exactIdleStatus(stopped) {
+		return &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "package session did not stop to idle"}
+	}
+	s.restoreExecution("")
+	return nil
 }
 
 func (s *sessionCoordinator) stopMedia(ctx context.Context, execution string) error {
@@ -869,6 +926,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 	s.mu.Lock()
 	hadMedia := s.mediaHandle != nil
 	execution := s.execution
+	packageOwned := s.packageOwned
 	failedWithoutHandle := !hadMedia && s.mediaState == "failed"
 	s.mu.Unlock()
 	var mediaErr error
@@ -877,7 +935,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 	}
 	var st protocol.Status
 	var serviceErr error
-	if execution == fogcast.ExecutionFPGADevelopment {
+	if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
 		st, serviceErr = s.service.Stop(ctx)
 	} else {
 		st, serviceErr = s.stopServiceBounded()
@@ -916,10 +974,11 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 		result.Execution = execution
 		result.Media = "stopped"
 	}
-	if execution == fogcast.ExecutionFPGADevelopment {
+	if execution == fogcast.ExecutionFPGADevelopment || packageOwned {
 		s.mu.Lock()
-		if s.execution == fogcast.ExecutionFPGADevelopment {
+		if s.execution == execution {
 			s.execution = ""
+			s.packageOwned = false
 			s.terminalStatus = nil
 		}
 		s.mu.Unlock()
@@ -961,14 +1020,20 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 	if err != nil {
 		return false, err
 	}
+	packageOwned := false
+	if owner, ok := s.service.(sessionPackageOwnerService); ok {
+		packageOwned = owner.ActivePackageOwned()
+	}
 	s.mu.Lock()
 	if s.execution == "" {
 		switch {
-		case development:
-			s.execution = fogcast.ExecutionFPGADevelopment
-			s.terminalStatus = nil
 		case reconstructedExecution == fogcast.ExecutionFPGANative:
 			s.execution = fogcast.ExecutionFPGANative
+			s.packageOwned = packageOwned
+			s.terminalStatus = nil
+		case development:
+			s.execution = fogcast.ExecutionFPGADevelopment
+			s.packageOwned = packageOwned
 			s.terminalStatus = nil
 		}
 	}
@@ -980,6 +1045,9 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 func (s *sessionCoordinator) restoreExecution(execution string) {
 	s.mu.Lock()
 	s.execution = execution
+	if execution == "" {
+		s.packageOwned = false
+	}
 	s.terminalStatus = nil
 	s.mu.Unlock()
 }
@@ -1056,6 +1124,19 @@ func exactIdleStatus(status protocol.Status) bool {
 	return status.State == protocol.StateIdle && status.GameID == nil && status.System == nil &&
 		status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil &&
 		!status.Development && status.Recovery == ""
+}
+
+func reconstructedSessionExecution(st protocol.Status) (execution string, packageOwned bool) {
+	if st.Development && (st.State == protocol.StateActive || st.State == protocol.StateStopping) {
+		if st.CorePackage != nil && fogcast.RecognizedPlayABI(st.CorePackage.ABI.ID, int64(st.CorePackage.ABI.Major), int64(st.CorePackage.ABI.Minor)) {
+			return fogcast.ExecutionFPGANative, true
+		}
+		return fogcast.ExecutionFPGADevelopment, st.CorePackage != nil
+	}
+	if st.State == protocol.StateActive {
+		return fogcast.ExecutionFPGANative, false
+	}
+	return "", false
 }
 
 func (s *sessionCoordinator) inputStatus() (host.RemoteInputStatus, bool) {

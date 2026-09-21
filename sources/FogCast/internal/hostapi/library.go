@@ -302,7 +302,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		if covers, ok := service.(coverService); ok {
 			result.Games[index].Cover = covers.CoverHandle(r.Context(), game.ID)
 		}
-		result.Games[index] = enrichLaunchable(service, result.Games[index])
+		result.Games[index] = enrichLaunchable(r.Context(), service, result.Games[index])
 		if index < len(page.Games) {
 			applyROMCached(&result.Games[index], page.Games[index], presence, romKnown)
 		}
@@ -631,7 +631,7 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) (
 	if covers, ok := service.(coverService); ok {
 		result.Cover = covers.CoverHandle(ctx, result.ID)
 	}
-	result = enrichLaunchable(service, result)
+	result = enrichLaunchable(ctx, service, result)
 	games := []gameResult{result}
 	if err := enrichCompositions(ctx, service, games); err != nil {
 		return result, err
@@ -643,7 +643,12 @@ type platformLaunchService interface {
 	PlatformLaunchable(protocol.System) bool
 }
 
-func enrichLaunchable(service Service, result gameResult) gameResult {
+func enrichLaunchable(ctx context.Context, service Service, result gameResult) gameResult {
+	if resolver, ok := service.(sessionExecutionService); ok {
+		if execution, err := resolver.SessionExecution(ctx, result.ID); err == nil && execution != "" {
+			result.Execution = execution
+		}
+	}
 	if policy, ok := service.(platformLaunchService); ok {
 		result.Launchable = policy.PlatformLaunchable(result.System)
 		return result
