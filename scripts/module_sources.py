@@ -109,7 +109,7 @@ def describe(root, name, revision=None, *, require_clean=True):
     gitlink = len(entries) == 1 and entries[0][0].split()[0] == "160000"
     if gitlink:
         if entries[0][1] != relative or not (child / ".git").exists():
-            raise ValueError(f"{relative}: run git submodule update --init --recursive")
+            raise ValueError(f"{relative}: legacy submodule checkout is incomplete; use the current consolidated FES checkout")
         if Path(_value(child, "rev-parse", "--show-toplevel")).resolve() != child:
             raise ValueError(f"{relative}: expected an independent source checkout")
         selected = entries[0][0].split()[1]

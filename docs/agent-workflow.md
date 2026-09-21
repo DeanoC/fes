@@ -6,6 +6,21 @@ first-party modules under `sources/` share the FES repository and commit history
 Keep their architectural ownership separate while making cross-module changes
 in one branch and PR.
 
+## Repository retirement
+
+The former DeanoC/FogCast, DeanoC/libmister-runtime, DeanoC/mister-packages
+and DeanoC/misteross repositories are archived. All development and PRs go to
+DeanoC/fes. Module names describe ownership, not separate repositories.
+
+Do not resume old component worktrees as active development. Preserve unique
+commits or edits, then port the required change into a current FES worktree.
+Old orchestrator handoffs and parent-pin instructions are superseded by this guide.
+
+Historical import provenance, dated evidence, immutable artifact URLs and Go
+module import paths may retain the old repository names. These are not clone
+instructions or development destinations. Yosys, nextpnr and Mistral remain
+independent compiler dependencies.
+
 ## 1. Route the task
 
 | Example task | Primary owner | Likely coordination |

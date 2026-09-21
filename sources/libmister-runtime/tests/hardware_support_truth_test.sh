@@ -25,9 +25,9 @@ require_exact "$root/docs/support-matrix.md" \
 require_exact "$root/docs/support-matrix.md" \
 	'`95c9b4671e0d19781a6428d2168ab631453740215b194519f12788ade03c7c2e`.'
 require_exact "$root/README.md" \
-	'[dated FogCast hardware baseline](https://github.com/DeanoC/FogCast/blob/main/docs/hardware/native-megadrive-baseline.md).'
+	'[dated FogCast hardware baseline](../FogCast/docs/hardware/native-megadrive-baseline.md).'
 require_exact "$root/docs/support-matrix.md" \
-	'The [FogCast native Mega Drive baseline](https://github.com/DeanoC/FogCast/blob/main/docs/hardware/native-megadrive-baseline.md)'
+	'The [FogCast native Mega Drive baseline](../../FogCast/docs/hardware/native-megadrive-baseline.md)'
 
 hardware_yes_rows=$(grep -Ec '^\| .* \| hardware: yes \|$' \
 	"$root/docs/support-matrix.md" || true)

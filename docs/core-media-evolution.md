@@ -32,7 +32,7 @@ wire, shared ABI, runtime or FPGA. Its legacy SMS package remains limited to
 ## Versioned larger-media integration
 
 The shared `fes.media.blob-stream` 1.0 wire contract is published in
-[mister-packages](https://github.com/DeanoC/mister-packages/blob/41f4d9406955bed7abf318e1a14fde44e500dc92/docs/media-stream.md).
+[mister-packages](../sources/mister-packages/docs/media-stream.md).
 Runtime and host software are merged and selected for integration. They
 use 32-bit lengths and offsets, ordered 512-byte chunks and CRC32/IEEE, while
 keeping legacy blob 1.0 unchanged. The stream contract guarantees 1..32768

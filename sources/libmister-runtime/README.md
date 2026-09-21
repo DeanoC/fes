@@ -1,5 +1,9 @@
 # libmister-runtime
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/libmister-runtime/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 `fes.application` 1.0 adds composable fixed-video applications: no input,
 one gamepad or two logical controller ports with optional numeric keypads,
 stereo 48 kHz PCM audio, optional blob/stream media, and an optional 8192-byte
@@ -37,7 +41,7 @@ The native path does not
 preserve a running game across restart and does not start conventional Main,
 transient MGLs, or an automatic legacy fallback. Fakes under `tests/` verify
 software contracts only and are not physical evidence. See the
-[dated FogCast hardware baseline](https://github.com/DeanoC/FogCast/blob/main/docs/hardware/native-megadrive-baseline.md).
+[dated FogCast hardware baseline](../FogCast/docs/hardware/native-megadrive-baseline.md).
 
 Pong has software-tested profile admission and ROM-less launch/Stop/relaunch
 through the ordinary native lifecycle. It uses the image-owned

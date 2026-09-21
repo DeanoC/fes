@@ -1,5 +1,9 @@
 # Repository policy
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/libmister-runtime/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 These rules apply to all work in this repository.
 
 - Read `README.md` and `ARCHITECTURE.md` before changing execution behavior.

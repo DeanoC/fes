@@ -1,5 +1,9 @@
 # FogCast working policy
 
+Development lives only in the [FES repository](https://github.com/DeanoC/fes),
+under `sources/FogCast/`. The former standalone repository is archived.
+Use a FES worktree and open PRs against FES; do not clone or update the old repository.
+
 ## Start here
 
 Read `README.md` and `docs/ARCHITECTURE.md` before changing an execution path.
@@ -35,11 +39,11 @@ The user's current request defines the scope.
 
 - The public host API, target-agent API, and local MiSTer command path remain
   distinct in code, names, and documentation.
-- The working FPGA path uses the target agent, a transient MGL, and the
-  MiSTer/Main-compatible process through `/dev/MiSTer_cmd`.
-- `Main_MiSTer` and `misteross` are related repositories with separate
-  responsibilities: the former supplies target runtime code, and the latter
-  produces RBF artifacts. FogCast owns host selection, transfer, and launch.
+- FES native launches use the target agent and the local libmister-runtime daemon.
+- `misteross` and `libmister-runtime` are modules in this FES repository:
+  misteross produces RBF artifacts; runtime owns physical hardware transitions.
+  Main_MiSTer is a comparison reference. FogCast owns host selection, transfer,
+  and network/session coordination.
 
 ## Disposable development hardware
 
