@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
@@ -212,7 +213,8 @@ func TestDescribedPackageLaunchEventsIncludeFlightID(t *testing.T) {
 		},
 	}
 	service := &fakeService{
-		execution: fogcast.ExecutionFPGADevelopment,
+		execution: fogcast.ExecutionFPGANative,
+		game:      catalog.Game{ID: game, Kind: catalog.SourceKindCorePackage},
 		status:    active,
 		launch:    protocol.CachedLaunchResponse{Status: active},
 		stopped:   protocol.Status{State: protocol.StateIdle},

@@ -34,8 +34,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
   expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`
   entry (`fes.keyboard`, no gamepad); `POST /api/v1/session/launch` with its
-  `game_id` programs the package and attaches keyboard input. Development
-  package loads remain volatile.
+  `game_id` programs the package and attaches keyboard input. Library FES
+  cores with a recognized play ABI (including ZX81 and Coleco
+  `fes.simple-computer` 1.0) are ordinary `fpga_native` play sessions, not
+  Diagnostic `fpga_development`. That development label is the no-ABI
+  fallback and the explicit LoadDevelopmentRBF path. Development package
+  loads remain volatile.
 
 - Development media upload for an active described `fes.simple-computer` package
   with `fes.media.blob`: `fogcast --api http://127.0.0.1:8797 core-media PATH`
