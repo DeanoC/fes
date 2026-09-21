@@ -341,6 +341,16 @@ def select(root, profile):
     image_fingerprint, _ = cold_build.build_fingerprint(revisions, configuration, toolchain)
     host_fingerprint, _ = cold_build.host_fingerprint(revisions, configuration, toolchain)
     fogcast = cold_build.source_checkout('FogCast', revisions['FogCast'], '-' + profile)
+    # The runtime lock is an FES-owned assembly overlay. Snapshot refreshes
+    # remove the previous untracked overlay, so recreate it before any media
+    # child is launched and let the container mount the concrete lock beside
+    # the selected FogCast sources.
+    policy = root / 'image/build/native-inputs.toml'
+    if policy.is_file():
+        lock_path = fogcast / 'build/native-runtime.inputs.lock.toml'
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.write_text(cold_build.selected_runtime_lock(
+            policy.read_text(), revisions['libmister-runtime']))
     return image_fingerprint, host_fingerprint, fogcast, env
 
 
