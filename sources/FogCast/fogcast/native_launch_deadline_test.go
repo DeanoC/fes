@@ -31,11 +31,11 @@ import (
 
 func TestCachedNativeLaunchCompletingAfterTransportObservationDeadlinesReconcilesWithoutReplay(t *testing.T) {
 	const (
-		requestTimeout = 50 * time.Millisecond
-		launchTimeout  = requestTimeout + 25*time.Millisecond
-		healthTimeout  = 25 * time.Millisecond
-		finishDelay    = 80 * time.Millisecond
-		publicTimeout  = 500 * time.Millisecond
+		requestTimeout = 400 * time.Millisecond
+		launchTimeout  = requestTimeout + 100*time.Millisecond
+		healthTimeout  = 100 * time.Millisecond
+		finishDelay    = 150 * time.Millisecond
+		publicTimeout  = 3 * time.Second
 	)
 	rom := bytes.Repeat([]byte("deadline-owned-megadrive-rom"), 64)
 	digest := sha256.Sum256(rom)
@@ -69,6 +69,13 @@ func TestCachedNativeLaunchCompletingAfterTransportObservationDeadlinesReconcile
 		if request.Method == http.MethodPost && request.URL.Path == "/v2/launch" {
 			targetLaunchCalls.Add(1)
 			go func() {
+				// The HTTP request context can expire during cache/Health/Prepare
+				// before the runtime mutation is admitted. Completing then leaves
+				// coordinator Status idle, so host reconciliation times out with
+				// zero Launch calls. Wait for the admitted mutation first.
+				if !control.waitLaunchStarted(publicTimeout) {
+					return
+				}
 				<-request.Context().Done()
 				timer := time.NewTimer(finishDelay)
 				defer timer.Stop()
@@ -313,15 +320,21 @@ func exactHostLaunchStatus(state protocol.State, request protocol.CachedLaunchRe
 }
 
 type deadlineOwnedLaunchControl struct {
-	mu          sync.Mutex
-	state       misterruntime.Response
-	launchCalls int
-	completeOne sync.Once
-	completed   chan struct{}
+	mu           sync.Mutex
+	state        misterruntime.Response
+	launchCalls  int
+	completeOne  sync.Once
+	launchedOnce sync.Once
+	launched     chan struct{}
+	completed    chan struct{}
 }
 
 func newDeadlineOwnedLaunchControl() *deadlineOwnedLaunchControl {
-	return &deadlineOwnedLaunchControl{state: deadlineOwnedRuntimeResponse("idle", "none"), completed: make(chan struct{})}
+	return &deadlineOwnedLaunchControl{
+		state:     deadlineOwnedRuntimeResponse("idle", "none"),
+		launched:  make(chan struct{}),
+		completed: make(chan struct{}),
+	}
 }
 
 func (c *deadlineOwnedLaunchControl) Status(context.Context) (misterruntime.Response, error) {
@@ -335,6 +348,7 @@ func (c *deadlineOwnedLaunchControl) Launch(ctx context.Context, request misterr
 	c.launchCalls++
 	c.state = deadlineOwnedRuntimeResponse("starting", "game")
 	c.mu.Unlock()
+	c.launchedOnce.Do(func() { close(c.launched) })
 	select {
 	case <-c.completed:
 		c.mu.Lock()
@@ -360,6 +374,17 @@ func (c *deadlineOwnedLaunchControl) complete() {
 		c.mu.Unlock()
 		close(c.completed)
 	})
+}
+
+func (c *deadlineOwnedLaunchControl) waitLaunchStarted(bound time.Duration) bool {
+	timer := time.NewTimer(bound)
+	defer timer.Stop()
+	select {
+	case <-c.launched:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 func (c *deadlineOwnedLaunchControl) launchCount() int {
