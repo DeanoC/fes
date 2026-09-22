@@ -176,7 +176,10 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 }
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
-	if remote != nil && remote.Code == "busy" {
+	// Loader INVALID_STATE is already "busy". A phase=input io_failed is the
+	// same session after HID traffic (poisoned toggle, deadline, unstable ACK).
+	// Both are retryable. Other io_failed phases stay unavailable.
+	if remote != nil && (remote.Code == "busy" || (remote.Code == "io_failed" && remote.Phase == "input")) {
 		return protocol.LiveMediaBusyError()
 	}
 	return mapProtocol2Error(remote)

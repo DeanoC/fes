@@ -6,10 +6,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/remoteinput"
 )
 
 type liveMediaControl struct {
@@ -82,6 +86,93 @@ func TestRuntimeClearLiveMediaDispatches(t *testing.T) {
 	runtime := misterruntime.NewRuntime(control, "", 0, 0)
 	if err := runtime.ClearLiveMedia(context.Background(), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}); err != nil || calls != 1 {
 		t.Fatalf("err=%v calls=%d", err, calls)
+	}
+}
+
+func TestRuntimeClearLiveMediaMapsInputIOToBusyAndOtherIOToUnavailable(t *testing.T) {
+	response := liveMediaResponse()
+	control := &liveMediaControl{packageControl: packageControl{status2: &response}}
+	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {
+		t.Fatal("replace unexpectedly called")
+		return response, nil
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP exchange state is ambiguous", Phase: "input"}}, nil
+	}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
+	err := runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || !strings.Contains(err.Message, "tape loader") {
+		t.Fatalf("input io = %#v", err)
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "busy", Message: "tape busy", Phase: "input"}}, nil
+	}
+	err = runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" {
+		t.Fatalf("loader busy = %#v", err)
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "MMIO read failed", Phase: "programming"}}, nil
+	}
+	err = runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeMiSTerUnavailable || err.Phase != "programming" {
+		t.Fatalf("programming io = %#v", err)
+	}
+}
+
+type clearKeyboardControl struct {
+	*liveMediaControl
+	reached chan struct{}
+}
+
+func (c *clearKeyboardControl) SetKeyboard(context.Context, uint64) (misterruntime.Protocol2Response, error) {
+	select {
+	case c.reached <- struct{}{}:
+	default:
+	}
+	return liveMediaResponse(), nil
+}
+
+func TestClearLiveMediaSerializesKeyboard(t *testing.T) {
+	response := liveMediaResponse()
+	entered, release := make(chan struct{}), make(chan struct{})
+	control := &clearKeyboardControl{
+		liveMediaControl: &liveMediaControl{packageControl: packageControl{status2: &response}},
+		reached:          make(chan struct{}, 1),
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		close(entered)
+		<-release
+		return response, nil
+	}
+	control.replace = func(context.Context, string, string, uint64) (misterruntime.Protocol2Response, error) {
+		t.Fatal("replace unexpectedly called")
+		return response, nil
+	}
+	runtime := misterruntime.NewRuntime(control, "", 0, 0)
+	keys := input.NewKeyboardSink()
+	keys.SetPoster(func(matrix uint64) error { return runtime.SetKeyboard(context.Background(), matrix) })
+	done := make(chan *protocol.APIError, 1)
+	go func() {
+		done <- runtime.ClearLiveMedia(context.Background(), protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9})
+	}()
+	<-entered
+	keyDone := make(chan error, 1)
+	go func() {
+		keyDone <- keys.Apply(protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Code: uint16(zx81keys.Letter('J')), Action: uint8(remoteinput.ActionPress)})
+	}()
+	select {
+	case <-control.reached:
+		t.Fatal("keyboard reached the runtime during clear")
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-keyDone; err != nil {
+		t.Fatal(err)
 	}
 }
 

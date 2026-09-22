@@ -27,6 +27,10 @@ class FesGp final {
 public:
 	FesGp(Mmio&, Clock&);
 	void BeginSession();
+	bool Poisoned();
+	// Sample a stable ACK, align the host toggle to it, and drop poison.
+	// Does not issue a command. Failure leaves the mailbox poisoned.
+	Error Realign(std::uint64_t absolute_deadline_ms);
 	Error Exchange(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
@@ -81,7 +85,10 @@ private:
 	Error TransferMediaBlob(const std::vector<std::uint8_t>& bytes,
 		std::uint64_t deadline, bool hold_reset);
 	Error MediaBusyOrIo(const Error& error) const;
+	Error RecoverPoisonedMediaLink(std::uint64_t deadline);
 	FesGp& gp_;
+	CoreDescriptor identified_{};
+	bool have_identity_ = false;
 	bool persistence_verified_ = false;
 	bool reset_held_ = true;
 	bool freeze_attempted_ = false;

@@ -68,10 +68,24 @@ func (c *Coordinator) ClearLiveMedia(parent context.Context, b protocol.Developm
 	ctx, cancel := context.WithTimeout(c.operationContext, 15*time.Second)
 	defer cancel()
 	apiErr := runtime.ClearLiveMedia(ctx, b)
-	if apiErr != nil && apiErr.Phase != "request" && apiErr.Phase != "admission" && apiErr.Phase != "compatibility" && apiErr.Phase != "input" {
+	// Eject must not replace the live session. Busy and unavailable stay on
+	// the active generation so Stop and a later eject can still run.
+	if apiErr != nil && clearMediaShouldReconcile(apiErr) {
 		observation, stop := context.WithTimeout(c.operationContext, c.stopTimeout)
 		c.set(c.runtime.Reconcile(observation))
 		stop()
 	}
 	return c.Status(), apiErr
+}
+
+func clearMediaShouldReconcile(apiErr *protocol.APIError) bool {
+	if apiErr == nil || apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeMiSTerUnavailable {
+		return false
+	}
+	switch apiErr.Phase {
+	case "request", "admission", "compatibility", "input":
+		return false
+	default:
+		return true
+	}
 }

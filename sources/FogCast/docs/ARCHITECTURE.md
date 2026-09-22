@@ -445,13 +445,15 @@ headers as development media. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
 The target agent uses `POST /v1/development/live-media` and
 `POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
-The host does not inject BASIC `LOAD ""` keys; the user types that on the ZX81
-keyboard after the tape is armed. Sofa tenfoot Load-tape chrome (Y / north while
-the session is active and live-media capable) opens a local `.p` picker, imports
-via `POST /api/v1/core-media` when needed, then arms with
-`POST /api/v1/session/live-media`. The same overlay can eject through
-`POST /api/v1/session/live-media/clear`. Busy-while-LOAD is shown as the host
-`BUSY` message without stopping the session.
+A phase-`input` clear failure after keyboard traffic is the same `BUSY`, not
+`MISTER_UNAVAILABLE`. The host retries that busy response. Unavailable eject
+does not replace the active session. The host does not inject BASIC `LOAD ""`
+keys; the user types that on the ZX81 keyboard after the tape is armed. Sofa
+tenfoot Load-tape chrome (Y / north while the session is active and live-media
+capable) opens a local `.p` picker, imports via `POST /api/v1/core-media` when
+needed, then arms with `POST /api/v1/session/live-media`. The same overlay can
+eject through `POST /api/v1/session/live-media/clear`. It retries loader `BUSY`
+and leaves the session active when eject reports unavailable.
 
 ## Other modes
 

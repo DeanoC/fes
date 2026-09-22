@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
@@ -516,7 +517,7 @@ func (a *App) doTapeArm(ctx context.Context, gen int, path string) {
 }
 
 func (a *App) doTapeEject(ctx context.Context, gen int) {
-	result, err := a.client.ClearLiveMedia(ctx)
+	result, err := clearLiveMediaWithRetry(ctx, a.client)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tapePickerGen != gen {
@@ -524,6 +525,7 @@ func (a *App) doTapeEject(ctx context.Context, gen int) {
 	}
 	a.tapePickerBusy = false
 	if err != nil {
+		// Eject failure leaves the active session alone. Unavailable is not Stop.
 		a.tapePickerStatus = liveMediaStatusMessage(err)
 		a.status = a.tapePickerStatus
 		return
@@ -531,6 +533,47 @@ func (a *App) doTapeEject(ctx context.Context, gen int) {
 	a.applySessionLocked(result)
 	a.closeTapePickerLocked()
 	a.status = "Tape ejected."
+}
+
+func clearLiveMediaWithRetry(ctx context.Context, client *Client) (hostclient.SessionResult, error) {
+	if client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("host API is unavailable")
+	}
+	var result hostclient.SessionResult
+	var err error
+	waits := []time.Duration{0, 40 * time.Millisecond, 80 * time.Millisecond}
+	for _, wait := range waits {
+		if wait > 0 {
+			timer := time.NewTimer(wait)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				if err != nil {
+					return result, err
+				}
+				return result, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		result, err = client.ClearLiveMedia(ctx)
+		if err == nil || !ejectRetryable(err) {
+			return result, err
+		}
+	}
+	return result, err
+}
+
+func ejectRetryable(err error) bool {
+	api, ok := err.(*protocol.APIError)
+	if !ok || api == nil {
+		return false
+	}
+	if api.Code == protocol.CodeBusy && (api.Phase == "input" || strings.Contains(strings.ToLower(api.Message), "tape loader")) {
+		return true
+	}
+	// A phase-less or input unavailable report is retried, then kept as a
+	// status line. It must not be applied as a new session.
+	return api.Code == protocol.CodeMiSTerUnavailable
 }
 
 func importAndArmTape(ctx context.Context, client *Client, path string) (hostclient.SessionResult, error) {
