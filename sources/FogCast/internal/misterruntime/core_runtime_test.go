@@ -26,6 +26,7 @@ type packageControl struct {
 	loadErr               error
 	remoteErr             *misterruntime.Protocol2Error
 	beforeReply           func(string)
+	beforeStatus          func(int)
 	beforeInspectReply    func(string)
 	activePath            string
 	activeID              string
@@ -261,6 +262,7 @@ func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Pro
 		statusErr = c.status2ErrAfterLoad
 	}
 	status := c.status2
+	beforeStatus := c.beforeStatus
 	var scripted *protocol2StatusResult
 	if len(c.status2Script) > 0 {
 		index := call - 1
@@ -271,6 +273,9 @@ func (c *packageControl) protocol2Status(ctx context.Context) (misterruntime.Pro
 		scripted = &result
 	}
 	c.mu.Unlock()
+	if beforeStatus != nil {
+		beforeStatus(call)
+	}
 	if block {
 		<-ctx.Done()
 		return misterruntime.Protocol2Response{}, ctx.Err()
@@ -630,8 +635,15 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 		control := &packageControl{lostReply: true, blockFirstObservation: true}
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 5*time.Millisecond,
 			misterruntime.WithCorePackageRoot(t.TempDir()))
-		observation, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		// Cancel when the first post-dispatch observation begins so archive staging
+		// is not part of the timing budget while the fallback path remains covered.
+		observation, cancel := context.WithCancel(context.Background())
 		defer cancel()
+		control.beforeStatus = func(call int) {
+			if call == 2 {
+				cancel()
+			}
+		}
 		activation, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), observation, context.Background(), int64(len(archive)), bytes.NewReader(archive))
 		if apiErr != nil || !attempted || activation.Generation != 1 || control.status2Calls < 3 {
 			t.Fatalf("activation=%#v attempted=%t calls=%d error=%#v", activation, attempted, control.status2Calls, apiErr)
