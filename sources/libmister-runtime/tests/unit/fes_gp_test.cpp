@@ -1459,6 +1459,17 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 	}
 	{
 		ComputerClearFixture f;
+		// A completed exchange whose payload is not the clear ACK is not a
+		// transport glitch. It stays io_failed so the host does not retry it
+		// as loader contention.
+		PushCompleted(&f.mmio, false, 1);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES computer media clear failed");
+		assert(error.phase == "input");
+	}
+	{
+		ComputerClearFixture f;
 		assert(f.driver.SetKeyboardMatrix(1, 100000).code ==
 			mister::ErrorCode::io_failed);
 		assert(f.gp.Poisoned());

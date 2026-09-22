@@ -103,7 +103,14 @@ func TestRuntimeClearLiveMediaMapsInputIOToBusyAndOtherIOToUnavailable(t *testin
 	binding := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 9}
 	err := runtime.ClearLiveMedia(context.Background(), binding)
 	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" || !strings.Contains(err.Message, "tape loader") {
-		t.Fatalf("input io = %#v", err)
+		t.Fatalf("transport glitch = %#v", err)
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES GP exchange deadline exceeded: opcode=4 index=1 request=0 ack=unobserved", Phase: "input"}}, nil
+	}
+	err = runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" {
+		t.Fatalf("deadline glitch = %#v", err)
 	}
 	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
 		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "busy", Message: "tape busy", Phase: "input"}}, nil
@@ -111,6 +118,20 @@ func TestRuntimeClearLiveMediaMapsInputIOToBusyAndOtherIOToUnavailable(t *testin
 	err = runtime.ClearLiveMedia(context.Background(), binding)
 	if err == nil || err.Code != protocol.CodeBusy || err.Phase != "input" {
 		t.Fatalf("loader busy = %#v", err)
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "MMIO read failed", Phase: "input"}}, nil
+	}
+	err = runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeMiSTerUnavailable || err.Phase != "input" || strings.Contains(err.Message, "tape loader") {
+		t.Fatalf("hard mmio = %#v", err)
+	}
+	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
+		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "FES computer media clear failed", Phase: "input"}}, nil
+	}
+	err = runtime.ClearLiveMedia(context.Background(), binding)
+	if err == nil || err.Code != protocol.CodeMiSTerUnavailable || err.Phase != "input" || strings.Contains(err.Message, "tape loader") {
+		t.Fatalf("invalid clear ack = %#v", err)
 	}
 	control.clear = func(context.Context, string, uint64) (misterruntime.Protocol2Response, error) {
 		return misterruntime.Protocol2Response{OK: false, Error: &misterruntime.Protocol2Error{Code: "io_failed", Message: "MMIO read failed", Phase: "programming"}}, nil

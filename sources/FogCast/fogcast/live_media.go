@@ -155,20 +155,13 @@ func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol
 			}
 		}
 		status, err = loader.ClearLiveMedia(ctx, b)
-		err = normalizeEjectError(err)
+		// Retry loader busy and transport glitches only. A hard input-phase
+		// unavailable report is the link, not loader contention.
 		if err == nil || !ejectRetryable(err) || attempt == len(waits)-1 {
 			return status, err
 		}
 	}
 	return status, err
-}
-
-func normalizeEjectError(err error) error {
-	var apiErr *protocol.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeMiSTerUnavailable && apiErr.Phase == "input" {
-		return protocol.LiveMediaBusyError()
-	}
-	return err
 }
 
 func ejectRetryable(err error) bool {

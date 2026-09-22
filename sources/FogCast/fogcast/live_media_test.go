@@ -100,7 +100,7 @@ func TestReplaceLiveMediaArmsCoreMediaWithoutLoadMedia(t *testing.T) {
 	}
 }
 
-func TestClearLiveMediaRetriesInputFailureAndPreservesOtherUnavailable(t *testing.T) {
+func TestClearLiveMediaRetriesBusyAndPreservesHardUnavailable(t *testing.T) {
 	id := strings.Repeat("a", 64)
 	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
 		PackageID: id, Generation: 4, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
@@ -110,18 +110,23 @@ func TestClearLiveMediaRetriesInputFailureAndPreservesOtherUnavailable(t *testin
 	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, nil, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	s.activeExecution = ExecutionFPGADevelopment
 	b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "dev"}
-	client.clearErrs = []error{
-		&protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable", Phase: "input"},
-		protocol.LiveMediaBusyError(),
+	hard := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable", Phase: "input"}
+	client.err = hard
+	_, err := s.ClearLiveMedia(context.Background(), b)
+	apiErr, ok := err.(*protocol.APIError)
+	if !ok || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "input" || apiErr.Message != hard.Message || client.clearCalls != 1 {
+		t.Fatalf("hard input unavailable err=%v calls=%d", err, client.clearCalls)
 	}
+	client.err = nil
+	client.clearErrs = []error{protocol.LiveMediaBusyError()}
 	cleared, err := s.ClearLiveMedia(context.Background(), b)
 	if err != nil || client.clearCalls != 3 || !b.MatchesLive(cleared) {
-		t.Fatalf("retry err=%v calls=%d status=%+v", err, client.clearCalls, cleared)
+		t.Fatalf("busy retry err=%v calls=%d status=%+v", err, client.clearCalls, cleared)
 	}
 	client.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable", Phase: "programming"}
 	before := client.clearCalls
 	_, err = s.ClearLiveMedia(context.Background(), b)
-	apiErr, ok := err.(*protocol.APIError)
+	apiErr, ok = err.(*protocol.APIError)
 	if !ok || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "programming" || client.clearCalls != before+1 {
 		t.Fatalf("programming unavailable err=%v calls=%d", err, client.clearCalls-before)
 	}

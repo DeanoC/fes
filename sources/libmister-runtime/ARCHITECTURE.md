@@ -30,7 +30,8 @@ interfaces control reset-held startup and release after a successful commit.
 `clear_media` on an active generation without holding execution reset; tape
 loader busy rejects with retryable busy. A poisoned or unstable GP handshake
 after keyboard traffic is the same retryable busy: clear realigns from the
-live ACK and re-identifies before eject. A hard MMIO failure stays `io_failed`.
+live ACK and re-identifies before eject. A hard MMIO failure or an invalid
+clear acknowledgement stays `io_failed`.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never
