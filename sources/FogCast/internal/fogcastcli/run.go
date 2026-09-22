@@ -25,7 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none>|core-firmware-select <media-id-or-none>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
+const usageText = "usage: fogcast [--config path] [--api origin] [--json] {scan|games|search <text>|launch <game-id>|favorite <game-id>|unfavorite <game-id>|recents|media-scan|facets-sync|health|status|stop|change-tape <media-id-or-.p-path>|eject-tape|core-inspect <path>|core-load <path>|core-media <path>|core-install <path>|core-media-install <path>|core-media-capabilities <package-id>|core-media-select <game-id> <expected-package-id> <expected-media-id-or-none> <media-id-or-none>|core-firmware-select <media-id-or-none>|core-list|core-check <package-id>|core-entry <title> <package-id> [<role> <media-id>] [firmware]|core-select <game-id> <expected-package-id> <package-id>|core-settings <game-id>|core-settings-set <game-id> <expected-package-id> <expected-revision> <speed>|core-progress <game-id>}\n       fogcast --version [--json]\n"
 
 const maxPublicGameIDBytes = 128
 
@@ -183,6 +183,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, open Open
 		}
 		return writeResult(*jsonOutput, stdout, stderr, runHostSessionCommand(ctx, origin, commandArgs))
 	}
+	if liveMediaCommand(commandArgs[0]) {
+		origin, err := coreAPIOrigin(*apiOrigin)
+		if err != nil {
+			return writeFailure(*jsonOutput, stdout, stderr, err)
+		}
+		return writeResult(*jsonOutput, stdout, stderr, runLiveMediaCommand(ctx, origin, commandArgs))
+	}
 	paths, err := fogcast.DefaultPaths()
 	if err != nil {
 		return writeFailure(*jsonOutput, stdout, stderr, err)
@@ -244,9 +251,9 @@ func validCommand(args []string) bool {
 		return len(args) == 3 || len(args) == 4 || len(args) == 5 || len(args) == 6
 	case "core-select":
 		return len(args) == 4
-	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync":
+	case "core-list", "scan", "games", "health", "status", "stop", "recents", "media-scan", "facets-sync", "eject-tape":
 		return len(args) == 1
-	case "core-media-capabilities", "core-media-install", "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media":
+	case "core-media-capabilities", "core-media-install", "core-install", "core-check", "search", "launch", "favorite", "unfavorite", "core-inspect", "core-load", "core-media", "change-tape":
 		return len(args) == 2
 	default:
 		return false
