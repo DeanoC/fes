@@ -24,6 +24,7 @@ func registerDevelopmentRoutes(mux *http.ServeMux, token string, controller Deve
 	mux.Handle("/v1/development/media", authenticate(token, exactMethod(http.MethodPost, developmentMediaHandler(controller))))
 	mux.Handle("/v1/development/media-stream", authenticate(token, exactMethod(http.MethodPost, developmentMediaHandler(controller))))
 	mux.Handle("/v1/development/firmware", authenticate(token, exactMethod(http.MethodPost, developmentMediaHandler(controller))))
+	registerLiveMediaRoutes(mux, token, controller)
 	registerCoreDataRoutes(mux, token, controller)
 	mux.Handle("/v1/development/rbf", authenticate(token, exactMethod(http.MethodPost, developmentRBFHandler(controller))))
 	mux.Handle("/v1/development/core", authenticate(token, exactMethod(http.MethodPost, developmentCoreHandler(controller))))

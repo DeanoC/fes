@@ -53,6 +53,7 @@ const (
 	FesSimpleComputerMediaMaxBytes                  uint32 = 0x4000
 	FesSimpleComputerMediaDataPairIndex             uint32 = 0x0
 	FesSimpleComputerMediaDataTailIndex             uint32 = 0x1
+	FesSimpleComputerMediaEjectIndex                uint32 = 0x1
 	FesSimpleComputerOpcodeMediaStreamInfo          uint32 = 0x7
 	FesSimpleComputerOpcodeMediaStreamBegin         uint32 = 0x8
 	FesSimpleComputerOpcodeMediaStreamChunk         uint32 = 0x9

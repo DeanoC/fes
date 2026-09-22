@@ -402,7 +402,7 @@ class BuildFesSmsTests(unittest.TestCase):
         header = (ROOT / "cores/fes-sms/generated/fes_simple_computer.vh").read_bytes()
         self.assertEqual(
             hashlib.sha256(header).hexdigest(),
-            "fd074e6958ea16ff277a5071bcd1e0c7b78fc984c8e7a58f9eea61c974324caa",
+            "9e835b325085596908b2e28ed695e0841f0910a39d70a123ef4177f8bc2e2860",
         )
         top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
         self.assertIn("ENABLE_MEDIA_STREAM(1)", top)

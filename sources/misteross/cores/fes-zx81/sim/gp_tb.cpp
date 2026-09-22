@@ -74,6 +74,7 @@ struct Mailbox {
         dut.clk = 0;
         dut.gpo = 0;
         dut.media_addr = 0;
+        dut.media_busy = 0;
         dut.eval();
     }
 
@@ -212,5 +213,30 @@ int main(int argc, char **argv) {
     mailbox.dut.gpo = command(toggle, 2, 0, 1);
     for (unsigned cycle = 0; cycle != 6; ++cycle) mailbox.tick();
     require(mailbox.dut.exec_reset, "duplicate toggle released execution");
+
+    // Release so mid-session eject can run without hold-reset.
+    exchange(mailbox, toggle, 2, 0, 1, response(!toggle, false, 0), "release for eject");
+    require(!mailbox.dut.exec_reset, "execution must stay released for eject");
+    exchange(mailbox, toggle, 4, 1, 0, response(!toggle, false, 0), "eject committed media");
+    require(!mailbox.dut.media_ready && mailbox.dut.media_size == 0,
+            "eject did not clear media readiness");
+
+    exchange(mailbox, toggle, 4, 0, 2, response(!toggle, false, 0), "begin mid-session blob");
+    exchange(mailbox, toggle, 5, 0, 0x0201, response(!toggle, false, 0), "mid-session data");
+    exchange(mailbox, toggle, 6, 0, 0, response(!toggle, false, 0), "mid-session commit");
+    require(mailbox.dut.media_ready && mailbox.dut.media_size == 2 &&
+                !mailbox.dut.exec_reset,
+            "mid-session commit must leave execution released");
+
+    mailbox.dut.media_busy = 1;
+    exchange(mailbox, toggle, 4, 0, 3, response(!toggle, true, 4),
+             "busy begin must reject");
+    require(mailbox.dut.media_ready && mailbox.dut.media_size == 2,
+            "busy begin must leave committed media intact");
+    exchange(mailbox, toggle, 4, 1, 0, response(!toggle, true, 4),
+             "busy eject must reject");
+    require(mailbox.dut.media_ready && mailbox.dut.media_size == 2,
+            "busy eject must leave committed media intact");
+    mailbox.dut.media_busy = 0;
     return 0;
 }

@@ -158,6 +158,14 @@ public:
 	{
 		return hardware_.LoadComputerMedia(path);
 	}
+	Error LoadComputerMediaLive(const std::string& path) override
+	{
+		return hardware_.LoadComputerMediaLive(path);
+	}
+	Error ClearComputerMedia() override
+	{
+		return hardware_.ClearComputerMedia();
+	}
 	Error LoadComputerFirmware(const std::string& path) override
 	{
 		return hardware_.LoadComputerFirmware(path);

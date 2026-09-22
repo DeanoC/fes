@@ -44,7 +44,12 @@ hold a lock across a complete media transaction, so no long transfer blocks an
 input delivery deadline. This interleaving contract is mandatory for endpoints
 advertising both gamepad and media.
 
-Existing `load_media` admits up to 16 KiB; `load_media_stream` retains exact
+Existing `load_media` admits up to 16 KiB and remains the launch-time
+hold-reset primary bind. Protocol-2 `replace_live_media` fills the same
+blob mailbox on an active `fes.simple-computer` generation without
+Quiesce/hold-reset; `clear_media` ejects readiness so the next empty
+`LOAD ""` is `0/0`. Both require package/generation binding. Tape-loader
+busy maps to retryable `busy`. `load_media_stream` retains exact
 package/generation binding, observed capacity, bounded snapshots, CRC and
 poisoned-mailbox recovery semantics. See [stream media](media-stream.md).
 Method names retaining `Computer` are compatibility API names; admission and

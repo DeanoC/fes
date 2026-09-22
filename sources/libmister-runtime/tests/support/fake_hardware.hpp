@@ -55,11 +55,42 @@ public:
 		if (on_media_stream) on_media_stream();
 		return media_stream_result;
 	}
+	mister::Error LoadComputerMedia(const std::string& path) override
+	{
+		++media_calls;
+		media_path = path;
+		if (on_media) on_media();
+		return media_result;
+	}
+	mister::Error LoadComputerMediaLive(const std::string& path) override
+	{
+		++live_media_calls;
+		live_media_path = path;
+		if (on_live_media) on_live_media();
+		return live_media_result;
+	}
+	mister::Error ClearComputerMedia() override
+	{
+		++clear_media_calls;
+		if (on_clear_media) on_clear_media();
+		return clear_media_result;
+	}
 	int media_stream_calls = 0;
 	std::string media_stream_path;
 	std::uint32_t media_stream_size = 0;
 	std::function<void()> on_media_stream;
 	mister::Error media_stream_result;
+	int media_calls = 0;
+	std::string media_path;
+	std::function<void()> on_media;
+	mister::Error media_result;
+	int live_media_calls = 0;
+	std::string live_media_path;
+	std::function<void()> on_live_media;
+	mister::Error live_media_result;
+	int clear_media_calls = 0;
+	std::function<void()> on_clear_media;
+	mister::Error clear_media_result;
 	mister::HardwareResult LoadCore(
 		std::unique_ptr<mister::AdmittedCorePackage>, std::uint64_t) override;
 	int flush_calls = 0;

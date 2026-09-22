@@ -615,14 +615,77 @@ Error ParseRequest(const std::string& line, Request* request)
 			parsed.operation = Operation::load_firmware;
 			parsed.media_path = *path;
 		} else if (operation->string_value == "load_media") {
-			const char* const fields[] = {"protocol", "operation", "path"};
-			if (!HasOnly(root, fields, 3, &error)) return error;
+			const char* const fields_path[] = {"protocol", "operation", "path"};
+			const char* const fields_bound[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation"};
+			const bool bound = Find(root, "expected_package_id") != nullptr ||
+				Find(root, "expected_generation") != nullptr;
+			if (!(bound ? HasOnly(root, fields_bound, 5, &error)
+						: HasOnly(root, fields_path, 3, &error)))
+				return error;
 			const std::string* path = nullptr;
 			if (!StringMember(root, "path", &path, &error)) return error;
 			if (!Path(*path))
 				return Invalid("path must be an absolute path of at most 4095 bytes");
 			parsed.operation = Operation::load_media;
 			parsed.media_path = *path;
+			if (bound) {
+				const std::string* package = nullptr;
+				if (!StringMember(root, "expected_package_id", &package, &error))
+					return error;
+				const auto* generation = Find(root, "expected_generation");
+				if (!PackageID(*package) || !generation ||
+					!((generation->type == json::Type::integer &&
+						  generation->integer_value > 0) ||
+						generation->type == json::Type::unsigned_integer))
+					return Invalid("invalid media package or generation");
+				parsed.expected_package_id = *package;
+				parsed.expected_generation =
+					generation->type == json::Type::unsigned_integer
+						? generation->unsigned_value
+						: static_cast<std::uint64_t>(generation->integer_value);
+			}
+		} else if (operation->string_value == "replace_live_media") {
+			const char* const fields[] = {"protocol", "operation", "path",
+				"expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 5, &error)) return error;
+			const std::string* path = nullptr;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "path", &path, &error) ||
+				!StringMember(root, "expected_package_id", &package, &error))
+				return error;
+			const auto* generation = Find(root, "expected_generation");
+			if (!Path(*path) || !PackageID(*package) || !generation ||
+				!((generation->type == json::Type::integer &&
+					  generation->integer_value > 0) ||
+					generation->type == json::Type::unsigned_integer))
+				return Invalid("invalid live media path, binding or generation");
+			parsed.operation = Operation::replace_live_media;
+			parsed.media_path = *path;
+			parsed.expected_package_id = *package;
+			parsed.expected_generation =
+				generation->type == json::Type::unsigned_integer
+					? generation->unsigned_value
+					: static_cast<std::uint64_t>(generation->integer_value);
+		} else if (operation->string_value == "clear_media") {
+			const char* const fields[] = {
+				"protocol", "operation", "expected_package_id", "expected_generation"};
+			if (!HasOnly(root, fields, 4, &error)) return error;
+			const std::string* package = nullptr;
+			if (!StringMember(root, "expected_package_id", &package, &error))
+				return error;
+			const auto* generation = Find(root, "expected_generation");
+			if (!PackageID(*package) || !generation ||
+				!((generation->type == json::Type::integer &&
+					  generation->integer_value > 0) ||
+					generation->type == json::Type::unsigned_integer))
+				return Invalid("invalid clear media binding or generation");
+			parsed.operation = Operation::clear_media;
+			parsed.expected_package_id = *package;
+			parsed.expected_generation =
+				generation->type == json::Type::unsigned_integer
+					? generation->unsigned_value
+					: static_cast<std::uint64_t>(generation->integer_value);
 		} else if (operation->string_value == "load_development_rbf") {
 			const char* const fields[] = {
 				"protocol", "operation", "rbf", "programming_profile"};

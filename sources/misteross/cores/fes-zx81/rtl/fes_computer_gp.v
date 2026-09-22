@@ -15,7 +15,10 @@ module fes_computer_gp (
     output reg  [7:0]   media_byte1,
     output reg  [7:0]   media_byte2,
     input  wire [13:0]  media_addr,
-    output wire [7:0]   media_q
+    output wire [7:0]   media_q,
+    // High while zx81_machine is copying mailbox bytes into RAM. Mid-session
+    // begin/eject must reject rather than abort an in-flight LOAD.
+    input  wire         media_busy
 );
     localparam [31:0] CAPABILITIES =
         `FES_SIMPLE_COMPUTER_INTERFACE_KEYBOARD_CAPABILITY_MASK |
@@ -198,7 +201,21 @@ module fes_computer_gp (
                         key_rows[command_index[2:0]] <= command_argument[4:0];
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_BEGIN: begin
-                    if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
+                    if (media_busy)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
+                    else if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_EJECT_INDEX) begin
+                        // Eject/clear: next empty LOAD "" reports 0/0.
+                        // Control-index begin with argument 0 stays invalid.
+                        if (command_argument != 32'h00000000)
+                            reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
+                        else begin
+                            media_open <= 1'b0;
+                            media_ready <= 1'b0;
+                            media_ptr <= 15'd0;
+                            media_expected <= 15'd0;
+                            media_size <= 15'd0;
+                        end
+                    end else if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
                     else if (command_argument < `FES_SIMPLE_COMPUTER_MEDIA_MIN_BYTES ||
                              command_argument > `FES_SIMPLE_COMPUTER_MEDIA_MAX_BYTES)

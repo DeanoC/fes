@@ -421,6 +421,33 @@ CLI → real host API/service → real target client/lease/HTTP/controller → n
 adapter and Unix socket, with only the hardware daemon simulated. This is
 host-only evidence, not Coleco hardware acceptance.
 
+### Session live media (ZX81 change-tape)
+
+Mid-session tape arming for an active `fes.simple-computer` generation uses the
+runtime `replace_live_media` / `clear_media` path (no hold-reset soft-reboot).
+It is distinct from launch-time `POST /api/v1/session/development-media`
+(`load_media`). See the FES lock
+[ZX81 tape media](../../../docs/zx81-tape-media.md).
+
+Operator/diagnostics CLI:
+
+```text
+fogcast --api http://127.0.0.1:8787 --json change-tape MEDIA_ID_OR_.p_PATH
+fogcast --api http://127.0.0.1:8787 --json eject-tape
+```
+
+`change-tape` arms a household core-media object into the active session. A
+`.p` / `.P` path is imported through `POST /api/v1/core-media` first; a 64-hex
+media id uses the already stored object. Admission requires 1..16384 bytes and
+a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
+`{"media_id","name"}` and the same session/package/generation/target binding
+headers as development media. `eject-tape` posts
+`POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
+The target agent uses `POST /v1/development/live-media` and
+`POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
+The host does not inject BASIC `LOAD ""` keys; the user types that on the ZX81
+keyboard after the tape is armed. Sofa Load-tape chrome is a later slice.
+
 ## Other modes
 
 Host-emulator execution, remote input, capture, and host-to-target media are

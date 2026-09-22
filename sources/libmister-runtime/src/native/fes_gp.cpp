@@ -578,8 +578,19 @@ Error FesGpCoreDriver::SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t dea
 	return {};
 }
 
-Error FesGpCoreDriver::LoadMedia(
-	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
+Error FesGpCoreDriver::MediaBusyOrIo(const Error& error) const
+{
+	// Endpoint invalid-state (error 4) while the tape-loader is copying maps to
+	// busy so hosts can retry without tearing down the session.
+	if (error.code == ErrorCode::io_failed &&
+		error.message.find("response " +
+			std::to_string(FesSimpleComputerErrorInvalidState)) != std::string::npos)
+		return {ErrorCode::busy, "tape loader is busy", "input"};
+	return error;
+}
+
+Error FesGpCoreDriver::TransferMediaBlob(
+	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline, bool hold_reset)
 {
 	if (stream_pending_) return Io("media stream requires recovery before legacy media");
 	if (!media_)
@@ -589,15 +600,21 @@ Error FesGpCoreDriver::LoadMedia(
 		bytes.size() > FesSimpleComputerMediaMaxBytes)
 		return {ErrorCode::invalid_request, "FES computer media size is invalid",
 			"request"};
-	// The computer consumes committed media while execution reset is held.
-	// Never release after a partial transfer or an unacknowledged commit.
-	CoreDriverResult held = Quiesce({}, deadline);
-	if (!held.error.ok()) return held.error;
+	if (hold_reset) {
+		// Launch bind: the computer consumes committed media while execution
+		// reset is held. Never release after a partial transfer or an
+		// unacknowledged commit.
+		CoreDriverResult held = Quiesce({}, deadline);
+		if (!held.error.ok()) return held.error;
+	} else if (reset_held_) {
+		return {ErrorCode::busy, "execution reset is held; use launch media bind",
+			"input"};
+	}
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 		static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
 		static_cast<std::uint16_t>(bytes.size()), deadline, &response);
-	if (!error.ok()) return WithPhase(error, "input");
+	if (!error.ok()) return MediaBusyOrIo(WithPhase(error, "input"));
 	if (response != 0)
 		return {ErrorCode::io_failed, "FES computer media begin failed", "input"};
 	for (std::size_t offset = 0; offset + 1 < bytes.size(); offset += 2) {
@@ -623,10 +640,41 @@ Error FesGpCoreDriver::LoadMedia(
 	if (!error.ok()) return WithPhase(error, "input");
 	if (response != 0)
 		return {ErrorCode::io_failed, "FES computer media commit failed", "input"};
+	if (!hold_reset) return {};
 	CoreDriverResult released = Gameplay(
 		static_cast<std::uint16_t>(FesGpGameplayRelease), deadline);
 	if (released.error.ok()) reset_held_ = false;
 	return WithPhase(std::move(released.error), "input");
+}
+
+Error FesGpCoreDriver::LoadMedia(
+	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
+{
+	return TransferMediaBlob(bytes, deadline, true);
+}
+
+Error FesGpCoreDriver::LoadMediaLive(
+	const std::vector<std::uint8_t>& bytes, std::uint64_t deadline)
+{
+	return TransferMediaBlob(bytes, deadline, false);
+}
+
+Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
+{
+	if (stream_pending_) return Io("media stream requires recovery before clear media");
+	if (!media_)
+		return {ErrorCode::unsupported_interface, "FES computer media is inactive",
+			"input"};
+	if (reset_held_)
+		return {ErrorCode::busy, "execution reset is held; use launch media bind",
+			"input"};
+	std::uint16_t response = 0;
+	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+		static_cast<std::uint8_t>(FesSimpleComputerMediaEjectIndex), 0, deadline, &response);
+	if (!error.ok()) return MediaBusyOrIo(WithPhase(error, "input"));
+	if (response != 0)
+		return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
+	return {};
 }
 
 Error FesGpCoreDriver::LoadFirmware(
