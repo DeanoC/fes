@@ -339,6 +339,47 @@ func drawFirmwarePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuText
 	drawLabel(dev, labels, used, "fw-hint", x+16, y+panelH-22, panelW-32, 14, hint)
 }
 
+func drawTapePicker(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	panel, ok := tapePickerPanel(snap)
+	if !ok {
+		return
+	}
+	rows := snap.TapePicker.Rows
+	x, y, panelW, panelH := panel.X, panel.Y, panel.W, panel.H
+	fillRect(dev, float32(x-4), float32(y-4), float32(panelW+8), float32(panelH+8), 255, 184, 48, 255)
+	fillRect(dev, float32(x), float32(y), float32(panelW), float32(panelH), 18, 20, 28, 255)
+	title := strings.TrimSpace(snap.TapePicker.Title)
+	if title == "" {
+		title = tapePickerTitle
+	}
+	drawLabel(dev, labels, used, "tape-title", x+16, y+12, panelW-32, 18, title)
+	for i := 0; i < panel.Visible; i++ {
+		idx := panel.Start + i
+		if idx >= len(rows) {
+			break
+		}
+		rowY := panel.rowY(i)
+		if idx == snap.TapePicker.Index {
+			fillRect(dev, float32(x+8), float32(rowY), float32(panelW-16), float32(panel.RowH-4), 48, 56, 80, 255)
+			th := drawTheme(snap)
+			fillRect(dev, float32(x+8), float32(rowY), 6, float32(panel.RowH-4), th.Highlight.R, th.Highlight.G, th.Highlight.B, th.Highlight.A)
+		}
+		drawLabel(dev, labels, used, fmt.Sprintf("tape-%d", idx), x+20, rowY+8, panelW-40, 16, tapePickerRowLabel(rows[idx]))
+	}
+	status := strings.TrimSpace(snap.TapePicker.Status)
+	if status == "" {
+		status = strings.TrimSpace(snap.TapePicker.Path)
+	}
+	if status != "" {
+		drawLabel(dev, labels, used, "tape-status", x+16, y+panelH-40, panelW-32, 14, status)
+	}
+	hint := strings.TrimSpace(snap.TapePicker.Hint)
+	if hint == "" {
+		hint = tapePickerHint(snap.Affinity)
+	}
+	drawLabel(dev, labels, used, "tape-hint", x+16, y+panelH-22, panelW-32, 14, hint)
+}
+
 // drawRoomChrome keeps host/kit health, launch progress and the input hint
 // visible over any room without the library header.
 func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {

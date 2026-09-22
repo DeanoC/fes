@@ -45,17 +45,31 @@ func (i SessionCoreInterface) IsKeyboard() bool {
 	return i.ID == "fes.keyboard" && i.Major == 1 && i.Minor == 0
 }
 
+// SessionCoreABI is the versioned ABI object on a session core_package.
+type SessionCoreABI struct {
+	ID    string `json:"id"`
+	Major uint16 `json:"major"`
+	Minor uint16 `json:"minor"`
+}
+
 // SessionCorePackage is the package capability projection attached to a
 // session. Generation is deliberately uint64 so the wire value is lossless.
+// PackageID and ABI are present on the host wire for live-media binding;
+// older fixture bodies may omit them.
 type SessionCorePackage struct {
+	PackageID        string                 `json:"package_id,omitempty"`
 	Generation       uint64                 `json:"generation"`
 	Gamepad          bool                   `json:"gamepad"`
+	ABI              SessionCoreABI         `json:"abi"`
 	ActiveInterfaces []SessionCoreInterface `json:"active_interfaces"`
 }
 
 // SessionResult is the common host response for session reads and mutations.
 type SessionResult struct {
 	HTTPStatus              int
+	ID                      string
+	Target                  string
+	TargetID                string
 	State                   string
 	GameID                  string
 	System                  string
@@ -149,6 +163,9 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		return result, fmt.Errorf("empty body")
 	}
 	var wire struct {
+		ID                      string              `json:"id"`
+		Target                  string              `json:"target"`
+		TargetID                string              `json:"target_id"`
 		State                   string              `json:"state"`
 		GameID                  *string             `json:"game_id"`
 		System                  *string             `json:"system"`
@@ -170,6 +187,9 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return result, err
 	}
+	result.ID = strings.TrimSpace(wire.ID)
+	result.Target = strings.TrimSpace(wire.Target)
+	result.TargetID = strings.TrimSpace(wire.TargetID)
 	result.State = wire.State
 	if wire.GameID != nil {
 		result.GameID = strings.TrimSpace(*wire.GameID)

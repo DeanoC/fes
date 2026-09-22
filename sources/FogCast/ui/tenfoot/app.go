@@ -151,6 +151,7 @@ type SessionSnapshot struct {
 	DevelopmentActive bool
 	DevelopmentState  string
 	Diagnostic        bool
+	LoadTape          bool
 }
 
 // KitLeaseSnapshot is status-only kit ownership from GET /v1/kit/lease.
@@ -249,6 +250,7 @@ type Snapshot struct {
 	Room            RoomSnapshot
 	RoomPicker      RoomPickerSnapshot
 	FirmwarePicker  FirmwarePickerSnapshot
+	TapePicker      TapePickerSnapshot
 	ReducedMotion   bool
 }
 
@@ -424,6 +426,14 @@ type App struct {
 	firmwarePickerStatus  string
 	firmwarePickerRows    []FirmwarePickerRow
 	firmwarePickerGame    hostclient.Game
+	tapePickerOpen        bool
+	tapePickerAtRoots     bool
+	tapePickerBusy        bool
+	tapePickerIndex       int
+	tapePickerGen         int
+	tapePickerPath        string
+	tapePickerStatus      string
+	tapePickerRows        []TapePickerRow
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -594,7 +604,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		}
 	}
-	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen
+	roomOwnsInput := a.room != nil && !a.roomPickerOpen && !a.settingsOpen && !a.settingsOSKOpenLocked() && !a.firmwarePickerOpen && !a.tapePickerOpen
 	switch cmd {
 	case CmdSafeAreaIn:
 		a.setSafeAreaPctLocked(a.safeAreaPct+safeAreaNudge, true)
@@ -605,7 +615,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.status = fmt.Sprintf("safe-area %.1f%%", a.safeAreaPct*100)
 		return
 	case CmdLayoutCycle:
-		if a.firmwarePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen {
 			return
 		}
 		if roomOwnsInput {
@@ -618,6 +628,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		if a.settingsOSKOpenLocked() || a.settingsOpen || a.searchOpen || a.nameEntryOpenLocked() {
 			return
 		}
+		if a.tapePickerOpen {
+			a.closeTapePickerLocked()
+			return
+		}
 		if a.sessionStopOfferedLocked() {
 			return
 		}
@@ -627,6 +641,9 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		a.toggleRoomPickerLocked()
 		return
 	case CmdSettings:
+		if a.tapePickerOpen {
+			a.closeTapePickerLocked()
+		}
 		if a.firmwarePickerOpen {
 			a.closeFirmwarePickerLocked()
 		}
@@ -637,7 +654,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 		}
 		return
 	case CmdFilters:
-		if a.firmwarePickerOpen {
+		if a.firmwarePickerOpen || a.tapePickerOpen {
 			return
 		}
 		if roomOwnsInput {
@@ -657,6 +674,10 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	if a.settingsOpen {
 		a.handleSettingsLocked(cmd)
+		return
+	}
+	if a.tapePickerOpen {
+		a.handleTapePickerLocked(cmd)
 		return
 	}
 	if a.firmwarePickerOpen {
@@ -694,10 +715,15 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 			return
 		case CmdSelect:
 			return
+		case CmdSearch, CmdDetails:
+			if a.sessionLiveMediaOfferedLocked() {
+				a.openTapePickerLocked()
+			}
+			return
 		case CmdSortCycle:
 			a.startInputToggleLocked()
 			return
-		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdSearch, CmdDetails, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
+		case CmdUp, CmdDown, CmdLeft, CmdRight, CmdFilterPrev, CmdFilterNext, CmdViewPrev, CmdViewNext, CmdViewPicker, CmdFavorite, CmdFilters, CmdSafeAreaIn, CmdSafeAreaOut, CmdTab, CmdTabPrev:
 			return
 		}
 	}
@@ -1230,7 +1256,9 @@ func (a *App) Snapshot() Snapshot {
 		}
 	}
 	status := a.status
-	if line := a.stopStatusLocked(); line != "" {
+	if a.tapePickerOpen && strings.TrimSpace(a.tapePickerStatus) != "" {
+		status = a.tapePickerStatus
+	} else if line := a.stopStatusLocked(); line != "" {
 		status = line
 	} else if a.retryStopLock && strings.TrimSpace(a.retryStopHint) != "" {
 		status = a.retryStopHint
@@ -1244,6 +1272,8 @@ func (a *App) Snapshot() Snapshot {
 		status = a.launch.Message
 	} else if line := a.nowPlayingStatusLocked(); line != "" {
 		status = line
+	} else if a.session.State == "active" && strings.HasPrefix(strings.TrimSpace(a.status), "Tape ") {
+		status = strings.TrimSpace(a.status)
 	} else if a.launch.Phase == "ok" && a.launch.Message != "" {
 		status = a.launch.Message
 	} else if line := strings.TrimSpace(a.inputMessage); line != "" {
@@ -1316,6 +1346,7 @@ func (a *App) Snapshot() Snapshot {
 		Room:            a.roomSnapshotLocked(true),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
+		TapePicker:      a.tapePickerSnapshotLocked(),
 		ReducedMotion:   a.reducedMotion,
 	}
 }
@@ -1432,6 +1463,8 @@ func (a *App) oskSnapshotLocked() shared.OSKSnapshot {
 			snap.Prompt = "DIAGNOSTIC RBF path"
 		case settingsOSKFirmwarePath:
 			snap.Prompt = "Coleco BIOS path"
+		case settingsOSKTapePath:
+			snap.Prompt = "ZX81 .p tape path"
 		}
 		return a.withOSKHintLocked(snap)
 	}
@@ -1943,7 +1976,7 @@ func (a *App) ConsumePlayHID() bool {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.forwardsPlayHIDLocked() {
+	if !a.forwardsPlayHIDLocked() || a.tapePickerOpen || a.firmwarePickerOpen {
 		return false
 	}
 	a.repeat.Clear()
@@ -1951,8 +1984,9 @@ func (a *App) ConsumePlayHID() bool {
 }
 
 // HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
-// Backspace stop the session without NoteInput; other keys encode for the
-// attached core. Letter s is a ZX81/core key, not chrome stop.
+// Backspace stop the session without NoteInput; "/" opens Load-tape when the
+// active package can arm a mailbox. Other keys encode for the attached core.
+// Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	if !a.ConsumePlayHID() {
 		return false
@@ -1966,10 +2000,31 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 		}
 		return true
 	}
+	if loadTapeChromeKey(name) {
+		a.mu.Lock()
+		open := down && a.sessionLiveMediaOfferedLocked()
+		a.mu.Unlock()
+		if open {
+			a.Press(CmdSearch, now)
+		}
+		return true
+	}
 	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
 		a.SendPlayHID(event)
 	}
 	return true
+}
+
+// loadTapeChromeKey is the keyboard/mouse Load-tape binding advertised by
+// sessionChromeHint (northWord → "/"). Gamepad North stays CmdSearch.
+// ZX81 letters, including s and f, stay core keys.
+func loadTapeChromeKey(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "/", "slash":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *App) playHIDFailClosedLocked() bool {
@@ -2305,6 +2360,7 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 			a.launch.GameID = ""
 		}
 		a.clearCompletedDevelopmentLoadLocked()
+		a.closeTapePickerLocked()
 	}
 	a.syncGPUParkLocked()
 }
@@ -2409,6 +2465,7 @@ func (a *App) sessionSnapshotLocked() SessionSnapshot {
 		DevelopmentActive: devActive,
 		DevelopmentState:  devState,
 		Diagnostic:        diagnostic,
+		LoadTape:          a.sessionLiveMediaOfferedLocked(),
 	}
 }
 
