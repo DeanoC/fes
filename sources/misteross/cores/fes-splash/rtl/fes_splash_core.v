@@ -4,6 +4,7 @@
 
 module fes_splash_core (
     input  wire        pixel_clk,
+    input  wire        rst,
     output wire [23:0] hdmi_rgb,
     output wire        hdmi_de,
     output wire        hdmi_hs,
@@ -164,7 +165,11 @@ module fes_splash_core (
     end
 
     always @(posedge pixel_clk) begin
-        if (horizontal == H_TOTAL - 1'b1) begin
+        if (rst) begin
+            horizontal <= 11'd0;
+            vertical <= 10'd0;
+            phase_q <= 8'd0;
+        end else if (horizontal == H_TOTAL - 1'b1) begin
             horizontal <= 11'd0;
             if (vertical == V_TOTAL - 1'b1) begin
                 vertical <= 10'd0;

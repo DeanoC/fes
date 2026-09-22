@@ -73,6 +73,8 @@ int main(int argc, char **argv) {
         }
     }
 
+    require(board.root.top__DOT__pll_locked, "sim PLL locked");
+
     unsigned lit = 0;
     unsigned letters = 0;
     for (unsigned i = 0; i < 1650 * 750; ++i) {

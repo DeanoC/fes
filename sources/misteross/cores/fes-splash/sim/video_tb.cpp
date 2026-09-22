@@ -37,6 +37,9 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     Vfes_splash_core d;
     d.pixel_clk = 0;
+    d.rst = 1;
+    d.eval();
+    d.rst = 0;
     d.eval();
 
     const char *frame0_path = argc > 1 ? argv[1] : nullptr;

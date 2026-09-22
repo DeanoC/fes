@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Board-firmware splash shell: HDMI pixels plus HPS I2C to the ADV7513.
 // No HPS GP mailbox and no MiSTer user-io.
+// Hold DE/HS/VS/RGB until the soft pixel PLL locks after FPGA reconfig
+// (ADV VSYNC-absent black dig 2026-09-22). No extra refclk sequential
+// domain — splash timing evidence requires a single pixel clock domain.
 
 module top (
     input  wire        FPGA_CLK1_50,
@@ -17,10 +20,8 @@ module top (
     wire hdmi_scl_low;
     wire hdmi_sda_low;
     wire pixel_clk;
+    wire pll_locked;
 
-    // Linux controls the ADV7513 through HPS I2C at this exact hard-block
-    // site. Explicit buffers preserve open-drain low-or-release behavior
-    // through OSS synthesis, including feedback from an external device.
     MISTRAL_IO hdmi_scl_pad (
         .I(1'b0), .OE(hdmi_scl_low), .O(hdmi_scl_in), .PAD(HDMI_I2C_SCL)
     );
@@ -36,18 +37,29 @@ module top (
     pixel_pll video_clock (
         .refclk(FPGA_CLK1_50),
         .rst(1'b0),
-        .outclk_0(pixel_clk)
+        .outclk_0(pixel_clk),
+        .locked(pll_locked)
     );
+
+    wire [23:0] splash_rgb;
+    wire splash_de;
+    wire splash_hs;
+    wire splash_vs;
 
     fes_splash_core splash (
         .pixel_clk(pixel_clk),
-        .hdmi_rgb(HDMI_TX_D),
-        .hdmi_de(HDMI_TX_DE),
-        .hdmi_hs(HDMI_TX_HS),
-        .hdmi_vs(HDMI_TX_VS),
+        .rst(~pll_locked),
+        .hdmi_rgb(splash_rgb),
+        .hdmi_de(splash_de),
+        .hdmi_hs(splash_hs),
+        .hdmi_vs(splash_vs),
         .frame_tick(),
         .phase()
     );
 
     assign HDMI_TX_CLK = pixel_clk;
+    assign HDMI_TX_DE = pll_locked & splash_de;
+    assign HDMI_TX_HS = pll_locked & splash_hs;
+    assign HDMI_TX_VS = pll_locked & splash_vs;
+    assign HDMI_TX_D = pll_locked ? splash_rgb : 24'd0;
 endmodule
