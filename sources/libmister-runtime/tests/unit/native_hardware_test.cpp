@@ -1501,6 +1501,47 @@ void TestProductionFactoryForwardsCoreDataWithoutHardwareMutation()
 	assert(inspected && prepared && refreshed && updated);
 }
 
+void TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation()
+{
+	const char* development_root = "/tmp/fogcast-development";
+	const char* package_root = "/tmp/fogcast-development/core-packages";
+	const bool created_development = mkdir(development_root, 0700) == 0;
+	assert(created_development || errno == EEXIST);
+	const bool created_packages = mkdir(package_root, 0700) == 0;
+	assert(created_packages || errno == EEXIST);
+	bool rejected = false;
+	bool attached = false;
+	{
+		TempDirectory package(package_root), bits;
+		const std::string id = PersistentPackage(&package);
+		const std::string bytes = "rom-init-bitstream";
+		const std::string bitstream = bits.File("programmed.rbf", bytes);
+		mister::native::Sha256 hash;
+		hash.Update(bytes.data(), bytes.size());
+		const std::string digest = mister::native::Sha256Hex(hash.Final());
+		mister_test::CaptureLog log;
+		std::unique_ptr<mister::Hardware> hardware;
+		assert(mister::CreateProductionHardware(log, &hardware).ok());
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(hardware->AdmitCorePackage(package.path, id, &admitted).ok());
+		const auto mismatch = hardware->AttachProgrammedBitstream(
+			admitted.get(), bitstream, std::string(64, 'a'));
+		rejected = mismatch.code == mister::ErrorCode::invalid_request &&
+				   mismatch.phase == "admission" &&
+				   mismatch.message == "programmed bitstream does not match its receipt";
+		const auto match =
+			hardware->AttachProgrammedBitstream(admitted.get(), bitstream, digest);
+		attached = match.ok();
+		hardware.reset();
+		admitted.reset();
+	}
+	if (created_packages)
+		assert(rmdir(package_root) == 0 || errno == ENOTEMPTY);
+	if (created_development)
+		assert(rmdir(development_root) == 0 || errno == ENOTEMPTY);
+	assert(rejected && attached);
+}
+
 void TestPersistentReplacementRefreshAndSaveFailureResume()
 {
 	std::vector<std::string> events;
@@ -1798,6 +1839,7 @@ int main()
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();
 	TestProductionFactoryForwardsCoreDataWithoutHardwareMutation();
+	TestProductionFactoryForwardsProgrammedBitstreamWithoutHardwareMutation();
 	TestPersistentReplacementRefreshAndSaveFailureResume();
 	TestPersistenceUnsafeResumeRetainsRecoveryOwnership();
 	TestPersistenceContractAdmissionAndVolatileIsolation();
@@ -1818,6 +1860,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 24 passed");
+	puts("native_hardware_test: 25 passed");
 	return 0;
 }

@@ -123,6 +123,11 @@ public:
 	{
 		return hardware_.RefreshCoreData(package, output);
 	}
+	Error AttachProgrammedBitstream(AdmittedCorePackage* package,
+		const std::string& path, const std::string& sha256) override
+	{
+		return hardware_.AttachProgrammedBitstream(package, path, sha256);
+	}
 	Error InspectCoreData(const std::string& directory, const std::string& expected_id,
 		const std::string& root, CoreData* output) override
 	{
