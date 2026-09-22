@@ -2,7 +2,9 @@
 
 A library launch today selects one installed package and at most one media
 object. Proposed multi-slot composition (firmware, expansions, later
-removable media) is in [launch composition](launch-composition.md).
+removable media) is in [launch composition](launch-composition.md). The first
+ZX81 mid-session tape design lock is
+[ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 FogCast keeps installed `.fcore` archives on the host, independently of the
 kit's temporary activation staging and immutable appliance image. Installation

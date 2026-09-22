@@ -26,6 +26,11 @@ ROM-less FPGA cores. See
 | Stop | existing package Select+Start |
 | Tape | runtime `load_media` of a `.p`; empty `LOAD ""` reports `0/0` |
 
+Mid-session tape select/load while the core is already running is the
+design lock in [ZX81 tape media](zx81-tape-media.md). That path is distinct
+from the launch-time machine-ROM splice and from Stop→relaunch. This page
+still describes the first-slice mailbox contract that is true today.
+
 `core-load` is the development loader and does not create a library entry.
 The target agent must post `set_keyboard`; an agent without that path only
 reaches uinput.

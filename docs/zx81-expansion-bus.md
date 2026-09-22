@@ -1,9 +1,13 @@
 # ZX81 expansion bus
 
-The registered expansion bus is part of the standard ZX81 shell. A separately
-synthesized RAM cart is retained only as a validation consumer for this bus;
-the shell interface is the bus itself. The socketed `fes.zx81` 1.2 package has
-1 KiB of mirrored RAM when the edge is
+The registered expansion bus is part of the standard ZX81 shell. Expansion
+carts are launch-time composition (linked before programming). Mid-session
+`.p` tape select/load is a separate product path — see
+[ZX81 tape media](zx81-tape-media.md). Do not conflate bus carts with tape.
+
+A separately synthesized RAM cart is retained only as a validation consumer
+for this bus; the shell interface is the bus itself. The socketed `fes.zx81`
+1.2 package has 1 KiB of mirrored RAM when the edge is
 vacant, and a registered Z80-like expansion bus (A, D, /MREQ /IORQ /RD /WR
 /M1 /RFSH in; D, ROMCS, WAIT, RAM_PRESENT, DSEL out). The validation cart decodes the physical `4000–7FFF` window on that bus. Zon X-81 and QS Character
 Board RTL uses the same plugs; they are not library assets yet. Cart cells

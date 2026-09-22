@@ -3,6 +3,11 @@
 The host library and an FPGA core have different capacity limits. A stored
 asset is not necessarily runnable by the selected package.
 
+ZX81 mid-session `.p` tape select/load (mailbox blob while the core stays
+running) is designed in [ZX81 tape media](zx81-tape-media.md). That lock
+reuses `fes.media.blob` capacity below; it does not widen ZX81 onto
+`fes.media.blob-stream` in v1.
+
 ## Host storage foundation
 
 The selected FogCast host exposes the supported interpretation of an installed

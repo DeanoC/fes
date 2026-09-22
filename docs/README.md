@@ -30,6 +30,7 @@ host software and target root filesystem.
 | Review retired SNES cartridge-save behavior | [SNES saves](snes-saves.md) |
 | Use described-core settings and progress | [Core persistence](core-persistence.md) |
 | Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
+| Design mid-session ZX81 tape select/load | [ZX81 tape media](zx81-tape-media.md) |
 | Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
 
 All shell examples in the parent guides start at the FES repository root unless
@@ -51,7 +52,8 @@ and is not current-profile acceptance.
   FogCast model for core, firmware, expansion, and media slots. Phase 0 is
   this document; Phase 1 is Coleco firmware readiness; Phase 2 is ZX81 16K
   linked at load (not a bitstream per expansion); Phase 3 is removable
-  media. Docs only; no factory BIOS install.
+  media (first ZX81-shaped lock: [ZX81 tape media](zx81-tape-media.md)).
+  Docs only; no factory BIOS install.
 - [Idle MENU → rooms](idle-menu-rooms.md): design lock replacing kit MENU
   idle with a rooms-driven path through FES ABI. Cold-boot splash is board
   firmware; attract is an ABI; kit-as-host is the same FogCast host, not a
@@ -60,6 +62,11 @@ and is not current-profile acceptance.
   splash RBF + defined Stop idle (not MENU chrome). Slices 1–4 name
   slots, define `LoadIdle`, and pin sealed misteross splash. Remaining
   slices 5–6. Does not reopen the lock. Deano owns merge.
+- [ZX81 tape media](zx81-tape-media.md): design lock for the first
+  mid-session ZX81 media — select/load a `.p` tape while the core is
+  already running (launch-composition Phase 3 shaped). Distinct from
+  launch-time machine-ROM splice and from Stop→relaunch. Docs only;
+  Deano owns merge.
 
 ## What has been verified
 
@@ -176,7 +183,8 @@ selected described-core packages: a custom GP ABI derived from the MiSTer
 Quartus ZX81 implementation, with Quartus bring-up and nextpnr/mistral
 evidence kept separate from the normal package-only build. See the
 [implementation plan](superpowers/plans/2026-09-10-fes-zx81.md) and the
-[ZX81 working page](fes-zx81.md).
+[ZX81 working page](fes-zx81.md). Mid-session tape select/load while the
+core is running is the design lock in [ZX81 tape media](zx81-tape-media.md).
 
 ## Earlier designs and plans
 
