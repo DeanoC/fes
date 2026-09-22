@@ -93,29 +93,67 @@ The host in `Service.stopLocked` (`sources/FogCast/fogcast/service.go`) calls
 id. A clean idle reply is accepted on the same boot. Any other success waits
 until health is ready with a different boot id and status is clean idle.
 
-## Why Path B did not arm (hypothesis)
+## What a zero-filled idle file does
 
-This is a reading of the code above against the observed kit results. It is
-not a new hardware trace.
+`OpenRBFArtifact` (`sources/libmister-runtime/src/native/artifacts.cpp`,
+`ValidateAndAdopt`) accepts any non-empty regular file up to 32 MiB that has
+one readable byte. A 4 KiB regular file of zeros passes that check.
+`NativeHardware::LoadIdle` then runs HDMI quiesce, driver quiesce, and
+`fpga_.Program`. `TestIdlePreflightFailureCallsNeitherFpgaNorVideo` is the
+other failure: an opener error returns `io_failed` with
+`mutation_attempted` false, and neither the FPGA nor video bring-up is
+called. `Runtime::Stop` wraps every `LoadIdle` error, including that
+preflight error, with `IdleFailure` and publishes `reboot_required` only
+after `LoadIdle` returns.
 
-Poisoning the idle bitstream while the runtime is already `idle` cannot arm
-Path B. `Runtime::Stop` and `Coordinator.stopLocked` both return idle without
-`LoadIdle`, so the agent never stores `reboot_required`.
-`POST /v1/development/reboot` then answers `development reboot was not
-requested`.
+`reboot_required` is therefore not produced by a bad bitstream. It is
+produced when `LoadIdle` returns. A file that passes the open check is
+programmed before that return can happen.
 
-A startup `LoadIdle` failure, or a later reconcile of `reboot_required`, is
-also not the arm. Reconcile publishes `failed` with `development` false.
-`StopReady` is false, so Stop's HTTP body is `MISTER_UNAVAILABLE` and the
-error envelope omits `recovery`. The stored state remains `failed`, not
-`stopping`, so the reboot route stays `not requested`. That matches Stop
-returning `MISTER_UNAVAILABLE` with `recovery` null.
+## Why the B3/B4 arm did not set `reboot_required`
 
-Service and overlay restarts are a different event. They are not how the
-state machine sets `reboot_required`, and repeating them while the FPGA or
-the ADV7513 path is live can drop the ADV7513 from I2C. Path A never enters
-the reboot branch, which is why Stop → idle → supervise stayed on the same
-boot.
+These observations are from tip #122 (`f15536f1`), recorded outside this
+repository. They are evidence, not instructions.
+
+Path A on that tip was Stop to idle, a supervise restart, the same boot, and
+a free lease. The Path B attempt that reached Stop was an active development
+session (`load_development_rbf` of the real idle bitstream, `state=active`,
+`development=true`, `recovery` null), then a 4 KiB zero file in place of
+`idle.rbf`, then `POST /v1/stop`.
+
+The recorded agent result was `stop.error = MISTER_UNAVAILABLE` with message
+`target runtime is unavailable`, then `status.state=failed`,
+`development=true`, `last_error=MISTER_UNAVAILABLE`, and `recovery` absent.
+`POST /v1/development/reboot` was not called. The runtime log for that Stop
+reached `starting`, `hdmi_quiesce`, and `driver_quiesce`. ADV7513 address
+`0x39` was gone afterward. A later service stop/start with the ADV already
+missing needed another hard power cycle. Skipping that restart when `0x39`
+was already missing was the stop condition used on the following attempt.
+
+That agent body is what `Coordinator.stopLocked` stores when Stop returns an
+error and an empty recovery string. `stopCorePackage` leaves recovery empty
+unless the reply state is `reboot_required`. A lost Stop whose follow-up
+status is still running, and a Stop reply that is still `starting` with
+`program_failed`, both become `MISTER_UNAVAILABLE` and development stays
+true because the session was development. `stopHandler` writes only the
+error envelope, so the Stop body has no `recovery` field. The stored state
+is `failed`, not `stopping`, so the reboot route answers `development reboot
+was not requested`.
+
+Hypothesis, from the log stopping at driver quiesce and from `0x39`
+disappearing: `fpga_.Program` of the zero file did not return an
+`idle_failed` reply before the agent gave up. This note does not add a kit
+retry. Treating every unavailable Stop as `reboot_required` would start
+`/sbin/reboot` after that program, which is the outcome this arm is avoiding.
+
+Two other misses are real and are not the B3/B4 body. Stop while the runtime
+is already `idle` never calls `LoadIdle`. A reconciled startup
+`reboot_required` is `failed` with `development` false, and `StopReady` is
+false, so Stop's error also omits `recovery`. B3/B4 was neither of those:
+the session was active development, and Stop entered `LoadIdle`.
+
+Service and overlay restarts are a separate ADV failure. They are not how
+`reboot_required` is set. Path A never enters the reboot branch.
 
 ## Offline proof
 
@@ -137,32 +175,37 @@ The covered rows are:
   `recovery=reboot_required`.
 - `recover_idle` returning `idle_failed` with a phase other than `recovery`
   fails closed and does not start the script.
+- `TestPathBUnclassifiedStopDoesNotArmRecovery` injects the B3/B4 shape.
+  One case returns `starting` / `program_failed`. The other loses the Stop
+  socket while status stays running. Both leave `failed` + `development` +
+  `MISTER_UNAVAILABLE`, omit `recovery`, do not start the script, and leave
+  the reboot route `not requested`.
 
-No production flag was added. An arming hook on the kit would be another way
-to program the FPGA, which is the risk this note is avoiding.
+The preflight failure that skips FPGA program is already
+`TestIdlePreflightFailureCallsNeitherFpgaNorVideo`. The runtime tests
+`TestFailedStartAndStopNeverPerformSecondCleanup` and
+`TestRecoverIdleFailureStaysRebootRequired` show `Runtime::Stop` /
+`RecoverIdle` publishing `reboot_required` from an injected `LoadIdle`
+error, with no bitstream. No production flag was added.
 
 ## HOLD-FOR-KIT-GO
 
-**Do not run this section.** It is an acceptance list for Deano, physically
-at the board, after an explicit GO. It is not a Caster task. There is no
-command to copy. A development reboot, an init-script restart loop, or an
-idle-bitstream poison can drop the ADV7513 from I2C and take Ethernet down.
-The recovery for that is a hard power-supply cycle with someone at the
-board. A front-panel reset does not replace that cycle. Do not loop runtime
-or agent restarts to force the failure.
+**Do not run a kit check from this note.** There is no command, no idle-file
+replacement, and no service restart. The B3/B4 zero-file Stop is a closed
+result: it programmed a junk image, returned `MISTER_UNAVAILABLE` with no
+`recovery`, and dropped the ADV7513. Do not repeat it. Do not bind-mount or
+overwrite the idle bitstream. Do not restart the runtime, agent, or launcher
+to force `reboot_required`. If `0x39` is already missing, do not cycle those
+services; the recovery that brought the board back was a hard power-supply
+cycle with someone at the board. A front-panel reset does not replace that
+cycle.
 
-After that GO, the observations that would accept Path B on a kit are:
+Path B has no accepted on-kit arm yet. The failure that avoids FPGA program
+is an `OpenRBFArtifact` rejection before HDMI quiesce. Using that on a kit
+would still be a live edit of the idle file followed by Stop and, if it
+armed, `/sbin/reboot`. That sequence is not authorized here.
 
-1. The session is already development, and a real cleanup `LoadIdle` failure
-   makes agent Stop return HTTP 200 `stopping` + `development` +
-   `recovery=reboot_required`. Idle and a reconciled startup failure must
-   still refuse the reboot route.
-2. The host then calls the development reboot route. The agent issues
-   `recover_idle` once. The board reboot runs only when that second
-   `LoadIdle` returns `idle_failed` phase `recovery`, or the daemon reports
-   the operation unknown.
-3. Either the boot id changes and the session is idle, or the kit becomes
-   unreachable. If it becomes unreachable, stop. Hard-cycle the supply.
-   Do not start another restart loop.
-
-Until that GO, Path A remains the only restart to use.
+After an explicit GO from Deano at the board, the only acceptable new arm is
+one that makes `LoadIdle` return `idle_failed` before `hdmi_quiesce` and
+`fpga_.Program`. Until that arm exists, Path A remains the only restart to
+use, and the proof of Path B is the host injection tests above.

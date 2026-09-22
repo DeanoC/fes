@@ -97,6 +97,45 @@ func TestPathBReconciledRebootRequiredStopOmitsRecovery(t *testing.T) {
 	}
 }
 
+// TestPathBUnclassifiedStopDoesNotArmRecovery matches the B3/B4 agent result:
+// a development Stop that does not come back as reboot_required. A zero-filled
+// regular idle file is not what this injects; the protocol reply is.
+func TestPathBUnclassifiedStopDoesNotArmRecovery(t *testing.T) {
+	for _, scenario := range []string{"stop-unclassified", "lost-stop"} {
+		t.Run(scenario, func(t *testing.T) {
+			harness := startPathB(t, scenario)
+			if _, err := harness.service.LoadDevelopmentRBF(context.Background(), 3, strings.NewReader("rbf")); err != nil {
+				t.Fatal(err)
+			}
+
+			started := time.Now()
+			_, err := harness.service.Stop(context.Background())
+			if elapsed := time.Since(started); elapsed > time.Second {
+				t.Fatalf("unclassified stop waited %s", elapsed)
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable || strings.Contains(apiErr.Message, "private") {
+				t.Fatalf("unclassified stop = %v", err)
+			}
+			if harness.control.counts() != [2]int{1, 0} {
+				t.Fatalf("stop/recover calls = %v", harness.control.counts())
+			}
+			if _, statErr := os.Stat(harness.marker); !os.IsNotExist(statErr) {
+				t.Fatalf("unclassified stop started the reboot command: %v", statErr)
+			}
+
+			statusCode, statusBody := getAuthorized(t, harness.targetURL+"/v1/status", harness.token)
+			if statusCode != http.StatusOK || !strings.Contains(statusBody, `"state":"failed"`) || !strings.Contains(statusBody, `"development":true`) || !strings.Contains(statusBody, string(protocol.CodeMiSTerUnavailable)) || strings.Contains(statusBody, `"recovery"`) || strings.Contains(statusBody, "private") {
+				t.Fatalf("stored status = %d %s", statusCode, statusBody)
+			}
+			rebootCode, rebootBody := postEmpty(t, harness.targetURL+"/v1/development/reboot", harness.token)
+			if rebootCode != http.StatusBadRequest || !strings.Contains(rebootBody, "development reboot was not requested") {
+				t.Fatalf("development reboot = %d %s", rebootCode, rebootBody)
+			}
+		})
+	}
+}
+
 func TestPathBRecoverIdleWithoutRecoveryPhaseDoesNotReboot(t *testing.T) {
 	harness := startPathB(t, "recover-wrong-phase")
 	if _, err := harness.service.LoadDevelopmentRBF(context.Background(), 3, strings.NewReader("rbf")); err != nil {
@@ -205,8 +244,17 @@ func (c *pathBControl) Protocol2LoadDevelopmentRBF(context.Context, string) (mis
 func (c *pathBControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	c.stopN++
+	scenario := c.scenario
+	if scenario == "lost-stop" {
+		c.mu.Unlock()
+		return misterruntime.Protocol2Response{}, errors.New("runtime socket closed during stop")
+	}
+	if scenario == "stop-unclassified" {
+		c.mu.Unlock()
+		return pathBUnclassifiedStop(), nil
+	}
 	c.loaded = false
-	if c.scenario != "stop-idle" {
+	if scenario != "stop-idle" {
 		c.armed = true
 	}
 	response := c.statusLocked()
@@ -273,6 +321,13 @@ func pathBRunning() misterruntime.Protocol2Response {
 	return misterruntime.Protocol2Response{
 		Protocol: 2, OK: true, State: "running_development", Execution: "development",
 		Generation: &generation, Version: "test",
+	}
+}
+
+func pathBUnclassifiedStop() misterruntime.Protocol2Response {
+	return misterruntime.Protocol2Response{
+		Protocol: 2, OK: false, State: "starting", Execution: "none", Version: "test",
+		Error: &misterruntime.Protocol2Error{Code: "program_failed", Message: "private program detail", Phase: "programming"},
 	}
 }
 
