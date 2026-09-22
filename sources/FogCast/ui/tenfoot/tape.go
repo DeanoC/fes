@@ -226,6 +226,10 @@ func (a *App) tapePickerSnapshotLocked() TapePickerSnapshot {
 }
 
 func (a *App) closeTapePickerLocked() {
+	// Invalidate in-flight arm/eject. Home and Settings dismiss the overlay
+	// without waiting, and a later success must not applySession or paint
+	// Tape armed/ejected onto a stopped sofa.
+	a.tapePickerGen++
 	a.tapePickerOpen = false
 	a.tapePickerBusy = false
 	a.tapePickerStatus = ""

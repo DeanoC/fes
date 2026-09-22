@@ -196,6 +196,12 @@ func (s Snapshot) AffinityBadge() string {
 // HeaderHint is the on-screen footer/header hint for the affinity device.
 func (s Snapshot) HeaderHint() string {
 	kind := s.Affinity
+	if s.OSK.Open {
+		if h := strings.TrimSpace(s.OSK.Hint); h != "" {
+			return h
+		}
+		return oskHintFor(kind, s.OSK.Page)
+	}
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {
 		if s.TapePicker.Open {
 			if h := strings.TrimSpace(s.TapePicker.Hint); h != "" {
@@ -211,12 +217,6 @@ func (s Snapshot) HeaderHint() string {
 			return hint + "  " + sessionAttachFallback(kind)
 		}
 		return hint
-	}
-	if s.OSK.Open {
-		if h := strings.TrimSpace(s.OSK.Hint); h != "" {
-			return h
-		}
-		return oskHintFor(kind, s.OSK.Page)
 	}
 	if s.Filters.Open {
 		if h := strings.TrimSpace(s.Filters.Hint); h != "" {

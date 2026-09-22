@@ -1984,8 +1984,9 @@ func (a *App) ConsumePlayHID() bool {
 }
 
 // HandlePlayHIDKey consumes one USB key while play HID is attached. Esc and
-// Backspace stop the session without NoteInput; other keys encode for the
-// attached core. Letter s is a ZX81/core key, not chrome stop.
+// Backspace stop the session without NoteInput; "/" opens Load-tape when the
+// active package can arm a mailbox. Other keys encode for the attached core.
+// Letter s is a ZX81/core key, not chrome stop.
 func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 	if !a.ConsumePlayHID() {
 		return false
@@ -1999,10 +2000,31 @@ func (a *App) HandlePlayHIDKey(name string, down bool, now time.Time) bool {
 		}
 		return true
 	}
+	if loadTapeChromeKey(name) {
+		a.mu.Lock()
+		open := down && a.sessionLiveMediaOfferedLocked()
+		a.mu.Unlock()
+		if open {
+			a.Press(CmdSearch, now)
+		}
+		return true
+	}
 	if event, ok := playhid.Event(name, down, a.ForwardsCoreKeyboard()); ok {
 		a.SendPlayHID(event)
 	}
 	return true
+}
+
+// loadTapeChromeKey is the keyboard/mouse Load-tape binding advertised by
+// sessionChromeHint (northWord → "/"). Gamepad North stays CmdSearch.
+// ZX81 letters, including s and f, stay core keys.
+func loadTapeChromeKey(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "/", "slash":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *App) playHIDFailClosedLocked() bool {
