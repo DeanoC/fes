@@ -112,7 +112,12 @@ The persistence interfaces keep base ABI and transport version 1.0 unchanged.
 `RestoreInput` explicitly resumes GP before reopening the same generation;
 snapshots are invalidated only after input restoration succeeds. Unsafe resume
 retains persistent package/generation metadata in `reboot_required` and leaves
-the complete snapshot owned by native hardware. No fault/startup cleanup saves.
+the complete snapshot owned by native hardware. `Stop` from `reboot_required`
+returns that retained error and does not call hardware again. `RecoverIdle`
+retries `LoadIdle` from `reboot_required` only, or succeeds immediately when
+already idle. It does not reboot the board. A running session is rejected so
+save and input retirement stay on `Stop`. Failed `RecoverIdle` stays in
+`reboot_required` and keeps package metadata that was already retained. No fault/startup cleanup saves.
 Legacy cartridge `SaveFile`, SNES SRAM transport and `.srm` launch handling
 have been retired. Existing user save files are not deleted or migrated by
 this cleanup; described packages use their explicit persistence contracts.

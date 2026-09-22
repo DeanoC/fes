@@ -611,6 +611,41 @@ void TestStopFromRebootRequiredDoesNotCallHardware()
 	assert(fixture.hardware.idle_calls == 1);
 }
 
+void TestRecoverIdleRetriesLoadIdleFromRebootRequired()
+{
+	Fixture fixture;
+	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "failed"};
+	assert(fixture.runtime.Start().code == ErrorCode::idle_failed);
+	assert(fixture.runtime.status().state == State::reboot_required);
+	assert(fixture.hardware.idle_calls == 1);
+	assert(fixture.runtime.Stop().code == ErrorCode::idle_failed);
+	assert(fixture.hardware.idle_calls == 1);
+
+	fixture.hardware.idle_result = {};
+	assert(fixture.runtime.RecoverIdle().ok());
+	assert(fixture.runtime.status().state == State::idle);
+	assert(fixture.runtime.status().error.code == ErrorCode::none);
+	assert(fixture.hardware.idle_calls == 2);
+	assert(fixture.runtime.RecoverIdle().ok());
+	assert(fixture.hardware.idle_calls == 2);
+
+	assert(fixture.runtime.LoadCore("/package", std::string(64, 'a')).ok());
+	const int calls_while_running = fixture.hardware.idle_calls;
+	assert(fixture.runtime.RecoverIdle().code == ErrorCode::invalid_request);
+	assert(fixture.runtime.status().state == State::running_development);
+	assert(fixture.hardware.idle_calls == calls_while_running);
+
+	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "still failed"};
+	assert(fixture.runtime.Stop().code == ErrorCode::idle_failed);
+	assert(fixture.runtime.status().state == State::reboot_required);
+	const int calls_after_failed_stop = fixture.hardware.idle_calls;
+	assert(fixture.runtime.RecoverIdle().code == ErrorCode::idle_failed);
+	assert(fixture.runtime.status().state == State::reboot_required);
+	assert(fixture.hardware.idle_calls == calls_after_failed_stop + 1);
+	assert(fixture.runtime.Stop().code == ErrorCode::idle_failed);
+	assert(fixture.hardware.idle_calls == calls_after_failed_stop + 1);
+}
+
 
 void TestRebootRequiredRejectsBothLaunchKinds()
 {
@@ -1040,6 +1075,7 @@ int main()
 	TestStopFromBothRunningStatesLoadsIdleOnce();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
+	TestRecoverIdleRetriesLoadIdleFromRebootRequired();
 	TestRebootRequiredRejectsBothLaunchKinds();
 	TestFailedStartAndStopNeverPerformSecondCleanup();
 	TestPostMutationFailureLogsCleanupAndPrimary();
@@ -1052,6 +1088,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 43 passed");
+	puts("runtime_test: 44 passed");
 	return 0;
 }

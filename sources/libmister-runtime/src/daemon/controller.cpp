@@ -105,6 +105,10 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadContainedDevelopmentRBF(request.rbf);
 		EmitFifoConsume("load_development_rbf", result.ok());
 		break;
+	case Operation::recover_idle:
+		result = runtime_.RecoverIdle();
+		EmitFifoConsume("recover_idle", result.ok());
+		break;
 	case Operation::stop:
 		result = runtime_.Stop();
 		EmitFifoConsume("stop", result.ok());

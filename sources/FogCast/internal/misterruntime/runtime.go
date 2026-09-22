@@ -907,6 +907,55 @@ func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.API
 	return "", nil
 }
 
+// RecoverIdle restores protocol-2 idle through LoadIdle. It does not execute
+// rebootCommand. Call it when the runtime is reboot_required or already idle
+// after a service restart. A running session must use Stop.
+func (r *Runtime) RecoverIdle(ctx context.Context) (string, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return "", unavailableError()
+	}
+	control, ok := r.control.(protocol2RecoverIdleControl)
+	if !ok {
+		return "", unsupportedOperationError()
+	}
+	response, err := control.Protocol2RecoverIdle(ctx)
+	r.noteDispatch("recover_idle", err == nil)
+	if err != nil {
+		return "", unavailableError()
+	}
+	if rebootRequiredResponse(response) {
+		return optionalProtocol2Core(response), mapProtocol2Error(response.Error)
+	}
+	if response.Error != nil || !response.OK {
+		return optionalProtocol2Core(response), mapProtocol2Error(response.Error)
+	}
+	if !validIdle(response) {
+		return "", unavailableError()
+	}
+	if apiErr := r.cleanupCorePackages(); apiErr != nil {
+		return "", apiErr
+	}
+	return "", nil
+}
+
+// RuntimeSocketUnreachable reports that the local runtime socket could not be
+// contacted. A protocol error from a live daemon is still reachable.
+func (r *Runtime) RuntimeSocketUnreachable(ctx context.Context) bool {
+	if r == nil || r.control == nil {
+		return true
+	}
+	_, err := r.control.Protocol2Status(ctx)
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, errRuntimeConnection) ||
+		errors.Is(err, errRuntimeDeadline) ||
+		errors.Is(err, errRuntimeRequestWrite) ||
+		errors.Is(err, errRuntimeResponseRead) ||
+		errors.Is(err, errRuntimeResponseTooLong) ||
+		errors.Is(err, errRuntimeMissingNewline)
+}
+
 func (r *Runtime) Stop(ctx context.Context) (string, *protocol.APIError) {
 	return r.stop(ctx, ctx, false)
 }

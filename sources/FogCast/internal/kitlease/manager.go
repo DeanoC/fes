@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	ErrBusy    = errors.New("kit is owned or recovery is running")
-	ErrLease   = errors.New("kit lease is missing, expired or superseded")
-	ErrInvalid = errors.New("invalid kit lease request")
-	ErrBlocked = errors.New("kit cleanup failed or agent is shutting down")
+	ErrBusy               = errors.New("kit is owned or recovery is running")
+	ErrLease              = errors.New("kit lease is missing, expired or superseded")
+	ErrInvalid            = errors.New("invalid kit lease request")
+	ErrBlocked            = errors.New("kit cleanup failed or agent is shutting down")
+	ErrRuntimeUnreachable = errors.New("runtime socket is unreachable")
 )
 
 type Status = contract.Status
@@ -315,25 +316,46 @@ func (m *Manager) revokeLocked(reason string) {
 			err = m.cleanup(ctx)
 		}
 		cancel()
+		if errors.Is(err, ErrRuntimeUnreachable) {
+			m.mu.Lock()
+			closed := m.closed
+			m.mu.Unlock()
+			if !closed && m.cleanup != nil {
+				observeCtx, observeCancel := context.WithTimeout(context.Background(), 2*time.Second)
+				err = m.cleanup(observeCtx)
+				observeCancel()
+			}
+		}
 		m.mu.Lock()
 		defer m.mu.Unlock()
+		if errors.Is(err, ErrRuntimeUnreachable) && !m.closed {
+			m.freeLocked("runtime socket unreachable; lease released for service restart")
+			return
+		}
 		if err != nil || m.closed {
 			m.status.State = "blocked"
 			m.status.Reason = "kit cleanup failed or agent shutting down; operator recovery required"
 			return
 		}
-		if m.claim.RequestID != "" {
-			m.retired[m.claim.RequestID] = true
-		}
-		m.claim = ClaimRequest{}
-		m.token = ""
-		m.takeover = nil
-		m.status = Status{State: "free", Generation: secret()}
-		m.recordLocked(flightdiag.KindFenceHandoff, "ok", map[string]any{"reason": reason})
-		if m.pending != nil {
-			m.pendingReady = m.status.Generation
-		}
+		m.freeLocked(reason)
 	}()
+}
+
+func (m *Manager) freeLocked(reason string) {
+	if m.claim.RequestID != "" {
+		m.retired[m.claim.RequestID] = true
+	}
+	m.claim = ClaimRequest{}
+	m.token = ""
+	m.takeover = nil
+	m.status = Status{State: "free", Generation: secret()}
+	if reason != "" && strings.Contains(reason, "runtime socket unreachable") {
+		m.status.Reason = reason
+	}
+	m.recordLocked(flightdiag.KindFenceHandoff, "ok", map[string]any{"reason": reason})
+	if m.pending != nil {
+		m.pendingReady = m.status.Generation
+	}
 }
 
 // Close waits for admitted operations and cleanup before target dependencies

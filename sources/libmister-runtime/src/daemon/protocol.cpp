@@ -411,11 +411,16 @@ Error ParseRequest(const std::string& line, Request* request)
 	parsed.protocol = protocol->integer_value;
 	Error error;
 	if (parsed.protocol == 2) {
-		if (operation->string_value == "status" || operation->string_value == "stop") {
+		if (operation->string_value == "status" || operation->string_value == "stop" ||
+			operation->string_value == "recover_idle") {
 			const char* const fields[] = {"protocol", "operation"};
 			if (!HasOnly(root, fields, 2, &error)) return error;
-			parsed.operation = operation->string_value == "status" ?
-				Operation::status : Operation::stop;
+			if (operation->string_value == "status")
+				parsed.operation = Operation::status;
+			else if (operation->string_value == "stop")
+				parsed.operation = Operation::stop;
+			else
+				parsed.operation = Operation::recover_idle;
 		} else if (operation->string_value == "load_composed_core") {
 			const char* const fields[]={"protocol","operation","package_path","package_id","expansion_path","payload_path","composition"};
 			if (!HasOnly(root,fields,7,&error)) return error;

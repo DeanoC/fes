@@ -91,7 +91,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   configured address. The browser and tenfoot distinguish connection state
   from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
 - Explicit contained development-RBF diagnostics, with runtime-owned idle
-  recovery and separately requested reboot recovery when required.
+  recovery. `reboot_required` uses protocol-2 idle restore
+  (`POST /v1/development/recover-idle`) while the agent is reachable. A full
+  board reboot is a last resort and is unsafe after FPGA or HPS work.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the
@@ -407,8 +409,11 @@ ROM caches and saves remain on disk. Non-FPGA host execution remains available.
 `POST /api/v1/session/development-rbf` is an explicit contained hardware
 diagnostic. It stages a bounded upload in `/tmp/fogcast-development/core.rbf`
 and programs it once through runtime protocol 2. It has no package ABI or
-media/video/input guarantee. Stop restores the locked idle artifact; actual
-recovery failure requires a separately requested reboot. Raw uploads remain
+media/video/input guarantee. Stop restores the locked idle artifact. Actual
+recovery failure keeps `reboot_required`; request
+`POST /v1/development/recover-idle` to retry idle without rebooting the board.
+`POST /v1/development/reboot` is a last-resort full SoC reboot and is unsafe
+after FPGA or HPS work. Raw uploads remain
 volatile and are not image products.
 
 Format-2 `.fcore` development packages use

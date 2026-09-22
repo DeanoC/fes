@@ -44,6 +44,12 @@ func (c *Client) LoadDevelopmentRBF(ctx context.Context, size int64, content io.
 	return status, nil
 }
 
+func (c *Client) RecoverIdle(ctx context.Context) (protocol.Status, error) {
+	var status protocol.Status
+	err := c.doJSON(ctx, http.MethodPost, "/v1/development/recover-idle", nil, &status)
+	return status, err
+}
+
 func (c *Client) RebootDevelopment(ctx context.Context) (protocol.Status, error) {
 	var status protocol.Status
 	err := c.doJSON(ctx, http.MethodPost, "/v1/development/reboot", nil, &status)

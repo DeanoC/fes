@@ -18,8 +18,6 @@ from urllib.parse import urlsplit
 
 MAX_RBF = 32 << 20
 LOAD_TIMEOUT = 60
-REBOOT_TIMEOUT = 90
-REBOOT_POLL = 0.25
 HEADER = 'X-FogCast-Kit-Lease'
 GET_PATHS = frozenset(('/v1/kit/lease', '/v1/health', '/v1/status'))
 ERROR_CODE = re.compile(r'^[A-Z][A-Z0-9_]{0,63}$')
@@ -217,32 +215,14 @@ class Session:
         return stopped
 
     def _recover_development(self):
-        health = self.client.request('/v1/health')
-        boot_id = health.get('boot_id')
-        if not isinstance(boot_id, str) or not boot_id.strip():
-            raise KitError('target health is missing boot_id')
-        self.client.request('/v1/development/reboot', token=self.token)
-        self.done.set()
-        if self.thread:
-            self.thread.join()
-            self.thread = None
-        self.token = None
-        deadline = time.monotonic() + REBOOT_TIMEOUT
-        while time.monotonic() < deadline:
-            try:
-                health = self.client.request('/v1/health', timeout=2)
-                new_id = health.get('boot_id')
-                if (health.get('ready') is True and isinstance(new_id, str)
-                        and new_id.strip() and new_id != boot_id):
-                    lease = self.client.request('/v1/kit/lease')
-                    if lease.get('state') == 'free':
-                        recovered = dict(lease)
-                        recovered['reason'] = 'development reboot recovered'
-                        return recovered
-            except KitError:
-                pass
-            time.sleep(REBOOT_POLL)
-        raise KitError('development reboot did not return idle')
+        # Protocol-2 idle restore only. /v1/development/reboot is a full SoC
+        # reboot and is unsafe after FPGA or HPS work; do not call it here.
+        recovered = self.client.request('/v1/development/recover-idle', token=self.token)
+        if recovered.get('state') == 'idle' and not recovered.get('recovery'):
+            result = dict(recovered)
+            result['reason'] = 'idle recovery restored'
+            return result
+        raise KitError('idle recovery did not restore idle; board reboot is a last resort and is unsafe after FPGA or HPS work')
 
     def close(self):
         self.done.set()

@@ -29,9 +29,12 @@ type recordingControl struct {
 	developmentErr   error
 	stop             misterruntime.Protocol2Response
 	stopErr          error
+	recover          misterruntime.Protocol2Response
+	recoverErr       error
 	statusN          int
 	developmentN     int
 	stopN            int
+	recoverN         int
 	developmentPaths []string
 }
 
@@ -91,6 +94,16 @@ func (c *recordingControl) Protocol2Status(ctx context.Context) (misterruntime.P
 		index = len(c.statuses) - 1
 	}
 	return c.statuses[index], ctx.Err()
+}
+
+func (c *recordingControl) Protocol2RecoverIdle(ctx context.Context) (misterruntime.Protocol2Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.recoverN++
+	if c.recoverErr != nil {
+		return misterruntime.Protocol2Response{}, c.recoverErr
+	}
+	return c.recover, ctx.Err()
 }
 
 func (c *recordingControl) Protocol2Stop(ctx context.Context) (misterruntime.Protocol2Response, error) {
@@ -1108,6 +1121,58 @@ func TestNativeOwnedStopPropagatesRebootRequiredRecovery(t *testing.T) {
 	statusCalls, stopCalls := control.calls()
 	if statusCalls != 0 || stopCalls != 1 {
 		t.Fatalf("control calls = status:%d stop:%d", statusCalls, stopCalls)
+	}
+}
+
+func TestRecoverIdleUsesLoadIdleAndDoesNotExecuteReboot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "rebooted")
+	reboot := filepath.Join(dir, "reboot")
+	script := "#!/bin/sh\n: > '" + marker + "'\n"
+	if err := os.WriteFile(reboot, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	control := &recordingControl{recover: runtimeResponse("idle", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithRebootCommand(reboot))
+
+	observed, apiErr := runtime.RecoverIdle(context.Background())
+	if observed != "" || apiErr != nil {
+		t.Fatalf("recover idle = observed:%q error:%#v", observed, apiErr)
+	}
+	if control.recoverN != 1 || control.stopN != 0 {
+		t.Fatalf("recover=%d stop=%d", control.recoverN, control.stopN)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("RecoverIdle executed reboot command: %v", err)
+	}
+
+	control.recover = runtimeResponse("reboot_required", "none")
+	_, apiErr = runtime.RecoverIdle(context.Background())
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("failed idle recovery = %#v", apiErr)
+	}
+	if control.recoverN != 2 || control.stopN != 0 {
+		t.Fatalf("after failure recover=%d stop=%d", control.recoverN, control.stopN)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("failed RecoverIdle executed reboot command: %v", err)
+	}
+}
+
+func TestRuntimeSocketUnreachableOnlyForDeadSocket(t *testing.T) {
+	t.Parallel()
+	missing := misterruntime.NewRuntime(misterruntime.NewClient(filepath.Join(t.TempDir(), "missing.sock")), "", time.Millisecond, 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if !missing.RuntimeSocketUnreachable(ctx) {
+		t.Fatal("missing runtime socket reported reachable")
+	}
+	control := &recordingControl{statuses: []misterruntime.Protocol2Response{runtimeResponse("reboot_required", "none")}}
+	reachable := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	if reachable.RuntimeSocketUnreachable(context.Background()) {
+		t.Fatal("reboot_required status reported unreachable")
 	}
 }
 

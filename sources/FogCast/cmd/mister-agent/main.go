@@ -325,15 +325,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
-		cleanupErr := cleanupPeripherals(cleanup)
-		status, stopErr := coordinator.Stop(cleanup)
-		if stopErr != nil || status.State != protocol.StateIdle {
-			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
-		}
-		if cleanupErr != nil {
-			slog.Error("kit lease cleanup failed", "err", cleanupErr, "state", status.State)
-		}
-		return cleanupErr
+		return cleanupKitLease(cleanup, cleanupPeripherals, coordinator)
 	}, kitlease.WithEventSink(diagnostics))
 	defer leases.Close()
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
@@ -362,6 +354,36 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		return nil
 	}
 	return err
+}
+
+type kitCleanupRuntime interface {
+	Stop(context.Context) (protocol.Status, *protocol.APIError)
+	RuntimeSocketUnreachable(context.Context) bool
+}
+
+// cleanupKitLease returns ErrRuntimeUnreachable when the runtime socket is
+// dead so the lease can be released instead of staying blocked. Other cleanup
+// failures still block until an operator repairs them.
+func cleanupKitLease(ctx context.Context, peripherals func(context.Context) error, runtime kitCleanupRuntime) error {
+	var cleanupErr error
+	if peripherals != nil {
+		cleanupErr = peripherals(ctx)
+	}
+	status, stopErr := runtime.Stop(ctx)
+	if stopErr != nil && runtime.RuntimeSocketUnreachable(ctx) {
+		slog.Error("kit lease cleanup found unreachable runtime", "err", cleanupErr, "stop", stopErr.Message)
+		if cleanupErr != nil {
+			return errors.Join(kitlease.ErrRuntimeUnreachable, cleanupErr)
+		}
+		return kitlease.ErrRuntimeUnreachable
+	}
+	if stopErr != nil || status.State != protocol.StateIdle {
+		cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
+	}
+	if cleanupErr != nil {
+		slog.Error("kit lease cleanup failed", "err", cleanupErr, "state", status.State)
+	}
+	return cleanupErr
 }
 
 func startAdvertisement(parent context.Context, id string, port int, logger *slog.Logger, advertise func(context.Context, string, int) error) func() {

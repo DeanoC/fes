@@ -773,6 +773,7 @@ type fakeServiceClient struct {
 	developmentLoad    func(context.Context, int64, io.Reader) (protocol.Status, error)
 	coreLoad           func(context.Context, int64, io.Reader) (protocol.Status, error)
 	developmentReboot  func(context.Context) (protocol.Status, error)
+	recoverIdle        func(context.Context) (protocol.Status, error)
 	probeCalls         int
 	uploadCalls        int
 	launchCalls        int
@@ -780,6 +781,7 @@ type fakeServiceClient struct {
 	developmentCalls   int
 	coreCalls          int
 	developmentReboots int
+	recoverIdleCalls   int
 	developmentSize    int64
 	developmentBody    []byte
 	healthCalls        int
@@ -1236,17 +1238,9 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
 		},
 	}
-	client.developmentReboot = func(context.Context) (protocol.Status, error) {
+	client.recoverIdle = func(context.Context) (protocol.Status, error) {
 		client.statusResult = protocol.Status{State: protocol.StateIdle}
-		return protocol.Status{}, io.EOF
-	}
-	healthChecks := 0
-	client.healthFn = func(context.Context) (protocol.Health, error) {
-		healthChecks++
-		if healthChecks < 3 {
-			return protocol.Health{Ready: true, BootID: "boot-before"}, nil
-		}
-		return protocol.Health{Ready: true, BootID: "boot-after"}, nil
+		return protocol.Status{State: protocol.StateIdle}, nil
 	}
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
 
@@ -1272,16 +1266,15 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.State != protocol.StateIdle || client.stopCalls != 1 || client.developmentReboots != 1 || healthChecks < 3 || service.activeExecution != "" {
-		t.Fatalf("stop status = %+v calls = %d reboots = %d health checks = %d execution = %q", status, client.stopCalls, client.developmentReboots, healthChecks, service.activeExecution)
+	if status.State != protocol.StateIdle || client.stopCalls != 1 || client.recoverIdleCalls != 1 || client.developmentReboots != 0 || service.activeExecution != "" {
+		t.Fatalf("stop status = %+v calls = %d idle recoveries = %d reboots = %d execution = %q", status, client.stopCalls, client.recoverIdleCalls, client.developmentReboots, service.activeExecution)
 	}
 }
 
 func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
-	var stopCalls, rebootCalls, healthCalls, statusCalls int
-	rebooted := false
+	var stopCalls, recoverCalls, rebootCalls, healthCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/health" && r.Header.Get("Authorization") != "Bearer target-token" {
+		if r.Header.Get("Authorization") != "Bearer target-token" {
 			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
 		}
 		switch {
@@ -1290,28 +1283,15 @@ func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(protocol.Status{
 				State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
 			})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/development/recover-idle":
+			recoverCalls++
+			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/development/reboot":
 			rebootCalls++
-			rebooted = true
-			_ = json.NewEncoder(w).Encode(protocol.Status{
-				State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
-			})
+			http.Error(w, "board reboot is not idle recovery", http.StatusInternalServerError)
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/health":
 			healthCalls++
-			bootID := "boot-before"
-			if rebooted {
-				bootID = "boot-after"
-			}
-			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true, BootID: bootID})
-		case r.Method == http.MethodGet && r.URL.Path == "/v1/status":
-			statusCalls++
-			if !rebooted {
-				_ = json.NewEncoder(w).Encode(protocol.Status{
-					State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
-				})
-				return
-			}
-			_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+			_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true, BootID: "boot-before"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -1329,8 +1309,8 @@ func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("HTTP native recovery stop = %#v, %v", status, err)
 	}
-	if stopCalls != 1 || rebootCalls != 1 || healthCalls < 2 || statusCalls != 1 || service.activeExecution != "" {
-		t.Fatalf("HTTP native recovery calls = stop:%d reboot:%d health:%d status:%d execution:%q", stopCalls, rebootCalls, healthCalls, statusCalls, service.activeExecution)
+	if stopCalls != 1 || recoverCalls != 1 || rebootCalls != 0 || healthCalls < 1 || service.activeExecution != "" {
+		t.Fatalf("HTTP native recovery calls = stop:%d recover:%d reboot:%d health:%d execution:%q", stopCalls, recoverCalls, rebootCalls, healthCalls, service.activeExecution)
 	}
 }
 
@@ -1362,11 +1342,8 @@ func TestServiceDevelopmentStopBoundsFailedRecoveryHandshake(t *testing.T) {
 		stopResult: protocol.Status{
 			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
 		},
-		developmentReboot: func(context.Context) (protocol.Status, error) {
-			return protocol.Status{}, errors.New("reboot command failed")
-		},
-		healthFn: func(context.Context) (protocol.Health, error) {
-			return protocol.Health{Ready: true, BootID: "boot-before"}, nil
+		recoverIdle: func(context.Context) (protocol.Status, error) {
+			return protocol.Status{}, errors.New("idle recovery failed")
 		},
 	}
 	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, target)
@@ -1378,8 +1355,8 @@ func TestServiceDevelopmentStopBoundsFailedRecoveryHandshake(t *testing.T) {
 	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeMiSTerUnavailable {
 		t.Fatalf("failed recovery error = %v", err)
 	}
-	if target.stopCalls != 1 || target.developmentReboots != 1 || service.activeExecution != ExecutionFPGADevelopment {
-		t.Fatalf("failed recovery calls = stop:%d reboot:%d execution:%q", target.stopCalls, target.developmentReboots, service.activeExecution)
+	if target.stopCalls != 1 || target.recoverIdleCalls != 1 || target.developmentReboots != 0 || service.activeExecution != ExecutionFPGADevelopment {
+		t.Fatalf("failed recovery calls = stop:%d recover:%d reboot:%d execution:%q", target.stopCalls, target.recoverIdleCalls, target.developmentReboots, service.activeExecution)
 	}
 }
 
@@ -2214,6 +2191,14 @@ func (f *fakeServiceClient) LoadCore(ctx context.Context, size int64, body io.Re
 		return protocol.Status{}, errors.New("unexpected core package load")
 	}
 	return f.coreLoad(ctx, size, body)
+}
+
+func (f *fakeServiceClient) RecoverIdle(ctx context.Context) (protocol.Status, error) {
+	f.recoverIdleCalls++
+	if f.recoverIdle == nil {
+		return protocol.Status{}, errors.New("unexpected idle recovery")
+	}
+	return f.recoverIdle(ctx)
 }
 
 func (f *fakeServiceClient) RebootDevelopment(ctx context.Context) (protocol.Status, error) {

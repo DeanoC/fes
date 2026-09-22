@@ -195,7 +195,7 @@ func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
 	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":
 		return c.kitLease.Authorize(r, true)
-	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate":
+	case "/v1/stop", "/v1/development/recover-idle", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate":
 		return c.kitLease.Authorize(r, false)
 	}
 	return nil

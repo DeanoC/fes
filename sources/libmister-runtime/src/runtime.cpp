@@ -655,6 +655,62 @@ public:
 		return error;
 	}
 
+	Error RecoverIdle()
+	{
+		LogRecord immediate;
+		bool return_immediately = false;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_) {
+				immediate = {"recover_idle", "", "", "validate",
+					Busy("runtime mutation is busy")};
+				return_immediately = true;
+			} else if (status_.state == State::idle) {
+				status_.error = {};
+				immediate = {"recover_idle", "", "", "idle", {}};
+				return_immediately = true;
+			} else if (status_.state != State::reboot_required) {
+				immediate = {"recover_idle", status_.system, status_.core, "validate",
+					Invalid("recover idle requires reboot_required")};
+				return_immediately = true;
+			} else {
+				busy_ = true;
+				// Keep retained package metadata until LoadIdle actually succeeds.
+				status_.state = State::starting;
+				status_.execution = Execution::none;
+			}
+		}
+		if (return_immediately) {
+			log_.Write(immediate);
+			if (immediate.error.code == ErrorCode::busy)
+				EmitBusyFence("recover_idle");
+			return immediate.error;
+		}
+		Log("recover_idle", "", "", "starting");
+		const HardwareResult result = hardware_.LoadIdle();
+		if (!result.error.ok()) {
+			const Error error = IdleFailure(result.error);
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_.state = State::reboot_required;
+				status_.execution = Execution::none;
+				status_.error = error;
+				busy_ = false;
+			}
+			Log("recover_idle", "", "", "failure", error);
+			EmitFence(kDiagnosticKindFenceRecovery, "error", "recover_idle", false);
+			return error;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = FreshStatus(State::idle);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("recover_idle", "", "", "idle");
+		return {};
+	}
+
 	Error Stop()
 	{
 		LogRecord immediate;
@@ -1000,6 +1056,7 @@ Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {
 	return impl_->LoadDevelopmentRBF(rbf);
 }
+Error Runtime::RecoverIdle() { return impl_->RecoverIdle(); }
 Error Runtime::Stop() { return impl_->Stop(); }
 
 const char* ErrorCodeName(ErrorCode code)

@@ -573,6 +573,16 @@ void TestCompositionProtocol()
  assert(mister::daemon::EncodeResponse(2,true,status,"test").find("\"composition\"")==std::string::npos);
 }
 
+void TestRecoverIdleRequestParsesLikeStop()
+{
+	Request request;
+	assert(Parse(R"({"protocol":2,"operation":"recover_idle"})", &request).ok());
+	assert(request.protocol == 2 && request.operation == Operation::recover_idle);
+	ExpectError(R"({"protocol":2,"operation":"recover_idle","rbf":"/tmp/core.rbf"})",
+		ErrorCode::invalid_request);
+	ExpectError(R"({"protocol":1,"operation":"recover_idle"})", ErrorCode::unsupported_protocol);
+}
+
 void TestRetiredProtocolRejected()
 {
  for (const auto& operation : {"status", "stop", "launch", "load_development_rbf"})
@@ -581,6 +591,7 @@ void TestRetiredProtocolRejected()
 }
 int main(int argc, char** argv)
 {
+ TestRecoverIdleRequestParsesLikeStop();
  TestRetiredProtocolRejected();
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
 		for (const auto& line : ApplicationResponseFixtures()) std::cout << line << '\n';

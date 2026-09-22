@@ -13,6 +13,7 @@ type DevelopmentController interface {
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (protocol.Status, *protocol.APIError)
 	LoadCore(context.Context, int64, io.Reader) (protocol.Status, *protocol.APIError)
 	InspectCore(context.Context, int64, io.Reader) (protocol.CoreInspection, *protocol.APIError)
+	RecoverIdle(context.Context) (protocol.Status, *protocol.APIError)
 	RebootDevelopment(context.Context) (protocol.Status, *protocol.APIError)
 }
 
@@ -29,6 +30,7 @@ func registerDevelopmentRoutes(mux *http.ServeMux, token string, controller Deve
 	mux.Handle("/v1/development/rbf", authenticate(token, exactMethod(http.MethodPost, developmentRBFHandler(controller))))
 	mux.Handle("/v1/development/core", authenticate(token, exactMethod(http.MethodPost, developmentCoreHandler(controller))))
 	mux.Handle("/v1/development/core/inspect", authenticate(token, exactMethod(http.MethodPost, developmentCoreInspectionHandler(controller))))
+	mux.Handle("/v1/development/recover-idle", authenticate(token, exactMethod(http.MethodPost, developmentRecoverIdleHandler(controller))))
 	mux.Handle("/v1/development/reboot", authenticate(token, exactMethod(http.MethodPost, developmentRebootHandler(controller))))
 }
 
@@ -69,6 +71,28 @@ func developmentCoreHandler(controller DevelopmentController) http.Handler {
 	})
 }
 
+func developmentRecoverIdleHandler(controller DevelopmentController) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1)
+		body, err := io.ReadAll(r.Body)
+		if err != nil || len(body) != 0 {
+			writeBadRequest(w, r, "idle recovery request body must be empty")
+			return
+		}
+		status, apiErr := controller.RecoverIdle(r.Context())
+		setRequestState(r, status)
+		if apiErr != nil {
+			setRequestError(r, apiErr.Code)
+			writeAPIError(w, statusForError(apiErr.Code), apiErr)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	})
+}
+
+// developmentRebootHandler starts a full SoC reboot. It remains available as a
+// last resort. After FPGA or HPS work, prefer POST /v1/development/recover-idle;
+// a soft reboot can leave the kit unreachable until a hard power cycle.
 func developmentRebootHandler(controller DevelopmentController) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1)

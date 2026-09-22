@@ -197,6 +197,16 @@ func (f *fakeRuntime) Stop(context.Context) (string, *protocol.APIError) {
 	return f.stopObserved, f.stopErr
 }
 
+type idleRecoveryFake struct {
+	fakeRuntime
+	calls int
+}
+
+func (f *idleRecoveryFake) RecoverIdle(context.Context) (string, *protocol.APIError) {
+	f.calls++
+	return "", f.stopErr
+}
+
 func (f *fakeRuntime) RecoverDevelopment(context.Context) (string, *protocol.APIError) {
 	f.mu.Lock()
 	f.developmentStopCalls++
@@ -379,6 +389,21 @@ func TestDevelopmentRBFTransitionsToActiveAndStopsAtMenu(t *testing.T) {
 	}
 	if runtime.developmentStopCalls != 1 || runtime.stopCalls != 0 {
 		t.Fatalf("development recovery calls = %d normal stop calls = %d", runtime.developmentStopCalls, runtime.stopCalls)
+	}
+}
+
+func TestRecoverIdleDoesNotRebootDevelopment(t *testing.T) {
+	t.Parallel()
+	runtime := &idleRecoveryFake{fakeRuntime: fakeRuntime{health: protocol.Health{Ready: true}}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	status, apiErr := coordinator.RecoverIdle(context.Background())
+	if apiErr != nil || status.State != protocol.StateIdle || runtime.calls != 1 || runtime.developmentStopCalls != 0 {
+		t.Fatalf("recover idle = %#v %#v calls=%d reboots=%d", status, apiErr, runtime.calls, runtime.developmentStopCalls)
+	}
+	runtime.stopErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime recovery is required"}
+	status, apiErr = coordinator.RecoverIdle(context.Background())
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || status.State != protocol.StateFailed || status.Recovery != protocol.RecoveryRebootRequired || runtime.developmentStopCalls != 0 {
+		t.Fatalf("failed recover idle = %#v %#v reboots=%d", status, apiErr, runtime.developmentStopCalls)
 	}
 }
 

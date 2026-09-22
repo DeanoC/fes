@@ -14,6 +14,7 @@ Hardware-supported package paths: 0.
 | Static ZX81 composition | covered | pending |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
+| Software idle recovery without board reboot | covered | pending; does not claim HPS wedge recovery |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package
 activation are retired. Existing catalog/cache/save files are not migrated or

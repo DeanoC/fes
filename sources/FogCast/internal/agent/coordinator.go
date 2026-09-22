@@ -53,6 +53,14 @@ type ownedStopRecoveryRuntime interface {
 	StopOwnedWithRecovery(context.Context, context.Context) (observed, recovery string, apiErr *protocol.APIError)
 }
 
+type idleRecoveryRuntime interface {
+	RecoverIdle(context.Context) (observed string, apiErr *protocol.APIError)
+}
+
+type runtimeSocketProbe interface {
+	RuntimeSocketUnreachable(context.Context) bool
+}
+
 type CoordinatorOption func(*Coordinator)
 
 // WithOperationContext roots already-admitted runtime mutations in the agent
@@ -451,6 +459,54 @@ func validActiveDevelopment(status protocol.Status) bool {
 		status.LastError == nil && status.Recovery == ""
 }
 
+// RecoverIdle asks the runtime to LoadIdle again. It does not reboot the board.
+// Host and operators use it when status is reboot_required, or after a service
+// restart while the agent is still reachable. A running core is left to Stop.
+func (c *Coordinator) RecoverIdle(parent context.Context) (protocol.Status, *protocol.APIError) {
+	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "recover_idle"})
+	if !c.begin() {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
+	}
+	defer c.end()
+	runtime, ok := c.runtime.(idleRecoveryRuntime)
+	if !ok {
+		return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
+	}
+	ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
+	defer cancel()
+	observed, apiErr := runtime.RecoverIdle(ctx)
+	if apiErr != nil {
+		// A running session rejects idle recovery so Stop can still save.
+		// Leave that published status in place.
+		if apiErr.Code == protocol.CodeBadRequest || apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeUnsupportedOperation {
+			return c.Status(), apiErr
+		}
+		failed := cloneStatus(c.Status())
+		failed.State = protocol.StateFailed
+		failed.Recovery = protocol.RecoveryRebootRequired
+		failed.LastError = cloneAPIError(apiErr)
+		if observed != "" {
+			failed.ObservedCore = &observed
+		}
+		c.set(failed)
+		return c.Status(), apiErr
+	}
+	c.set(protocol.Status{State: protocol.StateIdle})
+	return c.Status(), nil
+}
+
+// RuntimeSocketUnreachable is true when lease cleanup cannot contact the
+// runtime socket. Other stop failures stay reachable and keep the lease blocked.
+func (c *Coordinator) RuntimeSocketUnreachable(ctx context.Context) bool {
+	probe, ok := c.runtime.(runtimeSocketProbe)
+	if !ok {
+		return false
+	}
+	return probe.RuntimeSocketUnreachable(ctx)
+}
+
+// RebootDevelopment starts a full SoC reboot. It is the last resort after
+// RecoverIdle cannot restore idle, and it is unsafe after FPGA or HPS work.
 func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status, *protocol.APIError) {
 	c.record(flightdiag.KindFenceRecovery, "warn", map[string]any{"operation": "development_reboot"})
 	if !c.begin() {

@@ -402,7 +402,10 @@ through a potentially poisoned transport.
 There is no automatic retry or replay: an unchanged package status cannot
 prove media delivery after a lost reply. The coordinator observes runtime
 state after a transfer failure. A failed transport can leave reset held and
-report `reboot_required`; use the existing leased Stop/reboot recovery path.
+report `reboot_required`; use leased Stop, then `POST /v1/development/recover-idle`
+when the agent is still reachable. That retries protocol-2 idle restore and
+does not reboot the board. `POST /v1/development/reboot` is a last-resort full
+SoC reboot and is unsafe after FPGA or HPS work.
 Stop cannot bypass a poisoned GP transport by merely quiescing it. Physical
 hold/reset, byte transfer and recovery remain runtime responsibilities.
 
@@ -765,8 +768,11 @@ The runtime contains the FPGA, programs once and publishes a generation with
 no core/system/package identity. It supplies no package ABI, media, video or
 input guarantee. Stop restores the locked idle artifact. Ambiguous mutations
 are observed once and never replayed. An actual recovery failure retains
-`reboot_required`; a separately requested reboot is verified by changed boot
-identity and fresh idle. Development uploads remain volatile.
+`reboot_required`. `POST /v1/development/recover-idle` retries `LoadIdle` and
+publishes idle without rebooting. `POST /v1/development/reboot` is a
+last-resort full SoC reboot, verified only when an operator explicitly chooses
+it by a changed boot identity and fresh idle. It is unsafe after FPGA or HPS
+work. Development uploads remain volatile.
 
 ### Target kit ownership
 
@@ -785,8 +791,14 @@ Renew and release use empty POST bodies at `/v1/kit/renew` and
 `/v1/kit/release`. The production lease lasts 90 seconds; active clients renew
 before expiry. Expiry closes input streams and interrupts incomplete uploads,
 then waits for admitted operations and invokes input neutralization, cast Stop,
-and runtime Stop. Ownership becomes available only after successful cleanup;
-failed recovery leaves it blocked. Agent startup performs the same cleanup.
+and runtime Stop. Ownership becomes available after successful cleanup. If
+cleanup fails because the runtime socket is dead or unreachable, the lease
+observes once more and then becomes free so services can be restarted without
+a hard power cycle. Other cleanup failures leave it blocked. Agent startup
+performs the same cleanup. When the agent is reachable and the runtime is
+`reboot_required`, `POST /v1/development/recover-idle` is allowed without a
+held lease while the lease is blocked or free, and requires the current lease
+while one is held.
 The retained uinput device survives lease release.
 
 An operator using the configured bearer credential may explicitly request
@@ -806,8 +818,9 @@ The first hardware mutation claims ownership; renewal runs every 20 seconds
 against the target's 90-second timeout. Client expiry uses the returned
 remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
-hardware. Stop, input detach and reboot require an existing grant and never
-claim someone else's active session. Replacement operations retain the grant.
+hardware. Stop, idle recovery, input detach and reboot require an existing
+grant and never claim someone else's active session. Idle recovery is also
+accepted without a grant when the target lease is already blocked or free. Replacement operations retain the grant.
 Explicit public Stop releases its grant after input/media/hardware cleanup;
 replacement Stop retains ownership for the next launch. Application shutdown
 releases its grants after input/session cleanup.

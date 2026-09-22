@@ -1047,12 +1047,13 @@ RBF upload APIs. It retains one in-memory lease during an interactive session,
 renews every 20 seconds, streams regular RBF files with an explicit bounded
 length (1 byte–32 MiB), and releases on exit. A development-RBF `CORE_TIMEOUT`
 after programming keeps that lease so the operator can inspect a non-MiSTer
-image before Stop. Stop follows FogCast's development reboot handshake when
-the target reports `reboot_required`: it records `boot_id`, posts
-`/v1/development/reboot`, and waits for a new boot ID and a free lease. A
-successful reboot ends that lease because the target agent restarts. Release,
-EOF, or Ctrl-C Stops first when a development image was loaded, so that
-handshake runs instead of a raw release after a non-MiSTer bitstream. It stores
+image before Stop. Stop follows FogCast idle recovery when the target
+reports `reboot_required`: it posts `/v1/development/recover-idle` and keeps
+the lease when idle returns. That request restores protocol-2 idle and does
+not reboot the board. `/v1/development/reboot` remains a last-resort full SoC
+reboot and is unsafe after FPGA or HPS work. Release, EOF, or Ctrl-C Stops
+first when a development image was loaded, so idle recovery runs instead of a
+raw release after a non-MiSTer bitstream. It stores
 no credentials or lease database. FogCast remains authoritative for expiry,
 takeover, serialization and cleanup; libmister-runtime performs the physical
 transition. Experiment loads are in

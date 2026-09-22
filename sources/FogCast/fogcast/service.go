@@ -76,7 +76,7 @@ type corePackageClient interface {
 }
 
 type developmentRecoveryClient interface {
-	RebootDevelopment(context.Context) (protocol.Status, error)
+	RecoverIdle(context.Context) (protocol.Status, error)
 }
 
 type castClient interface {
@@ -1952,20 +1952,19 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		}
 	}
 	if status.State == protocol.StateStopping && status.Development && status.Recovery == protocol.RecoveryRebootRequired {
-		stage = "development_recovery"
+		stage = "idle_recovery"
 		recoveryClient, ok := client.(developmentRecoveryClient)
 		if !ok {
 			return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 		}
-		health, healthErr := client.Health(ctx)
-		if healthErr != nil || health.BootID == "" {
-			return protocol.Status{}, canonicalRemoteError(healthErr, protocol.CodeMiSTerUnavailable)
+		recovered, recoverErr := recoveryClient.RecoverIdle(ctx)
+		if recoverErr != nil {
+			return protocol.Status{}, canonicalRemoteError(recoverErr, protocol.CodeMiSTerUnavailable)
 		}
-		_, _ = recoveryClient.RebootDevelopment(ctx)
-		status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
-		if err != nil {
-			return protocol.Status{}, err
+		if !validRecoveredDevelopmentStatus(recovered) {
+			return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 		}
+		status = recovered
 	}
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {

@@ -35,6 +35,8 @@ type fakeDevelopmentController struct {
 	body         []byte
 	calls        int
 	rebootCalls  int
+	recoverCalls int
+	recoverErr   *protocol.APIError
 	coreCalls    int
 	coreErr      *protocol.APIError
 	inspectCalls int
@@ -62,6 +64,11 @@ func (f *fakeDevelopmentController) LoadCore(_ context.Context, size int64, cont
 	f.size = size
 	f.body = append([]byte(nil), body...)
 	return f.status, f.coreErr
+}
+
+func (f *fakeDevelopmentController) RecoverIdle(context.Context) (protocol.Status, *protocol.APIError) {
+	f.recoverCalls++
+	return protocol.Status{State: protocol.StateIdle}, f.recoverErr
 }
 
 func (f *fakeDevelopmentController) RebootDevelopment(context.Context) (protocol.Status, *protocol.APIError) {
@@ -283,6 +290,28 @@ func TestDevelopmentCoreUploadRejectsInvalidStreamMetadataBeforeRead(t *testing.
 		if development.coreCalls != 0 || body.reads != 0 {
 			t.Fatalf("size %d reached controller: calls=%d reads=%d", size, development.coreCalls, body.reads)
 		}
+	}
+}
+
+func TestDevelopmentRecoverIdleUsesAuthenticatedController(t *testing.T) {
+	t.Parallel()
+	development := &fakeDevelopmentController{}
+	handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/recover-idle", nil)
+	request.Header.Set("Authorization", "Bearer test-token")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || development.recoverCalls != 1 || development.rebootCalls != 0 {
+		t.Fatalf("idle recovery = %d %s recover=%d reboot=%d", response.Code, response.Body.String(), development.recoverCalls, development.rebootCalls)
+	}
+	var status protocol.Status
+	if err := json.Unmarshal(response.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.State != protocol.StateIdle {
+		t.Fatalf("idle recovery response = %#v", status)
 	}
 }
 

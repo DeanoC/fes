@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -25,20 +23,20 @@ import (
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
-func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
+func TestServiceDevelopmentStopRecoversIdleWithoutReboot(t *testing.T) {
 	dir := t.TempDir()
 	bootIDPath := filepath.Join(dir, "boot-id")
 	if err := os.WriteFile(bootIDPath, []byte("boot-before\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	countPath := filepath.Join(dir, "reboot-count")
 	rebootPath := filepath.Join(dir, "reboot")
-	rebootScript := fmt.Sprintf("#!/bin/sh\ncount_file=%q\nboot_file=%q\ncount=0\nif test -f \"$count_file\"; then count=$(cat \"$count_file\"); fi\ncount=$((count + 1))\nprintf '%%s\\n' \"$count\" > \"$count_file\"\nif test \"$count\" -ge 2; then printf 'boot-after\\n' > \"$boot_file\"; fi\n", countPath, bootIDPath)
+	marker := filepath.Join(dir, "rebooted")
+	rebootScript := fmt.Sprintf("#!/bin/sh\n: > %q\n", marker)
 	if err := os.WriteFile(rebootPath, []byte(rebootScript), 0o700); err != nil {
 		t.Fatal(err)
 	}
 
-	control := &pendingDevelopmentRecoveryControl{bootIDPath: bootIDPath, state: "idle"}
+	control := &pendingDevelopmentRecoveryControl{state: "idle"}
 	runtime := misterruntime.NewRuntime(control, bootIDPath, time.Millisecond, 20*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(dir, "core.rbf")),
 		misterruntime.WithRebootCommand(rebootPath))
@@ -46,15 +44,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	coordinator.Initialize(context.Background())
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	targetHandler := httpapi.New(coordinator, "test-token", version.Version, logger, httpapi.WithDevelopment(coordinator))
-	targetServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.Method == http.MethodGet && request.URL.Path == "/v1/health" && control.bootChanged() {
-			coordinator.Initialize(context.Background())
-		}
-		if request.Method == http.MethodGet && request.URL.Path == "/v1/status" && control.bootChanged() {
-			coordinator.Initialize(context.Background())
-		}
-		targetHandler.ServeHTTP(response, request)
-	}))
+	targetServer := httptest.NewServer(targetHandler)
 	defer targetServer.Close()
 	baseURL, err := url.Parse(targetServer.URL)
 	if err != nil {
@@ -78,39 +68,43 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	service.activeExecution = ExecutionFPGADevelopment
 	service.executionMu.Unlock()
 
-	if _, err := service.Stop(context.Background()); err == nil {
-		t.Fatal("first pending recovery Stop unexpectedly completed")
-	}
-	if control.stopCount() != 0 {
-		t.Fatalf("first pending recovery invoked runtime Stop %d times", control.stopCount())
-	}
-
 	status, err := service.Stop(context.Background())
 	if err != nil || status.State != protocol.StateIdle || service.activeExecution != "" {
-		t.Fatalf("retried pending recovery Stop = %#v, %v", status, err)
+		t.Fatalf("idle recovery Stop = %#v, %v", status, err)
 	}
 	if control.stopCount() != 0 {
-		t.Fatalf("retried pending recovery invoked runtime Stop %d times", control.stopCount())
+		t.Fatalf("idle recovery invoked runtime Stop %d times", control.stopCount())
+	}
+	if control.recoverCount() != 1 {
+		t.Fatalf("recover_idle calls = %d", control.recoverCount())
+	}
+	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
+		t.Fatalf("idle recovery executed reboot command: %v", statErr)
 	}
 }
 
 type pendingDevelopmentRecoveryControl struct {
-	mu         sync.Mutex
-	bootIDPath string
-	state      string
-	stopCalls  int
+	mu           sync.Mutex
+	state        string
+	stopCalls    int
+	recoverCalls int
 }
 
 func (c *pendingDevelopmentRecoveryControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.state == "pending" && c.bootChangedLocked() {
-		c.state = "idle"
-	}
 	if c.state == "idle" {
 		return nativeRecoveryIdleResponse(), nil
 	}
 	return nativeRecoveryRequiredResponse(), nil
+}
+
+func (c *pendingDevelopmentRecoveryControl) Protocol2RecoverIdle(context.Context) (misterruntime.Protocol2Response, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.recoverCalls++
+	c.state = "idle"
+	return nativeRecoveryIdleResponse(), nil
 }
 
 func (c *pendingDevelopmentRecoveryControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
@@ -127,21 +121,16 @@ func (c *pendingDevelopmentRecoveryControl) Protocol2Stop(context.Context) (mist
 	return nativeRecoveryRequiredResponse(), nil
 }
 
-func (c *pendingDevelopmentRecoveryControl) bootChanged() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.bootChangedLocked()
-}
-
-func (c *pendingDevelopmentRecoveryControl) bootChangedLocked() bool {
-	bootID, err := os.ReadFile(c.bootIDPath)
-	return err == nil && strings.TrimSpace(string(bootID)) == "boot-after"
-}
-
 func (c *pendingDevelopmentRecoveryControl) stopCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.stopCalls
+}
+
+func (c *pendingDevelopmentRecoveryControl) recoverCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.recoverCalls
 }
 
 func nativeRecoveryRequiredResponse() misterruntime.Protocol2Response {

@@ -85,12 +85,52 @@ generation rejects a stale takeover request; inspect again instead of blindly
 forcing it. Delayed Stop, release and input requests from the previous owner
 cannot affect the replacement lease.
 
-Cleanup failure leaves status `blocked` with a recovery reason. Repair the
-underlying problem, then use explicit takeover to retry cleanup. Reboot remains
-an operator maintenance option for the designated disposable kit. Agent restart
-invalidates old credentials and reconciles/cleans hardware before accepting a
-new claim. An abandoned takeover request does not reserve a successfully
-cleaned, free kit forever.
+Cleanup failure leaves status `blocked` with a recovery reason, except when
+the runtime socket is already dead. A dead or unreachable socket is observed
+once more and then the lease is freed, so the kit can be claimed again after
+the runtime is restarted. It does not require a hard power cycle. Other
+cleanup failures stay blocked. Repair the underlying problem, then use
+explicit takeover to retry cleanup.
+
+## Service restart and idle recovery
+
+After FPGA or HPS work, do not recover the designated kit with `/sbin/reboot`,
+`POST /v1/development/reboot`, the front-panel soft reset, or `kill -9` of
+`mister-supervise`, `mister-runtime`, `mister-agent`, or `mister-kit` while a
+session is running. Those leave the board unreachable or the agent in
+`reboot_required` with the lease blocked. A hard PSU cycle is what recovers
+that wedge, and this software path does not claim to fix an HPS DDR wedge
+where `LoadIdle` itself cannot run.
+
+Operator sequence for a tip overlay or service restart while the agent is up:
+
+1. Stop the session so the runtime returns to idle (`Stop` / `kit.py` `stop`).
+2. Release the kit lease and confirm `GET /v1/kit/lease` is `free`.
+3. Restart `mister-runtime`, `mister-agent`, and `mister-kit` through their
+   supervise units once. Do not signal them with `kill -9` mid-session.
+
+If Stop leaves `reboot_required` and the agent on `192.168.10.84:8182` is
+still reachable, request idle recovery before any board reboot:
+
+```sh
+curl --fail -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "X-FogCast-Kit-Lease: $LEASE" \
+  http://192.168.10.84:8182/v1/development/recover-idle
+```
+
+Omit the lease header when status is `blocked` or `free`. The route retries
+protocol-2 `LoadIdle` only. It does not execute `/sbin/reboot`.
+`POST /v1/development/reboot` remains available as a last resort and is unsafe
+after FPGA or HPS work.
+
+`kit.py` `stop` calls recover-idle when the target reports `reboot_required`.
+Host Stop does the same. Neither calls the board reboot endpoint first.
+
+Reboot remains an operator maintenance option for the designated disposable
+kit only after idle recovery cannot run. Agent restart invalidates old
+credentials and reconciles/cleans hardware before accepting a new claim. An
+abandoned takeover request does not reserve a successfully cleaned, free kit
+forever.
 
 ## API and boundaries
 

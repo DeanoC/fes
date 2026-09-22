@@ -29,6 +29,7 @@ enum class Operation {
 	load_firmware,
 	load_media_stream,
 	load_development_rbf,
+	recover_idle,
 	stop,
 };
 

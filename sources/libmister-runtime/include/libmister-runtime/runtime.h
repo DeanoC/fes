@@ -390,6 +390,10 @@ public:
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);
+	// RecoverIdle retries protocol-2 idle restore from reboot_required.
+	// It does not reboot the board. Idle is already recovered. Any other
+	// state is rejected so a running session still uses Stop.
+	Error RecoverIdle();
 	Error Stop();
 
 private:

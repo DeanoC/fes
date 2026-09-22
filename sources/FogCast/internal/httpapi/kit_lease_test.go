@@ -38,7 +38,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	grant := claimKit(t, manager)
 	controller := &fakeController{}
 	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
+	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/recover-idle", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
 		for _, token := range []string{"", "foreign"} {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			request.Header.Set("Authorization", "Bearer bearer")
@@ -57,6 +57,41 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != 200 || controller.stopCalls != 1 {
 		t.Fatalf("valid owner stop: %d calls %d", response.Code, controller.stopCalls)
+	}
+}
+
+func TestRecoverIdleAllowedWhenLeaseBlocked(t *testing.T) {
+	manager := kitlease.New(time.Minute, func(context.Context) error { return kitlease.ErrBlocked })
+	defer manager.Close()
+	deadline := time.Now().Add(time.Second)
+	for manager.Status().State != "blocked" {
+		if time.Now().After(deadline) {
+			t.Fatalf("state = %s", manager.Status().State)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	development := &fakeDevelopmentController{}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithDevelopment(development))
+	request := httptest.NewRequest(http.MethodPost, "/v1/development/recover-idle", nil)
+	request.Header.Set("Authorization", "Bearer bearer")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || development.recoverCalls != 1 || development.rebootCalls != 0 {
+		t.Fatalf("blocked recover-idle = %d %s calls=%d reboot=%d", response.Code, response.Body.String(), development.recoverCalls, development.rebootCalls)
+	}
+
+	held := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	defer held.Close()
+	grant := claimKit(t, held)
+	owned := &fakeDevelopmentController{}
+	ownedHandler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(held), httpapi.WithDevelopment(owned))
+	ownedRequest := httptest.NewRequest(http.MethodPost, "/v1/development/recover-idle", nil)
+	ownedRequest.Header.Set("Authorization", "Bearer bearer")
+	ownedRequest.Header.Set(httpapi.KitLeaseHeader, grant.Token)
+	ownedResponse := httptest.NewRecorder()
+	ownedHandler.ServeHTTP(ownedResponse, ownedRequest)
+	if ownedResponse.Code != http.StatusOK || owned.recoverCalls != 1 {
+		t.Fatalf("held recover-idle = %d %s calls=%d", ownedResponse.Code, ownedResponse.Body.String(), owned.recoverCalls)
 	}
 }
 

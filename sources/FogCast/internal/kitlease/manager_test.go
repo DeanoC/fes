@@ -164,6 +164,43 @@ func TestTakeoverFencesAndWaits(t *testing.T) {
 		t.Fatal("stale takeover", e)
 	}
 }
+func TestUnreachableRuntimeFreesLeaseAfterBoundedObserve(t *testing.T) {
+	var calls atomic.Int32
+	m := New(time.Minute, func(context.Context) error {
+		calls.Add(1)
+		return ErrRuntimeUnreachable
+	})
+	defer m.Close()
+	status := wait(t, m, "free")
+	if calls.Load() != 2 {
+		t.Fatalf("cleanup calls = %d, want observe then free", calls.Load())
+	}
+	if !strings.Contains(status.Reason, "runtime socket unreachable") {
+		t.Fatalf("reason = %q", status.Reason)
+	}
+	if _, err := m.Claim(req("a")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUnreachableRuntimeObserveSuccessStillFrees(t *testing.T) {
+	var calls atomic.Int32
+	m := New(time.Minute, func(context.Context) error {
+		if calls.Add(1) == 1 {
+			return ErrRuntimeUnreachable
+		}
+		return nil
+	})
+	defer m.Close()
+	wait(t, m, "free")
+	if calls.Load() != 2 {
+		t.Fatalf("cleanup calls = %d", calls.Load())
+	}
+	if _, err := m.Claim(req("a")); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestFailedCleanupAndOperatorRetry(t *testing.T) {
 	var fail atomic.Bool
 	fail.Store(true)

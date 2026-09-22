@@ -24,10 +24,42 @@ import (
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+type cleanupProbe struct {
+	status    protocol.Status
+	stopErr   *protocol.APIError
+	dead      bool
+	stopCalls int
+}
+
+func (p *cleanupProbe) Stop(context.Context) (protocol.Status, *protocol.APIError) {
+	p.stopCalls++
+	return p.status, p.stopErr
+}
+
+func (p *cleanupProbe) RuntimeSocketUnreachable(context.Context) bool { return p.dead }
+
+func TestCleanupKitLeaseFreesDeadRuntimeAndBlocksOtherFailures(t *testing.T) {
+	t.Parallel()
+	dead := &cleanupProbe{stopErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}, dead: true}
+	err := cleanupKitLease(context.Background(), nil, dead)
+	if !errors.Is(err, kitlease.ErrRuntimeUnreachable) {
+		t.Fatalf("dead runtime cleanup = %v", err)
+	}
+	reachable := &cleanupProbe{
+		status:  protocol.Status{State: protocol.StateFailed, Recovery: protocol.RecoveryRebootRequired},
+		stopErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime recovery is required"},
+	}
+	err = cleanupKitLease(context.Background(), nil, reachable)
+	if err == nil || errors.Is(err, kitlease.ErrRuntimeUnreachable) || !strings.Contains(err.Error(), "did not become idle") {
+		t.Fatalf("reachable recovery failure = %v", err)
+	}
+}
 
 func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	t.Parallel()

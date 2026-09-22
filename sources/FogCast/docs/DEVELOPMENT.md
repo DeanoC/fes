@@ -275,8 +275,14 @@ curl --fail -X POST http://127.0.0.1:8787/api/v1/session/stop
 
 The active response is `{"state":"active","execution":"fpga_development"}`.
 Contained raw `development-rbf` is an explicit hardware diagnostic. It has no
-package ABI, media or input contract. Stop restores the locked idle RBF; an
-explicit `reboot_required` result requires separately requested recovery.
+package ABI, media or input contract. Stop restores the locked idle RBF. If
+the runtime reports `reboot_required` and the agent is still reachable, request
+idle recovery (`POST /v1/development/recover-idle` on the target, or Stop
+through the host, which calls that route). That retries protocol-2 `LoadIdle`
+and does not reboot the board. `POST /v1/development/reboot` remains a
+last-resort full SoC reboot (`/sbin/reboot`). It is unsafe after FPGA or HPS
+work: a soft reboot or front-panel reset can leave the kit unreachable until
+a hard power cycle. Do not use it to recover a reachable agent.
 Format-2 `.fcore` packages (Pong, ZX81) use the native
 `fes-gp-v1` path:
 

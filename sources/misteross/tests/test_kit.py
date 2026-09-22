@@ -57,6 +57,8 @@ class KitTests(unittest.TestCase):
                         response = outer.load_error
                 elif self.path == '/v1/stop' and outer.stop_response is not None:
                     response = dict(outer.stop_response)
+                elif self.path == '/v1/development/recover-idle':
+                    response = {'state': 'idle'}
                 elif self.path == '/v1/development/reboot':
                     outer.rebooted = True
                     outer.boot_id = 'boot-2'
@@ -239,7 +241,7 @@ class KitTests(unittest.TestCase):
                     self.client.load(path, 'private-lease')
         self.assertEqual(self.calls, [])
 
-    def test_stop_reboots_when_target_requires_development_recovery(self):
+    def test_stop_recovers_idle_without_board_reboot(self):
         session = kit.Session(self.client, 'agent', 'bringup', interval=20)
         session.claim()
         self.stop_response = {
@@ -249,18 +251,18 @@ class KitTests(unittest.TestCase):
         }
         try:
             result = session.mutate('stop')
-            self.assertEqual(result['state'], 'free')
-            self.assertEqual(result['reason'], 'development reboot recovered')
-            self.assertIsNone(session.token)
+            self.assertEqual(result['state'], 'idle')
+            self.assertEqual(result['reason'], 'idle recovery restored')
+            self.assertEqual(session.token, 'private-lease')
         finally:
             session.close()
         paths = [call[0] for call in self.calls]
         self.assertIn('/v1/stop', paths)
-        self.assertIn('/v1/health', paths)
-        self.assertIn('/v1/development/reboot', paths)
-        reboot = next(call for call in self.calls if call[0] == '/v1/development/reboot')
-        self.assertEqual(reboot[1].get(kit.HEADER), 'private-lease')
-        self.assertNotIn('/v1/kit/release', paths)
+        self.assertIn('/v1/development/recover-idle', paths)
+        self.assertNotIn('/v1/development/reboot', paths)
+        self.assertFalse(self.rebooted)
+        recover = next(call for call in self.calls if call[0] == '/v1/development/recover-idle')
+        self.assertEqual(recover[1].get(kit.HEADER), 'private-lease')
 
     def test_close_after_development_load_stops_instead_of_raw_release(self):
         session = kit.Session(self.client, 'agent', 'bringup', interval=20)
@@ -277,11 +279,12 @@ class KitTests(unittest.TestCase):
             path.write_bytes(b'rbf-bytes')
             session.mutate('load', path)
         result = session.close()
-        self.assertEqual(result['reason'], 'development reboot recovered')
+        self.assertEqual(result.get('state'), 'held')
         paths = [call[0] for call in self.calls]
         self.assertIn('/v1/stop', paths)
-        self.assertIn('/v1/development/reboot', paths)
-        self.assertNotIn('/v1/kit/release', paths)
+        self.assertIn('/v1/development/recover-idle', paths)
+        self.assertNotIn('/v1/development/reboot', paths)
+        self.assertIn('/v1/kit/release', paths)
 
     def test_close_without_load_only_releases(self):
         session = kit.Session(self.client, 'agent', 'bringup', interval=20)
