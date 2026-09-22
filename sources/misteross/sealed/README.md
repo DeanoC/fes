@@ -10,10 +10,10 @@ retired for day-to-day work. FES `sources/misteross` is the source of truth.
 
 | Field | Value |
 | --- | --- |
-| Source recipe | `make build-fes-splash` at misteross `20d0460346cd3c0dcab2d3b77748fb2000e65c10` (PR #80) |
-| Sealed | misteross `a2af7fdd58d8e5d288892aeda38e8dc226aaed07` (PR #81) |
-| sha256 | `f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6` |
-| size | 1961783 |
+| Source recipe | `make build-fes-splash` (PLL lock-gate HDMI after reconfig) |
+| Sealed | FES `2609827b8de1397b6d6a2fc877be56e657e1ba11` |
+| sha256 | `feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f` |
+| size | 1962648 |
 | Provenance | `sealed/fes-splash.build-summary.json` |
 | Lane | OSS Yosys/nextpnr, `gpu-router=OFF` |
 
