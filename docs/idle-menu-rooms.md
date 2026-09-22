@@ -265,6 +265,7 @@ implementation follow-ups inside the classes above.
 | [`docs/bootable-media.md`](bootable-media.md) | FAT `/menu.rbf` vs rootfs `idle.rbf`; no Main process |
 | [`docs/sofa-launcher-design.md`](sofa-launcher-design.md) | Current kit HDMI grid + MENU HPS framebuffer |
 | [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md) | Launch slots; not idle |
+| [`docs/zx81-tape-media.md`](zx81-tape-media.md) | Mid-session ZX81 tape (Phase 3); not idle |
 | [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md) | Rooms UI; Stop restores room on the sofa |
 | [`sources/libmister-runtime/ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | `LoadIdle()` MENU + HPS fb sequence |
 | [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not implemented accelerator |

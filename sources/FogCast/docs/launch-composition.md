@@ -5,7 +5,10 @@ firmware readiness and optional ZX81 expansion composition. Coleco exact-package
 video/audio/input evidence is recorded in the
 [playable application validation](../../../docs/validation/2026-09-21-playable-audio.md).
 The [ZX81 expansion-bus guide](../../../docs/zx81-expansion-bus.md) documents its producer,
-selection API and acceptance procedure. Removable media remains future work.
+selection API and acceptance procedure. Removable media remains future work;
+the first ZX81-shaped Phase 3 design lock is
+[ZX81 tape media](../../../docs/zx81-tape-media.md) (mid-session `.p` while
+the core is running — distinct from launch-time machine-ROM splice).
 
 **Related:**
 
@@ -25,6 +28,8 @@ selection API and acceptance procedure. Removable media remains future work.
 - FES package set and ZX81 first slice:
   [described FPGA core packages](../../../docs/core-packages.md),
   [FES ZX81](../../../docs/fes-zx81.md)
+- Mid-session ZX81 tape (Phase 3 design lock):
+  [ZX81 tape media](../../../docs/zx81-tape-media.md)
 - Coleco reset shim versus private BIOS bring-up:
   [misteross Coleco README](../../misteross/cores/fes-coleco/README.md)
 - Proven expansion linker (static CRAM overlay at load, ZX81 example):
@@ -285,7 +290,9 @@ bus carts use that library launch path. Do not add a parallel
 runtime-device protocol.
 
 Phase 3 waits until a core actually has removable media. Do not overload
-today’s single `blob` role into a fake disk swap.
+today’s single `blob` role into a fake disk swap. The first ZX81-shaped
+Phase 3 design lock is
+[ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 ## Non-goals
 

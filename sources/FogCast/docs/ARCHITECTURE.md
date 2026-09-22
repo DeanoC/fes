@@ -189,6 +189,9 @@ identity is fixed, keeps that package id, and records `image_sha256` on the
 launch status after firmware and media binding. A selected cart is composed
 first and stays on the launch source, so the activated composition matches
 the selection. The ROM splice is last.
+Mid-session `.p` tape select/load while the core stays running is a
+separate product path from that ROM splice; see the FES design lock
+[ZX81 tape media](../../../docs/zx81-tape-media.md).
 The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
 input, Stop, and immediate relaunch paths are hardware-tested on the designated
