@@ -104,7 +104,6 @@ unknown until publication. Neither is inferred from a successful build.
 
 The latest pre-publication inventory found unchanged remote heads and no open
 PRs in FES or its four former components. This cannot discover unpublished team
-branches. Follow [repository cutover](../repository-cutover.md): preserve import
-ancestry with a merge commit, retest against current main, verify the published
-clone, reconcile team work and retain former repository history. Publication,
+branches. The cutover checklist that this record pointed at has been removed.
+Import ancestry is already on main. Publication,
 cutover tags and repository policy changes are separate from this local record.

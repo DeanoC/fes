@@ -95,7 +95,7 @@ boot executable have also landed. Target contracts and shared host-client
 logic are separated with dependency guards. Keep the target implementation
 in FogCast until an independent release/consumer need or measured build/test
 coupling justifies extraction;
-see the [current refactor decision](fes-structure.md).
+see [core status](core-status.md) for packages and this page for ownership.
 
 ## Integrated source set
 
@@ -154,31 +154,19 @@ The integrator owns shared-contract reconciliation, artifact policy and system b
 Component workers own disjoint implementation scopes and return a short handoff.
 This does not require a fixed agent team for every change.
 
-## Next integration milestone
+## Current profile
 
-The current profile selects the ordered FES package set and provides package,
-image and QEMU verification commands. Their availability does not establish that
-the imported layout has passed them. It does not inherit NES, four-core, or physical
-hardware acceptance from the historical [Mega Drive, Pong, SNES and NES
-catalog](multi-system-development.md). The selected NES image's exact
-assembled-image video and session-lifecycle acceptance remains tied to its dated
-historical artifact; later image or core revisions need their own evidence.
-Exact assembled-artifact results must remain distinct from the earlier hardware
-diagnostics.
-Current development and assembly capabilities:
+The factory image is the ordered `fes.pong`, `fes.zx81`, `fes.coleco` set.
+Package, image and QEMU commands do not inherit NES, SNES, Mega Drive, or any
+other historical kit result. Later revisions need their own evidence.
+[Core status](core-status.md) is the package matrix.
 
-1. Use the incremental native development path for component integration; retain
-   clean reproducibility checks at stabilized milestones. Extend its cache
-   granularity only when measurements justify it.
-2. Bootable native FES media and versioned appliance assembly are implemented;
-   use the [media guide](bootable-media.md) and
-   [appliance guide](appliance-releases.md) for their distinct validation gates.
-3. Extend supported systems/ABIs or package tenfoot only as separately scoped work.
-   The selected FES ZX81 package uses `fes.simple-computer`; remaining
-   Quartus bring-up, nextpnr/mistral and physical acceptance evidence are
-   separate from the package-only assembly. See [FES ZX81](fes-zx81.md).
+1. Use the incremental native development path for component integration.
+   Reserve a cold two-pass build for a stabilized milestone.
+2. Bootable native media and versioned appliance assembly are implemented.
+   Use the [media guide](bootable-media.md) and the
+   [appliance guide](appliance-releases.md).
+3. A new system or ABI is its own change. ZX81's contract is
+   [FES ZX81](fes-zx81.md).
 
-Completed migrations and remaining decisions are recorded in
-[FES structure](fes-structure.md).
-Earlier checks and limitations remain in the dated validation documents;
-they describe their selected artifacts rather than the current profile.
+Dated notes under [validation/](validation/) describe the artifacts they name.

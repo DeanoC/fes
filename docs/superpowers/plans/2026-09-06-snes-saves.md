@@ -55,7 +55,7 @@ The ARM diagnostic reuses the preserved three-system image and existing compiler
 Diagnostic hardware checks passed for Zelda save/Stop/Pong/reboot/restore,
 failed-write lease retention and same-owner retry, separate SMW saves, a
 non-battery HiROM cartridge, and Mega Drive gameplay. Final Stop and lease
-release succeeded. See `docs/snes-saves.md` for identities and limitations.
+release succeeded. The SNES save guide that recorded those identities has been removed. SNES is not in the factory set.
 The selected normal image passed a fresh two-pass build, structural verification
 and QEMU boot. Subsequent exact-image hardware acceptance passed: a new Zelda
 slot survived Stop/Pong/reboot, write-failure retry retained ownership, and

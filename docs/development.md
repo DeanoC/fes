@@ -310,7 +310,7 @@ hardware acceptance of `native-integration-dev`. Record acceptance only for
 the artifacts actually exercised. Name the selected FES commit, module paths and
 receipt hashes; an uncommitted worktree is not those artifacts. See
 [artifact identities](artifacts.md). Whole-system image assembly is already
-owned by FES `image/`; see [current refactor status](fes-structure.md).
+owned by FES `image/`; see [image assembly](image-assembly.md).
 
 ## Contract generation and shared build caches
 

@@ -46,13 +46,12 @@ The concrete SMS target is a 32 KiB fixed map, not general mapper support.
 The selected Coleco application uses the same stream contract with two
 controller ports and keypads. Its 32 KiB cartridge aperture maps CPU addresses
 `0x8000–0xffff`; images above 16 KiB return `0xff` beyond their committed size.
-See the [Coleco integration record](coleco-stream-32k.md) for exact revisions
-and the distinction between component diagnostics and image validation.
+Component diagnostics and image validation are different evidence. The
+current standing of each package is [core status](core-status.md).
 
-The corrected SMS RTL is merged and its HIP-sealed package is handed off.
-Combined-source verification and exact-artifact hardware acceptance are tracked in the
-[SMS larger-media integration plan](sms-large-media-plan.md). Implemented
-software and published definitions do not establish target acceptance.
+Implemented software and published definitions do not establish target
+acceptance. A kit note under [validation/](validation/) applies only to the
+artifact it names.
 
 ### Capability authority
 

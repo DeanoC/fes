@@ -6,7 +6,8 @@ Go import paths and dated provenance may retain the old names.
 
 ## Start every task here
 
-1. Read [README.md](README.md) and [the project map](docs/project-map.md).
+1. Read [README.md](README.md), [the project map](docs/project-map.md), and
+   [core status](docs/core-status.md) when the task touches a described core.
 2. Identify the owning component using the table below. State the intended
    change and bounded scope; preserve unrelated work.
 3. For component edits, read that component's `AGENTS.md`, `README.md` and current
