@@ -55,6 +55,11 @@ target=$(CDPATH='' cd -- "$target" && pwd -P)
 /bin/rm -rf "$target/etc/dropbear"
 /bin/ln -s /run/dropbear "$target/etc/dropbear"
 
+# The native agent retains libbluetooth for linkage, but package-only images do
+# not run Bluetooth or D-Bus services.
+/bin/rm -f "$target/etc/init.d/S40bluetooth" "$target/etc/init.d/S30dbus"
+/bin/rm -f "$target/usr/libexec/bluetooth/bluetoothd" "$target/usr/bin/dbus-daemon"
+
 # GCC's GDB auto-load helper embeds the per-run Buildroot output path.
 find "$target/usr/lib" -type f -name '*-gdb.py' -delete
 
