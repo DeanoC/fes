@@ -61,6 +61,7 @@ constexpr std::uint32_t FesSimpleComputerMediaMinBytes = 0x1u;
 constexpr std::uint32_t FesSimpleComputerMediaMaxBytes = 0x4000u;
 constexpr std::uint32_t FesSimpleComputerMediaDataPairIndex = 0x0u;
 constexpr std::uint32_t FesSimpleComputerMediaDataTailIndex = 0x1u;
+constexpr std::uint32_t FesSimpleComputerMediaEjectIndex = 0x1u;
 constexpr std::uint32_t FesSimpleComputerOpcodeMediaStreamInfo = 0x7u;
 constexpr std::uint32_t FesSimpleComputerOpcodeMediaStreamBegin = 0x8u;
 constexpr std::uint32_t FesSimpleComputerOpcodeMediaStreamChunk = 0x9u;

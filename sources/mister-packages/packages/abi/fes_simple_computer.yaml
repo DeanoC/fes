@@ -6,8 +6,9 @@ description: >-
   Transport bits match fes.simple-game; ABI tag 2, keyboard rows, and a
   bounded media blob are distinct. Media begin/data/commit do not require
   execution reset held; launch-time hold-reset is runtime policy for the
-  primary bind. Begin with argument 0 clears readiness (eject). This file
-  does not contain MMIO or lifecycle programming instructions.
+  primary bind. Media begin with eject index and argument 0 clears
+  readiness. This file does not contain MMIO or lifecycle programming
+  instructions.
 major: 1
 minor: 0
 tag: 2
@@ -101,6 +102,8 @@ constants:
   - name: FesSimpleComputerMediaDataPairIndex
     value: 0
   - name: FesSimpleComputerMediaDataTailIndex
+    value: 1
+  - name: FesSimpleComputerMediaEjectIndex
     value: 1
   - name: FesSimpleComputerOpcodeMediaStreamInfo
     value: 7

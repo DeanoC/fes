@@ -50,7 +50,8 @@
     "FesSimpleComputerMediaMinBytes": 1,
     "FesSimpleComputerMediaMaxBytes": 16384,
     "FesSimpleComputerMediaDataPairIndex": 0,
-    "FesSimpleComputerMediaDataTailIndex": 1
+    "FesSimpleComputerMediaDataTailIndex": 1,
+    "FesSimpleComputerMediaEjectIndex": 1
   },
   "stream": {
     "FesSimpleComputerOpcodeMediaStreamInfo": 7,

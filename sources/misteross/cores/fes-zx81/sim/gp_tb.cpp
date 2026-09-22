@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
     // Release so mid-session eject can run without hold-reset.
     exchange(mailbox, toggle, 2, 0, 1, response(!toggle, false, 0), "release for eject");
     require(!mailbox.dut.exec_reset, "execution must stay released for eject");
-    exchange(mailbox, toggle, 4, 0, 0, response(!toggle, false, 0), "eject committed media");
+    exchange(mailbox, toggle, 4, 1, 0, response(!toggle, false, 0), "eject committed media");
     require(!mailbox.dut.media_ready && mailbox.dut.media_size == 0,
             "eject did not clear media readiness");
 
@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
              "busy begin must reject");
     require(mailbox.dut.media_ready && mailbox.dut.media_size == 2,
             "busy begin must leave committed media intact");
-    exchange(mailbox, toggle, 4, 0, 0, response(!toggle, true, 4),
+    exchange(mailbox, toggle, 4, 1, 0, response(!toggle, true, 4),
              "busy eject must reject");
     require(mailbox.dut.media_ready && mailbox.dut.media_size == 2,
             "busy eject must leave committed media intact");

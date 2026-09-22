@@ -670,7 +670,7 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 			"input"};
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
-		static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+		static_cast<std::uint8_t>(FesSimpleComputerMediaEjectIndex), 0, deadline, &response);
 	if (!error.ok()) return MediaBusyOrIo(WithPhase(error, "input"));
 	if (response != 0)
 		return {ErrorCode::io_failed, "FES computer media clear failed", "input"};

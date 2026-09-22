@@ -2534,8 +2534,9 @@ one effect per toggle and error isolation.
 the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
-committed blob stays. Media begin with argument 0 clears readiness (eject) so
-the next empty `LOAD ""` reports `0/0`. While `media_busy` is high (the ZX81
+committed blob stays. Media begin with eject index and argument 0 clears
+readiness so the next empty `LOAD ""` reports `0/0`. Control-index begin with
+argument 0 remains invalid argument. While `media_busy` is high (the ZX81
 tape-loader is copying), begin and eject reject with invalid-state instead of
 aborting the copy. Begin/data/commit do not require `exec_reset` held; that
 hold is launch-time runtime policy. The checked-in

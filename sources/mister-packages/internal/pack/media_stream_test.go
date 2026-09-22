@@ -80,7 +80,7 @@ func TestMediaStreamConstantsAndLegacyOracle(t *testing.T) {
 	}
 	var oracle struct{ Legacy, Stream map[string]uint32 }
 	streamJSON(t, "testdata/oracles/fes-simple-computer-stream.json", &oracle)
-	if len(oracle.Legacy) != 45 || len(oracle.Stream) != 25 {
+	if len(oracle.Legacy) != 46 || len(oracle.Stream) != 25 {
 		t.Fatalf("incomplete oracle: %d/%d", len(oracle.Legacy), len(oracle.Stream))
 	}
 	for _, values := range []map[string]uint32{oracle.Legacy, oracle.Stream} {

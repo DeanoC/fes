@@ -201,18 +201,23 @@ module fes_computer_gp (
                         key_rows[command_index[2:0]] <= command_argument[4:0];
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_BEGIN: begin
-                    if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
-                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
-                    else if (media_busy)
+                    if (media_busy)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
-                    else if (command_argument == 32'h00000000) begin
+                    else if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_EJECT_INDEX) begin
                         // Eject/clear: next empty LOAD "" reports 0/0.
-                        media_open <= 1'b0;
-                        media_ready <= 1'b0;
-                        media_ptr <= 15'd0;
-                        media_expected <= 15'd0;
-                        media_size <= 15'd0;
-                    end else if (command_argument < `FES_SIMPLE_COMPUTER_MEDIA_MIN_BYTES ||
+                        // Control-index begin with argument 0 stays invalid.
+                        if (command_argument != 32'h00000000)
+                            reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
+                        else begin
+                            media_open <= 1'b0;
+                            media_ready <= 1'b0;
+                            media_ptr <= 15'd0;
+                            media_expected <= 15'd0;
+                            media_size <= 15'd0;
+                        end
+                    end else if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
+                        reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
+                    else if (command_argument < `FES_SIMPLE_COMPUTER_MEDIA_MIN_BYTES ||
                              command_argument > `FES_SIMPLE_COMPUTER_MEDIA_MAX_BYTES)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
                     else begin

@@ -666,7 +666,7 @@ void TestMidSessionMediaLeavesExecutionReleasedAndRejectsBusy()
 	reply();
 	assert(driver.ClearMedia(10000).ok());
 	assert(mmio.writes.size() == clear_start + 2);
-	assert((mmio.writes[clear_start].value & 0x7fffffff) == 0x04000000);
+	assert((mmio.writes[clear_start].value & 0x7fffffff) == 0x04010000);
 
 	reply(static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
 	assert(driver.ClearMedia(10000).code == mister::ErrorCode::busy);

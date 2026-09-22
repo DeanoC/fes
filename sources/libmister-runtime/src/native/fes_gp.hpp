@@ -63,7 +63,7 @@ public:
 	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	// Mid-session replace: begin/data/commit while execution stays released.
 	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
-	// Mid-session eject: media begin with argument 0 clears readiness (0/0).
+	// Mid-session eject: media begin with eject index and argument 0.
 	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;

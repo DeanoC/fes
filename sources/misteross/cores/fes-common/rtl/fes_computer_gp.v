@@ -335,7 +335,20 @@ module fes_computer_gp #(
                         key_rows[command_index[2:0]] <= command_argument[4:0];
                 end
                 `FES_SIMPLE_COMPUTER_OPCODE_MEDIA_BEGIN: begin
-                    if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
+                    if (command_index == `FES_SIMPLE_COMPUTER_MEDIA_EJECT_INDEX) begin
+                        if (ENABLE_MEDIA_STREAM &&
+                             (stream_active || (stream_begin_next != 3'd0)))
+                            reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_STATE));
+                        else if (command_argument != 32'h00000000)
+                            reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_ARGUMENT));
+                        else begin
+                            media_open <= 1'b0;
+                            media_ptr <= 15'd0;
+                            media_expected <= 15'd0;
+                            media_size <= 0;
+                            clear_stream;
+                        end
+                    end else if (command_index != `FES_SIMPLE_COMPUTER_CONTROL_INDEX)
                         reject_command(16'(`FES_SIMPLE_COMPUTER_ERROR_INVALID_INDEX));
                     else if (ENABLE_MEDIA_STREAM &&
                              (stream_active || (stream_begin_next != 3'd0)))
