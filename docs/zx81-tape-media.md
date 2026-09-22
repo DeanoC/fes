@@ -1,10 +1,12 @@
 # ZX81 tape media (design lock)
 
 **Status:** design lock (2026-09-22). First mid-session media support for
-ZX81: select and load a tape while the core is already running. This
-document records strawman product decisions for Deano; it is not an
-implementation claim and does not invent RTL. Deano owns FES parent merge.
-Do not merge without Deano. Bob coordinates; this PR is design lock only.
+ZX81: select and load a tape while the core is already running. Deano
+confirmed the product decisions in this document on 2026-09-22, including
+the former open picks 2–6. The only remaining product pick is who types
+`LOAD ""`. This document is not an implementation claim and does not invent
+RTL. Deano owns FES parent merge. Do not merge without Deano. Bob
+coordinates; this PR is design lock only.
 
 **Audience:** FES parent, FogCast (host/rooms/tenfoot/agent),
 libmister-runtime media lifecycle, mister-packages ABI, and later misteross
@@ -129,9 +131,9 @@ is retired for day-to-day.
 
 ## Decisions
 
-Locked as strawman 2026-09-22 for Deano’s edit. Implementation PRs do not
-reopen these without changing this document. Open product picks are listed
-explicitly below.
+Locked 2026-09-22. Deano confirmed these decisions, including former open
+picks 2–6. Implementation PRs do not reopen them without changing this
+document. The only remaining product pick is who types `LOAD ""`.
 
 ### 1. User journey
 
@@ -140,7 +142,7 @@ While a ZX81 library (or equivalent native package) session is **`active`**
 BASIC/LOAD — the user selects a tape and arms it **without** Stop and
 **without** reprogramming the FPGA.
 
-Concrete living-room loop (strawman):
+Concrete living-room loop:
 
 1. User is already in an active ZX81 session (sofa tenfoot yielded; kit HDMI
    shows the core).
@@ -148,10 +150,14 @@ Concrete living-room loop (strawman):
    rooms/tenfoot overlay — Decision 3).
 3. User picks a household `.p` (already imported, or import-then-pick).
 4. Host/agent/runtime deliver the bytes into the existing mailbox and mark
-   the blob committed (`media_ready`).
-5. User runs BASIC `LOAD ""` (Decision open: auto-type vs user-typed).
+   the blob committed (`media_ready`). Arming is allowed anytime the session
+   is `active` and the tape-loader is not already copying (Decision 8).
+5. BASIC `LOAD` consumes the armed tape. Who types `LOAD ""` — the user on
+   the ZX81 keyboard, or the host injecting matrix keys — is the remaining
+   open pick.
 6. The existing `$0347` loader patch copies mailbox bytes into RAM. Session,
-   expansion composition, and spliced machine ROM remain.
+   expansion composition, and spliced machine ROM remain. Cart-composed
+   sessions use this same tape path; the expansion is unchanged (Decision 8).
 
 **Not this journey:**
 
@@ -187,7 +193,7 @@ renderer that already owns Play, Stop, and the Coleco BIOS import overlay).
 | --- | --- |
 | Sofa rooms / tenfoot | **Yes** — in-session **Load tape** chrome while session is `active` and the package is ZX81 / `fes.media.blob`. Pad-friendly picker can mirror the Coleco BIOS import overlay’s file-browse and Confirm patterns, but it binds the **active** session, not the next launch. |
 | Kit `fogcast-kit` grid | **No** — do not grow a second offline catalog or tape browser on kit HDMI ([idle lock](idle-menu-rooms.md)). |
-| Host API / CLI | **Required underneath** for the sofa path; also the bring-up surface before UI (Decision open: whether CLI is a advertised v1 operator path or diagnostics-only). |
+| Host API / CLI | **Required underneath** the sofa path. Once slice 2 exists, `fogcast` session media change is an **operator/diagnostics** path. Sofa remains the living-room surface (Decision 8). |
 | Kit-as-host | Same host/tenfoot process ⇒ same overlay. No distinct kit picker product. |
 
 During play, tenfoot stays parked for GPU cover work; the Load-tape overlay
@@ -233,7 +239,7 @@ When a new tape is selected mid-session:
 | Expansion cart | Unchanged (launch composition retained). |
 | ZX81 RAM / BASIC program | **Preserved** across the mailbox fill. |
 | Mailbox blob | **Replaced** by the new begin/data/commit (or cleared on eject). |
-| Ongoing `LOAD` | **Block replace** while the tape-loader is actively copying (strawman). Surface busy/retry. Do not tear down the session. |
+| Ongoing `LOAD` | **Reject** a replace with busy while the tape-loader is copying. Do not abort the Z80 loader mid-copy. Surface busy/retry. Do not tear down the session (Decision 8). |
 | Eject / cancel | Clear readiness so the next `LOAD ""` yields `0/0`. Cancel of an in-flight transfer leaves no partial `media_ready`. |
 | Errors | Fail closed on the host API and sofa overlay (size, type, transfer, generation mismatch). Do not report `active` success with a silent empty mailbox. |
 | Stop | Existing package Stop → idle; tape selection does not survive as session state. Next launch uses ordinary composition. |
@@ -264,13 +270,30 @@ that may change after boot without reprogramming
 Keep the names distinct:
 
 - **Primary `.p`** — optional media the machine may start with (today’s
-  launch bind).
+  launch bind). Mid-session tape does not remove that optional launch-time
+  bind (Decision 8).
 - **Mid-session tape** — the same `.p` class, bound after boot while
   `active`.
 
 Do not invent a parallel “ZX81-only” launch API. Extend session coordination
 so an active ZX81 generation can accept a media change. Sofa may still key
 off `game_id` / session status; composition facts stay host-internal.
+
+### 8. Confirmed session rules (Deano, 2026-09-22)
+
+Former open picks 2–6. Locked.
+
+- **CLI.** Once slice 2 exists, `fogcast` session media change is an
+  operator/diagnostics path. Sofa rooms/tenfoot remains the living-room
+  surface.
+- **When to arm.** Arm anytime while the session is `active` and not inside
+  an active loader copy. The user chooses when to LOAD.
+- **Cart-composed sessions.** Same tape path. Expansion composition stays
+  unchanged.
+- **Replace during LOAD.** Reject with busy. Do not abort the Z80 loader
+  mid-copy in v1.
+- **Primary launch `.p`.** Stays optional. Mid-session tape does not remove
+  the launch-time primary bind.
 
 ---
 
@@ -295,10 +318,10 @@ spirit to idle rooms Phase 2 splash slices.
 
 | Slice | Delivers | Does not deliver |
 | --- | --- | --- |
-| **0 — this document** | Locked journey, artifact class, selection surface, transport/timing, lifecycle, non-goals, open picks | Code, ABI bytes, UI, kit time |
+| **0 — this document** | Locked journey, artifact class, selection surface, transport/timing, lifecycle, non-goals; one open pick (who types `LOAD ""`) | Code, ABI bytes, UI, kit time |
 | **1 — ABI / runtime mid-session blob** | Runtime path to begin/data/commit on an **active** ZX81 generation **without** hold-reset soft-reboot; generation checks; eject/clear; busy-while-LOAD policy | Sofa UI; TZX; stream ABI on ZX81 |
 | **2 — host / agent session API** | Session-scoped change-tape (and eject) over existing core-media ids; development CLI/API enough to prove the wire | Rooms chrome; kit HIL |
-| **3 — sofa / tenfoot picker** | In-session **Load tape** overlay on active ZX81; import-or-pick `.p`; honest errors | Kit catalog; SAVE; multi-tape |
+| **3 — sofa / tenfoot picker** | In-session **Load tape** overlay on active ZX81; import-or-pick `.p`; honest errors. Does not assume host auto-LOAD until the open pick lands | Kit catalog; SAVE; multi-tape |
 | **4 — HIL / acceptance** | Leased designated-kit proof: BASIC → pick tape → `LOAD ""` → program runs; RAM/expansion preserved; Stop restore | Claiming all profiles/images; ear-in |
 
 Slice 1 may clarify mister-packages prose or add a narrow opcode if Deano
@@ -307,26 +330,27 @@ the smallest contract that matches surveyed RTL.
 
 ---
 
-## Open product picks (Deano)
+## Open product pick (Deano)
 
-Prefer editing the decision sentences above. Strawman defaults in italics.
+One product question remains open. Bob’s comment on
+[FES #113](https://github.com/DeanoC/fes/pull/113) lays out the two options.
+This document does not choose.
 
-1. **Who types `LOAD ""`?** *User types it on the ZX81 keyboard after the
-   overlay reports armed.* Alternative: host injects matrix keystrokes once
-   commit succeeds.
-2. **CLI in v1?** *Yes as operator/diagnostics (`fogcast` session media
-   change) once slice 2 exists; sofa remains the living-room surface.*
-3. **Arm before first LOAD vs only at BASIC prompt?** *Arm anytime while
-   `active` and not inside an active loader copy; user chooses when to LOAD.*
-4. **Cart-composed sessions?** *Same tape path; expansion unchanged.*
-5. **Replace while LOAD in progress?** *Reject with busy; do not abort the
-   Z80 loader mid-copy in v1.*
-6. **Primary launch `.p` still optional?** *Yes; mid-session does not remove
-   launch-time primary bind.*
+**Who types `LOAD ""`?**
 
-No other product question is left open by this lock. Exact HTTP paths,
-opcode numbers for a non-hold-reset clarification, and picker layout are
-implementation follow-ups inside the classes above.
+- **User-typed.** Arm is “tape in the deck.” BASIC still feels like a real
+  ZX81. Sofa chrome must make “armed / ready for `LOAD ""`” obvious. No host
+  key-inject risk.
+- **Host inject.** One Confirm after pick can arm and LOAD. Better
+  living-room pad flow. Needs a reliable matrix inject path and a clear
+  failure if BASIC is not ready to accept LOAD.
+
+Slices 1–2 proceed against the locked decisions above. Slice 3 (sofa picker)
+must not assume auto-LOAD until this pick lands.
+
+Exact HTTP paths, opcode numbers for a non-hold-reset clarification, and
+picker layout are implementation follow-ups inside the locked classes. They
+are not open product picks.
 
 ---
 
