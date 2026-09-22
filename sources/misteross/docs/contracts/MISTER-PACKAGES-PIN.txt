@@ -1,7 +1,7 @@
 mister-packages fdc4ece2e1fa87035ddca8cd147c621e7edcce3b
 merged_from_PR https://github.com/DeanoC/mister-packages/pull/9
 prior_published_identical c8c8dfd1fcb0503ac92baf6b365d93e8d26a0854
-SHARED FROZEN — tip pin swapped to merge commit; content digests unchanged
+SHARED — tip pin retained; fes_simple_computer.vh digest updated for MediaEjectIndex
 media-stream.md sha256 aed93f66983d6edf09d4f1ea926027ebc700e95af266ae3872a2840aec9a79cb
 exchanges.json sha256 3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f
-fes_simple_computer.vh sha256 fd074e6958ea16ff277a5071bcd1e0c7b78fc984c8e7a58f9eea61c974324caa
+fes_simple_computer.vh sha256 9e835b325085596908b2e28ed695e0841f0910a39d70a123ef4177f8bc2e2860

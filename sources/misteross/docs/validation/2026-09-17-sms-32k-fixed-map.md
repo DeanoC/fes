@@ -13,7 +13,7 @@ Status: host simulation and package-recipe **GREEN**. Not kit HIL.
 - Consumer fixtures: `cores/fes-sms/generated/stream-exchanges.json`
   sha256 `3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f`
 - Additive ABI header: `cores/*/generated/fes_simple_computer.vh`
-  sha256 `fd074e6958ea16ff277a5071bcd1e0c7b78fc984c8e7a58f9eea61c974324caa`
+  sha256 `9e835b325085596908b2e28ed695e0841f0910a39d70a123ef4177f8bc2e2860`
 
 ## What the slice does
 
