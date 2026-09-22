@@ -441,6 +441,60 @@ Error ParseRequest(const std::string& line, Request* request)
 			c.payload_size=static_cast<std::uint64_t>(size->integer_value);
 			parsed.operation=Operation::load_composed_core;parsed.package_path=*path;parsed.package_id=*id;
 			parsed.composition_request.expansion_path=*expansion;parsed.composition_request.payload_path=*payload;
+		} else if (operation->string_value == "load_initialized_core" ||
+			operation->string_value == "load_initialized_library_core" ||
+			operation->string_value == "load_initialized_composed_core") {
+			const bool library = operation->string_value == "load_initialized_library_core";
+			const bool composed = operation->string_value == "load_initialized_composed_core";
+			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path","programmed_sha256"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path","programmed_sha256"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path","programmed_sha256"};
+			const char* const* fields = plain;
+			unsigned count = 6;
+			if (library) { fields = with_root; count = 7; }
+			if (composed) { fields = with_cart; count = 9; }
+			if (!HasOnly(root, fields, count, &error)) return error;
+			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr,*digest=nullptr;
+			if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error) ||
+				!StringMember(root,"programmed_path",&programmed,&error) || !StringMember(root,"programmed_sha256",&digest,&error))
+				return error;
+			if (!Path(*path) || !Path(*programmed) || !PackageID(*id) || !PackageID(*digest))
+				return Invalid("invalid initialized core paths or digest");
+			parsed.package_path=*path; parsed.package_id=*id;
+			parsed.programmed_path=*programmed; parsed.programmed_sha256=*digest;
+			parsed.operation = Operation::load_initialized_core;
+			if (library) {
+				const std::string* root_path=nullptr;
+				if (!StringMember(root,"data_root",&root_path,&error) || !Path(*root_path))
+					return Invalid("invalid initialized core data root");
+				parsed.data_root=*root_path;
+				parsed.operation = Operation::load_initialized_library_core;
+			}
+			if (composed) {
+				const std::string *expansion=nullptr,*payload=nullptr;
+				if (!StringMember(root,"expansion_path",&expansion,&error) || !StringMember(root,"payload_path",&payload,&error) ||
+					!Path(*expansion) || !Path(*payload))
+					return Invalid("invalid initialized composition paths");
+				const auto* tuple=Find(root,"composition");
+				if (!tuple || tuple->type!=json::Type::object) return Invalid("composition must be an object");
+				const char* const tuple_fields[]={"composition_id","package_id","expansion_id","shell_sha256","payload_sha256","payload_size"};
+				if (!HasOnly(*tuple,tuple_fields,6,&error)) return error;
+				auto& c=parsed.composition_request.composition;
+				std::string* destinations[]={&c.id,&c.package_id,&c.expansion_id,&c.shell_sha256,&c.payload_sha256};
+				for (unsigned i=0;i<5;++i) {
+					const std::string* value=nullptr;
+					if (!StringMember(*tuple,tuple_fields[i],&value,&error)) return error;
+					if (!PackageID(*value)) return Invalid("composition identities must be lowercase SHA-256");
+					*destinations[i]=*value;
+				}
+				const auto* size=Find(*tuple,"payload_size");
+				if (!size || size->type!=json::Type::integer || size->integer_value<40408 || size->integer_value>32*1024*1024 || c.package_id!=*id)
+					return Invalid("invalid composition size or package binding");
+				c.payload_size=static_cast<std::uint64_t>(size->integer_value);
+				parsed.composition_request.expansion_path=*expansion;
+				parsed.composition_request.payload_path=*payload;
+				parsed.operation = Operation::load_initialized_composed_core;
+			}
 		} else if (operation->string_value == "inspect_core" ||
 			operation->string_value == "load_core") {
 			const char* const fields[] = {

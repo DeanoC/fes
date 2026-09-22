@@ -224,6 +224,7 @@ type Service struct {
 	attractIdle              int
 	preferredRegions         []string
 	hostEmulator             HostEmulatorConfig
+	machineROM               MachineROMLinker
 	metadataRoot             string
 	metadataScope            string
 	watchRoot                string
@@ -401,6 +402,12 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	if config.ZX81MachineROM.Script != "" {
+		service.SetMachineROMLinker(PythonMachineROM{
+			Python: config.ZX81MachineROM.Python, Script: config.ZX81MachineROM.Script,
+			Image: config.ZX81MachineROM.Image, MistralCV: config.ZX81MachineROM.MistralCV,
+		})
+	}
 	packageRoot := paths.CorePackages
 	if packageRoot == "" {
 		packageRoot = filepath.Join(filepath.Dir(paths.Index), "core-packages")

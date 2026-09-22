@@ -510,8 +510,9 @@ launch receipt. `make oss EXP=890_slot_m10k` places one proof block at
 legal column-26 proof M10Ks (`26.1`, `26.2`, `26.5`, `26.6`, `26.9`,
 `26.10`, `26.13`, `26.14`). The OSS `fes.zx81` recipe defines
 `FES_ZX81_ROM_LINK` and does not hash `zx8x.hex` into the package. Those
-column-5 lanes are empty until launch splices BASIC. Simulation still
-reads the hex. This does not reseal `fes.zx81`. The 8192×1 geometry uses
+column-5 lanes are empty in the sealed package. Launch splices BASIC onto
+the programmed bitstream and keeps the package id of the empty socket.
+Simulation still reads the hex. The 8192×1 geometry uses
 a different physical order and is not a ROM-link map.
 
 ### Build a composed RBF

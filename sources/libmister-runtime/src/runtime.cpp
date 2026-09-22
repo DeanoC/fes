@@ -202,7 +202,8 @@ public:
 	}
 
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
-		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr)
+		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
+		const std::string& programmed_path = "", const std::string& programmed_sha256 = "")
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -266,6 +267,19 @@ public:
 		}
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
+		if (!programmed_path.empty()) {
+			const Error attached = hardware_.AttachProgrammedBitstream(package.get(),
+				programmed_path, programmed_sha256);
+			if (!attached.ok()) {
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log("load_core", info.system, info.declared_core, "validate", attached);
+				return attached;
+			}
+		}
 		Log("load_core", info.system, info.declared_core, "validate");
 
 		std::uint64_t retired_generation = 0;
@@ -835,6 +849,24 @@ Error Runtime::LoadLibraryCore(
 	if (!ValidAbsolutePath(root))
 		return Invalid("invalid core-data root");
 	return impl_->LoadCore(directory, id, root);
+}
+Error Runtime::LoadInitializedCore(const std::string& directory, const std::string& id,
+	const std::string& programmed_path, const std::string& programmed_sha256)
+{
+	return impl_->LoadCore(directory, id, "", nullptr, programmed_path, programmed_sha256);
+}
+Error Runtime::LoadInitializedLibraryCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& programmed_path, const std::string& programmed_sha256)
+{
+	if (!ValidAbsolutePath(root))
+		return Invalid("invalid core-data root");
+	return impl_->LoadCore(directory, id, root, nullptr, programmed_path, programmed_sha256);
+}
+Error Runtime::LoadInitializedComposedCore(const std::string& directory, const std::string& id,
+	const CoreCompositionRequest& request, const std::string& programmed_path,
+	const std::string& programmed_sha256)
+{
+	return impl_->LoadCore(directory, id, "", &request, programmed_path, programmed_sha256);
 }
 Error Runtime::InspectCoreData(
 	const std::string& directory, const std::string& id, const std::string& root, CoreData* output)

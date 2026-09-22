@@ -2249,8 +2249,8 @@ onto column 5, rows 73–80, and the receipt carries the 8 KiB image digest.
 (`26.1`, `26.2`, `26.5`, `26.6`, `26.9`, `26.10`, `26.13`, `26.14`).
 The OSS `fes.zx81` recipe instantiates `zx81_rom_link` under
 `FES_ZX81_ROM_LINK`, so the package inputs do not include `zx8x.hex`.
-Simulation keeps the `zx81_dpram` hex path. That is host-side, not a
-reseal of `fes.zx81`.
+Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
+empty socket; launch splices BASIC into the programmed bitstream.
 
 Commands, cart-authoring rules and kit probes live in the README
 [Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges)

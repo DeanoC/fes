@@ -312,6 +312,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var firmware *coreEntryMedia
+	var imageSHA string
 	defer func() {
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
@@ -365,6 +366,14 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		initialized, sha, err := s.applyZX81MachineROM(inspection.Descriptor.Core.ID, data, bundle)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if initialized != nil {
+			imageSHA = sha
+			return coreLoadSource{size: int64(len(initialized)), body: bytes.NewReader(initialized), entry: &entry}, nil
+		}
 		if bundle != nil {
 			var transport bytes.Buffer
 			if err = bundle.Write(&transport); err != nil {
@@ -374,6 +383,9 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
+	if status.CorePackage != nil && imageSHA != "" {
+		status.CorePackage.ImageSHA256 = imageSHA
+	}
 	response := protocol.CachedLaunchResponse{Status: status}
 	if err != nil {
 		return response, err

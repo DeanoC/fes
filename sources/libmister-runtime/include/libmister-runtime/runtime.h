@@ -287,6 +287,11 @@ public:
 	{
 		return {};
 	}
+	virtual Error AttachProgrammedBitstream(AdmittedCorePackage*, const std::string&,
+		const std::string&)
+	{
+		return {ErrorCode::unsupported_protocol, "programmed bitstream is unavailable"};
+	}
 	virtual Error InspectCoreData(
 		const std::string&, const std::string&, const std::string&, CoreData*)
 	{
@@ -348,6 +353,11 @@ public:
 		const std::string& expected_package_id);
 	Error LoadLibraryCore(const std::string&, const std::string&, const std::string&);
 	Error LoadComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&);
+	Error LoadInitializedCore(const std::string&, const std::string&, const std::string&, const std::string&);
+	Error LoadInitializedLibraryCore(const std::string&, const std::string&, const std::string&,
+		const std::string&, const std::string&);
+	Error LoadInitializedComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&,
+		const std::string&, const std::string&);
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, std::uint16_t, CoreData*);

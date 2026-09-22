@@ -1,0 +1,84 @@
+package fogcast
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"testing"
+
+	"github.com/DeanoC/FogCast/corepackage"
+)
+
+type fakeROM struct {
+	programmed []byte
+	sha        string
+}
+
+func (f fakeROM) Link(base []byte) ([]byte, string, error) {
+	if len(base) == 0 {
+		return nil, "", errTestLink
+	}
+	return f.programmed, f.sha, nil
+}
+
+var errTestLink = bytes.ErrTooLarge
+
+func TestApplyZX81MachineROMWrapsTheSealedPackage(t *testing.T) {
+	manifest := []byte("format = 2\n")
+	payload := bytes.Repeat([]byte{0x33}, 32)
+	var archive bytes.Buffer
+	for _, member := range []struct {
+		name string
+		data []byte
+	}{{"manifest.toml", manifest}, {"core.rbf", payload}} {
+		archive.Write(ustarHeader(member.name, int64(len(member.data))))
+		archive.Write(member.data)
+		archive.Write(make([]byte, (512-len(member.data)%512)%512))
+	}
+	archive.Write(make([]byte, 1024))
+	image := sha256.Sum256([]byte("basic"))
+	service := &Service{machineROM: fakeROM{programmed: bytes.Repeat([]byte{0x44}, 32), sha: hex.EncodeToString(image[:])}}
+	body, sha, err := service.applyZX81MachineROM("fes.zx81", archive.Bytes(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := corepackage.ReadRomInit(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sha != hex.EncodeToString(image[:]) || !bytes.Equal(got.Package, archive.Bytes()) || bytes.Equal(got.Programmed, payload) {
+		t.Fatalf("sha %s package %v programmed changed %v", sha, bytes.Equal(got.Package, archive.Bytes()), !bytes.Equal(got.Programmed, payload))
+	}
+	unchanged, _, err := service.applyZX81MachineROM("fes.coleco", archive.Bytes(), nil)
+	if err != nil || unchanged != nil {
+		t.Fatalf("other core = %d %v", len(unchanged), err)
+	}
+	plain := &Service{}
+	unchanged, _, err = plain.applyZX81MachineROM("fes.zx81", archive.Bytes(), nil)
+	if err != nil || unchanged != nil {
+		t.Fatalf("unconfigured zx81 = %d %v", len(unchanged), err)
+	}
+}
+
+func ustarHeader(name string, size int64) []byte {
+	header := make([]byte, 512)
+	copy(header[0:100], name)
+	copy(header[100:108], "0000644\x00")
+	copy(header[108:116], "0000000\x00")
+	copy(header[116:124], "0000000\x00")
+	copy(header[124:136], fmt.Sprintf("%011o\x00", size))
+	copy(header[136:148], "00000000000\x00")
+	for index := 148; index < 156; index++ {
+		header[index] = ' '
+	}
+	header[156] = '0'
+	copy(header[257:263], "ustar\x00")
+	copy(header[263:265], "00")
+	checksum := 0
+	for _, value := range header {
+		checksum += int(value)
+	}
+	copy(header[148:156], fmt.Sprintf("%06o\x00 ", checksum))
+	return header
+}

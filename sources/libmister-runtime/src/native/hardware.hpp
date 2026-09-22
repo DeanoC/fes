@@ -67,6 +67,8 @@ public:
 		std::unique_ptr<AdmittedCorePackage>*) override;
 	Error AdmitCoreComposition(const std::string&, const std::string&,
 		const CoreCompositionRequest&, std::unique_ptr<AdmittedCorePackage>*) override;
+	Error AttachProgrammedBitstream(AdmittedCorePackage*, const std::string&,
+		const std::string&) override;
 	Error InspectCorePackage(const std::string&, const std::string&,
 		CorePackageInspection*) override;
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;

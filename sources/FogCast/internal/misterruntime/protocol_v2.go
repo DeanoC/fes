@@ -113,6 +113,57 @@ func (client *Client) loadCoreOperation(ctx context.Context, path, id, root stri
 func (client *Client) loadCoreWithRoot(ctx context.Context, path, packageID, root string) (Protocol2Response, Protocol2Response, error) {
 	return client.loadCoreWithComposition(ctx, path, packageID, root, "", "", nil)
 }
+func (client *Client) LoadInitializedCore(ctx context.Context, path, packageID, programmedPath, programmedSHA string) (Protocol2Response, error) {
+	return client.loadInitialized(ctx, path, packageID, "", "", "", nil, programmedPath, programmedSHA, "load_initialized_core")
+}
+func (client *Client) LoadInitializedLibraryCore(ctx context.Context, path, packageID, root, programmedPath, programmedSHA string) (Protocol2Response, error) {
+	return client.loadInitialized(ctx, path, packageID, root, "", "", nil, programmedPath, programmedSHA, "load_initialized_library_core")
+}
+func (client *Client) LoadInitializedComposedCore(ctx context.Context, path, packageID, expansionPath, payloadPath string, composition expansion.Composition, programmedPath, programmedSHA string) (Protocol2Response, error) {
+	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	return client.loadInitialized(ctx, path, packageID, "", expansionPath, payloadPath, &composition, programmedPath, programmedSHA, "load_initialized_composed_core")
+}
+func (client *Client) loadInitialized(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath, programmedSHA, operation string) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Hex64.MatchString(programmedSHA) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if root != "" && !validRuntimePath(root) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if _, err := client.Protocol2Status(ctx); err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		Protocol         int                    `json:"protocol"`
+		Operation        string                 `json:"operation"`
+		PackagePath      string                 `json:"package_path"`
+		PackageID        string                 `json:"package_id"`
+		DataRoot         string                 `json:"data_root,omitempty"`
+		ExpansionPath    string                 `json:"expansion_path,omitempty"`
+		PayloadPath      string                 `json:"payload_path,omitempty"`
+		Composition      *expansion.Composition `json:"composition,omitempty"`
+		ProgrammedPath   string                 `json:"programmed_path"`
+		ProgrammedSHA256 string                 `json:"programmed_sha256"`
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ProgrammedSHA256: programmedSHA})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil || response.InspectedPackage != nil {
+		if err != nil {
+			return Protocol2Response{}, protocol2MutationError{error: err, attempted: true}
+		}
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	if response.OK && (response.State != "running_development" ||
+		response.Execution != "development" || response.ActivePackage == nil ||
+		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition)) {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	return response, nil
+}
 func (client *Client) LoadComposedCore(ctx context.Context, path, packageID, expansionPath, payloadPath string, composition expansion.Composition) (Protocol2Response, error) {
 	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
