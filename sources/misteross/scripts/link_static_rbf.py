@@ -259,8 +259,41 @@ def _ram_token(bel: str, index: int) -> str:
     return f"{bel_to_bt_name(bel)}:RAM.{index}"
 
 
+def m10k_block_present(text: str, bel: str) -> bool:
+    """Return whether decompile configured this M10K at all.
+
+    mistral-cv omits a mux whose stored value is the database default.
+    ``m ram r-:40`` means an all-zero RAM word is omitted, so a placed block
+    can show port config and zero ``RAM.`` lines. Any ``s`` line for the
+    block, including one RAM word, means the site was written.
+    """
+
+    marker = bel_to_bt_name(bel) + ":"
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == "s" and parts[1].startswith(marker):
+            return True
+    return False
+
+
+def _parse_ram_index(token: str, prefix: str) -> int:
+    if not token.startswith(prefix):
+        raise LinkError(f"unknown RAM mux {token}")
+    try:
+        index = int(token.rsplit(".", 1)[1])
+    except ValueError as exc:
+        raise LinkError(f"unknown RAM mux {token}") from exc
+    if index < 0 or index >= M10K_RAM_WORDS:
+        raise LinkError(f"unknown RAM mux {token}")
+    return index
+
+
 def overlay_m10k_init_bt(base_text: str, bel: str, words: Sequence[int]) -> str:
-    """Replace one placed M10K's RAM muxes. Port config stays on the blank."""
+    """Replace one placed M10K's RAM muxes. Port config stays on the blank.
+
+    Omitted default RAM words are inserted. A site with no ``s`` lines for
+    this block is refused, because there is no placed M10K to program.
+    """
 
     if len(words) != M10K_RAM_WORDS:
         raise LinkError(f"{bel} init has {len(words)} RAM words")
@@ -269,16 +302,20 @@ def overlay_m10k_init_bt(base_text: str, bel: str, words: Sequence[int]) -> str:
     prefix = bel_to_bt_name(bel) + ":RAM."
     for line in base_text.splitlines():
         parts = line.split()
-        if len(parts) >= 2 and parts[1].startswith(prefix):
-            index = int(parts[1].rsplit(".", 1)[1])
-            if index in seen or index < 0 or index >= M10K_RAM_WORDS:
+        if len(parts) >= 2 and parts[0] == "s" and parts[1].startswith(prefix):
+            index = _parse_ram_index(parts[1], prefix)
+            if index in seen:
                 raise LinkError(f"duplicate or unknown RAM mux {parts[1]}")
             seen.add(index)
             out.append(f"s {_ram_token(bel, index)} {format_ram40(int(words[index]))}")
         else:
             out.append(line)
     if seen != set(range(M10K_RAM_WORDS)):
-        raise LinkError(f"{bel} decompile has {len(seen)} RAM muxes, expected {M10K_RAM_WORDS}")
+        if not m10k_block_present(base_text, bel):
+            raise LinkError(f"{bel} decompile has {len(seen)} RAM muxes, expected {M10K_RAM_WORDS}")
+        for index in range(M10K_RAM_WORDS):
+            if index not in seen:
+                out.append(f"s {_ram_token(bel, index)} {format_ram40(int(words[index]))}")
     return "\n".join(out) + "\n"
 
 
@@ -287,13 +324,16 @@ def read_m10k_init_bt(text: str, bel: str) -> list[int]:
     prefix = bel_to_bt_name(bel) + ":RAM."
     for line in text.splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[1].startswith(prefix):
-            index = int(parts[1].rsplit(".", 1)[1])
+        if len(parts) >= 3 and parts[0] == "s" and parts[1].startswith(prefix):
+            index = _parse_ram_index(parts[1], prefix)
             if index in words:
                 raise LinkError(f"duplicate RAM mux {parts[1]}")
             words[index] = parse_ram40(parts[2])
     if set(words) != set(range(M10K_RAM_WORDS)):
-        raise LinkError(f"{bel} decompile has {len(words)} RAM muxes, expected {M10K_RAM_WORDS}")
+        if not m10k_block_present(text, bel):
+            raise LinkError(f"{bel} decompile has {len(words)} RAM muxes, expected {M10K_RAM_WORDS}")
+        for index in range(M10K_RAM_WORDS):
+            words.setdefault(index, 0)
     return [words[index] for index in range(M10K_RAM_WORDS)]
 
 
