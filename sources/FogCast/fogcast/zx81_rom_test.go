@@ -2,10 +2,13 @@ package fogcast
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -19,7 +22,10 @@ type fakeROM struct {
 	sha        string
 }
 
-func (f fakeROM) Link(base []byte) ([]byte, string, error) {
+func (f fakeROM) Link(ctx context.Context, base []byte) ([]byte, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", err
+	}
 	if len(base) == 0 {
 		return nil, "", errTestLink
 	}
@@ -43,7 +49,7 @@ func TestApplyZX81MachineROMWrapsTheSealedPackage(t *testing.T) {
 	archive.Write(make([]byte, 1024))
 	image := sha256.Sum256([]byte("basic"))
 	service := &Service{machineROM: fakeROM{programmed: bytes.Repeat([]byte{0x44}, 32), sha: hex.EncodeToString(image[:])}}
-	body, sha, err := service.applyZX81MachineROM("fes.zx81", archive.Bytes(), nil)
+	body, sha, err := service.applyZX81MachineROM(context.Background(), "fes.zx81", archive.Bytes(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,15 +60,33 @@ func TestApplyZX81MachineROMWrapsTheSealedPackage(t *testing.T) {
 	if sha != hex.EncodeToString(image[:]) || !bytes.Equal(got.Package, archive.Bytes()) || bytes.Equal(got.Programmed, payload) {
 		t.Fatalf("sha %s package %v programmed changed %v", sha, bytes.Equal(got.Package, archive.Bytes()), !bytes.Equal(got.Programmed, payload))
 	}
-	unchanged, _, err := service.applyZX81MachineROM("fes.coleco", archive.Bytes(), nil)
+	unchanged, _, err := service.applyZX81MachineROM(context.Background(), "fes.coleco", archive.Bytes(), nil)
 	if err != nil || unchanged != nil {
 		t.Fatalf("other core = %d %v", len(unchanged), err)
 	}
 	plain := &Service{}
-	unchanged, _, err = plain.applyZX81MachineROM("fes.zx81", archive.Bytes(), nil)
+	unchanged, _, err = plain.applyZX81MachineROM(context.Background(), "fes.zx81", archive.Bytes(), nil)
 	var apiErr *protocol.APIError
 	if unchanged != nil || !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest || apiErr.Message == "" {
 		t.Fatalf("unconfigured zx81 = %d %v", len(unchanged), err)
+	}
+}
+
+func TestPythonMachineROMStopsWhenTheLaunchIsCanceled(t *testing.T) {
+	directory := t.TempDir()
+	script := filepath.Join(directory, "sleep.py")
+	image := filepath.Join(directory, "image.hex")
+	if err := os.WriteFile(script, []byte("import time\ntime.sleep(30)\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(image, []byte("00\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err := (PythonMachineROM{Script: script, Image: image, MistralCV: "/usr/bin/true"}).Link(ctx, []byte{1})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled link = %v", err)
 	}
 }
 

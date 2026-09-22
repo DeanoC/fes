@@ -335,6 +335,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		}
 		before = &status
 	}
+	var programmedPath string
+	if romInit != nil {
+		programmedPath, err = staged.RetainProgrammedBitstream(romInit.Programmed)
+		if err != nil {
+			return CoreActivation{}, false, &protocol.APIError{
+				Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+		}
+	}
 	finishBarrier := func(context.Context, bool) error { return nil }
 	if r.coreBarrier != nil {
 		finish, barrierErr := r.coreBarrier.BeginCoreReplacement(operationOwner)
@@ -355,12 +363,6 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	var response Protocol2Response
 	var callErr error
 	if romInit != nil {
-		programmedPath := staged.Directory + ".machine-rom.rbf"
-		if err = os.WriteFile(programmedPath, romInit.Programmed, 0o600); err != nil {
-			return CoreActivation{}, false, &protocol.APIError{
-				Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
-		}
-		defer os.Remove(programmedPath)
 		initControl, ok := r.control.(protocol2RomInitControl)
 		if !ok {
 			return CoreActivation{}, false, unsupportedOperationError()

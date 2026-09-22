@@ -2,6 +2,7 @@ package fogcast
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 // MachineROMLinker replaces the empty ZX81 machine ROM in an already placed RBF.
 // The sealed package bytes stay unchanged.
 type MachineROMLinker interface {
-	Link(base []byte) (programmed []byte, imageSHA256 string, err error)
+	Link(ctx context.Context, base []byte) (programmed []byte, imageSHA256 string, err error)
 }
 
 // PythonMachineROM runs link_static_rbf.py init --machine on the host.
@@ -26,7 +27,7 @@ type PythonMachineROM struct {
 	MistralCV string
 }
 
-func (p PythonMachineROM) Link(base []byte) ([]byte, string, error) {
+func (p PythonMachineROM) Link(ctx context.Context, base []byte) ([]byte, string, error) {
 	python := p.Python
 	if python == "" {
 		python = "python3"
@@ -44,10 +45,13 @@ func (p PythonMachineROM) Link(base []byte) ([]byte, string, error) {
 	if err = os.WriteFile(basePath, base, 0o600); err != nil {
 		return nil, "", err
 	}
-	cmd := exec.Command(python, p.Script, "init", "--machine", "--base", basePath, "--image", p.Image, "--output", outputPath)
+	cmd := exec.CommandContext(ctx, python, p.Script, "init", "--machine", "--base", basePath, "--image", p.Image, "--output", outputPath)
 	cmd.Env = append(os.Environ(), "MISTRAL_CV="+p.MistralCV)
 	output, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, "", ctx.Err()
+		}
 		return nil, "", fmt.Errorf("zx81 machine ROM link failed: %w", err)
 	}
 	programmed, err := os.ReadFile(outputPath)
@@ -67,7 +71,7 @@ func (s *Service) SetMachineROMLinker(linker MachineROMLinker) {
 	s.machineROM = linker
 }
 
-func (s *Service) applyZX81MachineROM(coreID string, archive []byte, composed *corepackage.CompositionBundle) ([]byte, string, error) {
+func (s *Service) applyZX81MachineROM(ctx context.Context, coreID string, archive []byte, composed *corepackage.CompositionBundle) ([]byte, string, error) {
 	if coreID != "fes.zx81" {
 		return nil, "", nil
 	}
@@ -93,7 +97,7 @@ func (s *Service) applyZX81MachineROM(coreID string, archive []byte, composed *c
 		}
 		base = payload
 	}
-	programmed, imageSHA, err := s.machineROM.Link(base)
+	programmed, imageSHA, err := s.machineROM.Link(ctx, base)
 	if err != nil {
 		return nil, "", err
 	}

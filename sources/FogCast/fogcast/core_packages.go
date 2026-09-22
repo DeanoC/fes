@@ -366,7 +366,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
-		initialized, sha, err := s.applyZX81MachineROM(inspection.Descriptor.Core.ID, data, bundle)
+		initialized, sha, err := s.applyZX81MachineROM(ctx, inspection.Descriptor.Core.ID, data, bundle)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
