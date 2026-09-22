@@ -27,6 +27,9 @@ at most one defined-idle recovery. `Stop` does not program again from
 also fails, the state stays `reboot_required` and a board reboot is the
 remaining recovery. A soft board reboot after FPGA or HPS activity can wedge
 the HPS network; hard power is the recovery when `recover_idle` still fails.
+The agent requests that board reboot only after a development session is
+already `stopping` with `reboot_required`. Idle and a reconciled startup
+failure do not arm it. See FES [soft-restart Path B](../../docs/soft-restart-path-b.md).
 
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit.

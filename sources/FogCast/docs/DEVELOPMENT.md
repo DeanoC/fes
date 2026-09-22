@@ -245,6 +245,8 @@ Overlay swaps and init restarts stay on the current boot:
 
 Do not use `/sbin/reboot`, `POST /v1/development/reboot`, or `kill -9` mid-session for an overlay swap. Killing the agent during a session makes startup cleanup fail and leaves the kit lease blocked. `POST /v1/development/reboot` is unsafe after FPGA or HPS activity: it asks the runtime to program idle first, and it runs `/sbin/reboot` only when that LoadIdle fails with `idle_failed`. If the agent still reports `reboot_required`, recover with a hard power-supply cycle. A front-panel reset does not replace that power cycle.
 
+Path B is that board-reboot arm. It is not part of the restart above. The arming rules and the held kit check are in the FES [soft-restart Path B](../../../docs/soft-restart-path-b.md) note. Do not run that kit check.
+
 After separately authorized deployment of the selected native image, exercise
 its installed package lifecycle through the running host:
 
