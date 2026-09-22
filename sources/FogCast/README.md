@@ -91,9 +91,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   configured address. The browser and tenfoot distinguish connection state
   from game state. See [target reconnection](docs/ARCHITECTURE.md#target-identity-and-reconnection).
 - Explicit contained development-RBF diagnostics. Recovery programs idle
-  again (`recover_idle`) before any board reboot. `/sbin/reboot` runs only
-  when that idle program fails. Overlay restarts use host Stop to idle, a
-  free kit lease, then SIGTERM through `mister-supervise`.
+  again (`recover_idle`) before any board reboot. `/sbin/reboot` runs when
+  that idle program fails, and when an older runtime rejects `recover_idle`
+  as an unknown operation. Stop returns a recovery error immediately when
+  no reboot was started. Overlay restarts use host Stop to idle, a free kit
+  lease, then SIGTERM through `mister-supervise`.
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the

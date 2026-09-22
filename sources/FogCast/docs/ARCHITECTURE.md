@@ -403,7 +403,10 @@ There is no automatic retry or replay: an unchanged package status cannot
 prove media delivery after a lost reply. The coordinator observes runtime
 state after a transfer failure. A failed transport can leave reset held and
 report `reboot_required`; the leased recovery path programs idle again
-(`recover_idle`) and reboots the board only when that LoadIdle fails.
+(`recover_idle`) and reboots the board when that LoadIdle fails or the
+runtime rejects `recover_idle` as an unknown operation. If recovery fails
+closed without arming a reboot, Stop returns that error instead of waiting
+for a new boot id.
 Stop cannot bypass a poisoned GP transport by merely quiescing it. Physical
 hold/reset, byte transfer and recovery remain runtime responsibilities.
 

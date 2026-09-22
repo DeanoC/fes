@@ -439,6 +439,28 @@ func TestDevelopmentRecoveryRebootsOnlyAfterIdleProgramFailure(t *testing.T) {
 	}
 }
 
+func TestDevelopmentRecoveryRebootsWhenRecoverIdleIsUnknown(t *testing.T) {
+	t.Parallel()
+	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{
+		health: protocol.Health{Ready: true}, developmentObserved: "DEVCORE",
+	}, idleErr: &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	if _, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	runtime.health = protocol.Health{Ready: false}
+	if _, apiErr := coordinator.Stop(context.Background()); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	stopped, apiErr := coordinator.RebootDevelopment(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateStopping || stopped.Recovery != protocol.RecoveryRebootRequired {
+		t.Fatalf("unknown recover_idle = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.idleCalls != 1 || runtime.developmentStopCalls != 1 {
+		t.Fatalf("idle calls=%d reboot calls=%d", runtime.idleCalls, runtime.developmentStopCalls)
+	}
+}
+
 func TestDevelopmentRecoveryDoesNotRebootWhenRuntimeSocketIsDead(t *testing.T) {
 	t.Parallel()
 	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 
@@ -897,7 +898,9 @@ type protocol2RecoverIdleControl interface {
 
 // RecoverIdle programs idle without rebooting the board. A false result with
 // a recovery-phase error means LoadIdle failed and a board reboot is the
-// remaining recovery. A missing recover_idle operation is unsupported.
+// remaining recovery. A missing recover_idle operation is unsupported,
+// including an older daemon's unknown-operation or invalid_request reply.
+// Transport and busy failures stay unavailable so recovery can fail closed.
 func (r *Runtime) RecoverIdle(ctx context.Context) (bool, *protocol.APIError) {
 	if err := ctx.Err(); err != nil {
 		return false, unavailableError()
@@ -911,6 +914,9 @@ func (r *Runtime) RecoverIdle(ctx context.Context) (bool, *protocol.APIError) {
 	if err != nil {
 		return false, unavailableError()
 	}
+	if legacyRecoverIdleResponse(response) {
+		return false, unsupportedOperationError()
+	}
 	if validCleanIdle(response) {
 		return true, nil
 	}
@@ -918,6 +924,34 @@ func (r *Runtime) RecoverIdle(ctx context.Context) (bool, *protocol.APIError) {
 		return false, mapProtocol2Error(response.Error)
 	}
 	return false, unavailableError()
+}
+
+// legacyRecoverIdleRejection recognizes a daemon that does not implement
+// recover_idle. Those replies are not valid reboot_required results, so the
+// strict decoder rejects them before RecoverIdle can see the error code.
+func legacyRecoverIdleRejection(line []byte) (Protocol2Response, bool) {
+	var probe struct {
+		Error *Protocol2Error `json:"error"`
+	}
+	if err := json.Unmarshal(line, &probe); err != nil || probe.Error == nil {
+		return Protocol2Response{}, false
+	}
+	response := Protocol2Response{Protocol: 2, Error: probe.Error}
+	if !legacyRecoverIdleResponse(response) {
+		return Protocol2Response{}, false
+	}
+	return response, true
+}
+
+func legacyRecoverIdleResponse(response Protocol2Response) bool {
+	if response.Error == nil {
+		return false
+	}
+	switch response.Error.Code {
+	case "invalid_request", "unknown_operation":
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(response.Error.Message), "unknown operation")
 }
 
 // RuntimeSocketOpen reports whether a status call reached the runtime.

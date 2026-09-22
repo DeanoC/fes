@@ -163,6 +163,9 @@ func (client *Client) Protocol2RecoverIdle(ctx context.Context) (Protocol2Respon
 	}
 	response, err := decodeProtocol2Response(line)
 	if err != nil {
+		if rejection, ok := legacyRecoverIdleRejection(line); ok {
+			return rejection, nil
+		}
 		return Protocol2Response{}, err
 	}
 	if response.InspectedPackage != nil || response.CoreData != nil {

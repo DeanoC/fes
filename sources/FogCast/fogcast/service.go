@@ -1961,7 +1961,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		if healthErr != nil || health.BootID == "" {
 			return protocol.Status{}, canonicalRemoteError(healthErr, protocol.CodeMiSTerUnavailable)
 		}
-		recovered, _ := recoveryClient.RebootDevelopment(ctx)
+		recovered, rebootErr := recoveryClient.RebootDevelopment(ctx)
+		// An agent error means recover_idle failed closed and no reboot was
+		// armed. Return it now. A lost transport reply can still mean a reboot
+		// is in flight, so that case keeps waiting for a new boot id.
+		var closed *protocol.APIError
+		if rebootErr != nil && errors.As(rebootErr, &closed) {
+			return protocol.Status{}, canonicalRemoteError(rebootErr, protocol.CodeMiSTerUnavailable)
+		}
 		if validRecoveredDevelopmentStatus(recovered) {
 			status = recovered
 		} else {

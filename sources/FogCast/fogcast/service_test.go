@@ -1383,6 +1383,60 @@ func TestServiceDevelopmentStopRejectsTargetWithoutRecoveryCapability(t *testing
 	}
 }
 
+func TestServiceDevelopmentStopSurfacesRecoveryErrorWhenRebootDidNotStart(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		remote  *protocol.APIError
+		want    protocol.ErrorCode
+		message string
+	}{
+		{
+			name:    "busy",
+			remote:  &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"},
+			want:    protocol.CodeBusy,
+			message: "another launch or stop transition is running",
+		},
+		{
+			name:    "recover idle transport",
+			remote:  &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime recovery is required", Phase: "recovery"},
+			want:    protocol.CodeMiSTerUnavailable,
+			message: "Target recovery is required; use Stop to recover before launching again.",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			healthCalls := 0
+			target := &fakeServiceClient{
+				stopResult: protocol.Status{
+					State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+				},
+				developmentReboot: func(context.Context) (protocol.Status, error) {
+					return protocol.Status{}, test.remote
+				},
+				healthFn: func(context.Context) (protocol.Health, error) {
+					healthCalls++
+					return protocol.Health{Ready: true, BootID: "boot-before"}, nil
+				},
+			}
+			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, target)
+			service.activeExecution = ExecutionFPGADevelopment
+			service.uploadTimeout = time.Second
+
+			started := time.Now()
+			_, err := service.Stop(context.Background())
+			if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+				t.Fatalf("stop waited %s for a reboot that did not start", elapsed)
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != test.want || apiErr.Message != test.message {
+				t.Fatalf("stop error = %v", err)
+			}
+			if healthCalls != 1 || target.developmentReboots != 1 || target.stopCalls != 1 || service.activeExecution != ExecutionFPGADevelopment {
+				t.Fatalf("calls health=%d reboot=%d stop=%d execution=%q", healthCalls, target.developmentReboots, target.stopCalls, service.activeExecution)
+			}
+		})
+	}
+}
+
 func TestServiceDevelopmentStopBoundsFailedRecoveryHandshake(t *testing.T) {
 	target := &fakeServiceClient{
 		stopResult: protocol.Status{
