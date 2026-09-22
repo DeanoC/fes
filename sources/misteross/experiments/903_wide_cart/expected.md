@@ -17,5 +17,4 @@ python3 scripts/build_fes_slot.py \
 ```
 
 Kit probe after compose: `experiments/901_plugged_base/hardware/probe_cart_b.sh`.
-See the README [Freeze-scaffold cartridges](../../README.md#freeze-scaffold-cartridges)
-section.
+See [OSS place-and-route testing](../../docs/oss-pnr.md#freeze-scaffold-cartridges).

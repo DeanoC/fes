@@ -95,7 +95,11 @@ Follow the user's authorization for commits, pushes and PRs. The imported source
 histories and original URLs are recorded in
 [config/source-imports.toml](../config/source-imports.toml). Those URLs are
 historical import provenance. Do not open day-to-day PRs against standalone
-`DeanoC/misteross`; work in FES `sources/misteross`. Preserve old component
+`DeanoC/misteross`; work in FES `sources/misteross`. That module has two
+jobs: OSS place-and-route experiments
+(`sources/misteross/docs/oss-pnr.md`) and described cores
+(`sources/misteross/docs/cores.md`). Do not use one as the instructions for
+the other. Preserve old component
 worktrees and branches during migration; a separate fresh checkout of the reviewed
 import revision avoids destructive replacement of local component work. The
 presence of the import mapping does not claim published cutover or hardware

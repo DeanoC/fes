@@ -6,8 +6,18 @@ Use a FES worktree and open PRs against FES; do not clone or update the old repo
 
 ## Start here
 
-Read `README.md` and `docs/architecture.md` before changing build lanes or
-artifact formats. The user's current request defines the scope.
+There are two jobs. Read the one you are doing before editing.
+
+- OSS place-and-route testing (experiments, primitive proofs, freeze-scaffold):
+  `docs/oss-pnr.md`.
+- Core update or new core (described packages and the splash bitstream):
+  `docs/cores.md`.
+
+Then read `docs/architecture.md` for the build contract you are about to
+change. It is not a task list. Per-experiment results are
+`docs/oss-experiments.md`. Files under `docs/validation/` are dated records.
+The user's current request defines the scope. Do not follow the other job's
+guide, and do not treat a gap ladder as the schedule for this tree.
 
 ## Clarity is part of correctness
 
@@ -20,8 +30,9 @@ artifact formats. The user's current request defines the scope.
 4. Git history is the archive. Delete superseded code and documents instead of
    retaining duplicate, deprecated, or compatibility implementations.
 5. `docs/architecture.md` is the one canonical current architecture
-   description. Do not create competing roadmaps, status reports, evidence
-   handoffs, or task-plan archives.
+   description. `docs/oss-pnr.md` and `docs/cores.md` are the operator guides
+   for the two jobs. Do not create a third architecture, competing roadmap,
+   status report, evidence handoff, or task-plan archive.
 6. Extend a working build lane with the smallest useful change.
 7. If documentation, scripts, produced artifacts, and hardware observations
    disagree, resolve the discrepancy before unrelated development continues.

@@ -1,5 +1,10 @@
 # fes.sms 32 KiB fixed map and required blob-stream 1.0
 
+> Dated record (2026-09-17). It describes that day's evidence, not the current
+> build. Core work starts at [Cores](../cores.md). OSS place-and-route starts
+> at [OSS place-and-route testing](../oss-pnr.md). Do not treat this note as
+> the schedule for a later tree.
+
 Status: host simulation and package-recipe **GREEN**. Not kit HIL.
 
 ## Identity

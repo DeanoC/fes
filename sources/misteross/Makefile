@@ -39,6 +39,10 @@ help:
 	@printf '%s\n' \
 		"Open MiSTer OSS Cyclone V toolchain" \
 		"" \
+		"Two jobs (do not mix them):" \
+		"  OSS place-and-route experiments   docs/oss-pnr.md" \
+		"  FES core update or new core       docs/cores.md" \
+		"" \
 		"Public targets:" \
 		"  toolchain  Build or locate the pinned repository-local OSS tools" \
 		"  toolchain-fes  Build the repository-local HIP toolchain for FES Pong" \
