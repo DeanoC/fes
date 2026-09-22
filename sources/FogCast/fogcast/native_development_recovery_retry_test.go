@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/version"
@@ -43,7 +42,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	runtime := misterruntime.NewRuntime(control, bootIDPath, time.Millisecond, 20*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(dir, "core.rbf")),
 		misterruntime.WithRebootCommand(rebootPath))
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 100*time.Millisecond, 100*time.Millisecond)
+	coordinator := agent.New(runtime, 100*time.Millisecond, 100*time.Millisecond)
 	coordinator.Initialize(context.Background())
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	targetHandler := httpapi.New(coordinator, "test-token", version.Version, logger, httpapi.WithDevelopment(coordinator))
@@ -102,7 +101,7 @@ type pendingDevelopmentRecoveryControl struct {
 	stopCalls  int
 }
 
-func (c *pendingDevelopmentRecoveryControl) Status(context.Context) (misterruntime.Response, error) {
+func (c *pendingDevelopmentRecoveryControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.state == "pending" && c.bootChangedLocked() {
@@ -114,18 +113,14 @@ func (c *pendingDevelopmentRecoveryControl) Status(context.Context) (misterrunti
 	return nativeRecoveryRequiredResponse(), nil
 }
 
-func (*pendingDevelopmentRecoveryControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unexpected native launch")
-}
-
-func (c *pendingDevelopmentRecoveryControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+func (c *pendingDevelopmentRecoveryControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	c.state = "pending"
 	c.mu.Unlock()
 	return nativeRecoveryRequiredResponse(), nil
 }
 
-func (c *pendingDevelopmentRecoveryControl) Stop(context.Context) (misterruntime.Response, error) {
+func (c *pendingDevelopmentRecoveryControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	c.stopCalls++
 	c.mu.Unlock()
@@ -149,13 +144,13 @@ func (c *pendingDevelopmentRecoveryControl) stopCount() int {
 	return c.stopCalls
 }
 
-func nativeRecoveryRequiredResponse() misterruntime.Response {
-	return misterruntime.Response{
-		Protocol: 1, OK: false, State: "reboot_required", Execution: "none",
-		Error: &misterruntime.RemoteError{Code: "idle_failed", Message: "private cleanup detail"}, Version: "test",
+func nativeRecoveryRequiredResponse() misterruntime.Protocol2Response {
+	return misterruntime.Protocol2Response{
+		Protocol: 2, OK: false, State: "reboot_required", Execution: "none",
+		Error: &misterruntime.Protocol2Error{Code: "idle_failed", Message: "private cleanup detail"}, Version: "test",
 	}
 }
 
-func nativeRecoveryIdleResponse() misterruntime.Response {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}
+func nativeRecoveryIdleResponse() misterruntime.Protocol2Response {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}
 }

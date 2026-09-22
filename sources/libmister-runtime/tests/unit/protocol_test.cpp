@@ -62,42 +62,7 @@ void TestControllerSnapshotRequest()
 		ExpectError(prefix + fields, ErrorCode::invalid_request);
 }
 
-void TestOptionalSavePath()
-{
-	Request request;
-	assert(Parse(R"({"protocol":1,"operation":"launch","system":"snes","rbf":"/snes.rbf","media":{},"settings":{},"save_path":"/saves/game.srm"})", &request).ok());
-	assert(request.launch.save_path == "/saves/game.srm");
-	ExpectError(R"({"protocol":1,"operation":"launch","system":"pong","rbf":"/pong.rbf","media":{},"settings":{},"save_path":"/saves/game.srm"})", ErrorCode::invalid_request);
-	for (const std::string value : {"null", "42", "\"\"", "\"relative.srm\"", "\"/save\\u0000hidden\""}) {
-		ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"snes\",\"rbf\":\"/snes.rbf\",\"media\":{},\"settings\":{},\"save_path\":" + value + "}", ErrorCode::invalid_request);
-	}
-}
 
-void TestGoldenRequests()
-{
-	const std::vector<std::string> lines =
-		ReadLines("tests/fixtures/protocol-v1.jsonl");
-	assert(lines.size() == 4);
-
-	Request request;
-	assert(Parse(lines[0], &request).ok());
-	assert(request.operation == Operation::status);
-	assert(Parse(lines[1], &request).ok());
-	assert(request.operation == Operation::launch);
-	assert(request.launch.system == "test_cart");
-	assert(request.launch.rbf == "/tmp/test.rbf");
-	assert(request.launch.media.size() == 1);
-	assert(request.launch.media[0].role == "cartridge");
-	assert(request.launch.media[0].path == "/tmp/game.bin");
-	assert(request.launch.settings.size() == 1);
-	assert(request.launch.settings[0].name == "region");
-	assert(request.launch.settings[0].value == "auto");
-	assert(Parse(lines[2], &request).ok());
-	assert(request.operation == Operation::load_development_rbf);
-	assert(request.rbf == "/tmp/development.rbf");
-	assert(Parse(lines[3], &request).ok());
-	assert(request.operation == Operation::stop);
-}
 
 mister::CoreDescriptor FixtureDescriptor()
 {
@@ -124,12 +89,11 @@ mister::Capabilities FixtureCapabilities()
 {
 	mister::Capabilities capabilities;
 	capabilities.programming_profiles = {
-		"development-contained-v1", "fes-gp-v1", "mister-v1"};
+		"development-contained-v1", "fes-gp-v1"};
 	capabilities.abis = {
 		{"fes.simple-game", 1, 0,
 			{{"fes.gamepad", 1, 0},
-			 {"fes.video.fixed-720p60", 1, 0}}},
-		{"mister", 1, 0, {}}};
+			 {"fes.video.fixed-720p60", 1, 0}}}};
 	return capabilities;
 }
 
@@ -191,23 +155,9 @@ void TestProtocol2GoldenRequestsAndResponses()
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == lines[9]);
 }
 
-void TestProtocolResponseEdgeFixturesAndV1Projection()
+void TestProtocolResponseEdgeFixtures()
 {
-	const std::vector<std::string> v1 =
-		ReadLines("tests/fixtures/protocol-v1-responses.jsonl");
-	assert(v1.size() == 2);
 	Status status;
-	status.state = State::idle;
-	assert(mister::daemon::EncodeResponse(true, status, "fixture") == v1[0]);
-	for (ErrorCode code : {ErrorCode::invalid_package,
-		ErrorCode::unsupported_target,
-		ErrorCode::unsupported_programming_profile,
-		ErrorCode::unsupported_abi,
-		ErrorCode::unsupported_interface}) {
-		status.error = {code, "fixture failure", "compatibility", "expected", "observed"};
-		assert(mister::daemon::EncodeResponse(false, status, "fixture") == v1[1]);
-	}
-
 	const std::vector<std::string> edges =
 		ReadLines("tests/fixtures/protocol-v2-edge-responses.jsonl");
 	assert(edges.size() == 5);
@@ -232,15 +182,13 @@ void TestProtocolResponseEdgeFixturesAndV1Projection()
 	status = {};
 	status.state = State::running_development;
 	status.execution = Execution::development;
-	status.core = "PONG";
+	status.core = "fes.pong";
 	status.generation = 9;
 	status.capabilities = FixtureCapabilities();
 	status.active_package.package_id = inspection.package_id;
 	status.active_package.descriptor = FixtureDescriptor();
-	status.active_package.descriptor.core.system = "pong";
-	status.active_package.descriptor.target.programming_profile = "mister-v1";
-	status.active_package.descriptor.abi = {"mister", 1, 0};
-	status.active_package.descriptor.interfaces.clear();
+ status.active_package.observed = {{"fes.simple-game", 1, 0}, "0123456789abcdef0123456789abcdef"};
+ status.capabilities.active_interfaces = {{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
 	assert(mister::daemon::EncodeResponse(2, true, status, "fixture") == edges[3]);
 	status = {};
 	status.state = State::running_development;
@@ -268,37 +216,7 @@ void TestProtocol2RequestBoundaries()
 		ExpectError(request, ErrorCode::invalid_request);
 }
 
-void TestProtocolVersion()
-{
-	ExpectError("{\"operation\":\"status\"}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":0,\"operation\":\"status\"}",
-		ErrorCode::unsupported_protocol);
-	Request v2;
-	assert(Parse("{\"protocol\":2,\"operation\":\"status\"}", &v2).ok());
-	ExpectError("{\"protocol\":\"1\",\"operation\":\"status\"}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1.0,\"operation\":\"status\"}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":9223372036854775808,\"operation\":\"status\"}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":true}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"unknown\"}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"status\",\"extra\":true}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":2,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
-		ErrorCode::invalid_request);
-}
 
-void TestUnknownFields()
-{
-	ExpectError("{\"protocol\":1,\"operation\":\"status\",\"x\":true}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{\"cart\":\"/b\",\"not a role\":\"/c\"},\"settings\":{}}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{\"not a setting\":\"on\"}}",
-		ErrorCode::invalid_request);
-}
 
 void TestJsonAcceptedValueKinds()
 {
@@ -310,31 +228,6 @@ void TestJsonAcceptedValueKinds()
 	assert(!mister::daemon::json::Parse(std::string(65537, ' '), &value, &message));
 }
 
-void TestOperationShapes()
-{
-	struct ShapeCase {
-		const char* request;
-	};
-	const ShapeCase cases[] = {
-		{"{\"operation\":\"status\"}"},
-		{"{\"protocol\":1}"},
-		{"{\"protocol\":1,\"operation\":\"status\",\"rbf\":\"/a\"}"},
-		{"{\"protocol\":1,\"operation\":\"launch\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}"},
-		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"media\":{},\"settings\":{}}"},
-		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"settings\":{}}"},
-		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{}}"},
-		{"{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{},\"extra\":true}"},
-		{"{\"protocol\":1,\"operation\":\"load_development_rbf\"}"},
-		{"{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/a\",\"extra\":true}"},
-		{"{\"operation\":\"stop\"}"},
-		{"{\"protocol\":1,\"operation\":\"stop\",\"rbf\":\"/a\"}"},
-	};
-	for (const ShapeCase& shape : cases) {
-		ExpectError(shape.request, ErrorCode::invalid_request);
-	}
-	ExpectError("{\"protocol\":1,\"operation\":\"unknown\"}",
-		ErrorCode::invalid_request);
-}
 
 void TestSyntaxAndShapeFailures()
 {
@@ -347,68 +240,9 @@ void TestSyntaxAndShapeFailures()
 	ExpectError("{\"protocol\":1,\"operation\":\"status\",\"x\":{\"a\":{\"b\":{\"c\":{\"d\":1}}}}}", ErrorCode::invalid_request);
 }
 
-void TestBounds()
-{
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"A\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"abcdefghijklmnopqrstuvwxyzabcdefg\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"relative\",\"media\":{},\"settings\":{}}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{\"bad.name\":\"/b\"},\"settings\":{}}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/a\",\"media\":{},\"settings\":{\"region\":\"" + std::string(65, 'a') + "\"}}", ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/" + std::string(4095, 'a') + "\"}", ErrorCode::invalid_request);
-}
 
-void TestDecodedNulPathsAreRejected()
-{
-	ExpectError("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"/tmp/core\\u0000.rbf\"}",
-		ErrorCode::invalid_request);
-	ExpectError("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\",\"rbf\":\"/tmp/core.rbf\",\"media\":{\"cartridge\":\"/tmp/game\\u0000.bin\"},\"settings\":{}}",
-		ErrorCode::invalid_request);
-}
 
-void TestExactValidBoundariesAreAccepted()
-{
-	const std::string identifier = "abcdefghijklmnopqrstuvwxyz_12345";
-	const std::string path = "/" + std::string(4094, 'p');
-	const std::string setting =
-		"0123456789abcdef"
-		"0123456789abcdef"
-		"0123456789abcdef"
-		"0123456789abcdef";
-	assert(identifier.size() == 32);
-	assert(path.size() == 4095);
-	assert(setting.size() == 64);
 
-	Request request;
-	assert(Parse("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"" +
-		identifier + "\",\"rbf\":\"/a\",\"media\":{},\"settings\":{}}",
-		&request).ok());
-	assert(request.launch.system == identifier);
-	assert(Parse("{\"protocol\":1,\"operation\":\"load_development_rbf\",\"rbf\":\"" +
-		path + "\"}", &request).ok());
-	assert(request.rbf == path);
-	assert(Parse("{\"protocol\":1,\"operation\":\"launch\",\"system\":\"test\","
-		"\"rbf\":\"/a\",\"media\":{},\"settings\":{\"region\":\"" + setting +
-		"\"}}", &request).ok());
-	assert(request.launch.settings.size() == 1);
-	assert(request.launch.settings[0].value == setting);
-}
-
-void TestResponseEncoding()
-{
-	Status status;
-	status.state = State::idle;
-	status.execution = Execution::none;
-	const std::string idle = mister::daemon::EncodeResponse(true, status, "git-0123456789ab");
-	assert(idle == "{\"protocol\":1,\"ok\":true,\"state\":\"idle\",\"execution\":\"none\",\"system\":null,\"core\":null,\"error\":null,\"version\":\"git-0123456789ab\"}");
-
-	status.state = State::running_game;
-	status.execution = Execution::game;
-	status.system = "test\\cart";
-	status.core = "CORE\n1";
-	status.error = {ErrorCode::io_failed, "disk \"full\""};
-	const std::string encoded = mister::daemon::EncodeResponse(false, status, "v\t1");
-	assert(encoded == "{\"protocol\":1,\"ok\":false,\"state\":\"running_game\",\"execution\":\"game\",\"system\":\"test\\\\cart\",\"core\":\"CORE\\n1\",\"error\":{\"code\":\"io_failed\",\"message\":\"disk \\\"full\\\"\"},\"version\":\"v\\t1\"}");
-}
 
 void TestErrorCodeNames()
 {
@@ -425,7 +259,7 @@ void TestErrorCodeNames()
 	for (std::size_t index = 0; index < sizeof(codes) / sizeof(codes[0]); ++index) {
 		Status status;
 		status.error = {codes[index], "failure"};
-		const std::string encoded = mister::daemon::EncodeResponse(false, status, "version");
+		const std::string encoded = mister::daemon::EncodeResponse(2, false, status, "version");
 		assert(encoded.find(std::string("\"code\":\"") + names[index] + "\"") != std::string::npos);
 	}
 }
@@ -436,18 +270,11 @@ void TestStatusErrorIsIndependentOfResponseOk()
 	status.state = State::idle;
 	status.execution = Execution::none;
 	status.error = {ErrorCode::io_failed, "prior failure"};
-	const std::string response = mister::daemon::EncodeResponse(true, status, "version");
+	const std::string response = mister::daemon::EncodeResponse(2, true, status, "version");
 	assert(response.find("\"ok\":true") != std::string::npos);
-	assert(response.find("\"error\":{\"code\":\"io_failed\",\"message\":\"prior failure\"}") != std::string::npos);
+	assert(response.find("\"error\":{\"code\":\"io_failed\",\"message\":\"prior failure\",\"phase\":\"lifecycle\"}") != std::string::npos);
 }
 
-void TestPongRomlessLaunchRequest()
-{
-	Request pong;
-	assert(Parse(R"({"protocol":1,"operation":"launch","system":"pong","rbf":"/usr/share/mister-runtime/cores/pong.rbf","media":{},"settings":{}})", &pong).ok());
-	assert(pong.operation == Operation::launch && pong.launch.system == "pong");
-	assert(pong.launch.media.empty() && pong.launch.settings.empty());
-}
 
 void TestPersistenceRequestsAndResponseFixtures()
 {
@@ -532,9 +359,6 @@ void TestPersistenceRequestsAndResponseFixtures()
 	status.state = State::reboot_required;
 	status.error = {ErrorCode::idle_failed, "ambiguous persistence resume", "recovery"};
 	assert(mister::daemon::EncodeResponse(2, false, status, "fixture") == lines[3]);
-	assert(
-		mister::daemon::EncodeResponse(false, status, "fixture") ==
-		R"({"protocol":1,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"idle_failed","message":"ambiguous persistence resume"},"version":"fixture"})");
 }
 
 } // namespace
@@ -559,13 +383,11 @@ void TestMediaStreamRequestAndObservedResponse()
 	assert(Parse(prefix + "1,\"size\":33554432}", &request).ok());
 	mister::Status status;
 	status.capabilities.media_stream = {{"fes.media.blob-stream", 1, 0}, 1, 32768, 512};
-	assert(mister::daemon::EncodeResponse(2, true, status, "test").find("media_stream") == std::string::npos);
 	status.state = State::running_development;
 	status.generation = 1;
 	status.active_package.package_id = std::string(64, 'a');
 	const auto encoded = mister::daemon::EncodeResponse(2, true, status, "test");
 	assert(encoded.find(R"("media_stream":{"interface":{"id":"fes.media.blob-stream","major":1,"minor":0},"min_bytes":1,"max_bytes":32768,"chunk_bytes":512})") != std::string::npos);
-	assert(mister::daemon::EncodeResponse(true, status, "test").find("media_stream") == std::string::npos);
 }
 
 std::vector<std::string> MediaStreamResponseFixtures()
@@ -586,7 +408,7 @@ std::vector<std::string> MediaStreamResponseFixtures()
 		{"fes.video.fixed-720p60", 1, 0, true}};
 	status.active_package.observed = {descriptor.abi, descriptor.build.id};
 	status.core_data.mode = "volatile";
-	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
 	status.capabilities.active_interfaces = {{"fes.keyboard", 1, 0},
 		{"fes.media.blob", 1, 0}, {"fes.media.blob-stream", 1, 0},
 		{"fes.video.fixed-720p60", 1, 0}};
@@ -642,7 +464,7 @@ std::vector<std::string> ApplicationResponseFixtures()
 	descriptor.abi = {"fes.application", 1, 0};
 	status.active_package.observed = {descriptor.abi, descriptor.build.id};
 	status.core_data.mode = "volatile";
-	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1", "mister-v1"};
+	status.capabilities.programming_profiles = {"development-contained-v1", "fes-gp-v1"};
 	status.capabilities.abis = {
 		{"fes.application", 1, 0, {{"fes.audio.pcm-s16-stereo-48k", 1, 0},
 			{"fes.firmware.blob", 1, 0},
@@ -652,8 +474,7 @@ std::vector<std::string> ApplicationResponseFixtures()
 		{"fes.simple-computer", 1, 0, {{"fes.keyboard", 1, 0}, {"fes.media.blob", 1, 0},
 			{"fes.media.blob-stream", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
 		{"fes.simple-game", 1, 0, {{"fes.gamepad", 1, 0}, {"fes.persistence.words", 1, 0},
-			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
-		{"mister", 1, 0, {}}};
+			{"fes.pong.progress", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
 	std::vector<std::string> lines;
 	for (unsigned mode = 0; mode < 6; ++mode) {
 		status.generation = mode + 1;
@@ -727,8 +548,15 @@ void TestCompositionProtocol()
  assert(mister::daemon::EncodeResponse(2,true,status,"test").find("\"composition\"")==std::string::npos);
 }
 
+void TestRetiredProtocolRejected()
+{
+ for (const auto& operation : {"status", "stop", "launch", "load_development_rbf"})
+  ExpectError(std::string("{\"protocol\":1,\"operation\":\"") + operation + "\"}", ErrorCode::unsupported_protocol);
+ ExpectError(R"({"protocol":2,"operation":"launch"})", ErrorCode::invalid_request);
+}
 int main(int argc, char** argv)
 {
+ TestRetiredProtocolRejected();
 	if (argc == 2 && std::string(argv[1]) == "--emit-application-fixtures") {
 		for (const auto& line : ApplicationResponseFixtures()) std::cout << line << '\n';
 		return 0;
@@ -751,21 +579,11 @@ int main(int argc, char** argv)
 			   .ok());
 
 	TestPersistenceRequestsAndResponseFixtures();
-	TestPongRomlessLaunchRequest();
-	TestOptionalSavePath();
-	TestGoldenRequests();
 	TestProtocol2GoldenRequestsAndResponses();
-	TestProtocolResponseEdgeFixturesAndV1Projection();
+	TestProtocolResponseEdgeFixtures();
 	TestProtocol2RequestBoundaries();
-	TestProtocolVersion();
-	TestUnknownFields();
 	TestJsonAcceptedValueKinds();
-	TestOperationShapes();
 	TestSyntaxAndShapeFailures();
-	TestBounds();
-	TestDecodedNulPathsAreRejected();
-	TestExactValidBoundariesAreAccepted();
-	TestResponseEncoding();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
 	std::cout << "protocol_test: 20 tests passed\n";

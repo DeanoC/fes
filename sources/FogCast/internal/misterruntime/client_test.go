@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DeanoC/FogCast/protocol"
+
 	"io"
 	"net"
 	"os"
@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const idleResponse = `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`
+const idleResponse = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}`
 
 type socketFixture struct {
 	path string
@@ -26,105 +26,6 @@ type socketFixture struct {
 type fixtureResult struct {
 	request string
 	err     error
-}
-
-func TestClientStatusUsesOneProtocolRequestAndCloses(t *testing.T) {
-	fixture := newSocketFixture(t, idleResponse+"\n", true)
-
-	response, err := NewClient(fixture.path).Status(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response != (Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "git-test"}) {
-		t.Fatalf("response = %#v", response)
-	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
-		t.Fatalf("request = %q", request)
-	}
-}
-
-func TestClientStopUsesOnlyTheStopOperation(t *testing.T) {
-	fixture := newSocketFixture(t, idleResponse+"\n", true)
-
-	response, err := NewClient(fixture.path).Stop(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.State != "idle" || response.Execution != "none" {
-		t.Fatalf("response = %#v", response)
-	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"stop"}` {
-		t.Fatalf("request = %q", request)
-	}
-}
-
-func TestClientLaunchUsesTheExactTypedMegaDriveRequest(t *testing.T) {
-	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}`
-	fixture := newSocketFixture(t, response+"\n", true)
-	request := LaunchRequest{
-		System: "megadrive",
-		RBF:    "/usr/share/mister-runtime/cores/megadrive.rbf",
-		Media: map[string]string{
-			"cartridge": "/media/fat/fogcast/cache/sonic2.bin",
-		},
-		Settings: map[string]string{},
-	}
-
-	result, err := NewClient(fixture.path).Launch(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.State != "running_game" || result.Execution != "game" ||
-		result.System == nil || *result.System != "megadrive" ||
-		result.Core == nil || *result.Core != "MegaDrive" {
-		t.Fatalf("response = %#v", result)
-	}
-	if got := fixture.wait(t); got != `{"protocol":1,"operation":"launch","system":"megadrive","rbf":"/usr/share/mister-runtime/cores/megadrive.rbf","media":{"cartridge":"/media/fat/fogcast/cache/sonic2.bin"},"settings":{}}` {
-		t.Fatalf("request = %q", got)
-	}
-}
-
-func TestClientLaunchUsesTheExactTypedNESRequest(t *testing.T) {
-	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"nes","core":"NES","error":null,"version":"git-test"}`
-	fixture := newSocketFixture(t, response+"\n", true)
-	request := LaunchRequest{
-		System: "nes",
-		RBF:    "/usr/share/mister-runtime/cores/nes.rbf",
-		Media: map[string]string{
-			"cartridge": "/media/fat/fogcast/cache/mario.nes",
-		},
-		Settings: map[string]string{},
-	}
-	result, err := NewClient(fixture.path).Launch(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.State != "running_game" || result.System == nil || *result.System != "nes" ||
-		result.Core == nil || *result.Core != "NES" {
-		t.Fatalf("response = %#v", result)
-	}
-	if got := fixture.wait(t); got != `{"protocol":1,"operation":"launch","system":"nes","rbf":"/usr/share/mister-runtime/cores/nes.rbf","media":{"cartridge":"/media/fat/fogcast/cache/mario.nes"},"settings":{}}` {
-		t.Fatalf("request = %q", got)
-	}
-}
-
-func TestClientLoadDevelopmentRBFUsesTheExactTypedRequest(t *testing.T) {
-	const response = `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}`
-	fixture := newSocketFixture(t, response+"\n", true)
-
-	result, err := NewClient(fixture.path).LoadDevelopmentRBF(
-		context.Background(), "/tmp/fogcast-development/core.rbf",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.State != "running_development" || result.Execution != "development" ||
-		result.System != nil || result.Core == nil || *result.Core != "MegaDrive" {
-		t.Fatalf("response = %#v", result)
-	}
-	if got := fixture.wait(t); got != `{"protocol":1,"operation":"load_development_rbf","rbf":"/tmp/fogcast-development/core.rbf"}` {
-		t.Fatalf("request = %q", got)
-	}
 }
 
 func TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial(t *testing.T) {
@@ -142,95 +43,8 @@ func TestClientRejectsInvalidDevelopmentRBFPathsBeforeDial(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			client := NewClient(filepath.Join(t.TempDir(), "must-not-be-dialed.sock"))
-			if _, err := client.LoadDevelopmentRBF(context.Background(), testCase.path); !errors.Is(err, errInvalidRuntimeRequest) {
+			if _, err := client.Protocol2LoadDevelopmentRBF(context.Background(), testCase.path); !errors.Is(err, errInvalidRuntimeRequest) {
 				t.Fatalf("LoadDevelopmentRBF error = %v, want invalid request", err)
-			}
-		})
-	}
-}
-
-func TestClientRequiresDevelopmentResponseIdentity(t *testing.T) {
-	cases := []struct {
-		name     string
-		response string
-		valid    bool
-	}{
-		{
-			name:     "unobserved core",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "observed core",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"MegaDrive","error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "system identity",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":"megadrive","core":"MegaDrive","error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "empty observed core",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":null,"core":"","error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "wrong execution",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"game","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "failed without error",
-			response: `{"protocol":1,"ok":false,"state":"running_development","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			fixture := newSocketFixture(t, testCase.response, true)
-			_, err := NewClient(fixture.path).LoadDevelopmentRBF(context.Background(), "/tmp/core.rbf")
-			if (err == nil) != testCase.valid {
-				t.Fatalf("LoadDevelopmentRBF error = %v, want valid = %t", err, testCase.valid)
-			}
-			fixture.wait(t)
-		})
-	}
-}
-
-func TestClientRejectsLaunchShapesOutsideTheNativeMegaDriveContractBeforeDial(t *testing.T) {
-	valid := LaunchRequest{
-		System: "megadrive",
-		RBF:    "/usr/share/mister-runtime/cores/megadrive.rbf",
-		Media: map[string]string{
-			"cartridge": "/media/fat/fogcast/cache/sonic2.bin",
-		},
-		Settings: map[string]string{},
-	}
-	cases := []struct {
-		name   string
-		mutate func(*LaunchRequest)
-	}{
-		{name: "unsupported system", mutate: func(request *LaunchRequest) { request.System = "sms" }},
-		{name: "FAT core", mutate: func(request *LaunchRequest) { request.RBF = "/media/fat/_Console/MegaDrive.rbf" }},
-		{name: "relative cartridge", mutate: func(request *LaunchRequest) { request.Media["cartridge"] = "sonic2.bin" }},
-		{name: "missing cartridge", mutate: func(request *LaunchRequest) { request.Media = map[string]string{} }},
-		{name: "extra media", mutate: func(request *LaunchRequest) { request.Media["save"] = "/tmp/save.sav" }},
-		{name: "setting", mutate: func(request *LaunchRequest) { request.Settings["region"] = "auto" }},
-		{name: "nil settings", mutate: func(request *LaunchRequest) { request.Settings = nil }},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			request := LaunchRequest{
-				System: valid.System,
-				RBF:    valid.RBF,
-				Media: map[string]string{
-					"cartridge": valid.Media["cartridge"],
-				},
-				Settings: map[string]string{},
-			}
-			test.mutate(&request)
-			client := NewClient(filepath.Join(t.TempDir(), "must-not-be-dialed.sock"))
-			if _, err := client.Launch(context.Background(), request); err == nil {
-				t.Fatal("invalid native launch request accepted")
 			}
 		})
 	}
@@ -247,21 +61,21 @@ func TestClientRejectsWrongProtocolAndUnknownResponseFields(t *testing.T) {
 		},
 		{
 			name:     "unknown top-level field",
-			response: `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","extra":true}` + "\n",
+			response: `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test","extra":true}` + "\n",
 		},
 		{
 			name:     "unknown error field",
-			response: `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"busy","message":"busy","extra":true},"version":"git-test"}` + "\n",
+			response: `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"busy","message":"busy","extra":true},"version":"git-test"}` + "\n",
 		},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			fixture := newSocketFixture(t, testCase.response, true)
-			if _, err := NewClient(fixture.path).Status(context.Background()); err == nil {
+			if _, err := NewClient(fixture.path).Protocol2Status(context.Background()); err == nil {
 				t.Fatal("invalid runtime response accepted")
 			}
-			if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
+			if request := fixture.wait(t); request != `{"protocol":2,"operation":"status"}` {
 				t.Fatalf("request = %q", request)
 			}
 		})
@@ -270,22 +84,22 @@ func TestClientRejectsWrongProtocolAndUnknownResponseFields(t *testing.T) {
 
 func TestClientAcceptsExactly65536BytesAndRejects65537(t *testing.T) {
 	fixture := newSocketFixture(t, responseLineAtLength(t, MaximumLineBytes), true)
-	response, err := NewClient(fixture.path).Status(context.Background())
+	response, err := NewClient(fixture.path).Protocol2Status(context.Background())
 	if err != nil {
 		t.Fatalf("%d-byte response rejected: %v", MaximumLineBytes, err)
 	}
 	if response.Version == "" {
 		t.Fatal("accepted response has an empty version")
 	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
+	if request := fixture.wait(t); request != `{"protocol":2,"operation":"status"}` {
 		t.Fatalf("request = %q", request)
 	}
 
 	fixture = newSocketFixture(t, responseLineAtLength(t, MaximumLineBytes+1), true)
-	if _, err := NewClient(fixture.path).Status(context.Background()); err == nil || err.Error() != "runtime response exceeds 65536 bytes" {
+	if _, err := NewClient(fixture.path).Protocol2Status(context.Background()); err == nil || err.Error() != "runtime response exceeds 65536 bytes" {
 		t.Fatalf("%d-byte response error = %v", MaximumLineBytes+1, err)
 	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
+	if request := fixture.wait(t); request != `{"protocol":2,"operation":"status"}` {
 		t.Fatalf("request = %q", request)
 	}
 }
@@ -293,183 +107,11 @@ func TestClientAcceptsExactly65536BytesAndRejects65537(t *testing.T) {
 func TestClientRejectsMissingNewline(t *testing.T) {
 	fixture := newSocketFixture(t, idleResponse, false)
 
-	if _, err := NewClient(fixture.path).Status(context.Background()); err == nil {
+	if _, err := NewClient(fixture.path).Protocol2Status(context.Background()); err == nil {
 		t.Fatal("response without a newline accepted")
 	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
+	if request := fixture.wait(t); request != `{"protocol":2,"operation":"status"}` {
 		t.Fatalf("request = %q", request)
-	}
-}
-
-func TestClientRejectsInvalidStateExecutionAndErrorShapes(t *testing.T) {
-	cases := []struct {
-		name     string
-		response string
-	}{
-		{
-			name:     "unknown state",
-			response: `{"protocol":1,"ok":true,"state":"unknown","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "idle game execution",
-			response: `{"protocol":1,"ok":true,"state":"idle","execution":"game","system":"snes","core":"SNES","error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "running game without core",
-			response: `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"snes","core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "running development identity",
-			response: `{"protocol":1,"ok":true,"state":"running_development","execution":"development","system":"snes","core":"SNES","error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "reboot required without idle failed error",
-			response: `{"protocol":1,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "failed response without error",
-			response: `{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "unknown error code",
-			response: `{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"unknown","message":"bad"},"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "error missing message",
-			response: `{"protocol":1,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"busy"},"version":"git-test"}` + "\n",
-		},
-		{
-			name:     "missing version",
-			response: `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":""}` + "\n",
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			fixture := newSocketFixture(t, testCase.response, true)
-			if _, err := NewClient(fixture.path).Status(context.Background()); err == nil {
-				t.Fatal("invalid runtime response accepted")
-			}
-			if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
-				t.Fatalf("request = %q", request)
-			}
-		})
-	}
-}
-
-func TestClientAcceptsOperationalIdleStatusWithRetainedPriorError(t *testing.T) {
-	fixture := newSocketFixture(t, `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"previous cleanup completed"},"version":"git-test"}`+"\n", true)
-	response, err := NewClient(fixture.path).Status(context.Background())
-	if err != nil {
-		t.Fatalf("successful status retaining a runtime error rejected: %v", err)
-	}
-	if response.Protocol != 1 || !response.OK || response.State != "idle" || response.Execution != "none" ||
-		response.System != nil || response.Core != nil || response.Version != "git-test" || response.Error == nil ||
-		response.Error.Code != "io_failed" || response.Error.Message != "previous cleanup completed" {
-		t.Fatalf("response = %#v", response)
-	}
-	if request := fixture.wait(t); request != `{"protocol":1,"operation":"status"}` {
-		t.Fatalf("request = %q", request)
-	}
-}
-
-func TestClientAcceptsStartingNoneWithNullOrRetainedIdentity(t *testing.T) {
-	cases := []struct {
-		name     string
-		response string
-		valid    bool
-	}{
-		{
-			name:     "null identity",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"none","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "retained complete identity",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"none","system":"snes","core":"SNES","error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "partial retained identity",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"none","system":"snes","core":null,"error":null,"version":"git-test"}` + "\n",
-			valid:    false,
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			fixture := newSocketFixture(t, testCase.response, true)
-			_, err := NewClient(fixture.path).Status(context.Background())
-			if (err == nil) != testCase.valid {
-				t.Fatalf("Status error = %v, want valid = %t", err, testCase.valid)
-			}
-			fixture.wait(t)
-		})
-	}
-}
-
-func TestClientRequiresCompleteIdentityForStartingGame(t *testing.T) {
-	cases := []struct {
-		name     string
-		response string
-		valid    bool
-	}{
-		{
-			name:     "complete identity",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"game","system":"snes","core":"SNES","error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "missing system",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"game","system":null,"core":"SNES","error":null,"version":"git-test"}` + "\n",
-			valid:    false,
-		},
-		{
-			name:     "empty core",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"game","system":"snes","core":"","error":null,"version":"git-test"}` + "\n",
-			valid:    false,
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			fixture := newSocketFixture(t, testCase.response, true)
-			_, err := NewClient(fixture.path).Status(context.Background())
-			if (err == nil) != testCase.valid {
-				t.Fatalf("Status error = %v, want valid = %t", err, testCase.valid)
-			}
-			fixture.wait(t)
-		})
-	}
-}
-
-func TestClientRequiresNullIdentityForStartingDevelopment(t *testing.T) {
-	cases := []struct {
-		name     string
-		response string
-		valid    bool
-	}{
-		{
-			name:     "null identity",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"development","system":null,"core":null,"error":null,"version":"git-test"}` + "\n",
-			valid:    true,
-		},
-		{
-			name:     "identity present",
-			response: `{"protocol":1,"ok":true,"state":"starting","execution":"development","system":"snes","core":"SNES","error":null,"version":"git-test"}` + "\n",
-			valid:    false,
-		},
-	}
-
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			fixture := newSocketFixture(t, testCase.response, true)
-			_, err := NewClient(fixture.path).Status(context.Background())
-			if (err == nil) != testCase.valid {
-				t.Fatalf("Status error = %v, want valid = %t", err, testCase.valid)
-			}
-			fixture.wait(t)
-		})
 	}
 }
 
@@ -515,7 +157,7 @@ func TestClientHonorsContextDeadlineWithoutRetry(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
-	if _, err := NewClient(path).Status(ctx); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := NewClient(path).Protocol2Status(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Status error = %v, want context deadline exceeded", err)
 	}
 
@@ -523,7 +165,7 @@ func TestClientHonorsContextDeadlineWithoutRetry(t *testing.T) {
 	if result.err != nil {
 		t.Fatal(result.err)
 	}
-	if result.request != `{"protocol":1,"operation":"status"}` {
+	if result.request != `{"protocol":2,"operation":"status"}` {
 		t.Fatalf("request = %q", result.request)
 	}
 }
@@ -571,7 +213,7 @@ func TestClientHonorsContextCancellationAfterConnectWithoutRetry(t *testing.T) {
 	defer cancel()
 	callDone := make(chan error, 1)
 	go func() {
-		_, err := NewClient(path).Status(ctx)
+		_, err := NewClient(path).Protocol2Status(ctx)
 		callDone <- err
 	}()
 
@@ -579,7 +221,7 @@ func TestClientHonorsContextCancellationAfterConnectWithoutRetry(t *testing.T) {
 	if request.err != nil {
 		t.Fatal(request.err)
 	}
-	if request.request != `{"protocol":1,"operation":"status"}` {
+	if request.request != `{"protocol":2,"operation":"status"}` {
 		t.Fatalf("request = %q", request.request)
 	}
 
@@ -631,7 +273,7 @@ func TestClientDoesNotReplaceCancellationDeadlineWithFutureContextDeadline(t *te
 		if errors.Is(result.err, io.EOF) {
 			result.err = nil
 		} else if result.err == nil {
-			if result.request != `{"protocol":1,"operation":"status"}` {
+			if result.request != `{"protocol":2,"operation":"status"}` {
 				result.err = fmt.Errorf("request = %q", result.request)
 			} else {
 				result.err = requireClientClose(connection)
@@ -662,7 +304,7 @@ func TestClientDoesNotReplaceCancellationDeadlineWithFutureContextDeadline(t *te
 	}
 	callDone := make(chan error, 1)
 	go func() {
-		_, err := NewClient(path).Status(ctx)
+		_, err := NewClient(path).Protocol2Status(ctx)
 		callDone <- err
 	}()
 
@@ -812,8 +454,8 @@ func requireClientClose(connection net.Conn) error {
 
 func responseLineAtLength(t *testing.T, length int) string {
 	t.Helper()
-	const prefix = `{"protocol":1,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"`
-	const suffix = `"}` + "\n"
+	const prefix = `{"protocol":2,"ok":true,"state":"idle","execution":"none","system":null,"core":null,"error":null,"version":"`
+	const suffix = `","capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null}` + "\n"
 	padding := length - len(prefix) - len(suffix)
 	if padding < 1 {
 		t.Fatalf("requested response line is too short: %d", length)
@@ -844,42 +486,4 @@ func (ctx *deadlineGateContext) Deadline() (time.Time, bool) {
 		<-ctx.releaseDeadline
 	}
 	return ctx.Context.Deadline()
-}
-
-func TestClientSNESLaunchSerializesSavePathAndRejectsOtherSystems(t *testing.T) {
-	const response = `{"protocol":1,"ok":true,"state":"running_game","execution":"game","system":"snes","core":"SNES","error":null,"version":"git-test"}`
-	fixture := newSocketFixture(t, response+"\n", true)
-	request := LaunchRequest{System: "snes", RBF: "/usr/share/mister-runtime/cores/snes.rbf", Media: map[string]string{"cartridge": "/media/fat/game.sfc"}, Settings: map[string]string{}, SavePath: "/media/fat/fogcast/saves/snes/game/rom.srm"}
-	if _, err := NewClient(fixture.path).Launch(context.Background(), request); err != nil {
-		t.Fatal(err)
-	}
-	if got := fixture.wait(t); !strings.Contains(got, `"save_path":"/media/fat/fogcast/saves/snes/game/rom.srm"`) {
-		t.Fatalf("save path not serialized: %s", got)
-	}
-	for _, path := range []string{"relative", "/save/../game.srm", "/bad\x00path", "/" + strings.Repeat("a", 4096)} {
-		request.SavePath = path
-		if _, err := NewClient("/nonexistent").Launch(context.Background(), request); !errors.Is(err, errInvalidRuntimeRequest) {
-			t.Fatalf("accepted invalid path: %v", err)
-		}
-	}
-	request.SavePath = "/media/fat/save.srm"
-	for _, system := range []string{"megadrive", "pong"} {
-		request.System = system
-		request.RBF = nativeRBFPath(protocol.System(system))
-		if system == "pong" {
-			request.Media = map[string]string{}
-		}
-		if _, err := NewClient("/nonexistent").Launch(context.Background(), request); !errors.Is(err, errInvalidRuntimeRequest) {
-			t.Fatalf("accepted %s save: %v", system, err)
-		}
-	}
-}
-
-func TestClientAcceptsRetryableSaveFailure(t *testing.T) {
-	fixture := newSocketFixture(t, `{"protocol":1,"ok":false,"state":"running_game","execution":"game","system":"snes","core":"SNES","error":{"code":"save_failed","message":"write failed"},"version":"git-test"}`+"\n", true)
-	response, err := NewClient(fixture.path).Stop(context.Background())
-	if err != nil || response.Error == nil || response.Error.Code != "save_failed" {
-		t.Fatalf("save error lost: %+v %v", response, err)
-	}
-	fixture.wait(t)
 }

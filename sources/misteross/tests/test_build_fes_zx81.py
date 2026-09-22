@@ -94,8 +94,7 @@ class BuildFesZx81Tests(unittest.TestCase):
         self.assertIn("QUARTUS_ROOTDIR", str(raised.exception))
 
     def test_dirty_tree_is_rejected(self) -> None:
-        # This legacy producer requires a standalone checkout; isolate the
-        # dirty-tree check from the monorepo's module-root rejection.
+        # Dirty tracked module must fail before compiler discovery.
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for arguments in (("init", "-q"), ("config", "user.name", "Test"),
@@ -103,9 +102,14 @@ class BuildFesZx81Tests(unittest.TestCase):
                               ("commit", "--allow-empty", "-qm", "fixture")):
                 subprocess.run(["git", "-C", str(root), *arguments], check=True,
                                capture_output=True)
+            module = root / "sources/misteross"
+            module.mkdir(parents=True)
+            (module / "tracked.v").write_text("// fixture\n")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "commit", "-qm", "module"], check=True, capture_output=True)
             (root / "untracked.v").write_text("// dirty input\n")
             with self.assertRaisesRegex(BuildError, "clean"):
-                require_clean_source(root)
+                require_clean_source(module)
 
     def test_clocks_must_appear_in_timing_text(self) -> None:
         require_clocks("Fmax 52.00 MHz and 74.25 MHz")

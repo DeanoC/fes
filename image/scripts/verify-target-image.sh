@@ -166,13 +166,13 @@ required_libraries() {
 }
 
 usage() {
-	printf 'usage: verify-target-image.sh prod|dev|native-dev IMAGE MANIFEST LIBRARY_REPORT | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT\n' >&2
+	printf 'usage: verify-target-image.sh native-dev IMAGE MANIFEST LIBRARY_REPORT | --inside VARIANT IMAGE MANIFEST LIBRARY_REPORT | --root-fixture VARIANT ROOT MANIFEST LIBRARY_REPORT\n' >&2
   exit 2
 }
 
 validate_variant() {
   case "$1" in
-    prod|dev|native-dev) : ;;
+    native-dev) : ;;
     *) usage ;;
   esac
 }
@@ -289,15 +289,6 @@ verify_root() {
 /etc/init.d/S49fogcast-target-smoke
 /etc/init.d/S50mister-agent
 /etc/init.d/S60fogcast-kit'
-  else
-    required_paths='/sbin/init
-/usr/bin/busybox
-/usr/sbin/mister-agent
-/usr/sbin/mister-disable-menu-blanking
-/etc/init.d/S20mister-network
-/etc/init.d/S40mister-main
-/etc/init.d/S49fogcast-target-smoke
-/etc/init.d/S50mister-agent'
   fi
   printf '%s\n' "$required_paths" | while IFS= read -r required; do
     [ -n "$required" ] || continue
@@ -405,17 +396,10 @@ EOF
   done <<EOF
 $server_resolved
 EOF
-  if [ "$variant" = prod ]; then
-    test "$server_count" -eq 0 || {
-      printf '%s\n' 'verify-target-image: production contains an SSH server' >&2
-      exit 1
-    }
-  else
     test "$server_count" -eq 1 && test -x "$root/usr/sbin/dropbear" || {
       printf '%s\n' 'verify-target-image: development must contain exactly one Dropbear server' >&2
       exit 1
     }
-  fi
 
   if [ "$variant" = native-dev ]; then
     if find "$root" -type f \( \
@@ -427,16 +411,7 @@ EOF
       printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
       exit 1
     fi
-  else
-    if find "$root" -type f \( \
-      -iname '*.rom' -o -iname '*.sfc' -o -iname '*.smc' -o \
-      -iname '*.md' -o -iname '*.gen' -o -iname '*.zip' -o \
-      -iname '*.bin' -o -iname '*.rbf' -o -iname '*.map' -o -name 'agent.toml' \
-      -o -name '*-gdb.py' \
-    \) -print -quit | grep -q .; then
-      printf '%s\n' 'verify-target-image: forbidden game, runtime, or debug payload found' >&2
-      exit 1
-    fi
+
   fi
   "$repo/scripts/scan-target-image-secrets.sh" "$root"
   for forbidden_tool in \
@@ -608,7 +583,7 @@ case "${1:-}" in
 		cleanup_inspect_root=
     exit
     ;;
-  prod|dev|native-dev)
+  native-dev)
     [ "$#" -eq 4 ] || usage
     reject_native_input_lock_override
     variant=$1

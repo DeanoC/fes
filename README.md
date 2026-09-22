@@ -50,8 +50,7 @@ make host
 ```
 
 `make check` verifies clean selected modules, package YAML,
-twenty generated consumers, twenty shared fixture copies and copied source
-pins. It needs Go,
+twelve generated consumers and twenty shared fixture copies. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.

@@ -2,14 +2,14 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
+
 	"io"
 	"net/http"
 	"net/url"
 
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/cast"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/protocol"
@@ -23,7 +23,6 @@ const (
 type ContentController interface {
 	ProbeContent(context.Context, protocol.System, protocol.ContentKey) (protocol.CacheProbeResponse, *protocol.APIError)
 	PutContent(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, *protocol.APIError)
-	LaunchContent(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, *protocol.APIError)
 }
 
 // CacheIndexController is the optional lease-free GET /v2/cache inventory.
@@ -94,7 +93,6 @@ type CachedIdentityController interface {
 
 func registerContentRoutes(mux *http.ServeMux, token string, controller ContentController) {
 	mux.Handle("/v2/cache/{system}/{sha256}", authenticate(token, cacheContentHandler(controller)))
-	mux.Handle("/v2/launch", authenticate(token, exactMethod(http.MethodPost, launchContentHandler(controller))))
 	if indexer, ok := controller.(CacheIndexController); ok {
 		mux.Handle("/v2/cache", authenticate(token, cacheIndexHandler(indexer)))
 	}
@@ -259,51 +257,6 @@ func putContentHandler(controller ContentController) http.Handler {
 	})
 }
 
-func launchContentHandler(controller ContentController) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !exactContentType(r, "application/json") {
-			writeContentError(w, r, badContentRequest("content launch requires application/json"))
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxCachedLaunchJSONBytes)
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		var request protocol.CachedLaunchRequest
-		if err := decoder.Decode(&request); err != nil {
-			writeContentError(w, r, badContentRequest("request body must contain one valid content launch object"))
-			return
-		}
-		if err := decoder.Decode(&struct{}{}); err != io.EOF {
-			writeContentError(w, r, badContentRequest("request body must contain exactly one JSON object"))
-			return
-		}
-		if err := protocol.ValidateGameID(request.GameID); err != nil {
-			writeContentError(w, r, badContentRequest("game ID is invalid"))
-			return
-		}
-		if err := protocol.ValidateSystem(request.System); err != nil {
-			writeContentError(w, r, unsupportedContentSystem())
-			return
-		}
-		if err := protocol.ValidateContentIdentity(request.Content); err != nil {
-			writeContentError(w, r, badContentRequest("content identity is invalid"))
-			return
-		}
-		setRequestLaunchContent(r, request)
-		response, apiErr := controller.LaunchContent(r.Context(), request)
-		if apiErr != nil {
-			writeContentError(w, r, apiErr)
-			return
-		}
-		if !validLaunchResponse(response, request) {
-			writeContentError(w, r, internalContentResponseError())
-			return
-		}
-		setRequestState(r, protocol.Status{State: protocol.StateActive})
-		writeJSON(w, http.StatusOK, response)
-	})
-}
-
 func contentKeyFromRequest(r *http.Request) (protocol.System, protocol.ContentKey, *protocol.APIError) {
 	system := protocol.System(r.PathValue("system"))
 	if err := protocol.ValidateSystem(system); err != nil {
@@ -343,25 +296,6 @@ func validUploadResponse(response protocol.CacheUploadResponse, system protocol.
 		return false
 	}
 	return response.System == system && response.Content == identity && protocol.ValidateContentIdentity(response.Content) == nil
-}
-
-func validLaunchResponse(response protocol.CachedLaunchResponse, request protocol.CachedLaunchRequest) bool {
-	spec, ok := core.DefaultRegistry().Lookup(request.System)
-	if !ok {
-		return false
-	}
-	return response.Content == request.Content &&
-		response.Status.State == protocol.StateActive &&
-		response.Status.GameID != nil && *response.Status.GameID == request.GameID &&
-		response.Status.System != nil && *response.Status.System == request.System &&
-		response.Status.ExpectedCore != nil && *response.Status.ExpectedCore == spec.ExpectedCore &&
-		response.Status.ObservedCore != nil && *response.Status.ObservedCore == spec.ExpectedCore &&
-		response.Status.LastError == nil
-}
-
-func setRequestLaunchContent(r *http.Request, request protocol.CachedLaunchRequest) {
-	setRequestLaunch(r, protocol.LaunchRequest{GameID: request.GameID, System: request.System})
-	setRequestContent(r, request.System, request.Content.SHA256, request.Content.Size, true)
 }
 
 func writeContentError(w http.ResponseWriter, r *http.Request, apiErr *protocol.APIError) {

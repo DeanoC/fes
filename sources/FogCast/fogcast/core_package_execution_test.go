@@ -138,183 +138,6 @@ func TestDevelopmentCoreLoadKeepsFPGADevelopment(t *testing.T) {
 	}
 }
 
-func TestLaunchCartridgeStopsRecognizedABIPackagePlay(t *testing.T) {
-	game := serviceGame(catalog.Content{})
-	romPath := "/media/fat/games/SNES/Exact.smc"
-	packageID := strings.Repeat("a", 64)
-	var order []string
-	client := &fakeServiceClient{
-		stopFn: func(context.Context) (protocol.Status, error) {
-			order = append(order, "stop")
-			return protocol.Status{State: protocol.StateIdle}, nil
-		},
-		nativeLaunch: func(ctx context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
-			order = append(order, "launch")
-			return exactNativeLaunchResponse(t, game, romPath)(ctx, request)
-		},
-	}
-	service := newService(
-		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
-			RequestTimeout: time.Second,
-			UploadTimeout:  2 * time.Second,
-			FPGAROMPaths:   map[string]string{game.ID: romPath},
-		},
-		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
-	)
-	service.activeExecution = ExecutionFPGANative
-	service.activePackageID = packageID
-	service.activePackageGeneration = 4
-	service.activeTarget = "dev"
-
-	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Join(order, ","); got != "stop,launch" {
-		t.Fatalf("replacement order = %q", got)
-	}
-	if client.stopCalls != 1 || client.nativeLaunchCalls != 1 {
-		t.Fatalf("stops=%d launches=%d", client.stopCalls, client.nativeLaunchCalls)
-	}
-	if service.activePackageID != "" || service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("execution=%q package=%q", service.activeExecution, service.activePackageID)
-	}
-}
-
-func TestLaunchCartridgeStopsReconstructedABIPackagePlayAfterRestart(t *testing.T) {
-	game := serviceGame(catalog.Content{})
-	romPath := "/media/fat/games/SNES/Exact.smc"
-	packageID := strings.Repeat("c", 64)
-	observed := "fes.coleco"
-	var order []string
-	client := &fakeServiceClient{
-		statusResult: protocol.Status{
-			State: protocol.StateActive, Development: true, ObservedCore: &observed,
-			CorePackage: &protocol.CorePackageStatus{
-				PackageID: packageID, Generation: 7,
-				ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1}, BuildID: strings.Repeat("d", 32),
-			},
-		},
-		stopFn: func(context.Context) (protocol.Status, error) {
-			order = append(order, "stop")
-			return protocol.Status{State: protocol.StateIdle}, nil
-		},
-		nativeLaunch: func(ctx context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
-			order = append(order, "launch")
-			return exactNativeLaunchResponse(t, game, romPath)(ctx, request)
-		},
-	}
-	service := newService(
-		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
-			RequestTimeout: time.Second,
-			UploadTimeout:  2 * time.Second,
-			FPGAROMPaths:   map[string]string{game.ID: romPath},
-		},
-		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
-	)
-
-	if _, err := service.Status(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if service.activeExecution != ExecutionFPGANative || service.activePackageID != packageID {
-		t.Fatalf("reconstructed execution=%q package=%q", service.activeExecution, service.activePackageID)
-	}
-	if _, err := service.Launch(context.Background(), game.ID, nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Join(order, ","); got != "stop,launch" {
-		t.Fatalf("replacement order = %q", got)
-	}
-	if service.activePackageID != "" || service.activeExecution != ExecutionFPGANative {
-		t.Fatalf("execution=%q package=%q", service.activeExecution, service.activePackageID)
-	}
-}
-
-func TestLaunchOnSecondTargetDoesNotStopRecognizedABIPackagePlay(t *testing.T) {
-	game := serviceGame(catalog.Content{})
-	romPath := "/media/fat/games/SNES/Exact.smc"
-	packageID := strings.Repeat("a", 64)
-	dev := &fakeServiceClient{
-		stopFn: func(context.Context) (protocol.Status, error) {
-			t.Fatal("package target A was stopped")
-			return protocol.Status{}, errors.New("stop A")
-		},
-		nativeLaunch: func(context.Context, protocol.LaunchRequest) (protocol.Status, error) {
-			t.Fatal("package target A received a cartridge launch")
-			return protocol.Status{}, errors.New("launch A")
-		},
-	}
-	spare := &fakeServiceClient{
-		nativeLaunch: exactNativeLaunchResponse(t, game, romPath),
-	}
-	service := newService(
-		Config{
-			Libraries: []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
-			Targets: []TargetConfig{
-				{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182", Agent: "dev-test-token"},
-				{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182", Agent: "spare-test-token"},
-			},
-			SelectedTarget: "dev",
-			RequestTimeout: time.Second,
-			UploadTimeout:  2 * time.Second,
-			FPGAROMPaths:   map[string]string{game.ID: romPath},
-		},
-		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, dev,
-		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
-			if target.Name == "spare" {
-				return spare, nil
-			}
-			return dev, nil
-		}),
-	)
-	service.activeExecution = ExecutionFPGANative
-	service.activePackageID = packageID
-	service.activePackageGeneration = 4
-	service.activeTarget = "dev"
-	service.retainSessionTargetLocked()
-
-	if _, err := service.LaunchOn(context.Background(), game.ID, "spare", nil); err != nil {
-		t.Fatal(err)
-	}
-	if dev.stopCalls != 0 || spare.stopCalls != 0 || spare.nativeLaunchCalls != 1 {
-		t.Fatalf("dev stops=%d spare stops=%d spare launches=%d", dev.stopCalls, spare.stopCalls, spare.nativeLaunchCalls)
-	}
-	plays := service.PlaySessions()
-	if len(plays) != 2 || plays[0].Target != "dev" || plays[1].Target != "spare" {
-		t.Fatalf("plays = %#v", plays)
-	}
-}
-
-func TestLaunchCartridgeKeepsBusyWhileDevelopmentPackageIsActive(t *testing.T) {
-	game := serviceGame(catalog.Content{})
-	client := &fakeServiceClient{nativeLaunch: exactNativeLaunchResponse(t, game, "/media/fat/games/SNES/Exact.smc")}
-	service := newService(
-		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
-			RequestTimeout: time.Second,
-			UploadTimeout:  2 * time.Second,
-			FPGAROMPaths:   map[string]string{game.ID: "/media/fat/games/SNES/Exact.smc"},
-		},
-		Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
-	)
-	service.activeExecution = ExecutionFPGADevelopment
-	service.activePackageID = strings.Repeat("e", 64)
-	service.activeTarget = "dev"
-
-	_, err := service.Launch(context.Background(), game.ID, nil)
-	var apiErr *protocol.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
-		t.Fatalf("launch error = %v", err)
-	}
-	if client.stopCalls != 0 || client.nativeLaunchCalls != 0 {
-		t.Fatalf("stops=%d launches=%d", client.stopCalls, client.nativeLaunchCalls)
-	}
-	if service.activeExecution != ExecutionFPGADevelopment || service.activePackageID == "" {
-		t.Fatalf("execution=%q package=%q", service.activeExecution, service.activePackageID)
-	}
-}
-
 func TestStatusReconstructsRecognizedABIPackagePlayAsNative(t *testing.T) {
 	packageID := strings.Repeat("f", 64)
 	observed := "fes.zx81"
@@ -405,14 +228,12 @@ func TestCatalogLaunchBlockedByNonIdleDevelopmentWithoutLocalMarker(t *testing.T
 		t.Run(string(state), func(t *testing.T) {
 			client := &fakeServiceClient{
 				statusResult: protocol.Status{State: state, Development: true, ObservedCore: &observed},
-				nativeLaunch: exactNativeLaunchResponse(t, game, "/media/fat/games/SNES/Exact.smc"),
 			}
 			service := newService(
 				Config{
 					Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: "/private/library"}},
 					RequestTimeout: time.Second,
 					UploadTimeout:  2 * time.Second,
-					FPGAROMPaths:   map[string]string{game.ID: "/media/fat/games/SNES/Exact.smc"},
 				},
 				Paths{Staging: "/private/staging"}, &fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServiceScanner{}, &fakeServicePreparer{}, client,
 			)
@@ -423,7 +244,7 @@ func TestCatalogLaunchBlockedByNonIdleDevelopmentWithoutLocalMarker(t *testing.T
 
 			_, err = service.Launch(context.Background(), game.ID, nil)
 			var apiErr *protocol.APIError
-			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBusy {
+			if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeUnsupportedOperation {
 				t.Fatalf("launch error = %v", err)
 			}
 			if client.stopCalls != 0 || client.nativeLaunchCalls != 0 {

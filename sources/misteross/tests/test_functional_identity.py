@@ -82,7 +82,7 @@ class FunctionalColecoTests(unittest.TestCase):
             execution = {"gpu_device": 0, "version": 1}
             old = {producer: producer.create_build_record(root, "https://example.invalid/fes", git("rev-parse", "HEAD"),
                    {"yosys": "test"}, identity_version=2, execution=execution) for producer in producers}
-            module = root / "sources/fpga"
+            module = root / "sources/misteross"
             module.mkdir(parents=True)
             for name in ("scripts", "cores", "boards", "toolchains", "toolchain.lock"):
                 (root / name).rename(module / name)
@@ -96,10 +96,9 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(revision, git("rev-parse", "HEAD"))
                     record = producer.create_build_record(module, repository, revision, {"yosys": "test"},
                                                          identity_version=2, execution=execution)
-                    self.assertEqual(json.loads(record)["source_path"], "sources/fpga")
+                    self.assertEqual(json.loads(record)["source_path"], "sources/misteross")
                     self.assertEqual(build_identity(old[producer]), build_identity(record))
-                    with self.assertRaises(ValueError):
-                        producer._require_clean_source(module)
+                    self.assertEqual(producer._require_clean_source(module), (repository, revision))
                     for relative in (("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
                                       "toolchains/registered-memory.lock")
                                      if producer in (coleco, build_fes_sms_oss, build_fes_sg1000_oss)

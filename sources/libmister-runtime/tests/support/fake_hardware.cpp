@@ -21,17 +21,16 @@ public:
 FakeHardware::FakeHardware()
 	: idle_result(), launch_result(), development_result(), idle_calls(0),
 	  launch_calls(0), development_calls(0), fault_sink_sets(0),
-	  idle_without_fault_sink(false), launches(), launch_generations(),
+	  idle_without_fault_sink(false), launch_generations(),
 	  development_rbfs(), idle_threads(),
 	  mutex_(), condition_(), block_launch_(false), launch_entered_(false),
 	  release_launch_(false), fault_sink_(nullptr)
 {
 	supported.programming_profiles = {
-		"development-contained-v1", "fes-gp-v1", "mister-v1"};
+		"development-contained-v1", "fes-gp-v1"};
 	supported.abis = {
 		{"fes.simple-game", 1, 0,
-			{{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}},
-		{"mister", 1, 0, {}}};
+			{{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}}}};
 	core_info.descriptor.format = 2;
 	core_info.descriptor.core = {"custom-core", "Custom Core", "test", "1.0.0", ""};
 	core_info.descriptor.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
@@ -97,9 +96,12 @@ mister::HardwareResult FakeHardware::LoadCore(
 	std::unique_ptr<mister::AdmittedCorePackage> package,
 	std::uint64_t generation)
 {
-	std::lock_guard<std::mutex> lock(mutex_);
+	std::unique_lock<std::mutex> lock(mutex_);
 	++core_calls;
 	core_generations.push_back(generation);
+	launch_entered_ = true;
+	condition_.notify_all();
+	while (block_launch_ && !release_launch_) condition_.wait(lock);
 	events.push_back("load_core:" + package->info().package_id);
 	mister::HardwareResult result = core_result;
 	if (result.error.ok()) {
@@ -124,23 +126,6 @@ mister::HardwareResult FakeHardware::LoadIdle()
 	return idle_result;
 }
 
-mister::HardwareResult FakeHardware::Launch(
-	const mister::PreparedLaunch& launch, std::uint64_t generation)
-{
-	std::unique_lock<std::mutex> lock(mutex_);
-	++launch_calls;
-	launches.push_back(launch);
-	launch_generations.push_back(generation);
-	launch_entered_ = true;
-	condition_.notify_all();
-	while (block_launch_ && !release_launch_) condition_.wait(lock);
-	mister::HardwareResult result = launch_result;
-	if (result.error.ok()) {
-		result.mutation_attempted = true;
-		if (result.observed_core.empty()) result.observed_core = launch.expected_core;
-	}
-	return result;
-}
 
 mister::HardwareResult FakeHardware::LoadDevelopmentRBF(
 	const std::string& rbf, std::uint64_t generation)

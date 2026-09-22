@@ -9,7 +9,6 @@
 
 namespace mister {
 
-const Profiles& ProductionProfiles();
 Error CreateProductionHardware(LogSink& log,
 	std::unique_ptr<Hardware>* hardware);
 std::unique_ptr<Hardware> CreateUnavailableHardware(const Error& reason);

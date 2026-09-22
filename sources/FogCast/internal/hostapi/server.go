@@ -110,11 +110,10 @@ type statusResult struct {
 }
 
 type targetHealth struct {
-	NativeCores *protocol.NativeCoreAvailability `json:"native_cores,omitempty"`
-	Connection  *fogcast.TargetConnection        `json:"connection,omitempty"`
-	Reachable   bool                             `json:"reachable"`
-	Ready       bool                             `json:"ready"`
-	Artifacts   *protocol.Artifacts              `json:"artifacts,omitempty"`
+	Connection *fogcast.TargetConnection `json:"connection,omitempty"`
+	Reachable  bool                      `json:"reachable"`
+	Ready      bool                      `json:"ready"`
+	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
 }
 
 type errorResult struct {
@@ -386,7 +385,6 @@ func New(service Service, options ...ServerOption) http.Handler {
 		}
 		if err == nil {
 			result.Target.Artifacts = target.Artifacts
-			result.Target.NativeCores = target.NativeCores
 		}
 		writeJSON(w, http.StatusOK, result)
 	})

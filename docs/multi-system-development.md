@@ -1,5 +1,10 @@
 # Pong, SNES and NES development
 
+> Historical reference: these raw-game paths were retired by the
+> [package-only cleanup](validation/2026-09-21-fpga-compat-cleanup.md).
+> Current products use [described packages](core-packages.md) and
+> [core persistence](core-persistence.md). Existing save files are preserved.
+
 The selected sources implement Pong, basic SNES and a bounded native NES slice
 alongside Mega Drive. Pong and SNES have dated diagnostic hardware evidence;
 the selected NES image has exact assembled-image video and session-lifecycle

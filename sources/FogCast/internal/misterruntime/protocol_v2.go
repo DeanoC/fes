@@ -88,7 +88,7 @@ func (client *Client) Protocol2Status(ctx context.Context) (Protocol2Response, e
 
 func protocol2ResumedSaveFailure(response Protocol2Response) bool {
 	return response.Error != nil && response.Error.Code == "save_failed" && response.Error.Phase == "save" &&
-		(response.State == "running_development" || response.State == "running_game")
+		(response.State == "running_development")
 }
 
 func describedPackageRuntimeState(response Protocol2Response) bool {
@@ -188,26 +188,7 @@ func (client *Client) InspectCore(ctx context.Context, path, packageID string) (
 }
 
 func decodeNegotiationResponse(line []byte) (Protocol2Response, error) {
-	if rejectDuplicateJSONNames(line) != nil {
-		return Protocol2Response{}, errInvalidRuntimeResponse
-	}
-	var envelope struct {
-		Protocol int `json:"protocol"`
-	}
-	if err := json.Unmarshal(line, &envelope); err != nil {
-		return Protocol2Response{}, errInvalidRuntimeResponse
-	}
-	if envelope.Protocol == 2 {
-		return decodeProtocol2Response(line)
-	}
-	if envelope.Protocol == 1 {
-		response, err := decodeResponse(line)
-		if err == nil && !response.OK && response.Error != nil &&
-			response.Error.Code == "unsupported_protocol" {
-			return Protocol2Response{}, errProtocol2Unsupported
-		}
-	}
-	return Protocol2Response{}, errInvalidRuntimeResponse
+	return decodeProtocol2Response(line)
 }
 
 func decodeProtocol2Response(line []byte) (Protocol2Response, error) {
@@ -690,11 +671,7 @@ func validProtocol2Response(response Protocol2Response) bool {
 		}
 		switch response.Execution {
 		case "none":
-			if identity != identityNone && identity != identityPair {
-				return false
-			}
-		case "game":
-			if identity != identityPair {
+			if identity != identityNone {
 				return false
 			}
 		case "development":
@@ -704,16 +681,12 @@ func validProtocol2Response(response Protocol2Response) bool {
 		default:
 			return false
 		}
-	case "running_game":
-		if response.Execution != "game" || identity != identityPair || !positive(response.Generation) || !noActive {
-			return false
-		}
 	case "running_development":
 		if response.Execution != "development" || (identity != identityNone && identity != identityCore) || !positive(response.Generation) {
 			return false
 		}
 		if response.ActivePackage == nil {
-			if len(response.Capabilities.ActiveInterfaces) != 0 {
+			if identity != identityNone || len(response.Capabilities.ActiveInterfaces) != 0 {
 				return false
 			}
 		} else if !validActivePackage(*response.ActivePackage, response.Capabilities) {
@@ -816,8 +789,8 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		if active.Observed.ABI == nil {
 			return false
 		}
-	case "mister-v1":
-		return active.Observed.ABI == nil
+	default:
+		return false
 	}
 	if active.Observed.ABI == nil {
 		return true
@@ -949,10 +922,49 @@ func protocol2MutationAttempted(err error) bool {
 }
 
 func protocol2Identity(system, core *string) identityShape {
-	return responseIdentity(Response{System: system, Core: core})
+	if system == nil && core == nil {
+		return identityNone
+	}
+	if system == nil && core != nil && *core != "" {
+		return identityCore
+	}
+	if system == nil || core == nil || *system == "" || *core == "" {
+		return identityInvalid
+	}
+	return identityPair
 }
 
 func validComposition(c expansion.Composition, packageID string) bool {
 	id, err := expansion.CompositionID(c.PackageID, c.ExpansionID, c.PayloadSHA256)
 	return err == nil && id == c.ID && c.PackageID == packageID && protocol2Hex64.MatchString(c.ShellSHA256) && c.PayloadSize >= 40408 && c.PayloadSize <= corepackage.MaxPayloadSize
 }
+
+// Protocol2LoadDevelopmentRBF admits only the contained diagnostic profile.
+func (client *Client) Protocol2LoadDevelopmentRBF(ctx context.Context, rbf string) (Protocol2Response, error) {
+	if !validRuntimePath(rbf) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		Protocol           int    `json:"protocol"`
+		Operation          string `json:"operation"`
+		RBF                string `json:"rbf"`
+		ProgrammingProfile string `json:"programming_profile"`
+	}{2, "load_development_rbf", rbf, "development-contained-v1"})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil || response.InspectedPackage != nil || response.CoreData != nil || (response.OK && !validDevelopmentRunning(response)) {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	return response, nil
+}
+
+type identityShape uint8
+
+const (
+	identityNone identityShape = iota
+	identityPair
+	identityCore
+	identityInvalid
+)

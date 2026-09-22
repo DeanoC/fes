@@ -5,10 +5,17 @@ import tempfile
 from pathlib import Path
 import unittest
 
-from scripts.affected import changed_paths, plan, LANES, CORES, MODULE_ROOTS
+from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
+                               FPGA_SOFTWARE_TESTS)
 
 
 class AffectedTests(unittest.TestCase):
+    def test_fpga_software_test_patterns_match_current_files(self):
+        root = Path(__file__).resolve().parents[1] / 'sources/misteross/tests'
+        for pattern in FPGA_SOFTWARE_TESTS:
+            with self.subTest(pattern=pattern):
+                self.assertTrue(list(root.glob(pattern)), pattern)
+
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
                      'image/Makefile', '.github/workflows/check.yml', 'unknown/new.bin'):

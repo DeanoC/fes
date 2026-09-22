@@ -11,7 +11,6 @@ import (
 	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -27,16 +26,13 @@ import (
 
 type updateControl struct{}
 
-func (updateControl) Status(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none"}, nil
+func (updateControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
-func (c updateControl) Stop(ctx context.Context) (misterruntime.Response, error) {
-	return c.Status(ctx)
+func (c updateControl) Protocol2Stop(ctx context.Context) (misterruntime.Protocol2Response, error) {
+	return c.Protocol2Status(ctx)
 }
-func (updateControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	panic("unexpected launch")
-}
-func (updateControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+func (updateControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
 	panic("unexpected development")
 }
 
@@ -71,7 +67,7 @@ func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error)
 		boot.ImageSHA256 = n.ImageSHA256
 		boot.Trial = true
 	}
-	c := agent.New(misterruntime.NewRuntime(updateControl{}, "", time.Millisecond, time.Second), core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(misterruntime.NewRuntime(updateControl{}, "", time.Millisecond, time.Second), time.Second, time.Second)
 	svc := applianceupdate.New(s, c, boot, reboot, nil)
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(func() { manager.Close() })
@@ -107,7 +103,7 @@ func TestUpdateHTTPAuthenticationLeaseAndTrialGate(t *testing.T) {
 			t.Fatalf("unleased %s: %d", path, w.Code)
 		}
 	}
-	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream", "/v1/cast/start"} {
+	for _, path := range []string{"/v1/development/media-stream", "/v1/development/media", "/v1/library/core/load", "/v1/development/rbf", "/v1/development/core", "/v1/input/attach", "/v1/input/stream", "/v1/cast/start"} {
 		if w := updateRequest(h, path, "", lease); w.Code != 409 {
 			t.Fatalf("trial %s: %d %s", path, w.Code, w.Body.String())
 		}

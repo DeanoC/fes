@@ -2,30 +2,22 @@
 
 EXP ?= 010_blinky
 BUILD ?= oss
-CORE ?= megadrive
-ARTIFACT ?= rebuild
 PYTHON ?= python3
 VERILATOR ?= verilator
 # Older supported Verilator releases do not define these warning categories.
 VERILATOR_PROCASSINIT = $(shell $(VERILATOR) -Wno-PROCASSINIT --version >/dev/null 2>&1 && echo -Wno-PROCASSINIT)
 VERILATOR_SIMILARNAME = $(shell $(VERILATOR) -Wno-SIMILARNAME --version >/dev/null 2>&1 && echo -Wno-SIMILARNAME)
-PONG_FRAMEWORK ?= $(CURDIR)/build/frameworks/template
-PROGRAM_TRANSPORT ?= mister
-MISTER_HOST ?=
-MISTER_USER ?=
+PROGRAM_TRANSPORT ?= jtag
 PROGRAMMER ?=
-PROGRAM_SSH ?=
-PROGRAM_SCP ?=
 PROGRAM_CABLE ?=
 PROGRAM_CABLE_INDEX ?=
 PROGRAM_EXPECTED_BOARD ?=
-PROGRAM_EXPECTED_MAIN_SHA256 ?=
 PROGRAM_DRY_RUN ?=
 PACKAGE_MANIFEST ?=
 PACKAGE_RBF ?=
 PACKAGE_OUTPUT ?= $(CURDIR)/build/packages
 CACHE_ROOT ?=
-GPU_DEVICES ?= 0,1
+GPU_DEVICES ?= 0
 
 FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE := $(strip $(if $(FES_TOOLCHAIN_CACHE_ROOT),$(FES_TOOLCHAIN_CACHE_ROOT),$(CACHE_ROOT)))
 FES_TOOLCHAIN_CACHE_ENV = $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),FES_TOOLCHAIN_CACHE_ROOT="$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
@@ -41,7 +33,7 @@ endif
 # Pass operator-selected programming settings through the environment.  This
 # avoids interpolating host/user values into a shell command; program.py does
 # the strict validation before creating any subprocess.
-export EXP BUILD CORE ARTIFACT PROGRAM_TRANSPORT MISTER_HOST MISTER_USER PROGRAMMER PROGRAM_SSH PROGRAM_SCP PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD PROGRAM_EXPECTED_MAIN_SHA256 PROGRAM_DRY_RUN
+export EXP BUILD   PROGRAM_TRANSPORT   PROGRAMMER   PROGRAM_CABLE PROGRAM_CABLE_INDEX PROGRAM_EXPECTED_BOARD  PROGRAM_DRY_RUN
 
 help:
 	@printf '%s\n' \
@@ -89,25 +81,19 @@ help:
 		"  build-fes-sms-quartus  Quartus 17.0.2 oracle package for FES Master System (fes.sms)" \
 		"  build-fes-sms  Seal FES Master System with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  build-fes-pong  Seal FES Pong with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
-		"  stage-pong Stage pinned MiSTer framework and local Pong sources" \
-		"  build-pong Build Pong with explicit Quartus 17.0.2 (no deployment)" \
 		"  oss        Build an experiment with the open-source FPGA lane" \
 		"  oracle     Build an experiment with the explicit Quartus oracle lane" \
 		"  compare    Compare OSS and oracle build results" \
-		"  fetch-core Check out a pinned core tree and hash its upstream RBF" \
-		"  rebuild-core  Compile a fetched core with Quartus 17.0.2" \
-		"  select-core  Copy upstream or rebuild RBF to build/current/" \
-		"  export-core-bundle  Seal a Mega Drive rebuild for FogCast handoff" \
 		"  export-core-package  Seal a format-2 package directory and .fcore archive" \
-		"  program    Load one artifact volatile-only (mister default; jtag optional)" \
+		"  program    Explicit JTAG SRAM maintenance diagnostic" \
 		"  clean      Remove generated output for an experiment" \
 		"" \
-		"Variables: EXP=010_blinky BUILD=oss CORE=megadrive ARTIFACT=rebuild PYTHON=python3" \
+		"Variables: EXP=010_blinky BUILD=oss PYTHON=python3" \
 		"  CACHE_ROOT= optional shared toolchain cache root for build-fes-pong/zx81/coleco/sg1000/sms" \
 		"  PACKAGE_MANIFEST/PACKAGE_RBF required for export-core-package; PACKAGE_OUTPUT defaults to build/packages" \
-		"  PROGRAM_TRANSPORT=mister MISTER_HOST/MISTER_USER required for mister" \
-		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (misterpi or de10nano)" \
-		"  PROGRAM_EXPECTED_MAIN_SHA256 is required for non-dry mister; PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
+		"  PROGRAM_TRANSPORT=jtag; normal package loads use FogCast" \
+		"  PROGRAM_EXPECTED_BOARD is required for every non-dry action (de10nano)" \
+		"  PROGRAM_CABLE_INDEX is rejected for USB-Blaster II" \
 		"  PROGRAMMER/PROGRAM_SSH/PROGRAM_SCP/PROGRAM_CABLE are optional; PROGRAM_DRY_RUN=1 is the safe default (0/false for live)"
 
 define require_exp
@@ -144,13 +130,7 @@ $(error misteross: shared toolchain cache is unsupported for Make simulation tar
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong stage-pong build-pong oss oracle compare fetch-core rebuild-core select-core export-core-bundle export-core-package program clean
-
-stage-pong:
-	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)" --stage-only
-
-build-pong:
-	$(PYTHON) scripts/build_pong.py --framework "$(PONG_FRAMEWORK)"
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -158,10 +138,6 @@ sim-pong:
 	$(VERILATOR) --cc --exe --build --top-module pong_game -Wall -GCLOCK_HZ=8000 \
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
-	@mkdir -p build/sim/pong-video
-	$(VERILATOR) --cc --exe --build --top-module pong_video -Wall \
-		--Mdir "$(CURDIR)/build/sim/pong-video" cores/pong/rtl/pong_video.sv "$(CURDIR)/cores/pong/sim/video_tb.cpp"
-	@build/sim/pong-video/Vpong_video
 
 .PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash
 sim-fes-demo:
@@ -854,18 +830,6 @@ compare:
 		--oss-manifest "build/oss/$$EXP/manifest.json" \
 		--oracle-manifest "build/oracle/$$EXP/manifest.json" \
 		--output-dir "build/compare/$$EXP"
-
-fetch-core:
-	@$(PYTHON) scripts/fetch_core.py --core "$$CORE"
-
-rebuild-core:
-	@$(PYTHON) scripts/rebuild_core.py --core "$$CORE"
-
-select-core:
-	@$(PYTHON) scripts/select_core.py --core "$$CORE" --artifact "$$ARTIFACT"
-
-export-core-bundle:
-	@$(PYTHON) scripts/export_core_bundle.py --core "$(CORE)" --root "$(CURDIR)"
 
 export-core-package:
 	@test -n "$(PACKAGE_MANIFEST)" || { printf '%s\n' 'PACKAGE_MANIFEST is required' >&2; exit 2; }

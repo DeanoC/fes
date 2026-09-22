@@ -11,11 +11,6 @@ import (
 
 const validAgentConfig = `listen_address = "0.0.0.0:8182"
 token = "test-token"
-mister_process_comm = "MiSTer"
-command_pipe = "/dev/MiSTer_cmd"
-core_name_file = "/tmp/CORENAME"
-menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/fogcast"
 `
 
 func TestLoadAgentConfigDefaultsCacheMaximum(t *testing.T) {
@@ -28,7 +23,7 @@ func TestLoadAgentConfigDefaultsCacheMaximum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ListenAddress != "0.0.0.0:8182" || got.Token != "test-token" || got.CommandPipe != "/dev/MiSTer_cmd" {
+	if got.ListenAddress != "0.0.0.0:8182" || got.Token != "test-token" {
 		t.Fatalf("config = %#v", got)
 	}
 	if got.CacheMaxBytes != 2<<30 {
@@ -73,12 +68,7 @@ func TestLoadAgentConfigRejectsUnknownUnsafeAndInvalidCacheValues(t *testing.T) 
 	tests := map[string]string{
 		"unknown":          validAgentConfig + "extra = true\n",
 		"empty token":      strings.Replace(validAgentConfig, `token = "test-token"`, `token = ""`, 1),
-		"empty process":    strings.Replace(validAgentConfig, `mister_process_comm = "MiSTer"`, `mister_process_comm = ""`, 1),
 		"malformed listen": strings.Replace(validAgentConfig, `0.0.0.0:8182`, `0.0.0.0`, 1),
-		"relative pipe":    strings.Replace(validAgentConfig, `command_pipe = "/dev/MiSTer_cmd"`, `command_pipe = "MiSTer_cmd"`, 1),
-		"relative core":    strings.Replace(validAgentConfig, `core_name_file = "/tmp/CORENAME"`, `core_name_file = "CORENAME"`, 1),
-		"relative menu":    strings.Replace(validAgentConfig, `menu_rbf = "/media/fat/menu.rbf"`, `menu_rbf = "menu.rbf"`, 1),
-		"relative MGL":     strings.Replace(validAgentConfig, `mgl_directory = "/tmp/fogcast"`, `mgl_directory = "fogcast"`, 1),
 		"zero cache":       validAgentConfig + "cache_max_bytes = 0\n",
 		"negative cache":   validAgentConfig + "cache_max_bytes = -1\n",
 		"overflow cache":   validAgentConfig + "cache_max_bytes = 9223372036854775808\n",
@@ -111,5 +101,26 @@ func TestLoadAgentConfigAcceptsConfiguredHTTPPort(t *testing.T) {
 	}
 	if got.ListenAddress != "0.0.0.0:9191" {
 		t.Fatalf("listen address = %q", got.ListenAddress)
+	}
+}
+
+func TestNativeConfigHasNoMainSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	base := "listen_address = \"127.0.0.1:18182\"\ntoken = \"test-token\"\n"
+	if err := os.WriteFile(path, []byte(base), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agentconfig.Load(path); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"mister_process_comm", "command_pipe", "core_name_file", "menu_rbf", "mgl_directory"} {
+		if err := os.WriteFile(path, []byte(base+key+" = \"/retired\"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := agentconfig.Load(path); err == nil {
+			t.Fatalf("%s must be rejected clearly", key)
+		} else if message, safe := agentconfig.RetiredSettingsMessage(err); !safe || !strings.Contains(message, key) || strings.Contains(message, "/retired") || strings.Contains(message, "test-token") {
+			t.Fatalf("unsafe or unhelpful retired-setting error: %q", message)
+		}
 	}
 }

@@ -117,22 +117,3 @@ func TestValidateContentIdentitySizeBoundaries(t *testing.T) {
 		})
 	}
 }
-
-func TestCompleteCachedLaunchRequestRejectsUnknownSystem(t *testing.T) {
-	t.Parallel()
-
-	request := protocol.CachedLaunchRequest{
-		GameID:  "snes-test",
-		System:  "mystery",
-		Content: protocol.ContentIdentity{SHA256: testDigest, Size: 1, Extension: "sfc"},
-	}
-	if err := protocol.ValidateGameID(request.GameID); err != nil {
-		t.Fatalf("ValidateGameID(%q): %v", request.GameID, err)
-	}
-	if err := protocol.ValidateContentIdentity(request.Content); err != nil {
-		t.Fatalf("ValidateContentIdentity(%#v): %v", request.Content, err)
-	}
-	if err := protocol.ValidateSystem(request.System); err == nil {
-		t.Fatal("ValidateSystem(unknown cached launch system) succeeded")
-	}
-}

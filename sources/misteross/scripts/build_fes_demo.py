@@ -15,11 +15,12 @@ import sys
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import legacy_source
+from scripts.compiler_read_audit import guard_functional_source
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
-from scripts.export_core_package import build_identity, encode_build_record, export_package
+from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 
 QSF = "cores/fes-pong/constraints.qsf"
 BUILD_OUTPUTS = (
@@ -69,7 +70,7 @@ AUDIO_QSF = "cores/fes-demo/constraints-audio.qsf"
 AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
               "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
 PINNED_INPUTS = (
-    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py", "scripts/legacy_source.py", "scripts/fes_build_common.py", "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
+    RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py", "scripts/functional_execution.py", "scripts/fes_build_common.py", "scripts/fes_de10nano_evidence.py", ABI_DEFINITION, "toolchain.lock",
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 
@@ -103,12 +104,13 @@ def audio_pin_evidence(root: Path, output: Path) -> None:
                 or type(cell["connections"]["I"][0]) is not int):
             raise board.BuildError(f"audio output {port} has incorrect routing or electrical constraints")
 
-def create_build_record(root: Path, repository: str, revision: str,
-                        identities: dict[str, str], *, media: bool = False, audio: bool = False) -> bytes:
-    return encode_build_record({
+def record_fields(root: Path, repository: str, revision: str,
+                        identities: dict[str, str], *, media: bool = False, audio: bool = False) -> dict:
+    output_relative(media, audio)
+    return {
         "format": 1, "repository": repository, "revision": revision,
-        "recipe": legacy_source.context(root).qualify(RECIPE), "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
-        "abi_definition": legacy_source.context(root).qualify(ABI_DEFINITION),
+        "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
+        "abi_definition": ABI_DEFINITION,
         "abi_definition_sha256": board._sha256(board._regular_input(root, ABI_DEFINITION)),
         "dependencies": {}, "tools": identities,
         "parameters": {
@@ -121,7 +123,18 @@ def create_build_record(root: Path, repository: str, revision: str,
             **({"audio_clock_hz": 12_288_000, "audio_sample_hz": 48_000,
                 "audio_slot_bits": 32, "audio_sample_bits": 16} if audio else {}),
         },
-    })
+    }
+
+@guard_functional_source
+def create_build_record(root, repository, revision, identities, *, media=False, audio=False,
+                        identity_version=2, execution=None):
+    if identity_version != 2:
+        raise board.BuildError("unsupported build identity version")
+    fields = record_fields(root, repository, revision, identities, media=media, audio=audio)
+    inputs = (*PINNED_INPUTS, AUDIO_QSF, *AUDIO_SOURCES) if audio else PINNED_INPUTS
+    return encode_build_record(functional_record_fields(root, fields,
+        source_roots_for_inputs(inputs), execution, pinned_inputs=inputs))
+
 
 def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False, audio: bool = False, catch: bool = False):
     if board.HEX32_RE.fullmatch(build_id) is None:
@@ -183,27 +196,34 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 def require_clean_source(root, pinned_inputs):
     try:
-        return legacy_source.require_clean_source(root, pinned_inputs)
+        return board._require_clean_source(root, pinned_inputs=pinned_inputs)
     except ValueError as exc:
         raise board.BuildError(str(exc)) from exc
 
 
-def build(root: Path = ROOT, *, media: bool = False, audio: bool = False, cache_root: Path | None = None) -> Path:
+@guard_functional_source
+def build(root: Path = ROOT, package_store=None, *, media: bool = False, audio: bool = False, cache_root: Path | None = None, identity_version=2, gpu_device=0) -> Path:
     root = Path(root).resolve()
+    if identity_version != 2:
+        raise board.BuildError("unsupported build identity version")
+    package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
+    if package_store != root / "build/packages":
+        raise board.BuildError("package store must be build/packages")
     relative = output_relative(media, audio)
     pinned_inputs = (*PINNED_INPUTS, AUDIO_QSF, *AUDIO_SOURCES) if audio else PINNED_INPUTS
     repository, revision = require_clean_source(root, pinned_inputs)
     authenticated = board._authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    record = create_build_record(root, repository, revision, identities, media=media, audio=audio)
+    invocation = FunctionalInvocation(authenticated, gpu_device)
+    record = create_build_record(root, repository, revision, identities, media=media, audio=audio, execution=invocation.inputs)
     output = board._prepare_output(root, relative=relative, build_outputs=BUILD_OUTPUTS)
     board._write_atomic(output / "build-inputs.json", record)
     try:
         commands = build_commands(root, build_identity(record),
             {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, media=media, audio=audio)
-        board._run_tool(commands[0], root, output / "yosys.log", output_relative=relative)
-        board._run_tool(commands[1], root, output / "nextpnr.log",
-                        output_relative=relative)
+        board._run_tool(commands[0], root, output / "yosys.log", output_relative=relative, env=invocation.env, audit_source_root=root)
+        board._run_tool(commands[1] + ("--gpu-device", str(gpu_device)), root, output / "nextpnr.log",
+                        output_relative=relative, env=invocation.env, audit_source_root=root)
         evidence = board_evidence.validate_build_evidence(output, root, audio=audio,
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
@@ -211,8 +231,8 @@ def build(root: Path = ROOT, *, media: bool = False, audio: bool = False, cache_
             audio_pin_evidence(root, output)
             evidence["audio_pins"] = {"status": "pass", "pins": AUDIO_PINS}
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
-                         "inputs": {legacy_source.context(root).qualify(p): board._sha256(root / p) for p in sorted(pinned_inputs)},
-                         "tools": identities, "top": "top"})
+                         "inputs": {p: board._sha256(root / p) for p in sorted(pinned_inputs)},
+                         "tools": identities, "top": "top", "execution": invocation.inputs})
         board._write_atomic(output / "build-summary.json",
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities, media=media, audio=audio)
@@ -222,21 +242,30 @@ def build(root: Path = ROOT, *, media: bool = False, audio: bool = False, cache_
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root, pinned_inputs) != (repository, revision):
             raise board.BuildError("source identity changed during build")
-        return export_package(encoded, output / "core.rbf", root / "build/packages")
+        invocation.verify()
+        if create_build_record(root, repository, revision, identities, media=media, audio=audio,
+                               execution=invocation.inputs) != record:
+            raise board.BuildError("functional source inputs changed during build")
+        return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
         board._invalidate_failed_artifact(output)
         raise
+    finally:
+        invocation.close()
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
+    parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--package-output", type=Path)
     variant = parser.add_mutually_exclusive_group()
     variant.add_argument("--media", action="store_true", help="gamepad + RGB palette asset variant")
     variant.add_argument("--audio", action="store_true", help="gamepad + stereo I2S tone variant")
     args = parser.parse_args()
     try:
-        print(build(args.root, media=args.media, audio=args.audio, cache_root=args.cache_root))
+        print(build(args.root, args.package_output, media=args.media, audio=args.audio, cache_root=args.cache_root, identity_version=args.identity_version, gpu_device=args.gpu_device))
     except (board.BuildError, ValueError) as exc:
         print(f"FES demo: {exc}", file=sys.stderr)
         return 1

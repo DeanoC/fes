@@ -1,4 +1,4 @@
-"""Validate a misteross bundle and install it as FogCast's native core input."""
+"""Resolve authenticated functional FES packages for native image assembly."""
 from pathlib import Path
 import hashlib
 import json
@@ -38,11 +38,9 @@ def authenticate_misteross_origin(source):
     try:
         top = Path(subprocess.check_output(
             ["git", "-C", str(source), "rev-parse", "--show-toplevel"], text=True).strip()).resolve()
-        repository = MISTEROSS_REPOSITORY
-        if top != source:
-            if source.relative_to(top).as_posix() != "sources/misteross":
-                raise ValueError("FPGA producer is outside the selected FES module")
-            repository = FES_REPOSITORY
+        if top == source or source.relative_to(top).as_posix() != "sources/misteross":
+            raise ValueError("FPGA producer must be the exact sources/misteross FES module")
+        repository = FES_REPOSITORY
         urls = subprocess.check_output(
             ["git", "-C", str(source), "remote", "get-url", "--all", "origin"],
             text=True).splitlines()
@@ -75,17 +73,17 @@ producer = importlib.import_module(sys.argv[1])
 authenticate = getattr(producer, sys.argv[2])
 cache_root = Path(sys.argv[sys.argv.index("--cache-root") + 1])
 identity_version = int(sys.argv[sys.argv.index("--identity-version") + 1])
-options = {} if identity_version == 1 else {"identity_version": identity_version}
+assert identity_version == 2
+options = {"identity_version": 2}
 repository, revision = producer._require_clean_source(root, **options)
 tools = authenticate(root, cache_root=cache_root)
 identities = {name: tool.identity for name, tool in tools.items()}
-if identity_version == 2:
-    import tempfile
-    from scripts.functional_execution import execution_environment, execution_inputs
-    with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
-        paths = {name: tool.path for name, tool in tools.items()}
-        environment = execution_environment(Path(home), paths)
-        options["execution"] = execution_inputs(paths, environment, 0)
+import tempfile
+from scripts.functional_execution import execution_environment, execution_inputs
+with tempfile.TemporaryDirectory(prefix="fes-canonical-home-") as home:
+    paths = {name: tool.path for name, tool in tools.items()}
+    environment = execution_environment(Path(home), paths)
+    options["execution"] = execution_inputs(paths, environment, 0)
 sys.stdout.buffer.write(producer.create_build_record(root, repository, revision, identities, **options))
 '''
     cache_root = str(recipe.cache_root)
@@ -112,7 +110,7 @@ sys.stdout.buffer.write(producer.create_build_record(root, repository, revision,
         ) from error
     canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"),
                            sort_keys=True).encode("utf-8") + b"\n"
-    if record != canonical:
+    if artifact_cache.functional_key(record) is None or record != canonical:
         raise ValueError("producer returned a noncanonical format-2 build-input record")
     return record
 
@@ -152,7 +150,7 @@ import sys
 from pathlib import Path
 import importlib
 from scripts.core_package import read_package
-from scripts.export_core_package import build_identity, _decode_build_record, _verify_build_evidence
+from scripts.export_core_package import build_identity, _decode_build_record
 producer = importlib.import_module(sys.argv[3])
 root = Path.cwd().resolve()
 package_path = Path(sys.argv[1]).resolve()
@@ -161,11 +159,10 @@ record = record_path.read_bytes()
 record_fields = _decode_build_record(record)
 package = read_package(package_path)
 manifest = package.fields
-if record_fields["format"] == 2:
-    from scripts.export_core_package import verify_record_source_at_revision
-    verify_record_source_at_revision(root, record)
-else:
-    _verify_build_evidence(package_path / "core.rbf", record, record_fields, manifest)
+if record_fields["format"] != 2:
+    raise ValueError("normal FES packages require functional build record 2")
+from scripts.export_core_package import verify_record_source_at_revision
+verify_record_source_at_revision(root, record)
 build = manifest["build"]
 toolchain = "; ".join(f"{name} {record_fields['tools'][name]}" for name in sorted(record_fields["tools"]))
 if package_path.name != package.package_id:
@@ -201,7 +198,7 @@ def _build_package(source, recipe=None, env=None):
             [sys.executable, recipe.producer_script, "--root", str(source),
              "--package-output", str(Path(source) / "build/packages"),
              "--cache-root", str(recipe.cache_root),
-             *(["--identity-version", "2"] if recipe.identity_version == 2 else [])],
+             "--identity-version", "2"],
             cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError(f"selected {recipe.core_id} recipe failed") from error
@@ -241,8 +238,7 @@ def _matching_package_candidates(source, record, recipe=None, *, store_override=
         except OSError:
             continue
         if candidate_record != record:
-            if (recipe.identity_version != 2 or
-                    artifact_cache.functional_key(candidate_record) != artifact_cache.functional_key(record)):
+            if artifact_cache.functional_key(candidate_record) != artifact_cache.functional_key(record):
                 continue
         identity = sidecar.name.removesuffix(".build-inputs.json") if store_override is None else sidecar.parent.name
         if HEX64.fullmatch(identity) is None:
@@ -294,7 +290,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
     if force:
         _build_package(source, recipe=recipe, **produce)
     candidates = _matching_package_candidates(source, record, recipe=recipe)
-    if not candidates and not force and recipe.identity_version == 2:
+    if not candidates and not force:
         candidates = _matching_package_candidates(source, record, recipe=recipe,
             store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
     if not candidates and not force:
@@ -302,7 +298,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates:
         raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
-    if len(candidates) > 1 and recipe.identity_version == 2:
+    if len(candidates) > 1:
         # Commits with identical functional inputs may have different immutable
         # manifests. Equivalent payloads can use the first stable package ID.
         if len({item[2]["core_rbf_sha256"] for item in candidates}) == 1:
@@ -342,29 +338,28 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "manifest_sha256": manifest_sha256,
         "core_rbf_sha256": core_rbf_sha256,
     }
-    if recipe.identity_version == 2:
-        original_record = original_record_path.read_bytes()
-        original = json.loads(original_record)
-        selected = json.loads(record)
-        # Receipt describes selection of the original bytes; the manifest and
-        # original build-input record are never relabelled for the new commit.
-        inputs["source_selection"] = {
-            "format": 1,
-            "selected_repository": selected["repository"],
-            "selected_revision": selected["revision"],
-            "selected_source_path": selected["source_path"],
-            "original_repository": original["repository"],
-            "original_revision": original["revision"],
-            "original_source_path": original["source_path"],
-            "functional_inputs_sha256": artifact_cache.functional_key(record),
-            "original_record_sha256": hashlib.sha256(original_record).hexdigest(),
-            "selected_record_sha256": hashlib.sha256(record).hexdigest(),
-            "package_id": package_id,
-            "core_rbf_sha256": core_rbf_sha256,
-        }
-        artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
-        receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"
-        _publish_selection(Path(selection_path).with_suffix(".provenance.json"), receipt)
+    original_record = original_record_path.read_bytes()
+    original = json.loads(original_record)
+    selected = json.loads(record)
+    # Receipt describes selection of the original bytes; the manifest and
+    # original build-input record are never relabelled for the new commit.
+    inputs["source_selection"] = {
+        "format": 1,
+        "selected_repository": selected["repository"],
+        "selected_revision": selected["revision"],
+        "selected_source_path": selected["source_path"],
+        "original_repository": original["repository"],
+        "original_revision": original["revision"],
+        "original_source_path": original["source_path"],
+        "functional_inputs_sha256": artifact_cache.functional_key(record),
+        "original_record_sha256": hashlib.sha256(original_record).hexdigest(),
+        "selected_record_sha256": hashlib.sha256(record).hexdigest(),
+        "package_id": package_id,
+        "core_rbf_sha256": core_rbf_sha256,
+    }
+    artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
+    receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"
+    _publish_selection(Path(selection_path).with_suffix(".provenance.json"), receipt)
     _publish_selection(selection_path, encoded)
     return {"directory": package, "selection_path": Path(selection_path),
             "inputs": inputs}

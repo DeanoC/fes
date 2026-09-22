@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 
 from scripts.build_fes_sg1000 import (
@@ -145,7 +146,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
             ROOT,
             "https://example.invalid/misteross.git",
             "a" * 40,
-            {"yosys": "test"},
+            {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"router":"gpu"', record)
@@ -259,3 +260,11 @@ class BuildFesSg1000Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

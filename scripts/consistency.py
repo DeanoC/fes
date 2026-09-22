@@ -2,18 +2,9 @@
 from pathlib import Path
 import subprocess
 import tempfile
-import tomllib
 from environment import build_environment
 
 GENERATED = (
-    ('emit-go', 'packages/system/megadrive.yaml', 'FogCast', 'internal/systems/generated/megadrive.go'),
-    ('emit-cpp', 'packages/system/megadrive.yaml', 'libmister-runtime', 'src/native/generated/megadrive.hpp'),
-    ('emit-go', 'packages/system/pong.yaml', 'FogCast', 'internal/systems/generated/pong.go'),
-    ('emit-go', 'packages/system/snes.yaml', 'FogCast', 'internal/systems/generated/snes.go'),
-    ('emit-go', 'packages/system/nes.yaml', 'FogCast', 'internal/systems/generated/nes.go'),
-    ('emit-cpp', 'packages/system/pong.yaml', 'libmister-runtime', 'src/native/generated/pong.hpp'),
-    ('emit-cpp', 'packages/system/snes.yaml', 'libmister-runtime', 'src/native/generated/snes.hpp'),
-    ('emit-cpp', 'packages/system/nes.yaml', 'libmister-runtime', 'src/native/generated/nes.hpp'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
     ('emit-cpp', 'packages/abi/fes_application.yaml', 'libmister-runtime', 'src/native/generated/fes_application.hpp'),
@@ -56,7 +47,7 @@ COMPONENT_FIXTURES = (
     ('libmister-runtime', 'tests/fixtures/protocol-v2-persistence-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
 )
-CORE_SOURCES = ('megadrive', 'snes', 'nes')
+CORE_SOURCES = ()
 
 
 def _run(packages, command, source):
@@ -78,7 +69,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     sources = {name: Path(path) for name, path in sources.items()}
     sources["FES"] = root
     packages = sources['mister-packages']
-    for source in sorted({item[1] for item in GENERATED} | {f'packages/source/{core}_mister.yaml' for core in CORE_SOURCES}):
+    for source in sorted({item[1] for item in GENERATED}):
         _run(packages, 'validate', source)
     with tempfile.TemporaryDirectory(prefix='fes-generated-') as temporary:
         for index, (command, source, component, destination) in enumerate(GENERATED):
@@ -107,38 +98,7 @@ def check(root: Path, sources: dict[str, Path] | None = None):
     for owner, source, component, destination in COMPONENT_FIXTURES:
         if (sources[owner] / source).read_bytes() != (sources[component] / destination).read_bytes():
             raise ValueError(f'fixture {component}/{destination} differs from {owner}')
-    # The validated emitter report is a line-oriented key/value representation;
-    # YAML parsing and schema validation stay with the package's own Go loader.
-    count = 0
-    for core in CORE_SOURCES:
-        report = {}
-        for line in _run(packages, 'report', f'packages/source/{core}_mister.yaml').decode().splitlines():
-            parts = line.split(None, 1)
-            if len(parts) != 2 or parts[0] in report:
-                raise ValueError('unexpected mister-packages core source report')
-            report[parts[0]] = parts[1]
-        required = ('repository', 'commit', 'rbf_path', 'rbf_sha256', 'rbf_size', 'project')
-        if report.get('core_source') != f'{core}_mister' or any(key not in report for key in required):
-            raise ValueError('incomplete mister-packages core source report')
-        report['rbf_size'] = int(report['rbf_size'])
-        copies = [
-            ('misteross', 'cores.lock', ('core', core),
-             {'repository': 'repo', 'commit': 'commit', 'rbf_path': 'rbf_path',
-              'rbf_sha256': 'rbf_sha256', 'rbf_size': 'rbf_size', 'project': 'project'}),
-        ]
-        if core == 'megadrive':
-            copies.append(('FES', 'image/build/native-inputs.toml', ('megadrive_rbf',),
-             {'repository': 'repository', 'commit': 'commit', 'rbf_path': 'path',
-              'rbf_sha256': 'sha256', 'rbf_size': 'size'}))
-        for component, filename, sections, fields in copies:
-            copied = tomllib.loads((sources[component] / filename).read_text())
-            for section in sections:
-                copied = copied[section]
-            for canonical, field in fields.items():
-                if copied.get(field) != report[canonical]:
-                    raise ValueError(f'{component}/{filename}: {".".join(sections)}.{field} differs from mister-packages source pin')
-        count += len(copies)
-    return {'generated_files': len(GENERATED), 'source_pin_copies': count,
+    return {'generated_files': len(GENERATED), 'source_pin_copies': 0,
             'fixture_copies': len(COPIED_TREES) + len(COPIED_FILES) + len(COMPONENT_FIXTURES)}
 
 

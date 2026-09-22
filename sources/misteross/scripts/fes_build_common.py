@@ -91,11 +91,14 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str], identity_version: int = 1) -> tuple[str, str]:
-    root = Path(root).resolve()
-    actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
-        raise BuildError(f"source root does not match Git checkout root: {root}")
+def _require_clean_source(root: Path, *, pinned_inputs: Sequence[str], identity_version: int = 2) -> tuple[str, str]:
+    if identity_version != 2:
+        raise BuildError("unsupported build identity version")
+    from scripts.source_provenance import context
+    try:
+        root = context(root).module
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
     revision = _git(root, "rev-parse", "HEAD")
     if HEX40_RE.fullmatch(revision) is None:
         raise BuildError("source HEAD is not a full lowercase Git commit")

@@ -26,7 +26,6 @@ import (
 type Controller interface {
 	Health(string) protocol.Health
 	Status() protocol.Status
-	Launch(context.Context, protocol.LaunchRequest) (protocol.Status, *protocol.APIError)
 	Stop(context.Context) (protocol.Status, *protocol.APIError)
 }
 
@@ -61,7 +60,6 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		setRequestState(r, status)
 		writeJSON(w, http.StatusOK, status)
 	})))
-	mux.Handle("POST /v1/launch", authenticate(token, launchHandler(controller)))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
 	if settings.cast != nil {
 		registerCastRoutes(mux, token, settings.cast)
@@ -333,32 +331,6 @@ func parseBearerToken(authorization string) (string, bool) {
 	return token, hasData
 }
 
-func launchHandler(controller Controller) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		var request protocol.LaunchRequest
-		if err := decoder.Decode(&request); err != nil {
-			writeBadRequest(w, r, "request body must contain one valid launch object")
-			return
-		}
-		if err := decoder.Decode(&struct{}{}); err != io.EOF {
-			writeBadRequest(w, r, "request body must contain exactly one JSON object")
-			return
-		}
-		setRequestLaunch(r, request)
-		status, apiErr := controller.Launch(r.Context(), request)
-		setRequestState(r, status)
-		if apiErr != nil {
-			setRequestError(r, apiErr.Code)
-			writeAPIError(w, statusForError(apiErr.Code), apiErr)
-			return
-		}
-		writeJSON(w, http.StatusOK, status)
-	})
-}
-
 func stopHandler(controller Controller) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1)
@@ -437,13 +409,6 @@ type requestMetadataKey struct{}
 func metadata(r *http.Request) *requestMetadata {
 	value, _ := r.Context().Value(requestMetadataKey{}).(*requestMetadata)
 	return value
-}
-
-func setRequestLaunch(r *http.Request, request protocol.LaunchRequest) {
-	if value := metadata(r); value != nil {
-		value.gameID = request.GameID
-		value.system = request.System
-	}
 }
 
 func setRequestState(r *http.Request, status protocol.Status) {

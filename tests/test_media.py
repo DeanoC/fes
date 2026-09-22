@@ -231,11 +231,6 @@ class MediaTests(unittest.TestCase):
         expected = (
             'listen_address = "0.0.0.0:8182"\n'
             'token = "auto-token"\n'
-            'mister_process_comm = "MiSTer"\n'
-            'command_pipe = "/dev/MiSTer_cmd"\n'
-            'core_name_file = "/tmp/CORENAME"\n'
-            'menu_rbf = "/media/fat/menu.rbf"\n'
-            'mgl_directory = "/tmp/fogcast"\n'
         ).encode()
         with patch.dict(os.environ, {'FES_HOST_CONFIG': str(host), 'CI': '', 'FES_UNPROVISIONED': ''}, clear=False):
             result = media.build(self.root, 'native-integration-dev', None, self.runner,
@@ -1189,11 +1184,6 @@ class AgentConfigTests(unittest.TestCase):
         expected = (
             'listen_address = "0.0.0.0:8182"\n'
             'token = "host-token"\n'
-            'mister_process_comm = "MiSTer"\n'
-            'command_pipe = "/dev/MiSTer_cmd"\n'
-            'core_name_file = "/tmp/CORENAME"\n'
-            'menu_rbf = "/media/fat/menu.rbf"\n'
-            'mgl_directory = "/tmp/fogcast"\n'
         ).encode()
         self.assertEqual(config.read_bytes(), expected)
         self.assertEqual(config_sha, hashlib.sha256(expected).hexdigest())

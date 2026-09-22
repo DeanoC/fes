@@ -35,7 +35,7 @@ from scripts.fes_build_common import (
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
-from scripts.functional_execution import execution_environment, execution_inputs, execution_digest, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.search_placer_qor import SearchError, _parse_ints, route_after_synth
 
 
@@ -244,30 +244,9 @@ def _regular_input(root: Path, relative: str) -> Path:
     return path
 
 
-def _require_clean_source(root: Path, *, identity_version: int = 1) -> tuple[str, str]:
-    root = Path(root).resolve()
-    actual_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
-    if actual_root != root and not (identity_version == 2 and root.is_relative_to(actual_root)):
-        raise BuildError(f"source root does not match Git checkout root: {root}")
-    revision = _git(root, "rev-parse", "HEAD")
-    if HEX40_RE.fullmatch(revision) is None:
-        raise BuildError("source HEAD is not a full lowercase Git commit")
-    if _git(root, "status", "--porcelain", "--untracked-files=all", "--", "."):
-        raise BuildError("source checkout must be clean before build and export")
-    repositories = _git(root, "remote", "get-url", "--all", "origin").splitlines()
-    if len(repositories) != 1:
-        raise BuildError("source checkout must have exactly one origin URL")
-    for relative in PINNED_INPUTS:
-        _regular_input(root, relative)
-        try:
-            _git(root, "ls-files", "--error-unmatch", "--", relative)
-        except BuildError as exc:
-            raise BuildError(f"pinned build input is not tracked: {relative}") from exc
-    try:
-        repository = canonical_repository(repositories[0])
-    except ValueError as exc:
-        raise BuildError(str(exc)) from exc
-    return repository, revision
+def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
+    from scripts.fes_build_common import _require_clean_source as require_source
+    return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
 @guard_functional_source
@@ -278,7 +257,7 @@ def create_build_record(
     tool_identities: Mapping[str, str],
     *,
     qor_mode: str = "first-pass",
-    identity_version: int = 1,
+    identity_version: int = 2,
     execution: dict | None = None,
     bios_snapshot: PrivateBiosSnapshot | None = None,
 ) -> bytes:
@@ -318,10 +297,9 @@ def create_build_record(
         if identity_version != 2:
             raise BuildError("private BIOS requires build identity version 2")
         fields["parameters"].update(bios_snapshot.verify(root / OUTPUT_RELATIVE))
-    if identity_version == 2:
-        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
-    elif identity_version != 1:
+    if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -603,7 +581,7 @@ def build(
     cache_root: Path | None = None,
     best_fmax: bool = False,
     gpu_devices: Sequence[int] = (),
-    identity_version: int = 1,
+    identity_version: int = 2,
     bios: Path | None = None,
 ) -> Path:
     root = Path(root).resolve()
@@ -618,17 +596,11 @@ def build(
     identities = {name: tool.identity for name, tool in authenticated.items()}
     output = _prepare_output(root)
     bios_snapshot = _snapshot_bios(bios, output) if bios is not None else None
-    execution = None
-    controlled_env = None
-    private_home = None
-    if identity_version == 2:
-        if len(gpu_devices) > 1:
-            raise BuildError("functional identity currently requires one explicit GPU device")
-        gpu_devices = tuple(gpu_devices) or (0,)
-        private_home = tempfile.TemporaryDirectory(prefix="fes-coleco-tool-home-")
-        tool_paths = {name: tool.path for name, tool in authenticated.items()}
-        controlled_env = execution_environment(Path(private_home.name), tool_paths)
-        execution = execution_inputs(tool_paths, controlled_env, gpu_devices[0])
+    if len(gpu_devices) > 1:
+        raise BuildError("functional identity requires one explicit GPU device")
+    gpu_devices = tuple(gpu_devices) or (0,)
+    invocation = FunctionalInvocation(authenticated, gpu_devices[0])
+    execution, controlled_env = invocation.inputs, invocation.env
     record = create_build_record(
         root, repository, revision, identities, qor_mode=qor_mode,
         identity_version=identity_version, execution=execution, bios_snapshot=bios_snapshot,
@@ -643,10 +615,7 @@ def build(
         )
         if bios_snapshot is not None:
             bios_snapshot.verify(output)
-        if controlled_env is None:
-            _run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT_RELATIVE)
-        else:
-            _run_tool(commands[0], root, output / "yosys.log", env=controlled_env, audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+        _run_tool(commands[0], root, output / "yosys.log", env=controlled_env, audit_source_root=root, output_relative=OUTPUT_RELATIVE)
         if bios_snapshot is not None:
             bios_snapshot.verify(output)
         if not (output / "synth.json").is_file():
@@ -668,7 +637,7 @@ def build(
                 extra=("--router", ROUTER),
                 required=PLACER_QOR_CLOCKS,
                 gpu_devices=gpu_devices,
-                **({"env": controlled_env, "audit_source_root": root} if controlled_env is not None else {}),
+                env=controlled_env, audit_source_root=root,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -699,14 +668,11 @@ def build(
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
         if (final_repository, final_revision) != (repository, revision):
             raise BuildError("source identity changed during build")
-        if execution is not None:
-            final_execution = execution_inputs(tool_paths, controlled_env, gpu_devices[0])
-            if final_execution != execution:
-                raise BuildError("execution inputs changed during build")
-            final_record = create_build_record(root, repository, revision, identities,
-                qor_mode=qor_mode, identity_version=identity_version, execution=final_execution, bios_snapshot=bios_snapshot)
-            if final_record != record:
-                raise BuildError("functional source inputs changed during build")
+        invocation.verify()
+        final_record = create_build_record(root, repository, revision, identities,
+            qor_mode=qor_mode, identity_version=identity_version, execution=execution, bios_snapshot=bios_snapshot)
+        if final_record != record:
+            raise BuildError("functional source inputs changed during build")
         if bios_snapshot is not None:
             bios_snapshot.verify(output)
         return export_package(manifest, output / "core.rbf", package_store)
@@ -717,8 +683,7 @@ def build(
                 path.unlink()
         raise
     finally:
-        if private_home is not None:
-            private_home.cleanup()
+        invocation.close()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -728,7 +693,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--bios", type=Path, help="private 8192-byte BIOS bring-up (identity v2; separate package store)")
     parser.add_argument("--print-commands", action="store_true")
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2,
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2,
                         help="2 opts into functional input identity (single GPU; experimental)")
     parser.add_argument(
         "--best-fmax",
@@ -743,24 +708,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
-            if arguments.bios is not None:
-                raise BuildError("private BIOS requires the controlled build invocation")
-            if arguments.identity_version != 1:
-                raise BuildError("functional identity requires the controlled build invocation")
-            repository, revision = _require_clean_source(arguments.root)
-            authenticated = _authenticate_coleco_tools(arguments.root, cache_root=arguments.cache_root)
-            identities = {name: tool.identity for name, tool in authenticated.items()}
-            record = create_build_record(arguments.root, repository, revision, identities)
-            build_id = build_identity(record)
-            yosys, nextpnr = build_commands(
-                arguments.root.resolve(),
-                (arguments.root.resolve() / OUTPUT_RELATIVE),
-                build_id,
-                {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
-            )
-            print(" ".join(yosys))
-            print(" ".join(nextpnr))
-            return 0
+            raise BuildError("functional identity requires a controlled build")
         print(
             build(
                 arguments.root,
@@ -769,8 +717,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 bios=arguments.bios,
                 best_fmax=arguments.best_fmax,
                 identity_version=arguments.identity_version,
-                gpu_devices=_parse_ints(arguments.gpu_devices or ("0" if arguments.identity_version == 2 else "0,1"))
-                    if arguments.best_fmax or arguments.identity_version == 2 else (),
+                gpu_devices=_parse_ints(arguments.gpu_devices or "0")
+                   ,
             )
         )
     except (BuildError, OSError, ValueError) as exc:

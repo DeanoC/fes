@@ -14,8 +14,7 @@ require_fogcast = @test -n "$(FOGCAST_DIR)" || { echo 'image: FOGCAST_DIR is req
 
 .PHONY: test build-target-image-lock-container target-image-native-fetch \
 	target-image-native target-image-native-verify target-image-native-qemu-smoke \
-	target-image-fetch target-images target-image-dev target-image-verify \
-	target-image-qemu-smoke target-kernel-test target-kernel target-kernel-verify
+	target-kernel-test target-kernel target-kernel-verify
 
 test:
 	sh scripts/tests/native-package-only_test.sh
@@ -27,8 +26,6 @@ test:
 	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/verify-target-image-cleanup_test.sh
 	sh scripts/tests/target-image_test.sh
-	sh scripts/tests/target-image-dev_test.sh
-	sh scripts/tests/target-image-dev-container_test.sh
 	sh scripts/tests/target-kernel_test.sh
 
 build-target-image-lock-container:
@@ -86,54 +83,10 @@ target-image-native-qemu-smoke:
 	  scripts/qemu-smoke-target-image.sh native-dev \
 	  build/output/target-image/native-dev/linux.img
 
-target-image-fetch: build-target-image-lock-container
-	$(require_fogcast)
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/target-image-container.sh fetch /work/scripts/fetch-target-image-sources.sh
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/build-target-image.sh --fetch prod
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/build-target-image.sh --fetch dev
-
-target-images: target-image-fetch
-	$(require_fogcast)
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/build-target-image.sh prod
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/build-target-image.sh dev
-
-target-image-dev: target-image-fetch
-	$(require_fogcast)
-	TARGET_IMAGE_DEV_CONTAINER=1 TARGET_IMAGE_OUTPUT_VOLUME=fogcast-target-image-output \
-	  TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/build-target-image.sh --fast-dev
-
-target-image-verify:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/verify-target-image.sh prod build/output/target-image/prod/linux.img build/output/target-image/prod/manifest.tsv build/output/target-image/prod/library-report.tsv
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/verify-target-image.sh dev build/output/target-image/dev/linux.img build/output/target-image/dev/manifest.tsv build/output/target-image/dev/library-report.tsv
-
-target-image-qemu-smoke:
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/qemu-smoke-target-image.sh prod build/output/target-image/prod/linux.img
-	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
-	  FOGCAST_DIR="$(FOGCAST_DIR)" \
-	  scripts/qemu-smoke-target-image.sh dev build/output/target-image/dev/linux.img
-
 target-kernel-test:
 	sh scripts/tests/target-kernel_test.sh
 
-target-kernel: target-images
+target-kernel: target-image-native
 	TARGET_IMAGE_CONTAINER_RUNTIME="$(CONTAINER_RUNTIME)" \
 	  FOGCAST_DIR="$(FOGCAST_DIR)" \
 	  scripts/build-target-kernel.sh

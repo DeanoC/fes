@@ -4,6 +4,7 @@ import tempfile
 import subprocess
 import tomllib
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from unittest.mock import patch
 
 from scripts import build_fes_demo as demo
@@ -16,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class ApplicationProducerTests(unittest.TestCase):
     def test_audio_variant_identity_interfaces_and_source_closure(self):
         record = demo.create_build_record(ROOT, "https://example.invalid/repo", "a" * 40,
-                                         {"yosys": "test"}, audio=True)
+                                         {"yosys": "test"}, audio=True, execution=EXECUTION)
         manifest = tomllib.loads(demo.manifest(record, {"rbf": {"size": 4, "sha256": "b" * 64}},
                     "https://example.invalid/repo", "a" * 40, {"yosys": "test"}, audio=True).decode())
         self.assertEqual(manifest["core"]["id"], "fes.demo-audio")
@@ -89,7 +90,7 @@ class ApplicationProducerTests(unittest.TestCase):
         ids = []
         for media in (False, True):
             record = demo.create_build_record(ROOT, "https://example.invalid/repo", "a" * 40,
-                                               {"yosys": "test"}, media=media)
+                                               {"yosys": "test"}, media=media, execution=EXECUTION)
             ids.append(build_identity(record))
             manifest = tomllib.loads(demo.manifest(record,
                 {"rbf": {"size": 4, "sha256": "b" * 64}}, "https://example.invalid/repo",
@@ -109,7 +110,7 @@ class ApplicationProducerTests(unittest.TestCase):
         self.assertNotEqual(*ids)
 
     def test_dirty_source_gate_precedes_tool_use(self):
-        with patch.object(demo, "require_clean_source", side_effect=board.BuildError("dirty")) as source, \
+        with patch.object(demo, "FunctionalInvocation", FakeInvocation), patch.object(demo, "require_clean_source", side_effect=board.BuildError("dirty")) as source, \
              patch.object(board, "_authenticate_tools") as tools:
             with self.assertRaisesRegex(board.BuildError, "dirty"):
                 demo.build(ROOT)
@@ -123,14 +124,14 @@ class ApplicationProducerTests(unittest.TestCase):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes((ROOT / relative).read_bytes())
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            init_source(root)
             tools = {name: board.AuthenticatedTool(Path("/auth") / name, name)
                      for name in ("yosys", "nextpnr-mistral", "mistral")}
             output = root / demo.output_relative(False)
             def run(command, cwd, log, **kwargs):
                 self.assertTrue((output / "build-inputs.json").is_file())
                 (output / "core.rbf").write_bytes(b"unvalidated")
-            with patch.object(demo, "require_clean_source", return_value=("https://example.invalid/repo", "a" * 40)), \
+            with patch.object(demo, "FunctionalInvocation", FakeInvocation), patch.object(demo, "require_clean_source", return_value=("https://example.invalid/repo", "a" * 40)), \
                  patch.object(board, "_authenticate_tools", return_value=tools), \
                  patch.object(board, "_run_tool", side_effect=run), \
                  patch.object(demo.board_evidence, "validate_build_evidence", side_effect=board.BuildError("timing failed")), \
@@ -162,3 +163,11 @@ class ApplicationProducerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

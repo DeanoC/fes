@@ -211,6 +211,6 @@ validate_supervisor_assignment \
   }
 validate_start_commands \
   "$agent_service" \
-  '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/fogcast/agent.toml --runtime native &' \
+  '/usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent --config /media/fat/fogcast/agent.toml &' \
   'printf '\''%s\n'\'' "$!" > /run/mister-agent-supervisor.pid' \
   agent

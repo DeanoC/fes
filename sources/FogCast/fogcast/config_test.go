@@ -89,9 +89,6 @@ root = "`+megaRoot+`"
 	if got := cfg.HostEmulator; got.Binary != "/Applications/RetroArch" || got.Core != "/cores/snes.dylib" || len(got.Systems) != 1 || got.Systems[0] != protocol.SystemSNES {
 		t.Fatalf("host emulator = %#v", got)
 	}
-	if len(cfg.FPGAROMPaths) != 1 || cfg.FPGAROMPaths[fogcast.DefaultFPGAROMGameID] != fogcast.DefaultActRaiserROMPath {
-		t.Fatalf("seeded FPGA ROM map = %#v", cfg.FPGAROMPaths)
-	}
 }
 
 func TestLoadConfigDefaultsAgentBaseURLWhenOmitted(t *testing.T) {
@@ -207,42 +204,7 @@ func TestLoadConfigRejectsInvalidNamedTargetsWithoutLeakingAgent(t *testing.T) {
 	}
 }
 
-func TestLoadConfigLoadsFPGAROMPathAllowlist(t *testing.T) {
-	dir := t.TempDir()
-	content := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis")) + `
-[fpga_rom_paths]
-snes-actraiser-live = "/media/fat/games/SNES/ActRaiser.smc"
-`
-	config, err := fogcast.LoadConfig(writeConfig(t, content))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := config.FPGAROMPaths["snes-actraiser-live"]; got != "/media/fat/games/SNES/ActRaiser.smc" {
-		t.Fatalf("FPGA ROM map = %#v", config.FPGAROMPaths)
-	}
-	if _, seeded := config.FPGAROMPaths[fogcast.DefaultFPGAROMGameID]; seeded {
-		t.Fatalf("explicit map unexpectedly kept seed: %#v", config.FPGAROMPaths)
-	}
-}
 
-func TestLoadConfigRejectsInvalidFPGAROMPaths(t *testing.T) {
-	dir := t.TempDir()
-	base := validConfig(filepath.Join(dir, "SNES"), filepath.Join(dir, "Genesis"))
-	tests := map[string]string{
-		"relative path":   base + "\n[fpga_rom_paths]\nactraiser = \"games/SNES/ActRaiser.smc\"\n",
-		"escaped path":    base + "\n[fpga_rom_paths]\nactraiser = \"/media/fat/../etc/passwd\"\n",
-		"outside fat":     base + "\n[fpga_rom_paths]\nactraiser = \"/tmp/ActRaiser.smc\"\n",
-		"invalid game id": base + "\n[fpga_rom_paths]\n\"ActRaiser\" = \"/media/fat/games/SNES/ActRaiser.smc\"\n",
-		"empty path":      base + "\n[fpga_rom_paths]\nactraiser = \"\"\n",
-	}
-	for name, content := range tests {
-		t.Run(name, func(t *testing.T) {
-			if _, err := fogcast.LoadConfig(writeConfig(t, content)); err == nil {
-				t.Fatal("invalid FPGA ROM map accepted")
-			}
-		})
-	}
-}
 
 func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
 	dir := t.TempDir()
@@ -928,4 +890,12 @@ func writeConfig(t *testing.T, content string) string {
 		t.Fatal(err)
 	}
 	return path
+}
+
+func TestLoadConfigRejectsRetiredRawCoreMap(t *testing.T) {
+ path := writeConfig(t, `token = "test"
+[fpga_rom_paths]
+old_game = "/media/fat/games/old.rom"
+`)
+ if _, err := fogcast.LoadConfig(path); err == nil { t.Fatal("retired raw-core map accepted") }
 }

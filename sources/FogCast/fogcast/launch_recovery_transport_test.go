@@ -48,15 +48,12 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.EnsureBuiltinPong(ctx); err != nil {
-				t.Fatal(err)
-			}
 
 			const targetID = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
 			const token = "retained-test-lease"
 			var mu sync.Mutex
 			var mutations []string
-			state := protocol.Status{State: protocol.StateIdle}
+			state := protocol.Status{State: protocol.StateIdle, LastError: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "retained idle failure"}}
 			held := false
 			var client *targetclient.Client
 			peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +83,6 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 				case "POST /v1/kit/claim":
 					held = true
 					json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{"state": "held", "generation": "original-generation", "expires_in_ms": 60000}, "token": token})
-				case "POST /v1/launch":
-					var request protocol.LaunchRequest
-					if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-						t.Error(err)
-					}
-					state.LastError = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "legacy load failed"}
-					w.WriteHeader(http.StatusServiceUnavailable)
-					json.NewEncoder(w).Encode(map[string]any{"error": state.LastError})
 				case "POST /v1/development/core/inspect":
 					body, err := io.ReadAll(r.Body)
 					if err != nil || !bytes.Equal(body, raw) {
@@ -132,14 +121,9 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: targetID}}, SelectedTarget: "kit", RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 			s.resolveTarget = func(context.Context, string) ([]string, error) { return nil, nil }
 			s.corePackages = packages
-			if _, err := s.Launch(ctx, catalog.BuiltinPongID, nil); err == nil {
-				t.Fatal("legacy launch unexpectedly succeeded")
-			}
-			mu.Lock()
-			before := append([]string(nil), mutations...)
-			mu.Unlock()
-			if !reflect.DeepEqual(before, []string{"/v1/kit/claim", "/v1/launch"}) {
-				t.Fatalf("legacy mutation sequence: %v", before)
+			claim, _ := http.NewRequestWithContext(ctx, http.MethodPost, peer.URL+"/v1/stop", nil)
+			if err := lease.Authorize(claim, true); err != nil {
+				t.Fatal(err)
 			}
 			result, err := s.Launch(ctx, entry.GameID, nil)
 			if loseLease {
@@ -149,7 +133,7 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 			} else if err != nil || result.Status.GameID == nil || *result.Status.GameID != entry.GameID || result.Status.State != protocol.StateActive {
 				t.Fatalf("recovered launch: result=%+v err=%v", result, err)
 			}
-			want := []string{"/v1/kit/claim", "/v1/launch", "/v1/stop"}
+			want := []string{"/v1/kit/claim", "/v1/stop"}
 			if !loseLease {
 				want = append(want, "/v1/library/core/load")
 			}

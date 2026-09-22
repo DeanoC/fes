@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Build the optional Quartus experiment lane.  This file and rebuild_core.py
+# Build the optional Quartus experiment lane.  This file and quartus_tools.py
 # are the wrappers that know about the proprietary compiler.  In particular,
 # they never search PATH: callers must opt in with QUARTUS_ROOTDIR.
 set -euo pipefail

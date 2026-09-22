@@ -51,12 +51,6 @@ func (c *Client) Status(ctx context.Context) (protocol.Status, error) {
 	return status, err
 }
 
-func (c *Client) Launch(ctx context.Context, request protocol.LaunchRequest) (protocol.Status, error) {
-	var status protocol.Status
-	err := c.doJSON(ctx, http.MethodPost, "/v1/launch", request, &status)
-	return status, err
-}
-
 func (c *Client) Stop(ctx context.Context) (protocol.Status, error) {
 	var status protocol.Status
 	err := c.doJSON(ctx, http.MethodPost, "/v1/stop", nil, &status)

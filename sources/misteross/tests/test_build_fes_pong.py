@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 from unittest.mock import patch
 
@@ -259,17 +260,17 @@ class BuildFesPongTests(unittest.TestCase):
             "https://github.com/DeanoC/misteross.git",
             "a" * 40,
             identities,
-        )
+         execution=EXECUTION)
         fields = json.loads(record)
 
         self.assertEqual(record, json.dumps(fields, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode() + b"\n")
-        self.assertEqual(fields["format"], 1)
+        self.assertEqual(fields["format"], 2)
         self.assertEqual(fields["dependencies"], {})
         self.assertEqual(fields["recipe"], "scripts/build_fes_pong.py")
         self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
         self.assertEqual(fields["tools"], identities)
         self.assertEqual(
-            fields["parameters"],
+            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",
@@ -338,9 +339,9 @@ class BuildFesPongTests(unittest.TestCase):
                 "https://github.com/DeanoC/misteross.git",
                 "a" * 40,
                 identities,
-            )
+             execution=EXECUTION)
             fields = json.loads(shared_record)
-            self.assertEqual(fields["format"], 1)
+            self.assertEqual(fields["format"], 2)
             self.assertEqual(fields["tools"], identities)
             local_tools = {
                 name: AuthenticatedTool(Path("/legacy/install") / name, tool.identity)
@@ -351,7 +352,7 @@ class BuildFesPongTests(unittest.TestCase):
                 "https://github.com/DeanoC/misteross.git",
                 "a" * 40,
                 {name: tool.identity for name, tool in local_tools.items()},
-            )
+             execution=EXECUTION)
             self.assertEqual(shared_record, local_record)
             self.assertEqual(build_identity(shared_record), build_identity(local_record))
 
@@ -858,7 +859,9 @@ class BuildFesPongTests(unittest.TestCase):
                 self.assertEqual(destination.resolve(), package_store.resolve())
                 return package_store / ("f" * 64)
 
+            init_source(root)
             with (
+                patch.object(build_fes_pong, "FunctionalInvocation", FakeInvocation),
                 patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", revision)),
                 patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
@@ -892,7 +895,9 @@ class BuildFesPongTests(unittest.TestCase):
                     log.write_text("ok\n", encoding="utf-8")
                     self._write_passing_outputs(output, achieved=70.0)
 
+            init_source(root)
             with (
+                patch.object(build_fes_pong, "FunctionalInvocation", FakeInvocation),
                 patch.object(build_fes_pong, "_require_clean_source", return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
                 patch.object(build_fes_pong, "_authenticate_tools", return_value=tools),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
@@ -939,3 +944,11 @@ class BuildFesPongTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

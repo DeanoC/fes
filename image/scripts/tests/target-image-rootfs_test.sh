@@ -33,12 +33,41 @@ cp -R "$native_rootfs/." "$target/"
 printf '%s\n' runtime >"$target/usr/sbin/mister-runtime"
 printf '%s\n' agent >"$target/usr/sbin/mister-agent"
 chmod 0755 "$target/usr/sbin/mister-runtime" "$target/usr/sbin/mister-agent"
+mkdir -p "$target/usr/libexec/bluetooth" "$target/usr/bin"
+printf '%s\n' bluetooth-init >"$target/etc/init.d/S40bluetooth"
+printf '%s\n' dbus-init >"$target/etc/init.d/S30dbus"
+printf '%s\n' bluetoothd >"$target/usr/libexec/bluetooth/bluetoothd"
+printf '%s\n' dbus-daemon >"$target/usr/bin/dbus-daemon"
 
 fogcast=$fixture/fogcast
 mkdir -p "$fogcast/bin"
+printf '%s\n' agent >"$fogcast/bin/mister-agent-linux-armv7"
+chmod 0755 "$fogcast/bin/mister-agent-linux-armv7"
 printf '%s\n' kit >"$fogcast/bin/fogcast-kit-linux-armv7"
 chmod 0755 "$fogcast/bin/fogcast-kit-linux-armv7"
 export FOGCAST_DIR=$fogcast
+
+for library in \
+  /lib/ld-linux-armhf.so.3 \
+  /lib/libImlib2.so.1 \
+  /lib/libbluetooth.so.3 \
+  /lib/libbz2.so.1.0 \
+  /lib/libc.so.6 \
+  /lib/libdl.so.2 \
+  /lib/libfreetype.so.6 \
+  /lib/libgcc_s.so.1 \
+  /lib/libm.so.6 \
+  /lib/libpng16.so.16 \
+  /lib/libpthread.so.0 \
+  /lib/librt.so.1 \
+  /lib/libstdc++.so.6 \
+  /lib/libz.so.1; do
+  mkdir -p "$target$(dirname "$library")"
+  printf '%s\n' library >"$target$library"
+done
+mkdir -p "$target/usr/lib"
+
+"$repo/buildroot/board/fogcast-target/prepare-native-rootfs.sh" "$target"
 
 idle=$fixture/idle.rbf
 printf '%s\n' idle >"$idle"
@@ -190,6 +219,10 @@ NATIVE_RUNTIME_MODE=package-only \
   "$native_post_build" "$target"
 
 test ! -e "$target/etc/init.d/S40mister-main"
+test ! -e "$target/etc/init.d/S40bluetooth"
+test ! -e "$target/etc/init.d/S30dbus"
+test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
+test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
 test -x "$target/usr/sbin/fogcast-kit"
 test -x "$target/etc/init.d/S60fogcast-kit"

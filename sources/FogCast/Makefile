@@ -25,7 +25,7 @@ else
 NATIVE_GO_ENV =
 endif
 
-.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-image-deploy target-smoke target-native-smoke target-package-smoke
+.PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
@@ -34,11 +34,7 @@ test: build-agent test-ui test-target-boundary test-target-contract-boundary tes
 	cd appliance && $(NATIVE_GO_ENV) go test -race ./...
 	$(NATIVE_GO_ENV) go test -race ./...
 	sh scripts/tests/fogcast-build_test.sh
-	sh scripts/tests/native-megadrive-support-truth_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
-	sh scripts/tests/deploy-target-image_test.sh
-	sh scripts/tests/target-smoke_test.sh
-	sh scripts/tests/native-runtime-smoke_test.sh
 	sh scripts/tests/package-runtime-smoke_test.sh
 
 test-ui:
@@ -130,7 +126,7 @@ build-tenfoot-linuxfb-grid:
 
 build-cli:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/misterctl ./cmd/misterctl
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags '$(LDFLAGS)' -o bin/fogcast ./cmd/fogcast
 
 build-remote-play-sender:
 	mkdir -p bin
@@ -175,15 +171,6 @@ build-target-image-lock-container:
 
 # Native Buildroot/rootfs assembly lives in the FES image/ recipe.
 # These targets remain FogCast inputs: agent, kit, and the lock selector.
-
-target-image-deploy:
-	scripts/deploy-target-image.sh $(TARGET_IMAGE)
-
-target-smoke:
-	scripts/target-smoke.sh "$(GAME_ID)" "$(EXPECTED_CORE)"
-
-target-native-smoke:
-	scripts/native-runtime-smoke.sh $(NATIVE_RUNTIME_SELECTION)
 
 target-package-smoke:
 	scripts/package-runtime-smoke.sh $(FES_PONG_PACKAGE_SELECTION) $(FES_ZX81_PACKAGE_SELECTION) $(FES_COLECO_PACKAGE_SELECTION)

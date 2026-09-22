@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,11 +21,9 @@ import (
 	"github.com/DeanoC/FogCast/internal/agentconfig"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"github.com/DeanoC/FogCast/internal/cast"
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
-	"github.com/DeanoC/FogCast/internal/mister"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
@@ -36,7 +36,7 @@ func TestRunDoesNotExposeMalformedConfigurationContents(t *testing.T) {
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := run(context.Background(), path, runtimeMain, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	err := run(context.Background(), path, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err == nil {
 		t.Fatal("malformed configuration was accepted")
 	}
@@ -87,20 +87,12 @@ type compositionRuntime struct {
 }
 
 func (*compositionRuntime) Health(string) protocol.Health {
-	return protocol.Health{Ready: true, MiSTerProcess: true, CommandPipe: true}
+	return protocol.Health{Ready: true}
 }
 
 func (r *compositionRuntime) Reconcile(context.Context) protocol.Status {
 	r.reconciled = true
 	return protocol.Status{State: protocol.StateIdle}
-}
-
-func (*compositionRuntime) Prepare(core.Spec, string) (mister.PreparedLaunch, *protocol.APIError) {
-	return mister.PreparedLaunch{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionRuntime) Launch(context.Context, mister.PreparedLaunch) (string, bool, *protocol.APIError) {
-	return "", false, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
 }
 
 func (r *compositionRuntime) LoadDevelopmentRBF(_ context.Context, size int64, content io.Reader) (string, bool, *protocol.APIError) {
@@ -169,49 +161,6 @@ func (*compositionStore) Put(context.Context, protocol.System, protocol.ContentI
 	return protocol.CacheUploadResponse{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
 }
 
-func (*compositionStore) Resolve(context.Context, protocol.System, protocol.ContentIdentity) (targetcache.Resolved, *protocol.APIError) {
-	return targetcache.Resolved{}, &protocol.APIError{Code: protocol.CodeContentNotCached, Message: "not cached"}
-}
-
-func (*compositionStore) PinForLaunch(protocol.System, protocol.ContentIdentity) *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionStore) RecordLaunchIntent(protocol.System, protocol.ContentIdentity) (targetcache.LaunchIntent, *protocol.APIError) {
-	return targetcache.LaunchIntent{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionStore) RecordDirectLaunchIntent(protocol.System) (targetcache.LaunchIntent, *protocol.APIError) {
-	return targetcache.LaunchIntent{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionStore) AbortLaunch(protocol.System, protocol.ContentIdentity, targetcache.LaunchIntent) *protocol.APIError {
-	return nil
-}
-
-func (*compositionStore) AbortDirectLaunch(protocol.System, targetcache.LaunchIntent) *protocol.APIError {
-	return nil
-}
-
-func (*compositionStore) CommitDirectLaunch(protocol.System, targetcache.LaunchIntent) *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionStore) CommitLaunch(protocol.System, protocol.ContentIdentity) *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeInternal, Message: "unused"}
-}
-
-func (*compositionStore) ClearActive() *protocol.APIError { return nil }
-
-func (*compositionStore) ActiveRecordSystems(context.Context) (targetcache.ActiveRecords, bool, *protocol.APIError) {
-	return targetcache.ActiveRecords{}, false, nil
-}
-
-func (s *compositionStore) ReconcileActive(context.Context, protocol.Status, *targetcache.ActiveRecordEntry) *protocol.APIError {
-	s.reconciled = true
-	return nil
-}
-
 func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	const targetID = "01234567-89ab-cdef-0123-456789abcdef"
 	configPath := writeCompositionConfig(t, "cache_max_bytes = 67108864\ntarget_id = \""+targetID+"\"\n")
@@ -231,17 +180,14 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	deps := runDependencies{
-		openCache: func(config targetcache.Config, registry core.Registry, options ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(config targetcache.Config, options ...targetcache.Option) (agent.ContentStore, error) {
 			opened = config
-			if _, ok := registry.Lookup(protocol.SystemSNES); !ok {
-				t.Fatal("cache opener did not receive the target registry")
-			}
 			if len(options) != 1 {
 				t.Fatalf("cache options = %d, want logger only", len(options))
 			}
 			return store, nil
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		newRuntime: func(agentconfig.Config) agent.Runtime { return runtime },
 		advertise: func(ctx context.Context, id string, port int) error {
 			if id != targetID || port != 8182 {
 				t.Errorf("advertisement = %q:%d", id, port)
@@ -314,8 +260,8 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	if opened.Root != "/media/fat/fogcast/cache" || opened.ActiveRecord != "/run/fogcast-active.json" || opened.MaxBytes != 67108864 {
 		t.Fatalf("cache config = %#v", opened)
 	}
-	if !runtime.reconciled || !store.reconciled || !listened {
-		t.Fatalf("startup runtime=%v store=%v listened=%v", runtime.reconciled, store.reconciled, listened)
+	if !runtime.reconciled || !listened {
+		t.Fatalf("startup runtime=%v listened=%v", runtime.reconciled, listened)
 	}
 	if runtime.developmentSize != int64(len("development-rbf")) || string(runtime.developmentBody) != "development-rbf" {
 		t.Fatalf("development runtime = size %d body %q", runtime.developmentSize, runtime.developmentBody)
@@ -368,10 +314,10 @@ func TestRunComposesTargetInputController(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			return store, nil
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		newRuntime: func(agentconfig.Config) agent.Runtime { return runtime },
 		newInput: func(agentconfig.Config) (httpapi.InputController, error) {
 			if !runtime.reconciled {
 				t.Fatal("Main input controller was constructed before runtime initialization")
@@ -402,11 +348,11 @@ func TestRunBindsDataPartitionBeforeOpeningCache(t *testing.T) {
 			order = append(order, "data")
 			return errors.New("trial blocks bind")
 		},
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			order = append(order, "cache")
 			return &compositionStore{}, nil
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
+		newRuntime: func(agentconfig.Config) agent.Runtime {
 			order = append(order, "runtime")
 			return &compositionRuntime{}
 		},
@@ -442,7 +388,7 @@ func TestNativeRunCreatesGamepadBeforeRuntimeAndClosesItAfterServing(t *testing.
 	var order []string
 	ctx, cancel := context.WithCancel(context.Background())
 	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			order = append(order, "cache")
 			return store, nil
 		},
@@ -451,7 +397,7 @@ func TestNativeRunCreatesGamepadBeforeRuntimeAndClosesItAfterServing(t *testing.
 			return inputController, nil
 		},
 		inputBeforeInitialize: true,
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
+		newRuntime: func(agentconfig.Config) agent.Runtime {
 			order = append(order, "runtime")
 			return &compositionRuntime{}
 		},
@@ -489,10 +435,10 @@ func TestRunStopsCastControllerOnShutdown(t *testing.T) {
 	castController := &compositionCast{}
 	ctx, cancel := context.WithCancel(context.Background())
 	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			return store, nil
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return runtime },
+		newRuntime: func(agentconfig.Config) agent.Runtime { return runtime },
 		newCast: func(agentconfig.Config) (httpapi.CastController, error) {
 			return castController, nil
 		},
@@ -514,10 +460,10 @@ func TestRunRetriesCastShutdownAndReturnsStableFailure(t *testing.T) {
 	castController := &compositionCast{}
 	ctx, cancel := context.WithCancel(context.Background())
 	deps := runDependencies{
-		openCache: func(targetcache.Config, core.Registry, ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			return &compositionStore{}, nil
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime { return &compositionRuntime{} },
+		newRuntime: func(agentconfig.Config) agent.Runtime { return &compositionRuntime{} },
 		newCast:    func(agentconfig.Config) (httpapi.CastController, error) { return castController, nil },
 		serve: func(server *http.Server) error {
 			waitForKitStartup(t, server.Handler)
@@ -552,13 +498,13 @@ func TestRunCacheInventoryFailureAbortsBeforeListening(t *testing.T) {
 	privateDetail := filepath.Join(t.TempDir(), "private-cache-entry")
 	listened := false
 	deps := runDependencies{
-		openCache: func(config targetcache.Config, _ core.Registry, _ ...targetcache.Option) (agent.ContentStore, error) {
+		openCache: func(config targetcache.Config, _ ...targetcache.Option) (agent.ContentStore, error) {
 			if config.Root != "/media/fat/fogcast/cache" || config.ActiveRecord != "/run/fogcast-active.json" || config.MaxBytes != 2<<30 {
 				t.Fatalf("cache config = %#v", config)
 			}
 			return nil, errors.New(privateDetail)
 		},
-		newRuntime: func(agentconfig.Config, core.Registry) agent.Runtime {
+		newRuntime: func(agentconfig.Config) agent.Runtime {
 			t.Fatal("runtime constructed after cache inventory failure")
 			return nil
 		},
@@ -578,7 +524,7 @@ func TestRunCacheInventoryFailureAbortsBeforeListening(t *testing.T) {
 
 func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "cache")
-	dependencies, err := productionRunDependencies(runtimeMain)
+	dependencies, err := productionRunDependencies()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -586,7 +532,7 @@ func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 		Root:         root,
 		ActiveRecord: filepath.Join(t.TempDir(), "run", "fogcast-active.json"),
 		MaxBytes:     64 << 20,
-	}, core.DefaultRegistry(), targetcache.WithLogger(slog.New(slog.NewJSONHandler(io.Discard, nil))))
+	}, targetcache.WithLogger(slog.New(slog.NewJSONHandler(io.Discard, nil))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -601,46 +547,23 @@ func TestProductionCacheDependencyCreatesPrivateInventory(t *testing.T) {
 	}
 }
 
-func TestProductionRuntimeBackendDefaultsToMain(t *testing.T) {
-	t.Parallel()
-	dependencies, err := productionRunDependencies(runtimeMain)
+func TestProductionRuntimeUsesNativeWithInputBarrier(t *testing.T) {
+	dependencies, err := productionRunDependencies()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime := dependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
-	if _, ok := runtime.(*mister.Runtime); !ok {
-		t.Fatalf("default runtime = %T, want *mister.Runtime", runtime)
+	runtime := dependencies.newRuntime(agentconfig.Config{})
+	if _, ok := runtime.(*misterruntime.Runtime); !ok {
+		t.Fatalf("runtime = %T", runtime)
 	}
-}
-
-func TestProductionRuntimeBackendSelectsNativeOnlyWhenExplicit(t *testing.T) {
-	t.Parallel()
-	mainDependencies, err := productionRunDependencies(runtimeMain)
-	if err != nil {
+	if !dependencies.inputBeforeInitialize {
+		t.Fatal("input must precede initialization")
+	}
+	if dependencies.configureRuntime == nil {
+		t.Fatal("replacement barrier missing")
+	}
+	if err := dependencies.configureRuntime(runtime, &compositionInput{}); err != nil {
 		t.Fatal(err)
-	}
-	nativeDependencies, err := productionRunDependencies(runtimeNative)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := mainDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry()).(*mister.Runtime); !ok {
-		t.Fatal("main backend did not compose Main runtime")
-	}
-	if _, ok := nativeDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry()).(*misterruntime.Runtime); !ok {
-		t.Fatal("native backend did not compose native runtime")
-	}
-	if mainDependencies.inputBeforeInitialize {
-		t.Fatal("Main backend moved input construction before runtime initialization")
-	}
-	if !nativeDependencies.inputBeforeInitialize {
-		t.Fatal("native backend did not require gamepad construction before runtime initialization")
-	}
-	if mainDependencies.configureRuntime != nil || nativeDependencies.configureRuntime == nil {
-		t.Fatal("replacement barrier configuration did not remain native-only")
-	}
-	nativeRuntime := nativeDependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
-	if err := nativeDependencies.configureRuntime(nativeRuntime, &compositionInput{}); err != nil {
-		t.Fatalf("native replacement barrier composition failed: %v", err)
 	}
 }
 
@@ -669,17 +592,6 @@ func TestNativeCompositionWiresExplicitRecoveryCommand(t *testing.T) {
 	}
 }
 
-func TestProductionRuntimeBackendRejectsUnknownValueWithoutFallback(t *testing.T) {
-	t.Parallel()
-	if _, err := productionRunDependencies(runtimeBackend("automatic")); err == nil {
-		t.Fatal("unknown runtime backend was accepted")
-	}
-	err := run(context.Background(), filepath.Join(t.TempDir(), "missing-config.toml"), runtimeBackend("automatic"), slog.New(slog.NewJSONHandler(io.Discard, nil)))
-	if err == nil || err.Error() != "target runtime backend is invalid" {
-		t.Fatalf("run error = %v", err)
-	}
-}
-
 type idleCompositionControl struct {
 	statusCalls      int
 	stopCalls        int
@@ -687,25 +599,21 @@ type idleCompositionControl struct {
 	developmentPath  string
 }
 
-func (c *idleCompositionControl) Status(context.Context) (misterruntime.Response, error) {
+func (c *idleCompositionControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
 	c.statusCalls++
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 
-func (c *idleCompositionControl) Stop(context.Context) (misterruntime.Response, error) {
+func (c *idleCompositionControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
 	c.stopCalls++
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test"}, nil
 }
 
-func (*idleCompositionControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	return misterruntime.Response{}, errors.New("unused")
-}
-
-func (c *idleCompositionControl) LoadDevelopmentRBF(_ context.Context, path string) (misterruntime.Response, error) {
+func (c *idleCompositionControl) Protocol2LoadDevelopmentRBF(_ context.Context, path string) (misterruntime.Protocol2Response, error) {
 	c.developmentCalls++
 	c.developmentPath = path
-	coreName := "MegaDrive"
-	return misterruntime.Response{Protocol: 1, OK: true, State: "running_development", Execution: "development", Core: &coreName, Version: "test"}, nil
+	generation := uint64(1)
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Generation: &generation, Version: "test"}, nil
 }
 
 func TestNativeCompositionReportsIdleAndLoadsDevelopmentAtTheVolatilePath(t *testing.T) {
@@ -720,18 +628,18 @@ func TestNativeCompositionReportsIdleAndLoadsDevelopmentAtTheVolatilePath(t *tes
 		_ = os.Remove(developmentRBFPath + ".new")
 	})
 	control := &idleCompositionControl{}
-	dependencies, err := runtimeDependencies(runtimeNative, control)
+	dependencies, err := runtimeDependencies(control)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime := dependencies.newRuntime(agentconfig.Config{}, core.NewRegistry())
+	runtime := dependencies.newRuntime(agentconfig.Config{})
 	status := runtime.Reconcile(context.Background())
 	if status.State != protocol.StateIdle || status.LastError != nil {
 		t.Fatalf("status = %#v", status)
 	}
 	body := strings.NewReader("rbf")
 	observed, attempted, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 3, body)
-	if observed != "MegaDrive" || !attempted || apiErr != nil {
+	if observed != "" || !attempted || apiErr != nil {
 		t.Fatalf("development = observed:%q attempted:%t error:%#v", observed, attempted, apiErr)
 	}
 	staged, err := os.ReadFile(developmentRBFPath)
@@ -748,11 +656,6 @@ func writeCompositionConfig(t *testing.T, extra string) string {
 	path := filepath.Join(t.TempDir(), "agent.toml")
 	content := `listen_address = "127.0.0.1:8182"
 token = "test-token"
-mister_process_comm = "MiSTer"
-command_pipe = "/dev/MiSTer_cmd"
-core_name_file = "/tmp/CORENAME"
-menu_rbf = "/media/fat/menu.rbf"
-mgl_directory = "/tmp/fogcast"
 ` + extra
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -780,4 +683,45 @@ func waitForKitStartup(t *testing.T, handler http.Handler) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+}
+
+func TestAgentCLIReportsRetiredSettingsWithoutPrivateDetails(t *testing.T) {
+	for _, key := range []string{"mister_process_comm", "command_pipe", "core_name_file", "menu_rbf", "mgl_directory", "private_unknown_setting"} {
+		t.Run(key, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "private-agent-config.toml")
+			content := "listen_address = \"127.0.0.1:8182\"\ntoken = \"private-secret-token\"\n" + key + " = \"/private/setting-value\"\n"
+			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			command := exec.Command(os.Args[0], "-test.run=^TestAgentStartupCLIProcess$")
+			command.Env = append(os.Environ(), "FOGCAST_STARTUP_TEST_CONFIG="+path)
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Fatal("CLI accepted retired or unknown setting")
+			}
+			message := string(output)
+			if key == "private_unknown_setting" {
+				if message != "mister-agent: startup failed\n" {
+					t.Fatalf("unexpected private error: %q", message)
+				}
+			} else if !strings.Contains(message, "remove retired Main settings") || !strings.Contains(message, key) || !strings.Contains(message, "FES packages") {
+				t.Fatalf("missing actionable error: %q", message)
+			}
+			for _, private := range []string{path, "private-secret-token", "/private/setting-value"} {
+				if strings.Contains(message, private) {
+					t.Fatal("CLI leaked private configuration")
+				}
+			}
+		})
+	}
+}
+
+func TestAgentStartupCLIProcess(t *testing.T) {
+	path := os.Getenv("FOGCAST_STARTUP_TEST_CONFIG")
+	if path == "" {
+		return
+	}
+	flag.CommandLine = flag.NewFlagSet("mister-agent", flag.ExitOnError)
+	os.Args = []string{"mister-agent", "--config", path}
+	main()
 }

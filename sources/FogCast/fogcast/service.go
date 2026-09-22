@@ -18,7 +18,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
@@ -43,8 +43,6 @@ type serviceCatalog interface {
 	Platforms(context.Context) ([]catalog.PlatformInfo, error)
 	GamesByIDs(context.Context, []string) ([]catalog.Game, error)
 	GameMatchesRoot(context.Context, catalog.Game, catalog.Root) (bool, error)
-	BeginContentLaunchAdmission(context.Context, catalog.Game, catalog.Root, catalog.Content) (catalog.ContentLaunchAdmission, error)
-	CompareAndSetContent(context.Context, catalog.Game, catalog.Root, catalog.Content) (bool, error)
 	Close() error
 }
 
@@ -64,8 +62,6 @@ type servicePreparer interface {
 type serviceClient interface {
 	ProbeContent(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
 	UploadContent(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
-	LaunchContent(context.Context, protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error)
-	Launch(context.Context, protocol.LaunchRequest) (protocol.Status, error)
 	Health(context.Context) (protocol.Health, error)
 	Status(context.Context) (protocol.Status, error)
 	Stop(context.Context) (protocol.Status, error)
@@ -94,7 +90,7 @@ type mediaCastClient interface {
 }
 
 const (
-	ExecutionFPGANative      = string(systems.CapabilityFPGANative)
+	ExecutionFPGANative      = "fpga_native"
 	ExecutionFPGADevelopment = "fpga_development"
 	ExecutionHostOnly        = string(systems.CapabilityHostOnly)
 	lostLaunchPollInterval   = 25 * time.Millisecond
@@ -182,17 +178,15 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	nativeAvailabilityMu sync.RWMutex
-	nativeAvailability   map[nativeTargetKey]nativeObservation
-	targetReset          func()
-	connectionMu         sync.Mutex
-	connection           TargetConnection
-	resolveTarget        func(context.Context, string) ([]string, error)
-	lookupCancel         context.CancelFunc
-	monitorCancel        context.CancelFunc
-	monitorDone          chan struct{}
-	nextLookup           time.Time
-	lookupFailures       uint
+	targetReset    func()
+	connectionMu   sync.Mutex
+	connection     TargetConnection
+	resolveTarget  func(context.Context, string) ([]string, error)
+	lookupCancel   context.CancelFunc
+	monitorCancel  context.CancelFunc
+	monitorDone    chan struct{}
+	nextLookup     time.Time
+	lookupFailures uint
 
 	stoppedKitLease         *targetclient.KitLease
 	closeKitLeases          func(context.Context) error
@@ -241,7 +235,6 @@ type Service struct {
 	scanWG                   sync.WaitGroup
 	closing                  bool
 	catalogCloseWait         time.Duration
-	fpgaROMPaths             map[string]string
 	activeExecution          string
 	activeTarget             string
 	activeGameID             string
@@ -300,9 +293,6 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		}
 		_ = store.Close()
 		return nil, safeOpenError(message, cause)
-	}
-	if err := store.EnsureBuiltinPong(ctx); err != nil {
-		return fail("register built-in Pong", err)
 	}
 	if err := ensurePrivateRegularFile(paths.Index); err != nil {
 		return fail("secure FogCast catalog", err)
@@ -448,7 +438,6 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		metadataRoot:             paths.MetadataRoot,
 		metadataScope:            config.Metadata.ClientID,
 		watchRoot:                strings.TrimSpace(config.Library.WatchRoot),
-		fpgaROMPaths:             copyFPGAROMPaths(config.FPGAROMPaths),
 		catalogAdmission:         make(chan struct{}, 1),
 	}
 	if len(service.targets) == 0 {
@@ -778,6 +767,21 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	// Reject retired FPGA requests before stopping or rebinding a live package.
+	admittedGame, admissionErr := s.catalog.Game(ctx, gameID)
+	if admissionErr != nil {
+		if errors.Is(admissionErr, sql.ErrNoRows) {
+			return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeROMNotFound, nil)
+		}
+		if ctx.Err() != nil {
+			return protocol.CachedLaunchResponse{}, ctx.Err()
+		}
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, safeContextError(admissionErr))
+	}
+	if err := s.nativeCatalogAdmission(ctx, admittedGame); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+
 	s.executionMu.Lock()
 	packageOwnerTarget := ""
 	if s.activePackageID != "" {
@@ -809,7 +813,11 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	for attempt := 0; attempt < 2; attempt++ {
-		game, err := s.catalog.Game(ctx, gameID)
+		game := admittedGame
+		var err error
+		if attempt > 0 {
+			game, err = s.catalog.Game(ctx, gameID)
+		}
 		if err != nil {
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
@@ -1278,7 +1286,7 @@ func (s *Service) PlatformLaunchable(system protocol.System) bool {
 	if err == nil && execution == ExecutionHostOnly {
 		return true
 	}
-	return catalog.Launchable(system) && s.nativeSystemAvailable(system, false)
+	return false
 }
 
 func (s *Service) Platforms(ctx context.Context) ([]catalog.PlatformInfo, error) {
@@ -2042,16 +2050,6 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 	if err := s.nativeCatalogAdmission(ctx, game); err != nil {
 		return protocol.CachedLaunchResponse{}, false, err
 	}
-	if game.System == protocol.SystemPong || game.Kind == catalog.SourceKindBuiltin {
-		if !catalog.IsBuiltinPong(game) {
-			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeBadRequest, nil)
-		}
-		return s.launchFPGANative(ctx, game, "", progress)
-	}
-
-	if !catalog.Launchable(game.System) && !s.hostLaunchable(game.System) {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
-	}
 	root, ok := s.libraryRoot(game.LibraryID)
 	if !ok || root.System != game.System {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
@@ -2063,49 +2061,7 @@ func (s *Service) launchGame(ctx context.Context, game catalog.Game, progress Pr
 	if !matchesRoot {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
 	}
-	execution, err := s.resolveExecution(ctx, game)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, err
-	}
-	if execution == ExecutionHostOnly {
-		return s.launchHostOnly(ctx, game, root, progress)
-	}
-	if romPath, ok := s.onKitROMPath(game); ok {
-		return s.launchFPGANative(ctx, game, romPath, progress)
-	}
-	if hostPathLaunch(game) {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInvalidArchive, nil)
-	}
-	if game.Content != nil {
-		identity := contentIdentityFromCatalog(*game.Content)
-		if err := protocol.ValidateContentIdentity(identity); err != nil {
-			return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
-		}
-		emitProgress(progress, "cache", "checking target cache")
-		probe, err := s.probe(ctx, game.System, identity)
-		if err != nil {
-			return protocol.CachedLaunchResponse{}, false, err
-		}
-		if probe.Present {
-			emitProgress(progress, "cache", "content is already cached")
-			emitProgress(progress, "launch", "launching cached content")
-			return s.launchAdmittedContent(ctx, game, root, *game.Content, identity)
-		}
-		emitProgress(progress, "cache", "content is not cached")
-	}
-
-	if game.State != catalog.SourceStateAvailable || !game.RootOnline {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(catalog.SourceErrorCode(game), nil)
-	}
-	emitProgress(progress, "prepare", "preparing source content")
-	prepared, err := s.preparer.Prepare(ctx, root, game)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalPreparationError(err)
-	}
-	if prepared == nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
-	}
-	return s.launchPrepared(ctx, game, prepared, progress)
+	return s.launchHostOnly(ctx, game, root, progress)
 }
 
 func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root catalog.Root, progress ProgressFunc) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
@@ -2243,166 +2199,6 @@ func systemPtr(value protocol.System) *protocol.System {
 	return &value
 }
 
-func (s *Service) launchPrepared(ctx context.Context, game catalog.Game, prepared *romsource.Prepared, progress ProgressFunc) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
-	defer func() {
-		if err := prepared.Remove(); err != nil {
-			response = protocol.CachedLaunchResponse{}
-			retry = false
-			if resultErr == nil {
-				resultErr = canonicalError(protocol.CodeInternal, romsource.ErrCleanupRetained)
-			} else {
-				resultErr = errors.Join(resultErr, romsource.ErrCleanupRetained)
-			}
-		}
-	}()
-
-	if err := protocol.ValidateContentIdentity(prepared.Content); err != nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
-	}
-	content := catalog.Content{SHA256: prepared.Content.SHA256, Size: prepared.Content.Size, Extension: prepared.Content.Extension}
-	root, ok := s.libraryRoot(game.LibraryID)
-	if !ok {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeSourceUnavailable, nil)
-	}
-	release, err := s.acquireCatalogAdmission(ctx)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, err
-	}
-	updated, err := s.catalog.CompareAndSetContent(ctx, game, root, content)
-	release()
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	if !updated {
-		return protocol.CachedLaunchResponse{}, true, nil
-	}
-	emitProgress(progress, "cache", "checking target cache")
-	probe, err := s.probe(ctx, game.System, prepared.Content)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, err
-	}
-	if probe.Present {
-		emitProgress(progress, "cache", "content is already cached")
-	} else {
-		emitProgress(progress, "cache", "content is not cached")
-		if err := s.uploadPrepared(ctx, game.System, prepared, progress); err != nil {
-			return protocol.CachedLaunchResponse{}, false, err
-		}
-	}
-	emitProgress(progress, "launch", "launching cached content")
-	return s.launchAdmittedContent(ctx, game, root, content, prepared.Content)
-}
-
-func (s *Service) launchAdmittedContent(ctx context.Context, game catalog.Game, root catalog.Root, content catalog.Content, identity protocol.ContentIdentity) (response protocol.CachedLaunchResponse, retry bool, resultErr error) {
-	releaseLocal, err := s.acquireCatalogAdmission(ctx)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, err
-	}
-	admission, err := s.catalog.BeginContentLaunchAdmission(ctx, game, root, content)
-	if err != nil {
-		releaseLocal()
-		if ctx.Err() != nil {
-			return protocol.CachedLaunchResponse{}, false, ctx.Err()
-		}
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, safeContextError(err))
-	}
-	defer func() {
-		closeErr := admission.Close()
-		releaseLocal()
-		if closeErr == nil {
-			return
-		}
-		response = protocol.CachedLaunchResponse{}
-		retry = false
-		if resultErr == nil {
-			resultErr = canonicalError(protocol.CodeInternal, safeContextError(closeErr))
-		} else {
-			resultErr = errors.Join(resultErr, closeErr)
-		}
-	}()
-	if !admission.ContentMatches() {
-		return protocol.CachedLaunchResponse{}, true, nil
-	}
-	response, resultErr = s.launchContent(ctx, game, identity)
-	return response, false, resultErr
-}
-
-func (s *Service) uploadPrepared(parent context.Context, system protocol.System, prepared *romsource.Prepared, progress ProgressFunc) (resultErr error) {
-	file, err := prepared.Open()
-	if err != nil {
-		return canonicalError(protocol.CodeTransferFailed, nil)
-	}
-	var uploadBody io.Reader = file
-	if s.uploadReadDelay > 0 {
-		uploadBody = &throttledReader{Reader: file, delay: s.uploadReadDelay}
-	}
-	body := &progressReader{Reader: uploadBody, onFirstRead: func() {
-		emitProgress(progress, "upload-started", "upload body read")
-	}}
-	defer func() {
-		if err := body.Close(); err != nil && resultErr == nil {
-			resultErr = canonicalError(protocol.CodeTransferFailed, nil)
-		}
-	}()
-
-	emitProgress(progress, "upload", "uploading prepared content")
-	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
-	defer cancel()
-	client, ok := s.selectedClientLocked()
-	if !ok {
-		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	response, err := client.UploadContent(ctx, system, prepared.Content, body)
-	if err != nil {
-		return canonicalRemoteError(err, protocol.CodeTransferFailed)
-	}
-	if (response.Result != protocol.CacheUploadPresent && response.Result != protocol.CacheUploadCreated) ||
-		response.System != system || response.Content != prepared.Content {
-		return canonicalError(protocol.CodeInternal, nil)
-	}
-	return nil
-}
-
-func (s *Service) probe(parent context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
-	defer cancel()
-	client, ok := s.selectedClientLocked()
-	if !ok {
-		return protocol.CacheProbeResponse{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	response, err := client.ProbeContent(ctx, system, identity)
-	if err != nil {
-		return protocol.CacheProbeResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if !validServiceProbe(response, system, identity) {
-		return protocol.CacheProbeResponse{}, canonicalError(protocol.CodeInternal, nil)
-	}
-	return response, nil
-}
-
-func (s *Service) launchContent(parent context.Context, game catalog.Game, identity protocol.ContentIdentity) (protocol.CachedLaunchResponse, error) {
-	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
-	request := protocol.CachedLaunchRequest{GameID: game.ID, System: game.System, Content: identity}
-	client, ok := s.selectedClientLocked()
-	if !ok {
-		cancel()
-		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	response, err := client.LaunchContent(ctx, request)
-	targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil
-	cancel()
-	if err != nil {
-		if targetDeadlineExpired && ambiguousTargetMutationError(err) {
-			return s.reconcileLostContentLaunch(parent, client, request, err)
-		}
-		return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if !validServiceLaunch(response, request) {
-		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, nil)
-	}
-	return response, nil
-}
-
 func ambiguousTargetMutationError(err error) bool {
 	var ambiguous interface{ AmbiguousMutation() bool }
 	if errors.As(err, &ambiguous) && ambiguous.AmbiguousMutation() {
@@ -2469,85 +2265,6 @@ func provisionalLostDevelopmentLoad(status protocol.Status) bool {
 		status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil && status.Recovery == ""
 }
 
-func (s *Service) reconcileLostContentLaunch(parent context.Context, client serviceClient, request protocol.CachedLaunchRequest, launchErr error) (protocol.CachedLaunchResponse, error) {
-	// A transport deadline does not end an admitted target mutation. The public
-	// caller bounds terminal observation; requestTimeout continues to bound each
-	// fresh, read-only Status call.
-	for {
-		if err := parent.Err(); err != nil {
-			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, err), protocol.CodeMiSTerUnavailable)
-		}
-		statusContext, cancelStatus := serviceTimeout(parent, s.requestTimeout)
-		status, err := client.Status(statusContext)
-		cancelStatus()
-		if err != nil {
-			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, err), protocol.CodeMiSTerUnavailable)
-		}
-		response := protocol.CachedLaunchResponse{Status: status, Content: request.Content}
-		if validServiceLaunch(response, request) {
-			return response, nil
-		}
-		if !provisionalLostContentLaunch(status, request) {
-			if status.LastError != nil {
-				return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, status.LastError), protocol.CodeMiSTerUnavailable)
-			}
-			return protocol.CachedLaunchResponse{}, canonicalRemoteError(launchErr, protocol.CodeMiSTerUnavailable)
-		}
-		timer := time.NewTimer(lostLaunchPollInterval)
-		select {
-		case <-parent.Done():
-			timer.Stop()
-			return protocol.CachedLaunchResponse{}, canonicalRemoteError(errors.Join(launchErr, parent.Err()), protocol.CodeMiSTerUnavailable)
-		case <-timer.C:
-		}
-	}
-}
-
-func provisionalLostContentLaunch(status protocol.Status, request protocol.CachedLaunchRequest) bool {
-	if status.State == protocol.StateIdle {
-		return status.GameID == nil && status.System == nil && status.ExpectedCore == nil && status.ObservedCore == nil && status.LastError == nil && !status.Development
-	}
-	spec, ok := core.DefaultRegistry().Lookup(request.System)
-	return ok && status.State == protocol.StateLaunching && status.GameID != nil && *status.GameID == request.GameID &&
-		status.System != nil && *status.System == request.System && status.ExpectedCore != nil && *status.ExpectedCore == spec.ExpectedCore &&
-		status.ObservedCore == nil && status.LastError == nil && !status.Development
-}
-
-func (s *Service) launchFPGANative(parent context.Context, game catalog.Game, romPath string, progress ProgressFunc) (protocol.CachedLaunchResponse, bool, error) {
-	if err := protocol.ValidateSystem(game.System); err != nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeUnsupportedSystem, nil)
-	}
-	emitProgress(progress, "launch", "launching FPGA game")
-	ctx, cancel := serviceTimeout(parent, s.requestTimeout)
-	defer cancel()
-	// Reconcile a prior host_only RetroArch session before this launch can
-	// record FPGA ownership. Overwriting the marker first would leave the
-	// emulator running while later Status/Stop hit only the agent.
-	if err := s.stopHostOnlyIfActive(ctx); err != nil {
-		return protocol.CachedLaunchResponse{}, false, err
-	}
-	request := protocol.LaunchRequest{GameID: game.ID, System: game.System, ROMPath: romPath}
-	client, ok := s.selectedClientLocked()
-	if !ok {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeMiSTerUnavailable, nil)
-	}
-	status, err := client.Launch(ctx, request)
-	if err != nil {
-		return protocol.CachedLaunchResponse{}, false, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-	}
-	if !validFPGALaunch(status, request) {
-		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, nil)
-	}
-	s.executionMu.Lock()
-	s.activeExecution = ExecutionFPGANative
-	s.activeGameID, s.activeSystem = game.ID, game.System
-	s.retainSessionTargetLocked()
-	s.packageRejection = nil
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.executionMu.Unlock()
-	return protocol.CachedLaunchResponse{Status: status}, false, nil
-}
-
 func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	s.executionMu.Lock()
 	hostOnly := s.activeExecution == ExecutionHostOnly
@@ -2569,64 +2286,6 @@ func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	}
 	s.executionMu.Unlock()
 	return nil
-}
-
-func (s *Service) onKitROMPath(game catalog.Game) (string, bool) {
-	if path, ok := s.fpgaROMPaths[game.ID]; ok {
-		return path, true
-	}
-	if path, ok := s.fpgaROMPaths[DefaultFPGAROMGameID]; ok && seededActRaiserGame(game) {
-		return path, true
-	}
-	return "", false
-}
-
-func seededActRaiserGame(game catalog.Game) bool {
-	canonical := strings.TrimSpace(game.CanonicalTitle)
-	if canonical == "" {
-		canonical = catalog.ParseDump(game.Title).CanonicalTitle
-	}
-	return strings.EqualFold(canonical, "ActRaiser")
-}
-
-func copyFPGAROMPaths(raw map[string]string) map[string]string {
-	if len(raw) == 0 {
-		return nil
-	}
-	copied := make(map[string]string, len(raw))
-	for gameID, romPath := range raw {
-		copied[gameID] = romPath
-	}
-	return copied
-}
-
-func validFPGALaunch(status protocol.Status, request protocol.LaunchRequest) bool {
-	spec, ok := core.DefaultRegistry().Lookup(request.System)
-	return ok &&
-		status.State == protocol.StateActive &&
-		status.GameID != nil && *status.GameID == request.GameID &&
-		status.System != nil && *status.System == request.System &&
-		status.ExpectedCore != nil && *status.ExpectedCore == spec.ExpectedCore &&
-		status.ObservedCore != nil && *status.ObservedCore == spec.ExpectedCore &&
-		status.LastError == nil
-}
-
-func validServiceLaunch(response protocol.CachedLaunchResponse, request protocol.CachedLaunchRequest) bool {
-	spec, ok := core.DefaultRegistry().Lookup(request.System)
-	return ok && response.Content == request.Content &&
-		response.Status.State == protocol.StateActive &&
-		response.Status.GameID != nil && *response.Status.GameID == request.GameID &&
-		response.Status.System != nil && *response.Status.System == request.System &&
-		response.Status.ExpectedCore != nil && *response.Status.ExpectedCore == spec.ExpectedCore &&
-		response.Status.ObservedCore != nil && *response.Status.ObservedCore == spec.ExpectedCore &&
-		response.Status.LastError == nil
-}
-
-func validServiceProbe(response protocol.CacheProbeResponse, system protocol.System, identity protocol.ContentIdentity) bool {
-	if !response.Present {
-		return response.System == nil && response.Content == nil
-	}
-	return response.System != nil && *response.System == system && response.Content != nil && *response.Content == identity
 }
 
 func contentIdentityFromCatalog(content catalog.Content) protocol.ContentIdentity {

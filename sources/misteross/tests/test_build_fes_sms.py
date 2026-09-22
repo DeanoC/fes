@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 
 from scripts.build_fes_sms import (
@@ -186,7 +187,7 @@ class BuildFesSmsTests(unittest.TestCase):
             ROOT,
             "https://example.invalid/misteross.git",
             "a" * 40,
-            {"yosys": "test"},
+            {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertEqual(PLACER_QOR_BUDGET, len(PLACER_SEEDS) * len(PLACER_TIMING_WEIGHTS))
@@ -431,3 +432,11 @@ class BuildFesSmsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()
