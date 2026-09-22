@@ -31,11 +31,31 @@ the HPS network; hard power is the recovery when `recover_idle` still fails.
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit.
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
-`clear_media` on an active generation without holding execution reset; tape
-loader busy rejects with retryable busy. A poisoned or unstable GP handshake
-after keyboard traffic is the same retryable busy: clear realigns from the
-live ACK and re-identifies before eject. A hard MMIO failure or an invalid
-clear acknowledgement stays `io_failed`.
+`clear_media` on an active generation without holding execution reset. Tape
+loader busy is GP error 4 (invalid state) and rejects with retryable busy.
+Clear sends media begin at `MediaEjectIndex`. GP error 2 is invalid index:
+cores sealed before that index answer it before they look at `media_busy`.
+Clear then repeats control-index begin with argument 0, the eject those
+cores added before the eject index. GP error 3 on that command is invalid
+argument, not busy: the sealed golden mailbox rejects argument 0 because it
+is below the minimum blob length, and it has no `media_busy` input. The busy
+guard was added with argument-0 eject, so this core cannot reject a later
+begin as invalid state. A legal begin drops `media_ready` and `media_size`
+immediately. Clear waits until the runtime clock advances across the longest
+`$0347` copy (one byte per CPU enable, at most 16384 bytes, 8 ms) and only
+then issues control-index begin of `MediaMinBytes`, without a commit.
+`SteadyClock` reports whole milliseconds, so a repeated sample is the same
+millisecond and the wait continues. A clock that stays flat for that bound,
+or a deadline that cannot cover it, leaves the mailbox unchanged and returns
+retryable busy. The wait is not a `media_busy` sample: this bitstream does
+not return one, and clear does not hold reset because that restarts the CPU.
+Invalid
+state (GP error 4) on the eject-index or argument-0 attempt is retryable busy
+and does not reach that begin. A poisoned or unstable GP handshake after keyboard traffic
+is the same retryable busy: clear realigns from the live ACK and
+re-identifies before eject. Re-identify does not run for a completed
+rejection. A hard MMIO failure, or an invalid acknowledgement after these
+eject shapes, stays `io_failed`.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never

@@ -177,14 +177,25 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 }
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
-	// Loader INVALID_STATE is already "busy". A poisoned toggle, deadline, or
-	// unstable ACK may still arrive as phase=input io_failed; those transport
-	// glitches stay retryable. A hard MMIO failure or an invalid clear
-	// acknowledgement stays unavailable, even when its phase is input.
-	if remote != nil && (remote.Code == "busy" || inputTransportGlitch(remote)) {
+	// Loader invalid-state (GP error 4) is already "busy", including when the
+	// runtime still reports the raw Exchange rejection. A poisoned toggle,
+	// deadline, or unstable ACK may still arrive as phase=input io_failed;
+	// those transport glitches stay retryable. GP error 2 is invalid index.
+	// The runtime retries the legacy eject before that string is returned, so
+	// a leaked "response 2" is a hard mismatch, not loader contention. A hard
+	// MMIO failure or any other invalid clear acknowledgement stays
+	// unavailable, even when its phase is input.
+	if remote != nil && (remote.Code == "busy" || inputTransportGlitch(remote) || loaderInvalidState(remote)) {
 		return protocol.LiveMediaBusyError()
 	}
 	return mapProtocol2Error(remote)
+}
+
+func loaderInvalidState(remote *Protocol2Error) bool {
+	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" {
+		return false
+	}
+	return remote.Message == "FES GP command rejected with response 4"
 }
 
 func inputTransportGlitch(remote *Protocol2Error) bool {

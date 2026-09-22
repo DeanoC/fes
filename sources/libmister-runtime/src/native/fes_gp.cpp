@@ -13,6 +13,9 @@
 #include "native/linux/mmio.hpp"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <ctime>
 #include <limits>
 #include <string>
 #include <utility>
@@ -26,9 +29,32 @@ using namespace generated;
 
 constexpr std::uint64_t kExchangeTimeoutMs = 100u;
 constexpr std::uint64_t kDiscoveryTimeoutMs = 2000u;
+// The $0347 patch copies at most one byte per ce_cpu_p, and ce_cpu_p is one
+// pulse per 16 cycles of the 52 MHz system clock. A full 16384-byte blob is
+// 16384 * 16 / 52e6 seconds (5.034 ms). Cores sealed before media_busy cannot
+// report that the copy is running; a legal media begin is what clears
+// readiness, so it has to wait until a copy already in progress has finished.
+constexpr std::uint64_t kLegacyLoaderCopyBoundMs = 8u;
 constexpr std::uint32_t kResponseVariableMask =
 	FesGpAckMask | FesGpErrorMask | FesGpResponseMask;
 constexpr std::uint32_t kResponseFixedMask = ~kResponseVariableMask;
+
+std::uint64_t MonotonicWallMs()
+{
+	struct timespec stamp = {};
+	if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
+	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
+		static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
+}
+
+void SleepOneMillisecond()
+{
+	struct timespec remaining = {};
+	remaining.tv_nsec = 1000000L;
+	while (nanosleep(&remaining, &remaining) != 0) {
+		if (errno != EINTR) return;
+	}
+}
 
 constexpr std::uint32_t FieldUnit(std::uint32_t mask)
 {
@@ -106,6 +132,12 @@ bool ExchangeTransportGlitch(const Error& error)
 		message.find("FES GP response stability deadline exceeded") != std::string::npos ||
 		message.find("unstable FES GP response") != std::string::npos ||
 		message.find("invalid FES GP response signature") != std::string::npos;
+}
+
+bool CommandRejected(const Error& error, std::uint32_t code)
+{
+	return error.code == ErrorCode::io_failed &&
+		error.message == "FES GP command rejected with response " + std::to_string(code);
 }
 
 bool HexNibble(char value, unsigned* output)
@@ -191,6 +223,44 @@ Error FesGp::Realign(std::uint64_t deadline)
 	if (confirmed != observed) return Io("unstable FES GP response");
 	request_toggle_ = (confirmed & FesGpAckMask) != 0;
 	poisoned_ = false;
+	return {};
+}
+
+std::uint64_t FesGp::NowMs() const
+{
+	return clock_.NowMs();
+}
+
+Error FesGp::WaitUntilMs(std::uint64_t absolute_ms, std::uint64_t deadline)
+{
+	std::uint64_t now = clock_.NowMs();
+	// One extra wall millisecond covers a sleep that returns slightly late
+	// and SteadyClock still reading the millisecond it just entered.
+	constexpr std::uint64_t kStallSlackMs = 2u;
+	std::uint64_t last_progress_wall = MonotonicWallMs();
+	while (now < absolute_ms) {
+		if (now >= deadline)
+			return Io("FES GP exchange deadline exceeded");
+		const std::uint64_t next = clock_.NowMs();
+		if (next > now) {
+			now = next;
+			last_progress_wall = MonotonicWallMs();
+			continue;
+		}
+		// SteadyClock truncates CLOCK_MONOTONIC to whole milliseconds, so
+		// the next sample is often the same value. That is one millisecond
+		// still in progress, not a stalled clock. A clock that stays flat
+		// for the remaining bound has not shown that bound elapsed.
+		if (next < now)
+			return Io("FES GP exchange deadline exceeded");
+		const std::uint64_t wall_now = MonotonicWallMs();
+		const std::uint64_t remain = absolute_ms - now;
+		if (wall_now - last_progress_wall >= remain + kStallSlackMs)
+			return Io("FES GP exchange deadline exceeded");
+		SleepOneMillisecond();
+	}
+	if (now >= deadline)
+		return Io("FES GP exchange deadline exceeded");
 	return {};
 }
 
@@ -728,23 +798,80 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 		const Error recovered = RecoverPoisonedMediaLink(deadline);
 		if (!recovered.ok()) return recovered;
 	}
+	// A completed rejection is not a poisoned toggle, so re-identify does not
+	// run. Classify the acknowledgement the core actually returned.
+	const auto classify = [&](Error exchange, std::uint16_t response) -> Error {
+		if (!exchange.ok()) {
+			exchange = WithPhase(std::move(exchange), "input");
+			// Deadline, unstable ACK, or a poisoned toggle after HID traffic is
+			// retryable. A hard MMIO failure stays io_failed so the host can still
+			// tell a dead link from a busy loader.
+			if (ExchangeTransportGlitch(exchange)) {
+				(void)gp_.Realign(deadline);
+				return {ErrorCode::busy, "tape loader is busy", "input"};
+			}
+			return MediaBusyOrIo(exchange);
+		}
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
+		return {};
+	};
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 		static_cast<std::uint8_t>(FesSimpleComputerMediaEjectIndex), 0, deadline, &response);
-	if (!error.ok()) {
-		error = WithPhase(error, "input");
-		// Deadline, unstable ACK, or a poisoned toggle after HID traffic is
-		// retryable. A hard MMIO failure stays io_failed so the host can still
-		// tell a dead link from a busy loader.
-		if (ExchangeTransportGlitch(error)) {
-			(void)gp_.Realign(deadline);
+	// Response 2 is invalid index, not invalid state. Cores sealed before
+	// MediaEjectIndex check the index first, so they answer 2 even while
+	// media_busy is high and never reach the invalid-state (4) reject.
+	if (!CommandRejected(error, FesSimpleComputerErrorInvalidIndex))
+		return classify(error, response);
+
+	// Cores that added eject before MediaEjectIndex use control-index begin
+	// with argument 0. Invalid state on that command is still a busy loader.
+	error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+		static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+	// Response 3 is invalid argument, not busy (busy is response 4). The
+	// sealed golden mailbox rejects argument 0 because it is below
+	// MediaMinBytes; media-begin-zero stays that reject, and those bitstreams
+	// have no media_busy input. The busy guard arrived in the same change as
+	// argument-0 eject, so this core never answers a later begin with error 4.
+	// Any legal begin drops media_ready and media_size immediately. A copy
+	// already inside $0347 finishes within kLegacyLoaderCopyBoundMs while
+	// readiness is left alone. The minimum begin waits until the runtime
+	// clock advances by that bound. Repeated samples of one millisecond are
+	// normal on SteadyClock and are not a stall; a clock that stays flat
+	// across the bound returns busy and does not write the begin.
+	// This is not a loader-idle sample. tape_busy is not in the GPI word, and
+	// holding execution reset would clear tapeloader only by restarting the
+	// CPU, which drops the BASIC session clear is supposed to leave running.
+	// A LOAD that first fetches $0347 during the bound can still overlap the
+	// begin. Do not commit afterwards: commit would mark the minimum blob ready.
+	if (CommandRejected(error, FesSimpleComputerErrorInvalidArgument)) {
+		const std::uint64_t now = gp_.NowMs();
+		const std::uint64_t idle_at = now > std::numeric_limits<std::uint64_t>::max() -
+			kLegacyLoaderCopyBoundMs ? std::numeric_limits<std::uint64_t>::max() :
+			now + kLegacyLoaderCopyBoundMs;
+		if (idle_at >= deadline)
 			return {ErrorCode::busy, "tape loader is busy", "input"};
-		}
-		return MediaBusyOrIo(error);
+		const Error waited = gp_.WaitUntilMs(idle_at, deadline);
+		if (!waited.ok())
+			return {ErrorCode::busy, "tape loader is busy", "input"};
+		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+			static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
+			static_cast<std::uint16_t>(FesSimpleComputerMediaMinBytes),
+			deadline, &response);
+		const Error classified = classify(error, response);
+		if (classified.ok() || classified.code == ErrorCode::busy) return classified;
+		return {ErrorCode::io_failed,
+			"FES computer media clear failed after sealed media begin: " +
+				classified.message,
+			"input"};
 	}
-	if (response != 0)
-		return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
-	return {};
+	const Error classified = classify(error, response);
+	if (classified.ok() || classified.code == ErrorCode::busy) return classified;
+	return {ErrorCode::io_failed,
+		"FES computer media clear failed after invalid eject index: " +
+			classified.message,
+		"input"};
 }
 
 Error FesGpCoreDriver::LoadFirmware(

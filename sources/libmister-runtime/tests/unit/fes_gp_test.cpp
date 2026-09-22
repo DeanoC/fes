@@ -49,6 +49,44 @@ public:
 	std::vector<std::uint64_t> values_;
 };
 
+// Each millisecond value is returned `copies` times, then time advances by 1.
+// copies > 1 is the production SteadyClock shape: back-to-back samples often
+// share one truncated millisecond.
+class PlateauClock final : public mister::native::Clock {
+public:
+	explicit PlateauClock(int copies, std::uint64_t start = 1000)
+		: copies_(copies), left_(copies), now_(start)
+	{
+		assert(copies_ > 0);
+	}
+	std::uint64_t NowMs() const override
+	{
+		const std::uint64_t sample = now_;
+		if (--left_ <= 0) {
+			left_ = copies_;
+			++now_;
+		}
+		return sample;
+	}
+	int copies_;
+	mutable int left_;
+	mutable std::uint64_t now_;
+};
+
+// Advances once per sample until `ceiling`, then stays there.
+class CeilingClock final : public mister::native::Clock {
+public:
+	explicit CeilingClock(std::uint64_t ceiling) : ceiling_(ceiling) {}
+	std::uint64_t NowMs() const override
+	{
+		const std::uint64_t sample = now_;
+		if (now_ < ceiling_) ++now_;
+		return sample;
+	}
+	std::uint64_t ceiling_;
+	mutable std::uint64_t now_ = 0;
+};
+
 struct GoldenExchange {
 	std::string name;
 	std::uint32_t settled;
@@ -1481,6 +1519,194 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(recovered.ok());
 		assert(!f.gp.Poisoned());
 		assert((f.mmio.writes.back().value & 0x7fffffff) == 0x04010000);
+	}
+	{
+		// HIL ffecd661: clear_media io_failed "FES GP command rejected with
+		// response 2". That word is invalid index. A core sealed before
+		// MediaEjectIndex rejects index 1 before media_busy, so the legacy
+		// control-index begin is the eject that can succeed.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true, 0);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 4);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// Same core, loader still copying: legacy eject returns invalid state
+		// (response 4) and must be retryable busy, not unavailable.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 4);
+	}
+	{
+		// Invalid argument on the eject index is not a missing-index core.
+		// Do not send the legacy begin; that shape is a different command.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES GP command rejected with response 3");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 2);
+	}
+	{
+		// HIL 6a5bc10d idle loader: eject index returns 2, then control-index
+		// begin with argument 0 returns 3. That sealed mailbox has no
+		// media_busy sample. The runtime clock advances through the longest
+		// $0347 copy, then control-index begin of MediaMinBytes drops
+		// readiness. Do not commit.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false, 0);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 6);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+		assert((f.mmio.writes[start + 4].value & 0x7fffffff) ==
+			(0x04000000u | static_cast<std::uint32_t>(FesSimpleComputerMediaMinBytes)));
+	}
+	{
+		// Production SteadyClock truncates to whole milliseconds, so the
+		// sample after argument 0 repeats. That repeat is not a stall: the
+		// clock still advances through the copy bound and the minimum begin
+		// is issued. This is the idle-after-LOAD clear.
+		mister_test::FakeMmio mmio;
+		PlateauClock clock(2);
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		const std::string build_id(32, 'b');
+		auto descriptor = ComputerMediaDescriptor(build_id);
+		const auto words = ComputerIdentityWords(build_id);
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		ScriptIdentity(&mmio, words);
+		assert(driver.Identify(context, 100000).error.ok());
+		bool toggle = false;
+		for (int i = 0; i < 5; ++i) {
+			toggle = !toggle;
+			PushCompleted(&mmio, toggle, 0);
+		}
+		assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11}, 100000).ok());
+		const std::size_t start = mmio.writes.size();
+		PushCompleted(&mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&mmio, false, 0);
+		const auto error = driver.ClearMedia(100000);
+		assert(error.ok());
+		assert(mmio.writes.size() == start + 6);
+		assert((mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+		assert((mmio.writes[start + 4].value & 0x7fffffff) ==
+			(0x04000000u | static_cast<std::uint32_t>(FesSimpleComputerMediaMinBytes)));
+	}
+	{
+		// Repeated millisecond readings must not fail the wait on the first
+		// pair. A later sample that reaches the target completes it.
+		mister_test::FakeMmio mmio;
+		ScriptClock clock(std::vector<std::uint64_t>{10, 10, 10, 18});
+		mister::native::FesGp gp(mmio, clock);
+		assert(gp.WaitUntilMs(18, 100000).ok());
+	}
+	{
+		// Part of the bound, then a flat clock, has not shown the copy
+		// finished. The caller must not treat that as idle.
+		mister_test::FakeMmio mmio;
+		CeilingClock clock(4);
+		mister::native::FesGp gp(mmio, clock);
+		const auto error = gp.WaitUntilMs(10, 100000);
+		assert(!error.ok());
+		assert(mmio.writes.empty());
+	}
+	{
+		// Same sealed path, but the runtime clock does not advance, so the
+		// longest $0347 copy cannot be shown to have finished. Do not issue
+		// the minimum begin: on this mailbox that command clears media_ready
+		// and media_size even while LOAD is copying.
+		mister_test::FakeMmio mmio;
+		ScriptClock clock(std::vector<std::uint64_t>{1000});
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		const std::string build_id(32, 'a');
+		auto descriptor = ComputerMediaDescriptor(build_id);
+		const auto words = ComputerIdentityWords(build_id);
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		ScriptIdentity(&mmio, words);
+		assert(driver.Identify(context, 100000).error.ok());
+		bool toggle = false;
+		for (int i = 0; i < 5; ++i) {
+			toggle = !toggle;
+			PushCompleted(&mmio, toggle, 0);
+		}
+		assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11}, 100000).ok());
+		const std::size_t start = mmio.writes.size();
+		PushCompleted(&mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(mmio.writes.size() == start + 4);
+		assert((mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// After the copy bound has elapsed, a minimum begin the core rejects
+		// as invalid state is still retryable busy, not unavailable.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 6);
+	}
+	{
+		// Response 3 on the minimum begin is still invalid argument, not
+		// busy. Stop there; do not invent another eject shape.
+		ComputerClearFixture f;
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.phase == "input");
+		assert(error.message.find("sealed media begin") != std::string::npos);
+		assert(error.message.find("response 3") != std::string::npos);
+		assert(error.message.find("tape loader") == std::string::npos);
 	}
 }
 

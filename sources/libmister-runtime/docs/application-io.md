@@ -49,7 +49,16 @@ hold-reset primary bind. Protocol-2 `replace_live_media` fills the same
 blob mailbox on an active `fes.simple-computer` generation without
 Quiesce/hold-reset; `clear_media` ejects readiness so the next empty
 `LOAD ""` is `0/0`. Both require package/generation binding. Tape-loader
-busy maps to retryable `busy`. `load_media_stream` retains exact
+busy (GP error 4) maps to retryable `busy`. A bitstream that rejects
+`MediaEjectIndex` with GP error 2 is cleared with the older control-index
+begin of argument 0. GP error 3 on that word is invalid argument: sealed
+golden cores reject argument 0 and have no loader-busy sample. Clear waits
+until the runtime clock advances across the longest `$0347` copy, treating a
+repeated millisecond as the same sample, then a minimum-length begin drops
+readiness without a commit. A flat clock or a deadline that cannot cover
+that wait returns busy and does not issue the begin. Invalid state on the
+earlier attempts is the same
+busy. `load_media_stream` retains exact
 package/generation binding, observed capacity, bounded snapshots, CRC and
 poisoned-mailbox recovery semantics. See [stream media](media-stream.md).
 Method names retaining `Computer` are compatibility API names; admission and
