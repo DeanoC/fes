@@ -4,8 +4,10 @@ id: fes.simple-computer
 description: >-
   FES general-purpose HPS/FPGA mailbox for a standalone simple computer.
   Transport bits match fes.simple-game; ABI tag 2, keyboard rows, and a
-  bounded media blob are distinct. This file does not contain MMIO or
-  lifecycle programming instructions.
+  bounded media blob are distinct. Media begin/data/commit do not require
+  execution reset held; launch-time hold-reset is runtime policy for the
+  primary bind. Begin with argument 0 clears readiness (eject). This file
+  does not contain MMIO or lifecycle programming instructions.
 major: 1
 minor: 0
 tag: 2

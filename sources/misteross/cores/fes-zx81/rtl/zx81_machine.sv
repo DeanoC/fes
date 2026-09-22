@@ -13,6 +13,8 @@ module zx81_machine #(
     input  wire [14:0] tape_size,
     input  wire [7:0]  tape_data,
     output wire [13:0] tape_addr_out,
+    // High while the $0347 loader is copying mailbox bytes into RAM.
+    output wire        tape_busy,
     output wire        ce_6m5,
     output wire        video_pixel,
     output wire        hblank,
@@ -201,6 +203,7 @@ module zx81_machine #(
     reg [7:0] tape_in_byte, tape_in_byte_r;
     reg [7:0] tape_loader_patch[0:6];
     assign tape_addr_out = tape_addr;
+    assign tape_busy = tapeloader;
     assign bus_wdata = tapeloader ? tape_in_byte_r : cpu_dout;
     assign bus_mreq_n = tapewrite_we ? 1'b0 : nMREQ;
     assign bus_iorq_n = tapewrite_we ? 1'b1 : nIORQ;

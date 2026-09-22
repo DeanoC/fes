@@ -2534,7 +2534,12 @@ one effect per toggle and error isolation.
 the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
-committed blob stays. The checked-in `cores/fes-zx81/generated/fes_simple_computer.vh`
+committed blob stays. Media begin with argument 0 clears readiness (eject) so
+the next empty `LOAD ""` reports `0/0`. While `media_busy` is high (the ZX81
+tape-loader is copying), begin and eject reject with invalid-state instead of
+aborting the copy. Begin/data/commit do not require `exec_reset` held; that
+hold is launch-time runtime policy. The checked-in
+`cores/fes-zx81/generated/fes_simple_computer.vh`
 and `exchanges.json` are unedited mister-packages outputs. `make sim-fes-zx81`
 plays that fixture and checks keyboard/media side effects.
 

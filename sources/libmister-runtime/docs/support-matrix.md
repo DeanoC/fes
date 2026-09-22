@@ -9,6 +9,7 @@ Hardware-supported package paths: 0.
 | Sealed splash and fixed ADV7513 video | covered | pending |
 | Gamepad and controller/keypad ports | covered | pending |
 | Blob/stream media and firmware | covered | pending |
+| Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
 | Described-core library persistence and retry | covered | pending |
 | Static ZX81 composition | covered | pending |
 | Initialized machine-ROM bitstream | covered | pending |

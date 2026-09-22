@@ -12,6 +12,7 @@ module expansion_machine #(
     input wire [14:0] tape_size,
     input wire [7:0] tape_data,
     output wire [13:0] tape_addr_out,
+    output wire tape_busy,
     output wire ce_6m5, video_pixel, hblank, vblank, hsync_out, vsync_out, halt_n,
     output wire [15:0] cpu_addr,
     input wire [15:0] peek_addr,
@@ -26,7 +27,8 @@ module expansion_machine #(
     zx81_machine #(.EXTERNAL_RAM(1)) machine (
         .clk_sys(clk_sys), .reset(reset), .keyboard(keyboard),
         .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data),
-        .tape_addr_out(tape_addr_out), .ce_6m5(ce_6m5), .video_pixel(video_pixel),
+        .tape_addr_out(tape_addr_out), .tape_busy(tape_busy),
+        .ce_6m5(ce_6m5), .video_pixel(video_pixel),
         .hblank(hblank), .vblank(vblank), .hsync_out(hsync_out), .vsync_out(vsync_out),
         .halt_n(halt_n), .cpu_addr(cpu_addr), .peek_addr(peek_addr), .peek_data(peek_data),
         .ram_address(), .ram_write_data(), .ram_write_enable(),

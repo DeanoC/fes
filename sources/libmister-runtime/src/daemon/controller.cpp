@@ -83,7 +83,16 @@ std::string Controller::Handle(const std::string& line)
 			request.controller_port, request.controller_buttons, request.controller_keypad);
 		break;
 	case Operation::load_media:
-		result = runtime_.LoadComputerMedia(request.media_path);
+		result = runtime_.LoadComputerMedia(request.media_path,
+			request.expected_package_id, request.expected_generation);
+		break;
+	case Operation::replace_live_media:
+		result = runtime_.ReplaceLiveComputerMedia(request.media_path,
+			request.expected_package_id, request.expected_generation);
+		break;
+	case Operation::clear_media:
+		result = runtime_.ClearComputerMedia(request.expected_package_id,
+			request.expected_generation);
 		break;
 	case Operation::load_firmware:
 		result = runtime_.LoadComputerFirmware(request.media_path);

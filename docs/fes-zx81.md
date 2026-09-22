@@ -24,12 +24,13 @@ ROM-less FPGA cores. See
 | Persistence | none (library launches are volatile) |
 | Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
 | Stop | existing package Select+Start |
-| Tape | runtime `load_media` of a `.p`; empty `LOAD ""` reports `0/0` |
+| Tape | launch `load_media` (hold-reset primary bind) or mid-session `replace_live_media` / `clear_media`; empty `LOAD ""` reports `0/0` |
 
 Mid-session tape select/load while the core is already running is the
-design lock in [ZX81 tape media](zx81-tape-media.md). That path is distinct
-from the launch-time machine-ROM splice and from Stop→relaunch. This page
-still describes the first-slice mailbox contract that is true today.
+design lock in [ZX81 tape media](zx81-tape-media.md). Slice 1 delivers the
+runtime mailbox path without hold-reset soft-reboot; host/sofa slices follow.
+That path is distinct from the launch-time machine-ROM splice and from
+Stop→relaunch. This page describes the mailbox contract that is true today.
 
 `core-load` is the development loader and does not create a library entry.
 The target agent must post `set_keyboard`; an agent without that path only

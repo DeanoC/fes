@@ -86,6 +86,8 @@ public:
 	Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad) override;
 	Error LoadComputerMedia(const std::string& path) override;
+	Error LoadComputerMediaLive(const std::string& path) override;
+	Error ClearComputerMedia() override;
 	Error LoadComputerFirmware(const std::string& path) override;
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
 
