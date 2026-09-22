@@ -108,6 +108,12 @@ bool ExchangeTransportGlitch(const Error& error)
 		message.find("invalid FES GP response signature") != std::string::npos;
 }
 
+bool CommandRejected(const Error& error, std::uint32_t code)
+{
+	return error.code == ErrorCode::io_failed &&
+		error.message == "FES GP command rejected with response " + std::to_string(code);
+}
+
 bool HexNibble(char value, unsigned* output)
 {
 	if (value >= '0' && value <= '9') *output = static_cast<unsigned>(value - '0');
@@ -728,23 +734,42 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 		const Error recovered = RecoverPoisonedMediaLink(deadline);
 		if (!recovered.ok()) return recovered;
 	}
+	// A completed rejection is not a poisoned toggle, so re-identify does not
+	// run. Classify the acknowledgement the core actually returned.
+	const auto classify = [&](Error exchange, std::uint16_t response) -> Error {
+		if (!exchange.ok()) {
+			exchange = WithPhase(std::move(exchange), "input");
+			// Deadline, unstable ACK, or a poisoned toggle after HID traffic is
+			// retryable. A hard MMIO failure stays io_failed so the host can still
+			// tell a dead link from a busy loader.
+			if (ExchangeTransportGlitch(exchange)) {
+				(void)gp_.Realign(deadline);
+				return {ErrorCode::busy, "tape loader is busy", "input"};
+			}
+			return MediaBusyOrIo(exchange);
+		}
+		if (response != 0)
+			return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
+		return {};
+	};
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 		static_cast<std::uint8_t>(FesSimpleComputerMediaEjectIndex), 0, deadline, &response);
-	if (!error.ok()) {
-		error = WithPhase(error, "input");
-		// Deadline, unstable ACK, or a poisoned toggle after HID traffic is
-		// retryable. A hard MMIO failure stays io_failed so the host can still
-		// tell a dead link from a busy loader.
-		if (ExchangeTransportGlitch(error)) {
-			(void)gp_.Realign(deadline);
-			return {ErrorCode::busy, "tape loader is busy", "input"};
-		}
-		return MediaBusyOrIo(error);
+	// Response 2 is invalid index, not invalid state. Cores sealed before
+	// MediaEjectIndex check the index first, so they answer 2 even while
+	// media_busy is high and never reach the invalid-state (4) reject.
+	// Their eject is still control-index begin with argument 0.
+	if (CommandRejected(error, FesSimpleComputerErrorInvalidIndex)) {
+		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+			static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+		const Error classified = classify(error, response);
+		if (classified.ok() || classified.code == ErrorCode::busy) return classified;
+		return {ErrorCode::io_failed,
+			"FES computer media clear failed after invalid eject index: " +
+				classified.message,
+			"input"};
 	}
-	if (response != 0)
-		return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
-	return {};
+	return classify(error, response);
 }
 
 Error FesGpCoreDriver::LoadFirmware(

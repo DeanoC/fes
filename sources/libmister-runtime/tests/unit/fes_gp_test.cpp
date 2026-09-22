@@ -1482,6 +1482,64 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(!f.gp.Poisoned());
 		assert((f.mmio.writes.back().value & 0x7fffffff) == 0x04010000);
 	}
+	{
+		// HIL ffecd661: clear_media io_failed "FES GP command rejected with
+		// response 2". That word is invalid index. A core sealed before
+		// MediaEjectIndex rejects index 1 before media_busy, so the legacy
+		// control-index begin is the eject that can succeed.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true, 0);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 4);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// Same core, loader still copying: legacy eject returns invalid state
+		// (response 4) and must be retryable busy, not unavailable.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 4);
+	}
+	{
+		// Invalid argument on the eject index is not a missing-index core.
+		// Do not send the legacy begin; that shape is a different command.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES GP command rejected with response 3");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 2);
+	}
+	{
+		// Both eject shapes rejected. Keep the fault class in the message
+		// instead of collapsing it to a generic unavailable I/O error.
+		ComputerClearFixture f;
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.phase == "input");
+		assert(error.message.find("invalid eject index") != std::string::npos);
+		assert(error.message.find("response 3") != std::string::npos);
+	}
 }
 
 } // namespace

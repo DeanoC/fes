@@ -68,6 +68,8 @@ public:
 	// Mid-session replace: begin/data/commit while execution stays released.
 	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	// Mid-session eject: media begin with eject index and argument 0.
+	// A core that rejects that index (error 2) is retried with control-index
+	// begin and argument 0, the eject those bitstreams still implement.
 	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;

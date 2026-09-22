@@ -31,11 +31,16 @@ the HPS network; hard power is the recovery when `recover_idle` still fails.
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit.
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
-`clear_media` on an active generation without holding execution reset; tape
-loader busy rejects with retryable busy. A poisoned or unstable GP handshake
-after keyboard traffic is the same retryable busy: clear realigns from the
-live ACK and re-identifies before eject. A hard MMIO failure or an invalid
-clear acknowledgement stays `io_failed`.
+`clear_media` on an active generation without holding execution reset. Tape
+loader busy is GP error 4 (invalid state) and rejects with retryable busy.
+Clear sends media begin at `MediaEjectIndex`. GP error 2 is invalid index:
+cores sealed before that index answer it before they look at `media_busy`,
+so clear repeats the older control-index begin with argument 0 and classifies
+that attempt the same way. A poisoned or unstable GP handshake after keyboard
+traffic is the same retryable busy: clear realigns from the live ACK and
+re-identifies before eject. Re-identify does not run for a completed
+rejection. A hard MMIO failure, or an invalid acknowledgement after both
+eject shapes, stays `io_failed`.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
 `NativeInputSession` requires a generation-bound driver callback and never
