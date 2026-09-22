@@ -10,9 +10,9 @@ from scripts import lockfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
-    "yosys": "ec34fcf38986217af9b5558936044b7197d968a7",
+    "yosys": "fb879d81e0352f558297bdcc61bc7a4a922fa7b0",
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "30ac6f47bd94aec97467bee9fcd2ff09643fbc55",
+    "nextpnr": "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -106,7 +106,7 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["nextpnr"].commit,
-            "30ac6f47bd94aec97467bee9fcd2ff09643fbc55",
+            "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94",
         )
         self.assertIn("PR #73", lock["nextpnr"].rationale)
         self.assertIn("MISTRAL_BUF", lock["nextpnr"].rationale)
@@ -119,7 +119,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "30ac6f47bd94aec97467bee9fcd2ff09643fbc55\n")
+        self.assertEqual(result.stdout, "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

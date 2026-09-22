@@ -1789,6 +1789,24 @@ showed vacant 901 `plug_addr` following GPO, then composed cart A INIT
 words and cart B banks 0–3. That is a development-RBF diagnostic, not
 image acceptance. Primitive `MISTRAL_FF`
 `BEL` attributes survive Yosys; inferred `reg` `BEL` does not.
+`910_sdram_addon` reads and writes one 16-bit word on the MiSTer GPIO
+SDRAM addon. The 32/64/128 MB modules share this header. Each DQ bit is a
+width-one `altiobuf_bidir`. The host uses `fes.application` framing plus
+experiment opcode 18. `make sim EXP=910_sdram_addon` and
+`make oss EXP=910_sdram_addon` are the closed lanes. The timed clock is
+`sdram.clk` at 50 MHz. This is not HPS DDR and it does not qualify the
+addon above 50 MHz. A designated-kit halfword probe returned `0xA65A`.
+
+`911_hps_ddr` reads and writes one halfword through
+`cyclonev_hps_interface_fpga2sdram` at
+`cyclonev_hps_interface_fpga2sdram.52.53.0`. Command traffic stays on port
+2 and the 64-bit data uses read/write port 3. The host uses the same
+application framing and opcode 18. The timed clock is `ddr.clk` at 50 MHz.
+A development load leaves the FPGA-to-HPS port contained; the probe
+releases FPGAPORTRST, the bridge reset, and the L3 remap, then restores
+them. A designated-kit halfword probe returned `0xA65A`. This is not a
+full-memory or MiSTer-rate qualification.
+
 `scripts/cyclonev_rbf.py` and `scripts/link_static_rbf.py` decompress a
 full RBF, overlay a CRAM rectangle or `overlay_mode = "m10k_ram"` via
 mistral-cv decompile/compile, rewrite CRCs, and recompress. They never

@@ -453,7 +453,7 @@ The module README keeps a short entry point at
 [Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `30ac6f47` provides those flags after `make toolchain-fes`.
+The locked nextpnr `49ab82f5` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream

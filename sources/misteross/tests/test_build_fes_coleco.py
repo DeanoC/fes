@@ -328,8 +328,8 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertEqual(COLECO_TOOLCHAIN_ROOT, "build/toolchain/fes-coleco")
         self.assertIn(COLECO_TOOLCHAIN_LOCK, PINNED_INPUTS)
         global_pins = load_lock(ROOT / "toolchain.lock")
-        self.assertEqual(global_pins["yosys"].commit, "ec34fcf38986217af9b5558936044b7197d968a7")
-        self.assertEqual(global_pins["nextpnr"].commit, "30ac6f47bd94aec97467bee9fcd2ff09643fbc55")
+        self.assertEqual(global_pins["yosys"].commit, "fb879d81e0352f558297bdcc61bc7a4a922fa7b0")
+        self.assertEqual(global_pins["nextpnr"].commit, "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94")
 
     def test_oss_rejects_a_cpu_only_gpu_router_binary(self) -> None:
         with self.assertRaisesRegex(BuildError, "device backend"):

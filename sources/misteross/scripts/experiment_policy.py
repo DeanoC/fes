@@ -6686,6 +6686,86 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "910_sdram_addon": ExperimentPolicy(
+            name="910_sdram_addon",
+            sources=("experiments/910_sdram_addon/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("sdram.clk",),
+            constraints=(
+                "experiments/910_sdram_addon/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS if pattern != "SDRAM"
+            ),
+            forbidden_resource_patterns=tuple(
+                pattern for pattern in _COMMON_RESOURCE_PATTERNS if pattern != "SDRAM"
+            ),
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="bench",
+                    sources=(
+                        "experiments/910_sdram_addon/sim/wrap.v",
+                        "experiments/910_sdram_addon/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/910_sdram_addon/sim/altiobuf_model.v",
+                        "experiments/910_sdram_addon/sim/sdram_model.v",
+                    ),
+                    tb="experiments/910_sdram_addon/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "911_hps_ddr": ExperimentPolicy(
+            name="911_hps_ddr",
+            sources=("experiments/911_hps_ddr/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=("ddr.clk",),
+            constraints=(
+                "experiments/911_hps_ddr/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_fpga2sdram": 1,
+            },
+            forbidden_source_patterns=tuple(
+                pattern for pattern in _COMMON_SOURCE_PATTERNS if pattern != "SDRAM"
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "cyclonev_hps_interface_fpga2sdram": 1,
+            },
+            required_synth_cells={"cyclonev_hps_interface_fpga2sdram": 1},
+            required_nextpnr_bels={
+                "cyclonev_hps_interface_fpga2sdram": (
+                    "cyclonev_hps_interface_fpga2sdram.52.53.0"
+                ),
+            },
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/911_hps_ddr/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/911_hps_ddr/sim/hps_ddr_model.v",
+                    ),
+                    tb="experiments/911_hps_ddr/sim/tb.cpp",
+                ),
+            ),
+        ),
     }
 )
 

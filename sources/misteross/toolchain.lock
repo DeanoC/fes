@@ -1,8 +1,8 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "ec34fcf38986217af9b5558936044b7197d968a7"
+commit = "fb879d81e0352f558297bdcc61bc7a4a922fa7b0"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). On da6373c0. Feature commit 540998e3. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr d672fade; published DeanoC/yosys main merge."
+rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). Feature fb879d81 adds the cyclonev_hps_interface_fpga2sdram blackbox on that pin. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr 49ab82f5; published feature revision, not a merged upstream release."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
@@ -12,9 +12,9 @@ rationale = "DeanoC fork for nextpnr ef29443 Cyclone V MUL9X9/MUL18X18/MUL27X27,
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "30ac6f47bd94aec97467bee9fcd2ff09643fbc55"
+commit = "49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94"
 order = 30
-rationale = "Reviewed nextpnr PR #73 revision 30ac6f47 fixes MISTRAL_BUF pass-through LUT emission, adds explicit static-cart shell clocks, and preserves imported routed-shell memories and constant controls. Emitted-RBF regression covers buffers, inversions, ordinary LUTs and initialized MLABs; hardware qualification of rebuilt packages remains separate. Inherits freeze-scaffold d672fade and prior HIP routing, memory and PLL support. Published feature revision, not a merged upstream release. Pair with Yosys ec34fcf3 and unchanged Mistral b28e30a."
+rationale = "Reviewed nextpnr PR #73 revision 30ac6f47 fixes MISTRAL_BUF pass-through LUT emission, adds explicit static-cart shell clocks, and preserves imported routed-shell memories and constant controls. Feature 49ab82f5 adds the cyclonev_hps_interface_fpga2sdram BEL at its single HPS site. Inherits freeze-scaffold d672fade and prior HIP routing, memory and PLL support. Published feature revision, not a merged upstream release. Pair with Yosys fb879d81 and unchanged Mistral b28e30a."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
