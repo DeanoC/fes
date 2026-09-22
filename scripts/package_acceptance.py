@@ -37,7 +37,7 @@ GAME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
 REVISION_MAX = 256
 MAX_ARCHIVE_BYTES = 33 * 1024 * 1024
 MAX_MEDIA_BYTES = 32 * 1024 * 1024
-EXPECTED_LAUNCH_EXECUTION = "fpga_development"
+EXPECTED_LAUNCH_EXECUTION = "fpga_native"
 HTTP_RESPONSE_BODY_LIMIT = 1 << 20
 HTTP_ERROR_BODY_LIMIT = 16 * 1024
 CLI_NOTE_LIMIT = 1024
@@ -238,7 +238,7 @@ def _session_identity(value: Any, context: str) -> SessionIdentity:
     if not isinstance(value, dict) or value.get("state") != "active":
         raise AcceptanceError(f"{context}: session is not an identifiable active session")
     if value.get("execution") != EXPECTED_LAUNCH_EXECUTION:
-        raise AcceptanceError(f"{context}: session execution is not fpga_development")
+        raise AcceptanceError(f"{context}: session execution is not fpga_native")
     package = value.get("core_package")
     if not isinstance(package, dict):
         raise AcceptanceError(f"{context}: active session has no package identity")

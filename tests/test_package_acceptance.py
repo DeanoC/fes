@@ -55,7 +55,7 @@ def _active_identity(
     game_id=GAME_ID,
     generation=7,
     target_id=TARGET_ID,
-    execution="fpga_development",
+    execution="fpga_native",
 ):
     return {
         "id": SERVER_ID,
@@ -99,7 +99,7 @@ def _state():
         "stop_status": 200,
         "omit_stop_response_id": False,
         "omit_stop_confirmation_id": False,
-        "launch_execution": "fpga_development",
+        "launch_execution": "fpga_native",
         "runtime_revision": RUNTIME_REVISION,
     }
 
@@ -1293,9 +1293,9 @@ class PackageAcceptanceTests(unittest.TestCase):
         self.assertEqual(state["stops"], 1)
         self.assertFalse(receipt.exists())
 
-    def test_rejects_non_development_launch_execution(self):
+    def test_rejects_non_native_launch_execution(self):
         state = _state()
-        state["launch_execution"] = "fpga_native"
+        state["launch_execution"] = "fpga_development"
         with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
             archive = _write_archive(directory)
             receipt = Path(directory) / "receipt.json"
