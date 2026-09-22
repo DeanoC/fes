@@ -66,7 +66,7 @@ FES writes a concrete `build/native-runtime.inputs.lock.toml` inside its disposa
 FogCast module in the assembly snapshot. This generated overlay contains the selected runtime
 revision and FES external-artifact policy; it is not a FogCast source input.
 The staging path restores/removes only this declared overlay before reuse and
-continues to reject unrelated changes. Legacy smoke diagnostics receive the
+continues to reject unrelated changes. Explicit hardware diagnostics receive the
 concrete generated lock explicitly through `NATIVE_RUNTIME_INPUT_LOCK`.
 
 
@@ -88,7 +88,7 @@ use unauthenticated `raw.githubusercontent.com` when no token is set.
 The compiler and immutable core-package caches default to the primary FES
 checkout's `out/cache`, shared by its worktrees. `FES_CACHE_ROOT` can select another
 absolute stable location. Cached FPGA packages keep their original manifest,
-payload and build record. Functional-identity reuse, where enabled by a recipe,
+payload and build record. Functional-identity-2 reuse
 records current selection separately from original provenance; reuse does not
 qualify a new image on hardware. External compilers remain locked dependencies.
 
@@ -97,3 +97,16 @@ The source import mapping in
 component identities. The imported layout requires its own assembly and
 exact-artifact validation; neither that mapping nor a successful host test claims
 published cutover, reproducible image completion or hardware acceptance.
+
+## Supported image recipe
+
+`native-dev` is the only image variant. Conventional `prod`, `dev`, and
+`--fast-dev` entrypoints have been retired. The native overlay directly owns
+network, SSH, supervisor, mount-smoke, agent and runtime services. The kernel
+build uses the retained native image compiler under `work-2-native-dev/host`.
+Kernel/U-Boot inputs and splash seals are unchanged; changed packaging still
+requires a fresh committed-source image build and separate hardware acceptance.
+
+Normal package recipes require explicit functional identity version 2. Older
+artifact caches remain untouched but cannot supply legacy build evidence to
+this route. Splash firmware evidence retains its distinct diagnostic schema.

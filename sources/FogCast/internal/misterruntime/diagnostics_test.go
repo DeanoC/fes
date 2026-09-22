@@ -9,10 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
-	"github.com/DeanoC/FogCast/protocol"
 )
 
 type recordingSink struct {
@@ -48,26 +46,21 @@ func TestNativeLaunchDispatchesAndDrainsRuntimeDumpJoinFields(t *testing.T) {
 	}
 
 	control := &recordingControl{
-		statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
-		launch:   runtimeResponse("running_game", "game"),
+		statuses:    []misterruntime.Protocol2Response{runtimeResponse("idle", "none")},
+		development: runtimeResponse("running_development", "development"),
 	}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
-		misterruntime.WithDiagnosticEventsPath(dump))
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithDiagnosticEventsPath(dump), misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	sink := &recordingSink{}
 	runtime.ConfigureDiagnostics(sink)
-	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemMegaDrive)
-	prepared, apiErr := runtime.Prepare(spec, writeNativeROM(t, ".bin"))
-	if apiErr != nil {
-		t.Fatal(apiErr)
-	}
-	if _, _, apiErr := runtime.Launch(context.Background(), prepared); apiErr != nil {
+	if _, _, apiErr := runtime.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
 		t.Fatal(apiErr)
 	}
 
 	if len(sink.events) != 2 {
 		t.Fatalf("events = %#v", sink.events)
 	}
-	if sink.events[0].Kind != flightdiag.KindFIFODispatch || sink.events[0].Detail["operation"] != "launch" {
+	if sink.events[0].Kind != flightdiag.KindFIFODispatch || sink.events[0].Detail["operation"] != "development_rbf" {
 		t.Fatalf("dispatch = %#v", sink.events[0])
 	}
 	imported := sink.events[1]
@@ -97,10 +90,10 @@ func TestNativeDrainOmitsJoinFieldsWhenTheDumpHasNone(t *testing.T) {
 		t.Fatal(err)
 	}
 	control := &recordingControl{
-		statuses: []misterruntime.Response{runtimeResponse("idle", "none")},
+		statuses: []misterruntime.Protocol2Response{runtimeResponse("idle", "none")},
 	}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
-		misterruntime.WithDiagnosticEventsPath(dump))
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second,
+		misterruntime.WithDiagnosticEventsPath(dump), misterruntime.WithDevelopmentRBFPath(filepath.Join(t.TempDir(), "core.rbf")))
 	sink := &recordingSink{}
 	runtime.ConfigureDiagnostics(sink)
 	_ = runtime.Health("test")
@@ -123,7 +116,7 @@ func (c *diagnosticDataControl) Protocol2Stop(context.Context) (misterruntime.Pr
 func TestLibraryPersistenceDispatchKeepsDiagnostics(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &diagnosticDataControl{}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0,
+	runtime := misterruntime.NewRuntime(control, "", 0, 0,
 		misterruntime.WithCorePackageRoot(t.TempDir()),
 		misterruntime.WithDiagnosticEventsPath(filepath.Join(t.TempDir(), "absent.json")))
 	sink := &recordingSink{}

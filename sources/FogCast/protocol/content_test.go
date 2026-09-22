@@ -81,13 +81,6 @@ func TestCachedLaunchJSON(t *testing.T) {
 	t.Parallel()
 
 	content := protocol.ContentIdentity{SHA256: testDigest, Size: 1024, Extension: "sfc"}
-	request, err := json.Marshal(protocol.CachedLaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, Content: content})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := `{"game_id":"snes-test","system":"snes","content":{"sha256":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","size":1024,"extension":"sfc"}}`; string(request) != want {
-		t.Fatalf("request JSON = %s, want %s", request, want)
-	}
 
 	response, err := json.Marshal(protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive}, Content: content})
 	if err != nil {

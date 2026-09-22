@@ -5,7 +5,6 @@
 #include "native/input.hpp"
 #include "native/generated/fes_gp.hpp"
 #include "native/linux/input.hpp"
-#include "native/linux/spi.hpp"
 
 #include <assert.h>
 #include <cerrno>
@@ -36,7 +35,7 @@ public:
 	std::uint64_t now_;
 };
 
-class RecordingSpi final : public mister::native::Spi {
+class RecordingButtons final {
 public:
 	struct Call {
 		std::uint8_t target;
@@ -44,10 +43,10 @@ public:
 		std::uint64_t deadline;
 	};
 
-	mister::Error SynchronizeCore(std::uint64_t) override { return {}; }
+	mister::Error SynchronizeCore(std::uint64_t) { return {}; }
 	mister::Error Exchange(std::uint8_t target,
 		const std::vector<std::uint16_t>& request,
-		std::vector<std::uint16_t>*, std::uint64_t deadline) override
+		std::vector<std::uint16_t>*, std::uint64_t deadline)
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
 		calls_.push_back({target, request, deadline});
@@ -293,9 +292,9 @@ void TestBatchesDigitalControlsAtSynAndSuppressesDuplicateMaps()
 {
 	FixedClock clock(40);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 25);
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 25);
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(101).ok());
 	Faults faults;
 	assert(session.Start(7, [&](std::uint64_t generation, mister::Error error) {
@@ -326,8 +325,8 @@ void TestBatchesDigitalControlsAtSynAndSuppressesDuplicateMaps()
 	device.Push({mister::native::InputControl::start, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
 	assert(spi.WaitForCalls(3));
-	const std::vector<RecordingSpi::Call> calls = spi.Calls();
-	assert(calls[0].target == mister::native::kUserIoTarget);
+	const std::vector<RecordingButtons::Call> calls = spi.Calls();
+	assert(calls[0].target == 1);
 	assert((calls[0].request == std::vector<std::uint16_t>{0x02, 0x0000}));
 	assert(calls[0].deadline == 101);
 	assert((calls[1].request == std::vector<std::uint16_t>{0x02, 0x0058}));
@@ -343,9 +342,10 @@ void TestAxisThresholdsCommitOnlyAtSynReport()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 20);
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 20);
+	assert(session.Open(Identity(), Recipe(), 100).code == mister::ErrorCode::invalid_request);
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(100).ok());
 	Faults faults;
 	assert(session.Start(1, [&](std::uint64_t generation, mister::Error error) {
@@ -372,9 +372,9 @@ void TestStopCancelsJoinsNeutralizesAndNewGenerationStartsClean()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 20);
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 20);
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(100).ok());
 	Faults faults;
 	auto callback = [&](std::uint64_t generation, mister::Error error) {
@@ -389,7 +389,7 @@ void TestStopCancelsJoinsNeutralizesAndNewGenerationStartsClean()
 	device.Push({mister::native::InputControl::a, 1});
 	device.Push({mister::native::InputControl::synchronize, 0});
 	assert(spi.Calls().size() == stopped_calls);
-	assert(session.Open(Identity(), Recipe(), 300).ok());
+	assert(session.Open(Identity(), Recipe(), 300, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(300).ok());
 	assert(session.Start(8, callback).code == mister::ErrorCode::invalid_request);
 	assert(session.Start(9, callback).ok());
@@ -399,7 +399,7 @@ void TestStopCancelsJoinsNeutralizesAndNewGenerationStartsClean()
 	assert((spi.Calls().back().request ==
 		std::vector<std::uint16_t>{0x02, 0x0020}));
 	assert(session.Stop(400).ok());
-	assert(session.Open(Identity(), Recipe(), 500).ok());
+	assert(session.Open(Identity(), Recipe(), 500, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(500).ok());
 	assert(session.Start(10, callback).ok());
 	assert(session.Stop(600).ok());
@@ -410,9 +410,9 @@ void TestStartRequiresSuccessfulNeutralization()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 20);
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 20);
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	Faults faults;
 	auto callback = [&](std::uint64_t generation, mister::Error error) {
 		faults.Report(generation, std::move(error));
@@ -438,9 +438,9 @@ void TestCancellationErrorStillJoinsNeutralizesAndCloses()
 	mister_test::FakeInputDevice device;
 	device.cancel_error = {mister::ErrorCode::io_failed,
 		"scripted cancellation failure"};
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 20);
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 20);
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(101).ok());
 	Faults faults;
 	assert(session.Start(1, [&](std::uint64_t generation, mister::Error error) {
@@ -469,7 +469,7 @@ void TestCancellationErrorStillJoinsNeutralizesAndCloses()
 	assert(device.WaitUntilCancelled());
 	assert(device.close_count == 1);
 	assert(faults.Errors().empty());
-	const std::vector<RecordingSpi::Call> calls = spi.Calls();
+	const std::vector<RecordingButtons::Call> calls = spi.Calls();
 	assert(calls.size() == 2);
 	assert((calls[0].request == std::vector<std::uint16_t>{0x02, 0x0000}));
 	assert((calls[1].request == std::vector<std::uint16_t>{0x02, 0x0000}));
@@ -547,9 +547,9 @@ void TestReadUnsupportedAndSpiFaultsReportOnceWithTheirGeneration()
 	for (const mister::Error& source_error : source_errors) {
 		FixedClock clock(10);
 		mister_test::FakeInputDevice device;
-		RecordingSpi spi;
-		mister::native::NativeInputSession session(device, spi, clock, 20);
-		assert(session.Open(Identity(), Recipe(), 100).ok());
+		RecordingButtons spi;
+		mister::native::NativeInputSession session(device, clock, 20);
+		assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 		assert(session.Neutralize(100).ok());
 		Faults faults;
 		assert(session.Start(generation, [&](std::uint64_t observed,
@@ -565,9 +565,9 @@ void TestReadUnsupportedAndSpiFaultsReportOnceWithTheirGeneration()
 	{
 		FixedClock clock(10);
 		mister_test::FakeInputDevice device;
-		RecordingSpi spi;
-		mister::native::NativeInputSession session(device, spi, clock, 20);
-		assert(session.Open(Identity(), Recipe(), 100).ok());
+		RecordingButtons spi;
+		mister::native::NativeInputSession session(device, clock, 20);
+		assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 		assert(session.Neutralize(100).ok());
 		Faults faults;
 		assert(session.Start(30, [&](std::uint64_t observed, mister::Error error) {
@@ -581,9 +581,9 @@ void TestReadUnsupportedAndSpiFaultsReportOnceWithTheirGeneration()
 	{
 		FixedClock clock(10);
 		mister_test::FakeInputDevice device;
-		RecordingSpi spi;
-		mister::native::NativeInputSession session(device, spi, clock, 20);
-		assert(session.Open(Identity(), Recipe(), 100).ok());
+		RecordingButtons spi;
+		mister::native::NativeInputSession session(device, clock, 20);
+		assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 		assert(session.Neutralize(100).ok());
 		spi.PushError({mister::ErrorCode::io_failed, "scripted SPI failure"});
 		Faults faults;
@@ -603,18 +603,18 @@ void TestInvalidRecipeStateAndDirectBoundaryFailuresAreContained()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 20);
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 20);
 	mister::InputRecipe invalid = Recipe();
 	invalid.player_count = 2;
-	assert(session.Open(Identity(), invalid, 100).code ==
+	assert(session.Open(Identity(), invalid, 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).code ==
 		mister::ErrorCode::invalid_request);
 	assert(device.opened_identities.empty());
 	assert(session.Start(1, {}).code == mister::ErrorCode::invalid_request);
 	device.open_error = {mister::ErrorCode::io_failed, "discovery failed"};
-	assert(session.Open(Identity(), Recipe(), 100).message == "discovery failed");
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).message == "discovery failed");
 	device.open_error = {};
-	assert(session.Open(Identity(), Recipe(), 100).ok());
+	assert(session.Open(Identity(), Recipe(), 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	spi.PushError({mister::ErrorCode::io_failed, "neutral failed"});
 	assert(session.Neutralize(123).message == "neutral failed");
 	assert(spi.Calls().back().deadline == 123);
@@ -626,14 +626,14 @@ void TestSnesButtonsDeliverIndependentMasksAndStopNeutral()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 25);
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 25);
 	auto recipe = Recipe();
 	recipe.c = 0;
 	recipe.start = 0x800;
 	recipe.x = 0x40; recipe.y = 0x80; recipe.l = 0x100;
 	recipe.r = 0x200; recipe.select = 0x400;
-	assert(session.Open(Identity(), recipe, 100).ok());
+	assert(session.Open(Identity(), recipe, 100, [&](std::uint16_t buttons, std::uint64_t deadline) { return spi.Exchange(1, {Recipe().player_command, buttons}, nullptr, deadline); }).ok());
 	assert(session.Neutralize(101).ok());
 	assert(session.Start(1, [](std::uint64_t, mister::Error) { assert(false); }).ok());
 	using C = mister::native::InputControl;
@@ -658,8 +658,8 @@ void TestFesSinkNeutralizesOppositeDirectionsAndRetiresGeneration()
 {
 	FixedClock clock(10);
 	mister_test::FakeInputDevice device;
-	RecordingSpi spi;
-	mister::native::NativeInputSession session(device, spi, clock, 25);
+	RecordingButtons spi;
+	mister::native::NativeInputSession session(device, clock, 25);
 	mister::InputRecipe recipe = {1,
 		static_cast<std::uint8_t>(mister::native::generated::FesGpOpcodeButtons),
 		mister::native::generated::FesGpButtonUp,

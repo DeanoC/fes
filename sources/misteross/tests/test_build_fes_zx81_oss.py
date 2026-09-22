@@ -6,6 +6,7 @@ import os
 import tempfile
 import tomllib
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 from unittest.mock import patch
 
@@ -34,7 +35,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 record = json.loads(build_fes_zx81_oss.create_build_record(
                     ROOT, "https://github.com/DeanoC/misteross.git", "a" * 40,
                     {"yosys": "test"}, qor_mode=mode,
-                ))
+                 execution=EXECUTION))
                 parameters = record["parameters"]
                 self.assertEqual(parameters["placer_heap_timingweights"], ",".join(map(str, weights)))
                 self.assertEqual(parameters["placer_qor_budget"], budget)
@@ -221,3 +222,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
         interfaces = {item["id"] for item in fields["interfaces"]}
         self.assertIn("fes.expansion.zx81-bus", interfaces)
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

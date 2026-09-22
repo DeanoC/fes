@@ -3,51 +3,16 @@ package misterruntime_test
 import (
 	"bytes"
 	"context"
-	"errors"
+
 	"io"
 	"os"
-	"path/filepath"
+
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
-
-type leftoverNativeControl struct {
-	dataControl
-	p1Status       misterruntime.Response
-	p1Stop         misterruntime.Response
-	p1Launch       misterruntime.Response
-	protocol2Stops int
-	protocol1Stops int
-}
-
-func (c *leftoverNativeControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
-	c.protocol2Stops++
-	return misterruntime.Protocol2Response{}, errors.New("described-package stop captured native game")
-}
-func (c *leftoverNativeControl) Status(context.Context) (misterruntime.Response, error) {
-	if c.p1Status.State != "" {
-		return c.p1Status, nil
-	}
-	return c.dataControl.Status(context.Background())
-}
-func (c *leftoverNativeControl) Stop(context.Context) (misterruntime.Response, error) {
-	c.protocol1Stops++
-	if c.p1Stop.State != "" {
-		return c.p1Stop, nil
-	}
-	return c.dataControl.Stop(context.Background())
-}
-func (c *leftoverNativeControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	if c.p1Launch.State != "" {
-		return c.p1Launch, nil
-	}
-	return misterruntime.Response{}, errors.New("unexpected launch")
-}
 
 type dataControl struct {
 	packageControl
@@ -123,7 +88,7 @@ func TestCoreDataAdapterStagesExactArchiveAndCleansEveryResult(t *testing.T) {
 			}
 			control := &dataControl{}
 			barrier := &replacementBarrier{}
-			runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
+			runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root), misterruntime.WithCoreReplacementBarrier(barrier))
 			inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 			if err != nil {
 				t.Fatal(err)
@@ -162,7 +127,7 @@ func TestCoreDataAdapterStagesExactArchiveAndCleansEveryResult(t *testing.T) {
 func TestLibraryCoreLoadIsExplicitAndDevelopmentRemainsVolatile(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
+	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
 	t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
 	inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {
@@ -182,7 +147,7 @@ func TestCoreDataCleanupFailureRemainsOwnedAndVisible(t *testing.T) {
 	root := t.TempDir()
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
+	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(root))
 	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if apiErr != nil {
 		t.Fatal(apiErr)
@@ -215,78 +180,11 @@ func TestCoreDataCleanupFailureRemainsOwnedAndVisible(t *testing.T) {
 		t.Fatalf("retained cleanup=%v err=%v", entries, err)
 	}
 }
-func TestRetiredCoreStagingDoesNotCaptureSNESStop(t *testing.T) {
-	root := t.TempDir()
-	archive := canonicalCoreArchive(t)
-	control := &leftoverNativeControl{}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", time.Millisecond, time.Second,
-		misterruntime.WithCorePackageRoot(root),
-		misterruntime.WithSaveRoot(filepath.Join(t.TempDir(), "saves", "snes")))
-	inspection, apiErr := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
-	if apiErr != nil {
-		t.Fatal(apiErr)
-	}
-	moved := root + "-moved"
-	control.afterData = func(string) {
-		if err := os.Rename(root, moved); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(root, []byte("block cleanup"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, apiErr = runtime.InspectCoreData(context.Background(), int64(len(archive)), bytes.NewReader(archive), inspection.PackageID); apiErr == nil || apiErr.Phase != "recovery" {
-		t.Fatalf("cleanup ownership err=%v", apiErr)
-	}
-	if err := os.Remove(root); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Rename(moved, root); err != nil {
-		t.Fatal(err)
-	}
-	control.afterData = nil
-	control.status2 = &misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_game", Execution: "game", Version: "test"}
-	control.p1Status = runtimeResponse("idle", "none")
-	control.p1Launch = snesResponse("running_game")
-	spec, _ := core.DefaultRegistry().Lookup(protocol.SystemSNES)
-	prepared, err := runtime.Prepare(spec, snesROM(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	prepared.GameID = "super-mario-world"
-	if _, _, err := runtime.Launch(context.Background(), prepared); err != nil {
-		t.Fatal(err)
-	}
-	control.p1Status = snesResponse("running_game")
-	control.p1Stop = runtimeResponse("idle", "none")
-	if !runtime.StopReady() {
-		t.Fatal("leftover staging blocked SNES Stop")
-	}
-	if _, err := runtime.Stop(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if control.protocol2Stops != 0 || control.protocol1Stops != 1 {
-		t.Fatalf("protocol2=%d protocol1=%d", control.protocol2Stops, control.protocol1Stops)
-	}
-	failed := snesResponse("running_game")
-	failed.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "cannot save"}
-	control.p1Status = failed
-	control.p1Stop = failed
-	if !runtime.StopReady() {
-		t.Fatal("SNES save failure must remain Stop-retryable")
-	}
-	if _, err := runtime.Stop(context.Background()); err == nil || err.Code != protocol.CodeInternal {
-		t.Fatalf("SNES save isolation err=%v", err)
-	}
-	if control.protocol2Stops != 0 {
-		t.Fatalf("protocol-2 stop captured SNES save failure: %d", control.protocol2Stops)
-	}
-}
 
 func TestLibraryLoadRejectsReturnedPersistenceModeMismatch(t *testing.T) {
 	archive := canonicalCoreArchive(t)
 	control := &dataControl{wrongMode: true}
-	runtime := newRuntimeWithNativeCoreFixtures(t, control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
+	runtime := misterruntime.NewRuntime(control, "", 0, 0, misterruntime.WithCorePackageRoot(t.TempDir()))
 	t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
 	inspection, err := runtime.InspectCore(context.Background(), int64(len(archive)), bytes.NewReader(archive))
 	if err != nil {

@@ -99,15 +99,6 @@ public:
 		return Write(kFpgaControlAddress, control_, phase);
 	}
 
-	Error SetCoreReset(bool reset)
-	{
-		const std::uint32_t value = (gpo_ & ~kFpgaCoreStateMask) |
-			(reset ? kFpgaCoreReset : kFpgaCoreNormal);
-		const Error error = Write(kFpgaGpoAddress, value,
-			reset ? "core reset" : "core normal");
-		if (error.ok()) gpo_ = value;
-		return error;
-	}
 
 	Error DisableBridges()
 	{
@@ -227,11 +218,7 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	error = state.WaitMode(kFpgaModeReset, false, "reset phase");
 	if (!error.ok()) return Failed(error, state.write_attempted_, state.last_status_);
 	EmitFpgaManager("reset", "ok", state.last_status_, true);
-	if (profile == ProgrammingProfile::mister_v1) {
-		error = state.Read(kFpgaGpoAddress, &state.gpo_,
-			"MiSTer destination GPO", 0);
-		if (error.ok()) error = state.SetCoreReset(true);
-	} else if (profile == ProgrammingProfile::fes_gp_v1) {
+	if (profile == ProgrammingProfile::fes_gp_v1) {
 		state.gpo_ = 0;
 		error = state.Write(kFpgaGpoAddress, state.gpo_,
 			"FES GP destination initialization");
@@ -333,47 +320,6 @@ NativeResult LinuxFpgaManager::Program(const Artifact& artifact,
 	if (observed_control != state.control_)
 		return Failed(ProgrammingError("manager CTRL readback", observed_control,
 			"FPGA control mismatch"), state.write_attempted_);
-
-	if (profile != ProgrammingProfile::mister_v1)
-		return {{}, true};
-
-	error = state.Write(kSdrFpgaPortResetAddress, kSdrFpgaPortsEnabled,
-		"SDR release write");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	std::uint32_t observed_sdr = kSdrFpgaPortsEnabled;
-	error = state.Read(kSdrFpgaPortResetAddress, &observed_sdr,
-		"SDR release readback", kSdrFpgaPortsEnabled);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	if (observed_sdr != kSdrFpgaPortsEnabled)
-		return Failed(ProgrammingError("SDR release readback", observed_sdr,
-			"SDR FPGA ports remain disabled"), state.write_attempted_);
-
-	error = state.Write(kBridgeResetAddress, kBridgesReleased,
-		"bridge release reset write");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	std::uint32_t observed_bridge = kBridgesReleased;
-	error = state.Read(kBridgeResetAddress, &observed_bridge,
-		"bridge reset release readback", kBridgesReleased);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	if (observed_bridge != kBridgesReleased)
-		return Failed(ProgrammingError("bridge reset release readback",
-			observed_bridge, "bridges remain in reset"), state.write_attempted_);
-
-	error = state.Write(kL3RemapAddress, kL3RemapFpgaEnabled,
-		"L3 remap release write");
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	// Cyclone V L3 REMAP is write-only (Linux altera-hps2fpga.c); the
-	// complete literal write and MMIO barrier are the valid authority.
-
-	error = state.SetCoreReset(false);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	std::uint32_t observed_gpo = state.gpo_;
-	error = state.Read(kFpgaGpoAddress, &observed_gpo,
-		"core-normal GPO readback", state.gpo_);
-	if (!error.ok()) return Failed(error, state.write_attempted_);
-	if (observed_gpo != state.gpo_)
-		return Failed(ProgrammingError("core-normal GPO readback", observed_gpo,
-			"core-normal GPO mismatch"), state.write_attempted_);
 
 	return {{}, true};
 }

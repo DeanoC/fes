@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -237,7 +236,7 @@ func openTestManager(t *testing.T, root string, options ...targetcache.Option) *
 	options = append([]targetcache.Option{
 		targetcache.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	}, options...)
-	manager, err := targetcache.Open(testManagerConfig(root), core.DefaultRegistry(), options...)
+	manager, err := targetcache.Open(testManagerConfig(root), options...)
 	if err != nil {
 		t.Fatalf("Open target cache: %v", err)
 	}

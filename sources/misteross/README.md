@@ -12,13 +12,21 @@ against standalone `https://github.com/DeanoC/misteross`.
 
 Shared producer operations live in `scripts/fes_build_common.py`; fixed
 DE10-Nano video/audio evidence lives in `scripts/fes_de10nano_evidence.py`.
-Recipes retain their own resource expectations. The five OSS producer CLIs
-and their Make entrypoints default to functional identity v2 for module checkouts;
-`--identity-version 1` retains explicit standalone legacy builds. Synthesis-only
+Recipes retain their own resource expectations. All normal producer CLIs
+and their Make entrypoints require functional identity 2 in FES module checkouts. Synthesis-only
 diagnostics remain unsealed. Reusable Coleco/SMS/SG-1000
 CPU, RAM, video and mailbox RTL lives in `cores/fes-common/rtl`; core-specific
 machines and constraints remain in their core directories. These three cores
 select one qualified compiler lock, `toolchains/registered-memory.lock`.
+
+## Functional packages
+
+All normal producers, including demo/media/audio and Catch, require functional
+identity 2 and controlled compiler execution. Python defaults and CLI defaults
+agree; identity 1 is rejected. Builds use the exact tracked FES module.
+Quartus oracle and board-firmware evidence retain their separate record schema.
+The cleanup changes the script source closure and therefore invalidates prior
+normal package cache selections; existing cache bytes are preserved.
 
 ## What works now
 
@@ -563,11 +571,7 @@ an I/O write to xxDF). This is a
 development-RBF diagnostic, not image acceptance, and it does not seal
 `fes.zx81`.
 
-- Deterministic ROM-less Pong game and raster simulation with `make sim-pong`.
-  `make build-pong` stages the pinned MiSTer framework and compiles the wrapper
-  with explicitly configured Quartus 17.0.2. Outputs and provenance are under
-  `build/rebuild/pong/`. The diagnostic build has passed native gameplay,
-  controls and HDMI audio checks.
+- Standalone digital-control Pong gameplay with `make sim-pong`.
 - FES GP mailbox and fixed 1280x720p60 Pong shell with `make sim-fes-pong`.
   Package `fes.pong` 1.1.0 exposes staged persistence for paddle speed and best
   rally, with snapshot/freeze and resume that preserve the running game.
@@ -576,10 +580,8 @@ development-RBF diagnostic, not image acceptance, and it does not seal
   clean committed source tree; recipe presence alone is no RBF, timing, video
   or hardware-support evidence.
 
-`make sim-pong` tests the standalone digital-control Pong game and continuous
-320x240 raster with Verilator. Set `VERILATOR=/absolute/path/to/verilator` to
-reuse an installed tool. `make build-pong` adds the MiSTer board wrapper and
-produces a programmable RBF.
+`make sim-pong` tests retained Pong gameplay with Verilator. Set
+`VERILATOR=/absolute/path/to/verilator` to use an installed tool.
 
 `make sim-fes-zx81` tests the `fes.simple-computer` 1.0 mailbox, a 16 KB PAL
 ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
@@ -729,7 +731,7 @@ acceptance.
 
 `make sim-fes-pong` tests the separate `fes.simple-game` GP transport and exact
 74.25 MHz-domain 720p raster model. It reuses only `pong_game.sv` from the
-MiSTer Pong and simulates the board top with independently driven,
+retained Pong gameplay and simulates the board top with independently driven,
 simulation-only HPS and PLL boundaries. The board test also checks HDMI I2C
 low-or-release drive and feedback from an external device. The standalone shell
 uses the HPS I2C bridge at X52/Y60 with U10/AA4 pads; its export checks require
@@ -746,43 +748,11 @@ routing, a CPU-reference GPU fallback, unexpected hard resources, a changed
 tool identity, or a dirty source checkout before calling the format-2 exporter.
 The command never programs a kit.
 
-`cores.lock` also selects SNES and NES Release 20260823. `make fetch-core
-CORE=snes` and `make fetch-core CORE=nes` use the existing fetch/hash-check
-lane. A staged seed-3 Quartus diagnostic passed timing and native LoROM/HiROM
-hardware checks for SNES. The normal SNES recipe now explicitly selects fitter
-seed 3 and requires passing timing. Export admits Mega Drive, SNES, NES and
-Pong; new builds require their own hardware acceptance. The NES slice accepts
-standard `.nes` cartridges through the generic `scripts/rebuild_core.py` lane;
-FDS, UNIF and other NES peripherals remain outside this contract.
-See the architecture document for artifact identities.
-
-Pinned third-party cores live in `cores.lock`. That file is the **upstream
-version**: exact git commit plus the official release RBF hash.
-`make fetch-core CORE=megadrive` checks those bytes out.
-`make rebuild-core CORE=megadrive` compiles our own RBF from that tree
-with Quartus Prime Lite 17.0.2. That rebuild has been loaded on real
-MiSTer hardware, so the fetch → Quartus → RBF path works end to end.
-The two artifacts are not required to bit-match (Lite cannot reproduce
-Standard). `make select-core CORE=megadrive` copies the hardware-verified
-rebuild to `build/current/megadrive.rbf`. `ARTIFACT=upstream` falls back
-to the official release. The fetch checkout is not modified. Rebuild
-identity is not a lock failure. Selection is an operator convenience, separate
-from compilation and from the immutable FogCast handoff.
-
 The useful outputs are ordinary local files:
 
 ```text
 build/oss/<experiment>/top.rbf
 build/oracle/<experiment>/top.rbf
-build/cores/megadrive/releases/MegaDrive_20260603.rbf   # upstream
-build/rebuild/megadrive/megadrive.rbf                   # our rebuild
-build/current/megadrive.rbf                             # selected
-build/bundles/megadrive/<rbf-sha256>/megadrive.rbf      # exported
-build/bundles/megadrive/<rbf-sha256>/megadrive-rbf.toml # manifest
-build/cores/nes/releases/NES_20260823.rbf              # upstream
-build/rebuild/nes/nes.rbf                               # our rebuild
-build/bundles/nes/<rbf-sha256>/nes.rbf                 # exported
-build/bundles/nes/<rbf-sha256>/nes-rbf.toml             # manifest
 build/fes-splash/core.rbf                                # OSS board-firmware splash RBF
 build/fes-splash/build-inputs.json                       # pre-synthesis canonical inputs
 build/fes-splash/build-summary.json                      # timing/resource/tool evidence when sealed
@@ -818,15 +788,6 @@ build/packages/<package-id>/core.rbf                    # unchanged payload
 build/packages/<package-id>.fcore                       # restricted ustar package
 build/packages/<package-id>.build-inputs.json           # external build evidence
 ```
-
-`make export-core-bundle CORE=megadrive` validates the rebuild and its
-comparison evidence, then seals those two files in the digest directory. It
-prints the completed absolute directory as the printed bundle path. FogCast
-receives that printed bundle path, not a mutable build path such as
-`build/rebuild/megadrive/megadrive.rbf` or `build/current/megadrive.rbf`.
-FogCast owns transferring the bundle's RBF to the disposable MiSTer Pi and
-loading it. This repository does not own FogCast deployment, target recovery,
-hardware ownership, or network policy.
 
 ## Quick start
 
@@ -914,8 +875,7 @@ primary checkout through Git's common directory and honors `FES_CACHE_ROOT`,
 so task worktrees use the same authenticated cache as parent builds. Both
 `CACHE_ROOT=… make build-fes-pong` and `make build-fes-pong CACHE_ROOT=…`
 are valid; Make clears `MAKEFLAGS`/`MFLAGS` for the producer in either form.
-Standalone misteross checkouts can instead supply an explicit absolute
-`CACHE_ROOT` using the commands above.
+Live first-party builds require the tracked FES `sources/misteross` module.
 
 ```sh
 # From the sources/misteross directory of the selected FES worktree:
@@ -964,38 +924,8 @@ ambient tool. FPGA output schemas and the `BUILD_ID` algorithm do not change;
 a shared compiler may produce different tool bytes, which remain represented
 by the existing digest fields and provenance records.
 
-Fetch the upstream Mega Drive pin and compile the source-built RBF:
-
-```sh
-make fetch-core CORE=megadrive
-make rebuild-core CORE=megadrive
-make export-core-bundle CORE=megadrive
-```
-
-The same sequence works for the native NES slice once Quartus Prime Lite
-17.0.2 is installed:
-
-```sh
-make fetch-core CORE=nes
-make rebuild-core CORE=nes
-make export-core-bundle CORE=nes
-```
-
-The export command is the FogCast handoff. For local operator use, select the
-current RBF separately (rebuild is the default; upstream is the fallback):
-
-```sh
-make select-core CORE=megadrive
-make select-core CORE=megadrive ARTIFACT=upstream
-```
-
-`build/current/megadrive.rbf` remains an operator selection and is not the
-FogCast release handoff. The handoff is the printed digest directory under
-`build/bundles/megadrive/`.
-
-Format-2 packages use a separate exporter and do not change the format-1
-`export-core-bundle` command. Put canonical `build-inputs.json` beside the RBF,
-then export it with:
+FES format-2 packages are the product handoff. Put canonical functional
+`build-inputs.json` beside the RBF, then export it with:
 
 ```sh
 make export-core-package \
@@ -1027,23 +957,13 @@ FogCast owns transfer and FPGA load. The designated native kit has no
 `/dev/MiSTer_cmd`. Claim a lease and stream a local RBF with `scripts/kit.py`
 (see Shared native development kit below). Direct host
 `POST /api/v1/session/development-rbf` is the same physical path when the host
-already holds the lease. HDMI stays powered down. These experiments are not
-MiSTer-compatible cores: after programming, the runtime probes SPI identity on
-the FPGA-manager GPO/GPI pair, that probe fails, and Stop restores idle through
-the existing development reboot handshake.
+already holds the lease. HDMI stays powered down. These experiments use the explicit contained-development profile; package ABI
+negotiation and product launch are reserved for described FES packages. Stop
+restores idle through the runtime recovery handshake.
 
-`make program` is a separate Main-FIFO or JTAG diagnostic for a conventional
-MiSTer or DE10-Nano. It is not the native kit path and never writes flash or
-the SD card.
-
-```sh
-PROGRAM_DRY_RUN=1 MISTER_HOST=misterpi MISTER_USER=root \
-  make program EXP=020_linux_mailbox BUILD=oss
-```
-
-The old `dev-bundle`, `dev-load`, `dev-preflight`, and `dev-fault-inject`
-transport was abandoned. It duplicated FogCast's responsibility and is absent
-from this recovery branch; Git history retains it.
+`make program` is an explicit JTAG SRAM maintenance diagnostic. Coordinate kit
+ownership before invoking it; it never writes flash or the SD card. Ordinary
+loads use FogCast's package or contained-development APIs.
 
 ## Repository layout
 
@@ -1072,9 +992,8 @@ python3 scripts/kit.py --config /absolute/path/config.toml session \
 
 At the session prompt, enter `load build/oss/020_linux_mailbox/top.rbf`, `status`,
 `stop`, or `release`. Quote paths containing spaces. Repeat loads in the same
-session. A non-MiSTer development image programs, then fails the MiSTer SPI
-identity probe; `load` keeps the lease and reports `development probe timed out`
-so the operator can peek GPI before Stop. Stop posts `/v1/stop`. When the
+session. A contained-development load keeps the lease so the operator can inspect
+hardware before Stop. Stop posts `/v1/stop`. When the
 target reports `recovery: reboot_required`, Stop records `/v1/health` `boot_id`,
 posts `/v1/development/reboot`, and waits for a new boot ID plus a free lease.
 That reboot restarts the target agent, so the current lease ends. Otherwise
@@ -1108,20 +1027,6 @@ it does not interrupt FPGA programming and never forces a different generation.
 It opens a normal renewable interactive session once granted. An unconfirmed
 claim can expire automatically; inspect status before trying again.
 
-`make program` uses direct Main/SSH or JTAG and **bypasses this lease**. Treat it
-as an explicit maintenance escape only after coordinating with the current
-owner. Ordinary native bring-up uses `kit.py`; do not run both paths concurrently.
-No build target uploads an RBF automatically. The native development loader
-still requires a compatible MiSTer framework ABI; ownership does not make an
-arbitrary bare experimental RBF compatible.
-
-## Four-system bundles
-
-Run `make export-core-bundle CORE=snes` after `make rebuild-core CORE=snes`, or
-`make export-core-bundle CORE=nes` after `make rebuild-core CORE=nes`, or
-`make export-core-bundle CORE=pong` after `make build-pong`. Each prints a sealed
-`build/bundles/<system>/<sha256>/` directory containing `<system>.rbf` and
-`<system>-rbf.toml`. Pong export requires a clean committed source tree and
-checks its local/framework input record. SNES and NES source exports reject
-failed, missing or stale timing evidence when a build receipt is present.
-Neither build nor export programs the kit.
+`make program` uses direct JTAG and bypasses the agent lease. Coordinate with
+the kit owner before using this explicit maintenance diagnostic. Normal
+bring-up uses `kit.py`; no build target uploads automatically.

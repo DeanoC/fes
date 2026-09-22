@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 from unittest.mock import patch
 
@@ -297,7 +298,7 @@ class BuildFesColecoTests(unittest.TestCase):
             ROOT,
             "https://example.invalid/misteross.git",
             "a" * 40,
-            {"yosys": "test"},
+            {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"seed_order":"4,1,2,3,5,12,7,10"', record)
@@ -310,7 +311,7 @@ class BuildFesColecoTests(unittest.TestCase):
             "https://example.invalid/misteross.git",
             "a" * 40,
             {"yosys": "test"},
-            qor_mode="staged",
+            qor_mode="staged", execution=EXECUTION,
         )
         self.assertIn(b'"placer_qor_mode":"staged"', staged)
         self.assertIn(b'"router":"gpu"', record)
@@ -525,3 +526,11 @@ class BuildFesColecoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

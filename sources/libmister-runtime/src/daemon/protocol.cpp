@@ -51,17 +51,6 @@ bool HasOnly(const json::Value& object, const char* const* names, std::size_t co
 	return true;
 }
 
-bool Identifier(const std::string& value)
-{
-	if (value.empty() || value.size() > 32) return false;
-	for (unsigned char character : value) {
-		if (!((character >= 'a' && character <= 'z') ||
-				(character >= '0' && character <= '9') || character == '_' || character == '-'))
-			return false;
-	}
-	return true;
-}
-
 bool Path(const std::string& value)
 {
 	return !value.empty() && value.size() <= 4095 && value[0] == '/' &&
@@ -86,46 +75,6 @@ bool StringMember(const json::Value& object, const char* name, const std::string
 		return false;
 	}
 	*value = &member->string_value;
-	return true;
-}
-
-bool ObjectMember(const json::Value& object, const char* name, const json::Value** value,
-		Error* error)
-{
-	const json::Value* member = Find(object, name);
-	if (member == nullptr || member->type != json::Type::object) {
-		*error = Invalid(std::string("request requires object field: ") + name);
-		return false;
-	}
-	*value = member;
-	return true;
-}
-
-bool ParseMedia(const json::Value& object, std::vector<Media>* media, Error* error)
-{
-	media->clear();
-	for (const auto& member : object.object) {
-		if (!Identifier(member.first) || member.second.type != json::Type::string ||
-			!Path(member.second.string_value)) {
-			*error = Invalid("media contains an invalid name or path");
-			return false;
-		}
-		media->push_back({member.first, member.second.string_value});
-	}
-	return true;
-}
-
-bool ParseSettings(const json::Value& object, std::vector<Setting>* settings, Error* error)
-{
-	settings->clear();
-	for (const auto& member : object.object) {
-		if (!Identifier(member.first) || member.second.type != json::Type::string ||
-			member.second.string_value.size() > 64) {
-			*error = Invalid("settings contains an invalid name or value");
-			return false;
-		}
-		settings->push_back({member.first, member.second.string_value});
-	}
 	return true;
 }
 
@@ -277,32 +226,17 @@ void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
 	output->Append("}}");
 }
 
-const char* V1ErrorCodeName(ErrorCode code)
-{
-	switch (code) {
-	case ErrorCode::invalid_package:
-	case ErrorCode::unsupported_target:
-	case ErrorCode::unsupported_programming_profile:
-	case ErrorCode::unsupported_abi:
-	case ErrorCode::unsupported_interface:
-		return "invalid_request";
-	default:
-		return ErrorCodeName(code);
-	}
-}
-
-void AppendError(BoundedOutput* output, const Error& error, bool protocol2)
+void AppendError(BoundedOutput* output, const Error& error)
 {
 	if (error.ok()) {
 		output->Append("null");
 		return;
 	}
 	output->Append("{\"code\":");
-	AppendQuoted(output, protocol2 ? ErrorCodeName(error.code) :
-		V1ErrorCodeName(error.code));
+	AppendQuoted(output, ErrorCodeName(error.code));
 	output->Append(",\"message\":");
 	AppendQuoted(output, error.message);
-	if (protocol2) {
+	{
 		output->Append(",\"phase\":");
 		AppendQuoted(output, error.phase.empty() ? "lifecycle" : error.phase);
 		if (!error.expected.empty()) {
@@ -315,33 +249,6 @@ void AppendError(BoundedOutput* output, const Error& error, bool protocol2)
 		}
 	}
 	output->Append("}");
-}
-
-bool TryEncodeV1Response(bool ok, const Status& status, const std::string& version,
-	std::string* response)
-{
-	const bool retained_recovery =
-		status.state == State::reboot_required && status.core_data.mode == "persistent";
-	const std::string empty;
-	BoundedOutput output(kMaximumResponsePayloadBytes);
-	output.Append("{\"protocol\":1,\"ok\":");
-	output.Append(ok ? "true" : "false");
-	output.Append(",\"state\":");
-	AppendQuoted(&output, StateName(status.state));
-	output.Append(",\"execution\":");
-	AppendQuoted(&output, ExecutionName(retained_recovery ? Execution::none : status.execution));
-	output.Append(",\"system\":");
-	AppendIdentity(&output, retained_recovery ? empty : status.system);
-	output.Append(",\"core\":");
-	AppendIdentity(&output, retained_recovery ? empty : status.core);
-	output.Append(",\"error\":");
-	AppendError(&output, status.error, false);
-	output.Append(",\"version\":");
-	AppendQuoted(&output, version);
-	output.Append("}");
-	if (!output.ok()) return false;
-	*response = output.Take();
-	return true;
 }
 
 bool TryEncodeV2Response(bool ok, const Status& status, const std::string& version,
@@ -359,7 +266,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 	output.Append(",\"core\":");
 	AppendIdentity(&output, status.core);
 	output.Append(",\"error\":");
-	AppendError(&output, status.error, true);
+	AppendError(&output, status.error);
 	output.Append(",\"version\":");
 	AppendQuoted(&output, version);
 	output.Append(",\"capabilities\":{\"programming_profiles\":[");
@@ -453,7 +360,7 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		output.Append(",\"compatible\":");
 		output.Append(inspection->compatible ? "true" : "false");
 		output.Append(",\"compatibility_error\":");
-		AppendError(&output, inspection->compatibility_error, true);
+		AppendError(&output, inspection->compatibility_error);
 		output.Append("}");
 	}
 	if (core_data != nullptr) {
@@ -683,72 +590,13 @@ Error ParseRequest(const std::string& line, Request* request)
 		*request = parsed;
 		return {};
 	}
-	if (operation->string_value == "status" || operation->string_value == "stop") {
-		const char* const fields[] = {"protocol", "operation"};
-		if (!HasOnly(root, fields, 2, &error)) return error;
-		parsed.operation = operation->string_value == "status" ? Operation::status : Operation::stop;
-	} else if (operation->string_value == "load_development_rbf") {
-		const char* const fields[] = {"protocol", "operation", "rbf"};
-		if (!HasOnly(root, fields, 3, &error)) return error;
-		const std::string* rbf = nullptr;
-		if (!StringMember(root, "rbf", &rbf, &error)) return error;
-		if (!Path(*rbf)) return Invalid("rbf must be an absolute path of at most 4095 bytes");
-		parsed.operation = Operation::load_development_rbf;
-		parsed.rbf = *rbf;
-	} else if (operation->string_value == "launch") {
-		const char* const fields[] = {"protocol", "operation", "system", "rbf", "media", "settings", "save_path"};
-		if (!HasOnly(root, fields, 7, &error)) return error;
-		const std::string* system = nullptr;
-		const std::string* rbf = nullptr;
-		const json::Value* media = nullptr;
-		const json::Value* settings = nullptr;
-		if (!StringMember(root, "system", &system, &error) ||
-			!StringMember(root, "rbf", &rbf, &error) ||
-			!ObjectMember(root, "media", &media, &error) ||
-			!ObjectMember(root, "settings", &settings, &error)) return error;
-		if (!Identifier(*system)) return Invalid("system must be an identifier");
-		if (!Path(*rbf)) return Invalid("rbf must be an absolute path of at most 4095 bytes");
-		parsed.operation = Operation::launch;
-		parsed.launch.system = *system;
-		parsed.launch.rbf = *rbf;
-		const json::Value* save = Find(root, "save_path");
-		if (save != nullptr) {
-			if (save->type != json::Type::string || !Path(save->string_value) || *system != "snes")
-				return Invalid("save_path requires SNES and an absolute nonempty path");
-			parsed.launch.save_path = save->string_value;
-		}
-		if (!ParseMedia(*media, &parsed.launch.media, &error) ||
-			!ParseSettings(*settings, &parsed.launch.settings, &error)) return error;
-	} else {
-		return Invalid("unknown operation");
-	}
-
-	if (parsed.protocol != 1)
-		return {ErrorCode::unsupported_protocol, "unsupported protocol", "request"};
-	*request = parsed;
-	return {};
+	return {ErrorCode::unsupported_protocol, "only protocol 2 is supported", "request"};
 }
 
-std::string EncodeResponse(bool ok, const Status& status, const std::string& version)
-{
-	std::string response;
-	if (TryEncodeV1Response(ok, status, version, &response)) return response;
-	Status fallback = status;
-	fallback.system.clear();
-	fallback.core.clear();
-	fallback.error = {ErrorCode::io_failed, "response exceeds 65536 bytes"};
-	if (TryEncodeV1Response(false, fallback, "-", &response)) return response;
-	return "{\"protocol\":1,\"ok\":false,\"state\":\"idle\","
-		"\"execution\":\"none\",\"system\":null,\"core\":null,"
-		"\"error\":{\"code\":\"io_failed\","
-		"\"message\":\"response exceeds 65536 bytes\"},\"version\":\"-\"}";
-}
-
-std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
+std::string EncodeResponse(std::int64_t, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package,
 	const CoreData* core_data)
 {
-	if (protocol != 2) return EncodeResponse(ok, status, version);
 	std::string response;
 	if (TryEncodeV2Response(ok, status, version, inspected_package, core_data, &response))
 		return response;

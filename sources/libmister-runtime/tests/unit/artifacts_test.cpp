@@ -134,85 +134,8 @@ public:
 	mister::native::PosixArtifactOpener delegate;
 };
 
-void TestCompleteSetFailureDoesNotAssignOutput()
-{
-	TempDirectory temporary;
-	mister::PreparedLaunch launch;
-	launch.rbf = temporary.File("core.rbf", 4);
-	launch.media.push_back({1, temporary.File("game.bin", 3)});
-	FailingOpener opener(2);
-	mister::native::ArtifactSet output;
-	assert(mister::native::OpenLaunchArtifacts(launch, opener, &output).code ==
-		mister::ErrorCode::io_failed);
-	assert(output.rbf.fd() == -1);
-	assert(output.media.empty());
-}
 
-void TestMultiFilePreflightRetainsAndClosesDescriptors()
-{
-	TempDirectory temporary;
-	mister::PreparedLaunch launch;
-	launch.rbf = temporary.File("core.rbf", 4);
-	launch.media.push_back({2, temporary.File("two.bin", 2)});
-	launch.media.push_back({0, temporary.File("zero.bin", 1)});
-	mister::native::PosixArtifactOpener opener;
-	int descriptors[3] = {-1, -1, -1};
-	{
-		mister::native::ArtifactSet output;
-		assert(mister::native::OpenLaunchArtifacts(launch, opener, &output).ok());
-		assert(output.rbf.size() == 4 && output.media.size() == 2);
-		descriptors[0] = output.rbf.fd();
-		descriptors[1] = output.media[0].artifact.fd();
-		descriptors[2] = output.media[1].artifact.fd();
-		for (int descriptor : descriptors) assert(fcntl(descriptor, F_GETFD) >= 0);
-	}
-	for (int descriptor : descriptors) {
-		errno = 0;
-		assert(fcntl(descriptor, F_GETFD) == -1 && errno == EBADF);
-	}
-}
 
-void TestSaveFileAdmissionAndAtomicRetry()
-{
-	TempDirectory d;
-	const std::string path = d.path + "/game.srm";
-	mister::native::SaveFile save;
-	assert(save.Prepare(path, 2048).ok());
-	assert(save.bytes().empty());
-	assert(access(path.c_str(), F_OK) != 0);
-	std::vector<unsigned char> data(2048, 0x5a);
-	assert(save.Persist(data).ok());
-	d.files.push_back(path);
-	mister::native::SaveFile loaded;
-	assert(loaded.Prepare(path, 2048).ok());
-	assert(loaded.bytes() == data);
-	mister::native::SaveFile wrong;
-	assert(!wrong.Prepare(path, 4096).ok());
-	mister::native::SaveFile short_save;
-	assert(!short_save.Prepare(path, 1024).ok());
-	const std::string link = d.path + "/link.srm";
-	assert(symlink(path.c_str(), link.c_str()) == 0);
-	d.files.push_back(link);
-	mister::native::SaveFile symlink_save;
-	assert(!symlink_save.Prepare(link, 2048).ok());
-	assert(!wrong.Prepare(d.path + "/missing/game.srm", 2048).ok());
-	assert(!save.Persist(std::vector<unsigned char>(1024)).ok());
-	// Replacement failure leaves the captured bytes available for a later retry.
-	const std::string old = path + ".old";
-	assert(rename(path.c_str(), old.c_str()) == 0);
-	assert(mkdir(path.c_str(), 0700) == 0);
-	data[0] = 0xa5;
-	assert(!save.Persist(data).ok());
-	mister::native::SaveFile intact;
-	assert(intact.Prepare(old, 2048).ok());
-	assert(intact.bytes()[0] == 0x5a);
-	assert(rmdir(path.c_str()) == 0);
-	assert(rename(old.c_str(), path.c_str()) == 0);
-	assert(save.Persist(data).ok());
-	mister::native::SaveFile final;
-	assert(final.Prepare(path, 2048).ok());
-	assert(final.bytes() == data);
-}
 
 } // namespace
 
@@ -318,14 +241,11 @@ int main()
 	TestStreamSnapshotBoundsCRCAndPrivateCopy();
 	TestStreamSnapshotChangedLengthAndDeadline();
 	TestComputerMediaIsBoundedOpaqueRegularFile();
-	TestSaveFileAdmissionAndAtomicRetry();
 	TestMissingDirectoryAndZeroLengthAreRejected();
 	TestOversizeRbfIsRejected();
 	TestEmbeddedNulCannotSelectATruncatedPosixPath();
 	TestArtifactOpenEmitsCapFdEvents();
 	TestAbsoluteAndRelativeOpenUseTheSameFileAdmission();
-	TestCompleteSetFailureDoesNotAssignOutput();
-	TestMultiFilePreflightRetainsAndClosesDescriptors();
 	puts("artifacts_test: 11 passed");
 	return 0;
 }

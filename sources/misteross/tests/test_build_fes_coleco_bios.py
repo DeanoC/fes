@@ -20,13 +20,14 @@ class PrivateBiosTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temporary = tempfile.TemporaryDirectory()
-        cls.root = Path(cls.temporary.name) / 'source'
-        cls.root.mkdir()
+        repo = Path(cls.temporary.name) / 'source'
+        cls.root = repo / 'sources/misteross'
+        cls.root.mkdir(parents=True)
         for name in ('scripts', 'cores', 'boards', 'toolchains'):
             shutil.copytree(ROOT / name, cls.root / name, ignore=shutil.ignore_patterns('__pycache__'))
         (cls.root / '.gitignore').write_text('build/\n__pycache__/\n')
         for args in [('init', '-q'), ('remote', 'add', 'origin', 'https://example.invalid/source.git'), ('add', '.'), ('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture')]:
-            subprocess.run(['git', '-C', str(cls.root), *args], check=True)
+            subprocess.run(['git', '-C', str(repo), *args], check=True)
         cls.revision = subprocess.check_output(['git', '-C', str(cls.root), 'rev-parse', 'HEAD'], text=True).strip()
     @classmethod
     def tearDownClass(cls):
@@ -50,7 +51,8 @@ class PrivateBiosTests(unittest.TestCase):
         private, default = self.record(snapshot), self.record()
         self.assertNotEqual(build_identity(private), build_identity(default))
         self.assertNotIn('bios_mode', json.loads(default)['parameters'])
-        self.assertNotIn('bios_mode', json.loads(self.record(version=1))['parameters'])
+        with self.assertRaisesRegex(producer.BuildError, 'unsupported'):
+            self.record(version=1)
         self.assertEqual(json.loads(private)['parameters']['bios_mode'], 'private-8192')
         self.assertNotIn(str(self.source).encode(), private)
         self.source.write_bytes(bytes([1]) + self.data[1:])
@@ -136,7 +138,7 @@ class PrivateBiosTests(unittest.TestCase):
                     if mutation == 'route': mutate()
                     return SimpleNamespace(seed=4, weight=300)
                 stack.enter_context(patch.object(producer, '_authenticate_coleco_tools', return_value=tools))
-                stack.enter_context(patch.object(producer, 'execution_inputs', return_value={'gpu_device': 0}))
+                stack.enter_context(patch('scripts.functional_execution.execution_inputs', return_value={'gpu_device': 0}))
                 stack.enter_context(patch.object(producer, '_run_tool', side_effect=synth))
                 route_mock = stack.enter_context(patch.object(producer, 'route_after_synth', side_effect=route))
                 stack.enter_context(patch.object(producer, 'validate_build_evidence', side_effect=lambda *a: {

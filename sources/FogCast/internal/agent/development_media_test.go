@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -34,7 +34,7 @@ func TestMediaStreamCoordinatorKeepsAdmissionCancellableAndOwnerAlive(t *testing
 	status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.MediaStreamInterface().ID, Major: 1})
 	status.CorePackage.MediaStream = &protocol.MediaStreamCapability{Interface: protocol.MediaStreamInterface(), MinBytes: 1, MaxBytes: 32768, ChunkBytes: 512}
 	runtime := &ownedMediaRuntime{mediaRuntime: mediaRuntime{fakeRuntime: fakeRuntime{reconciled: status}}}
-	c := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(runtime, time.Second, time.Second)
 	c.Initialize(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -78,7 +78,7 @@ func (r *mediaRuntime) LoadDevelopmentMedia(ctx context.Context, n int64, b io.R
 
 func TestDevelopmentMediaReportsExistingRuntimeRecovery(t *testing.T) {
 	runtime := &mediaRuntime{fakeRuntime: fakeRuntime{reconciled: mediaStatus()}, failure: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "transport failed", Phase: "transport"}}
-	c := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(runtime, time.Second, time.Second)
 	c.Initialize(context.Background())
 	runtime.reconciled.State = protocol.StateFailed
 	runtime.reconciled.Recovery = protocol.RecoveryRebootRequired
@@ -96,7 +96,7 @@ func mediaStatus() protocol.Status {
 }
 func TestDevelopmentMediaCoordinatorAdmissionAndSerialization(t *testing.T) {
 	runtime := &mediaRuntime{fakeRuntime: fakeRuntime{reconciled: mediaStatus()}, started: make(chan struct{}), release: make(chan struct{})}
-	c := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(runtime, time.Second, time.Second)
 	c.Initialize(context.Background())
 	b := protocol.DevelopmentMediaBinding{PackageID: strings.Repeat("a", 64), Generation: 8}
 	if _, err := c.LoadDevelopmentMedia(context.Background(), 1, strings.NewReader("x"), b); err == nil || runtime.calls != 0 {

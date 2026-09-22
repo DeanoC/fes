@@ -3,7 +3,7 @@ package fogcast
 import (
 	"context"
 	"errors"
-	"io"
+
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,7 +13,6 @@ import (
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
-	"github.com/DeanoC/FogCast/romsource"
 )
 
 func TestFolderWatchRootsIncludeEveryMappedConfiguredRoot(t *testing.T) {
@@ -513,342 +512,6 @@ func TestServiceRunFolderWatchCountsUnresolvedWatchRoot(t *testing.T) {
 	}
 }
 
-func TestServiceReconcileFolderWatchUpdatesCatalogThenPlayUsesKitCache(t *testing.T) {
-	ctx := context.Background()
-	watch := t.TempDir()
-	staging := t.TempDir()
-	store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
-	preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
-	rom := []byte("snes-rom-bytes")
-	if err := os.WriteFile(filepath.Join(watch, "Axelay.sfc"), rom, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	var operations []string
-	client := &fakeServiceClient{}
-	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-		operations = append(operations, "probe")
-		if system != protocol.SystemSNES {
-			t.Fatalf("probe system = %q", system)
-		}
-		if client.uploadCalls == 0 {
-			return protocol.CacheProbeResponse{Present: false}, nil
-		}
-		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
-	}
-	client.upload = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity, reader io.Reader) (protocol.CacheUploadResponse, error) {
-		operations = append(operations, "upload")
-		body, err := io.ReadAll(reader)
-		if err != nil || string(body) != string(rom) {
-			t.Fatalf("uploaded = %q err=%v", body, err)
-		}
-		return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, nil
-	}
-	client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-		operations = append(operations, "launch")
-		gameID, system, coreName := request.GameID, request.System, "SNES"
-		return protocol.CachedLaunchResponse{
-			Status: protocol.Status{
-				State: protocol.StateActive, GameID: &gameID, System: &system,
-				ExpectedCore: &coreName, ObservedCore: &coreName,
-			},
-			Content: request.Content,
-		}, nil
-	}
-
-	service := newService(
-		Config{
-			Libraries:      []catalog.Root{{ID: "snes-main", System: protocol.SystemSNES, Path: watch}},
-			Library:        LibraryConfig{WatchRoot: watch},
-			RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
-		},
-		Paths{Staging: staging}, store, scanner, preparer, client,
-	)
-
-	if _, err := service.ReconcileFolderWatch(ctx); err != nil {
-		t.Fatalf("ReconcileFolderWatch: %v", err)
-	}
-	games, err := service.Games(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(games) != 1 || games[0].RelativePath != "Axelay.sfc" || games[0].System != protocol.SystemSNES || games[0].State != catalog.SourceStateAvailable {
-		t.Fatalf("catalog after add = %+v", games)
-	}
-	gameID := games[0].ID
-
-	if _, err := service.Launch(ctx, gameID, nil); err != nil {
-		t.Fatalf("Launch(miss): %v", err)
-	}
-	if client.uploadCalls != 1 || client.launchCalls != 1 {
-		t.Fatalf("miss calls upload=%d launch=%d", client.uploadCalls, client.launchCalls)
-	}
-
-	if _, err := service.Launch(ctx, gameID, nil); err != nil {
-		t.Fatalf("Launch(hit): %v", err)
-	}
-	if client.uploadCalls != 1 || client.launchCalls != 2 || client.probeCalls != 2 {
-		t.Fatalf("hit calls probe=%d upload=%d launch=%d", client.probeCalls, client.uploadCalls, client.launchCalls)
-	}
-	if !reflect.DeepEqual(operations, []string{"probe", "upload", "launch", "probe", "launch"}) {
-		t.Fatalf("operations = %v", operations)
-	}
-
-	if err := os.Remove(filepath.Join(watch, "Axelay.sfc")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.ReconcileFolderWatch(ctx); err != nil {
-		t.Fatalf("ReconcileFolderWatch(remove): %v", err)
-	}
-	gone, err := service.Game(ctx, gameID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if gone.State != catalog.SourceStateMissing {
-		t.Fatalf("removed state = %q", gone.State)
-	}
-}
-
-func TestServiceReconcileMegaDriveFolderWatchUpdatesCatalogThenPlayUsesKitCache(t *testing.T) {
-	ctx := context.Background()
-	watch := t.TempDir()
-	snesWatch := t.TempDir()
-	staging := t.TempDir()
-	store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
-	preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
-	rom := []byte("mega-rom-bytes")
-	if err := os.WriteFile(filepath.Join(watch, "Sonic.md"), rom, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	var operations []string
-	client := &fakeServiceClient{}
-	client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-		operations = append(operations, "probe")
-		if system != protocol.SystemMegaDrive {
-			t.Fatalf("probe system = %q", system)
-		}
-		if client.uploadCalls == 0 {
-			return protocol.CacheProbeResponse{Present: false}, nil
-		}
-		return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
-	}
-	client.upload = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity, reader io.Reader) (protocol.CacheUploadResponse, error) {
-		operations = append(operations, "upload")
-		body, err := io.ReadAll(reader)
-		if err != nil || string(body) != string(rom) {
-			t.Fatalf("uploaded = %q err=%v", body, err)
-		}
-		return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, nil
-	}
-	client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-		operations = append(operations, "launch")
-		gameID, system, coreName := request.GameID, request.System, "MegaDrive"
-		return protocol.CachedLaunchResponse{
-			Status:  protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName},
-			Content: request.Content,
-		}, nil
-	}
-
-	service := newService(
-		Config{Libraries: []catalog.Root{{ID: "genesis-main", System: protocol.SystemMegaDrive, Path: watch}}, Library: LibraryConfig{WatchRoot: snesWatch}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second},
-		Paths{Staging: staging}, store, scanner, preparer, client,
-	)
-
-	if _, err := service.ReconcileFolderWatch(ctx); err != nil {
-		t.Fatalf("ReconcileFolderWatch: %v", err)
-	}
-	games, err := service.Games(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(games) != 1 || games[0].RelativePath != "Sonic.md" || games[0].System != protocol.SystemMegaDrive || games[0].State != catalog.SourceStateAvailable {
-		t.Fatalf("catalog after add = %+v", games)
-	}
-	gameID := games[0].ID
-	if _, err := service.Launch(ctx, gameID, nil); err != nil {
-		t.Fatalf("Launch(miss): %v", err)
-	}
-	if _, err := service.Launch(ctx, gameID, nil); err != nil {
-		t.Fatalf("Launch(hit): %v", err)
-	}
-	if client.uploadCalls != 1 || client.launchCalls != 2 || client.probeCalls != 2 {
-		t.Fatalf("calls probe=%d upload=%d launch=%d", client.probeCalls, client.uploadCalls, client.launchCalls)
-	}
-	if !reflect.DeepEqual(operations, []string{"probe", "upload", "launch", "probe", "launch"}) {
-		t.Fatalf("operations = %v", operations)
-	}
-}
-
-func TestServiceReconcileNESAndSMSFolderWatchUsesKitCacheMissThenHit(t *testing.T) {
-	for _, test := range []struct {
-		name, file, rootID, core string
-		system                   protocol.System
-	}{
-		{name: "NES", file: "Mario.nes", rootID: "nes-main", core: "NES", system: protocol.SystemNES},
-		{name: "SMS", file: "Alex.sms", rootID: "sms-main", core: "SMS", system: protocol.SystemSMS},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
-			watch, staging := t.TempDir(), t.TempDir()
-			store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = store.Close() })
-			scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
-			preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
-			rom := []byte(test.name + "-rom-bytes")
-			if err := os.WriteFile(filepath.Join(watch, test.file), rom, 0o600); err != nil {
-				t.Fatal(err)
-			}
-
-			operations := []string{}
-			client := &fakeServiceClient{}
-			client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-				operations = append(operations, "probe")
-				if system != test.system {
-					t.Fatalf("probe system = %q", system)
-				}
-				if client.uploadCalls == 0 {
-					return protocol.CacheProbeResponse{Present: false}, nil
-				}
-				return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
-			}
-			client.upload = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity, reader io.Reader) (protocol.CacheUploadResponse, error) {
-				operations = append(operations, "upload")
-				body, err := io.ReadAll(reader)
-				if err != nil || string(body) != string(rom) {
-					t.Fatalf("uploaded = %q err=%v", body, err)
-				}
-				return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, nil
-			}
-			client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-				operations = append(operations, "launch")
-				gameID, system, coreName := request.GameID, request.System, test.core
-				return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}, Content: request.Content}, nil
-			}
-
-			service := newService(Config{
-				Libraries: []catalog.Root{{ID: test.rootID, System: test.system, Path: watch}},
-				Library:   LibraryConfig{WatchRoot: watch}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
-			}, Paths{Staging: staging}, store, scanner, preparer, client)
-			if _, err := service.ReconcileFolderWatch(ctx); err != nil {
-				t.Fatalf("ReconcileFolderWatch: %v", err)
-			}
-			games, err := service.Games(ctx)
-			if err != nil || len(games) != 1 || games[0].System != test.system || games[0].RelativePath != test.file || games[0].State != catalog.SourceStateAvailable {
-				t.Fatalf("catalog = %+v, err=%v", games, err)
-			}
-			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
-				t.Fatalf("Launch(miss): %v", err)
-			}
-			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
-				t.Fatalf("Launch(hit): %v", err)
-			}
-			if client.probeCalls != 2 || client.uploadCalls != 1 || client.launchCalls != 2 || !reflect.DeepEqual(operations, []string{"probe", "upload", "launch", "probe", "launch"}) {
-				t.Fatalf("operations=%v calls probe=%d upload=%d launch=%d", operations, client.probeCalls, client.uploadCalls, client.launchCalls)
-			}
-		})
-	}
-}
-
-func TestServiceReconcileNewFPGAFolderWatchUsesKitCacheMissThenHit(t *testing.T) {
-	for _, test := range []struct {
-		name, file, rootID, core string
-		system                   protocol.System
-	}{
-		{name: "Game Boy", file: "Tetris.gb", rootID: "gb-main", core: "GAMEBOY", system: protocol.SystemGameBoy},
-		{name: "GBA", file: "Mario.gba", rootID: "gba-main", core: "GBA", system: protocol.SystemGBA},
-		{name: "PC Engine", file: "Bonk.pce", rootID: "pce-main", core: "TGFX16", system: protocol.SystemPCE},
-		{name: "Game Gear", file: "Sonic.gg", rootID: "gg-main", core: "SMS", system: protocol.SystemGameGear},
-		{name: "Game Boy Color", file: "Zelda.gbc", rootID: "gbc-main", core: "GAMEBOY", system: protocol.SystemGameBoyColor},
-		{name: "Atari 2600", file: "Adventure.a26", rootID: "a2600-main", core: "ATARI7800", system: protocol.SystemAtari2600},
-		{name: "ColecoVision", file: "Zaxxon.col", rootID: "coleco-main", core: "Coleco", system: protocol.SystemColecoVision},
-		{name: "Atari Lynx", file: "Chip.lnx", rootID: "lynx-main", core: "AtariLynx", system: protocol.SystemAtariLynx},
-		{name: "WonderSwan", file: "Guilty Gear.ws", rootID: "ws-main", core: "WonderSwan", system: protocol.SystemWonderSwan},
-		{name: "WonderSwan Color", file: "Final Fantasy.wsc", rootID: "wsc-main", core: "WonderSwan", system: protocol.SystemWonderSwanColor},
-		{name: "Atari 7800", file: "Food Fight.a78", rootID: "a7800-main", core: "ATARI7800", system: protocol.SystemAtari7800},
-		{name: "Intellivision", file: "Astrosmash.int", rootID: "intv-main", core: "Intellivision", system: protocol.SystemIntellivision},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
-			watch, staging := t.TempDir(), t.TempDir()
-			store, err := catalog.Open(filepath.Join(t.TempDir(), "library.sqlite3"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() { _ = store.Close() })
-			scanner := &catalog.Scanner{Store: store, Platforms: catalog.DefaultPlatforms()}
-			preparer := &romsource.Preparer{StagingRoot: staging, MaxBytes: protocol.MaxContentBytes}
-			rom := []byte(test.name + "-rom-bytes")
-			if err := os.WriteFile(filepath.Join(watch, test.file), rom, 0o600); err != nil {
-				t.Fatal(err)
-			}
-
-			operations := []string{}
-			client := &fakeServiceClient{}
-			client.probe = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity) (protocol.CacheProbeResponse, error) {
-				operations = append(operations, "probe")
-				if system != test.system {
-					t.Fatalf("probe system = %q", system)
-				}
-				if client.uploadCalls == 0 {
-					return protocol.CacheProbeResponse{Present: false}, nil
-				}
-				return protocol.CacheProbeResponse{Present: true, System: &system, Content: &identity}, nil
-			}
-			client.upload = func(_ context.Context, system protocol.System, identity protocol.ContentIdentity, reader io.Reader) (protocol.CacheUploadResponse, error) {
-				operations = append(operations, "upload")
-				body, err := io.ReadAll(reader)
-				if err != nil || string(body) != string(rom) {
-					t.Fatalf("uploaded = %q err=%v", body, err)
-				}
-				return protocol.CacheUploadResponse{Result: protocol.CacheUploadCreated, System: system, Content: identity}, nil
-			}
-			client.launch = func(_ context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-				operations = append(operations, "launch")
-				if request.System != test.system {
-					t.Fatalf("launch system = %q", request.System)
-				}
-				gameID, system, coreName := request.GameID, request.System, test.core
-				return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &coreName, ObservedCore: &coreName}, Content: request.Content}, nil
-			}
-
-			service := newService(Config{
-				Libraries: []catalog.Root{{ID: test.rootID, System: test.system, Path: watch}},
-				Library:   LibraryConfig{WatchRoot: watch}, RequestTimeout: time.Second, UploadTimeout: 2 * time.Second,
-			}, Paths{Staging: staging}, store, scanner, preparer, client)
-			if _, err := service.ReconcileFolderWatch(ctx); err != nil {
-				t.Fatalf("ReconcileFolderWatch: %v", err)
-			}
-			games, err := service.Games(ctx)
-			if err != nil || len(games) != 1 || games[0].System != test.system || games[0].RelativePath != test.file || games[0].State != catalog.SourceStateAvailable {
-				t.Fatalf("catalog = %+v, err=%v", games, err)
-			}
-			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
-				t.Fatalf("Launch(miss): %v", err)
-			}
-			if _, err := service.Launch(ctx, games[0].ID, nil); err != nil {
-				t.Fatalf("Launch(hit): %v", err)
-			}
-			if client.probeCalls != 2 || client.uploadCalls != 1 || client.launchCalls != 2 || !reflect.DeepEqual(operations, []string{"probe", "upload", "launch", "probe", "launch"}) {
-				t.Fatalf("operations=%v calls probe=%d upload=%d launch=%d", operations, client.probeCalls, client.uploadCalls, client.launchCalls)
-			}
-		})
-	}
-}
-
 func TestServiceRetiresSupersededSNESLibraryFromCatalog(t *testing.T) {
 	ctx := context.Background()
 	oldDir := t.TempDir()
@@ -1007,7 +670,7 @@ func TestServiceOpenRetiresMappedCatalogWhenNoMappedRootsRemain(t *testing.T) {
 		t.Fatalf("ReconcileFolderWatch(seed): %v", err)
 	}
 	seeded, err := seed.Games(ctx)
-	if err != nil || len(seeded) != 2 || !catalog.IsBuiltinPong(seeded[1]) {
+	if err != nil || len(seeded) != 1 {
 		t.Fatalf("seeded catalog = %+v err=%v", seeded, err)
 	}
 	if err := seed.Close(); err != nil {
@@ -1034,7 +697,7 @@ upload_timeout_seconds = 2
 		t.Fatalf("ReconcileFolderWatch(unresolved) error = %v", err)
 	}
 	remaining, err := service.Games(ctx)
-	if err != nil || len(remaining) != 1 || !catalog.IsBuiltinPong(remaining[0]) {
+	if err != nil || len(remaining) != 0 {
 		t.Fatalf("catalog after mapped roots removed = %+v err=%v", remaining, err)
 	}
 	if _, err := service.Game(ctx, seeded[0].ID); err == nil {

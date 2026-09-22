@@ -701,16 +701,6 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			descriptor.target.programming_profile);
 	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
 		"unsupported profile and ABI pairing");
-	if (descriptor.abi.id == "mister" && descriptor.abi.major == 1) {
-		if (descriptor.abi.minor != 0)
-			return CompatibilityError(ErrorCode::unsupported_abi,
-				"MiSTer ABI minor is newer than the tested driver");
-		for (const CoreInterface& interface : descriptor.interfaces)
-			if (interface.required)
-				return CompatibilityError(ErrorCode::unsupported_interface,
-					"required MiSTer interface is unsupported");
-		return {};
-	}
 	if (descriptor.abi.id == FesApplicationABIID &&
 		descriptor.abi.major == FesApplicationABIMajor) {
 		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())

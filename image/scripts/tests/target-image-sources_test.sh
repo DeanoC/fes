@@ -8,22 +8,14 @@ trap 'rm -rf "$fixture"' EXIT INT TERM
 grep -Fq 'TARGET_IMAGE_LOCK' "$repo/scripts/fetch-target-image-sources.sh"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME' "$repo/scripts/target-image-container.sh"
 grep -Fqx 'name: FOGCAST_TARGET' "$repo/buildroot/external.desc"
-grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
+! grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/build-target-image.sh"
 grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-target-image.sh"
 grep -Fq '/work/build/cache/target-image/native/splash.rbf' "$repo/scripts/build-target-image.sh"
 
 for legacy_target in target-image-fetch target-images target-image-dev target-image-verify target-image-qemu-smoke; do
-  legacy_body=$(
-    awk -v target="$legacy_target:" '
-      $0 ~ "^" target { in_target=1; next }
-      in_target && /^[^[:space:]]/ { exit }
-      in_target { print }
-    ' "$repo/Makefile"
-  )
-  if printf '%s\n' "$legacy_body" | grep -Fq 'native'; then
-    echo "$legacy_target gained a native prerequisite or command" >&2
-    exit 1
+  if grep -Eq "^$legacy_target:" "$repo/Makefile"; then
+    echo "retired image target remains: $legacy_target" >&2; exit 1
   fi
 done
 

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -113,31 +112,6 @@ func (c *Client) CachedIdentity(ctx context.Context, gameID string) (protocol.Ca
 	if response.GameID != gameID || response.System == nil || response.Content == nil ||
 		protocol.ValidateSystem(*response.System) != nil || protocol.ValidateContentIdentity(*response.Content) != nil {
 		return protocol.CachedIdentityResponse{}, fmt.Errorf("cached identity response does not match requested game")
-	}
-	return response, nil
-}
-
-func (c *Client) LaunchContent(ctx context.Context, request protocol.CachedLaunchRequest) (protocol.CachedLaunchResponse, error) {
-	if err := protocol.ValidateGameID(request.GameID); err != nil {
-		return protocol.CachedLaunchResponse{}, fmt.Errorf("validate game ID: %w", err)
-	}
-	if err := validateSystemContent(request.System, request.Content); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
-
-	var response protocol.CachedLaunchResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/v2/launch", request, &response); err != nil {
-		return protocol.CachedLaunchResponse{}, err
-	}
-	spec, ok := core.DefaultRegistry().Lookup(request.System)
-	if response.Status.State != protocol.StateActive ||
-		response.Status.GameID == nil || *response.Status.GameID != request.GameID ||
-		response.Status.System == nil || *response.Status.System != request.System ||
-		!ok || response.Status.ExpectedCore == nil || *response.Status.ExpectedCore != spec.ExpectedCore ||
-		response.Status.ObservedCore == nil || *response.Status.ObservedCore != spec.ExpectedCore ||
-		response.Status.LastError != nil ||
-		response.Content != request.Content {
-		return protocol.CachedLaunchResponse{}, fmt.Errorf("content launch response does not match requested launch")
 	}
 	return response, nil
 }

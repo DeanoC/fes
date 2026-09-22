@@ -6,12 +6,15 @@ import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
+from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from unittest.mock import patch
 
 from scripts import build_fes_zx81_oss as producer
 from scripts import build_zx81_bus_validation_cart as cart_producer
 from scripts import zx81_expansion as expansion
 
+
+ROOT = Path(__file__).resolve().parents[1]
 
 class ZX81SocketProducerTests(unittest.TestCase):
     def fixture(self):
@@ -67,22 +70,18 @@ class ZX81SocketProducerTests(unittest.TestCase):
                 self.assertEqual(path.read_text(), content)
 
     def test_socket_build_uses_the_standard_output_and_reserves_socket(self):
-        root = Path(__file__).resolve().parents[1]
+        root = ROOT
         tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
         shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
-                                               "a" * 32, tools, socketed=True)
+                                               "a" * 32, tools)
         self.assertIn("chparam -set EXPANSION_SOCKET 1 top", shell[-1])
         self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
         self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
         self.assertIn("build/fes-zx81-oss/socket.qsf", route)
         self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
-        fixed, _ = producer.build_commands(root, root / producer.LEGACY_OUTPUT_RELATIVE,
-                                           "a" * 32, tools, socketed=False)
-        self.assertNotIn("chparam -set EXPANSION_SOCKET", fixed[-1])
-        self.assertIn("build/fes-zx81-legacy/synth.json", fixed[-1])
 
     def test_standard_build_defaults_to_socketed_shell(self):
-        root = Path(__file__).resolve().parents[1]
+        root = ROOT
         tools = {"yosys": Path("/tools/yosys"), "nextpnr-mistral": Path("/tools/nextpnr-mistral")}
         shell, route = producer.build_commands(root, root / producer.OUTPUT_RELATIVE,
                                                "a" * 32, tools)
@@ -90,11 +89,11 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
         self.assertIn("build/fes-zx81-oss/socket.qsf", route)
         record = json.loads(producer.create_build_record(
-            root, "https://github.com/DeanoC/misteross.git", "a" * 40, {"yosys": "x"}))
+            root, "https://github.com/DeanoC/misteross.git", "a" * 40, {"yosys": "x"}, execution=EXECUTION))
         self.assertEqual(record["parameters"]["expansion_socket"], "zx81-bus-v1")
 
     def test_library_carts_use_the_z80_edge_packing(self):
-        root = Path(__file__).resolve().parents[1]
+        root = ROOT
         pack = (root / "cores/fes-zx81/rtl/zx81_bus_pack.vh").read_text()
         self.assertIn("`define ZX81_BUS_REQ 44", pack)
         self.assertIn("`define ZX81_BUS_RSP 20", pack)
@@ -112,7 +111,7 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("bus_ram_present", machine)
 
     def test_zx81_bus_sim_probes_similarname_warning(self):
-        root = Path(__file__).resolve().parents[1]
+        root = ROOT
         with tempfile.TemporaryDirectory() as temporary:
             compiler = Path(temporary) / "verilator"
             for supported in (False, True):
@@ -279,3 +278,11 @@ class ZX81CartPublicationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    global ROOT, _source_fixture
+    _source_fixture, ROOT = clean_module(ROOT)
+
+def tearDownModule():
+    _source_fixture.cleanup()

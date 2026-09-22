@@ -54,44 +54,6 @@ private:
 };
 
 // A retained directory and original snapshot; final bytes are replaced atomically.
-class SaveFile {
-public:
-	SaveFile() = default;
-	~SaveFile();
-	SaveFile(const SaveFile&) = delete;
-	SaveFile& operator=(const SaveFile&) = delete;
-	Error Prepare(const std::string&, std::size_t expected_size);
-	Error Persist(const std::vector<unsigned char>&);
-	const std::vector<unsigned char>& bytes() const { return bytes_; }
-	std::size_t size() const { return size_; }
-private:
-	int Temporary(std::string* name);
-	int directory_ = -1;
-	std::string name_;
-	std::size_t size_ = 0;
-	std::vector<unsigned char> bytes_;
-};
-
-struct MediaContentPlan {
-	std::uint64_t source_offset = 0, source_size = 0;
-	std::size_t prefix_size = 0;
-	std::size_t battery_ram_size = 0;
-	std::array<unsigned char, 512> prefix = {};
-};
-
-Error PrepareMediaContent(const Artifact&, MediaTransform, MediaContentPlan*);
-
-struct OpenedMedia {
-	std::uint8_t index = 0;
-	Artifact artifact;
-	MediaContentPlan content;
-};
-
-struct ArtifactSet {
-	Artifact rbf;
-	std::unique_ptr<SaveFile> save;
-	std::vector<OpenedMedia> media;
-};
 
 class ArtifactOpener {
 public:
@@ -110,7 +72,6 @@ private:
 		std::uint64_t maximum_size, Artifact*);
 };
 
-Error OpenLaunchArtifacts(const PreparedLaunch&, ArtifactOpener&, ArtifactSet*);
 Error OpenRBFArtifact(const std::string&, ArtifactOpener&, Artifact*);
 Error ReadComputerMedia(const std::string&, std::vector<std::uint8_t>*);
 

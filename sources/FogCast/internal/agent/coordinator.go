@@ -6,21 +6,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/flightdiag"
-	"github.com/DeanoC/FogCast/internal/mister"
+
 	"github.com/DeanoC/FogCast/internal/misterruntime"
-	"github.com/DeanoC/FogCast/internal/targetcache"
+
 	"github.com/DeanoC/FogCast/protocol"
 )
-
-const durableActiveReconcileTimeout = 40 * time.Second
 
 type Runtime interface {
 	Health(string) protocol.Health
 	Reconcile(context.Context) protocol.Status
-	Prepare(core.Spec, string) (mister.PreparedLaunch, *protocol.APIError)
-	Launch(context.Context, mister.PreparedLaunch) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
 	LoadDevelopmentRBF(context.Context, int64, io.Reader) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
 	RecoverDevelopment(context.Context) (observed string, apiErr *protocol.APIError)
 	Stop(context.Context) (string, *protocol.APIError)
@@ -32,10 +27,6 @@ type idleConfirmingRuntime interface {
 
 type stopReadyRuntime interface {
 	StopReady() bool
-}
-
-type ownedLaunchRuntime interface {
-	LaunchOwned(context.Context, context.Context, context.Context, mister.PreparedLaunch) (observed string, dispatchAttempted bool, apiErr *protocol.APIError)
 }
 
 type ownedDevelopmentRuntime interface {
@@ -87,8 +78,6 @@ func WithArtifacts(artifacts *protocol.Artifacts) CoordinatorOption {
 
 type Coordinator struct {
 	runtime          Runtime
-	registry         core.Registry
-	content          ContentStore
 	operationContext context.Context
 	launchTimeout    time.Duration
 	stopTimeout      time.Duration
@@ -112,10 +101,9 @@ func (c *Coordinator) record(kind, severity string, detail map[string]any) {
 	})
 }
 
-func New(runtime Runtime, registry core.Registry, launchTimeout, stopTimeout time.Duration, options ...CoordinatorOption) *Coordinator {
+func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...CoordinatorOption) *Coordinator {
 	coordinator := &Coordinator{
 		runtime:          runtime,
-		registry:         registry,
 		operationContext: context.Background(),
 		launchTimeout:    launchTimeout,
 		stopTimeout:      stopTimeout,
@@ -190,189 +178,7 @@ func cloneArtifacts(artifacts *protocol.Artifacts) *protocol.Artifacts {
 }
 
 func (c *Coordinator) Initialize(ctx context.Context) {
-	status := c.runtime.Reconcile(ctx)
-	if validActiveDevelopment(status) {
-		c.set(status)
-		return
-	}
-	verification, cancel := context.WithTimeout(context.WithoutCancel(ctx), durableActiveReconcileTimeout)
-	defer cancel()
-	status, selected, conclusive := c.reconcileDurableActive(verification, status)
-	if c.content != nil && conclusive {
-		if apiErr := c.content.ReconcileActive(verification, status, selected); apiErr != nil {
-			status.State = protocol.StateFailed
-			status.System = nil
-			status.ExpectedCore = nil
-			status.LastError = cloneAPIError(apiErr)
-		}
-	}
-	c.set(status)
-}
-
-func (c *Coordinator) reconcileDurableActive(ctx context.Context, status protocol.Status) (protocol.Status, *targetcache.ActiveRecordEntry, bool) {
-	if c.content == nil {
-		return status, nil, true
-	}
-	records, ok, apiErr := c.content.ActiveRecordSystems(ctx)
-	if apiErr != nil {
-		status.State = protocol.StateFailed
-		status.System = nil
-		status.ExpectedCore = nil
-		status.LastError = cloneAPIError(apiErr)
-		return status, nil, false
-	}
-	if !ok {
-		return status, nil, true
-	}
-	if status.State == protocol.StateIdle {
-		return status, nil, true
-	}
-	if status.State != protocol.StateActive && status.State != protocol.StateFailed {
-		if records.Interrupted {
-			return interruptedLaunchStatus(status), nil, false
-		}
-		return status, &records.Candidate, true
-	}
-	canResolve := status.ObservedCore != nil && (status.State == protocol.StateActive ||
-		(status.LastError != nil && status.LastError.Code == protocol.CodeUnrecognizedCore))
-	if !canResolve {
-		if records.Interrupted {
-			if status.State == protocol.StateActive {
-				return interruptedLaunchStatus(status), nil, false
-			}
-			return status, nil, false
-		}
-		return status, nil, false
-	}
-	selected := records.Candidate
-	if records.Interrupted {
-		candidateMatches := observedCoreMatchesSystem(c.registry, *status.ObservedCore, records.Candidate.System)
-		previousMatches := records.Previous != nil && observedCoreMatchesSystem(c.registry, *status.ObservedCore, records.Previous.System)
-		if candidateMatches == previousMatches {
-			if candidateMatches && records.Previous != nil && records.Candidate == *records.Previous {
-				selected = records.Candidate
-			} else {
-				return interruptedLaunchStatus(status), nil, false
-			}
-		} else if previousMatches {
-			selected = *records.Previous
-		}
-	}
-	system := selected.System
-	spec, ok := c.registry.LookupObservedForSystem(*status.ObservedCore, system)
-	if !ok {
-		if records.Interrupted {
-			return interruptedLaunchStatus(status), nil, false
-		}
-		return status, &selected, true
-	}
-	expected := spec.ExpectedCore
-	status.State = protocol.StateActive
-	status.System = &system
-	status.ExpectedCore = &expected
-	status.LastError = nil
-	return status, &selected, true
-}
-
-func observedCoreMatchesSystem(registry core.Registry, observed string, system protocol.System) bool {
-	_, ok := registry.LookupObservedForSystem(observed, system)
-	return ok
-}
-
-func interruptedLaunchStatus(status protocol.Status) protocol.Status {
-	status.State = protocol.StateFailed
-	status.System = nil
-	status.ExpectedCore = nil
-	status.LastError = &protocol.APIError{Code: protocol.CodeInternal, Message: "a launch was interrupted and requires reconciliation"}
-	return status
-}
-
-func (c *Coordinator) Launch(parent context.Context, request protocol.LaunchRequest) (protocol.Status, *protocol.APIError) {
-	c.record(flightdiag.KindFenceProgram, "ok", map[string]any{"operation": "launch", "game_id": request.GameID})
-	if !c.begin() {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"}
-	}
-	defer c.end()
-	if err := protocol.ValidateGameID(request.GameID); err != nil {
-		return c.Status(), &protocol.APIError{Code: protocol.CodeBadRequest, Message: err.Error()}
-	}
-	spec, ok := c.registry.Lookup(request.System)
-	if !ok {
-		return c.Status(), unsupportedSystemError()
-	}
-	var intent targetcache.LaunchIntent
-	intentRecorded := false
-	var recordIntent func() *protocol.APIError
-	if c.content != nil {
-		recordIntent = func() *protocol.APIError {
-			var apiErr *protocol.APIError
-			intent, apiErr = c.content.RecordDirectLaunchIntent(request.System)
-			intentRecorded = apiErr == nil
-			return apiErr
-		}
-	}
-	status, dispatchAttempted, apiErr := c.launchWithIntent(parent, request.GameID, spec, request.ROMPath, recordIntent)
-	if apiErr != nil {
-		if intentRecorded && !dispatchAttempted {
-			_ = c.content.AbortDirectLaunch(request.System, intent)
-		}
-		return status, apiErr
-	}
-	if c.content != nil {
-		if apiErr := c.content.CommitDirectLaunch(request.System, intent); apiErr != nil {
-			return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "direct active record cannot be committed"}
-		}
-	}
-	return status, nil
-}
-
-func (c *Coordinator) launchWithIntent(parent context.Context, gameID string, spec core.Spec, romPath string, recordIntent func() *protocol.APIError) (protocol.Status, bool, *protocol.APIError) {
-	if !c.Health("").Ready {
-		return c.Status(), false, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
-	}
-	prepared, apiErr := c.runtime.Prepare(spec, romPath)
-	if apiErr != nil {
-		return c.Status(), false, apiErr
-	}
-	prepared.GameID = gameID
-	if recordIntent != nil {
-		if apiErr := recordIntent(); apiErr != nil {
-			return c.Status(), false, apiErr
-		}
-	}
-	system, expected := spec.System, spec.ExpectedCore
-	c.set(protocol.Status{State: protocol.StateLaunching, GameID: &gameID, System: &system, ExpectedCore: &expected})
-	var observed string
-	var dispatchAttempted bool
-	if runtime, ok := c.runtime.(ownedLaunchRuntime); ok {
-		observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
-		defer cancel()
-		observed, dispatchAttempted, apiErr = runtime.LaunchOwned(parent, observation, c.operationContext, prepared)
-	} else {
-		ctx, cancel := context.WithTimeout(parent, c.launchTimeout)
-		defer cancel()
-		observed, dispatchAttempted, apiErr = c.runtime.Launch(ctx, prepared)
-	}
-	if apiErr != nil {
-		failed := protocol.Status{State: protocol.StateFailed, GameID: &gameID, System: &system, ExpectedCore: &expected, LastError: cloneAPIError(apiErr)}
-		if observed != "" {
-			failed.ObservedCore = &observed
-		}
-		// The runtime may already have recovered from this failed attempt.
-		// Keep the launch error, but publish idle only after physical and
-		// durable-content cleanup are both confirmed under this transition.
-		if runtime, ok := c.runtime.(idleConfirmingRuntime); ok && runtime.ConfirmIdle(c.operationContext) {
-			if c.content == nil || c.content.ClearActive() == nil {
-				c.set(protocol.Status{State: protocol.StateIdle, LastError: cloneAPIError(apiErr)})
-				return c.Status(), dispatchAttempted, apiErr
-			}
-		}
-		c.set(failed)
-		return c.Status(), dispatchAttempted, apiErr
-	}
-	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &expected, ObservedCore: &observed}
-	c.set(active)
-	return c.Status(), dispatchAttempted, nil
+	c.set(c.runtime.Reconcile(ctx))
 }
 
 func (c *Coordinator) LoadDevelopmentRBF(parent context.Context, size int64, content io.Reader) (protocol.Status, *protocol.APIError) {
@@ -627,20 +433,6 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 		c.set(failed)
 		return c.Status(), apiErr
 	}
-	if c.content != nil {
-		if apiErr := c.content.ClearActive(); apiErr != nil {
-			failed := cloneStatus(stopping)
-			failed.State = protocol.StateFailed
-			failed.LastError = cloneAPIError(apiErr)
-			if observed == "" {
-				failed.ObservedCore = nil
-			} else {
-				failed.ObservedCore = &observed
-			}
-			c.set(failed)
-			return c.Status(), apiErr
-		}
-	}
 	c.set(protocol.Status{State: protocol.StateIdle})
 	return c.Status(), nil
 }
@@ -668,15 +460,6 @@ func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status
 	current := c.Status()
 	if current.State != protocol.StateStopping || !current.Development || current.Recovery != protocol.RecoveryRebootRequired {
 		return current, &protocol.APIError{Code: protocol.CodeBadRequest, Message: "development reboot was not requested"}
-	}
-	if c.content != nil {
-		if apiErr := c.content.ClearActive(); apiErr != nil {
-			failed := cloneStatus(current)
-			failed.State = protocol.StateFailed
-			failed.LastError = cloneAPIError(apiErr)
-			c.set(failed)
-			return c.Status(), apiErr
-		}
 	}
 	ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
 	defer cancel()

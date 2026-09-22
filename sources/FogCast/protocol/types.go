@@ -95,28 +95,15 @@ type CoreInspection struct {
 }
 
 type Health struct {
-	NativeCores   *NativeCoreAvailability `json:"native_cores,omitempty"`
-	TargetID      string                  `json:"target_id,omitempty"`
-	APIVersion    string                  `json:"api_version"`
-	AgentVersion  string                  `json:"agent_version"`
-	Ready         bool                    `json:"ready"`
-	MiSTerProcess bool                    `json:"mister_process"`
-	CommandPipe   bool                    `json:"command_pipe"`
-	BootID        string                  `json:"boot_id,omitempty"`
-	Artifacts     *Artifacts              `json:"artifacts,omitempty"`
+	TargetID     string     `json:"target_id,omitempty"`
+	APIVersion   string     `json:"api_version"`
+	AgentVersion string     `json:"agent_version"`
+	Ready        bool       `json:"ready"`
+	BootID       string     `json:"boot_id,omitempty"`
+	Artifacts    *Artifacts `json:"artifacts,omitempty"`
 }
 
-// NativeCoreAvailability is a current native-backend file-presence observation,
-// not sealed artifact provenance or proof that a core will run. Nil Health.NativeCores
-// means unknown/older backend; version 1 with an empty Systems list means none.
-type NativeCoreAvailability struct {
-	Version int      `json:"version"`
-	Systems []System `json:"systems"`
-}
-
-// Artifacts is the closed identity of what a process was built or installed
-// from. Missing optional fields mean the agent has no sealed record, not that
-// the bytes were hashed on this request.
+// Artifacts identifies the sealed build inputs; absent fields are not live hashes.
 type Artifacts struct {
 	RecordSHA256  string            `json:"record_sha256,omitempty"`
 	RuntimeCommit string            `json:"runtime_commit,omitempty"`
@@ -164,10 +151,4 @@ type Status struct {
 	Development  bool               `json:"development,omitempty"`
 	Recovery     string             `json:"recovery,omitempty"`
 	CorePackage  *CorePackageStatus `json:"core_package,omitempty"`
-}
-
-type LaunchRequest struct {
-	GameID  string `json:"game_id"`
-	System  System `json:"system"`
-	ROMPath string `json:"rom_path"`
 }

@@ -225,67 +225,43 @@ Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
 
 The designated kit runs the native appliance image. Init starts
-`mister-runtime` and `mister-agent --runtime native` from `/usr/sbin`, then
+`mister-runtime` and `mister-agent` from `/usr/sbin`, then
 `fogcast-kit`. Agent configuration is `/media/fat/fogcast/agent.toml`. There
 is no Main process and no `/dev/MiSTer_cmd`. HDMI idle uses the locked idle
-RBF through the runtime. Native health reports `mister_process: false` and
-`command_pipe: false`. FAT holds agent config, launcher cache and content;
+RBF through the runtime. Health and lifecycle observations use runtime protocol 2. FAT holds agent config, launcher cache and content;
 the root filesystem is the immutable loop image.
-
-The conventional Main development image still boots
-`/media/fat/linux/linux.img`, starts Main, then the FAT-side
-`/media/fat/fogcast/mister-agent`. Before Main starts it sets
-`osd_timeout=0` and `video_off=0` in `/media/fat/MiSTer.ini`; the first
-changed file is `/media/fat/MiSTer.ini.fogcast-backup`. That image is not
-the designated kit.
 
 The fixture uses the stock MiSTer login and changing SSH host keys after a
 rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
 
-After deploying the `native-dev` image, run its bounded idle-lifecycle checks:
+After separately authorized deployment of the selected native image, exercise
+its installed package lifecycle through the running host:
 
 ```sh
-make target-native-smoke
+make target-package-smoke \
+  FES_PONG_PACKAGE_SELECTION=/absolute/path/fes-pong.package-selection.toml \
+  FES_ZX81_PACKAGE_SELECTION=/absolute/path/fes-zx81.package-selection.toml \
+  FES_COLECO_PACKAGE_SELECTION=/absolute/path/fes-coleco.package-selection.toml
 ```
 
-This checks the target and host ready/idle state, exact native child
-executables and installed build inputs, absence of conventional Main and its
-command FIFO, idle Stop, and fresh idle after an explicit reboot with a changed
-Linux boot ID. Each API and SSH call is bounded to five seconds by default;
-set `FOGCAST_CALL_TIMEOUT` to a positive decimal no greater than 60 seconds
-when the fixture needs a different per-call bound. It does not inspect HDMI
-output and does not perform the
-mandatory legacy-image rollback and real-game launch; both remain separate
-physical acceptance steps.
+This explicitly launches and stops the three installed packages through the
+host session API, checks their exact selected package IDs, and uses the existing
+kit lease. It does not deploy an image or request a reboot. Health and inventory
+calls are bounded; package transitions allow 30 seconds by default through
+`FOGCAST_CALL_TIMEOUT`. A passing API lifecycle diagnostic does not establish
+HDMI, audio, controller, persistence or exact-image acceptance. Record those
+physical checks separately against the selected image/runtime/package digests;
+historical raw-core acceptance does not qualify the new artifacts.
 
 ## Deploy and exercise the kit
 
-Deploy an image and request a reboot:
-
-```sh
-make target-image-deploy TARGET_IMAGE=build/output/target-image/dev/linux.img
-```
-
-Run a real catalog launch through the same host API used by the browser:
-
-```sh
-make target-smoke GAME_ID=YOUR_GAME_ID EXPECTED_CORE=YOUR_CORE_NAME
-```
-
-The smoke command is the conventional Main catalog path: it checks host
-and target health, calls `POST /api/v1/session/launch`, polls
-`/tmp/CORENAME`, calls `POST /api/v1/session/stop`, and waits for `MENU`.
-Native package launches use `session/launch` or `core-load` and runtime
-status; they do not create `/tmp/CORENAME`. Direct Main equivalents are:
-
-```sh
-curl --get --data-urlencode 'q=Sonic the Hedgehog 2' \
-  http://127.0.0.1:8787/api/v1/games
-curl -H 'Content-Type: application/json' \
-  --data '{"game_id":"GAME_ID_FROM_QUERY"}' \
-  http://127.0.0.1:8787/api/v1/session/launch
-curl -X POST http://127.0.0.1:8787/api/v1/session/stop
-```
+Use the FES [appliance release guide](../../../docs/appliance-releases.md) or
+[bootable-media guide](../../../docs/bootable-media.md) for the exact authorized
+device and existing kit lease. The old direct SCP/reboot deployment command
+has been retired; builds and smoke tests do not automatically deploy.
+Installed package library entries launch through `POST /api/v1/session/launch`;
+explicit `.fcore` development loads use `core-load`. Neither path launches a
+raw-core catalog record or depends on CORENAME/Main state.
 
 Load a locally built development RBF through the host API:
 
@@ -298,16 +274,10 @@ curl --fail -X POST http://127.0.0.1:8787/api/v1/session/stop
 ```
 
 The active response is `{"state":"active","execution":"fpga_development"}`.
-On the conventional Main backend, Stop may take roughly one target boot
-cycle. For a non-MiSTer RBF it first receives `reboot_required` from the
-target, requests the reboot separately, and waits for health to report a
-new Linux boot ID plus Menu idle before returning `{"state":"idle"}`. Do
-not treat a sampled disconnect or the stale `/tmp/CORENAME` left by an
-incompatible core as recovery evidence.
-
-On the designated native kit, raw `development-rbf` programs without a
-package ABI. A non-Main core fails the identity probe; Stop restores the
-locked idle RBF. Format-2 `.fcore` packages (Pong, ZX81) use the native
+Contained raw `development-rbf` is an explicit hardware diagnostic. It has no
+package ABI, media or input contract. Stop restores the locked idle RBF; an
+explicit `reboot_required` result requires separately requested recovery.
+Format-2 `.fcore` packages (Pong, ZX81) use the native
 `fes-gp-v1` path:
 
 ```sh

@@ -107,7 +107,7 @@ FORBIDDEN_RESOURCES = frozenset(
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
 
 
-def _require_clean_source(root: Path, *, pinned_inputs=PINNED_INPUTS, identity_version: int = 1):
+def _require_clean_source(root: Path, *, pinned_inputs=PINNED_INPUTS, identity_version: int = 2):
     return require_clean_source(root, pinned_inputs=pinned_inputs, identity_version=identity_version)
 
 
@@ -118,7 +118,7 @@ def create_build_record(
     revision: str,
     tool_identities: Mapping[str, str],
     *,
-    identity_version: int = 1,
+    identity_version: int = 2,
     execution: dict | None = None,
 ) -> bytes:
     root = Path(root)
@@ -144,10 +144,9 @@ def create_build_record(
             "top": TOP,
         },
     }
-    if identity_version == 2:
-        fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
-    elif identity_version != 1:
+    if identity_version != 2:
         raise BuildError("unsupported build identity version")
+    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -242,9 +241,9 @@ def _build_after_record(
     identities: Mapping[str, str],
     record: bytes,
     output: Path,
+    invocation,
     cache_root: Path | None = None,
-    invocation=None,
-    identity_version: int = 1,
+    identity_version: int = 2,
 ) -> Path:
     build_id = build_identity(record)
     commands = build_commands(
@@ -253,13 +252,12 @@ def _build_after_record(
         build_id,
         {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")},
     )
-    _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=OUTPUT_RELATIVE)
+    _run_tool(commands[0], root, output / "yosys.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
     if not (output / "synth.json").is_file():
         raise BuildError("Yosys did not produce synthesis evidence")
-    _run_tool(commands[1] + (("--gpu-device", str(invocation.gpu_device)) if invocation else ()), root, output / "nextpnr.log", **({"env": invocation.env, "audit_source_root": root} if invocation else {}), output_relative=OUTPUT_RELATIVE)
+    _run_tool(commands[1] + (("--gpu-device", str(invocation.gpu_device))), root, output / "nextpnr.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
     evidence = validate_build_evidence(output, root)
-    if invocation:
-        evidence["execution"] = invocation.inputs
+    evidence["execution"] = invocation.inputs
     evidence.update(
         {
             "build_id": build_id,
@@ -281,16 +279,15 @@ def _build_after_record(
     final_repository, final_revision = _require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
     if (final_repository, final_revision) != (repository, revision):
         raise BuildError("source identity changed during build")
-    if invocation:
-        invocation.verify()
-        if create_build_record(root, repository, revision, identities,
-            identity_version=identity_version, execution=invocation.inputs) != record:
-            raise BuildError("functional source inputs changed during build")
+    invocation.verify()
+    if create_build_record(root, repository, revision, identities,
+        identity_version=identity_version, execution=invocation.inputs) != record:
+        raise BuildError("functional source inputs changed during build")
     return export_package(manifest, output / "core.rbf", package_store)
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 1, gpu_device: int = 0) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
@@ -298,9 +295,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     repository, revision = _require_clean_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
     authenticated = _authenticate_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
-    invocation = FunctionalInvocation(authenticated, gpu_device) if identity_version == 2 else None
+    invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-        identity_version=identity_version, execution=invocation.inputs if invocation else None)
+        identity_version=identity_version, execution=invocation.inputs)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -314,14 +311,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             record,
             output,
             cache_root=cache_root,
-            **({"invocation": invocation, "identity_version": identity_version} if invocation else {}),
+            **({"invocation": invocation, "identity_version": identity_version}),
         )
     except Exception:
         _invalidate_failed_artifact(output)
         raise
     finally:
-        if invocation:
-            invocation.close()
+        invocation.close()
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -329,7 +325,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
-    parser.add_argument("--identity-version", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
     return parser
 

@@ -12,7 +12,6 @@ namespace daemon {
 
 enum class Operation {
 	status,
-	launch,
 	inspect_core,
 	load_core,
 	load_composed_core,
@@ -29,9 +28,8 @@ enum class Operation {
 };
 
 struct Request {
-	std::int64_t protocol = 1;
+	std::int64_t protocol = 2;
 	Operation operation = Operation::status;
-	Launch launch;
 	std::string rbf;
 	std::string package_path;
 	std::string package_id;
@@ -53,7 +51,6 @@ struct Request {
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and
 // is intentionally encoded even when a later status request itself succeeds.
-std::string EncodeResponse(bool ok, const Status& status, const std::string& version);
 std::string EncodeResponse(std::int64_t protocol, bool ok, const Status& status,
 	const std::string& version, const CorePackageInspection* inspected_package = nullptr,
 	const CoreData* core_data = nullptr);

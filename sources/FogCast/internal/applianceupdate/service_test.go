@@ -16,23 +16,19 @@ import (
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/appliance/store"
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"golang.org/x/sys/unix"
 )
 
 type idleControl struct{}
 
-func (idleControl) Status(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none"}, nil
+func (idleControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none"}, nil
 }
-func (idleControl) Stop(context.Context) (misterruntime.Response, error) {
-	return misterruntime.Response{Protocol: 1, OK: true, State: "idle", Execution: "none"}, nil
+func (idleControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none"}, nil
 }
-func (idleControl) Launch(context.Context, misterruntime.LaunchRequest) (misterruntime.Response, error) {
-	panic("unexpected launch")
-}
-func (idleControl) LoadDevelopmentRBF(context.Context, string) (misterruntime.Response, error) {
+func (idleControl) Protocol2LoadDevelopmentRBF(context.Context, string) (misterruntime.Protocol2Response, error) {
 	panic("unexpected development")
 }
 
@@ -56,7 +52,7 @@ func fixture(t *testing.T) (*appliance.Store, release.Manifest, release.Manifest
 	if e = s.Stage(context.Background(), n, n.ImageSize, bytes.NewReader(b)); e != nil {
 		t.Fatal(e)
 	}
-	c := agent.New(misterruntime.NewRuntime(idleControl{}, "", time.Millisecond, time.Second), core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(misterruntime.NewRuntime(idleControl{}, "", time.Millisecond, time.Second), time.Second, time.Second)
 	return s, m, n, c
 }
 
@@ -214,10 +210,10 @@ type saveFailureControl struct {
 	failed atomic.Bool
 }
 
-func (c *saveFailureControl) Status(ctx context.Context) (misterruntime.Response, error) {
-	response, e := c.idleControl.Status(ctx)
+func (c *saveFailureControl) Protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {
+	response, e := c.idleControl.Protocol2Status(ctx)
 	if c.failed.Load() {
-		response.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "save failed"}
+		response.Error = &misterruntime.Protocol2Error{Code: "save_failed", Message: "save failed"}
 	}
 	return response, e
 }
@@ -235,7 +231,7 @@ func TestRestoredConfirmationWaitsForRawNativeIdle(t *testing.T) {
 	}
 	control := &saveFailureControl{}
 	control.failed.Store(true)
-	c := agent.New(misterruntime.NewRuntime(control, "", time.Millisecond, time.Second), core.DefaultRegistry(), time.Second, time.Second)
+	c := agent.New(misterruntime.NewRuntime(control, "", time.Millisecond, time.Second), time.Second, time.Second)
 	svc := applianceupdate.New(s, c, applianceupdate.BootIdentity{BootID: "boot-a", ImageSHA256: n.ImageSHA256, Trial: true}, nil, nil)
 	status, e := svc.Status(context.Background())
 	if e != nil || !status.Trial || status.RawIdleReady || c.Health("").Ready {

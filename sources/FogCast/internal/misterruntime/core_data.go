@@ -174,46 +174,29 @@ type protocol2StopControl interface {
 	Protocol2Stop(context.Context) (Protocol2Response, error)
 }
 
-func (r *Runtime) shouldStopDescribedPackage(ctx context.Context) bool {
-	r.packageMu.Lock()
-	active := r.activePackage != nil
-	retired := len(r.retiredPackages) != 0
-	r.packageMu.Unlock()
-	if !active && !retired {
-		return false
-	}
-	if active {
-		return true
-	}
-	statusControl, ok := r.control.(protocol2StatusControl)
-	if !ok {
-		return true
-	}
-	response, err := statusControl.Protocol2Status(ctx)
-	return err == nil && describedPackageRuntimeState(response)
-}
-
 func (r *Runtime) stopCorePackage(ctx context.Context, control protocol2StopControl) (string, string, *protocol.APIError) {
 	response, err := control.Protocol2Stop(ctx)
 	r.noteDispatch("stop", err == nil)
 	if err != nil {
 		// A lost Stop is observed once; it is never dispatched again.
-		observer, ok := r.control.(protocol2StatusControl)
-		if !ok || ctx.Err() != nil {
+		if ctx.Err() != nil {
 			return "", "", unavailableError()
 		}
-		response, err = observer.Protocol2Status(ctx)
+		response, err = r.boundedStatus(ctx)
 		if err != nil {
 			return "", "", unavailableError()
 		}
 	}
-	if response.State == "reboot_required" && response.ActivePackage != nil {
+	if response.State == "reboot_required" {
+		if response.ActivePackage == nil {
+			return optionalProtocol2Core(response), protocol.RecoveryRebootRequired, nil
+		}
 		return optionalProtocol2Core(response), protocol.RecoveryRebootRequired, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core data recovery is required", Phase: "recovery"}
 	}
 	if response.Error != nil || !response.OK {
 		return optionalProtocol2Core(response), "", mapProtocol2Error(response.Error)
 	}
-	if response.State != "idle" || response.ActivePackage != nil || response.Generation != nil {
+	if response.State != "idle" || response.Execution != "none" || response.Core != nil || response.System != nil || response.ActivePackage != nil || response.Generation != nil {
 		return "", "", unavailableError()
 	}
 	if apiErr := r.cleanupCorePackages(); apiErr != nil {

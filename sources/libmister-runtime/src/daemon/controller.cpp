@@ -28,10 +28,6 @@ std::string Controller::Handle(const std::string& line)
 	switch (request.operation) {
 	case Operation::status:
 		break;
-	case Operation::launch:
-		result = runtime_.LaunchGame(request.launch);
-		EmitFifoConsume("launch", result.ok());
-		break;
 	case Operation::inspect_core:
 		result = runtime_.InspectCore(request.package_path,
 			request.package_id, &inspection);
@@ -82,9 +78,7 @@ std::string Controller::Handle(const std::string& line)
 			request.expected_package_id, request.expected_generation, request.media_size);
 		break;
 	case Operation::load_development_rbf:
-		result = request.protocol == 2 ?
-			runtime_.LoadContainedDevelopmentRBF(request.rbf) :
-			runtime_.LoadDevelopmentRBF(request.rbf);
+		result = runtime_.LoadContainedDevelopmentRBF(request.rbf);
 		EmitFifoConsume("load_development_rbf", result.ok());
 		break;
 	case Operation::stop:

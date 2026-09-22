@@ -13,10 +13,7 @@ namespace mister {
 namespace native {
 
 class Clock;
-class Framebuffer;
-class CoreLoader;
 class I2c;
-class Spi;
 struct VideoRecipe;
 
 struct VideoResult {
@@ -45,40 +42,31 @@ public:
 
 class FixedVideoBringup final {
 public:
-	FixedVideoBringup(Spi&, I2c&, Clock&, LogSink&, const VideoRecipe&);
-	VideoResult BringUp(std::uint64_t absolute_deadline_ms);
+	FixedVideoBringup(I2c&, Clock&, LogSink&, const VideoRecipe&);
 	VideoResult BringUpCustom(std::uint64_t absolute_deadline_ms, bool audio = false);
 	VideoQuiesceResult Quiesce(std::uint64_t absolute_deadline_ms);
 
 private:
 	VideoResult PhaseFailure(const char*, const Error&,
 		const VideoResult&) const;
-	Spi& spi_;
 	I2c& i2c_;
 	Clock& clock_;
 	LogSink& log_;
 	const VideoRecipe& recipe_;
 };
 
-class MenuVideoBringup final : public VideoBringup {
+class SplashVideoBringup final : public VideoBringup {
 public:
-	MenuVideoBringup(CoreLoader&, Spi&, I2c&, Framebuffer&, Clock&, LogSink&,
+	SplashVideoBringup(I2c&, Clock&, LogSink&,
 		const VideoRecipe&);
 	VideoQuiesceResult Quiesce(
 		std::uint64_t absolute_deadline_ms) override;
 	VideoResult BringUp(const IdleRecipe& idle,
 		std::uint64_t absolute_deadline_ms) override;
-	// Convenience for tests: transitional Menu video path with the given
-	// required identity (empty identity probes without requiring a match).
-	VideoResult BringUp(const std::string& expected_core,
-		std::uint64_t absolute_deadline_ms);
 
 private:
 	VideoResult PhaseFailure(const char*, const Error&,
 		const VideoResult&) const;
-	CoreLoader& core_;
-	Framebuffer& framebuffer_;
-	Spi& spi_;
 	I2c& i2c_;
 	Clock& clock_;
 	LogSink& log_;

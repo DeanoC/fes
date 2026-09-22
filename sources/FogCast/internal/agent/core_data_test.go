@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -20,7 +20,7 @@ func TestCoreSaveFailureKeepsOnlyConfirmedResumedGenerationActive(t *testing.T) 
 			runtime := &ownedDevelopmentContextRuntime{}
 			runtime.reconciled = active
 			runtime.stopErr = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "save failed", Phase: "save"}
-			coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+			coordinator := agent.New(runtime, time.Second, time.Second)
 			coordinator.Initialize(context.Background())
 			runtime.reconciled.LastError = runtime.stopErr
 			if recovery {
@@ -61,7 +61,7 @@ func (r *serializedDataRuntime) UpdateCoreSettings(context.Context, int64, io.Re
 }
 func TestCoreDataOperationsShareTargetLifecycleAndRefuseRecoveryWrites(t *testing.T) {
 	runtime := &serializedDataRuntime{started: make(chan struct{}), release: make(chan struct{})}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator := agent.New(runtime, time.Second, time.Second)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -92,7 +92,7 @@ func TestCoreReplacementRecoveryRetainsPreviousPackageGeneration(t *testing.T) {
 	name := "fes.pong"
 	active := protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &name, CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 7, PersistenceMode: "persistent"}}
 	runtime := &packageRuntime{fakeRuntime: fakeRuntime{reconciled: active}, attempted: true, packageErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "recovery required", Phase: "recovery"}}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), time.Second, time.Second)
+	coordinator := agent.New(runtime, time.Second, time.Second)
 	coordinator.Initialize(context.Background())
 	runtime.reconciled.State = protocol.StateFailed
 	runtime.reconciled.Recovery = protocol.RecoveryRebootRequired

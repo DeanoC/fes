@@ -20,6 +20,9 @@ class BundleTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("bundle", SCRIPT)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        cache = tempfile.TemporaryDirectory()
+        self.addCleanup(cache.cleanup)
+        module.ARTIFACT_CACHE_ROOT = Path(cache.name)
         return module
 
     def test_missing_compiler_guidance_binds_recipe_and_quotes_paths(self):
@@ -53,7 +56,7 @@ class BundleTest(unittest.TestCase):
                            'https://github.com/DeanoC/FogCast.git'):
                 with self.subTest(origin=origin):
                     subprocess.run(['git', '-C', source, 'remote', 'set-url', 'origin', origin], check=True)
-                    with self.assertRaisesRegex(ValueError, 'not the expected first-party repository'):
+                    with self.assertRaisesRegex(ValueError, 'exact sources/misteross'):
                         module.authenticate_misteross_origin(source)
                     self.assertEqual(subprocess.check_output(
                         ['git', '-C', source, 'remote', 'get-url', 'origin'], text=True).strip(), origin)
@@ -65,7 +68,7 @@ class BundleTest(unittest.TestCase):
             subprocess.run(['git', 'init', '-q', source], check=True)
             origin = 'git@github.com:DeanoC/misteross.git'
             subprocess.run(['git', '-C', source, 'remote', 'add', 'origin', origin], check=True)
-            with self.assertRaisesRegex(ValueError, 'restage through FES'):
+            with self.assertRaisesRegex(ValueError, 'exact sources/misteross'):
                 module.authenticate_misteross_origin(source)
             self.assertEqual(subprocess.check_output(
                 ['git', '-C', source, 'remote', 'get-url', 'origin'], text=True).strip(), origin)
@@ -90,7 +93,7 @@ class BundleTest(unittest.TestCase):
             store = source / 'build/packages'
             store.mkdir(parents=True)
             identity = 'a' * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             sidecar = store / f'{identity}.build-inputs.json'
             sidecar.write_bytes(record)
             sidecar.chmod(0o444)
@@ -112,7 +115,7 @@ class BundleTest(unittest.TestCase):
                  patch.object(module, '_inspect_package_candidate', return_value=inspected), \
                  patch.object(module, '_build_package', side_effect=AssertionError('unexpected build')):
                 resolved = module.resolve_core_package(source, 'd' * 40, selection_path,
-                    recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                    recipe=module.recipe_for('fes.pong'))
             self.assertEqual(resolved['directory'], package)
             self.assertEqual(resolved['inputs']['selection']['package_id'], identity)
             self.assertEqual(resolved['inputs']['selection']['mister_packages_revision'], 'd' * 40)
@@ -128,10 +131,11 @@ class BundleTest(unittest.TestCase):
             with patch.object(module, 'canonical_package_record', return_value=record), \
                  patch.object(module, '_inspect_package_candidate',
                               side_effect=lambda _, package, __, **_kwargs: dict(
-                                  inspected, package_id=Path(package).name)):
+                                  inspected, package_id=Path(package).name,
+                                  core_rbf_sha256=Path(package).name)):
                 with self.assertRaisesRegex(ValueError, 'multiple'):
                     module.resolve_core_package(source, 'd' * 40, selection_path,
-                        recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                        recipe=module.recipe_for('fes.pong'))
 
     def test_package_resolution_builds_once_when_no_canonical_candidate_exists(self):
         module = self.module()
@@ -139,7 +143,7 @@ class BundleTest(unittest.TestCase):
             source = Path(temporary)
             store = source / 'build/packages'
             identity = 'a' * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             inspected = {
                 'package_id': identity,
                 'manifest': {'core': {'id': 'fes.pong'},
@@ -159,7 +163,7 @@ class BundleTest(unittest.TestCase):
                  patch.object(module, '_inspect_package_candidate', return_value=inspected), \
                  patch.object(module, '_build_package', side_effect=build_once) as build_package:
                 module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
-                    recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                    recipe=module.recipe_for('fes.pong'))
             build_package.assert_called_once()
             self.assertEqual(build_package.call_args.args[0], source)
 
@@ -173,7 +177,7 @@ class BundleTest(unittest.TestCase):
                 (source / 'build').mkdir(parents=True)
                 ambient.mkdir()
                 identity = 'a' * 64
-                record = b'{"canonical":true}\n'
+                record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
                 if link == 'store':
                     store = ambient / 'packages'
                     store.mkdir()
@@ -196,7 +200,7 @@ class BundleTest(unittest.TestCase):
                                   side_effect=AssertionError('symlink reached reader')):
                     with self.assertRaisesRegex(ValueError, 'symlink|contained|store'):
                         module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
-                            recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                            recipe=module.recipe_for('fes.pong'))
 
     def test_working_misteross_module_exposes_shared_toolchain_cache_api(self):
         root = Path(__file__).resolve().parents[1]
@@ -262,7 +266,7 @@ inspect.signature(authenticate).bind(
         module = self.module()
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
-            payload = b'{"canonical":true}\n'
+            payload = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             caller = {'KEEP': '1', 'PATH': '/bin'}
             sentinel = os.environ.get('FES_TOOLCHAIN_CACHE_ROOT')
             with patch.object(module, 'authenticate_misteross_origin'), \
@@ -283,7 +287,7 @@ inspect.signature(authenticate).bind(
             source = Path(temporary)
             store = source / 'build/packages'
             identity = 'a' * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             inspected = {
                 'package_id': identity,
                 'manifest': {'core': {'id': 'fes.pong'},
@@ -315,7 +319,7 @@ inspect.signature(authenticate).bind(
                  patch.object(module, '_inspect_package_candidate', return_value=inspected):
                 module.resolve_core_package(
                     source, 'd' * 40, source / 'selection.toml', env=caller,
-                    recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                    recipe=module.recipe_for('fes.pong'))
             self.assertEqual(len(received), 2)
             for env in received:
                 self.assertEqual(env['KEEP'], '1')
@@ -403,7 +407,7 @@ inspect.signature(authenticate).bind(
             source = Path(temporary)
             store = source / 'build/packages'
             identity = 'a' * 64
-            record = b'{"canonical":true}\n'
+            record = b'{"format":2,"repository":"https://github.com/DeanoC/fes.git","revision":"cccccccccccccccccccccccccccccccccccccccc","source_inputs":{"x":"y"},"source_path":"sources/misteross"}\n'
             inspected = {
                 'package_id': identity,
                 'manifest': {'core': {'id': 'fes.pong'},
@@ -430,7 +434,7 @@ inspect.signature(authenticate).bind(
                  patch.object(module, '_inspect_package_candidate', return_value=inspected), \
                  patch.object(module.subprocess, 'run', side_effect=fake_run) as run:
                 module.resolve_core_package(source, 'd' * 40, source / 'selection.toml',
-                    recipe=replace(module.recipe_for('fes.pong'), identity_version=1))
+                    recipe=module.recipe_for('fes.pong'))
             run.assert_called()
 
     def test_package_resolution_rejects_symlinked_source_checkout(self):

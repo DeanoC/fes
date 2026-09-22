@@ -8,7 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/agent"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -81,7 +81,7 @@ func TestCoordinatorInspectionPreservesActiveSession(t *testing.T) {
 	runtime := &inspectingPackageRuntime{fakeRuntime: fakeRuntime{reconciled: active}, inspection: protocol.CoreInspection{
 		PackageID: strings.Repeat("a", 64), Compatible: true,
 	}}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(runtime, 0, 0)
 	coordinator.Initialize(context.Background())
 
 	inspection, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
@@ -97,7 +97,7 @@ func TestCoordinatorInspectionSerializesWithTransitions(t *testing.T) {
 	release := make(chan struct{})
 	runtime := &inspectingPackageRuntime{started: started, release: release,
 		inspection: protocol.CoreInspection{PackageID: strings.Repeat("a", 64), Compatible: true}}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(runtime, 0, 0)
 	done := make(chan *protocol.APIError, 1)
 	go func() {
 		_, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
@@ -114,7 +114,7 @@ func TestCoordinatorInspectionSerializesWithTransitions(t *testing.T) {
 }
 
 func TestCoordinatorInspectionRejectsUnsupportedRuntime(t *testing.T) {
-	coordinator := agent.New(&fakeRuntime{}, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(&fakeRuntime{}, 0, 0)
 	_, apiErr := coordinator.InspectCore(context.Background(), 7, strings.NewReader("package"))
 	if apiErr == nil || apiErr.Code != protocol.CodeUnsupportedOperation {
 		t.Fatalf("inspection error=%#v", apiErr)
@@ -123,7 +123,7 @@ func TestCoordinatorInspectionRejectsUnsupportedRuntime(t *testing.T) {
 
 func TestCoordinatorPreservesActiveSessionForPreMutationPackageFailure(t *testing.T) {
 	runtime := &packageRuntime{fakeRuntime: fakeRuntime{reconciled: activeGameStatus()}, packageErr: &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "invalid", Phase: "admission"}}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(runtime, 0, 0)
 	coordinator.Initialize(context.Background())
 	before := coordinator.Status()
 	status, apiErr := coordinator.LoadCore(context.Background(), 3, strings.NewReader("bad"))
@@ -141,7 +141,7 @@ func TestCoordinatorPublishesCustomGenerationAndCapabilitiesAfterSuccess(t *test
 			ActiveInterfaces: []misterruntime.Protocol2Interface{{ID: "fes.gamepad", Major: 1}},
 		},
 	}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(runtime, 0, 0)
 	status, apiErr := coordinator.LoadCore(context.Background(), 7, strings.NewReader("package"))
 	if apiErr != nil || status.State != protocol.StateActive || !status.Development || status.CorePackage == nil {
 		t.Fatalf("status=%#v err=%#v", status, apiErr)
@@ -157,7 +157,7 @@ func TestCoordinatorPublishesPostMutationPackageFailureMetadata(t *testing.T) {
 		Code: protocol.CodeMiSTerUnavailable, Message: "identity mismatch", Phase: "identity",
 		Expected: "0123", Observed: "4567",
 	}}
-	coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0)
+	coordinator := agent.New(runtime, 0, 0)
 	status, apiErr := coordinator.LoadCore(context.Background(), 7, strings.NewReader("package"))
 	if apiErr == nil || status.State != protocol.StateFailed || !status.Development || status.LastError == nil ||
 		status.LastError.Phase != "identity" || status.LastError.Expected != "0123" || status.LastError.Observed != "4567" {
@@ -176,7 +176,7 @@ func TestCoordinatorPublishesPostMutationPackageFailureOnlyAfterConfirmedIdle(t 
 					Expected: "0123", Observed: "4567",
 				},
 			}}
-			coordinator := agent.New(runtime, core.DefaultRegistry(), 0, 0, agent.WithOperationContext(operation))
+			coordinator := agent.New(runtime, 0, 0, agent.WithOperationContext(operation))
 			status, apiErr := coordinator.LoadCore(request, 7, strings.NewReader("package"))
 			if apiErr == nil || runtime.confirmCalls != 1 || status.LastError == nil ||
 				status.LastError.Code != protocol.CodeUnrecognizedCore || status.LastError.Phase != "identity" ||

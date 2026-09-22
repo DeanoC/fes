@@ -10,7 +10,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 mkdir "$fixture/run" "$fixture/log"
 sed -e "s|/run/|$fixture/run/|g" -e "s|/var/log/|$fixture/log/|g" \
-  "$repo/buildroot/board/fogcast-target/rootfs-overlay/usr/sbin/mister-supervise" > "$fixture/supervise"
+  "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/usr/sbin/mister-supervise" > "$fixture/supervise"
 sed -e "s|/run/|$fixture/run/|g" \
   -e "s|/usr/sbin/mister-supervise|$fixture/supervise|g" \
   -e "s|/usr/sbin/fogcast-kit|$fixture/launcher|g" \

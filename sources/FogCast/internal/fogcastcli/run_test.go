@@ -473,8 +473,8 @@ func TestRunControlCommandsAndHealthExitStatus(t *testing.T) {
 		wantHuman string
 		wantJSON  string
 	}{
-		{name: "health ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{APIVersion: "v2", AgentVersion: "test", Ready: true, MiSTerProcess: true, CommandPipe: true}}, wantHuman: "ready\n", wantJSON: "{\"api_version\":\"v2\",\"agent_version\":\"test\",\"ready\":true,\"mister_process\":true,\"command_pipe\":true}\n"},
-		{name: "health not ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{Ready: false}}, wantExit: 1, wantHuman: "not ready\n", wantJSON: "{\"api_version\":\"\",\"agent_version\":\"\",\"ready\":false,\"mister_process\":false,\"command_pipe\":false}\n"},
+		{name: "health ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{APIVersion: "v2", AgentVersion: "test", Ready: true}}, wantHuman: "ready\n", wantJSON: "{\"api_version\":\"v2\",\"agent_version\":\"test\",\"ready\":true}\n"},
+		{name: "health not ready", args: []string{"health"}, service: &fakeService{health: protocol.Health{Ready: false}}, wantExit: 1, wantHuman: "not ready\n", wantJSON: "{\"api_version\":\"\",\"agent_version\":\"\",\"ready\":false}\n"},
 	}
 	for _, test := range tests {
 		t.Run(test.name+" human", func(t *testing.T) {

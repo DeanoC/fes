@@ -8,7 +8,6 @@
 #include "native/core_package.hpp"
 #include "native/core_composition.hpp"
 #include "native/core_data.hpp"
-#include "native/core_loader.hpp"
 #include "native/diagnostic.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -129,7 +128,6 @@ public:
 	ProgrammingProfile profile_;
 	CoreDriver* driver_;
 	CoreDriverContext context_;
-	CoreRecipe recipe_;
 	std::unique_ptr<CoreDataFile> data_file_;
 	CoreData data_;
 	std::unique_ptr<OpenedCoreComposition> composition_;
@@ -139,20 +137,19 @@ public:
 } // namespace
 
 NativeHardware::NativeHardware(ArtifactOpener& opener, FpgaManager& fpga,
-	CoreLoader& core, VideoBringup& idle_video, FixedVideoBringup& game_video,
+	VideoBringup& idle_video, FixedVideoBringup& game_video,
 	InputSession& input, const InputDeviceIdentity& input_identity, Clock& clock,
 	LogSink& log, std::string idle_rbf, NativeTimeouts timeouts,
-	CoreDriver& mister_driver, CoreDriver* fes_gp_driver,
-	const Profiles* profiles, std::vector<std::string> package_roots,
+	CoreDriver* fes_gp_driver, std::vector<std::string> package_roots,
 	IdleRecipe idle_recipe)
-	: opener_(opener), fpga_(fpga), core_(core), idle_video_(idle_video),
+	: opener_(opener), fpga_(fpga), idle_video_(idle_video),
 	  game_video_(game_video), input_(input), input_identity_(input_identity),
 	  clock_(clock), log_(log), idle_rbf_(std::move(idle_rbf)),
 	  idle_recipe_(std::move(idle_recipe)),
-	  timeouts_(timeouts), mister_driver_(mister_driver),
+	  timeouts_(timeouts),
 	  fes_gp_driver_(fes_gp_driver), contained_driver_(),
-	  driver_registry_(mister_driver_, fes_gp_driver_, contained_driver_),
-	  profiles_(profiles), package_roots_(std::move(package_roots)),
+	  driver_registry_(fes_gp_driver_, contained_driver_),
+	  package_roots_(std::move(package_roots)),
 	  active_driver_(nullptr), active_context_(), active_package_(),
 	  fault_sink_mutex_(), fault_sink_(nullptr),
 	  input_open_(false), input_delivery_enabled_() {}
@@ -221,25 +218,12 @@ Error NativeHardware::FlushSave()
 		core_data_flushed_ = true;
 		return {};
 	}
-	if (!save_ || save_flushed_) return {};
-	Error error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
-	if (error.ok() && snapshot_.empty())
-		error = core_.CaptureSave(save_->size(), clock_, Deadline(clock_, timeouts_.core_io_ms), &snapshot_);
-	if (error.ok()) error = save_->Persist(snapshot_);
-	if (!error.ok()) {
-		error.code = ErrorCode::save_failed;
-		error = WithPhase(std::move(error), "save");
-		log_.Write({"stop", "snes", "SNES", "save", error});
-		return error;
-	}
-	save_flushed_ = true;
-	log_.Write({"stop", "snes", "SNES", "save", {}});
 	return {};
 }
 
 Error NativeHardware::RestoreInput(std::uint64_t generation)
 {
-	if (!save_ && !core_data_file_)
+	if (!core_data_file_)
 		return {};
 	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
 		return {ErrorCode::io_failed,
@@ -283,10 +267,8 @@ Error NativeHardware::RestoreInput(std::uint64_t generation)
 
 	// The failed write's snapshot described an earlier instant. Once play can
 	// continue, the next save attempt must capture the then-current RAM.
-	snapshot_.clear();
 	core_snapshot_.clear();
 	core_data_flushed_ = false;
-	save_flushed_ = false;
 	log_.Write({"restore_input", "", "", "input", {}});
 	return {};
 }
@@ -351,44 +333,13 @@ Error NativeHardware::AdmitCorePackage(const std::string& directory,
 	context.report_fault = [this](std::uint64_t generation, Error fault) {
 		ForwardInputFault(generation, std::move(fault));
 	};
-	Profile system_profile;
-	if (error.ok() && profile == ProgrammingProfile::mister_v1 &&
-		!opened.descriptor.core.system.empty()) {
-		if (profiles_ == nullptr)
-			error = {ErrorCode::unknown_system,
-				"MiSTer package system is unavailable", "compatibility",
-				"registered system", opened.descriptor.core.system};
-		else error = profiles_->Describe(opened.descriptor.core.system,
-			&system_profile);
-		if (!error.ok() && error.phase.empty()) {
-			error.phase = "compatibility";
-			error.expected = "registered system";
-			error.observed = opened.descriptor.core.system;
-		}
-		if (error.ok()) {
-			context.mister_recipe = &system_profile.core;
-			context.expected_core = system_profile.expected_core;
-		}
-	} else if (error.ok() && profile == ProgrammingProfile::fes_gp_v1) {
-		context.expected_core = opened.descriptor.core.id;
-	}
+	if (error.ok()) context.expected_core = opened.descriptor.core.id;
 	if (!error.ok()) return error;
 	context.descriptor = &opened.descriptor;
 	std::unique_ptr<NativeAdmittedCore> admitted(new NativeAdmittedCore(
 		std::move(opened), profile, driver, context));
-	// Rebind pointers after moving the retained descriptor and optional recipe.
+	// Rebind the context after moving the retained descriptor.
 	admitted->context_.descriptor = &admitted->opened_.descriptor;
-	if (profile == ProgrammingProfile::mister_v1 &&
-		!admitted->opened_.descriptor.core.system.empty()) {
-		admitted->context_.mister_recipe = nullptr;
-		Profile checked;
-		const Error described = profiles_->Describe(
-			admitted->opened_.descriptor.core.system, &checked);
-		if (!described.ok()) return described;
-		// The recipe copy is retained in the context through the package wrapper.
-		admitted->recipe_ = checked.core;
-		admitted->context_.mister_recipe = &admitted->recipe_;
-	}
 	*output = std::move(admitted);
 	return {};
 }
@@ -425,15 +376,6 @@ Error NativeHardware::InspectCorePackage(const std::string& directory,
 	if (compatibility.ok())
 		compatibility = driver_registry_.Resolve(opened.descriptor,
 			&profile, &driver);
-	if (compatibility.ok() && profile == ProgrammingProfile::mister_v1 &&
-		!opened.descriptor.core.system.empty()) {
-		Profile checked;
-		if (profiles_ == nullptr ||
-			!profiles_->Describe(opened.descriptor.core.system, &checked).ok())
-			compatibility = {ErrorCode::unknown_system,
-				"MiSTer package system recipe is unavailable", "compatibility",
-				"registered system", opened.descriptor.core.system};
-	}
 	CorePackageInspection inspection;
 	inspection.package_id = opened.package_id;
 	inspection.descriptor = std::move(opened.descriptor);
@@ -550,11 +492,7 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 Capabilities NativeHardware::capabilities() const
 {
 	Capabilities result;
-	result.programming_profiles = {"development-contained-v1", "mister-v1"};
-	SupportedABI mister_abi;
-	mister_abi.id = "mister";
-	mister_abi.major = 1;
-	result.abis.push_back(mister_abi);
+	result.programming_profiles = {"development-contained-v1"};
 	if (fes_gp_driver_ != nullptr) {
 		result.programming_profiles.insert(result.programming_profiles.begin() + 1,
 			"fes-gp-v1");
@@ -776,10 +714,6 @@ HardwareResult NativeHardware::LoadCore(
 		dynamic_cast<NativeAdmittedCore*>(active_package_.get());
 	active_context_ = retained->context_;
 	admitted = retained;
-	if (admitted->profile_ == ProgrammingProfile::mister_v1) {
-		error = core_.Synchronize(Deadline(clock_, timeouts_.core_io_ms));
-		if (!error.ok()) return {CoreIoError(error, "transport"), true, ""};
-	}
 	CoreDriverResult identified = admitted->driver_->Identify(
 		admitted->context_, Deadline(clock_, timeouts_.core_io_ms));
 	ObserveIdentify(admitted->context_.expected_core, identified);
@@ -851,9 +785,6 @@ HardwareResult NativeHardware::LoadCore(
 	durable_data_ = admitted->data_;
 	core_snapshot_.clear();
 	core_data_flushed_ = false;
-	save_.reset();
-	snapshot_.clear();
-	save_flushed_ = false;
 	return {{}, true, identified.observed_core};
 }
 
@@ -864,9 +795,6 @@ HardwareResult NativeHardware::LoadIdle()
 	core_snapshot_.clear();
 	core_data_flushed_ = false;
 	durable_data_ = {};
-	save_.reset();
-	snapshot_.clear();
-	save_flushed_ = false;
 	const Error input_error = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 	Artifact artifact;
 	Error error = OpenRBFArtifact(idle_rbf_, opener_, &artifact);
@@ -912,177 +840,11 @@ HardwareResult NativeHardware::LoadIdle()
 	return {input_error, true, video.observed_core};
 }
 
-HardwareResult NativeHardware::Launch(const PreparedLaunch& launch,
+
+HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rbf,
 	std::uint64_t generation)
 {
-	CoreDriverContext driver_context;
-	driver_context.mister_recipe = &launch.core;
-	driver_context.expected_core = launch.expected_core;
-	driver_context.generation = generation;
-	driver_context.player_command = launch.input.player_command;
-	const std::uint64_t input_deadline =
-		Deadline(clock_, timeouts_.core_io_ms);
-	const std::shared_ptr<std::atomic<bool>> input_delivery_enabled =
-		std::make_shared<std::atomic<bool>>(false);
-	Error error = input_.Open(input_identity_, launch.input, input_deadline,
-		[this, driver_context, input_delivery_enabled](std::uint16_t map,
-			std::uint64_t deadline) {
-			if (!input_delivery_enabled->load()) return Error{};
-			return mister_driver_.SetButtons(driver_context, map, deadline).error;
-		});
-	if (!error.ok()) {
-		log_.Write({"launch", launch.system, launch.expected_core,
-			"preflight", error});
-		return {WithPhase(error, "input"), false, ""};
-	}
-	input_open_ = true;
-	input_delivery_enabled_ = input_delivery_enabled;
-
-	ArtifactSet artifacts;
-	error = OpenLaunchArtifacts(launch, opener_, &artifacts);
-	if (!error.ok()) {
-		log_.Write({"launch", launch.system, launch.expected_core,
-			"preflight", error});
-		const Error stopped = StopInput(input_deadline);
-		return {stopped.ok() ? WithPhase(error, "admission") :
-			WithPhase(stopped, "input"), false, ""};
-	}
-	std::sort(artifacts.media.begin(), artifacts.media.end(),
-		[](const OpenedMedia& left, const OpenedMedia& right) {
-			return left.index < right.index;
-		});
-	log_.Write({"launch", launch.system, launch.expected_core, "preflight", {}});
-	const HardwareResult quiesced = QuiesceForReplacement("launch",
-		launch.system, launch.expected_core);
-	error = quiesced.error;
-	if (!error.ok()) {
-		const Error stopped = StopInput(input_deadline);
-		return {stopped.ok() ? error : WithPhase(stopped, "input"),
-			quiesced.mutation_attempted, ""};
-	}
-	const NativeResult programmed = fpga_.Program(artifacts.rbf,
-		ProgrammingProfile::mister_v1,
-		Deadline(clock_, timeouts_.program_ms));
-	ObserveProgram("launch", programmed);
-	error = programmed.error.ok() ? Error{} : ProgramError(programmed.error);
-	log_.Write({"launch", launch.system, launch.expected_core, "program", error});
-	if (!error.ok()) {
-		if (programmed.mutation_attempted) {
-			ForgetActiveCore();
-			return {error, true, ""};
-		}
-		const Error stopped = StopInput(
-			Deadline(clock_, timeouts_.core_io_ms));
-		return {stopped.ok() ? error : WithPhase(stopped, "input"),
-			quiesced.mutation_attempted, ""};
-	}
-
-	const std::uint64_t core_deadline = Deadline(clock_, timeouts_.core_io_ms);
-	error = core_.Synchronize(core_deadline);
-	if (!error.ok()) error = CoreIoError(error, "transport");
-	log_.Write({"launch", launch.system, launch.expected_core, "sync", error});
-	if (!error.ok()) return {error, true, ""};
-
-	error = core_.AssertReset(launch.core, core_deadline);
-	if (!error.ok()) error = CoreIoError(error, "transport");
-	log_.Write({"launch", launch.system, launch.expected_core, "reset", error});
-	if (!error.ok()) return {error, true, ""};
-
-	CoreDriverResult identified = mister_driver_.Identify(driver_context,
-		core_deadline);
-	ObserveIdentify(launch.expected_core, identified);
-	error = identified.error;
-	if (!error.ok() && error.code != ErrorCode::core_mismatch)
-		error = CoreIoError(error, "transport");
-	else if (error.code == ErrorCode::core_mismatch)
-		error = WithPhase(std::move(error), "identity");
-	if (!error.ok()) return {error, true, identified.observed_core};
-
-	std::string observed = identified.observed_core;
-	log_.Write({"launch", launch.system,
-		observed.empty() ? launch.expected_core : observed, "probe", error});
-
-	error = core_.ApplyInitialStatus(launch.core, core_deadline);
-	if (!error.ok()) error = CoreIoError(error, "transport");
-	log_.Write({"launch", launch.system, observed, "configure", error});
-	if (!error.ok()) return {error, true, observed};
-	for (const OpenedMedia& media : artifacts.media) {
-		const std::uint64_t media_deadline =
-			Deadline(clock_, timeouts_.media_io_ms);
-		error = core_.Attach(media,
-			launch.core.file_wire, media_deadline, artifacts.save.get());
-		if (!error.ok()) error = CoreIoError(error, "transport");
-		log_.Write({"launch", launch.system, observed, "media", error});
-		if (!error.ok()) return {error, true, observed};
-	}
-
-	if (artifacts.save) {
-		error = core_.RestoreSave(*artifacts.save, clock_, Deadline(clock_, timeouts_.core_io_ms));
-		error = WithPhase(std::move(error), "save");
-		log_.Write({"launch", launch.system, observed, "save_restore", error});
-		if (!error.ok()) return {error, true, observed};
-	}
-
-	const VideoResult video = game_video_.BringUp(
-		Deadline(clock_, timeouts_.video_ms));
-	error = video.error.ok() ? Error{} : CoreIoError(video.error, "video");
-	log_.Write({"launch", launch.system, observed, "video", error});
-	if (!error.ok()) return {error, true, observed};
-
-	const std::uint64_t post_video_deadline =
-		Deadline(clock_, timeouts_.core_io_ms);
-	input_delivery_enabled->store(true);
-	error = input_.Neutralize(post_video_deadline);
-	if (!error.ok()) error = CoreIoError(error, "input");
-	log_.Write({"launch", launch.system, observed, "input-neutral", error});
-	if (!error.ok()) return {error, true, observed};
-
-	const CoreDriverResult started = mister_driver_.Start(driver_context,
-		post_video_deadline);
-	error = started.error;
-	if (!error.ok()) error = CoreIoError(error, "transport");
-	log_.Write({"launch", launch.system, observed, "release", error});
-	if (!error.ok()) return {error, true, observed};
-
-	error = input_.Start(generation,
-		[this](std::uint64_t reported_generation, Error fault) {
-			ForwardInputFault(reported_generation, std::move(fault));
-		});
-	if (!error.ok()) error = CoreIoError(error, "input");
-	log_.Write({"launch", launch.system, observed, "input", error});
-	if (!error.ok()) return {error, true, observed};
-	save_ = std::move(artifacts.save);
-	snapshot_.clear();
-	save_flushed_ = false;
-	active_driver_ = &mister_driver_;
-	active_package_.reset();
-	active_context_ = driver_context;
-	active_context_.mister_recipe = nullptr;
-	active_input_recipe_ = launch.input;
-	has_active_input_recipe_ = true;
-	return {{}, true, observed};
-}
-
-HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
-	std::uint64_t generation)
-{
-	return LoadDevelopmentRBF(rbf, ProgrammingProfile::mister_v1, generation);
-}
-
-HardwareResult NativeHardware::LoadContainedDevelopmentRBF(
-	const std::string& rbf, std::uint64_t generation)
-{
-	return LoadDevelopmentRBF(rbf,
-		ProgrammingProfile::development_contained_v1, generation);
-}
-
-HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
-	ProgrammingProfile profile, std::uint64_t generation)
-{
-	if (profile == ProgrammingProfile::fes_gp_v1)
-		return {{ErrorCode::unsupported_programming_profile,
-			"raw FES GP loading requires a described package", "compatibility"},
-			false, ""};
+	const auto profile = ProgrammingProfile::development_contained_v1;
 	Artifact artifact;
 	Error error = OpenRBFArtifact(rbf, opener_, &artifact);
 	log_.Write({"load_development_rbf", "", "", "preflight", error});
@@ -1110,10 +872,6 @@ HardwareResult NativeHardware::LoadDevelopmentRBF(const std::string& rbf,
 			true, ""};
 	CoreDriverContext context;
 	context.generation = generation;
-	if (profile == ProgrammingProfile::mister_v1) {
-		error = core_.Synchronize(Deadline(clock_, timeouts_.core_io_ms));
-		if (!error.ok()) return {CoreIoError(error, "transport"), true, ""};
-	}
 	CoreDriverResult identified = driver->Identify(context,
 		Deadline(clock_, timeouts_.core_io_ms));
 	ObserveIdentify(context.expected_core, identified);

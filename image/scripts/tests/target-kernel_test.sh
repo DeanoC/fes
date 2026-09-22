@@ -28,6 +28,10 @@ if grep -Fq 'LOCALVERSION=' "$build_script"; then
   exit 1
 fi
 
+grep -Fq 'work-2-native-dev/host' "$build_script"
+grep -Fq 'target-kernel: target-image-native' "$repo/Makefile"
+! grep -Fq 'work-2-prod' "$build_script"
+
 fake_build=$fixture/fake-kernel-build
 cat > "$fake_build" <<'EOF'
 #!/bin/sh

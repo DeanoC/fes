@@ -160,3 +160,16 @@ func validABIConstantName(value string) bool {
 	}
 	return true
 }
+func validIdentifier(value string) bool {
+	if value == "" || len(value) > 32 {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		b := value[i]
+		if (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}

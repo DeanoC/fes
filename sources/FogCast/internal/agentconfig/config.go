@@ -1,10 +1,12 @@
 package agentconfig
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -17,11 +19,6 @@ type Config struct {
 	TargetID           string
 	ListenAddress      string
 	Token              string
-	MiSTerProcessComm  string
-	CommandPipe        string
-	CoreNameFile       string
-	MenuRBF            string
-	MGLDirectory       string
 	CacheMaxBytes      int64
 	InputListenAddress string
 	InputUInputPath    string
@@ -39,11 +36,6 @@ type fileConfig struct {
 	TargetID           string `toml:"target_id"`
 	ListenAddress      string `toml:"listen_address"`
 	Token              string `toml:"token"`
-	MiSTerProcessComm  string `toml:"mister_process_comm"`
-	CommandPipe        string `toml:"command_pipe"`
-	CoreNameFile       string `toml:"core_name_file"`
-	MenuRBF            string `toml:"menu_rbf"`
-	MGLDirectory       string `toml:"mgl_directory"`
 	CacheMaxBytes      *int64 `toml:"cache_max_bytes"`
 	InputListenAddress string `toml:"input_listen_address"`
 	InputUInputPath    string `toml:"input_uinput_path"`
@@ -57,6 +49,23 @@ type fileConfig struct {
 	CastGeneration     uint64 `toml:"cast_generation"`
 }
 
+// retiredSettingsError contains only allowlisted public setting names, never
+// parser diagnostics, values, or filesystem paths.
+type retiredSettingsError struct{ keys []string }
+
+func (e *retiredSettingsError) Error() string {
+	return "remove retired Main settings from the agent configuration: " + strings.Join(e.keys, ", ") + "; FES packages use the native runtime"
+}
+
+// RetiredSettingsMessage exposes only the safe actionable migration error.
+func RetiredSettingsMessage(err error) (string, bool) {
+	var retired *retiredSettingsError
+	if errors.As(err, &retired) {
+		return retired.Error(), true
+	}
+	return "", false
+}
+
 func Load(path string) (Config, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -67,6 +76,28 @@ func Load(path string) (Config, error) {
 	decoder := toml.NewDecoder(f)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&raw); err != nil {
+		var unknown *toml.StrictMissingError
+		if errors.As(err, &unknown) {
+			keys := map[string]bool{}
+			for _, field := range unknown.Errors {
+				key := field.Key()
+				if len(key) != 1 {
+					continue
+				}
+				switch key[0] {
+				case "mister_process_comm", "command_pipe", "core_name_file", "menu_rbf", "mgl_directory":
+					keys[key[0]] = true
+				}
+			}
+			if len(keys) != 0 {
+				names := make([]string, 0, len(keys))
+				for key := range keys {
+					names = append(names, key)
+				}
+				sort.Strings(names)
+				return Config{}, &retiredSettingsError{keys: names}
+			}
+		}
 		return Config{}, fmt.Errorf("decode target config: %w", err)
 	}
 	cacheMaxBytes := DefaultCacheMaxBytes
@@ -77,11 +108,6 @@ func Load(path string) (Config, error) {
 		TargetID:           raw.TargetID,
 		ListenAddress:      raw.ListenAddress,
 		Token:              raw.Token,
-		MiSTerProcessComm:  raw.MiSTerProcessComm,
-		CommandPipe:        raw.CommandPipe,
-		CoreNameFile:       raw.CoreNameFile,
-		MenuRBF:            raw.MenuRBF,
-		MGLDirectory:       raw.MGLDirectory,
 		CacheMaxBytes:      cacheMaxBytes,
 		InputListenAddress: raw.InputListenAddress,
 		InputUInputPath:    raw.InputUInputPath,
@@ -130,18 +156,8 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("listen_address: %w", err)
 	}
-	if strings.TrimSpace(cfg.Token) == "" || strings.TrimSpace(cfg.MiSTerProcessComm) == "" {
-		return Config{}, fmt.Errorf("token and mister_process_comm must not be empty")
-	}
-	for name, value := range map[string]string{
-		"command_pipe":   cfg.CommandPipe,
-		"core_name_file": cfg.CoreNameFile,
-		"menu_rbf":       cfg.MenuRBF,
-		"mgl_directory":  cfg.MGLDirectory,
-	} {
-		if !filepath.IsAbs(value) {
-			return Config{}, fmt.Errorf("%s must be absolute", name)
-		}
+	if strings.TrimSpace(cfg.Token) == "" {
+		return Config{}, fmt.Errorf("token must not be empty")
 	}
 	return cfg, nil
 }

@@ -26,11 +26,11 @@ case "${1:-start}" in
       printf '%s\n' 'mister-agent: writable FAT configuration did not appear within 30 seconds' >&2
       exit 1
     fi
-    /bin/mkdir -p /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
-    /bin/chmod 0700 /media/fat/fogcast/cache /media/fat/fogcast/cache/megadrive /media/fat/fogcast/cache/snes
+    /bin/mkdir -p /media/fat/fogcast/cache
+    /bin/chmod 0700 /media/fat/fogcast/cache
 
     /usr/sbin/mister-supervise mister-agent /usr/sbin/mister-agent \
-      --config /media/fat/fogcast/agent.toml --runtime native &
+      --config /media/fat/fogcast/agent.toml &
     printf '%s\n' "$!" > /run/mister-agent-supervisor.pid
     ;;
   stop)

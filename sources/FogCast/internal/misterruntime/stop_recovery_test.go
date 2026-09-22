@@ -18,10 +18,10 @@ func TestLostStopResponseObservesOutcomeWithoutReplay(t *testing.T) {
 	save := runtimeResponse("running_game", "game")
 	system, core := "snes", "SNES"
 	save.System, save.Core, save.OK = &system, &core, false
-	save.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "private save detail"}
+	save.Error = &misterruntime.Protocol2Error{Code: "save_failed", Message: "private save detail"}
 	for _, tc := range []struct {
 		name     string
-		status   misterruntime.Response
+		status   misterruntime.Protocol2Response
 		code     protocol.ErrorCode
 		recovery string
 	}{
@@ -30,10 +30,10 @@ func TestLostStopResponseObservesOutcomeWithoutReplay(t *testing.T) {
 		{name: "malformed idle", status: malformed, code: protocol.CodeMiSTerUnavailable},
 		{name: "retained idle error", status: retainedErrorIdleResponse(), code: protocol.CodeMiSTerUnavailable},
 		{name: "reboot required", status: runtimeResponse("reboot_required", "none"), recovery: protocol.RecoveryRebootRequired},
-		{name: "save failure", status: save, code: protocol.CodeInternal},
+		{name: "save failure", status: save, code: protocol.CodeSaveFailed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			control := &recordingControl{stopErr: io.EOF, statuses: []misterruntime.Response{tc.status}}
+			control := &recordingControl{stopErr: io.EOF, statuses: []misterruntime.Protocol2Response{tc.status}}
 			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
 			_, recovery, apiErr := runtime.StopOwnedWithRecovery(context.Background(), context.Background())
 			if recovery != tc.recovery || (tc.code == "" && apiErr != nil) || (tc.code != "" && (apiErr == nil || apiErr.Code != tc.code)) {
@@ -108,12 +108,12 @@ type waitingStopObservation struct {
 	deadline chan bool
 }
 
-func (c *waitingStopObservation) Status(ctx context.Context) (misterruntime.Response, error) {
+func (c *waitingStopObservation) Protocol2Status(ctx context.Context) (misterruntime.Protocol2Response, error) {
 	_, bounded := ctx.Deadline()
 	c.deadline <- bounded
 	close(c.started)
 	<-ctx.Done()
-	return misterruntime.Response{}, ctx.Err()
+	return misterruntime.Protocol2Response{}, ctx.Err()
 }
 
 func TestLostStopObservationIsBoundedAndCancelable(t *testing.T) {
@@ -154,10 +154,10 @@ func TestLostStopObservationIsBoundedAndCancelable(t *testing.T) {
 
 func TestConfirmIdleRejectsUnsafeObservations(t *testing.T) {
 	save := retainedErrorIdleResponse()
-	save.Error = &misterruntime.RemoteError{Code: "save_failed", Message: "save retained"}
+	save.Error = &misterruntime.Protocol2Error{Code: "save_failed", Message: "save retained"}
 	for _, tc := range []struct {
 		name     string
-		response misterruntime.Response
+		response misterruntime.Protocol2Response
 		want     bool
 	}{
 		{"clean idle", runtimeResponse("idle", "none"), true},
@@ -168,7 +168,7 @@ func TestConfirmIdleRejectsUnsafeObservations(t *testing.T) {
 		{"reboot required", runtimeResponse("reboot_required", "none"), false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			control := &recordingControl{statuses: []misterruntime.Response{tc.response}}
+			control := &recordingControl{statuses: []misterruntime.Protocol2Response{tc.response}}
 			runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
 			if got := runtime.ConfirmIdle(context.Background()); got != tc.want {
 				t.Fatalf("ConfirmIdle=%v want %v", got, tc.want)

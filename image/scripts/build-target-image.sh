@@ -29,7 +29,7 @@ selected_package_cores() {
 }
 
 usage() {
-  printf 'usage: build-target-image.sh prod|dev|native-dev|--fast-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fast-dev OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -51,7 +51,7 @@ validate_inside_paths() {
 
 validate_variant() {
   case "$1" in
-    prod|dev|native-dev) : ;;
+    native-dev) : ;;
     *) usage ;;
   esac
 }
@@ -59,7 +59,6 @@ validate_variant() {
 defconfig_for() {
   case "$1" in
     native-dev) printf '%s\n' fogcast_target_native_dev_defconfig ;;
-    prod|dev) printf 'fogcast_target_%s_defconfig\n' "$1" ;;
   esac
 }
 
@@ -184,61 +183,6 @@ inside_build() {
   /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export"
 }
 
-inside_fast_dev_build() {
-  inside_output=$1
-  inside_epoch=$2
-  inside_export=$3
-  test "$inside_output" = /target-image-output/dev-work-dev || {
-    printf 'build-target-image: unsafe fast-development output path: %s\n' "$inside_output" >&2
-    exit 2
-  }
-  test "$inside_export" = /work/build/output/target-image/dev/linux.img || {
-    printf 'build-target-image: unsafe fast-development export path: %s\n' "$inside_export" >&2
-    exit 2
-  }
-  test "$inside_epoch" = "$epoch"
-  test "$(/usr/bin/id -u)" -ne 0 || {
-    printf '%s\n' 'build-target-image: refusing to run Buildroot as root' >&2
-    exit 1
-  }
-
-  /work/scripts/verify-target-image-source-cache.sh \
-    /work/build/target-image.sources.lock.toml \
-    /work/build/cache/target-image
-  /work/bin/target-image-lock-linux-amd64 verify-inputs \
-    --lock /work/build/target-image.sources.lock.toml \
-    --cache /work/build/cache/target-image
-
-  dev_config=/work/buildroot/configs/fogcast_target_dev_defconfig
-  dev_config_sha=$(sha256sum "$dev_config" | awk '{print $1}')
-  dev_fingerprint="$inside_output/.fogcast-dev-defconfig.sha256"
-  stored_dev_config_sha=
-  if [ -f "$dev_fingerprint" ]; then
-    stored_dev_config_sha=$(tr -d '[:space:]' < "$dev_fingerprint")
-  fi
-  if [ "$stored_dev_config_sha" != "$dev_config_sha" ]; then
-		cleanup_inside_output "$inside_output"
-  fi
-
-  export SOURCE_DATE_EPOCH=$inside_epoch
-  export E2FSPROGS_FAKE_TIME=$inside_epoch
-  make -C /work/build/cache/target-image/buildroot \
-    O="$inside_output" \
-    BR2_EXTERNAL=/work/buildroot \
-    BR2_DL_DIR=/work/build/cache/target-image/dl \
-    fogcast_target_dev_defconfig
-  make -C /work/build/cache/target-image/buildroot \
-    O="$inside_output" \
-    BR2_EXTERNAL=/work/buildroot \
-    BR2_DL_DIR=/work/build/cache/target-image/dl
-  test -f "$inside_output/images/rootfs.ext4"
-  printf '%s\n' "$dev_config_sha" > "$dev_fingerprint.new.$$"
-  /bin/mv "$dev_fingerprint.new.$$" "$dev_fingerprint"
-  /bin/mkdir -p "$(dirname "$inside_export")"
-  /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export.new.$$"
-  /bin/mv "$inside_export.new.$$" "$inside_export"
-}
-
 promote_existing=0
 case "${1:-}" in
   --cleanup-inside-output)
@@ -268,11 +212,6 @@ case "${1:-}" in
     inside_build "$2" "$3" "$4" build "$5"
     exit
     ;;
-  --inside-fast-dev)
-    [ "$#" -eq 4 ] || usage
-    inside_fast_dev_build "$2" "$3" "$4"
-    exit
-    ;;
   --inside-fetch)
     [ "$#" -eq 4 ] || usage
     inside_build "$2" "$3" "$4" fetch
@@ -287,54 +226,7 @@ case "${1:-}" in
       /work/scripts/build-target-image.sh --inside-fetch "$variant" "$output" "$epoch"
     exit
     ;;
-  --fast-dev)
-    [ "$#" -eq 1 ] || usage
-    output_root=${TARGET_IMAGE_OUTPUT_ROOT:-$repo/build/output/target-image}
-    if [ "${TARGET_IMAGE_TEST_MODE:-0}" != 1 ]; then
-      test "$output_root" = "$repo/build/output/target-image" || {
-        printf '%s\n' 'build-target-image: output override requires TARGET_IMAGE_TEST_MODE=1' >&2
-        exit 2
-      }
-    fi
-    case "$output_root" in
-      /*) : ;;
-      *)
-        printf '%s\n' 'build-target-image: output root must be absolute' >&2
-        exit 2
-        ;;
-    esac
-    /bin/mkdir -p "$output_root"
-    if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
-      dev_work=$output_root/dev-work-dev
-      dev_config="$repo/buildroot/configs/fogcast_target_dev_defconfig"
-      dev_config_sha=$(/usr/bin/shasum -a 256 "$dev_config" | /usr/bin/awk '{print $1}')
-      dev_fingerprint=$dev_work/.fogcast-dev-defconfig.sha256
-      stored_dev_config_sha=
-      if [ -f "$dev_fingerprint" ]; then
-        stored_dev_config_sha=$(tr -d '[:space:]' < "$dev_fingerprint")
-      fi
-      if [ "$stored_dev_config_sha" != "$dev_config_sha" ]; then
-        /bin/rm -rf "$dev_work"
-      fi
-      "$TARGET_IMAGE_BUILD_ONCE" dev "$dev_work" "$epoch"
-      test -f "$dev_work/images/rootfs.ext4"
-      /bin/mkdir -p "$dev_work"
-      printf '%s\n' "$dev_config_sha" > "$dev_fingerprint.new.$$"
-      /bin/mv "$dev_fingerprint.new.$$" "$dev_fingerprint"
-      /bin/mkdir -p "$output_root/dev"
-      /bin/cp "$dev_work/images/rootfs.ext4" "$output_root/dev/linux.img.new.$$"
-      /bin/mv "$output_root/dev/linux.img.new.$$" "$output_root/dev/linux.img"
-    else
-      LIBMISTER_RUNTIME_DIR= exec "$repo/scripts/target-image-container.sh" run \
-        /work/scripts/build-target-image.sh --inside-fast-dev \
-        /target-image-output/dev-work-dev "$epoch" \
-        /work/build/output/target-image/dev/linux.img
-    fi
-    printf 'target image fast development image: %s\n' \
-      "$(/usr/bin/shasum -a 256 "$output_root/dev/linux.img" | /usr/bin/awk '{print $1}')"
-    exit
-    ;;
-  prod|dev|native-dev)
+  native-dev)
     [ "$#" -eq 1 ] || usage
     variant=$1
     ;;

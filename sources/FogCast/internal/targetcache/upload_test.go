@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/core"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -811,7 +810,7 @@ func openUploadManager(t *testing.T, config targetcache.Config, options ...targe
 	options = append([]targetcache.Option{
 		targetcache.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 	}, options...)
-	manager, err := targetcache.Open(config, core.DefaultRegistry(), options...)
+	manager, err := targetcache.Open(config, options...)
 	if err != nil {
 		t.Fatalf("Open target cache: %v", err)
 	}

@@ -42,19 +42,12 @@ The compilers are not expected to produce byte-identical RBFs. Comparison
 checks the selected experiment, target, source identity, resources, timing,
 and successful artifact generation.
 
-Rebuild a fetched core with the same Quartus install:
+Normal FES package production uses the authenticated functional-identity-2
+HIP/nextpnr recipes. There is no fetched Mega Drive rebuild, raw-core selector
+or upstream-RBF fallback. Historical oracle comparisons remain evidence for
+the artifacts they named, not a supported product build path.
 
-```sh
-export QUARTUS_ROOTDIR=/path/to/17.0/quartus
-make fetch-core CORE=megadrive
-make rebuild-core CORE=megadrive
-```
-
-That compile runs in `build/rebuild/megadrive/project/`, never in the fetch
-checkout. The staged `sys/build_id.tcl` honors `MISTER_BUILD_DATE`, defaulting
-to `260603` from `releases/MegaDrive_20260603.rbf` (`--build-date` overrides).
-The rebuild is a second artifact beside the locked upstream RBF. They are not
-required to bit-match; Lite Edition cannot reproduce a Standard Edition
-bitstream. The Lite Mega Drive rebuild has been loaded on real MiSTer
-hardware. `make select-core` selects that rebuild;
-`ARTIFACT=upstream` falls back to the official release.
+Explicit FES Quartus recipes remain bring-up/oracle checks where documented.
+They do not replace a failed normal package producer or become launch inputs
+automatically. The splash/idle firmware seal retains its separate diagnostic
+record schema and build policy.

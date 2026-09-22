@@ -53,12 +53,6 @@ type CacheUploadResponse struct {
 	Content ContentIdentity   `json:"content"`
 }
 
-type CachedLaunchRequest struct {
-	GameID  string          `json:"game_id"`
-	System  System          `json:"system"`
-	Content ContentIdentity `json:"content"`
-}
-
 type CachedLaunchResponse struct {
 	Status  Status          `json:"status"`
 	Content ContentIdentity `json:"content"`

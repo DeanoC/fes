@@ -49,7 +49,6 @@ func (s *Service) refreshTargetConnectionWithBackoff(ctx context.Context, respec
 	defer s.targetMu.Unlock()
 	name := s.sessionTargetNameLocked()
 	selected := targetByName(s.targets, name)
-	defer func() { s.rememberNativeAvailability(selected, result, resultErr) }()
 	client, ok := s.selectedClientLocked()
 	concrete, realClient := client.(*targetclient.Client)
 	if !ok {
@@ -220,9 +219,7 @@ func (s *Service) refreshTargetAdmission(ctx context.Context) (result protocol.H
 	}
 	s.targetMu.RLock()
 	client, ok := s.selectedClientLocked()
-	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	s.targetMu.RUnlock()
-	defer func() { s.rememberNativeAvailability(selected, result, resultErr) }()
 	if !ok {
 		return protocol.Health{}, errors.New("target unavailable")
 	}
@@ -319,8 +316,8 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 // The explicit development reboot already holds lifecycle admission and the
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
+ selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	concrete, ok := client.(*targetclient.Client)
-	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	if !ok || selected.TargetID == "" {
 		return client.Health
 	}

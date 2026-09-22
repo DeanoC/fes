@@ -48,37 +48,13 @@ func TestClientHealthAuthenticatesIdentity(t *testing.T) {
 		if r.URL.Path != "/v1/health" || r.Header.Get("Authorization") != "Bearer test-token" {
 			t.Errorf("path = %q, authorization = %q", r.URL.Path, r.Header.Get("Authorization"))
 		}
-		_, _ = io.WriteString(w, `{"api_version":"v1","agent_version":"0.1.0","ready":true,"mister_process":true,"command_pipe":true}`)
+		_, _ = io.WriteString(w, `{"api_version":"v1","agent_version":"0.1.0","ready":true}`)
 	}))
 	defer server.Close()
 	baseURL, _ := url.Parse(server.URL)
 	health, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Health(context.Background())
 	if err != nil || !health.Ready {
 		t.Fatalf("health = %#v, %v", health, err)
-	}
-}
-
-func TestClientLaunchSendsJSON(t *testing.T) {
-	t.Parallel()
-	want := protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/test.sfc"}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/v1/launch" || r.Header.Get("Content-Type") != "application/json" {
-			t.Errorf("request = %s %s content-type=%q", r.Method, r.URL.Path, r.Header.Get("Content-Type"))
-		}
-		var got protocol.LaunchRequest
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Errorf("decode launch: %v", err)
-		}
-		if got != want {
-			t.Errorf("launch = %#v, want %#v", got, want)
-		}
-		_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-test","system":"snes","expected_core":"SNES","observed_core":"SNES","last_error":null}`)
-	}))
-	defer server.Close()
-	baseURL, _ := url.Parse(server.URL)
-	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), want)
-	if err != nil || status.State != protocol.StateActive {
-		t.Fatalf("status = %#v, %v", status, err)
 	}
 }
 
@@ -357,21 +333,6 @@ func TestClientDevelopmentRebootUsesAuthenticatedEmptyPost(t *testing.T) {
 	status, err := targetclient.NewClient(baseURL, "test-token", server.Client()).RebootDevelopment(context.Background())
 	if err != nil || status.State != protocol.StateIdle {
 		t.Fatalf("development reboot = %#v, %v", status, err)
-	}
-}
-
-func TestClientDecodesAPIError(t *testing.T) {
-	t.Parallel()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = io.WriteString(w, `{"error":{"code":"ROM_NOT_FOUND","message":"missing"}}`)
-	}))
-	defer server.Close()
-	baseURL, _ := url.Parse(server.URL)
-	_, err := targetclient.NewClient(baseURL, "test-token", server.Client()).Launch(context.Background(), protocol.LaunchRequest{GameID: "snes-test", System: protocol.SystemSNES, ROMPath: "/media/fat/games/SNES/test.sfc"})
-	var apiErr *protocol.APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeROMNotFound {
-		t.Fatalf("error = %#v", err)
 	}
 }
 

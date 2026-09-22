@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,24 +14,21 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/FogCast/internal/core"
+
 	"github.com/DeanoC/FogCast/internal/flightdiag"
-	"github.com/DeanoC/FogCast/internal/mister"
+
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
 const unavailableMessage = "target runtime is unavailable"
 const unsupportedOperationMessage = "requested operation is unsupported"
-const unsupportedSystemMessage = "system is unsupported by target runtime"
 
 type Runtime struct {
-	nativeCoreFS       fs.FS
 	computerMu         sync.Mutex
 	keyboardMatrix     uint64
 	keyboardPackageID  string
 	keyboardGeneration uint64
-	saveRoot           string
 	control            Control
 	bootIDFile         string
 	pollInterval       time.Duration
@@ -385,7 +382,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			apiErr.Phase = "admission"
 		}
 		if response.Error != nil && response.Error.Code == "save_failed" {
-			preserveInput = before != nil && sameProtocol2RuntimeState(*before, response) && (response.State == "running_development" || response.State == "running_game" || response.State == "idle")
+			preserveInput = before != nil && sameProtocol2RuntimeState(*before, response) && (response.State == "running_development" || response.State == "idle")
 			attempted = !preserveInput
 			if attempted {
 				apiErr.Phase = "recovery"
@@ -576,7 +573,7 @@ func (r *Runtime) cleanupCorePackages() *protocol.APIError {
 }
 
 func (r *Runtime) Health(version string) protocol.Health {
-	health := protocol.Health{APIVersion: "v1", AgentVersion: version, NativeCores: r.nativeCoreAvailability()}
+	health := protocol.Health{APIVersion: "v1", AgentVersion: version}
 	if bootID, err := os.ReadFile(r.bootIDFile); err == nil {
 		health.BootID = strings.TrimSpace(string(bootID))
 	}
@@ -587,7 +584,7 @@ func (r *Runtime) Health(version string) protocol.Health {
 }
 
 // ConfirmIdle observes physical idle for failed-launch reconciliation only.
-// Unlike legacy process health, native idle proves no game remains active.
+// Native idle proves no package or diagnostic remains active.
 func (r *Runtime) ConfirmIdle(ctx context.Context) bool {
 	response, err := r.boundedStatus(ctx)
 	return err == nil && ctx.Err() == nil && validIdle(response) &&
@@ -595,111 +592,52 @@ func (r *Runtime) ConfirmIdle(ctx context.Context) bool {
 }
 
 func (r *Runtime) StopReady() bool {
-	r.packageMu.Lock()
-	active := r.activePackage != nil
-	retired := len(r.retiredPackages) != 0
-	r.packageMu.Unlock()
-	if active || retired {
-		if control, ok := r.control.(protocol2StatusControl); ok {
-			ctx, cancel := context.WithTimeout(context.Background(), r.healthTimeout)
-			defer cancel()
-			response, err := control.Protocol2Status(ctx)
-			if active {
-				return err == nil && (response.State == "idle" || response.State == "running_development" || (response.State == "reboot_required" && response.ActivePackage != nil))
-			}
-			if err == nil && (describedPackageRuntimeState(response) || response.State == "idle") {
-				return true
-			}
-		}
-	}
 	response, err := r.boundedStatus(context.Background())
-	return err == nil && (validIdle(response) || validNativeRunning(response) || validDevelopmentRunning(response) || retryableSaveFailure(response))
+	return err == nil && (validIdle(response) || validDevelopmentRunning(response) || (response.ActivePackage != nil && describedPackageRuntimeState(response)))
 }
 
 func (r *Runtime) Reconcile(ctx context.Context) protocol.Status {
-	if control, ok := r.control.(protocol2StatusControl); ok {
-		status, fallback := r.reconcileProtocol2(ctx, control)
-		if !fallback {
-			return status
-		}
-	}
-	for {
-		response, err := r.control.Status(ctx)
-		if err == nil {
-			if validIdle(response) {
-				status := protocol.Status{State: protocol.StateIdle}
-				if response.Error != nil {
-					status.LastError = mapRemoteError(response.Error)
-				}
-				return status
-			}
-			if validDevelopmentRunning(response) {
-				status := protocol.Status{State: protocol.StateActive, Development: true}
-				if response.Core != nil {
-					observed := *response.Core
-					status.ObservedCore = &observed
-				}
-				return status
-			}
-			if response.State == "starting" && response.Execution == "development" && !validDevelopmentStarting(response) {
-				return unavailableStatus()
-			}
-			if !response.OK || response.State != "starting" {
-				return unavailableStatus()
-			}
-		} else if !errors.Is(err, errRuntimeConnection) {
-			return unavailableStatus()
-		}
-		if !waitForPoll(ctx, r.pollInterval) {
-			return unavailableStatus()
-		}
-	}
+	return r.reconcileProtocol2(ctx, r.control)
 }
 
-func (r *Runtime) reconcileProtocol2(ctx context.Context, control protocol2StatusControl) (protocol.Status, bool) {
+func (r *Runtime) reconcileProtocol2(ctx context.Context, control protocol2StatusControl) protocol.Status {
 	for {
-		response, err := control.Protocol2Status(ctx)
+		response, err := r.boundedStatus(ctx)
 		if errors.Is(err, errProtocol2Unsupported) {
-			return protocol.Status{}, true
+			return unavailableStatus()
 		}
 		if err != nil {
 			if !waitForPoll(ctx, r.pollInterval) {
-				return unavailableStatus(), false
+				return unavailableStatus()
 			}
 			continue
 		}
+		if !validProtocol2Response(response) || !response.OK && response.State != "reboot_required" && !protocol2ResumedSaveFailure(response) {
+			return unavailableStatus()
+		}
 		switch response.State {
 		case "starting":
+			if response.Error != nil {
+				return unavailableStatus()
+			}
 			if !waitForPoll(ctx, r.pollInterval) {
-				return unavailableStatus(), false
+				return unavailableStatus()
 			}
 			continue
 		case "idle":
 			status := protocol.Status{State: protocol.StateIdle}
 			status.LastError = mapOptionalProtocol2Error(response.Error)
-			return status, false
+			return status
 		case "reboot_required":
 			if response.ActivePackage != nil {
-				return r.reconcileActiveCore(response, true), false
+				return r.reconcileActiveCore(response, true)
 			}
 			apiErr := mapProtocol2Error(response.Error)
-			return protocol.Status{State: protocol.StateFailed, Recovery: protocol.RecoveryRebootRequired, LastError: apiErr}, false
-		case "running_game":
-			if response.System == nil || response.Core == nil {
-				return unavailableStatus(), false
-			}
-			spec, ok := core.DefaultRegistry().Lookup(protocol.System(*response.System))
-			if !ok || spec.ExpectedCore != *response.Core {
-				return unavailableStatus(), false
-			}
-			system, expected, observed := spec.System, spec.ExpectedCore, *response.Core
-			return protocol.Status{State: protocol.StateActive, System: &system,
-				ExpectedCore: &expected, ObservedCore: &observed,
-				LastError: mapOptionalProtocol2Error(response.Error)}, false
+			return protocol.Status{State: protocol.StateFailed, Recovery: protocol.RecoveryRebootRequired, LastError: apiErr}
 		case "running_development":
-			return r.reconcileActiveCore(response, false), false
+			return r.reconcileActiveCore(response, false)
 		default:
-			return unavailableStatus(), false
+			return unavailableStatus()
 		}
 	}
 }
@@ -743,146 +681,10 @@ func corePackageStatus(activation CoreActivation) *protocol.CorePackageStatus {
 		BuildID:     activation.Descriptor.Build.ID, ActiveInterfaces: interfaces, Gamepad: activation.Gamepad}
 }
 
-func (r *Runtime) Prepare(spec core.Spec, candidate string) (mister.PreparedLaunch, *protocol.APIError) {
-	if !validNativeSpec(spec) {
-		return mister.PreparedLaunch{}, unsupportedSystemError()
-	}
-	if !r.nativeCorePresent(spec.System) {
-		return mister.PreparedLaunch{}, missingNativeCoreError()
-	}
-	rom, apiErr := validateNativeMedia(spec, candidate)
-	if apiErr != nil {
-		return mister.PreparedLaunch{}, apiErr
-	}
-	return mister.PreparedLaunch{Spec: spec, AbsoluteROM: rom}, nil
-}
-
-func (r *Runtime) Launch(ctx context.Context, prepared mister.PreparedLaunch) (string, bool, *protocol.APIError) {
-	return r.launch(ctx, ctx, ctx, prepared, false)
-}
-
-// LaunchOwned keeps admission caller-bound, then transfers the sole dispatched
-// mutation to the agent process owner. The daemon owns its phase deadlines;
-// the separately bounded observation context limits only lost-response Status
-// observation. Process shutdown still cancels both mutation and observation.
-func (r *Runtime) LaunchOwned(admission, observation, operationOwner context.Context, prepared mister.PreparedLaunch) (string, bool, *protocol.APIError) {
-	return r.launch(admission, observation, operationOwner, prepared, true)
-}
-
-func (r *Runtime) launch(admission, observation, operationOwner context.Context, prepared mister.PreparedLaunch, owned bool) (string, bool, *protocol.APIError) {
-	if !validNativeSpec(prepared.Spec) {
-		return "", false, unsupportedSystemError()
-	}
-	if !r.nativeCorePresent(prepared.Spec.System) {
-		return "", false, missingNativeCoreError()
-	}
-	if prepared.RelativeROM != "" || len(prepared.MGL) != 0 {
-		return "", false, invalidROMPathError()
-	}
-	rom, apiErr := validateNativeMedia(prepared.Spec, prepared.AbsoluteROM)
-	if apiErr != nil || rom != prepared.AbsoluteROM {
-		if apiErr != nil {
-			return "", false, apiErr
-		}
-		return "", false, invalidROMPathError()
-	}
-	savePath, apiErr := r.prepareSavePath(admission, prepared)
-	if apiErr != nil {
-		return "", false, apiErr
-	}
-	response, err := r.boundedStatus(admission)
-	if err != nil || !validIdle(response) {
-		return "", false, unavailableError()
-	}
-	if admission.Err() != nil || observation.Err() != nil || (owned && operationOwner.Err() != nil) {
-		return "", false, unavailableError()
-	}
-	request := LaunchRequest{
-		SavePath: savePath,
-		System:   string(prepared.Spec.System),
-		RBF:      nativeRBFPath(prepared.Spec.System),
-		Media:    map[string]string{},
-		Settings: map[string]string{},
-	}
-	if prepared.Spec.System != protocol.SystemPong {
-		request.Media["cartridge"] = rom
-	}
-	launchContext := observation
-	if owned {
-		launchContext = operationOwner
-	}
-	response, err = r.control.Launch(launchContext, request)
-	r.noteDispatch("launch", err == nil)
-	if err != nil {
-		var reconciled bool
-		if owned {
-			reconciled = r.reconcileOwnedLostLaunch(observation, operationOwner, prepared.Spec)
-		} else {
-			reconciled = r.reconcileLostLaunch(admission, prepared.Spec)
-		}
-		if reconciled {
-			return prepared.Spec.ExpectedCore, true, nil
-		}
-		return "", true, unavailableError()
-	}
-	if response.Error != nil || !response.OK {
-		return "", true, mapRemoteError(response.Error)
-	}
-	if !validProfileState(response, prepared.Spec, "running_game") {
-		return "", true, unavailableError()
-	}
-	return prepared.Spec.ExpectedCore, true, nil
-}
-
-func (r *Runtime) boundedStatus(parent context.Context) (Response, error) {
+func (r *Runtime) boundedStatus(parent context.Context) (Protocol2Response, error) {
 	ctx, cancel := context.WithTimeout(parent, r.healthTimeout)
 	defer cancel()
-	return r.control.Status(ctx)
-}
-
-func (r *Runtime) reconcileLostLaunch(parent context.Context, spec core.Spec) bool {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), r.healthTimeout)
-	defer cancel()
-	reconciled, _ := r.reconcileLostLaunchWithin(ctx, spec)
-	return reconciled
-}
-
-func (r *Runtime) reconcileOwnedLostLaunch(observation, operationOwner context.Context, spec core.Spec) bool {
-	if operationOwner.Err() != nil {
-		return false
-	}
-	if !contextExhausted(observation) {
-		if reconciled, exhausted := r.reconcileLostLaunchWithin(observation, spec); reconciled {
-			return true
-		} else if !exhausted {
-			return false
-		}
-	}
-	if operationOwner.Err() != nil {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(operationOwner, r.healthTimeout)
-	defer cancel()
-	reconciled, _ := r.reconcileLostLaunchWithin(ctx, spec)
-	return reconciled
-}
-
-func (r *Runtime) reconcileLostLaunchWithin(ctx context.Context, spec core.Spec) (reconciled, exhausted bool) {
-	for {
-		response, err := r.control.Status(ctx)
-		if err != nil {
-			return false, contextExhausted(ctx)
-		}
-		if validProfileState(response, spec, "running_game") {
-			return true, false
-		}
-		if !validIdle(response) && !validProfileState(response, spec, "starting") {
-			return false, false
-		}
-		if !waitForPoll(ctx, r.pollInterval) {
-			return false, true
-		}
-	}
+	return r.control.Protocol2Status(ctx)
 }
 
 func contextExhausted(ctx context.Context) bool {
@@ -922,7 +724,7 @@ func (r *Runtime) loadDevelopmentRBF(admission, observation, operationOwner cont
 	if admission.Err() != nil {
 		return "", "", false, unavailableError()
 	}
-	if err := mister.WriteAtomicDevelopmentRBF(r.developmentRBFPath, size, &contextReader{ctx: admission, reader: content}); err != nil {
+	if err := writeAtomicDevelopmentRBF(r.developmentRBFPath, size, &contextReader{ctx: admission, reader: content}); err != nil {
 		if admission.Err() != nil {
 			return "", "", false, unavailableError()
 		}
@@ -940,9 +742,13 @@ func (r *Runtime) loadDevelopmentRBF(admission, observation, operationOwner cont
 	if owned {
 		dispatchContext = operationOwner
 	}
-	response, err = r.control.LoadDevelopmentRBF(dispatchContext, r.developmentRBFPath)
+	response, err = r.control.Protocol2LoadDevelopmentRBF(dispatchContext, r.developmentRBFPath)
 	r.noteDispatch("development_rbf", err == nil)
 	if err != nil {
+		var mutation protocol2MutationError
+		if errors.As(err, &mutation) && !mutation.attempted {
+			return "", "", false, unavailableError()
+		}
 		if owned {
 			observed, attempted, apiErr := r.reconcileOwnedLostDevelopment(observation, operationOwner)
 			return observed, "", attempted, apiErr
@@ -956,10 +762,10 @@ func (r *Runtime) loadDevelopmentRBF(admission, observation, operationOwner cont
 		return developmentObservation(response), "", true, nil
 	}
 	if rebootRequiredResponse(response) {
-		return "", protocol.RecoveryRebootRequired, true, mapRemoteError(response.Error)
+		return "", protocol.RecoveryRebootRequired, true, mapProtocol2Error(response.Error)
 	}
 	if response.Error != nil || !response.OK {
-		return "", "", true, mapRemoteError(response.Error)
+		return "", "", true, mapProtocol2Error(response.Error)
 	}
 	if validDevelopmentStarting(response) || validCleanIdle(response) {
 		if owned {
@@ -1009,7 +815,7 @@ func (r *Runtime) reconcileLostDevelopmentWithin(ctx context.Context) (string, b
 
 func (r *Runtime) observeLostDevelopment(ctx context.Context) (observed string, attempted bool, apiErr *protocol.APIError, exhausted bool) {
 	for {
-		response, err := r.control.Status(ctx)
+		response, err := r.control.Protocol2Status(ctx)
 		if err != nil {
 			return "", true, unavailableError(), contextExhausted(ctx)
 		}
@@ -1017,7 +823,7 @@ func (r *Runtime) observeLostDevelopment(ctx context.Context) (observed string, 
 			return developmentObservation(response), true, nil, false
 		}
 		if validIdle(response) && response.Error != nil {
-			return "", true, mapRemoteError(response.Error), false
+			return "", true, mapProtocol2Error(response.Error), false
 		}
 		if !(validDevelopmentStarting(response) || validCleanIdle(response)) {
 			return "", true, unavailableError(), false
@@ -1069,57 +875,18 @@ func (r *Runtime) stop(admission, operation context.Context, owned bool) (string
 }
 
 func (r *Runtime) stopWithRecovery(admission, operation context.Context, owned bool) (string, string, *protocol.APIError) {
-	ctx := admission
-	if owned {
-		if admission.Err() != nil || operation.Err() != nil {
-			return "", "", unavailableError()
-		}
-		ctx = operation
-	}
-	if control, ok := r.control.(protocol2StopControl); ok && r.shouldStopDescribedPackage(ctx) {
-		return r.stopCorePackage(ctx, control)
-	}
-	response, err := r.control.Stop(ctx)
-	r.noteDispatch("stop", err == nil)
-	if err != nil {
-		// The mutation may have completed before its reply was lost. Observe
-		// once under the remaining operation budget; never replay Stop.
-		if ctx.Err() != nil {
-			return "", "", unavailableError()
-		}
-		response, err = r.boundedStatus(ctx)
-		if err != nil || ctx.Err() != nil {
-			return "", "", unavailableError()
-		}
-		if !validCleanIdle(response) && !rebootRequiredResponse(response) && !retryableSaveFailure(response) {
-			return "", "", unavailableError()
-		}
-	}
-	if err == nil && rebootRequiredResponse(response) {
-		return "", protocol.RecoveryRebootRequired, nil
-	}
-	if err == nil && response.Error != nil {
-		if response.Error.Code == "save_failed" {
-			r.packageMu.Lock()
-			custom := r.activePackage != nil
-			r.packageMu.Unlock()
-			if custom {
-				return "", "", mapProtocol2Error(&Protocol2Error{Code: "save_failed", Phase: "save"})
-			}
-		}
-		return "", "", mapRemoteError(response.Error)
-	}
-	if err != nil || !validCleanIdle(response) {
+	if admission.Err() != nil || (owned && operation.Err() != nil) {
 		return "", "", unavailableError()
 	}
-	if apiErr := r.cleanupCorePackages(); apiErr != nil {
-		return "", "", apiErr
+	ctx := admission
+	if owned {
+		ctx = operation
 	}
-	return "", "", nil
+	return r.stopCorePackage(ctx, r.control)
 }
 
-func rebootRequiredResponse(response Response) bool {
-	return response.Protocol == 1 && !response.OK && response.State == "reboot_required" &&
+func rebootRequiredResponse(response Protocol2Response) bool {
+	return response.Protocol == 2 && !response.OK && response.State == "reboot_required" &&
 		response.Execution == "none" && response.System == nil && response.Core == nil &&
 		response.Error != nil && response.Error.Code == "idle_failed"
 }
@@ -1147,104 +914,31 @@ func unsupportedOperationError() *protocol.APIError {
 	return &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: unsupportedOperationMessage}
 }
 
-func unsupportedSystemError() *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeUnsupportedSystem, Message: unsupportedSystemMessage}
-}
-
-func invalidROMPathError() *protocol.APIError {
-	return &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "ROM path is invalid for native cartridge launch"}
-}
-
-func validNativeSpec(spec core.Spec) bool {
-	if nativeRBFPath(spec.System) == "" {
-		return false
-	}
-	registered, ok := core.DefaultRegistry().Lookup(spec.System)
-	return ok && spec.System == registered.System && spec.ExpectedCore == registered.ExpectedCore
-}
-
-func validateNativeROM(system protocol.System, candidate string) (string, *protocol.APIError) {
-	if strings.IndexByte(candidate, 0) >= 0 || !filepath.IsAbs(candidate) || filepath.Clean(candidate) != candidate {
-		return "", invalidROMPathError()
-	}
-	resolved, err := filepath.EvalSymlinks(candidate)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "ROM does not exist on the target"}
-		}
-		return "", invalidROMPathError()
-	}
-	info, err := os.Stat(resolved)
-	if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
-		return "", &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "ROM does not identify a non-empty regular file"}
-	}
-	extension := strings.ToLower(filepath.Ext(resolved))
-	switch system {
-	case protocol.SystemMegaDrive:
-		if extension == ".md" || extension == ".gen" || extension == ".bin" {
-			return resolved, nil
-		}
-	case protocol.SystemSNES:
-		if extension == ".sfc" || extension == ".smc" || extension == ".bin" {
-			return resolved, nil
-		}
-	case protocol.SystemNES:
-		if extension == ".nes" {
-			return resolved, nil
-		}
-	}
-	return "", invalidROMPathError()
-}
-
-func validProfileState(response Response, spec core.Spec, state string) bool {
-	return response.Protocol == 1 && response.OK && response.Error == nil &&
-		response.State == state && response.Execution == "game" &&
-		response.System != nil && *response.System == string(spec.System) &&
-		response.Core != nil && *response.Core == spec.ExpectedCore
-}
-
-func validNativeRunning(response Response) bool {
-	if response.System == nil {
-		return false
-	}
-	spec, ok := core.DefaultRegistry().Lookup(protocol.System(*response.System))
-	return ok && validNativeSpec(spec) && validProfileState(response, spec, "running_game")
-}
-
-func validateNativeMedia(spec core.Spec, candidate string) (string, *protocol.APIError) {
-	if spec.System == protocol.SystemPong {
-		if candidate != "" {
-			return "", &protocol.APIError{Code: protocol.CodeInvalidROMPath, Message: "Pong does not accept media"}
-		}
-		return "", nil
-	}
-	return validateNativeROM(spec.System, candidate)
-}
-
-func validIdle(response Response) bool {
-	return response.Protocol == 1 && response.OK &&
-		(response.Error == nil || validErrorCode(response.Error.Code)) &&
+func validIdle(response Protocol2Response) bool {
+	return response.Protocol == 2 && response.OK &&
+		(response.Error == nil || validProtocol2Error(*response.Error)) &&
 		response.State == "idle" && response.Execution == "none" &&
-		response.System == nil && response.Core == nil
+		response.System == nil && response.Core == nil && response.ActivePackage == nil && response.Generation == nil
 }
 
-func validDevelopmentStarting(response Response) bool {
-	return response.Protocol == 1 && response.OK && response.Error == nil &&
+func validDevelopmentStarting(response Protocol2Response) bool {
+	return response.Protocol == 2 && response.OK && response.Error == nil &&
 		response.State == "starting" && response.Execution == "development" &&
 		response.System == nil && response.Core == nil
 }
 
-func validDevelopmentRunning(response Response) bool {
-	return response.Protocol == 1 && response.OK && response.Error == nil &&
+func validDevelopmentRunning(response Protocol2Response) bool {
+	return response.Protocol == 2 && response.OK && response.Error == nil &&
 		response.State == "running_development" && response.Execution == "development" &&
-		response.System == nil && (response.Core == nil || *response.Core != "")
+		response.System == nil && response.Core == nil && response.ActivePackage == nil &&
+		response.Generation != nil && *response.Generation > 0 && len(response.Capabilities.ActiveInterfaces) == 0
 }
 
-func validCleanIdle(response Response) bool {
+func validCleanIdle(response Protocol2Response) bool {
 	return validIdle(response) && response.Error == nil
 }
 
-func developmentObservation(response Response) string {
+func developmentObservation(response Protocol2Response) string {
 	if response.Core == nil {
 		return ""
 	}
@@ -1254,30 +948,6 @@ func developmentObservation(response Response) string {
 func validDevelopmentRBFPath(path string) bool {
 	return path != "" && len(path) <= 4095 && strings.IndexByte(path, 0) < 0 &&
 		filepath.IsAbs(path) && filepath.Clean(path) == path
-}
-
-func mapRemoteError(remote *RemoteError) *protocol.APIError {
-	if remote == nil {
-		return unavailableError()
-	}
-	switch remote.Code {
-	case "invalid_request":
-		return &protocol.APIError{Code: protocol.CodeBadRequest, Message: "target runtime rejected the launch request"}
-	case "unknown_system":
-		return unsupportedSystemError()
-	case "missing_media":
-		return &protocol.APIError{Code: protocol.CodeROMNotFound, Message: "target runtime could not open the cartridge"}
-	case "busy":
-		return &protocol.APIError{Code: protocol.CodeBusy, Message: "target runtime is busy"}
-	case "save_failed":
-		return &protocol.APIError{Code: protocol.CodeInternal, Message: "SNES save could not be written; retry Stop before leaving the game"}
-	case "core_mismatch":
-		return &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "target runtime observed an unexpected core"}
-	case "unsupported_protocol", "program_failed", "io_failed", "idle_failed":
-		return unavailableError()
-	default:
-		return unavailableError()
-	}
 }
 
 func mapProtocol2Error(remote *Protocol2Error) *protocol.APIError {
@@ -1329,6 +999,8 @@ func mapProtocol2Error(remote *Protocol2Error) *protocol.APIError {
 		result.Code = protocol.CodeUnrecognizedCore
 	default:
 		result.Code = protocol.CodeMiSTerUnavailable
+		result.Message = "target runtime is unavailable"
+		result.Expected, result.Observed = "", ""
 	}
 	return result
 }

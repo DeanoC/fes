@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeanoC/FogCast/internal/core"
+	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/protocol"
 	"golang.org/x/sys/unix"
 )
@@ -147,7 +147,7 @@ type Manager struct {
 	nextIntentID  uint64
 }
 
-func Open(config Config, registry core.Registry, options ...Option) (*Manager, error) {
+func Open(config Config, options ...Option) (*Manager, error) {
 	if err := validateConfig(config); err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func Open(config Config, registry core.Registry, options ...Option) (*Manager, e
 		root:        resolvedRoot,
 		rootInfo:    boundRootInfo,
 		rootHandle:  rootHandle,
-		extensions:  cloneRegisteredExtensions(registry),
+		extensions:  cloneRegisteredExtensions(),
 		directories: make(map[protocol.System]systemDirectory),
 		openFile:    settings.openFile,
 		logger:      settings.logger,
@@ -248,17 +248,15 @@ func prepareRoot(configured string) (string, os.FileInfo, error) {
 	return filepath.Clean(resolved), info, nil
 }
 
-func cloneRegisteredExtensions(registry core.Registry) map[protocol.System]map[string]struct{} {
-	specs := registry.Specs()
-	result := make(map[protocol.System]map[string]struct{}, len(specs))
-	for _, spec := range specs {
-		allowed := make(map[string]struct{}, len(spec.Extensions))
-		for extension := range spec.Extensions {
-			allowed[extension] = struct{}{}
-		}
-		result[spec.System] = allowed
-	}
-	return result
+func cloneRegisteredExtensions() map[protocol.System]map[string]struct{} {
+ result := make(map[protocol.System]map[string]struct{})
+ for _, row := range systems.Rows() {
+  if len(row.Extensions) == 0 { continue }
+  allowed := make(map[string]struct{}, len(row.Extensions))
+  for _, extension := range row.Extensions { allowed[extension] = struct{}{} }
+  result[row.PlatformID] = allowed
+ }
+ return result
 }
 
 func registeredSystems(extensions map[protocol.System]map[string]struct{}) []protocol.System {
