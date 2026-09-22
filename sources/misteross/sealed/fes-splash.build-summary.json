@@ -1,25 +1,27 @@
 {
-  "build_id": "48cb79e2d36a93e970b297e556c648ff",
+  "build_id": "d7836bb7fd25e4ed7278f7697af77217",
   "device": "5CSEBA6U23I7",
   "format2_package": false,
   "inputs": {
     "boards/de10nano/clocks.sdc": "3ba280ad420fee63a546a7c5cda15fc6c480de58cad398c67af2e62d1e296041",
-    "cores/fes-pong/rtl/pixel_pll.v": "a27c894279bc4d345f091b33c87b58b38fadde2728d62cf000d6665885166369",
     "cores/fes-splash/constraints.qsf": "c38882cbba0b0e3050e86f7d2acd7e7b090fb9329e43e2a6c4f438ab7c7df83f",
     "cores/fes-splash/idle-contract.toml": "15f38a30e636dcbaade06275e53a356181983cf18a70996f06c0cc1fb16fb524",
-    "cores/fes-splash/rtl/fes_splash_core.v": "208068fcf974ccc06b0c2c5e01b63b86ec801896aa2f1d67493754feaf3fe4bd",
-    "cores/fes-splash/rtl/top.v": "7fd3a73b33759f8005df4a9528d693da9035898daa29cb396b50381610d6e8b8",
-    "scripts/build_fes_splash.py": "7115370f3519d9107dec0e188e84a036d31dc1dd0b3a78f4ae5fbb9b2c2f5c47",
-    "toolchain.lock": "545e11885f52022dfa5073c95bf39e4d17e6488f142568afdf61642cbe9e95b5"
+    "cores/fes-splash/rtl/fes_splash_core.v": "9740e47e25ffa8a9bd124339bcefd18a48c62ac5500f8d862e5abe435e50a7a6",
+    "cores/fes-splash/rtl/pixel_pll.v": "691a5ad78d887c8b724446e922f4b6ddfb3436326dc3f59bf9037cd7ac649fa4",
+    "cores/fes-splash/rtl/top.v": "c49f4908312fcfeb765a577f8ab357d51a78d011835876919aaa7ef9fad3fc23",
+    "scripts/build_fes_splash.py": "96d482dea67b0bca9327d236ac4efb6f2600ef585d6f60dda4a3b7d9ce84057a",
+    "scripts/fes_build_common.py": "d946b0e8211b08db82012b089a7ee354fee6361b1d5f0c248a8821e80fa41655",
+    "scripts/fes_de10nano_evidence.py": "3d3a1e0590244590bb42e116503b74350fac5d9e5c837750bb969e79e293bd5e",
+    "toolchain.lock": "411d35bd981451a6be566228b9760b3be4b4e678794dc993b60b0cc5d049dae3"
   },
   "rbf": {
-    "sha256": "f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6",
-    "size": 1961783
+    "sha256": "feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f",
+    "size": 1962648
   },
   "resources": {
     "MISTRAL_BUF": {
       "available": 0,
-      "used": 10
+      "used": 11
     },
     "MISTRAL_CLKENA": {
       "available": 8,
@@ -27,7 +29,7 @@
     },
     "MISTRAL_COMB": {
       "available": 83820,
-      "used": 573
+      "used": 640
     },
     "MISTRAL_FF": {
       "available": 167640,
@@ -89,24 +91,24 @@
     "$specify2": 7,
     "$specify3": 2,
     "$specrule": 7,
-    "MISTRAL_ALUT2": 17,
-    "MISTRAL_ALUT3": 40,
-    "MISTRAL_ALUT4": 33,
-    "MISTRAL_ALUT5": 9,
-    "MISTRAL_ALUT6": 6,
-    "MISTRAL_ALUT_ARITH": 463,
+    "MISTRAL_ALUT2": 28,
+    "MISTRAL_ALUT3": 42,
+    "MISTRAL_ALUT4": 28,
+    "MISTRAL_ALUT5": 16,
+    "MISTRAL_ALUT6": 10,
+    "MISTRAL_ALUT_ARITH": 511,
     "MISTRAL_CLKBUF": 1,
     "MISTRAL_FF": 29,
     "MISTRAL_IB": 1,
     "MISTRAL_IO": 2,
-    "MISTRAL_NOT": 10,
+    "MISTRAL_NOT": 11,
     "MISTRAL_OB": 28,
     "altera_pll": 1,
     "cyclonev_hps_interface_peripheral_i2c": 1
   },
   "timing": {
     "pixel": {
-      "achieved_mhz": 171.55601501464844,
+      "achieved_mhz": 247.52474975585938,
       "clock": "pixel_clk",
       "constraint_mhz": 74.25006866455078,
       "requested_mhz": 74.25,
@@ -123,8 +125,8 @@
   },
   "tools": {
     "mistral": "commit=b28e30a36b5139aaed5a5d361a30b542e6b7c758; sha256=b695fec274f7bb912b5295cf9ae5589c6c9d3c3babce26b759f5ee583ae60f62",
-    "nextpnr-mistral": "commit=d672fade461e8a1eba4d3f95895902d86f43b882; sha256=99efae612d68249cef7592c46375ba10ac3711fb5b2f02d2a41c6f8f63d469ac; gpu-router=OFF; hip-architectures=unused",
-    "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=5c8ed4037cd6fe8a2d8995d49bfbf68d56c3d88544f092f0d0b0e0999dac60aa"
+    "nextpnr-mistral": "commit=30ac6f47bd94aec97467bee9fcd2ff09643fbc55; sha256=59ebe861c2031597fa5915b65a107e4b0f131fba5a5005adae27de8a6b6b4825; gpu-router=OFF; hip-architectures=unused",
+    "yosys": "commit=ec34fcf38986217af9b5558936044b7197d968a7; sha256=6a192ec0dbb6fed333719e4361fa93f62cadc244ecbb6faf3363f502b9fb80a6"
   },
   "top": "top",
   "user_io": {
