@@ -1,13 +1,18 @@
 # FES board-firmware splash
 
-This core is the Phase 2 slice-3 **U-Boot / Stop-idle splash**: a logo plus
-motion on HDMI so the board is visibly alive. It is board firmware. It is
-**not** rooms, **not** attract ABI, and **not** a format-2 play package.
+This is board firmware, not an `experiments/` place-and-route test and not a
+play package. The core lane is [docs/cores.md](../../docs/cores.md).
+
+The bitstream is the U-Boot / Stop-idle splash: a logo plus motion on HDMI so
+the board is visibly alive. It is **not** rooms, **not** attract ABI, and
+**not** a format-2 play package.
 
 Do not retarget `fes-demo`, `fes-pong`, or sealed MiSTer `menu.rbf` as this
-bitstream. FES seals and pins the produced RBF in image policy (slice 4).
-Work on this recipe in FES `sources/misteross`. Do not open day-to-day PRs
-against standalone `DeanoC/misteross`.
+bitstream. The tracked seal is `sealed/fes-splash.rbf`. FES image policy pins
+that file as both splash and Stop-idle. Replacing it means rebuilding,
+updating `sealed/`, and changing the FES pin. Work on this recipe in FES
+`sources/misteross`. Do not open day-to-day PRs against standalone
+`DeanoC/misteross`.
 
 ## HDMI timing
 

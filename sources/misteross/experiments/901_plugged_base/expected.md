@@ -12,7 +12,6 @@ make oss EXP=901_plugged_base
 
 Vacant-socket kit probe: `experiments/901_plugged_base/hardware/probe.sh`.
 Compose a cart onto this shell with `scripts/build_fes_slot.py` as described
-in the README
-[Freeze-scaffold cartridges](../../README.md#freeze-scaffold-cartridges)
-section. Overlay map: `experiments/901_plugged_base/link.toml`
+in [OSS place-and-route testing](../../docs/oss-pnr.md#freeze-scaffold-cartridges).
+Overlay map: `experiments/901_plugged_base/link.toml`
 (`overlay_mode = "cram_rect"`, tile columns 21–33).

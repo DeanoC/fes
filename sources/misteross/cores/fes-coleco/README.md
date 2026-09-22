@@ -1,5 +1,8 @@
 # FES ColecoVision first slice
 
+This directory is a described FES core, not an `experiments/` place-and-route
+test. The core lane is [docs/cores.md](../../docs/cores.md).
+
 This directory contains the next FES emulator bring-up after Pong and ZX81.
 It is a reduced ColecoVision-compatible console slice that uses the existing
 `fes.application` 1.0 mailbox and the DE10-Nano fixed 720p shell. The

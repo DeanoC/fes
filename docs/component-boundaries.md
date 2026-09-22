@@ -12,7 +12,7 @@ profile consumes the component graph; native image assembly lives in FES `image/
 | --- | --- | --- |
 | FES | Integrate compatible module changes, check agreement, build and assemble the complete system, record evidence | Profiles, committed source snapshots, assembled images and manifests |
 | mister-packages | Describe boards, SoCs, registers, system protocols and upstream core sources; generate consumer definitions | YAML, emitter, generated C++/Go definitions and reports |
-| misteross | Build FPGA artifacts and validate their build provenance; maintain FPGA development tools and experiments | RBF bundles, simulations and compiler recipes |
+| misteross | Build FPGA artifacts in two lanes: OSS primitive place-and-route experiments, and described-core producers. See `sources/misteross/README.md` | RBF bundles, simulations and compiler recipes |
 | libmister-runtime | Execute the hardware lifecycle on the target: program FPGA, configure hardware, load media, handle input, stop and return to idle | Native library and daemon, runtime protocol |
 | FogCast | Own the user-facing application, game library, launch selection, host services and target agent | `ui/tenfoot`, `ui/kitlauncher`, host binaries, agent and public APIs |
 | Main_MiSTer | Original implementation and comparison/test reference | Reference behavior and optional test fixtures; not an FES production dependency |

@@ -1,5 +1,8 @@
 # FES SG-1000 first slice
 
+This directory is a described FES core, not an `experiments/` place-and-route
+test. The core lane is [docs/cores.md](../../docs/cores.md).
+
 This directory is the next FES emulator bring-up after ColecoVision. It is a
 reduced SG-1000-compatible console slice that uses the existing
 `fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
@@ -13,8 +16,9 @@ the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). HIP format-2
-seal, formic gap execution, FES parent pin and kit HIL remain later jobs.
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). It seals a
+format-2 package from a clean tree. `fes.sg1000` is not registered in the
+parent recipe file and is not in the factory image.
 
 ## Implemented first slice
 
@@ -30,8 +34,9 @@ seal, formic gap execution, FES parent pin and kit HIL remain later jobs.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges, expansion
-hardware, cycle-perfect clocking, sealed HIP format-2 production and native
-FogCast/runtime selection remain outside this first slice.
+hardware and cycle-perfect clocking remain outside this slice. The OSS
+producer can seal from a clean tree. Parent recipe registration is a separate
+decision: `fes.sg1000` is not registered and is not in the factory image.
 
 ## Memory and host interfaces
 
@@ -123,5 +128,6 @@ a format-2 package when timing passes. It does not program hardware.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
 the shared `toolchains/registered-memory.lock`. Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
-seal. HIP `--router gpu` of the synth-only netlist is recorded in the gap
-ladder (R13). Format-2 seal, FES parent pin and kit HIL remain later jobs.
+seal. HIP `--router gpu` of the synth-only netlist is recorded in the dated
+gap ladder (R13). That note is not a sealed-bitstream acceptance. `fes.sg1000`
+is not registered in the parent recipe file and is not in the factory image.

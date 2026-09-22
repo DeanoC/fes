@@ -219,7 +219,9 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("Quartus", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("e2d425de", readme)
-        self.assertIn("later jobs", readme.lower())
+        self.assertIn("not registered", readme.lower())
+        self.assertIn("not in the factory image", readme.lower())
+        self.assertNotIn("remain later jobs", readme.lower())
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

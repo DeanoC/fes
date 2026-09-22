@@ -10,6 +10,7 @@ host software and target root filesystem.
 | --- | --- |
 | Set up a checkout, build outputs and run the host | [Getting started](getting-started.md) |
 | Understand the parts, directories and terminology | [Project map](project-map.md) |
+| Change misteross: an OSS place-and-route experiment, or a described core | [misteross README](../sources/misteross/README.md) |
 | Review landed refactors and remaining ownership decisions | [Structure and refactor status](fes-structure.md) |
 | See which binaries, images and cores are versioned artifacts | [Artifact identities](artifacts.md) |
 | See who owns native image assembly | [Image assembly ownership](image-assembly.md) |

@@ -33,9 +33,8 @@ git worktree add -b fpga-expansion \
 cd out/dev/fpga-expansion/sources/misteross
 ```
 
-Follow the misteross README
-[Freeze-scaffold cartridges](../sources/misteross/README.md#freeze-scaffold-cartridges)
-section there. The compose entry point is
+Follow [OSS place-and-route testing](../sources/misteross/docs/oss-pnr.md#freeze-scaffold-cartridges)
+there. The module README has the short entry point. The compose entry point is
 `scripts/build_fes_slot.py`. The linker is `scripts/link_static_rbf.py`.
 
 The compose support originated in [misteross #79](https://github.com/DeanoC/misteross/pull/79);

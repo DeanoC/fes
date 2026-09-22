@@ -1,5 +1,10 @@
 # FES SG-1000 Quartus oracle bring-up
 
+> Dated record (2026-09-16). It describes that day's evidence, not the current
+> build. Core work starts at [Cores](../cores.md). OSS place-and-route starts
+> at [OSS place-and-route testing](../oss-pnr.md). Do not treat this note as
+> the schedule for a later tree.
+
 This note records the Quartus Prime Lite 17.0.2 compiler/oracle bring-up of
 package `fes.sg1000` on Powerboat. It does not claim an OSS/nextpnr lane, FES
 parent pin, or kit HIL.

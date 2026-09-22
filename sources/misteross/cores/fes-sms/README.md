@@ -1,5 +1,8 @@
 # FES Master System fixed-map slice
 
+This directory is a described FES core, not an `experiments/` place-and-route
+test. The core lane is [docs/cores.md](../../docs/cores.md).
+
 This directory is the next FES emulator bring-up after SG-1000. It is a
 bounded Master System-compatible console slice that uses the existing
 `fes.simple-computer` 1.0 mailbox and the DE10-Nano fixed 720p shell.
@@ -17,8 +20,8 @@ top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). FES parent
-pin and kit HIL remain later jobs.
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). `fes.sms`
+is registered for package-only parent builds and is not in the factory image.
 
 ## Implemented slice
 
@@ -48,9 +51,10 @@ pin and kit HIL remain later jobs.
   `fes.audio` mailbox.
 
 Sega mappers, banked/48 KiB cartridges, expansion hardware, 224/240-line
-modes, PAL timing, cycle-perfect raster effects and native FogCast/runtime
-selection remain outside this slice. FES parent pin and kit HDMI-audio HIL
-remain later jobs.
+modes, PAL timing and cycle-perfect raster effects remain outside this slice.
+`fes.sms` is registered for package-only parent builds and is not in the
+factory image. Kit HDMI-audio acceptance of this bitstream is not recorded
+here. An older parent pin or launch/Stop record does not accept it.
 
 ## Memory and host interfaces
 
@@ -162,6 +166,8 @@ It copies Coleco `clocks-oss.sdc`, selects the shared
 Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and
 a first-pass HIP seed/weight search (starts at seed 10 / HeAP 1000, then
 the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
-`pixel_clk` rows must meet 52 MHz and 74.25 MHz. FES parent pin and kit
-HDMI-audio HIL remain later jobs. The gap inventory lives in
-`docs/validation/2026-09-17-sms-oss-gap-ladder.md`.
+`pixel_clk` rows must meet 52 MHz and 74.25 MHz. `fes.sms` is registered for
+package-only parent builds and is not in the factory image. Kit HDMI-audio
+acceptance of this bitstream is not recorded here. The dated gap inventory is
+`docs/validation/2026-09-17-sms-oss-gap-ladder.md`. It is not the current
+schedule.

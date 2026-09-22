@@ -1,5 +1,10 @@
 # FES SMS OSS / nextpnr / Mistral / formic gap ladder
 
+> Dated record (2026-09-17). It describes that day's evidence, not the current
+> build. Core work starts at [Cores](../cores.md). OSS place-and-route starts
+> at [OSS place-and-route testing](../oss-pnr.md). Do not treat this ladder as
+> the schedule for a later tree.
+
 This note is the step-2 inventory for package `fes.sms`. It diffs the
 working Quartus 17.0.2 oracle recipe against the Coleco / SG-1000
 Yosys/nextpnr/Mistral path, lists every support gap with file and symbol
