@@ -1374,6 +1374,116 @@ void TestFirmwareLoadHoldsResetUntilMediaRelease()
 	assert(f.mmio.writes.size() == media_start + 10);
 }
 
+mister::native::CoreDescriptor ComputerMediaDescriptor(const std::string& build_id)
+{
+	mister::native::CoreDescriptor descriptor;
+	descriptor.core.id = "fes.zx81";
+	descriptor.abi = {FesSimpleComputerABIID, FesSimpleComputerABIMajor,
+		FesSimpleComputerABIMinor};
+	descriptor.interfaces = {
+		{FesSimpleComputerInterfaceKeyboardID,
+			FesSimpleComputerInterfaceKeyboardMajor,
+			FesSimpleComputerInterfaceKeyboardMinor, true},
+		{FesSimpleComputerInterfaceVideoFixed720p60ID,
+			FesSimpleComputerInterfaceVideoFixed720p60Major,
+			FesSimpleComputerInterfaceVideoFixed720p60Minor, true},
+		{FesSimpleComputerInterfaceMediaBlobID,
+			FesSimpleComputerInterfaceMediaBlobMajor,
+			FesSimpleComputerInterfaceMediaBlobMinor, true},
+	};
+	descriptor.build.id = build_id;
+	return descriptor;
+}
+
+std::vector<std::uint16_t> ComputerIdentityWords(const std::string& build_id)
+{
+	std::vector<std::uint16_t> words = IdentityWords(build_id);
+	words[FesGpIdentityAbiTagIndex] =
+		static_cast<std::uint16_t>(FesSimpleComputerAbiTag);
+	words[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(
+		FesSimpleComputerCapabilityKeyboard |
+		FesSimpleComputerCapabilityVideoFixed720p60 |
+		FesSimpleComputerCapabilityMediaBlob);
+	return words;
+}
+
+struct ComputerClearFixture {
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp;
+	mister::native::FesGpCoreDriver driver;
+	mister::native::CoreDescriptor descriptor;
+	mister::native::CoreDriverContext context;
+	std::vector<std::uint16_t> words;
+
+	ComputerClearFixture()
+		: gp(mmio, clock), driver(gp)
+	{
+		const std::string build_id(32, 'a');
+		descriptor = ComputerMediaDescriptor(build_id);
+		words = ComputerIdentityWords(build_id);
+		context.descriptor = &descriptor;
+		ScriptIdentity(&mmio, words);
+		assert(driver.Identify(context, 100000).error.ok());
+		bool toggle = false;
+		for (int i = 0; i < 5; ++i) {
+			toggle = !toggle;
+			PushCompleted(&mmio, toggle, 0);
+		}
+		assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11}, 100000).ok());
+	}
+};
+
+void TestClearMediaDistinguishesBusyFromUnavailable()
+{
+	{
+		ComputerClearFixture f;
+		f.mmio.PushReadError(kSpiGpiAddress,
+			{mister::ErrorCode::io_failed, "MMIO read failed"});
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "MMIO read failed");
+		assert(error.phase == "input");
+	}
+	{
+		ComputerClearFixture f;
+		// Launch release leaves the host toggle true, so eject waits for ack 0.
+		const std::uint32_t settled = FesGpSignature;
+		f.mmio.PushRead(kSpiGpiAddress, settled | FesGpAckMask);
+		f.mmio.PushRead(kSpiGpiAddress, settled);
+		f.mmio.PushRead(kSpiGpiAddress, settled + 1u);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+	}
+	{
+		ComputerClearFixture f;
+		// A completed exchange whose payload is not the clear ACK is not a
+		// transport glitch. It stays io_failed so the host does not retry it
+		// as loader contention.
+		PushCompleted(&f.mmio, false, 1);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::io_failed);
+		assert(error.message == "FES computer media clear failed");
+		assert(error.phase == "input");
+	}
+	{
+		ComputerClearFixture f;
+		assert(f.driver.SetKeyboardMatrix(1, 100000).code ==
+			mister::ErrorCode::io_failed);
+		assert(f.gp.Poisoned());
+		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
+		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
+		ScriptIdentity(&f.mmio, f.words);
+		PushCompleted(&f.mmio, true, 0);
+		const auto recovered = f.driver.ClearMedia(100000);
+		assert(recovered.ok());
+		assert(!f.gp.Poisoned());
+		assert((f.mmio.writes.back().value & 0x7fffffff) == 0x04010000);
+	}
+}
+
 } // namespace
 
 int main()
@@ -1398,6 +1508,7 @@ int main()
 	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
 	TestComputerKeyboardMatrixAndMediaBlob();
 	TestMidSessionMediaLeavesExecutionReleasedAndRejectsBusy();
+	TestClearMediaDistinguishesBusyFromUnavailable();
 	TestFirmwareLoadHoldsResetUntilMediaRelease();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -176,8 +177,24 @@ func (r *Runtime) ClearLiveMedia(ctx context.Context, b protocol.DevelopmentMedi
 }
 
 func mapLiveMediaError(remote *Protocol2Error) *protocol.APIError {
-	if remote != nil && remote.Code == "busy" {
+	// Loader INVALID_STATE is already "busy". A poisoned toggle, deadline, or
+	// unstable ACK may still arrive as phase=input io_failed; those transport
+	// glitches stay retryable. A hard MMIO failure or an invalid clear
+	// acknowledgement stays unavailable, even when its phase is input.
+	if remote != nil && (remote.Code == "busy" || inputTransportGlitch(remote)) {
 		return protocol.LiveMediaBusyError()
 	}
 	return mapProtocol2Error(remote)
+}
+
+func inputTransportGlitch(remote *Protocol2Error) bool {
+	if remote == nil || remote.Code != "io_failed" || remote.Phase != "input" {
+		return false
+	}
+	message := remote.Message
+	return strings.Contains(message, "FES GP exchange state is ambiguous") ||
+		strings.Contains(message, "FES GP exchange deadline exceeded") ||
+		strings.Contains(message, "FES GP response stability deadline exceeded") ||
+		strings.Contains(message, "unstable FES GP response") ||
+		strings.Contains(message, "invalid FES GP response signature")
 }

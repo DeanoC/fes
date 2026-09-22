@@ -97,6 +97,17 @@ Error Mismatch(const std::string& message, std::string expected = {},
 		std::move(expected), std::move(observed)};
 }
 
+bool ExchangeTransportGlitch(const Error& error)
+{
+	if (error.code != ErrorCode::io_failed) return false;
+	const std::string& message = error.message;
+	return message.find("FES GP exchange state is ambiguous") != std::string::npos ||
+		message.find("FES GP exchange deadline exceeded") != std::string::npos ||
+		message.find("FES GP response stability deadline exceeded") != std::string::npos ||
+		message.find("unstable FES GP response") != std::string::npos ||
+		message.find("invalid FES GP response signature") != std::string::npos;
+}
+
 bool HexNibble(char value, unsigned* output)
 {
 	if (value >= '0' && value <= '9') *output = static_cast<unsigned>(value - '0');
@@ -153,6 +164,34 @@ void FesGp::BeginSession()
 	std::lock_guard<std::mutex> lock(mutex_);
 	request_toggle_ = false;
 	poisoned_ = false;
+}
+
+bool FesGp::Poisoned()
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	return poisoned_;
+}
+
+Error FesGp::Realign(std::uint64_t deadline)
+{
+	std::lock_guard<std::mutex> lock(mutex_);
+	if (!poisoned_) return {};
+	if (clock_.NowMs() >= deadline)
+		return Io("FES GP exchange deadline exceeded");
+	std::uint32_t observed = 0;
+	Error error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+	if (!error.ok()) return error;
+	if ((observed & kResponseFixedMask) != FesGpSignature)
+		return Io("invalid FES GP response signature or reserved bits");
+	if (clock_.NowMs() >= deadline)
+		return Io("FES GP response stability deadline exceeded");
+	std::uint32_t confirmed = 0;
+	error = mmio_.Read32(generated::kSpiGpiAddress, &confirmed);
+	if (!error.ok()) return error;
+	if (confirmed != observed) return Io("unstable FES GP response");
+	request_toggle_ = (confirmed & FesGpAckMask) != 0;
+	poisoned_ = false;
+	return {};
 }
 
 Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
@@ -464,6 +503,10 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			persistence_verified_ = error.ok();
 		}
 	}
+	if (error.ok()) {
+		identified_ = *context.descriptor;
+		have_identity_ = true;
+	}
 	return {error, false, error.ok() ? context.descriptor->core.id : "",
 		safe_to_quiesce};
 }
@@ -659,6 +702,19 @@ Error FesGpCoreDriver::LoadMediaLive(
 	return TransferMediaBlob(bytes, deadline, false);
 }
 
+Error FesGpCoreDriver::RecoverPoisonedMediaLink(std::uint64_t deadline)
+{
+	// A keyboard exchange can poison the toggle without taking the core down.
+	// Realign from the live ACK, then re-identify, before eject mutates media.
+	const Error realigned = gp_.Realign(deadline);
+	if (!realigned.ok() || !have_identity_)
+		return {ErrorCode::busy, "tape loader is busy", "input"};
+	const Error identified = gp_.Identify(identified_, deadline);
+	if (!identified.ok())
+		return {ErrorCode::busy, "tape loader is busy", "input"};
+	return {};
+}
+
 Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 {
 	if (stream_pending_) return Io("media stream requires recovery before clear media");
@@ -668,10 +724,24 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 	if (reset_held_)
 		return {ErrorCode::busy, "execution reset is held; use launch media bind",
 			"input"};
+	if (gp_.Poisoned()) {
+		const Error recovered = RecoverPoisonedMediaLink(deadline);
+		if (!recovered.ok()) return recovered;
+	}
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 		static_cast<std::uint8_t>(FesSimpleComputerMediaEjectIndex), 0, deadline, &response);
-	if (!error.ok()) return MediaBusyOrIo(WithPhase(error, "input"));
+	if (!error.ok()) {
+		error = WithPhase(error, "input");
+		// Deadline, unstable ACK, or a poisoned toggle after HID traffic is
+		// retryable. A hard MMIO failure stays io_failed so the host can still
+		// tell a dead link from a busy loader.
+		if (ExchangeTransportGlitch(error)) {
+			(void)gp_.Realign(deadline);
+			return {ErrorCode::busy, "tape loader is busy", "input"};
+		}
+		return MediaBusyOrIo(error);
+	}
 	if (response != 0)
 		return {ErrorCode::io_failed, "FES computer media clear failed", "input"};
 	return {};

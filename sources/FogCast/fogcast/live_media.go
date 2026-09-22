@@ -2,7 +2,9 @@ package fogcast
 
 import (
 	"context"
+	"errors"
 	"io"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -125,7 +127,7 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	if !b.MatchesLive(prior) {
 		return prior, protocol.LiveMediaIdentityError()
 	}
-	status, err := loader.ClearLiveMedia(ctx, b)
+	status, err := clearLiveMediaRetry(ctx, loader, b)
 	if err != nil {
 		return status, preserveCorePackageError(err)
 	}
@@ -133,6 +135,38 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	return s.retainLiveSessionIdentity(status, b), nil
+}
+
+func clearLiveMediaRetry(ctx context.Context, loader liveMediaClient, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+	var status protocol.Status
+	var err error
+	waits := []time.Duration{0, 20 * time.Millisecond, 40 * time.Millisecond, 80 * time.Millisecond}
+	for attempt, wait := range waits {
+		if wait > 0 {
+			timer := time.NewTimer(wait)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				if err != nil {
+					return status, err
+				}
+				return status, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		status, err = loader.ClearLiveMedia(ctx, b)
+		// Retry loader busy and transport glitches only. A hard input-phase
+		// unavailable report is the link, not loader contention.
+		if err == nil || !ejectRetryable(err) || attempt == len(waits)-1 {
+			return status, err
+		}
+	}
+	return status, err
+}
+
+func ejectRetryable(err error) bool {
+	var apiErr *protocol.APIError
+	return errors.As(err, &apiErr) && apiErr.Code == protocol.CodeBusy && apiErr.Phase == "input"
 }
 
 func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.DevelopmentMediaBinding) error {

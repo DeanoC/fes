@@ -19,6 +19,7 @@ type liveMediaServiceClient struct {
 	lastSize     int64
 	lastBytes    []byte
 	err          error
+	clearErrs    []error
 }
 
 func (c *liveMediaServiceClient) ReplaceLiveMedia(_ context.Context, size int64, body io.Reader, _ protocol.DevelopmentMediaBinding) (protocol.Status, error) {
@@ -33,6 +34,13 @@ func (c *liveMediaServiceClient) ReplaceLiveMedia(_ context.Context, size int64,
 
 func (c *liveMediaServiceClient) ClearLiveMedia(_ context.Context, _ protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	c.clearCalls++
+	if len(c.clearErrs) > 0 {
+		err := c.clearErrs[0]
+		c.clearErrs = c.clearErrs[1:]
+		if err != nil {
+			return c.statusResult, err
+		}
+	}
 	if c.err != nil {
 		return c.statusResult, c.err
 	}
@@ -89,5 +97,44 @@ func TestReplaceLiveMediaArmsCoreMediaWithoutLoadMedia(t *testing.T) {
 	stale := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 3, Target: "dev"}
 	if _, err := s.ClearLiveMedia(context.Background(), stale); err == nil || client.clearCalls != 1 {
 		t.Fatal("stale generation cleared")
+	}
+}
+
+func TestClearLiveMediaRetriesBusyAndPreservesHardUnavailable(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	status := protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+		PackageID: id, Generation: 4, ABI: protocol.RuntimeContract{ID: "fes.simple-computer", Major: 1},
+		ActiveInterfaces: []protocol.RuntimeInterface{{ID: "fes.media.blob", Major: 1}},
+	}}
+	client := &liveMediaServiceClient{fakeServiceClient: fakeServiceClient{statusResult: status}}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, nil, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.activeExecution = ExecutionFPGADevelopment
+	b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "dev"}
+	hard := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable", Phase: "input"}
+	client.err = hard
+	_, err := s.ClearLiveMedia(context.Background(), b)
+	apiErr, ok := err.(*protocol.APIError)
+	if !ok || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "input" || apiErr.Message != hard.Message || client.clearCalls != 1 {
+		t.Fatalf("hard input unavailable err=%v calls=%d", err, client.clearCalls)
+	}
+	client.err = nil
+	client.clearErrs = []error{protocol.LiveMediaBusyError()}
+	cleared, err := s.ClearLiveMedia(context.Background(), b)
+	if err != nil || client.clearCalls != 3 || !b.MatchesLive(cleared) {
+		t.Fatalf("busy retry err=%v calls=%d status=%+v", err, client.clearCalls, cleared)
+	}
+	client.err = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable", Phase: "programming"}
+	before := client.clearCalls
+	_, err = s.ClearLiveMedia(context.Background(), b)
+	apiErr, ok = err.(*protocol.APIError)
+	if !ok || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "programming" || client.clearCalls != before+1 {
+		t.Fatalf("programming unavailable err=%v calls=%d", err, client.clearCalls-before)
+	}
+	client.err = protocol.LiveMediaBusyError()
+	before = client.clearCalls
+	_, err = s.ClearLiveMedia(context.Background(), b)
+	apiErr, ok = err.(*protocol.APIError)
+	if !ok || apiErr.Code != protocol.CodeBusy || apiErr.Phase != "input" || client.clearCalls != before+4 {
+		t.Fatalf("exhausted busy err=%v calls=%d", err, client.clearCalls-before)
 	}
 }

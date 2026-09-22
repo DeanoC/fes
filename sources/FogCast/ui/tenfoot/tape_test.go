@@ -210,6 +210,48 @@ func TestAppTapePickerEjectClearsMailbox(t *testing.T) {
 	}
 }
 
+func TestAppTapePickerEjectRetriesBusyAndKeepsSession(t *testing.T) {
+	h := newTapeHost(t)
+	h.clearBusyLeft = 2
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "active", func(s Snapshot) bool { return s.Session.State == "active" && s.Session.LoadTape })
+	app.HandleCommand(CmdSearch, time.Now())
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "ejected", func(s Snapshot) bool {
+		return !s.TapePicker.Open && strings.Contains(s.Status, "Tape ejected") && s.Session.State == "active"
+	})
+	if h.clearCount() != 3 {
+		t.Fatalf("clear=%d", h.clearCount())
+	}
+}
+
+func TestAppTapePickerEjectUnavailableKeepsSession(t *testing.T) {
+	h := newTapeHost(t)
+	h.clearUnavailable = true
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 20)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "catalog", func(s Snapshot) bool { return len(s.Games) == 1 && !s.Loading })
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "active", func(s Snapshot) bool { return s.Session.State == "active" && s.Session.LoadTape })
+	app.HandleCommand(CmdSearch, time.Now())
+	selectTapeNamedRow(t, app, tapePickerEjectLabel)
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "unavailable eject", func(s Snapshot) bool {
+		return s.TapePicker.Open && !s.TapePicker.Busy && strings.Contains(s.Status, "MiSTer is unavailable")
+	})
+	if snap.Session.State != "active" || h.clearCount() != 3 {
+		t.Fatalf("state=%s clears=%d status=%q", snap.Session.State, h.clearCount(), snap.Status)
+	}
+}
+
 func TestDismissedTapeArmDoesNotReviveSession(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "maze.p"), []byte("late-tape"), 0o644); err != nil {
@@ -307,14 +349,14 @@ func TestPlayHIDLetterStaysCoreKeyWhileLoadTapeOffered(t *testing.T) {
 
 func TestHeaderHintPrefersOSKDuringActiveTapeSession(t *testing.T) {
 	snap := Snapshot{
-		Affinity: InputKeyboard,
+		Affinity:  InputKeyboard,
 		GPUParked: true,
 		Session: SessionSnapshot{
 			State:    "active",
 			LoadTape: true,
 		},
 		TapePicker: TapePickerSnapshot{Open: true, Hint: "Enter arm  Esc back"},
-		OSK: shared.OSKSnapshot{Open: true, Hint: "type  Enter done  Esc close", Page: shared.OSKPageLetters},
+		OSK:        shared.OSKSnapshot{Open: true, Hint: "type  Enter done  Esc close", Page: shared.OSKPageLetters},
 	}
 	got := snap.HeaderHint()
 	if !strings.Contains(got, "Enter done") || strings.Contains(got, "arm") {
@@ -348,19 +390,21 @@ func zx81LiveSession() hostclient.SessionResult {
 }
 
 type tapeHost struct {
-	mu          sync.Mutex
-	launches    int
-	imports     int
-	replaces    int
-	clears      int
-	busy        bool
-	lastMediaID string
-	lastName    string
-	pkg         string
-	sessionID   string
-	server      *httptest.Server
-	armStarted  chan struct{}
-	armRelease  chan struct{}
+	mu               sync.Mutex
+	launches         int
+	imports          int
+	replaces         int
+	clears           int
+	busy             bool
+	clearBusyLeft    int
+	clearUnavailable bool
+	lastMediaID      string
+	lastName         string
+	pkg              string
+	sessionID        string
+	server           *httptest.Server
+	armStarted       chan struct{}
+	armRelease       chan struct{}
 }
 
 func newTapeHost(t *testing.T) *tapeHost {
@@ -439,7 +483,26 @@ func newTapeHost(t *testing.T) *tapeHost {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media/clear":
 			h.mu.Lock()
 			h.clears++
+			busyLeft := h.clearBusyLeft
+			if busyLeft > 0 {
+				h.clearBusyLeft--
+			}
+			unavailable := h.clearUnavailable
 			h.mu.Unlock()
+			if busyLeft > 0 {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]string{"code": "BUSY", "message": "tape loader is busy; retry after LOAD finishes", "phase": "input"},
+				})
+				return
+			}
+			if unavailable {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error": map[string]string{"code": "MISTER_UNAVAILABLE", "message": "MiSTer is unavailable", "phase": "input"},
+				})
+				return
+			}
 			_, _ = io.WriteString(w, h.sessionJSON())
 		default:
 			http.NotFound(w, r)
