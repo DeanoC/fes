@@ -85,10 +85,11 @@ Physical controller acceptance remains pending.
 ## Described-core persistence
 
 The `CreateProductionHardware` facade forwards preparation, refresh, inspection,
-and settings updates to its owned `NativeHardware`, alongside the existing
-admission and lifecycle methods. A host regression enters through this factory
-and validates durable data operations without starting hardware; direct
-`NativeHardware` tests alone do not verify production API forwarding.
+settings updates, and programmed-bitstream attachment to its owned
+`NativeHardware`, alongside the existing admission and lifecycle methods. A host
+regression enters through this factory and validates durable data operations
+and bitstream attachment without starting hardware; direct `NativeHardware`
+tests alone do not verify production API forwarding.
 
 `native/core_data` owns the bounded canonical record codec and retained
 no-follow namespace directories for described-package persistence. `CoreDataFile::Read` reopens `record.bin` on every
@@ -147,6 +148,8 @@ paths clear it together with package identity.
 `load_initialized_composed_core` admit the sealed package first. The composed
 operation also admits the recomputed cart. Each then opens a separate
 programmed bitstream, hashes it, and requires the host receipt digest.
+`CreateProductionHardware` forwards `AttachProgrammedBitstream` into that
+check, so a library RomInit reaches native admission on the production daemon.
 `LoadCore` hashes that file again immediately before programming and programs
 those bytes. The sealed payload, and any linked cart payload, remain the
 identity artifacts. A digest mismatch rejects admission and leaves the current
