@@ -31,6 +31,10 @@ public:
 	// Sample a stable ACK, align the host toggle to it, and drop poison.
 	// Does not issue a command. Failure leaves the mailbox poisoned.
 	Error Realign(std::uint64_t absolute_deadline_ms);
+	std::uint64_t NowMs() const;
+	// Spin on the runtime clock until `absolute_ms`. A stalled clock or a
+	// deadline that arrives first returns an I/O error and issues no command.
+	Error WaitUntilMs(std::uint64_t absolute_ms, std::uint64_t absolute_deadline_ms);
 	Error Exchange(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t absolute_deadline_ms,
 		std::uint16_t* response);
@@ -70,8 +74,10 @@ public:
 	// Mid-session eject: media begin with eject index and argument 0.
 	// A core that rejects that index (error 2) is retried with control-index
 	// begin and argument 0. Error 3 on that command is invalid argument:
-	// sealed golden cores reject argument 0, so clear follows with a
-	// minimum-length begin, which drops readiness without a commit.
+	// sealed golden cores reject argument 0 and have no media_busy sample.
+	// Clear waits out the longest $0347 copy before a minimum-length begin,
+	// which is what drops readiness. If that wait does not fit in the
+	// deadline, the mailbox is left unchanged and the result is busy.
 	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;

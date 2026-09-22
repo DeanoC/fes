@@ -26,6 +26,12 @@ using namespace generated;
 
 constexpr std::uint64_t kExchangeTimeoutMs = 100u;
 constexpr std::uint64_t kDiscoveryTimeoutMs = 2000u;
+// The $0347 patch copies at most one byte per ce_cpu_p, and ce_cpu_p is one
+// pulse per 16 cycles of the 52 MHz system clock. A full 16384-byte blob is
+// 16384 * 16 / 52e6 seconds (5.034 ms). Cores sealed before media_busy cannot
+// report that the copy is running; a legal media begin is what clears
+// readiness, so it has to wait until a copy already in progress has finished.
+constexpr std::uint64_t kLegacyLoaderCopyBoundMs = 8u;
 constexpr std::uint32_t kResponseVariableMask =
 	FesGpAckMask | FesGpErrorMask | FesGpResponseMask;
 constexpr std::uint32_t kResponseFixedMask = ~kResponseVariableMask;
@@ -197,6 +203,28 @@ Error FesGp::Realign(std::uint64_t deadline)
 	if (confirmed != observed) return Io("unstable FES GP response");
 	request_toggle_ = (confirmed & FesGpAckMask) != 0;
 	poisoned_ = false;
+	return {};
+}
+
+std::uint64_t FesGp::NowMs() const
+{
+	return clock_.NowMs();
+}
+
+Error FesGp::WaitUntilMs(std::uint64_t absolute_ms, std::uint64_t deadline)
+{
+	std::uint64_t now = clock_.NowMs();
+	while (now < absolute_ms) {
+		if (now >= deadline)
+			return Io("FES GP exchange deadline exceeded");
+		const std::uint64_t next = clock_.NowMs();
+		// A clock that does not advance cannot prove the loader copy ended.
+		if (next <= now)
+			return Io("FES GP exchange deadline exceeded");
+		now = next;
+	}
+	if (now >= deadline)
+		return Io("FES GP exchange deadline exceeded");
 	return {};
 }
 
@@ -768,11 +796,22 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 	// Response 3 is invalid argument, not busy (busy is response 4). The
 	// sealed golden mailbox rejects argument 0 because it is below
 	// MediaMinBytes; media-begin-zero stays that reject, and those bitstreams
-	// never implemented argument-0 eject. Any legal begin drops media_ready
-	// and media_size before data is committed, which is what makes the next
-	// empty LOAD "" report 0/0. Do not commit: commit would mark that
-	// minimum blob ready again.
+	// have no media_busy input. The busy guard arrived in the same change as
+	// argument-0 eject, so this core never answers a later begin with error 4.
+	// Any legal begin drops media_ready and media_size immediately. A copy
+	// already inside $0347 finishes within kLegacyLoaderCopyBoundMs while
+	// readiness is left alone; only then is the minimum begin issued.
+	// Do not commit afterwards: commit would mark the minimum blob ready.
 	if (CommandRejected(error, FesSimpleComputerErrorInvalidArgument)) {
+		const std::uint64_t now = gp_.NowMs();
+		const std::uint64_t idle_at = now > std::numeric_limits<std::uint64_t>::max() -
+			kLegacyLoaderCopyBoundMs ? std::numeric_limits<std::uint64_t>::max() :
+			now + kLegacyLoaderCopyBoundMs;
+		if (idle_at >= deadline)
+			return {ErrorCode::busy, "tape loader is busy", "input"};
+		const Error waited = gp_.WaitUntilMs(idle_at, deadline);
+		if (!waited.ok())
+			return {ErrorCode::busy, "tape loader is busy", "input"};
 		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
 			static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
 			static_cast<std::uint16_t>(FesSimpleComputerMediaMinBytes),

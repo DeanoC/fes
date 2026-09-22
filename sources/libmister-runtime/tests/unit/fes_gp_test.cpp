@@ -1527,11 +1527,11 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(f.mmio.writes.size() == start + 2);
 	}
 	{
-		// HIL 39fce226: eject index returns 2, then control-index begin with
-		// argument 0 returns 3 (invalid argument). That is the sealed golden
-		// mailbox, which rejects argument 0 and clears readiness on any legal
-		// begin. Follow with control-index begin of MediaMinBytes and do not
-		// commit.
+		// HIL 6a5bc10d idle loader: eject index returns 2, then control-index
+		// begin with argument 0 returns 3. That sealed mailbox has no
+		// media_busy sample. The runtime clock advances through the longest
+		// $0347 copy, then control-index begin of MediaMinBytes drops
+		// readiness. Do not commit.
 		ComputerClearFixture f;
 		const std::size_t start = f.mmio.writes.size();
 		PushCompleted(&f.mmio, false,
@@ -1548,8 +1548,43 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 			(0x04000000u | static_cast<std::uint32_t>(FesSimpleComputerMediaMinBytes)));
 	}
 	{
-		// Same sealed path, loader still copying when the legal begin lands:
-		// invalid state stays retryable busy, not unavailable.
+		// Same sealed path, but the runtime clock does not advance, so the
+		// longest $0347 copy cannot be shown to have finished. Do not issue
+		// the minimum begin: on this mailbox that command clears media_ready
+		// and media_size even while LOAD is copying.
+		mister_test::FakeMmio mmio;
+		ScriptClock clock(std::vector<std::uint64_t>{1000});
+		mister::native::FesGp gp(mmio, clock);
+		mister::native::FesGpCoreDriver driver(gp);
+		const std::string build_id(32, 'a');
+		auto descriptor = ComputerMediaDescriptor(build_id);
+		const auto words = ComputerIdentityWords(build_id);
+		mister::native::CoreDriverContext context;
+		context.descriptor = &descriptor;
+		ScriptIdentity(&mmio, words);
+		assert(driver.Identify(context, 100000).error.ok());
+		bool toggle = false;
+		for (int i = 0; i < 5; ++i) {
+			toggle = !toggle;
+			PushCompleted(&mmio, toggle, 0);
+		}
+		assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11}, 100000).ok());
+		const std::size_t start = mmio.writes.size();
+		PushCompleted(&mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		const auto error = driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(mmio.writes.size() == start + 4);
+		assert((mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+	}
+	{
+		// After the copy bound has elapsed, a minimum begin the core rejects
+		// as invalid state is still retryable busy, not unavailable.
 		ComputerClearFixture f;
 		const std::size_t start = f.mmio.writes.size();
 		PushCompleted(&f.mmio, false,
