@@ -18,14 +18,14 @@ EXPANSION_ROOT = 'sources/misteross/expansion'
 FPGA_SOFTWARE_TESTS = (
     'test_build_fes_*.py', 'test_functional_identity.py',
     'test_export_core_package.py', 'test_compiler_read_audit.py',
-    'test_legacy_source.py', 'test_source_repository.py',
+    'test_source_provenance.py', 'test_source_repository.py',
     'test_core_package.py', 'test_search_placer_qor.py',
     'test_coleco_sim_shards.py',
 )
 FPGA_PRODUCER_HELPERS = {
     'build_fes_catch.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
-    'source_repository.py', 'legacy_source.py', 'functional_execution.py',
+    'source_repository.py', 'source_provenance.py', 'functional_execution.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py',
 }
 # Directory ownership includes cross-core consumers: demo imports Pong board
