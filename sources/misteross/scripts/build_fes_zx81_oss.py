@@ -68,6 +68,7 @@ RTL_SOURCES = (
     "cores/fes-zx81/rtl/pixel_pll.v",
     "cores/fes-zx81/rtl/fes_computer_gp.v",
     "cores/fes-zx81/rtl/zx81_dpram.v",
+    "cores/fes-zx81/rtl/zx81_rom_link.v",
     "cores/fes-zx81/rtl/zx81_expansion_socket.v",
     "cores/fes-zx81/rtl/zx81_bus_pack.vh",
     "cores/fes-zx81/rtl/zx81_video_720p.v",
@@ -88,7 +89,6 @@ PINNED_INPUTS = (
     SOCKET_TOOLCHAIN_LOCK,
     QSF,
     SDC,
-    "cores/fes-zx81/rtl/zx8x.hex",
     *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
@@ -256,7 +256,7 @@ def build_commands(
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -I cores/fes-zx81/generated -I cores/fes-zx81/rtl {sources}; "
+        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_ZX81_ROM_LINK=1 -I cores/fes-zx81/generated -I cores/fes-zx81/rtl {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         + (f"chparam -set EXPANSION_SOCKET 1 {TOP}; " if socketed else "") +
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
