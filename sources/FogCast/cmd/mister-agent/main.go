@@ -325,13 +325,15 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
-		cleanupErr := cleanupPeripherals(cleanup)
-		status, stopErr := coordinator.Stop(cleanup)
-		if stopErr != nil || status.State != protocol.StateIdle {
-			cleanupErr = errors.Join(cleanupErr, errors.New("kit runtime did not become idle"))
+		var probe func(context.Context) bool
+		if native, ok := runtime.(*misterruntime.Runtime); ok {
+			probe = native.RuntimeSocketOpen
 		}
-		if cleanupErr != nil {
-			slog.Error("kit lease cleanup failed", "err", cleanupErr, "state", status.State)
+		cleanupErr := kitLeaseCleanup(cleanup, probe, 2*time.Second, cleanupPeripherals, coordinator.Stop)
+		if errors.Is(cleanupErr, kitlease.ErrRuntimeUnreachable) {
+			slog.Warn("kit lease cleanup: runtime socket unavailable; releasing lease")
+		} else if cleanupErr != nil {
+			slog.Error("kit lease cleanup failed", "err", cleanupErr)
 		}
 		return cleanupErr
 	}, kitlease.WithEventSink(diagnostics))

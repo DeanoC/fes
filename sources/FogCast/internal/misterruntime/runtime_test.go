@@ -1111,6 +1111,49 @@ func TestNativeOwnedStopPropagatesRebootRequiredRecovery(t *testing.T) {
 	}
 }
 
+type recoverIdleControl struct {
+	recordingControl
+	recover    misterruntime.Protocol2Response
+	recoverErr error
+	recoverN   int
+}
+
+func (c *recoverIdleControl) Protocol2RecoverIdle(context.Context) (misterruntime.Protocol2Response, error) {
+	c.recoverN++
+	if c.recoverErr != nil {
+		return misterruntime.Protocol2Response{}, c.recoverErr
+	}
+	return c.recover, nil
+}
+
+func TestRecoverIdleReportsProgrammedIdle(t *testing.T) {
+	t.Parallel()
+	control := &recoverIdleControl{recover: runtimeResponse("idle", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	idle, apiErr := runtime.RecoverIdle(context.Background())
+	if !idle || apiErr != nil || control.recoverN != 1 {
+		t.Fatalf("idle=%t err=%#v calls=%d", idle, apiErr, control.recoverN)
+	}
+}
+
+func TestRecoverIdleSurfacesIdleProgramFailure(t *testing.T) {
+	t.Parallel()
+	control := &recoverIdleControl{recover: runtimeResponse("reboot_required", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	idle, apiErr := runtime.RecoverIdle(context.Background())
+	if idle || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" {
+		t.Fatalf("idle=%t err=%#v", idle, apiErr)
+	}
+}
+
+func TestRuntimeSocketOpenIsFalseWhenDialFails(t *testing.T) {
+	t.Parallel()
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(filepath.Join(t.TempDir(), "missing.sock")), "", time.Millisecond, time.Second)
+	if runtime.RuntimeSocketOpen(context.Background()) {
+		t.Fatal("missing runtime socket reported open")
+	}
+}
+
 func TestNativeDevelopmentRecoveryRequiresConfiguredExecutable(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {

@@ -575,8 +575,12 @@ void TestCompositionProtocol()
 
 void TestRetiredProtocolRejected()
 {
- for (const auto& operation : {"status", "stop", "launch", "load_development_rbf"})
+ for (const auto& operation : {"status", "stop", "recover_idle", "launch", "load_development_rbf"})
   ExpectError(std::string("{\"protocol\":1,\"operation\":\"") + operation + "\"}", ErrorCode::unsupported_protocol);
+ Request recover;
+ assert(Parse(R"({"protocol":2,"operation":"recover_idle"})", &recover).ok());
+ assert(recover.operation == Operation::recover_idle);
+ assert(!Parse(R"({"protocol":2,"operation":"recover_idle","rbf":"/idle.rbf"})", &recover).ok());
  ExpectError(R"({"protocol":2,"operation":"launch"})", ErrorCode::invalid_request);
 }
 int main(int argc, char** argv)

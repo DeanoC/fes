@@ -891,6 +891,46 @@ func (r *Runtime) observeLostDevelopment(ctx context.Context) (observed string, 
 	}
 }
 
+type protocol2RecoverIdleControl interface {
+	Protocol2RecoverIdle(context.Context) (Protocol2Response, error)
+}
+
+// RecoverIdle programs idle without rebooting the board. A false result with
+// a recovery-phase error means LoadIdle failed and a board reboot is the
+// remaining recovery. A missing recover_idle operation is unsupported.
+func (r *Runtime) RecoverIdle(ctx context.Context) (bool, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return false, unavailableError()
+	}
+	control, ok := r.control.(protocol2RecoverIdleControl)
+	if !ok {
+		return false, unsupportedOperationError()
+	}
+	response, err := control.Protocol2RecoverIdle(ctx)
+	r.noteDispatch("recover_idle", err == nil)
+	if err != nil {
+		return false, unavailableError()
+	}
+	if validCleanIdle(response) {
+		return true, nil
+	}
+	if rebootRequiredResponse(response) {
+		return false, mapProtocol2Error(response.Error)
+	}
+	return false, unavailableError()
+}
+
+// RuntimeSocketOpen reports whether a status call reached the runtime.
+// A missing socket or a probe that expires is closed: agent restart must
+// free the kit lease instead of leaving it blocked.
+func (r *Runtime) RuntimeSocketOpen(ctx context.Context) bool {
+	_, err := r.control.Protocol2Status(ctx)
+	if err == nil {
+		return true
+	}
+	return ctx.Err() == nil && !errors.Is(err, errRuntimeConnection)
+}
+
 func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {
 	if err := ctx.Err(); err != nil {
 		return "", unavailableError()

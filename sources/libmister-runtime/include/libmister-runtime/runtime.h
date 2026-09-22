@@ -391,6 +391,8 @@ public:
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);
 	Error Stop();
+	// Programs idle again after reboot_required. Stop does not.
+	Error RecoverIdle();
 
 private:
 	class Impl;

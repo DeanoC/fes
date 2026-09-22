@@ -23,6 +23,9 @@ var (
 	ErrLease   = errors.New("kit lease is missing, expired or superseded")
 	ErrInvalid = errors.New("invalid kit lease request")
 	ErrBlocked = errors.New("kit cleanup failed or agent is shutting down")
+	// ErrRuntimeUnreachable means cleanup could not open the runtime socket.
+	// Revocation frees the lease: there is no live runtime session to hold.
+	ErrRuntimeUnreachable = errors.New("runtime socket is not open")
 )
 
 type Status = contract.Status
@@ -317,7 +320,7 @@ func (m *Manager) revokeLocked(reason string) {
 		cancel()
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		if err != nil || m.closed {
+		if m.closed || (err != nil && !errors.Is(err, ErrRuntimeUnreachable)) {
 			m.status.State = "blocked"
 			m.status.Reason = "kit cleanup failed or agent shutting down; operator recovery required"
 			return

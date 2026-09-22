@@ -30,6 +30,7 @@ enum class Operation {
 	load_media_stream,
 	load_development_rbf,
 	stop,
+	recover_idle,
 };
 
 struct Request {

@@ -109,6 +109,10 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.Stop();
 		EmitFifoConsume("stop", result.ok());
 		break;
+	case Operation::recover_idle:
+		result = runtime_.RecoverIdle();
+		EmitFifoConsume("recover_idle", result.ok());
+		break;
 	}
 	return Respond(request.protocol, result, inspected, core_data);
 }

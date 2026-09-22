@@ -725,6 +725,56 @@ public:
 		return {};
 	}
 
+	Error RecoverIdle()
+	{
+		bool retry_idle = false;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || pending_fault_generation_ != 0 || !started_) {
+				const Error error = Busy("runtime mutation is busy");
+				Log("recover_idle", status_.system, status_.core, "validate", error);
+				return error;
+			}
+			if (status_.state == State::running_development) {
+				// Stop owns save and the first idle program.
+			} else if (status_.state == State::idle) {
+				status_.error = {};
+				Log("recover_idle", "", "", "idle");
+				return {};
+			} else if (status_.state != State::reboot_required) {
+				const Error error = Busy("runtime is not recoverable");
+				Log("recover_idle", "", "", "validate", error);
+				return error;
+			} else {
+				busy_ = true;
+				retry_idle = true;
+			}
+		}
+		if (!retry_idle) return Stop();
+		Log("recover_idle", "", "", "starting");
+		const HardwareResult result = hardware_.LoadIdle();
+		if (!result.error.ok()) {
+			const Error error = IdleFailure(result.error);
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				status_ = FreshStatus(State::reboot_required);
+				status_.error = error;
+				busy_ = false;
+			}
+			Log("recover_idle", "", "", "failure", error);
+			EmitFence(kDiagnosticKindFenceRecovery, "error", "recover_idle", false);
+			return error;
+		}
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			status_ = FreshStatus(State::idle);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("recover_idle", "", "", "idle");
+		return {};
+	}
+
 	private:
 	Error RestoreAfterSaveFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
@@ -1001,6 +1051,7 @@ Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 	return impl_->LoadDevelopmentRBF(rbf);
 }
 Error Runtime::Stop() { return impl_->Stop(); }
+Error Runtime::RecoverIdle() { return impl_->RecoverIdle(); }
 
 const char* ErrorCodeName(ErrorCode code)
 {

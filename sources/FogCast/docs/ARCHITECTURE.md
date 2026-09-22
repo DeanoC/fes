@@ -402,7 +402,8 @@ through a potentially poisoned transport.
 There is no automatic retry or replay: an unchanged package status cannot
 prove media delivery after a lost reply. The coordinator observes runtime
 state after a transfer failure. A failed transport can leave reset held and
-report `reboot_required`; use the existing leased Stop/reboot recovery path.
+report `reboot_required`; the leased recovery path programs idle again
+(`recover_idle`) and reboots the board only when that LoadIdle fails.
 Stop cannot bypass a poisoned GP transport by merely quiescing it. Physical
 hold/reset, byte transfer and recovery remain runtime responsibilities.
 
@@ -859,8 +860,12 @@ opportunities; failed lookups back off for 1, 2, 4, 8 and then 15 seconds.
 Individual health probes and multicast browse windows are bounded and cancellable.
 Browse is stopped with cancel when its deadline expires, so the DNS-SD packet readers exit.
 Settings changes cancel an in-progress lookup, and shutdown cancels and joins the
-monitor before releasing leases. Explicit development reboot recovery uses the
-same read-only validation while retaining its existing lifecycle admission.
+monitor before releasing leases. Development recovery first programs idle on
+the current boot. It starts a board reboot only when that idle program fails,
+then uses the same read-only validation while retaining its existing lifecycle
+admission. A soft reboot after FPGA or HPS activity can leave the kit
+unreachable; if idle recovery still reports `reboot_required`, use a hard
+power cycle.
 
 Endpoint adoption reads public lease ownership and runtime status before reporting
 ready. The shared host lease object moves game requests, lease renewal, input

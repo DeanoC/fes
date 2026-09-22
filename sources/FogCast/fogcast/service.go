@@ -1961,10 +1961,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 		if healthErr != nil || health.BootID == "" {
 			return protocol.Status{}, canonicalRemoteError(healthErr, protocol.CodeMiSTerUnavailable)
 		}
-		_, _ = recoveryClient.RebootDevelopment(ctx)
-		status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
-		if err != nil {
-			return protocol.Status{}, err
+		recovered, _ := recoveryClient.RebootDevelopment(ctx)
+		if validRecoveredDevelopmentStatus(recovered) {
+			status = recovered
+		} else {
+			status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
+			if err != nil {
+				return protocol.Status{}, err
+			}
 		}
 	}
 	s.executionMu.Lock()

@@ -164,6 +164,15 @@ func TestTakeoverFencesAndWaits(t *testing.T) {
 		t.Fatal("stale takeover", e)
 	}
 }
+func TestUnreachableRuntimeFreesLeaseOnStartup(t *testing.T) {
+	m := New(time.Minute, func(context.Context) error { return ErrRuntimeUnreachable })
+	defer m.Close()
+	wait(t, m, "free")
+	if _, e := m.Claim(req("a")); e != nil {
+		t.Fatal(e)
+	}
+}
+
 func TestFailedCleanupAndOperatorRetry(t *testing.T) {
 	var fail atomic.Bool
 	fail.Store(true)

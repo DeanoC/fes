@@ -611,6 +611,33 @@ void TestStopFromRebootRequiredDoesNotCallHardware()
 	assert(fixture.hardware.idle_calls == 1);
 }
 
+void TestRecoverIdleRetriesProgramFromRebootRequired()
+{
+	Fixture fixture;
+	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "failed"};
+	assert(fixture.runtime.Start().code == ErrorCode::idle_failed);
+	assert(fixture.hardware.idle_calls == 1);
+	fixture.hardware.idle_result.error = {};
+	assert(fixture.runtime.RecoverIdle().ok());
+	assert(fixture.runtime.status().state == State::idle);
+	assert(fixture.runtime.status().error.code == ErrorCode::none);
+	assert(fixture.hardware.idle_calls == 2);
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.hardware.idle_calls == 2);
+}
+
+void TestRecoverIdleFailureStaysRebootRequired()
+{
+	Fixture fixture;
+	fixture.hardware.idle_result.error = {ErrorCode::program_failed, "failed"};
+	assert(fixture.runtime.Start().code == ErrorCode::idle_failed);
+	assert(fixture.runtime.RecoverIdle().code == ErrorCode::idle_failed);
+	assert(fixture.runtime.status().state == State::reboot_required);
+	assert(fixture.hardware.idle_calls == 2);
+	assert(fixture.runtime.Stop().code == ErrorCode::idle_failed);
+	assert(fixture.hardware.idle_calls == 2);
+}
+
 
 void TestRebootRequiredRejectsBothLaunchKinds()
 {
@@ -1040,6 +1067,8 @@ int main()
 	TestStopFromBothRunningStatesLoadsIdleOnce();
 	TestStopFromIdleIsIdempotent();
 	TestStopFromRebootRequiredDoesNotCallHardware();
+	TestRecoverIdleRetriesProgramFromRebootRequired();
+	TestRecoverIdleFailureStaysRebootRequired();
 	TestRebootRequiredRejectsBothLaunchKinds();
 	TestFailedStartAndStopNeverPerformSecondCleanup();
 	TestPostMutationFailureLogsCleanupAndPrimary();
@@ -1052,6 +1081,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 43 passed");
+	puts("runtime_test: 45 passed");
 	return 0;
 }

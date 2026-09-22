@@ -1277,6 +1277,32 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 	}
 }
 
+func TestServiceDevelopmentRecoveryAcceptsIdleWithoutWaitingForReboot(t *testing.T) {
+	payload := []byte("development-rbf")
+	observed := "DEVCORE"
+	client := &fakeServiceClient{
+		developmentLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+			return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed},
+		stopResult: protocol.Status{
+			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+		},
+		developmentReboot: func(context.Context) (protocol.Status, error) {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		},
+		healthResult: protocol.Health{Ready: true, BootID: "boot-before"},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	if _, err := service.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload)); err != nil {
+		t.Fatal(err)
+	}
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle || client.developmentReboots != 1 || client.healthCalls != 1 || service.activeExecution != "" {
+		t.Fatalf("stop=%+v err=%v reboots=%d health=%d execution=%q", status, err, client.developmentReboots, client.healthCalls, service.activeExecution)
+	}
+}
+
 func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 	var stopCalls, rebootCalls, healthCalls, statusCalls int
 	rebooted := false
