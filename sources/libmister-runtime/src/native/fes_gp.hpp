@@ -69,7 +69,9 @@ public:
 	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	// Mid-session eject: media begin with eject index and argument 0.
 	// A core that rejects that index (error 2) is retried with control-index
-	// begin and argument 0, the eject those bitstreams still implement.
+	// begin and argument 0. Error 3 on that command is invalid argument:
+	// sealed golden cores reject argument 0, so clear follows with a
+	// minimum-length begin, which drops readiness without a commit.
 	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;

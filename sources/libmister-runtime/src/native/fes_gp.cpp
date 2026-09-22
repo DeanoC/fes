@@ -758,18 +758,38 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 	// Response 2 is invalid index, not invalid state. Cores sealed before
 	// MediaEjectIndex check the index first, so they answer 2 even while
 	// media_busy is high and never reach the invalid-state (4) reject.
-	// Their eject is still control-index begin with argument 0.
-	if (CommandRejected(error, FesSimpleComputerErrorInvalidIndex)) {
+	if (!CommandRejected(error, FesSimpleComputerErrorInvalidIndex))
+		return classify(error, response);
+
+	// Cores that added eject before MediaEjectIndex use control-index begin
+	// with argument 0. Invalid state on that command is still a busy loader.
+	error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
+		static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+	// Response 3 is invalid argument, not busy (busy is response 4). The
+	// sealed golden mailbox rejects argument 0 because it is below
+	// MediaMinBytes; media-begin-zero stays that reject, and those bitstreams
+	// never implemented argument-0 eject. Any legal begin drops media_ready
+	// and media_size before data is committed, which is what makes the next
+	// empty LOAD "" report 0/0. Do not commit: commit would mark that
+	// minimum blob ready again.
+	if (CommandRejected(error, FesSimpleComputerErrorInvalidArgument)) {
 		error = gp_.Exchange(static_cast<std::uint8_t>(FesSimpleComputerOpcodeMediaBegin),
-			static_cast<std::uint8_t>(FesSimpleComputerControlIndex), 0, deadline, &response);
+			static_cast<std::uint8_t>(FesSimpleComputerControlIndex),
+			static_cast<std::uint16_t>(FesSimpleComputerMediaMinBytes),
+			deadline, &response);
 		const Error classified = classify(error, response);
 		if (classified.ok() || classified.code == ErrorCode::busy) return classified;
 		return {ErrorCode::io_failed,
-			"FES computer media clear failed after invalid eject index: " +
+			"FES computer media clear failed after sealed media begin: " +
 				classified.message,
 			"input"};
 	}
-	return classify(error, response);
+	const Error classified = classify(error, response);
+	if (classified.ok() || classified.code == ErrorCode::busy) return classified;
+	return {ErrorCode::io_failed,
+		"FES computer media clear failed after invalid eject index: " +
+			classified.message,
+		"input"};
 }
 
 Error FesGpCoreDriver::LoadFirmware(

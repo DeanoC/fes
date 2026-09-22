@@ -1527,18 +1527,59 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(f.mmio.writes.size() == start + 2);
 	}
 	{
-		// Both eject shapes rejected. Keep the fault class in the message
-		// instead of collapsing it to a generic unavailable I/O error.
+		// HIL 39fce226: eject index returns 2, then control-index begin with
+		// argument 0 returns 3 (invalid argument). That is the sealed golden
+		// mailbox, which rejects argument 0 and clears readiness on any legal
+		// begin. Follow with control-index begin of MediaMinBytes and do not
+		// commit.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false, 0);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.ok());
+		assert(f.mmio.writes.size() == start + 6);
+		assert((f.mmio.writes[start].value & 0x7fffffff) == 0x04010000);
+		assert((f.mmio.writes[start + 2].value & 0x7fffffff) == 0x04000000);
+		assert((f.mmio.writes[start + 4].value & 0x7fffffff) ==
+			(0x04000000u | static_cast<std::uint32_t>(FesSimpleComputerMediaMinBytes)));
+	}
+	{
+		// Same sealed path, loader still copying when the legal begin lands:
+		// invalid state stays retryable busy, not unavailable.
+		ComputerClearFixture f;
+		const std::size_t start = f.mmio.writes.size();
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
+		PushCompleted(&f.mmio, true,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+		const auto error = f.driver.ClearMedia(100000);
+		assert(error.code == mister::ErrorCode::busy);
+		assert(error.message == "tape loader is busy");
+		assert(error.phase == "input");
+		assert(f.mmio.writes.size() == start + 6);
+	}
+	{
+		// Response 3 on the minimum begin is still invalid argument, not
+		// busy. Stop there; do not invent another eject shape.
 		ComputerClearFixture f;
 		PushCompleted(&f.mmio, false,
 			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidIndex), true);
 		PushCompleted(&f.mmio, true,
 			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
+		PushCompleted(&f.mmio, false,
+			static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidArgument), true);
 		const auto error = f.driver.ClearMedia(100000);
 		assert(error.code == mister::ErrorCode::io_failed);
 		assert(error.phase == "input");
-		assert(error.message.find("invalid eject index") != std::string::npos);
+		assert(error.message.find("sealed media begin") != std::string::npos);
 		assert(error.message.find("response 3") != std::string::npos);
+		assert(error.message.find("tape loader") == std::string::npos);
 	}
 }
 

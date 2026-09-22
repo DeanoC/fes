@@ -51,7 +51,10 @@ Quiesce/hold-reset; `clear_media` ejects readiness so the next empty
 `LOAD ""` is `0/0`. Both require package/generation binding. Tape-loader
 busy (GP error 4) maps to retryable `busy`. A bitstream that rejects
 `MediaEjectIndex` with GP error 2 is cleared with the older control-index
-begin of argument 0; that attempt's invalid-state is the same busy. `load_media_stream` retains exact
+begin of argument 0. GP error 3 on that word is invalid argument: sealed
+golden cores reject argument 0, and clear follows with a minimum-length
+begin, which drops readiness without a commit. Invalid state on any of
+those attempts is the same busy. `load_media_stream` retains exact
 package/generation binding, observed capacity, bounded snapshots, CRC and
 poisoned-mailbox recovery semantics. See [stream media](media-stream.md).
 Method names retaining `Computer` are compatibility API names; admission and

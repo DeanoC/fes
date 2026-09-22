@@ -34,12 +34,18 @@ interfaces control reset-held startup and release after a successful commit.
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.
 Clear sends media begin at `MediaEjectIndex`. GP error 2 is invalid index:
-cores sealed before that index answer it before they look at `media_busy`,
-so clear repeats the older control-index begin with argument 0 and classifies
-that attempt the same way. A poisoned or unstable GP handshake after keyboard
-traffic is the same retryable busy: clear realigns from the live ACK and
+cores sealed before that index answer it before they look at `media_busy`.
+Clear then repeats control-index begin with argument 0, the eject those
+cores added before the eject index. GP error 3 on that command is invalid
+argument, not busy: the sealed golden mailbox rejects argument 0 because it
+is below the minimum blob length, and it never treated that word as eject.
+A legal begin on those cores drops `media_ready` and `media_size` before
+commit, so clear follows with control-index begin of `MediaMinBytes` and
+does not commit. Invalid state (GP error 4) on any of these attempts is
+retryable busy. A poisoned or unstable GP handshake after keyboard traffic
+is the same retryable busy: clear realigns from the live ACK and
 re-identifies before eject. Re-identify does not run for a completed
-rejection. A hard MMIO failure, or an invalid acknowledgement after both
+rejection. A hard MMIO failure, or an invalid acknowledgement after these
 eject shapes, stays `io_failed`.
 See FES
 [`docs/zx81-tape-media.md`](../../docs/zx81-tape-media.md).
