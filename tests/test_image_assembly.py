@@ -43,10 +43,10 @@ class ImageAssemblyTest(unittest.TestCase):
         policy = tomllib.loads((IMAGE / 'build/native-inputs.toml').read_text())
         expected = {
             'repository': 'sources/misteross',
-            'commit': 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07',
+            'commit': '2609827b8de1397b6d6a2fc877be56e657e1ba11',
             'path': 'sealed/fes-splash.rbf',
-            'sha256': 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6',
-            'size': 1961783,
+            'sha256': 'feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f',
+            'size': 1962648,
         }
         for section in ('splash_rbf', 'idle_rbf'):
             self.assertEqual({key: policy[section][key] for key in expected},

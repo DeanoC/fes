@@ -26,7 +26,7 @@ QSF = "cores/fes-splash/constraints.qsf"
 SDC = "boards/de10nano/clocks.sdc"
 OUTPUT_RELATIVE = Path("build/fes-splash")
 RTL_SOURCES = (
-    "cores/fes-pong/rtl/pixel_pll.v",
+    "cores/fes-splash/rtl/pixel_pll.v",
     "cores/fes-splash/rtl/fes_splash_core.v",
     "cores/fes-splash/rtl/top.v",
 )

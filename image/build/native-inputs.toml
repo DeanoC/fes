@@ -6,19 +6,19 @@ mount_path = '/runtime-source'
 # Splash: FAT / U-Boot (`core=menu.rbf`). Filename stays menu.rbf until a
 # U-Boot reseal. Stop-idle: rootfs LoadIdle() artifact. Both slots reuse
 # the in-tree misteross splash seal. repository/commit are provenance
-# (seal tip a2af7fdd / recipe 20d04603); fetch copies the FES path.
+# (seal tip 2609827b / PLL lock-gate); fetch copies the FES path.
 [splash_rbf]
 repository = 'sources/misteross'
-commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+commit = '2609827b8de1397b6d6a2fc877be56e657e1ba11'
 path = 'sealed/fes-splash.rbf'
-sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
-size = 1961783
+sha256 = 'feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f'
+size = 1962648
 fat_destination = '/menu.rbf'
 
 [idle_rbf]
 repository = 'sources/misteross'
-commit = 'a2af7fdd58d8e5d288892aeda38e8dc226aaed07'
+commit = '2609827b8de1397b6d6a2fc877be56e657e1ba11'
 path = 'sealed/fes-splash.rbf'
-sha256 = 'f165fdb841c16cb75e27ad518ff689802890008422abe51b5a788b42d8bd33d6'
-size = 1961783
+sha256 = 'feb0a66a3384d56a234fcdbd4ee2665fe366310946b206f5aefbfa6ad6e6e83f'
+size = 1962648
 install_path = '/usr/share/mister-runtime/idle.rbf'
