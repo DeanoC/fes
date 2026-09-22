@@ -2232,7 +2232,25 @@ then copies CRAM for tile columns 21–33
 rectangle. Classify ignores sx120f ECC/CRC columns 41, 42, 45 and 49.
 A taller 904 occupancy also flips companion strips 43, 46, 47 and 50.
 `overlay_mode = "m10k_ram"` remains INIT-only for the 890/891/892 isolation
-trio.
+trio. `overlay_m10k_init_bt` is the byte-file form of that same RAM-mux
+replacement for a 1024×10 lane: payload bits `[7:0]`, padding bits
+`[9:8]` clear, four lanes per 40-bit word. The stored mux is that chunk
+after nextpnr's `permute_init` permutation and inversion. The ZX81 machine reads BASIC
+through `zx81_dpram` (`ADDRWIDTH` 14, address `{1'b0, rom_a[12], rom_a[11:0]}`)
+from the low 8 KiB of `zx8x.hex`. The OSS package uses `zx81_rom_link`
+instead and leaves those lanes empty. `make sim-fes-zx81-rom` checks the
+simulation port.
+`link_static_rbf.py init` applies one such lane to a placed RBF and reads
+the RAM muxes back from the recomposed bitstream. `init --basic` writes all
+eight lanes onto the column-26 proof sites. `init --machine` writes them
+onto column 5, rows 73–80, and the receipt carries the 8 KiB image digest.
+`890_slot_m10k` is the BEL-locked block at `MISTRAL_M10K.26.1.0`.
+`893_zx81_basic8` places the eight legal column-26 M10Ks
+(`26.1`, `26.2`, `26.5`, `26.6`, `26.9`, `26.10`, `26.13`, `26.14`).
+The OSS `fes.zx81` recipe instantiates `zx81_rom_link` under
+`FES_ZX81_ROM_LINK`, so the package inputs do not include `zx8x.hex`.
+Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
+empty socket; launch splices BASIC into the programmed bitstream.
 
 Commands, cart-authoring rules and kit probes live in the README
 [Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges)
@@ -2583,8 +2601,11 @@ diagnostic cleanup.
 `fes.zx81` 1.2.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
-M10K allowed and DSP/MLAB forbidden. ROM, RAM and media use native
-asynchronous-read M10K tables; the two-write media path uses native
+M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
+eight empty BEL-locked 1024×10 lanes at `MISTRAL_M10K.5.73.0` through
+`MISTRAL_M10K.5.80.0`. `zx8x.hex` is not a package input; launch splices
+the low 8 KiB with `link_static_rbf.py init --machine`. RAM and media stay
+inferred asynchronous-read M10K tables; the two-write media path uses native
 asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
 Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60

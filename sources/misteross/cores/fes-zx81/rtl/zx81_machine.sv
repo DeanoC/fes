@@ -172,6 +172,12 @@ module zx81_machine #(
         {addr[12:9] + (addr[13] & ram_data_latch[7] & addr[8]), ram_data_latch[5:0], row_counter};
     wire rom_e = ~addr[14] & ~addr[13] & (~addr[12] | ZX81) & low16k_e & ~bus_romcs;
     wire [7:0] rom_out;
+`ifdef FES_ZX81_ROM_LINK
+    zx81_rom_link rom (
+        .address(rom_a),
+        .data(rom_out)
+    );
+`else
 `ifdef QUARTUS
     localparam ROM_INIT = "cores/fes-zx81/rtl/zx8x.mif";
 `else
@@ -188,6 +194,7 @@ module zx81_machine #(
         .wren_b(1'b0),
         .q_b()
     );
+`endif
 
     reg tapeloader, tapewrite_we;
     reg [13:0] tape_addr;

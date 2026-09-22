@@ -571,3 +571,33 @@ func TestPackageIdentityUsesExactLengthPrefixedBytes(t *testing.T) {
 		t.Fatal("identity is not lowercase")
 	}
 }
+
+func TestRetainProgrammedBitstreamCleansWithThePackage(t *testing.T) {
+	root := t.TempDir()
+	publication := "pkg"
+	if err := os.Mkdir(filepath.Join(root, publication), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicationInfo, err := os.Stat(filepath.Join(root, publication))
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := Staged{root: root, rootInfo: rootInfo, publication: publication, publicationInfo: publicationInfo}
+	path, err := staged.RetainProgrammedBitstream([]byte("programmed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+	if err = staged.Cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("programmed bitstream after cleanup: %v", err)
+	}
+}

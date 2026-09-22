@@ -491,6 +491,30 @@ The 890/891/892 trio is the older INIT-only M10K overlay
 (`overlay_mode = "m10k_ram"`). Use 901 when the cart is unknown at shell
 place-and-route time.
 
+`overlay_m10k_init_bt` writes a byte image into an already placed 1024×10
+M10K by replacing only its 256 RAM muxes. Lane `address` is the same
+10-bit INIT slice the `880_m10k_async_rom` port reads, with the payload
+byte in bits `[7:0]`. nextpnr stores each 40-bit chunk permuted and
+inverted (`permute_init` in `bitstream.cc`); `init` writes that stored
+form. Simulation and the Quartus oracle keep the machine ROM as `zx81_dpram`
+16384×8, addressed `{1'b0, rom_a[12], rom_a[11:0]}`, from
+`cores/fes-zx81/rtl/zx8x.hex`. The low 8 KiB is BASIC (reset bytes
+`D3 FD`). `make sim-fes-zx81-rom` reads that port.
+`python3 scripts/link_static_rbf.py init` decompiles one placed RBF,
+replaces RAM muxes from a 1024-byte hex lane, recompresses, and reads those
+muxes back. `init --basic` writes all eight lanes onto the column-26 proof sites.
+`init --machine` writes them onto the machine ROM at `MISTRAL_M10K.5.73.0`
+through `MISTRAL_M10K.5.80.0` and records the 8 KiB image digest on the
+launch receipt. `make oss EXP=890_slot_m10k` places one proof block at
+`MISTRAL_M10K.26.1.0`. `make oss EXP=893_zx81_basic8` places the eight
+legal column-26 proof M10Ks (`26.1`, `26.2`, `26.5`, `26.6`, `26.9`,
+`26.10`, `26.13`, `26.14`). The OSS `fes.zx81` recipe defines
+`FES_ZX81_ROM_LINK` and does not hash `zx8x.hex` into the package. Those
+column-5 lanes are empty in the sealed package. Launch splices BASIC onto
+the programmed bitstream and keeps the package id of the empty socket.
+Simulation still reads the hex. The 8192×1 geometry uses
+a different physical order and is not a ROM-link map.
+
 ### Build a composed RBF
 
 Pass-2 uses `--router gpu`, so install HIP nextpnr first:
@@ -586,7 +610,8 @@ development-RBF diagnostic, not image acceptance, and it does not seal
 `make sim-fes-zx81` tests the `fes.simple-computer` 1.0 mailbox, a 16 KB PAL
 ZX81 machine that reaches BASIC, types `LOAD ""`, consumes a 16-byte `.p`
 through the tape-loader patch, and 1650×750 HDMI timing for the scaled
-raster. It is simulation, not a Quartus RBF or kit evidence.
+raster. It also reads the machine ROM port for the 8 KiB BASIC image in
+`zx8x.hex`. It is simulation, not a Quartus RBF or kit evidence.
 
 `make build-fes-zx81-quartus` is the Quartus Prime Lite 17.0.2 legacy oracle
 recipe for package `fes.zx81` 1.0.0; it is not a nextpnr fallback or the

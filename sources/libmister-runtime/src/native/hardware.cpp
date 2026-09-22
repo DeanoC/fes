@@ -14,14 +14,18 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/input.hpp"
+#include "native/sha256.hpp"
 #include "native/video.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
+#include <cerrno>
 #include <limits>
 #include <memory>
 #include <string>
+#include <unistd.h>
 #include <vector>
 #include <utility>
 
@@ -131,6 +135,9 @@ public:
 	std::unique_ptr<CoreDataFile> data_file_;
 	CoreData data_;
 	std::unique_ptr<OpenedCoreComposition> composition_;
+	Artifact programmed_;
+	std::string programmed_sha256_;
+	bool has_programmed_ = false;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -640,6 +647,44 @@ Error NativeHardware::LoadComputerMediaStream(const std::string& path, std::uint
 	return error;
 }
 
+Error HashOpenedArtifact(const Artifact& artifact, std::string* digest)
+{
+	Sha256 hash;
+	std::array<unsigned char, 16384> buffer = {};
+	std::uint64_t offset = 0;
+	while (offset < artifact.size()) {
+		const std::size_t wanted = static_cast<std::size_t>(
+			std::min<std::uint64_t>(buffer.size(), artifact.size() - offset));
+		const ssize_t count = pread(artifact.fd(), buffer.data(), wanted,
+			static_cast<off_t>(offset));
+		if (count < 0 && errno == EINTR) continue;
+		if (count <= 0) return {ErrorCode::invalid_request, "incomplete programmed bitstream read", "admission"};
+		hash.Update(buffer.data(), static_cast<std::size_t>(count));
+		offset += static_cast<std::size_t>(count);
+	}
+	*digest = Sha256Hex(hash.Final());
+	return {};
+}
+
+Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
+	const std::string& path, const std::string& sha256)
+{
+	NativeAdmittedCore* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (admitted == nullptr || sha256.size() != 64)
+		return {ErrorCode::invalid_request, "programmed bitstream is invalid", "admission"};
+	Artifact artifact;
+	Error error = OpenRBFArtifact(path, opener_, &artifact);
+	if (!error.ok()) return error;
+	std::string digest;
+	error = HashOpenedArtifact(artifact, &digest);
+	if (!error.ok() || digest != sha256)
+		return {ErrorCode::invalid_request, "programmed bitstream does not match its receipt", "admission"};
+	admitted->programmed_ = std::move(artifact);
+	admitted->programmed_sha256_ = sha256;
+	admitted->has_programmed_ = true;
+	return {};
+}
+
 HardwareResult NativeHardware::LoadCore(
 	std::unique_ptr<AdmittedCorePackage> package, std::uint64_t generation)
 {
@@ -695,8 +740,17 @@ HardwareResult NativeHardware::LoadCore(
 		return {stopped.ok() ? quiesced.error : WithPhase(stopped, "input"),
 			quiesced.mutation_attempted, quiesced.observed_core};
 	}
-	const NativeResult programmed = fpga_.Program(admitted->composition_ ?
-		admitted->composition_->payload : admitted->opened_.payload,
+	if (admitted->has_programmed_) {
+		std::string digest;
+		Error check = HashOpenedArtifact(admitted->programmed_, &digest);
+		if (!check.ok() || digest != admitted->programmed_sha256_)
+			return {{ErrorCode::invalid_request,
+				"programmed bitstream changed after admission", "admission"}, false, ""};
+	}
+	const Artifact* bitstream = &admitted->opened_.payload;
+	if (admitted->has_programmed_) bitstream = &admitted->programmed_;
+	else if (admitted->composition_) bitstream = &admitted->composition_->payload;
+	const NativeResult programmed = fpga_.Program(*bitstream,
 		admitted->profile_, Deadline(clock_, timeouts_.program_ms));
 	ObserveProgram("load_core", programmed);
 	if (!programmed.error.ok()) {

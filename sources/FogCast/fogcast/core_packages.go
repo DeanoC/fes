@@ -312,6 +312,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	var entry catalog.CoreEntry
 	var media *coreEntryMedia
 	var firmware *coreEntryMedia
+	var imageSHA string
 	defer func() {
 		if media != nil {
 			resultErr = errors.Join(resultErr, media.Close())
@@ -365,6 +366,14 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if err != nil {
 			return coreLoadSource{}, err
 		}
+		initialized, sha, err := s.applyZX81MachineROM(ctx, inspection.Descriptor.Core.ID, data, bundle)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+		if initialized != nil {
+			imageSHA = sha
+			return initializedLaunchSource(entry, initialized, bundle), nil
+		}
 		if bundle != nil {
 			var transport bytes.Buffer
 			if err = bundle.Write(&transport); err != nil {
@@ -374,6 +383,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
+	status = retainImageSHA(status, imageSHA)
 	response := protocol.CachedLaunchResponse{Status: status}
 	if err != nil {
 		return response, err
@@ -393,7 +403,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if fwErr != nil {
 			return s.recoverLibrarySlot(parent, fwStatus, fwErr)
 		}
-		status = fwStatus
+		status = retainImageSHA(fwStatus, imageSHA)
 		response.Status = status
 	}
 	if media == nil {
@@ -415,7 +425,22 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	if mediaErr != nil {
 		return s.recoverLibrarySlot(parent, mediaStatus, mediaErr)
 	}
-	return protocol.CachedLaunchResponse{Status: mediaStatus}, nil
+	return protocol.CachedLaunchResponse{Status: retainImageSHA(mediaStatus, imageSHA)}, nil
+}
+
+func initializedLaunchSource(entry catalog.CoreEntry, body []byte, bundle *corepackage.CompositionBundle) coreLoadSource {
+	source := coreLoadSource{size: int64(len(body)), body: bytes.NewReader(body), entry: &entry}
+	if bundle != nil {
+		source.composition = &bundle.Composition
+	}
+	return source
+}
+
+func retainImageSHA(status protocol.Status, imageSHA string) protocol.Status {
+	if imageSHA != "" && status.CorePackage != nil {
+		status.CorePackage.ImageSHA256 = imageSHA
+	}
+	return status
 }
 
 func (s *Service) recoverLibrarySlot(parent context.Context, mediaStatus protocol.Status, mediaErr error) (protocol.CachedLaunchResponse, error) {

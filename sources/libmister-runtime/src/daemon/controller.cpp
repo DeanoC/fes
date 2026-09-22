@@ -60,6 +60,21 @@ std::string Controller::Handle(const std::string& line)
 			request.composition_request);
 		EmitFifoConsume("load_composed_core", result.ok());
 		break;
+	case Operation::load_initialized_core:
+		result = runtime_.LoadInitializedCore(request.package_path, request.package_id,
+			request.programmed_path, request.programmed_sha256);
+		EmitFifoConsume("load_initialized_core", result.ok());
+		break;
+	case Operation::load_initialized_library_core:
+		result = runtime_.LoadInitializedLibraryCore(request.package_path, request.package_id,
+			request.data_root, request.programmed_path, request.programmed_sha256);
+		EmitFifoConsume("load_initialized_library_core", result.ok());
+		break;
+	case Operation::load_initialized_composed_core:
+		result = runtime_.LoadInitializedComposedCore(request.package_path, request.package_id,
+			request.composition_request, request.programmed_path, request.programmed_sha256);
+		EmitFifoConsume("load_initialized_composed_core", result.ok());
+		break;
 	case Operation::set_keyboard:
 		result = runtime_.SetComputerKeyboard(request.keyboard_matrix);
 		break;

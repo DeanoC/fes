@@ -1,0 +1,12 @@
+# Clock pin plus the eight legal column-26 M10K rows used by the 8 KiB blank.
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -entity top -to FPGA_CLK1_50
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.1.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.2.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.5.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.6.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.9.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.10.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.13.0"
+set_global_assignment -name FES_RESERVED_BEL "MISTRAL_M10K.26.14.0"
+set_global_assignment -name FES_RESERVED_RECT "26 1 26 14"

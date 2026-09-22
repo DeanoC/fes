@@ -233,6 +233,7 @@ class ExperimentPolicy:
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
     required_nextpnr_bels: Mapping[str, str] = MappingProxyType({})
+    required_m10k_bels: tuple[str, ...] = ()
     synth_json_input_ports: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_tied_low: Mapping[str, tuple[str, ...]] = MappingProxyType({})
     synth_json_mlab_init: bool = False
@@ -421,6 +422,17 @@ class ExperimentPolicy:
                 )
             bels[cell] = bel
         object.__setattr__(self, "required_nextpnr_bels", MappingProxyType(bels))
+
+        m10k_sites = tuple(self.required_m10k_bels)
+        if any(not isinstance(bel, str) or not bel.startswith("MISTRAL_M10K.") for bel in m10k_sites):
+            raise PolicyError(f"{self.name}: required M10K BELs must be MISTRAL_M10K sites")
+        if len(set(m10k_sites)) != len(m10k_sites):
+            raise PolicyError(f"{self.name}: required M10K BELs must be unique")
+        if m10k_sites and synth_cells.get("MISTRAL_M10K") != len(m10k_sites):
+            raise PolicyError(
+                f"{self.name}: required M10K BEL count must match the required synth cell count"
+            )
+        object.__setattr__(self, "required_m10k_bels", m10k_sites)
 
         input_ports: dict[str, tuple[str, ...]] = {}
         for cell, ports in dict(self.synth_json_input_ports).items():
@@ -958,51 +970,56 @@ class ExperimentPolicy:
 
     def _require_m10k_async_readonly(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design)
-        if len(cells) != 1:
-            raise PolicyError(f"synth json must contain exactly one MISTRAL_M10K, got {len(cells)}")
-        cell = cells[0]
-        parameters = cell.get("parameters")
-        connections = cell.get("connections")
-        if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
-            raise PolicyError("M10K cell is missing parameters or connections")
-        if json_bit_parameter(parameters.get("CFG_ASYNC_READ")) != 1:
+        expected_count = self.required_synth_cells.get("MISTRAL_M10K", 1)
+        if len(cells) != expected_count:
             raise PolicyError(
-                f"read-only async M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
+                f"synth json must contain exactly {expected_count} MISTRAL_M10K, got {len(cells)}"
             )
-        if json_bit_parameter(parameters.get("CFG_ABITS")) != 10:
-            raise PolicyError(f"read-only async M10K CFG_ABITS must be 10, got {parameters.get('CFG_ABITS')!r}")
-        if json_bit_parameter(parameters.get("CFG_DBITS")) != 10:
-            raise PolicyError(f"read-only async M10K CFG_DBITS must be 10, got {parameters.get('CFG_DBITS')!r}")
-        if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
-            raise PolicyError("read-only async M10K cannot set CFG_BYTE_ENABLE")
-        if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) not in (None, 0):
-            raise PolicyError("read-only async M10K cannot set CFG_DUAL_CLOCK")
-        clk1 = connections.get("CLK1")
-        if clk1 not in (["0"], [0]):
-            raise PolicyError(f"read-only async M10K CLK1 must be folded to 0, got {clk1!r}")
-        a1en = connections.get("A1EN")
-        if a1en not in (["1"], [1]):
-            raise PolicyError(f"read-only async M10K A1EN must be tied high, got {a1en!r}")
-        if "CLK2" in connections:
-            raise PolicyError("read-only async M10K must not connect CLK2")
-        if "A1BE" in connections:
-            raise PolicyError("read-only async M10K must not connect A1BE")
-        b1addr = connections.get("B1ADDR")
-        b1data = connections.get("B1DATA")
-        if not isinstance(b1addr, list) or len(b1addr) != 10:
-            raise PolicyError("read-only async M10K B1ADDR must be 10 bits")
-        if not isinstance(b1data, list) or len(b1data) != 10:
-            raise PolicyError("read-only async M10K B1DATA must be 10 bits")
-        init = json_bit_parameter(parameters.get("INIT"))
-        if init is None:
-            raise PolicyError("read-only async M10K INIT is missing")
-        for address in (0, 1, 2, 7, 15, 31, 255, 512, 1023):
-            actual = (init >> (address * 10)) & 0x3FF
-            expected = m10k_init_word(address, 10)
-            if actual != expected:
+        for cell in cells:
+            parameters = cell.get("parameters")
+            connections = cell.get("connections")
+            if not isinstance(parameters, Mapping) or not isinstance(connections, Mapping):
+                raise PolicyError("M10K cell is missing parameters or connections")
+            if json_bit_parameter(parameters.get("CFG_ASYNC_READ")) != 1:
                 raise PolicyError(
-                    f"read-only async M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                    f"read-only async M10K CFG_ASYNC_READ must be 1, got {parameters.get('CFG_ASYNC_READ')!r}"
                 )
+            if json_bit_parameter(parameters.get("CFG_ABITS")) != 10:
+                raise PolicyError(f"read-only async M10K CFG_ABITS must be 10, got {parameters.get('CFG_ABITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_DBITS")) != 10:
+                raise PolicyError(f"read-only async M10K CFG_DBITS must be 10, got {parameters.get('CFG_DBITS')!r}")
+            if json_bit_parameter(parameters.get("CFG_BYTE_ENABLE")) not in (None, 0):
+                raise PolicyError("read-only async M10K cannot set CFG_BYTE_ENABLE")
+            if json_bit_parameter(parameters.get("CFG_DUAL_CLOCK")) not in (None, 0):
+                raise PolicyError("read-only async M10K cannot set CFG_DUAL_CLOCK")
+            clk1 = connections.get("CLK1")
+            if clk1 not in (["0"], [0]):
+                raise PolicyError(f"read-only async M10K CLK1 must be folded to 0, got {clk1!r}")
+            a1en = connections.get("A1EN")
+            if a1en not in (["1"], [1]):
+                raise PolicyError(f"read-only async M10K A1EN must be tied high, got {a1en!r}")
+            if "CLK2" in connections:
+                raise PolicyError("read-only async M10K must not connect CLK2")
+            if "A1BE" in connections:
+                raise PolicyError("read-only async M10K must not connect A1BE")
+            b1addr = connections.get("B1ADDR")
+            b1data = connections.get("B1DATA")
+            if not isinstance(b1addr, list) or len(b1addr) != 10:
+                raise PolicyError("read-only async M10K B1ADDR must be 10 bits")
+            if not isinstance(b1data, list) or len(b1data) != 10:
+                raise PolicyError("read-only async M10K B1DATA must be 10 bits")
+            init = json_bit_parameter(parameters.get("INIT"))
+            if init is None:
+                raise PolicyError("read-only async M10K INIT is missing")
+            if expected_count != 1:
+                continue
+            for address in (0, 1, 2, 7, 15, 31, 255, 512, 1023):
+                actual = (init >> (address * 10)) & 0x3FF
+                expected = m10k_init_word(address, 10)
+                if actual != expected:
+                    raise PolicyError(
+                        f"read-only async M10K INIT address {address} must be {expected:#x}, got {actual:#x}"
+                    )
 
     def _require_m10k_addrstalla(self, design: Mapping[str, Any]) -> None:
         cells = self._m10k_cells(design, "MISTRAL_M10K_TDP")
@@ -1774,7 +1791,8 @@ class ExperimentPolicy:
 
         if (
             not self.required_packed_sites
-            and not self.required_nextpnr_bels
+            and             not self.required_nextpnr_bels
+            and not self.required_m10k_bels
             and not self.m10k_selector_pair
             and not self.m10k_async_readonly
         ):
@@ -1839,8 +1857,9 @@ class ExperimentPolicy:
                     bels.append(bel)
             if len(bels) != 2 or len(set(bels)) != 2:
                 raise PolicyError(f"routed M10K cells must occupy two unique sites, got {bels!r}")
-        if self.m10k_async_readonly:
+        if self.m10k_async_readonly or self.required_m10k_bels:
             found = 0
+            found_bels: list[str] = []
             for module in modules.values():
                 if not isinstance(module, Mapping):
                     continue
@@ -1851,18 +1870,27 @@ class ExperimentPolicy:
                     if not isinstance(cell, Mapping) or cell.get("type") != "MISTRAL_M10K":
                         continue
                     found += 1
-                    connections = cell.get("connections")
-                    clk1 = connections.get("CLK1") if isinstance(connections, Mapping) else None
-                    if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
-                        raise PolicyError(
-                            f"routed read-only async M10K CLK1 must be a borrowed live clock, got {clk1!r}"
-                        )
+                    if self.m10k_async_readonly:
+                        connections = cell.get("connections")
+                        clk1 = connections.get("CLK1") if isinstance(connections, Mapping) else None
+                        if not isinstance(clk1, list) or not clk1 or clk1[0] in (0, 1, "0", "1"):
+                            raise PolicyError(
+                                f"routed read-only async M10K CLK1 must be a borrowed live clock, got {clk1!r}"
+                            )
                     attributes = cell.get("attributes")
                     bel = attributes.get("NEXTPNR_BEL") if isinstance(attributes, Mapping) else None
                     if not isinstance(bel, str) or not bel:
                         raise PolicyError("routed read-only async M10K is missing NEXTPNR_BEL")
-            if found != 1:
-                raise PolicyError(f"routed read-only async M10K must occur once, got {found}")
+                    found_bels.append(bel)
+            expected_count = self.required_synth_cells.get("MISTRAL_M10K", 1)
+            if self.m10k_async_readonly and found != expected_count:
+                raise PolicyError(
+                    f"routed read-only async M10K must occur {expected_count} time(s), got {found}"
+                )
+            if self.required_m10k_bels and sorted(found_bels) != sorted(self.required_m10k_bels):
+                raise PolicyError(
+                    f"routed M10K BELs must be {list(self.required_m10k_bels)!r}, got {found_bels!r}"
+                )
         if not self.required_packed_sites:
             return
         cells_by_type: dict[str, list[str]] = {name: [] for name in self.required_packed_sites}
@@ -1960,6 +1988,8 @@ class ExperimentPolicy:
                if self.required_packed_sites else {}),
             **({"required_nextpnr_bels": dict(self.required_nextpnr_bels)}
                if self.required_nextpnr_bels else {}),
+            **({"required_m10k_bels": list(self.required_m10k_bels)}
+               if self.required_m10k_bels else {}),
             **(
                 {
                     "synth_json_input_ports": {
@@ -6256,6 +6286,67 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                         "experiments/890_slot_m10k/sim/m10k_slot_model.v",
                     ),
                     tb="experiments/892_slot_m10k_cart/sim/tb.cpp",
+                ),
+            ),
+        ),
+        "893_zx81_basic8": ExperimentPolicy(
+            name="893_zx81_basic8",
+            sources=("experiments/893_zx81_basic8/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            clock_evidence_names=(
+                "FPGA_CLK1_50_MISTRAL",
+                "FPGA_CLK1_50_MISTRAL_IB_PAD_O_MISTRAL_CLKBUF_A_Q",
+            ),
+            constraints=(
+                "experiments/893_zx81_basic8/pins.qsf",
+                "boards/de10nano/clocks.sdc",
+            ),
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 8,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"M10K"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_M10K": 16,
+            },
+            required_synth_cells={"MISTRAL_M10K": 8},
+            required_m10k_bels=(
+                "MISTRAL_M10K.26.1.0",
+                "MISTRAL_M10K.26.2.0",
+                "MISTRAL_M10K.26.5.0",
+                "MISTRAL_M10K.26.6.0",
+                "MISTRAL_M10K.26.9.0",
+                "MISTRAL_M10K.26.10.0",
+                "MISTRAL_M10K.26.13.0",
+                "MISTRAL_M10K.26.14.0",
+            ),
+            nobram=False,
+            m10k_async_readonly=True,
+            require_read_clock_arc=False,
+            synth_json_tied_low={"MISTRAL_M10K": ("ACLR0", "ACLR1")},
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/893_zx81_basic8/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                        "experiments/890_slot_m10k/sim/m10k_slot_model.v",
+                    ),
+                    tb="experiments/893_zx81_basic8/sim/tb.cpp",
                 ),
             ),
         ),

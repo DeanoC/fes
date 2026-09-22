@@ -204,8 +204,6 @@ func TestLoadConfigRejectsInvalidNamedTargetsWithoutLeakingAgent(t *testing.T) {
 	}
 }
 
-
-
 func TestLoadConfigRejectsInvalidHostEmulatorSystems(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "games")
@@ -883,6 +881,37 @@ func TestNormalizeLibraryConfigNormalizesLibrariesAndTargets(t *testing.T) {
 	}
 }
 
+func TestLoadConfigReadsZX81MachineROM(t *testing.T) {
+	path := writeConfig(t, `base_url = "http://192.0.2.10:8182"
+token = "secret"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[zx81_machine_rom]
+script = "/opt/fes/link_static_rbf.py"
+image = "/opt/fes/zx8x.hex"
+mistral_cv = "/opt/fes/mistral-cv"
+`)
+	cfg, err := fogcast.LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ZX81MachineROM.Script != "/opt/fes/link_static_rbf.py" || cfg.ZX81MachineROM.Image != "/opt/fes/zx8x.hex" || cfg.ZX81MachineROM.MistralCV != "/opt/fes/mistral-cv" {
+		t.Fatalf("machine ROM = %#v", cfg.ZX81MachineROM)
+	}
+	partial := writeConfig(t, `base_url = "http://192.0.2.10:8182"
+token = "secret"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[zx81_machine_rom]
+script = "link_static_rbf.py"
+`)
+	if _, err = fogcast.LoadConfig(partial); err == nil {
+		t.Fatal("relative machine ROM path was accepted")
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
@@ -893,9 +922,11 @@ func writeConfig(t *testing.T, content string) string {
 }
 
 func TestLoadConfigRejectsRetiredRawCoreMap(t *testing.T) {
- path := writeConfig(t, `token = "test"
+	path := writeConfig(t, `token = "test"
 [fpga_rom_paths]
 old_game = "/media/fat/games/old.rom"
 `)
- if _, err := fogcast.LoadConfig(path); err == nil { t.Fatal("retired raw-core map accepted") }
+	if _, err := fogcast.LoadConfig(path); err == nil {
+		t.Fatal("retired raw-core map accepted")
+	}
 }

@@ -15,6 +15,9 @@ enum class Operation {
 	inspect_core,
 	load_core,
 	load_composed_core,
+	load_initialized_core,
+	load_initialized_library_core,
+	load_initialized_composed_core,
 	load_library_core,
 	inspect_core_data,
 	update_core_settings,
@@ -46,6 +49,8 @@ struct Request {
 	std::uint64_t expected_generation = 0;
 	std::uint32_t media_size = 0;
 	CoreCompositionRequest composition_request;
+	std::string programmed_path;
+	std::string programmed_sha256;
 };
 
 Error ParseRequest(const std::string& line, Request* request);

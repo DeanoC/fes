@@ -104,6 +104,39 @@ type Staged struct {
 	publicationInfo    os.FileInfo
 }
 
+// RetainProgrammedBitstream stores bytes beside this publication. Cleanup
+// removes them with the package, including when an ambiguous load retains it.
+func (s *Staged) RetainProgrammedBitstream(body []byte) (string, error) {
+	if s.root == "" || s.rootInfo == nil || s.publication == "" || len(body) == 0 {
+		return "", errors.New("core package: programmed bitstream has no staging ownership")
+	}
+	handle, err := os.OpenRoot(s.root)
+	if err != nil {
+		return "", fmt.Errorf("core package: open programmed bitstream root: %w", err)
+	}
+	defer handle.Close()
+	info, err := handle.Stat(".")
+	if err != nil || !os.SameFile(info, s.rootInfo) {
+		return "", errors.New("core package: programmed bitstream root changed")
+	}
+	name := "machine-rom-" + s.publication
+	if err = handle.Mkdir(name, 0o700); err != nil {
+		return "", fmt.Errorf("core package: create programmed bitstream directory: %w", err)
+	}
+	retained, err := handle.Lstat(name)
+	if err != nil {
+		return "", fmt.Errorf("core package: inspect programmed bitstream directory: %w", err)
+	}
+	s.companions = append(s.companions, Staged{root: s.root, rootInfo: info, publication: name, publicationInfo: retained})
+	if err = writePrivate(handle, filepath.Join(name, "programmed.rbf"), body); err != nil {
+		return "", err
+	}
+	if err = handle.Chmod(name, 0o500); err != nil {
+		return "", fmt.Errorf("core package: seal programmed bitstream directory: %w", err)
+	}
+	return filepath.Join(s.root, name, "programmed.rbf"), nil
+}
+
 // Cleanup removes this caller-owned private publication through its retained
 // staging root. It is safe to call again after successful removal.
 func (s Staged) Cleanup() error {

@@ -1,7 +1,10 @@
 package misterruntime
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 
@@ -106,6 +109,12 @@ type CoreActivation struct {
 
 type protocol2CoreControl interface {
 	LoadCore(context.Context, string, string) (Protocol2Response, error)
+}
+
+type protocol2RomInitControl interface {
+	LoadInitializedCore(context.Context, string, string, string, string) (Protocol2Response, error)
+	LoadInitializedLibraryCore(context.Context, string, string, string, string, string) (Protocol2Response, error)
+	LoadInitializedComposedCore(context.Context, string, string, string, string, expansion.Composition, string, string) (Protocol2Response, error)
 }
 
 type protocol2InspectionControl interface {
@@ -231,6 +240,29 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	}
 	var staged corepackage.Staged
 	var err error
+	var romInit *corepackage.RomInit
+	body, err := io.ReadAll(io.LimitReader(content, size+1))
+	if err != nil || int64(len(body)) != size {
+		return CoreActivation{}, false, &protocol.APIError{
+			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	if corepackage.IsRomInit(body) {
+		decoded, decodeErr := corepackage.ReadRomInit(body)
+		if decodeErr != nil {
+			return CoreActivation{}, false, &protocol.APIError{
+				Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+		}
+		romInit = &decoded
+		if len(decoded.Composition) > 0 {
+			body = decoded.Composition
+			composed = true
+		} else {
+			body = decoded.Package
+			composed = false
+		}
+		size = int64(len(body))
+	}
+	content = bytes.NewReader(body)
 	if composed {
 		if _, ok := r.control.(protocol2CompositionControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -303,6 +335,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		}
 		before = &status
 	}
+	var programmedPath string
+	if romInit != nil {
+		programmedPath, err = staged.RetainProgrammedBitstream(romInit.Programmed)
+		if err != nil {
+			return CoreActivation{}, false, &protocol.APIError{
+				Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+		}
+	}
 	finishBarrier := func(context.Context, bool) error { return nil }
 	if r.coreBarrier != nil {
 		finish, barrierErr := r.coreBarrier.BeginCoreReplacement(operationOwner)
@@ -322,7 +362,24 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 
 	var response Protocol2Response
 	var callErr error
-	if composed {
+	if romInit != nil {
+		initControl, ok := r.control.(protocol2RomInitControl)
+		if !ok {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+		sum := sha256.Sum256(romInit.Programmed)
+		programmedSHA := hex.EncodeToString(sum[:])
+		if composed {
+			response, callErr = initControl.LoadInitializedComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition, programmedPath, programmedSHA)
+			r.noteDispatch("load_initialized_composed_core", callErr == nil)
+		} else if libraryID != "" {
+			response, callErr = initControl.LoadInitializedLibraryCore(operationOwner, staged.Directory, staged.PackageID, CoreDataRoot, programmedPath, programmedSHA)
+			r.noteDispatch("load_initialized_library_core", callErr == nil)
+		} else {
+			response, callErr = initControl.LoadInitializedCore(operationOwner, staged.Directory, staged.PackageID, programmedPath, programmedSHA)
+			r.noteDispatch("load_initialized_core", callErr == nil)
+		}
+	} else if composed {
 		response, callErr = r.control.(protocol2CompositionControl).LoadComposedCore(operationOwner, staged.Directory, staged.PackageID, staged.ExpansionDirectory, staged.PayloadPath, *staged.Composition)
 		r.noteDispatch("load_composed_core", callErr == nil)
 	} else if libraryID != "" {

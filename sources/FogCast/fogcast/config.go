@@ -72,6 +72,7 @@ type Config struct {
 	Libraries      []catalog.Root
 	RemoteInput    RemoteInputConfig
 	HostEmulator   HostEmulatorConfig
+	ZX81MachineROM ZX81MachineROMConfig
 	Media          MediaConfig
 	Metadata       MetadataConfig
 	LibraryMedia   []librarymedia.Root
@@ -132,6 +133,16 @@ type HostEmulatorConfig struct {
 type HostEmulatorCore struct {
 	Platform protocol.System
 	Core     string
+}
+
+// ZX81MachineROMConfig names the host linker that fills the empty ZX81 machine
+// ROM after the sealed package identity is fixed. An empty config leaves launch
+// unchanged.
+type ZX81MachineROMConfig struct {
+	Python    string
+	Script    string
+	Image     string
+	MistralCV string
 }
 
 func (c HostEmulatorConfig) CoreFor(system protocol.System) string {
@@ -202,6 +213,7 @@ type fileConfig struct {
 	Libraries             []fileLibrary        `toml:"libraries"`
 	RemoteInput           fileRemoteInput      `toml:"remote_input"`
 	HostEmulator          fileHostEmulator     `toml:"host_emulator"`
+	ZX81MachineROM        fileZX81MachineROM   `toml:"zx81_machine_rom"`
 	Media                 fileMedia            `toml:"media"`
 	Metadata              *fileMetadata        `toml:"metadata"`
 	LibraryMedia          []fileLibraryMedia   `toml:"library_media"`
@@ -255,6 +267,13 @@ type fileHostEmulator struct {
 type fileHostEmulatorCore struct {
 	Platform protocol.System `toml:"platform"`
 	Core     string          `toml:"core"`
+}
+
+type fileZX81MachineROM struct {
+	Python    string `toml:"python,omitempty"`
+	Script    string `toml:"script,omitempty"`
+	Image     string `toml:"image,omitempty"`
+	MistralCV string `toml:"mistral_cv,omitempty"`
 }
 
 type fileMedia struct {
@@ -334,6 +353,10 @@ func LoadConfig(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	machineROM, err := normalizeZX81MachineROM(raw.ZX81MachineROM)
+	if err != nil {
+		return Config{}, err
+	}
 	media, err := normalizeMedia(raw.Media)
 	if err != nil {
 		return Config{}, err
@@ -380,11 +403,12 @@ func LoadConfig(path string) (Config, error) {
 		RemoteInput: RemoteInputConfig{
 			Enabled: raw.RemoteInput.Enabled,
 		},
-		HostEmulator: hostEmulator,
-		Media:        media,
-		Metadata:     metadata,
-		LibraryMedia: libraryMedia,
-		Library:      library,
+		HostEmulator:   hostEmulator,
+		ZX81MachineROM: machineROM,
+		Media:          media,
+		Metadata:       metadata,
+		LibraryMedia:   libraryMedia,
+		Library:        library,
 	}, nil
 }
 
@@ -691,6 +715,25 @@ func validatePrivateAddress(name, address string) error {
 		return fmt.Errorf("%s must be a private host:port address", name)
 	}
 	return nil
+}
+
+func normalizeZX81MachineROM(raw fileZX81MachineROM) (ZX81MachineROMConfig, error) {
+	config := ZX81MachineROMConfig{
+		Python: strings.TrimSpace(raw.Python), Script: strings.TrimSpace(raw.Script),
+		Image: strings.TrimSpace(raw.Image), MistralCV: strings.TrimSpace(raw.MistralCV),
+	}
+	if config.Script == "" && config.Image == "" && config.MistralCV == "" && config.Python == "" {
+		return ZX81MachineROMConfig{}, nil
+	}
+	for _, path := range []string{config.Script, config.Image, config.MistralCV} {
+		if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+			return ZX81MachineROMConfig{}, fmt.Errorf("zx81_machine_rom script, image, and mistral_cv must be clean absolute paths")
+		}
+	}
+	if config.Python != "" && (!filepath.IsAbs(config.Python) || filepath.Clean(config.Python) != config.Python) {
+		return ZX81MachineROMConfig{}, fmt.Errorf("zx81_machine_rom python must be a clean absolute path")
+	}
+	return config, nil
 }
 
 func normalizeHostEmulator(raw fileHostEmulator) (HostEmulatorConfig, error) {

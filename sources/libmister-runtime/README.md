@@ -16,7 +16,10 @@ same contained programming and ADV7513 video path. The runtime contains no
 Main launcher, conventional game profiles, MiSTer SPI driver, or framebuffer.
 
 Package admission retains validated artifacts before mutation. Activation
-verifies live ABI/build identity before input or media controls. Library loads
+verifies live ABI/build identity before input or media controls. Initialized
+loads admit that sealed package, and a recomputed cart when one is selected,
+then program a separate bitstream whose digest matches the host receipt. The
+sealed package id stays the admitted package. Library loads
 explicitly bind durable core data; development loads remain volatile. Failed
 save publication retains session ownership and captured data for retry.
 

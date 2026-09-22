@@ -134,6 +134,7 @@ type CorePackageStatus struct {
 	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`
 	PersistenceMode  string                 `json:"persistence_mode,omitempty"`
 	PackageID        string                 `json:"package_id"`
+	ImageSHA256      string                 `json:"image_sha256,omitempty"`
 	Generation       uint64                 `json:"generation"`
 	ABI              RuntimeContract        `json:"abi"`
 	BuildID          string                 `json:"build_id"`

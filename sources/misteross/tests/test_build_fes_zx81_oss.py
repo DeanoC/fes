@@ -119,6 +119,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
         program = yosys[2]
         self.assertIn("tv80_core.v", program)
         self.assertIn("t80pa.v", program)
+        self.assertIn("-DFES_ZX81_ROM_LINK=1", program)
+        self.assertIn("zx81_rom_link.v", program)
+        self.assertNotIn("zx8x.hex", program)
+        self.assertNotIn("cores/fes-zx81/rtl/zx8x.hex", build_fes_zx81_oss.PINNED_INPUTS)
+        self.assertIn("cores/fes-zx81/rtl/zx81_rom_link.v", build_fes_zx81_oss.PINNED_INPUTS)
         self.assertNotIn("-DFES_ZX81_OSS=1", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("-nobram", program)
