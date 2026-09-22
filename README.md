@@ -10,15 +10,12 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 
 ## Documentation
 
+Start at the [documentation index](docs/README.md). Core ABI, interfaces and
+standing are the [core status](docs/core-status.md) matrix.
+
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
 - [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
-- [Appliance releases](docs/appliance-releases.md): versioned images, prepared cards, network updates and automatic fallback.
-- [Described FPGA core packages](docs/core-packages.md): build, inspect, load and stop the FES package set.
-- [Project map](docs/project-map.md): what runs where, component responsibilities and directory layout.
-- [Artifact identities](docs/artifacts.md): named host/target/FPGA/OS outputs and what may differ.
-- [Image assembly](docs/image-assembly.md): FES `image/` recipe vs FogCast inputs.
-- [Agent workflow](docs/agent-workflow.md): assignments, worktrees, integration and handoffs.
-- [Documentation index](docs/README.md): current guides, validation records and historical plans.
+- [Development](docs/development.md): worktrees, incremental builds and handoffs.
 
 ## Components
 
@@ -125,9 +122,9 @@ remains a component build, not a parent output. `linux.img` is the target root
 filesystem; run `make media` after a verified cold build to publish the
 flashable disk image. Build, media assembly and verification do not deploy or
 contact the kit. QEMU checks packaging, not FPGA behavior; exact-image hardware
-acceptance is separate; see [bootable media](docs/bootable-media.md). Historical diagnostic evidence is in the
-[dual-PLL native diagnostic](docs/dual-pll-native-diagnostic.md). Earlier clean
-two-pass evidence is in [integration validation](docs/integration-validation.md).
+acceptance is separate; see [bootable media](docs/bootable-media.md). Older
+kit notes live under [docs/validation](docs/validation/) and apply only to the
+artifacts they name.
 
 ## Commands and profiles
 

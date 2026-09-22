@@ -8,7 +8,7 @@ commands. Source paths remain under `sources/` while module ownership stays expl
 
 | Module | Runs where? | Owns | Start reading |
 | --- | --- | --- | --- |
-| FES | Development/build machine | Component selection, compatibility checks, build orchestration and integration evidence | [README](../README.md), [build entrypoint](../scripts/build.py) |
+| FES | Development/build machine | Component selection, compatibility checks, build orchestration and integration evidence | [README](../README.md), [core status](core-status.md), [build entrypoint](../scripts/build.py) |
 | FogCast | Host machine and target | UI, library, host APIs, transfers and the network-facing target agent | [README](../sources/FogCast/README.md), [architecture](../sources/FogCast/docs/ARCHITECTURE.md) |
 | libmister-runtime | MiSTer ARM CPU | Local hardware lifecycle, FPGA programming, media/input delivery and return to idle | [README](../sources/libmister-runtime/README.md), [architecture](../sources/libmister-runtime/ARCHITECTURE.md) |
 | misteross | Development/build machine | FPGA sources, simulation, compilation and RBF bundle export. OSS place-and-route experiments and described cores are different jobs | [README](../sources/misteross/README.md), [OSS experiments](../sources/misteross/docs/oss-pnr.md), [cores](../sources/misteross/docs/cores.md) |

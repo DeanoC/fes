@@ -31,7 +31,7 @@ Launch through the library, play, then Stop or hold Select+Start to return to th
 launcher. GET reports durable data, not the active score. Sudden power loss can
 lose progress since the last successful save boundary. Development package loads
 remain volatile and neither read nor overwrite library progress. Raw RBFs keep
-their MiSTer interpretation. Existing [SNES saves](snes-saves.md) are unchanged.
+their MiSTer interpretation. The factory set has no SNES package.
 
 ## Identity and version changes
 

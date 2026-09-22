@@ -1,22 +1,20 @@
 # Described FPGA core packages
 
-For persistent Pong settings and best rally, see [core persistence](core-persistence.md).
-Proposed multi-slot launch composition (core, firmware, expansions, primary
-and removable media) is in the selected FogCast
-[launch composition](../sources/FogCast/docs/launch-composition.md) design.
+Which packages exist, their ABI and their standing are
+[core status](core-status.md). This page is how to build, inspect, install
+and select one. For persistent Pong settings and best rally, see
+[core persistence](core-persistence.md).
+
 The locked splash and Stop-idle RBFs are the in-tree misteross seal
 `sources/misteross/sealed/fes-splash.rbf` (FAT `/menu.rbf` and rootfs
-`/usr/share/mister-runtime/idle.rbf`). Attract ABI and rooms via one
-tenfoot renderer remain later phases; see
-[Idle MENU → rooms](idle-menu-rooms.md). Phase 2 slices 1–4 (named
-slots, defined `LoadIdle`, sealed splash pin) are
-[the Phase 2 brief](idle-menu-rooms-phase2.md); slices 5–6 remain.
+`/usr/share/mister-runtime/idle.rbf`). Attract and rooms are not that
+bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco` and `fes.sms` HIP/nextpnr producers. The default target-image
-selector installs the ordered closed `fes.pong`, `fes.zx81` and `fes.coleco`
-package set, while focused profiles may select a smaller package set.
-`fes.sms` is registered for package-only host-library acceptance. Its
+`fes.coleco`, `fes.sms` and `fes.catch` HIP/nextpnr producers. The default
+target-image selector installs the ordered closed `fes.pong`, `fes.zx81` and
+`fes.coleco` package set, while focused profiles may select a smaller package
+set. `fes.sms` is registered for package-only host-library acceptance. Its
 selection filename is `fes-sms.package-selection.toml`. It is not in the
 factory image closed set. The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
@@ -25,11 +23,8 @@ compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/registered-memory.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
-The earlier `0825da5f…` selection records the sealed 32 KiB fixed-map SMS
-HIP/nextpnr producer; its historical seed and timing evidence do not establish
-fresh artifact acceptance for the current selection. See the
-[32 KiB parent pin](validation/2026-09-17-fes-sms-32k-parent-pin.md),
-[FES ZX81](fes-zx81.md) and the Coleco validation records for bring-up notes.
+An older sealed SMS package does not accept a bitstream built from a later
+tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.pong`, `fes.zx81` and `fes.coleco` package set. The FES
@@ -239,8 +234,9 @@ selection is preserved across restart.
 For example, importing a 512 KiB ROM succeeds, but selecting it for blob 1.0
 fails before hardware activation and leaves the previous selection unchanged.
 See [media capacity and transport](core-media-evolution.md) for the current
-storage boundary and implemented versioned stream path, and the
-[SMS integration checkpoint](sms-large-media-plan.md) for exact acceptance scope.
+storage boundary and implemented versioned stream path. A kit result for an
+older sealed package does not accept a later bitstream; those notes are under
+[validation/](validation/).
 
 Media bytes and selections live in the host catalog, so back it up alongside
 the package store. Where a core supports persistence, settings/progress remain

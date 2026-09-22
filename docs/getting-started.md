@@ -3,6 +3,7 @@
 Start at FES when you want to build a known combination of FogCast, the native
 runtime and FPGA artifacts. Create a FES task worktree when you want to change
 one or several of those modules. The [project map](project-map.md) explains the distinction.
+Which cores exist, and what ABI they declare, is [core status](core-status.md).
 
 ## 1. Prepare the checkout
 

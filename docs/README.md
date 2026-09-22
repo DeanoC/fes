@@ -1,196 +1,54 @@
 # FES documentation
 
-FES is the common starting point for FogCast and the native MiSTer components.
-It selects compatible revisions, checks their shared definitions and builds the
-host software and target root filesystem.
+Read one of these. The rest of `docs/` is either a procedure for that job or
+a dated record. A dated record is not the schedule.
 
 ## Start here
 
 | You want to… | Read |
 | --- | --- |
-| Set up a checkout, build outputs and run the host | [Getting started](getting-started.md) |
-| Understand the parts, directories and terminology | [Project map](project-map.md) |
-| Change misteross: an OSS place-and-route experiment, or a described core | [misteross README](../sources/misteross/README.md) |
-| Review landed refactors and remaining ownership decisions | [Structure and refactor status](fes-structure.md) |
-| See which binaries, images and cores are versioned artifacts | [Artifact identities](artifacts.md) |
-| See who owns native image assembly | [Image assembly ownership](image-assembly.md) |
-| Assign work to agents and integrate their results | [Agent workflow](agent-workflow.md), then [root AGENTS.md](../AGENTS.md) |
-| Create a FES feature worktree and use incremental builds | [Development guide](development.md) |
-| Inspect sources, build receipts, CI and exact hardware/deployment evidence | [Unified status](status.md) |
-| Run affected software checks across modules | [Focused tests](test-changed.md) |
-| Publish the consolidated repository while preserving component history | [Repository cutover](repository-cutover.md) |
-| Build, provision or verify a flashable native disk image | [Bootable media](bootable-media.md) |
-| Build versioned appliance releases and use automatic update fallback | [Appliance releases](appliance-releases.md) |
-| Build, install and select described FPGA core packages | [Described FPGA core packages](core-packages.md) |
-| Compose a freeze-scaffold FPGA cartridge onto an empty socket | [FPGA cartridge expansion](fpga-expansion.md) |
-| Select an independent ZX81 expansion-bus cart through the normal library | [ZX81 expansion bus](zx81-expansion-bus.md) |
-| Prepare one core without rebuilding the image, then run isolated acceptance | [Core developer workflow](core-development.md) |
-| Separate library storage from core capacity and use the implemented stream transport | [Media capacity and transport](core-media-evolution.md), [SMS integration checkpoint](sms-large-media-plan.md) |
-| Decide where a change belongs or crosses a boundary | [Component boundaries](component-boundaries.md) |
-| Review the historical Pong, SNES and NES milestone | [Multi-system development](multi-system-development.md) |
-| Review retired SNES cartridge-save behavior | [SNES saves](snes-saves.md) |
-| Use described-core settings and progress | [Core persistence](core-persistence.md) |
-| Use the FES ZX81 computer package | [FES ZX81](fes-zx81.md) |
-| Design mid-session ZX81 tape select/load | [ZX81 tape media](zx81-tape-media.md) |
-| Share the kit between game and FPGA development sessions | [Kit sharing](kit-sharing.md) |
+| See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
+| Set up a checkout and run the host | [Getting started](getting-started.md) |
+| Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
+| See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
+| Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
+| Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
+| Share the kit | [Kit sharing](kit-sharing.md) |
+| Work in misteross | [misteross README](../sources/misteross/README.md): OSS place-and-route experiments, or a described core |
 
-All shell examples in the parent guides start at the FES repository root unless
-specified otherwise. Commands inside a component use that component's Makefile
-and instructions; the same target name can mean different things there.
+The factory image is the ordered closed package set `fes.pong`, `fes.zx81`,
+`fes.coleco`, built with HIP/nextpnr. Other registered packages are not in
+that image. The matrix is [core status](core-status.md).
 
-The current integration profile is package-only and installs the ordered closed
-format-2 set `fes.pong`, `fes.zx81` and `fes.coleco` through HIP/nextpnr. The historical Mega Drive, Pong, SNES and NES
-catalog, including exact NES video and native session lifecycle acceptance, is
-recorded in [the narrow-wire acceptance record](validation/2026-09-08-native-nes-wire-acceptance.md)
-and is not current-profile acceptance.
+Shell examples in the parent guides start at the FES repository root.
+A component Makefile is a different command set. `make` inside
+`sources/misteross` is not parent `make`.
 
-## Proposals
+## Procedures
 
-- [Development ease and repository migration](development-ease.md): investigated
-  update friction, recommended module/repository boundaries and staged migration.
-  The direction is approved; current development instructions describe what has landed.
-- [Launch composition](../sources/FogCast/docs/launch-composition.md): durable
-  FogCast model for core, firmware, expansion, and media slots. Phase 0 is
-  this document; Phase 1 is Coleco firmware readiness; Phase 2 is ZX81 16K
-  linked at load (not a bitstream per expansion); Phase 3 is removable
-  media (first ZX81-shaped lock: [ZX81 tape media](zx81-tape-media.md)).
-  Docs only; no factory BIOS install.
-- [Idle MENU → rooms](idle-menu-rooms.md): design lock replacing kit MENU
-  idle with a rooms-driven path through FES ABI. Cold-boot splash is board
-  firmware; attract is an ABI; kit-as-host is the same FogCast host, not a
-  second catalog. Docs only; Deano owns merge.
-- [Idle MENU → rooms — Phase 2 execution](idle-menu-rooms-phase2.md):
-  splash RBF + defined Stop idle (not MENU chrome). Slices 1–4 name
-  slots, define `LoadIdle`, and pin sealed misteross splash. Remaining
-  slices 5–6. Does not reopen the lock. Deano owns merge.
-- [ZX81 tape media](zx81-tape-media.md): design lock for the first
-  mid-session ZX81 media — select/load a `.p` tape while the core is
-  already running (launch-composition Phase 3 shaped). Distinct from
-  launch-time machine-ROM splice and from Stop→relaunch. Docs only;
-  Deano owns merge.
+Use these when the start-here page names the job and you need the steps.
 
-## What has been verified
+| Job | Guide |
+| --- | --- |
+| Install and select a described package | [Core packages](core-packages.md) |
+| Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
+| Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
+| Pong settings and best rally | [Core persistence](core-persistence.md) |
+| Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
+| ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
+| Freeze-scaffold cartridge experiments | [FPGA expansion](fpga-expansion.md) |
+| Who assembles `linux.img` | [Image assembly](image-assembly.md) |
+| Which outputs are versioned | [Artifact identities](artifacts.md) |
+| Read source, CI, build and hardware evidence | [Status](status.md) |
+| Run only the tests a change affects | [Focused tests](test-changed.md) |
+| Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md) |
 
-- [ZX81 expansion validation cart](validation/2026-09-21-zx81-ram-composition.md):
-  exact same-shell 1 KiB/16 KiB library launches, retained selection, clear/reload,
-  rejection continuity and original-kit restoration.
+## Not current instructions
 
-- [Playable Catch and Coleco audio](validation/2026-09-21-playable-audio.md):
-  exact-package normal-library video, audio, input, household BIOS readiness,
-  switching and host-restart diagnostics with original-kit restoration.
-  ZX81 expansion is covered by its separate record above; appliance release
-  acceptance remains separate.
+[validation/](validation/) records what a named artifact did on a named day.
+[superpowers/](superpowers/) holds old design and task plans. Do not treat
+either as the way to build or accept the tree you have open.
 
-- [FPGA package-only cleanup](validation/2026-09-21-fpga-compat-cleanup.md):
-  uncommitted software cleanup, retained diagnostics, test results and integration gates.
-- [Consolidated development](validation/2026-09-20-consolidated-development.md):
-  preserved histories, contributor/cache rehearsals, three FPGA packages,
-  reproducible native image and exact Coleco/software diagnostics with restoration.
-- [Functional FPGA identity](validation/2026-09-20-functional-core-identity.md):
-  real Coleco compiler signoff, reuse after documentation and repository import,
-  and exact-package HDMI diagnostics; imported-image qualification is separate.
-
-- [Coleco 32 KiB streaming](coleco-stream-32k.md): component tests and bounded
-  HDMI diagnostics, with separate parent integration status and artifact IDs.
-- [SMS 32 KiB stream diagnostic](validation/2026-09-18-sms-stream-start-diagnostic.md):
-  corrected startup/input, physical diagnostic display/controls/menu return and
-  three UI relaunches; full-image verification is separate from kit acceptance.
-- [FES SMS 32 KiB parent pin](validation/2026-09-17-fes-sms-32k-parent-pin.md):
-  sealed 32 KiB `fes.sms` HIP/nextpnr identity on misteross `0825da5f`
-  (lineage `#66`/`d647781`); documentation/tests after FES `#75`; factory
-  image closed set unchanged.
-- [FES SMS parent pin](validation/2026-09-17-fes-sms-parent-pin.md):
-  misteross `#65` pin and `fes.sms` recipe registration for package-only
-  acceptance; factory image closed set unchanged.
-- [FES SMS package-only host-library acceptance](validation/2026-09-17-fes-sms-package-acceptance.md):
-  sealed `fes.sms` inspect + loopback import/select on tip FES; no kit HIL.
-- [FES SMS package-only kit launch/Stop HIL](validation/2026-09-17-fes-sms-kit-hil.md):
-  leased mister launch+Stop for sealed `fes.sms`; temporary host; lease released.
-- [FES SG-1000 package-only kit launch/Stop HIL](validation/2026-09-17-fes-sg1000-kit-hil.md):
-  leased mister launch+Stop for sealed `fes.sg1000`; temporary host; lease released.
-- [Coleco VDP reads/NMI](validation/2026-09-12-coleco-vdp-io.md): buffered
-  VRAM reads, held status reads and the BIOS-free VBlank interrupt diagnostic.
-- [Coleco controllers](validation/2026-09-12-coleco-controllers.md): standard
-  joystick/keypad mode selection, two fire buttons and encoded keypad diagnostics.
-- [Coleco input diagnostic](validation/2026-09-12-coleco-input.md): two-player
-  keyboard-driven cartridge and input validation.
-- [Coleco cartridge diagnostic](validation/2026-09-12-coleco-media.md):
-  open Z80 cartridge, reset/VDP fixes, paired Quartus/nextpnr build evidence
-  and the exact status of leased media/graphics validation.
-- [Coleco Graphics II sprites](validation/2026-09-12-coleco-sprites.md):
-  bounded sprite rendering, sprite-status behavior, paired compiler evidence
-  and the current exact-artifact hardware gate.
-- [Coleco current-pin integration](validation/2026-09-13-coleco-nextpnr-integration.md):
-  parent pin selection, current OSS/Quartus package identities and exact-kit
-  acceptance for the selected nextpnr recipe.
-- [Appliance first-boot expand implement](validation/2026-09-11-appliance-first-boot-expand-implement.md):
-  host expander and tests landed; assembly stays the fixed 1 GiB image.
-- [Appliance first-boot expand spare HIL](validation/2026-09-10-appliance-first-boot-expand-hil.md):
-  exact USB spare p3 format and read-back; live `.4` untouched.
-- [Appliance first-boot expand spike](validation/2026-09-10-appliance-first-boot-expand-spike.md):
-  extra-p3 recommendation and host dry-run.
-- [Persistence merge reconciliation](validation/2026-09-10-core-persistence-merge.md):
-  combined-source checks after integrating newer component main branches.
-- [Core persistence](validation/2026-09-09-core-persistence.md): settings, progress,
-  version compatibility and save-failure recovery; see the record for acceptance status.
-- [Core package library](validation/2026-09-09-core-package-library.md):
-  installed versions, normal library launch, checked selection and rollback.
-- [RBF ABI acceptance](validation/2026-09-09-rbf-abi-acceptance.md):
-  described-core identity, standalone Pong, input and recovery checks.
-
-- [Dual-PLL native diagnostic](dual-pll-native-diagnostic.md): FES `f34c84c`
-  selecting misteross `cb89517`, diagnostic `make dev` image and bounded kit
-  Pong/Mega Drive/SNES checks. The current parent gitlink is later than that
-  record.
-- [Integration validation](integration-validation.md): earlier selected
-  revisions, clean two-pass image, QEMU and bounded physical-kit checks.
-- [Incremental build validation](incremental-build-validation.md): cache reuse,
-  development image checks, timing and interruption recovery.
-- [Source build validation](source-build-validation.md): earlier source-built
-  FPGA/image combination and its hardware observations.
-- [Historical parent validation](historical-parent-validation.md): original
-  parent build and provenance caveats.
-- [Native NES software integration](validation/2026-09-08-native-nes-software.md):
-  exact NES provenance, four-system contract checks and the earlier pending
-  hardware gate.
-- [Native NES narrow-wire acceptance](validation/2026-09-08-native-nes-wire-acceptance.md):
-  the corrected byte transfer, reproducible image and exact-kit colour captures.
-
-Evidence describes the exact artifacts tested. It does not automatically apply
-to later source edits, another profile or a different device.
-
-## Described-core design
-
-[Described FPGA cores and ABI dispatch](superpowers/specs/2026-09-08-rbf-abi-design.md)
-defines format-2 core packages, raw-RBF MiSTer compatibility and the standalone
-Mistral Pong milestone. The [implementation plan](superpowers/plans/2026-09-08-rbf-abi.md)
-retains its task history and acceptance checks. The software and image-selection
-path is implemented; physical acceptance still requires evidence for the exact
-assembled image.
-
-[Installed package library design](superpowers/specs/2026-09-09-core-package-library-design.md)
-and its [implementation plan](superpowers/plans/2026-09-09-core-package-library.md)
-describe immutable host installation, compatibility inspection and explicit
-ROM-less library selections. The operator commands and UI-facing API contract
-are linked from the [core package guide](core-packages.md).
-
-[Persistent core settings and progress](superpowers/specs/2026-09-09-core-persistence-design.md)
-is implemented: stable target-local data across compatible package versions,
-starting with standalone Pong. See the [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
-and [acceptance record](validation/2026-09-09-core-persistence.md).
-
-[FES ZX81](superpowers/specs/2026-09-10-fes-zx81-design.md) is one of the
-selected described-core packages: a custom GP ABI derived from the MiSTer
-Quartus ZX81 implementation, with Quartus bring-up and nextpnr/mistral
-evidence kept separate from the normal package-only build. See the
-[implementation plan](superpowers/plans/2026-09-10-fes-zx81.md) and the
-[ZX81 working page](fes-zx81.md). Mid-session tape select/load while the
-core is running is the design lock in [ZX81 tape media](zx81-tape-media.md).
-
-## Earlier designs and plans
-
-[Native parent design](native-parent-design.md),
-[its implementation plan](implementation-plan.md), and the
-[integration-entrypoint plan](superpowers/plans/2026-09-05-integration-entrypoint.md)
-record earlier implementation stages. Use the guides above for current commands
-and ownership. Future work in a design document is not an implemented feature.
+Ownership that has already landed is [component boundaries](component-boundaries.md)
+and the [project map](project-map.md). [Structure](fes-structure.md) only
+points at those. It is not a second roadmap.
