@@ -32,7 +32,9 @@ public:
 	// Does not issue a command. Failure leaves the mailbox poisoned.
 	Error Realign(std::uint64_t absolute_deadline_ms);
 	std::uint64_t NowMs() const;
-	// Spin on the runtime clock until `absolute_ms`. A stalled clock or a
+	// Poll the runtime clock until `absolute_ms`. Equal samples are a coarse
+	// millisecond clock: yield one wall millisecond and sample again. A clock
+	// that stays flat for the whole wait, a clock that steps backwards, or a
 	// deadline that arrives first returns an I/O error and issues no command.
 	Error WaitUntilMs(std::uint64_t absolute_ms, std::uint64_t absolute_deadline_ms);
 	Error Exchange(std::uint8_t opcode, std::uint8_t index,
@@ -75,9 +77,11 @@ public:
 	// A core that rejects that index (error 2) is retried with control-index
 	// begin and argument 0. Error 3 on that command is invalid argument:
 	// sealed golden cores reject argument 0 and have no media_busy sample.
-	// Clear waits out the longest $0347 copy before a minimum-length begin,
-	// which is what drops readiness. If that wait does not fit in the
-	// deadline, the mailbox is left unchanged and the result is busy.
+	// Clear waits until the runtime clock advances across the longest $0347
+	// copy before a minimum-length begin, which is what drops readiness.
+	// A repeated millisecond is not a stall. If the clock stays flat or the
+	// wait does not fit in the deadline, the mailbox is left unchanged and
+	// the result is busy. Execution stays released: reset would restart BASIC.
 	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;

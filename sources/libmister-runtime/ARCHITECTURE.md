@@ -41,10 +41,15 @@ argument, not busy: the sealed golden mailbox rejects argument 0 because it
 is below the minimum blob length, and it has no `media_busy` input. The busy
 guard was added with argument-0 eject, so this core cannot reject a later
 begin as invalid state. A legal begin drops `media_ready` and `media_size`
-immediately. Clear waits out the longest `$0347` copy (one byte per CPU
-enable, at most 16384 bytes, 8 ms) and only then issues control-index begin
-of `MediaMinBytes`, without a commit. If that wait does not fit before the
-deadline, the mailbox is unchanged and the result is retryable busy. Invalid
+immediately. Clear waits until the runtime clock advances across the longest
+`$0347` copy (one byte per CPU enable, at most 16384 bytes, 8 ms) and only
+then issues control-index begin of `MediaMinBytes`, without a commit.
+`SteadyClock` reports whole milliseconds, so a repeated sample is the same
+millisecond and the wait continues. A clock that stays flat for that bound,
+or a deadline that cannot cover it, leaves the mailbox unchanged and returns
+retryable busy. The wait is not a `media_busy` sample: this bitstream does
+not return one, and clear does not hold reset because that restarts the CPU.
+Invalid
 state (GP error 4) on the eject-index or argument-0 attempt is retryable busy
 and does not reach that begin. A poisoned or unstable GP handshake after keyboard traffic
 is the same retryable busy: clear realigns from the live ACK and

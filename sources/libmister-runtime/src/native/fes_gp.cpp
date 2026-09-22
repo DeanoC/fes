@@ -13,6 +13,9 @@
 #include "native/linux/mmio.hpp"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstdlib>
+#include <ctime>
 #include <limits>
 #include <string>
 #include <utility>
@@ -35,6 +38,23 @@ constexpr std::uint64_t kLegacyLoaderCopyBoundMs = 8u;
 constexpr std::uint32_t kResponseVariableMask =
 	FesGpAckMask | FesGpErrorMask | FesGpResponseMask;
 constexpr std::uint32_t kResponseFixedMask = ~kResponseVariableMask;
+
+std::uint64_t MonotonicWallMs()
+{
+	struct timespec stamp = {};
+	if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
+	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
+		static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
+}
+
+void SleepOneMillisecond()
+{
+	struct timespec remaining = {};
+	remaining.tv_nsec = 1000000L;
+	while (nanosleep(&remaining, &remaining) != 0) {
+		if (errno != EINTR) return;
+	}
+}
 
 constexpr std::uint32_t FieldUnit(std::uint32_t mask)
 {
@@ -214,14 +234,30 @@ std::uint64_t FesGp::NowMs() const
 Error FesGp::WaitUntilMs(std::uint64_t absolute_ms, std::uint64_t deadline)
 {
 	std::uint64_t now = clock_.NowMs();
+	// One extra wall millisecond covers a sleep that returns slightly late
+	// and SteadyClock still reading the millisecond it just entered.
+	constexpr std::uint64_t kStallSlackMs = 2u;
+	std::uint64_t last_progress_wall = MonotonicWallMs();
 	while (now < absolute_ms) {
 		if (now >= deadline)
 			return Io("FES GP exchange deadline exceeded");
 		const std::uint64_t next = clock_.NowMs();
-		// A clock that does not advance cannot prove the loader copy ended.
-		if (next <= now)
+		if (next > now) {
+			now = next;
+			last_progress_wall = MonotonicWallMs();
+			continue;
+		}
+		// SteadyClock truncates CLOCK_MONOTONIC to whole milliseconds, so
+		// the next sample is often the same value. That is one millisecond
+		// still in progress, not a stalled clock. A clock that stays flat
+		// for the remaining bound has not shown that bound elapsed.
+		if (next < now)
 			return Io("FES GP exchange deadline exceeded");
-		now = next;
+		const std::uint64_t wall_now = MonotonicWallMs();
+		const std::uint64_t remain = absolute_ms - now;
+		if (wall_now - last_progress_wall >= remain + kStallSlackMs)
+			return Io("FES GP exchange deadline exceeded");
+		SleepOneMillisecond();
 	}
 	if (now >= deadline)
 		return Io("FES GP exchange deadline exceeded");
@@ -800,8 +836,15 @@ Error FesGpCoreDriver::ClearMedia(std::uint64_t deadline)
 	// argument-0 eject, so this core never answers a later begin with error 4.
 	// Any legal begin drops media_ready and media_size immediately. A copy
 	// already inside $0347 finishes within kLegacyLoaderCopyBoundMs while
-	// readiness is left alone; only then is the minimum begin issued.
-	// Do not commit afterwards: commit would mark the minimum blob ready.
+	// readiness is left alone. The minimum begin waits until the runtime
+	// clock advances by that bound. Repeated samples of one millisecond are
+	// normal on SteadyClock and are not a stall; a clock that stays flat
+	// across the bound returns busy and does not write the begin.
+	// This is not a loader-idle sample. tape_busy is not in the GPI word, and
+	// holding execution reset would clear tapeloader only by restarting the
+	// CPU, which drops the BASIC session clear is supposed to leave running.
+	// A LOAD that first fetches $0347 during the bound can still overlap the
+	// begin. Do not commit afterwards: commit would mark the minimum blob ready.
 	if (CommandRejected(error, FesSimpleComputerErrorInvalidArgument)) {
 		const std::uint64_t now = gp_.NowMs();
 		const std::uint64_t idle_at = now > std::numeric_limits<std::uint64_t>::max() -
