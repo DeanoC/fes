@@ -1277,6 +1277,32 @@ func TestServiceDevelopmentRBFUsesSelectedTargetAndStops(t *testing.T) {
 	}
 }
 
+func TestServiceDevelopmentRecoveryAcceptsIdleWithoutWaitingForReboot(t *testing.T) {
+	payload := []byte("development-rbf")
+	observed := "DEVCORE"
+	client := &fakeServiceClient{
+		developmentLoad: func(context.Context, int64, io.Reader) (protocol.Status, error) {
+			return protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed}, nil
+		},
+		statusResult: protocol.Status{State: protocol.StateActive, Development: true, ObservedCore: &observed},
+		stopResult: protocol.Status{
+			State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+		},
+		developmentReboot: func(context.Context) (protocol.Status, error) {
+			return protocol.Status{State: protocol.StateIdle}, nil
+		},
+		healthResult: protocol.Health{Ready: true, BootID: "boot-before"},
+	}
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	if _, err := service.LoadDevelopmentRBF(context.Background(), int64(len(payload)), bytes.NewReader(payload)); err != nil {
+		t.Fatal(err)
+	}
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle || client.developmentReboots != 1 || client.healthCalls != 1 || service.activeExecution != "" {
+		t.Fatalf("stop=%+v err=%v reboots=%d health=%d execution=%q", status, err, client.developmentReboots, client.healthCalls, service.activeExecution)
+	}
+}
+
 func TestServiceDevelopmentStopUsesNativeRecoveryStatusOverHTTP(t *testing.T) {
 	var stopCalls, rebootCalls, healthCalls, statusCalls int
 	rebooted := false
@@ -1354,6 +1380,60 @@ func TestServiceDevelopmentStopRejectsTargetWithoutRecoveryCapability(t *testing
 	}
 	if target.stopCalls != 1 || target.developmentReboots != 0 || service.activeExecution != ExecutionFPGADevelopment {
 		t.Fatalf("missing recovery calls = stop:%d reboot:%d execution:%q", target.stopCalls, target.developmentReboots, service.activeExecution)
+	}
+}
+
+func TestServiceDevelopmentStopSurfacesRecoveryErrorWhenRebootDidNotStart(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		remote  *protocol.APIError
+		want    protocol.ErrorCode
+		message string
+	}{
+		{
+			name:    "busy",
+			remote:  &protocol.APIError{Code: protocol.CodeBusy, Message: "another launch or stop transition is running"},
+			want:    protocol.CodeBusy,
+			message: "another launch or stop transition is running",
+		},
+		{
+			name:    "recover idle transport",
+			remote:  &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime recovery is required", Phase: "recovery"},
+			want:    protocol.CodeMiSTerUnavailable,
+			message: "Target recovery is required; use Stop to recover before launching again.",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			healthCalls := 0
+			target := &fakeServiceClient{
+				stopResult: protocol.Status{
+					State: protocol.StateStopping, Development: true, Recovery: protocol.RecoveryRebootRequired,
+				},
+				developmentReboot: func(context.Context) (protocol.Status, error) {
+					return protocol.Status{}, test.remote
+				},
+				healthFn: func(context.Context) (protocol.Health, error) {
+					healthCalls++
+					return protocol.Health{Ready: true, BootID: "boot-before"}, nil
+				},
+			}
+			service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, target)
+			service.activeExecution = ExecutionFPGADevelopment
+			service.uploadTimeout = time.Second
+
+			started := time.Now()
+			_, err := service.Stop(context.Background())
+			if elapsed := time.Since(started); elapsed > 200*time.Millisecond {
+				t.Fatalf("stop waited %s for a reboot that did not start", elapsed)
+			}
+			var apiErr *protocol.APIError
+			if !errors.As(err, &apiErr) || apiErr.Code != test.want || apiErr.Message != test.message {
+				t.Fatalf("stop error = %v", err)
+			}
+			if healthCalls != 1 || target.developmentReboots != 1 || target.stopCalls != 1 || service.activeExecution != ExecutionFPGADevelopment {
+				t.Fatalf("calls health=%d reboot=%d stop=%d execution=%q", healthCalls, target.developmentReboots, target.stopCalls, service.activeExecution)
+			}
+		})
 	}
 }
 

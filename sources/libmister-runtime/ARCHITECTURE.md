@@ -22,7 +22,11 @@ Replacement stops and neutralizes old input, quiesces HDMI and the outgoing
 driver, then programs once. Ambiguous quiesce is not repeated. FPGA-manager
 containment and control readback remain bounded; neither retained profile
 releases the old MiSTer SDRAM bridges. A programming/activation fault receives
-at most one defined-idle recovery. Failed recovery requires reboot.
+at most one defined-idle recovery. `Stop` does not program again from
+`reboot_required`. `recover_idle` is the explicit second `LoadIdle`; if that
+also fails, the state stays `reboot_required` and a board reboot is the
+remaining recovery. A soft board reboot after FPGA or HPS activity can wedge
+the HPS network; hard power is the recovery when `recover_idle` still fails.
 
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit.

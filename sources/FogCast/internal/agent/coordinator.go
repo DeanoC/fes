@@ -53,6 +53,11 @@ type ownedStopRecoveryRuntime interface {
 	StopOwnedWithRecovery(context.Context, context.Context) (observed, recovery string, apiErr *protocol.APIError)
 }
 
+// idleRecoveryRuntime programs idle again without rebooting the board.
+type idleRecoveryRuntime interface {
+	RecoverIdle(context.Context) (idle bool, apiErr *protocol.APIError)
+}
+
 type CoordinatorOption func(*Coordinator)
 
 // WithOperationContext roots already-admitted runtime mutations in the agent
@@ -437,6 +442,10 @@ func (c *Coordinator) stopLocked(parent context.Context) (protocol.Status, *prot
 	return c.Status(), nil
 }
 
+func idleProgramFailed(apiErr *protocol.APIError) bool {
+	return apiErr != nil && apiErr.Code == protocol.CodeMiSTerUnavailable && apiErr.Phase == "recovery"
+}
+
 func runtimeStopReady(runtime Runtime) bool {
 	if operationReady, ok := runtime.(stopReadyRuntime); ok {
 		return operationReady.StopReady()
@@ -463,6 +472,23 @@ func (c *Coordinator) RebootDevelopment(parent context.Context) (protocol.Status
 	}
 	ctx, cancel := context.WithTimeout(parent, c.stopTimeout)
 	defer cancel()
+	if idleRuntime, ok := c.runtime.(idleRecoveryRuntime); ok {
+		idle, apiErr := idleRuntime.RecoverIdle(ctx)
+		if apiErr == nil && idle {
+			c.set(protocol.Status{State: protocol.StateIdle})
+			return c.Status(), nil
+		}
+		if apiErr == nil || (apiErr.Code != protocol.CodeUnsupportedOperation && !idleProgramFailed(apiErr)) {
+			if apiErr == nil {
+				apiErr = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+			}
+			failed := cloneStatus(current)
+			failed.State = protocol.StateFailed
+			failed.LastError = cloneAPIError(apiErr)
+			c.set(failed)
+			return c.Status(), apiErr
+		}
+	}
 	observed, apiErr := c.runtime.RecoverDevelopment(ctx)
 	if apiErr != nil {
 		failed := cloneStatus(current)

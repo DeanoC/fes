@@ -382,6 +382,107 @@ func TestDevelopmentRBFTransitionsToActiveAndStopsAtMenu(t *testing.T) {
 	}
 }
 
+type idleFirstRuntime struct {
+	fakeRuntime
+	idle      bool
+	idleErr   *protocol.APIError
+	idleCalls int
+}
+
+func (r *idleFirstRuntime) RecoverIdle(context.Context) (bool, *protocol.APIError) {
+	r.idleCalls++
+	return r.idle, r.idleErr
+}
+
+func TestDevelopmentRecoveryProgramsIdleWithoutBoardReboot(t *testing.T) {
+	t.Parallel()
+	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{
+		health: protocol.Health{Ready: true}, developmentObserved: "DEVCORE", stopObserved: "MENU",
+	}, idle: true}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	if _, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	runtime.health = protocol.Health{Ready: false}
+	stopped, apiErr := coordinator.Stop(context.Background())
+	if apiErr != nil || stopped.Recovery != protocol.RecoveryRebootRequired {
+		t.Fatalf("stop = %#v, %#v", stopped, apiErr)
+	}
+	stopped, apiErr = coordinator.RebootDevelopment(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateIdle || stopped.Development || stopped.Recovery != "" {
+		t.Fatalf("idle recovery = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.idleCalls != 1 || runtime.developmentStopCalls != 0 {
+		t.Fatalf("idle calls=%d reboot calls=%d", runtime.idleCalls, runtime.developmentStopCalls)
+	}
+}
+
+func TestDevelopmentRecoveryRebootsOnlyAfterIdleProgramFailure(t *testing.T) {
+	t.Parallel()
+	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{
+		health: protocol.Health{Ready: true}, developmentObserved: "DEVCORE",
+	}, idleErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Phase: "recovery", Message: "target runtime recovery is required"}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	if _, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	runtime.health = protocol.Health{Ready: false}
+	if _, apiErr := coordinator.Stop(context.Background()); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	stopped, apiErr := coordinator.RebootDevelopment(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateStopping || stopped.Recovery != protocol.RecoveryRebootRequired {
+		t.Fatalf("reboot after idle failure = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.idleCalls != 1 || runtime.developmentStopCalls != 1 {
+		t.Fatalf("idle calls=%d reboot calls=%d", runtime.idleCalls, runtime.developmentStopCalls)
+	}
+}
+
+func TestDevelopmentRecoveryRebootsWhenRecoverIdleIsUnknown(t *testing.T) {
+	t.Parallel()
+	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{
+		health: protocol.Health{Ready: true}, developmentObserved: "DEVCORE",
+	}, idleErr: &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	if _, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	runtime.health = protocol.Health{Ready: false}
+	if _, apiErr := coordinator.Stop(context.Background()); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	stopped, apiErr := coordinator.RebootDevelopment(context.Background())
+	if apiErr != nil || stopped.State != protocol.StateStopping || stopped.Recovery != protocol.RecoveryRebootRequired {
+		t.Fatalf("unknown recover_idle = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.idleCalls != 1 || runtime.developmentStopCalls != 1 {
+		t.Fatalf("idle calls=%d reboot calls=%d", runtime.idleCalls, runtime.developmentStopCalls)
+	}
+}
+
+func TestDevelopmentRecoveryDoesNotRebootWhenRuntimeSocketIsDead(t *testing.T) {
+	t.Parallel()
+	runtime := &idleFirstRuntime{fakeRuntime: fakeRuntime{
+		health: protocol.Health{Ready: true}, developmentObserved: "DEVCORE",
+	}, idleErr: &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}}
+	coordinator := agent.New(runtime, time.Second, time.Second)
+	if _, apiErr := coordinator.LoadDevelopmentRBF(context.Background(), 3, bytes.NewReader([]byte("rbf"))); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	runtime.health = protocol.Health{Ready: false}
+	if _, apiErr := coordinator.Stop(context.Background()); apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	stopped, apiErr := coordinator.RebootDevelopment(context.Background())
+	if apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || stopped.State != protocol.StateFailed {
+		t.Fatalf("socket-dead recovery = %#v, %#v", stopped, apiErr)
+	}
+	if runtime.developmentStopCalls != 0 {
+		t.Fatalf("board reboot calls = %d", runtime.developmentStopCalls)
+	}
+}
+
 func TestOwnedDevelopmentRejectsCanceledAdmissionWithoutReadingOrDispatching(t *testing.T) {
 	runtime := &ownedDevelopmentContextRuntime{fakeRuntime: fakeRuntime{health: protocol.Health{Ready: true}}}
 	coordinator := agent.New(runtime, time.Second, time.Second)

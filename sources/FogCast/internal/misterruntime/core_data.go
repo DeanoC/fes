@@ -151,6 +151,29 @@ func mapCoreDataError(remote *Protocol2Error) *protocol.APIError {
 	return result
 }
 
+// Protocol2RecoverIdle asks the runtime to program idle again after
+// reboot_required. It does not reboot the board.
+func (client *Client) Protocol2RecoverIdle(ctx context.Context) (Protocol2Response, error) {
+	line, _, err := client.callRawTracked(ctx, struct {
+		Protocol  int    `json:"protocol"`
+		Operation string `json:"operation"`
+	}{2, "recover_idle"})
+	if err != nil {
+		return Protocol2Response{}, err
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil {
+		if rejection, ok := legacyRecoverIdleRejection(line); ok {
+			return rejection, nil
+		}
+		return Protocol2Response{}, err
+	}
+	if response.InspectedPackage != nil || response.CoreData != nil {
+		return Protocol2Response{}, errInvalidRuntimeResponse
+	}
+	return response, nil
+}
+
 // Protocol2Stop preserves described-package identity on persistence recovery.
 func (client *Client) Protocol2Stop(ctx context.Context) (Protocol2Response, error) {
 	line, _, err := client.callRawTracked(ctx, struct {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 
@@ -889,6 +890,79 @@ func (r *Runtime) observeLostDevelopment(ctx context.Context) (observed string, 
 			return "", true, unavailableError(), true
 		}
 	}
+}
+
+type protocol2RecoverIdleControl interface {
+	Protocol2RecoverIdle(context.Context) (Protocol2Response, error)
+}
+
+// RecoverIdle programs idle without rebooting the board. A false result with
+// a recovery-phase error means LoadIdle failed and a board reboot is the
+// remaining recovery. A missing recover_idle operation is unsupported,
+// including an older daemon's unknown-operation or invalid_request reply.
+// Transport and busy failures stay unavailable so recovery can fail closed.
+func (r *Runtime) RecoverIdle(ctx context.Context) (bool, *protocol.APIError) {
+	if err := ctx.Err(); err != nil {
+		return false, unavailableError()
+	}
+	control, ok := r.control.(protocol2RecoverIdleControl)
+	if !ok {
+		return false, unsupportedOperationError()
+	}
+	response, err := control.Protocol2RecoverIdle(ctx)
+	r.noteDispatch("recover_idle", err == nil)
+	if err != nil {
+		return false, unavailableError()
+	}
+	if legacyRecoverIdleResponse(response) {
+		return false, unsupportedOperationError()
+	}
+	if validCleanIdle(response) {
+		return true, nil
+	}
+	if rebootRequiredResponse(response) {
+		return false, mapProtocol2Error(response.Error)
+	}
+	return false, unavailableError()
+}
+
+// legacyRecoverIdleRejection recognizes a daemon that does not implement
+// recover_idle. Those replies are not valid reboot_required results, so the
+// strict decoder rejects them before RecoverIdle can see the error code.
+func legacyRecoverIdleRejection(line []byte) (Protocol2Response, bool) {
+	var probe struct {
+		Error *Protocol2Error `json:"error"`
+	}
+	if err := json.Unmarshal(line, &probe); err != nil || probe.Error == nil {
+		return Protocol2Response{}, false
+	}
+	response := Protocol2Response{Protocol: 2, Error: probe.Error}
+	if !legacyRecoverIdleResponse(response) {
+		return Protocol2Response{}, false
+	}
+	return response, true
+}
+
+func legacyRecoverIdleResponse(response Protocol2Response) bool {
+	if response.Error == nil {
+		return false
+	}
+	switch response.Error.Code {
+	case "invalid_request", "unknown_operation":
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(response.Error.Message), "unknown operation")
+}
+
+// RuntimeSocketOpen reports whether a status call reached the runtime.
+// A missing socket or a probe that expires is closed: agent restart must
+// free the kit lease instead of leaving it blocked.
+func (r *Runtime) RuntimeSocketOpen(ctx context.Context) bool {
+	_, err := r.control.Protocol2Status(ctx)
+	if err == nil {
+		return true
+	}
+	return ctx.Err() == nil && !errors.Is(err, errRuntimeConnection)
 }
 
 func (r *Runtime) RecoverDevelopment(ctx context.Context) (string, *protocol.APIError) {

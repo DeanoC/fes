@@ -232,7 +232,18 @@ RBF through the runtime. Health and lifecycle observations use runtime protocol 
 the root filesystem is the immutable loop image.
 
 The fixture uses the stock MiSTer login and changing SSH host keys after a
-rebuild is expected. Rebooting, reflashing, or replacing the image is normal.
+rebuild is expected. Reflashing or replacing the image is normal. Do not use
+a soft board reboot to recover a running FPGA session.
+
+### Restarting target services
+
+Overlay swaps and init restarts stay on the current boot:
+
+1. Stop the session to idle from the host (`fogcast stop` or the session Stop control).
+2. Confirm the kit lease is free.
+3. Restart `mister-runtime` and `mister-agent` with SIGTERM through `mister-supervise` (`/etc/init.d/S40mister-runtime restart` and `/etc/init.d/S50mister-agent restart`).
+
+Do not use `/sbin/reboot`, `POST /v1/development/reboot`, or `kill -9` mid-session for an overlay swap. Killing the agent during a session makes startup cleanup fail and leaves the kit lease blocked. `POST /v1/development/reboot` is unsafe after FPGA or HPS activity: it asks the runtime to program idle first, and it runs `/sbin/reboot` only when that LoadIdle fails with `idle_failed`. If the agent still reports `reboot_required`, recover with a hard power-supply cycle. A front-panel reset does not replace that power cycle.
 
 After separately authorized deployment of the selected native image, exercise
 its installed package lifecycle through the running host:

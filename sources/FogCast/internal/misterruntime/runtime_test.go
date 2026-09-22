@@ -1111,6 +1111,130 @@ func TestNativeOwnedStopPropagatesRebootRequiredRecovery(t *testing.T) {
 	}
 }
 
+type recoverIdleControl struct {
+	recordingControl
+	recover    misterruntime.Protocol2Response
+	recoverErr error
+	recoverN   int
+}
+
+func (c *recoverIdleControl) Protocol2RecoverIdle(context.Context) (misterruntime.Protocol2Response, error) {
+	c.recoverN++
+	if c.recoverErr != nil {
+		return misterruntime.Protocol2Response{}, c.recoverErr
+	}
+	return c.recover, nil
+}
+
+func TestRecoverIdleReportsProgrammedIdle(t *testing.T) {
+	t.Parallel()
+	control := &recoverIdleControl{recover: runtimeResponse("idle", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	idle, apiErr := runtime.RecoverIdle(context.Background())
+	if !idle || apiErr != nil || control.recoverN != 1 {
+		t.Fatalf("idle=%t err=%#v calls=%d", idle, apiErr, control.recoverN)
+	}
+}
+
+func TestRecoverIdleSurfacesIdleProgramFailure(t *testing.T) {
+	t.Parallel()
+	control := &recoverIdleControl{recover: runtimeResponse("reboot_required", "none")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	idle, apiErr := runtime.RecoverIdle(context.Background())
+	if idle || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable || apiErr.Phase != "recovery" {
+		t.Fatalf("idle=%t err=%#v", idle, apiErr)
+	}
+}
+
+func TestRecoverIdleMapsMissingOperationToUnsupported(t *testing.T) {
+	t.Parallel()
+	const caps = `"capabilities":{"programming_profiles":[],"abis":[],"active_interfaces":[]},"active_package":null,"generation":null,"inspected_package":null`
+	for _, test := range []struct {
+		name string
+		body string
+		code protocol.ErrorCode
+	}{
+		{
+			name: "reboot required unknown operation",
+			body: `{"protocol":2,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"invalid_request","message":"unknown operation","phase":"request"},"version":"old",` + caps + `}`,
+			code: protocol.CodeUnsupportedOperation,
+		},
+		{
+			name: "idle invalid request",
+			body: `{"protocol":2,"ok":false,"state":"idle","execution":"none","system":null,"core":null,"error":{"code":"invalid_request","message":"request contains an unknown field","phase":"request"},"version":"old",` + caps + `}`,
+			code: protocol.CodeUnsupportedOperation,
+		},
+		{
+			name: "unknown operation code",
+			body: `{"protocol":2,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"unknown_operation","message":"unknown operation","phase":"request"},"version":"old",` + caps + `}`,
+			code: protocol.CodeUnsupportedOperation,
+		},
+		{
+			name: "busy stays fail closed",
+			body: `{"protocol":2,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"busy","message":"runtime mutation is busy","phase":"request"},"version":"old",` + caps + `}`,
+			code: protocol.CodeMiSTerUnavailable,
+		},
+		{
+			name: "unexpected failure stays fail closed",
+			body: `{"protocol":2,"ok":false,"state":"reboot_required","execution":"none","system":null,"core":null,"error":{"code":"io_failed","message":"private detail","phase":"lifecycle"},"version":"old",` + caps + `}`,
+			code: protocol.CodeMiSTerUnavailable,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "runtime.sock")
+			listener, err := net.Listen("unix", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			go func() {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				defer conn.Close()
+				_ = conn.SetDeadline(time.Now().Add(time.Second))
+				_, _ = bufio.NewReader(conn).ReadBytes('\n')
+				_, _ = conn.Write(append([]byte(test.body), '\n'))
+			}()
+			runtime := misterruntime.NewRuntime(misterruntime.NewClient(path), "", time.Millisecond, time.Second)
+			idle, apiErr := runtime.RecoverIdle(context.Background())
+			if idle || apiErr == nil || apiErr.Code != test.code {
+				t.Fatalf("idle=%t err=%#v want %s", idle, apiErr, test.code)
+			}
+			if test.code == protocol.CodeUnsupportedOperation && apiErr.Message != "requested operation is unsupported" {
+				t.Fatalf("unsupported message = %q", apiErr.Message)
+			}
+			if test.code == protocol.CodeMiSTerUnavailable && strings.Contains(apiErr.Message, "private") {
+				t.Fatalf("failure detail leaked: %#v", apiErr)
+			}
+		})
+	}
+}
+
+func TestRecoverIdleTransportFailureStaysUnavailable(t *testing.T) {
+	t.Parallel()
+	control := &recoverIdleControl{recoverErr: errors.New("dial unix: connection refused")}
+	runtime := misterruntime.NewRuntime(control, "", time.Millisecond, time.Second)
+	idle, apiErr := runtime.RecoverIdle(context.Background())
+	if idle || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("idle=%t err=%#v", idle, apiErr)
+	}
+	runtime = misterruntime.NewRuntime(misterruntime.NewClient(filepath.Join(t.TempDir(), "missing.sock")), "", time.Millisecond, time.Second)
+	idle, apiErr = runtime.RecoverIdle(context.Background())
+	if idle || apiErr == nil || apiErr.Code != protocol.CodeMiSTerUnavailable {
+		t.Fatalf("missing socket idle=%t err=%#v", idle, apiErr)
+	}
+}
+
+func TestRuntimeSocketOpenIsFalseWhenDialFails(t *testing.T) {
+	t.Parallel()
+	runtime := misterruntime.NewRuntime(misterruntime.NewClient(filepath.Join(t.TempDir(), "missing.sock")), "", time.Millisecond, time.Second)
+	if runtime.RuntimeSocketOpen(context.Background()) {
+		t.Fatal("missing runtime socket reported open")
+	}
+}
+
 func TestNativeDevelopmentRecoveryRequiresConfiguredExecutable(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
