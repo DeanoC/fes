@@ -301,6 +301,31 @@ void TestPersistenceRequestsAndResponseFixtures()
 		&request)
 			   .ok());
 	assert(request.operation == Operation::load_media && request.media_path == "/tmp/a.p");
+	assert(request.expected_package_id.empty() && request.expected_generation == 0);
+	const std::string bound_media =
+		R"({"protocol":2,"operation":"load_media","path":"/tmp/a.p","expected_package_id":")" +
+		std::string(64, 'a') + R"(","expected_generation":3})";
+	assert(Parse(bound_media, &request).ok());
+	assert(request.operation == Operation::load_media &&
+		request.expected_package_id == std::string(64, 'a') &&
+		request.expected_generation == 3);
+	const std::string live =
+		R"({"protocol":2,"operation":"replace_live_media","path":"/tmp/b.p","expected_package_id":")" +
+		std::string(64, 'a') + R"(","expected_generation":4})";
+	assert(Parse(live, &request).ok());
+	assert(request.operation == Operation::replace_live_media &&
+		request.media_path == "/tmp/b.p" && request.expected_generation == 4);
+	const std::string clear =
+		R"({"protocol":2,"operation":"clear_media","expected_package_id":")" +
+		std::string(64, 'a') + R"(","expected_generation":5})";
+	assert(Parse(clear, &request).ok());
+	assert(request.operation == Operation::clear_media &&
+		request.expected_generation == 5);
+	assert(!Parse(
+		R"({"protocol":2,"operation":"replace_live_media","path":"/tmp/b.p"})",
+		&request)
+				.ok());
+	assert(!Parse(R"({"protocol":2,"operation":"clear_media"})", &request).ok());
 	assert(Parse(R"({"protocol":2,"operation":"load_firmware","path":"/tmp/bios.bin"})",
 		&request)
 			   .ok());

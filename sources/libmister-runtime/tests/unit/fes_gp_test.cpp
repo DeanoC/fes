@@ -590,6 +590,88 @@ void TestComputerKeyboardMatrixAndMediaBlob()
 		mister::ErrorCode::invalid_request);
 }
 
+void TestMidSessionMediaLeavesExecutionReleasedAndRejectsBusy()
+{
+	mister::native::CoreDescriptor descriptor;
+	descriptor.core.id = "fes.zx81";
+	descriptor.abi = {FesSimpleComputerABIID, FesSimpleComputerABIMajor,
+		FesSimpleComputerABIMinor};
+	descriptor.interfaces = {
+		{FesSimpleComputerInterfaceKeyboardID,
+			FesSimpleComputerInterfaceKeyboardMajor,
+			FesSimpleComputerInterfaceKeyboardMinor, true},
+		{FesSimpleComputerInterfaceVideoFixed720p60ID,
+			FesSimpleComputerInterfaceVideoFixed720p60Major,
+			FesSimpleComputerInterfaceVideoFixed720p60Minor, true},
+		{FesSimpleComputerInterfaceMediaBlobID,
+			FesSimpleComputerInterfaceMediaBlobMajor,
+			FesSimpleComputerInterfaceMediaBlobMinor, true},
+	};
+	const std::string build_id(32, 'a');
+	descriptor.build.id = build_id;
+	std::vector<std::uint16_t> words = IdentityWords(build_id);
+	words[FesGpIdentityAbiTagIndex] =
+		static_cast<std::uint16_t>(FesSimpleComputerAbiTag);
+	words[FesGpIdentityCapabilitiesIndex] = static_cast<std::uint16_t>(
+		FesSimpleComputerCapabilityKeyboard |
+		FesSimpleComputerCapabilityVideoFixed720p60 |
+		FesSimpleComputerCapabilityMediaBlob);
+
+	mister_test::FakeMmio mmio;
+	TickClock clock;
+	mister::native::FesGp gp(mmio, clock);
+	mister::native::FesGpCoreDriver driver(gp);
+	mister::native::CoreDriverContext context;
+	context.descriptor = &descriptor;
+	ScriptIdentity(&mmio, words);
+	assert(driver.Identify(context, 10000).error.ok());
+
+	bool toggle = false;
+	auto reply = [&](std::uint16_t response = 0, bool failed = false) {
+		toggle = !toggle;
+		PushCompleted(&mmio, toggle, response, failed);
+	};
+
+	// Launch bind still holds reset then releases.
+	const std::size_t launch_start = mmio.writes.size();
+	for (int i = 0; i < 5; ++i) reply();
+	assert(driver.LoadMedia(std::vector<std::uint8_t>{0x10, 0x11}, 10000).ok());
+	assert((mmio.writes[launch_start].value & 0x7fffffff) == 0x02000000);
+	assert((mmio.writes[launch_start + 8].value & 0x7fffffff) == 0x02000001);
+
+	// Mid-session replace must not issue hold/release.
+	const std::size_t live_start = mmio.writes.size();
+	for (int i = 0; i < 4; ++i) reply();
+	assert(driver.LoadMediaLive(std::vector<std::uint8_t>{0x20, 0x21, 0x22}, 10000).ok());
+	const std::uint32_t live_expected[] = {
+		0x04000003, 0x05002120, 0x05010022, 0x06000000};
+	assert(mmio.writes.size() == live_start + 8);
+	for (std::size_t i = 0; i < 4; ++i)
+		assert((mmio.writes[live_start + i * 2].value & 0x7fffffff) == live_expected[i]);
+	for (std::size_t i = 0; i < 8; i += 2) {
+		const std::uint32_t opcode =
+			(mmio.writes[live_start + i].value & 0x7fffffff) >> 24;
+		assert(opcode != FesSimpleComputerOpcodeExecution);
+	}
+
+	// Busy while LOAD copying surfaces as retryable busy, not soft-reboot.
+	const std::size_t busy_start = mmio.writes.size();
+	reply(static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+	assert(driver.LoadMediaLive(std::vector<std::uint8_t>{0x30}, 10000).code ==
+		mister::ErrorCode::busy);
+	assert(mmio.writes.size() == busy_start + 2);
+	assert((mmio.writes[busy_start].value & 0x7fffffff) == 0x04000001);
+
+	const std::size_t clear_start = mmio.writes.size();
+	reply();
+	assert(driver.ClearMedia(10000).ok());
+	assert(mmio.writes.size() == clear_start + 2);
+	assert((mmio.writes[clear_start].value & 0x7fffffff) == 0x04000000);
+
+	reply(static_cast<std::uint16_t>(FesSimpleComputerErrorInvalidState), true);
+	assert(driver.ClearMedia(10000).code == mister::ErrorCode::busy);
+}
+
 void TestCoreDriverRoutesGeneratedControlsAndChecksResponses()
 {
 	mister_test::FakeMmio mmio;
@@ -1315,9 +1397,10 @@ int main()
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
 	TestComputerKeyboardMatrixAndMediaBlob();
+	TestMidSessionMediaLeavesExecutionReleasedAndRejectsBusy();
 	TestFirmwareLoadHoldsResetUntilMediaRelease();
 	TestCoreDriverExposesOnlyVerifiedFesGpSessionsForCleanup();
 	TestCoreDriverRoutesGeneratedControlsAndChecksResponses();
-	puts("fes_gp_test: 17 groups passed");
+	puts("fes_gp_test: 18 groups passed");
 	return 0;
 }

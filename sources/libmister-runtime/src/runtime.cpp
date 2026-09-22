@@ -504,14 +504,24 @@ public:
 		return error;
 	}
 
-	Error LoadComputerMedia(const std::string& path)
+	Error LoadComputerMedia(const std::string& path,
+		const std::string& package_id = {}, std::uint64_t generation = 0)
 	{
 		if (!ValidAbsolutePath(path))
 			return Invalid("invalid computer media path");
+		if ((!package_id.empty() || generation != 0) &&
+			(!ValidPackageId(package_id) || generation == 0))
+			return Invalid("invalid computer media binding");
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			if (busy_ || !started_ || status_.state != State::running_development)
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
 				return Busy("FES computer is not running");
+			if (!package_id.empty()) {
+				if (generation != active_generation_ || generation != status_.generation ||
+					package_id != status_.active_package.package_id)
+					return Invalid("media package or generation changed");
+			}
 			busy_ = true;
 		}
 		const Error error = hardware_.LoadComputerMedia(path);
@@ -521,6 +531,65 @@ public:
 		}
 		condition_.notify_all();
 		Log("load_media", status_.system, status_.core,
+			error.ok() ? "running" : "request", error);
+		return error;
+	}
+
+	Error ReplaceLiveComputerMedia(const std::string& path,
+		const std::string& package_id, std::uint64_t generation)
+	{
+		if (!ValidAbsolutePath(path) || !ValidPackageId(package_id) || generation == 0)
+			return Invalid("invalid live media request");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
+				return Busy("FES computer is not available");
+			if (generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("media package or generation changed");
+			if (status_.active_package.descriptor.abi.id !=
+				native::generated::FesSimpleComputerABIID)
+				return {ErrorCode::unsupported_interface,
+					"live media requires fes.simple-computer", "compatibility"};
+			busy_ = true;
+		}
+		const Error error = hardware_.LoadComputerMediaLive(path);
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("replace_live_media", status_.system, status_.core,
+			error.ok() ? "running" : "request", error);
+		return error;
+	}
+
+	Error ClearComputerMedia(const std::string& package_id, std::uint64_t generation)
+	{
+		if (!ValidPackageId(package_id) || generation == 0)
+			return Invalid("invalid clear media request");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 ||
+				status_.state != State::running_development)
+				return Busy("FES computer is not available");
+			if (generation != active_generation_ || generation != status_.generation ||
+				package_id != status_.active_package.package_id)
+				return Invalid("media package or generation changed");
+			if (status_.active_package.descriptor.abi.id !=
+				native::generated::FesSimpleComputerABIID)
+				return {ErrorCode::unsupported_interface,
+					"clear media requires fes.simple-computer", "compatibility"};
+			busy_ = true;
+		}
+		const Error error = hardware_.ClearComputerMedia();
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		Log("clear_media", status_.system, status_.core,
 			error.ok() ? "running" : "request", error);
 		return error;
 	}
@@ -897,6 +966,24 @@ Error Runtime::SetComputerKeyboard(std::uint64_t matrix)
 Error Runtime::LoadComputerMedia(const std::string& path)
 {
 	return impl_->LoadComputerMedia(path);
+}
+
+Error Runtime::LoadComputerMedia(const std::string& path,
+	const std::string& expected_package_id, std::uint64_t expected_generation)
+{
+	return impl_->LoadComputerMedia(path, expected_package_id, expected_generation);
+}
+
+Error Runtime::ReplaceLiveComputerMedia(const std::string& path,
+	const std::string& expected_package_id, std::uint64_t expected_generation)
+{
+	return impl_->ReplaceLiveComputerMedia(path, expected_package_id, expected_generation);
+}
+
+Error Runtime::ClearComputerMedia(const std::string& expected_package_id,
+	std::uint64_t expected_generation)
+{
+	return impl_->ClearComputerMedia(expected_package_id, expected_generation);
 }
 
 Error Runtime::LoadComputerFirmware(const std::string& path)

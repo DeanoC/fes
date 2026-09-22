@@ -30,6 +30,7 @@ module top #(
     wire exec_reset;
     wire [39:0] keyboard;
     wire tape_ready;
+    wire tape_busy;
     wire [14:0] tape_size;
     wire [13:0] tape_addr;
     wire [7:0] tape_data;
@@ -101,7 +102,8 @@ module top #(
         .media_byte1(),
         .media_byte2(),
         .media_addr(tape_addr),
-        .media_q(tape_data)
+        .media_q(tape_data),
+        .media_busy(tape_busy)
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -154,6 +156,7 @@ module top #(
         .tape_size(tape_size),
         .tape_data(tape_data),
         .tape_addr_out(tape_addr),
+        .tape_busy(tape_busy),
         .ce_6m5(ce_6m5),
         .video_pixel(video_pixel),
         .hblank(hblank),

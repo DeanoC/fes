@@ -59,7 +59,12 @@ public:
 	Error SetKeyboardMatrix(std::uint64_t matrix, std::uint64_t deadline);
 	Error SetController(std::uint8_t port, std::uint16_t buttons,
 		std::uint16_t keypad, std::uint64_t deadline);
+	// Launch-time primary bind: Quiesce (hold reset) → begin/data/commit → release.
 	Error LoadMedia(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	// Mid-session replace: begin/data/commit while execution stays released.
+	Error LoadMediaLive(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
+	// Mid-session eject: media begin with argument 0 clears readiness (0/0).
+	Error ClearMedia(std::uint64_t deadline);
 	Error LoadFirmware(const std::vector<std::uint8_t>& bytes, std::uint64_t deadline);
 	Error StreamInfo(MediaStreamInfo*) const;
 	Error LoadMediaStream(const ComputerMediaSnapshot&, Clock&, std::uint64_t deadline);
@@ -73,6 +78,9 @@ private:
 	Error DataControl(std::uint16_t, std::uint64_t);
 	Error StreamCommand(std::uint8_t opcode, std::uint8_t index,
 		std::uint16_t argument, std::uint64_t deadline);
+	Error TransferMediaBlob(const std::vector<std::uint8_t>& bytes,
+		std::uint64_t deadline, bool hold_reset);
+	Error MediaBusyOrIo(const Error& error) const;
 	FesGp& gp_;
 	bool persistence_verified_ = false;
 	bool reset_held_ = true;

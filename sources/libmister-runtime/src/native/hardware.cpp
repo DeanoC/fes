@@ -604,6 +604,27 @@ Error NativeHardware::LoadComputerMedia(const std::string& path)
 		bytes, Deadline(clock_, timeouts_.core_io_ms));
 }
 
+Error NativeHardware::LoadComputerMediaLive(const std::string& path)
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"FES computer is not active", "request"};
+	std::vector<std::uint8_t> bytes;
+	const Error admitted = ReadComputerMedia(path, &bytes);
+	if (!admitted.ok()) return WithPhase(admitted, "request");
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->LoadMediaLive(
+		bytes, Deadline(clock_, timeouts_.core_io_ms));
+}
+
+Error NativeHardware::ClearComputerMedia()
+{
+	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)
+		return {ErrorCode::unsupported_interface,
+			"FES computer is not active", "request"};
+	return static_cast<FesGpCoreDriver*>(fes_gp_driver_)->ClearMedia(
+		Deadline(clock_, timeouts_.core_io_ms));
+}
+
 Error NativeHardware::LoadComputerFirmware(const std::string& path)
 {
 	if (active_driver_ != fes_gp_driver_ || fes_gp_driver_ == nullptr)

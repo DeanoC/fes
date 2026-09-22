@@ -176,6 +176,15 @@ use the `FesSimpleComputer` prefix so generated consumers can include both
 ABIs in one translation unit. `testdata/fes-simple-computer-v1/exchanges.json`
 is the contiguous golden mailbox sequence for that ABI.
 
+Media begin/data/commit do not require execution reset held. Holding reset
+through the transfer is launch-time runtime policy for the primary `.p` bind.
+A mid-session replace on an active generation leaves execution released so
+RAM, expansion composition and the spliced machine ROM stay intact. Begin
+with argument 0 clears committed readiness (eject) so the next empty
+`LOAD ""` reports `0/0`. While the ZX81 tape-loader is copying (`media_busy`),
+begin and eject reject with error 4 rather than aborting the copy. See
+FES [`docs/zx81-tape-media.md`](../../../docs/zx81-tape-media.md).
+
 ## programming_profiles
 
 `packages/abi/fes_application.yaml` adds ABI `fes.application` 1.0, tag 3,

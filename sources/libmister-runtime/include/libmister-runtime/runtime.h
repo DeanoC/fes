@@ -330,6 +330,16 @@ public:
 		return {ErrorCode::unsupported_interface,
 			"computer media is unavailable", "request"};
 	}
+	virtual Error LoadComputerMediaLive(const std::string&)
+	{
+		return {ErrorCode::unsupported_interface,
+			"live computer media is unavailable", "request"};
+	}
+	virtual Error ClearComputerMedia()
+	{
+		return {ErrorCode::unsupported_interface,
+			"clear computer media is unavailable", "request"};
+	}
 	virtual Error LoadComputerFirmware(const std::string&)
 	{
 		return {ErrorCode::unsupported_interface,
@@ -367,7 +377,15 @@ public:
 	Error SetComputerKeyboard(std::uint64_t matrix);
 	Error SetController(const std::string& package_id, std::uint64_t generation,
 		std::uint8_t port, std::uint16_t buttons, std::uint16_t keypad);
+	// Launch-time hold-reset primary bind (optional package/generation when unbound).
 	Error LoadComputerMedia(const std::string& path);
+	Error LoadComputerMedia(const std::string& path, const std::string& expected_package_id,
+		std::uint64_t expected_generation);
+	// Mid-session mailbox fill without hold-reset soft-reboot.
+	Error ReplaceLiveComputerMedia(const std::string& path,
+		const std::string& expected_package_id, std::uint64_t expected_generation);
+	Error ClearComputerMedia(const std::string& expected_package_id,
+		std::uint64_t expected_generation);
 	Error LoadComputerFirmware(const std::string& path);
 	Error LoadComputerMediaStream(const std::string& path,
 		const std::string& expected_package_id, std::uint64_t expected_generation,

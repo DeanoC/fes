@@ -869,6 +869,57 @@ void TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration()
 
 } // namespace
 
+void TestLiveMediaGenerationBindingAndBusy()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	f.hardware.core_info.descriptor.abi = {"fes.simple-computer", 1, 0};
+	f.hardware.core_info.descriptor.interfaces = {
+		{"fes.keyboard", 1, 0, true},
+		{"fes.media.blob", 1, 0, true},
+		{"fes.video.fixed-720p60", 1, 0, true}};
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LoadCore("/packages/zx81", id).ok());
+	const auto generation = f.runtime.status().generation;
+	assert(generation > 0);
+	assert(f.runtime.status().active_package.descriptor.abi.id == "fes.simple-computer");
+
+	assert(f.runtime.LoadComputerMedia("/tmp/a.p").ok());
+	assert(f.hardware.media_calls == 1 && f.hardware.live_media_calls == 0);
+	assert(f.hardware.media_path == "/tmp/a.p");
+
+	assert(!f.runtime.ReplaceLiveComputerMedia("/tmp/b.p", id, 0).ok());
+	assert(!f.runtime.ReplaceLiveComputerMedia("/tmp/b.p", std::string(64, 'b'), generation).ok());
+	assert(!f.runtime.ReplaceLiveComputerMedia("relative.p", id, generation).ok());
+	assert(f.hardware.live_media_calls == 0);
+
+	f.hardware.on_live_media = [&] {
+		assert(f.runtime.ReplaceLiveComputerMedia("/tmp/b.p", id, generation).code ==
+			ErrorCode::busy);
+		assert(f.runtime.ClearComputerMedia(id, generation).code == ErrorCode::busy);
+		assert(f.runtime.Stop().code == ErrorCode::busy);
+	};
+	assert(f.runtime.ReplaceLiveComputerMedia("/tmp/b.p", id, generation).ok());
+	assert(f.hardware.live_media_calls == 1);
+	assert(f.hardware.live_media_path == "/tmp/b.p");
+	assert(f.hardware.media_calls == 1);
+
+	f.hardware.live_media_result = {ErrorCode::busy, "tape loader is busy", "input"};
+	assert(f.runtime.ReplaceLiveComputerMedia("/tmp/c.p", id, generation).code ==
+		ErrorCode::busy);
+	f.hardware.live_media_result = {};
+
+	assert(f.runtime.ClearComputerMedia(id, generation).ok());
+	assert(f.hardware.clear_media_calls == 1);
+	assert(!f.runtime.ClearComputerMedia(id, generation + 1).ok());
+	assert(f.hardware.clear_media_calls == 1);
+
+	assert(f.runtime.Stop().ok());
+	assert(!f.runtime.ReplaceLiveComputerMedia("/tmp/b.p", id, generation).ok());
+	assert(f.hardware.live_media_calls == 2);
+}
+
+
 void TestStreamBindingCapacityOwnershipAndStop()
 {
 	Fixture f;
@@ -961,6 +1012,7 @@ int main()
 	TestCompositionUsesExistingLifecycle();
 	TestControllerSnapshotBindingAndFaultCleanup();
 	TestStreamBindingCapacityOwnershipAndStop();
+	TestLiveMediaGenerationBindingAndBusy();
 	TestInputFaultDuringFailedSaveCannotDiscardSnapshot();
 	TestInputFaultDuringRestoreIsOwnedByRestoredGeneration();
 	TestSaveFailurePreservesSessionForStopRetry();
@@ -1000,6 +1052,6 @@ int main()
 	TestActiveFaultRetiresPublishedIdentityBeforeBlockedRecovery();
 	TestQueuedActiveFaultReservesCleanupBeforeStopAndPreservesError();
 	TestInspectionAndProtocol2IdentityShareTheLifecycleGeneration();
-	puts("runtime_test: 42 passed");
+	puts("runtime_test: 43 passed");
 	return 0;
 }
