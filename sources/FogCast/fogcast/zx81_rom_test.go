@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type fakeROM struct {
@@ -56,8 +60,30 @@ func TestApplyZX81MachineROMWrapsTheSealedPackage(t *testing.T) {
 	}
 	plain := &Service{}
 	unchanged, _, err = plain.applyZX81MachineROM("fes.zx81", archive.Bytes(), nil)
-	if err != nil || unchanged != nil {
+	var apiErr *protocol.APIError
+	if unchanged != nil || !errors.As(err, &apiErr) || apiErr.Code != protocol.CodeBadRequest || apiErr.Message == "" {
 		t.Fatalf("unconfigured zx81 = %d %v", len(unchanged), err)
+	}
+}
+
+func TestInitializedLaunchKeepsCompositionAndImageDigest(t *testing.T) {
+	entry := catalog.CoreEntry{CoreID: "fes.zx81", PackageID: "pkg"}
+	body := []byte("envelope")
+	plain := initializedLaunchSource(entry, body, nil)
+	if plain.composition != nil || plain.entry == nil || plain.entry.PackageID != "pkg" {
+		t.Fatalf("plain source = %#v", plain.composition)
+	}
+	bundle := &corepackage.CompositionBundle{Composition: expansion.Composition{ID: "composition"}}
+	composed := initializedLaunchSource(entry, body, bundle)
+	if composed.composition == nil || composed.composition.ID != "composition" {
+		t.Fatalf("composed source = %#v", composed.composition)
+	}
+	status := retainImageSHA(protocol.Status{CorePackage: &protocol.CorePackageStatus{PackageID: "pkg"}}, "digest")
+	if status.CorePackage.ImageSHA256 != "digest" {
+		t.Fatalf("digest = %q", status.CorePackage.ImageSHA256)
+	}
+	if kept := retainImageSHA(protocol.Status{}, "digest"); kept.CorePackage != nil {
+		t.Fatal("digest attached without a package")
 	}
 }
 

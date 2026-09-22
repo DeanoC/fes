@@ -136,3 +136,15 @@ linker, download paths, or reopen checked pathnames during programming. Failed
 admission leaves the current generation untouched. Successful activation carries
 the composition tuple in active status, and the ordinary retirement/recovery
 paths clear it together with package identity.
+
+### Initialized bitstream
+
+`load_initialized_core`, `load_initialized_library_core`, and
+`load_initialized_composed_core` admit the sealed package first. The composed
+operation also admits the recomputed cart. Each then opens a separate
+programmed bitstream, hashes it, and requires the host receipt digest.
+`LoadCore` hashes that file again immediately before programming and programs
+those bytes. The sealed payload, and any linked cart payload, remain the
+identity artifacts. A digest mismatch rejects admission and leaves the current
+generation untouched. This path is software-covered and has no exact-artifact
+hardware acceptance.

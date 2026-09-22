@@ -11,6 +11,7 @@ Hardware-supported package paths: 0.
 | Blob/stream media and firmware | covered | pending |
 | Described-core library persistence and retry | covered | pending |
 | Static ZX81 composition | covered | pending |
+| Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |
 
 Conventional Main launches, raw game profiles, protocol 1 and MiSTer package

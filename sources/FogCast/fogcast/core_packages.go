@@ -372,7 +372,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		}
 		if initialized != nil {
 			imageSHA = sha
-			return coreLoadSource{size: int64(len(initialized)), body: bytes.NewReader(initialized), entry: &entry}, nil
+			return initializedLaunchSource(entry, initialized, bundle), nil
 		}
 		if bundle != nil {
 			var transport bytes.Buffer
@@ -383,9 +383,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		}
 		return coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry}, nil
 	})
-	if status.CorePackage != nil && imageSHA != "" {
-		status.CorePackage.ImageSHA256 = imageSHA
-	}
+	status = retainImageSHA(status, imageSHA)
 	response := protocol.CachedLaunchResponse{Status: status}
 	if err != nil {
 		return response, err
@@ -405,7 +403,7 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if fwErr != nil {
 			return s.recoverLibrarySlot(parent, fwStatus, fwErr)
 		}
-		status = fwStatus
+		status = retainImageSHA(fwStatus, imageSHA)
 		response.Status = status
 	}
 	if media == nil {
@@ -427,7 +425,22 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 	if mediaErr != nil {
 		return s.recoverLibrarySlot(parent, mediaStatus, mediaErr)
 	}
-	return protocol.CachedLaunchResponse{Status: mediaStatus}, nil
+	return protocol.CachedLaunchResponse{Status: retainImageSHA(mediaStatus, imageSHA)}, nil
+}
+
+func initializedLaunchSource(entry catalog.CoreEntry, body []byte, bundle *corepackage.CompositionBundle) coreLoadSource {
+	source := coreLoadSource{size: int64(len(body)), body: bytes.NewReader(body), entry: &entry}
+	if bundle != nil {
+		source.composition = &bundle.Composition
+	}
+	return source
+}
+
+func retainImageSHA(status protocol.Status, imageSHA string) protocol.Status {
+	if imageSHA != "" && status.CorePackage != nil {
+		status.CorePackage.ImageSHA256 = imageSHA
+	}
+	return status
 }
 
 func (s *Service) recoverLibrarySlot(parent context.Context, mediaStatus protocol.Status, mediaErr error) (protocol.CachedLaunchResponse, error) {

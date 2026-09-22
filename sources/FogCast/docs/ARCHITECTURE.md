@@ -181,7 +181,14 @@ keyboard interfaces do not enable this mapping. This is software coverage,
 not physical USB/controller or SMS hardware acceptance.
 A host library entry for `fes.zx81` uses `load_library_core` like other
 ROM-less FPGA cores; development `core-load` stays a separate volatile
-activation and does not create that entry.
+activation and does not create that entry. The sealed shell's machine ROM
+is empty. Launch requires `[zx81_machine_rom]` with `script`, `image`, and
+`mistral_cv`, each a clean absolute path, and refuses the launch when that
+section is absent. The host splices the 8 KiB BASIC image after package
+identity is fixed, keeps that package id, and records `image_sha256` on the
+launch status after firmware and media binding. A selected cart is composed
+first and stays on the launch source, so the activated composition matches
+the selection. The ROM splice is last.
 The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
 input, Stop, and immediate relaunch paths are hardware-tested on the designated

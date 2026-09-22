@@ -9,6 +9,7 @@ import (
 	"os/exec"
 
 	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 // MachineROMLinker replaces the empty ZX81 machine ROM in an already placed RBF.
@@ -67,8 +68,14 @@ func (s *Service) SetMachineROMLinker(linker MachineROMLinker) {
 }
 
 func (s *Service) applyZX81MachineROM(coreID string, archive []byte, composed *corepackage.CompositionBundle) ([]byte, string, error) {
-	if coreID != "fes.zx81" || s.machineROM == nil {
+	if coreID != "fes.zx81" {
 		return nil, "", nil
+	}
+	if s.machineROM == nil {
+		return nil, "", &protocol.APIError{
+			Code: protocol.CodeBadRequest, Phase: "admission",
+			Message: "fes.zx81 requires [zx81_machine_rom] script, image, and mistral_cv before launch",
+		}
 	}
 	base := archive
 	var composition []byte
