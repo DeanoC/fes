@@ -446,7 +446,12 @@ headers as development media. `eject-tape` posts
 The target agent uses `POST /v1/development/live-media` and
 `POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
 The host does not inject BASIC `LOAD ""` keys; the user types that on the ZX81
-keyboard after the tape is armed. Sofa Load-tape chrome is a later slice.
+keyboard after the tape is armed. Sofa tenfoot Load-tape chrome (Y / north while
+the session is active and live-media capable) opens a local `.p` picker, imports
+via `POST /api/v1/core-media` when needed, then arms with
+`POST /api/v1/session/live-media`. The same overlay can eject through
+`POST /api/v1/session/live-media/clear`. Busy-while-LOAD is shown as the host
+`BUSY` message without stopping the session.
 
 ## Other modes
 
@@ -632,7 +637,10 @@ playable game session. Stop uses the ordinary session Stop-to-idle path.
 Household Coleco BIOS import is a separate overlay: rooms/library Confirm on
 a firmware-required title opens a local file picker and posts
 `POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`. That is not a
-development RBF load.
+development RBF load. Mid-session ZX81 Load-tape is another overlay: while an
+active `fes.simple-computer` session advertises `fes.media.blob`, Y opens a
+`.p` picker that arms or ejects through the session live-media API without
+relaunch or hold-reset `load_media`.
 
 ## FES appliance releases
 

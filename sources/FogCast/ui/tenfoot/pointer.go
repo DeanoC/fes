@@ -23,6 +23,7 @@ const (
 	PointerRoomDestination
 	PointerLaunchOverlay
 	PointerFirmwarePicker
+	PointerTapePicker
 )
 
 // PointerHit is one hit-test result in logical sofa pixels.
@@ -66,6 +67,8 @@ func (k PointerKind) String() string {
 		return "launch-overlay"
 	case PointerFirmwarePicker:
 		return "firmware-picker"
+	case PointerTapePicker:
+		return "tape-picker"
 	default:
 		return "none"
 	}
@@ -154,6 +157,15 @@ func HitTest(snap Snapshot, x, y int) PointerHit {
 		}
 		return PointerHit{Kind: PointerBackdrop}
 	}
+	if panel, ok := tapePickerPanel(snap); ok {
+		if idx, hit := panel.rowAt(x, y); hit && idx >= 0 && idx < len(snap.TapePicker.Rows) {
+			return PointerHit{Kind: PointerTapePicker, Index: idx}
+		}
+		if panel.contains(x, y) {
+			return PointerHit{}
+		}
+		return PointerHit{Kind: PointerBackdrop}
+	}
 	if snap.Room.Open {
 		if panel, ok := launchOverlayPanel(snap); ok {
 			if panel.contains(x, y) {
@@ -220,6 +232,11 @@ func (a *App) PointerMoveFrom(id, x, y int, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
+	if a.tapePickerOpen || a.firmwarePickerOpen {
+		a.noteInputLocked(InputMouse, id)
+		a.applyPointerFocusLocked(a.hitTestLocked(x, y))
+		return
+	}
 	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
 		return
 	}
@@ -246,6 +263,13 @@ func (a *App) PointerClickFrom(id, x, y int, now time.Time) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.noteActivityLocked(now)
+	if a.tapePickerOpen || a.firmwarePickerOpen {
+		a.noteInputLocked(InputMouse, id)
+		hit := a.hitTestLocked(x, y)
+		a.applyPointerFocusLocked(hit)
+		a.activatePointerHitLocked(hit, now)
+		return
+	}
 	if a.gpuParked || a.forwardsCoreKeyboardLocked() || a.sessionStopOfferedLocked() {
 		return
 	}
@@ -283,6 +307,7 @@ func (a *App) pointerSnapshotLocked() Snapshot {
 		Room:            a.roomSnapshotLocked(false),
 		RoomPicker:      a.roomPickerSnapshotLocked(),
 		FirmwarePicker:  a.firmwarePickerSnapshotLocked(),
+		TapePicker:      a.tapePickerSnapshotLocked(),
 	}
 }
 
@@ -324,6 +349,10 @@ func (a *App) applyPointerFocusLocked(hit PointerHit) {
 	case PointerFirmwarePicker:
 		if hit.Index >= 0 && hit.Index < len(a.firmwarePickerRows) {
 			a.firmwarePickerIndex = hit.Index
+		}
+	case PointerTapePicker:
+		if hit.Index >= 0 && hit.Index < len(a.tapePickerRows) {
+			a.tapePickerIndex = hit.Index
 		}
 	case PointerRoomChoice:
 		if hit.Index >= 0 && hit.Index < len(a.roomChoice) {
@@ -370,6 +399,8 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 		a.handleRoomPickerLocked(CmdSelect)
 	case PointerFirmwarePicker:
 		a.handleFirmwarePickerLocked(CmdSelect)
+	case PointerTapePicker:
+		a.handleTapePickerLocked(CmdSelect)
 	case PointerRoomChoice:
 		a.handleRoomChoiceLocked(CmdSelect)
 	case PointerLaunchOverlay:
@@ -406,6 +437,8 @@ func (a *App) pointerBackdropLocked(now time.Time) {
 		a.handleRoomPickerLocked(CmdBack)
 	case a.firmwarePickerOpen:
 		a.handleFirmwarePickerLocked(CmdBack)
+	case a.tapePickerOpen:
+		a.handleTapePickerLocked(CmdBack)
 	case a.settingsOpen:
 		a.handleSettingsLocked(CmdBack)
 	case a.filtersOpen:

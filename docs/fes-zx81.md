@@ -31,9 +31,10 @@ design lock in [ZX81 tape media](zx81-tape-media.md). Slice 1 delivers the
 runtime mailbox path without hold-reset soft-reboot. Slice 2 adds the FogCast
 host/agent session change-tape and eject API over core-media ids
 (`POST /api/v1/session/live-media`, `…/clear`, CLI `change-tape` /
-`eject-tape`). Sofa and kit HIL follow. That path is distinct from the
-launch-time machine-ROM splice and from Stop→relaunch. This page describes the
-mailbox contract that is true today.
+`eject-tape`). Slice 3 adds sofa/tenfoot Load-tape chrome (arm + eject) on that
+API. Kit HIL is Slice 4. That path is distinct from the launch-time
+machine-ROM splice and from Stop→relaunch. This page describes the mailbox
+contract that is true today.
 
 `core-load` is the development loader and does not create a library entry.
 The target agent must post `set_keyboard`; an agent without that path only

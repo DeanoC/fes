@@ -77,7 +77,7 @@ func browseHint(kind InputKind) string {
 	}
 }
 
-func sessionChromeHint(kind InputKind, retry bool) string {
+func sessionChromeHint(kind InputKind, retry bool, loadTape bool) string {
 	stop := "B stop"
 	switch kind {
 	case InputKeyboard, InputMouse:
@@ -91,7 +91,11 @@ func sessionChromeHint(kind InputKind, retry bool) string {
 			stop = "B retry Stop"
 		}
 	}
-	return stop + "  " + startWord(kind) + " quit  " + layoutWord(kind) + " layout"
+	hint := stop + "  " + startWord(kind) + " quit  " + layoutWord(kind) + " layout"
+	if loadTape {
+		hint += "  " + northWord(kind) + " load tape"
+	}
+	return hint
 }
 
 func detailHintFor(kind InputKind, count int) string {
@@ -193,7 +197,13 @@ func (s Snapshot) AffinityBadge() string {
 func (s Snapshot) HeaderHint() string {
 	kind := s.Affinity
 	if s.GPUParked || s.Session.State == "active" || s.Session.RetryStop {
-		hint := sessionChromeHint(kind, s.Session.RetryStop)
+		if s.TapePicker.Open {
+			if h := strings.TrimSpace(s.TapePicker.Hint); h != "" {
+				return h
+			}
+			return tapePickerHint(kind)
+		}
+		hint := sessionChromeHint(kind, s.Session.RetryStop, s.Session.LoadTape)
 		if h := strings.TrimSpace(s.Session.InputHint); h != "" {
 			return hint + "  " + h
 		}
@@ -231,6 +241,12 @@ func (s Snapshot) HeaderHint() string {
 			return h
 		}
 		return firmwarePickerHint(kind)
+	}
+	if s.TapePicker.Open {
+		if h := strings.TrimSpace(s.TapePicker.Hint); h != "" {
+			return h
+		}
+		return tapePickerHint(kind)
 	}
 	if s.Room.Open {
 		if s.Room.Err != "" {
