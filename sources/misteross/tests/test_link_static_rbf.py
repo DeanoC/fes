@@ -11,6 +11,7 @@ from scripts.link_static_rbf import (
     overlay_files,
     decode_m10k_ram_word,
     encode_m10k_ram_word,
+    m10k_block_present,
     overlay_m10k_init_bt,
     overlay_m10k_ram_bt,
     overlay_mode_from_map,
@@ -147,4 +148,23 @@ class LinkStaticRbfTests(unittest.TestCase):
         self.assertEqual(decode_m10k_ram_word(0xFFA30530A9), logical)
         self.assertEqual(decode_m10k_ram_word(encode_m10k_ram_word(first[0])), first[0])
         with self.assertRaisesRegex(LinkError, "RAM muxes"):
-            overlay_m10k_init_bt("s M10K.026.001:TOP_CLK_SEL 1\n", bels[0], first)
+            overlay_m10k_init_bt("s LAB.027.001:LUT_MASK.0 0\n", bels[0], first)
+
+    def test_omitted_default_ram_words_splice_into_placed_m10k(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        image = load_hex_bytes(root / "cores/fes-zx81/rtl/zx8x.hex")
+        bel = zx81_machine_rom_bels()[0]
+        name = bel_to_bt_name(bel)
+        stored = [encode_m10k_ram_word(word) for word in pack_1024x10(zx81_basic_rom(image)[:1024])]
+        # Placed 10-bit M10K whose RAM CRAM is still the all-zero default.
+        # mistral-cv prints A_DATA_WIDTH and omits every RAM word.
+        blank = f"s {name}:A_DATA_WIDTH 10\ns LAB.027.001:LUT_MASK.0 0\n"
+        self.assertTrue(m10k_block_present(blank, bel))
+        self.assertEqual(read_m10k_init_bt(blank, bel), [0] * 256)
+        composed = overlay_m10k_init_bt(blank, bel, stored)
+        self.assertIn(f"s {name}:A_DATA_WIDTH 10\n", composed)
+        self.assertIn("s LAB.027.001:LUT_MASK.0 0\n", composed)
+        self.assertEqual(read_m10k_init_bt(composed, bel), stored)
+        partial = blank + f"s {name}:RAM.0 00.00000000\n"
+        self.assertEqual(read_m10k_init_bt(partial, bel)[0], 0)
+        self.assertEqual(len(read_m10k_init_bt(partial, bel)), 256)
