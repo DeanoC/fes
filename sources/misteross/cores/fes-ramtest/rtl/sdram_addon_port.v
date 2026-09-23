@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// 50 MHz 16-bit SDR SDRAM, burst length 1, CAS latency 2.
-// 128 MB is 64M halfwords: 11 column bits, 2 banks, 13 row bits.
-// Column A10 is a real column bit. Precharge is explicit, not A10.
+// 16-bit SDR SDRAM, burst length 1, CAS latency 2.
+// 128 MB is 64M halfwords on two chips. The MiSTer memory tester packs a
+// halfword as column[1:0], bank, row[12:0], column[9:2], and uses the top
+// bit as the chip select. A10 is auto-precharge on READ and WRITE.
 // A refresh is inserted between commands so a full-chip scan keeps its data.
 module sdram_addon_port (
     input wire clk,
+    input wire clk_pin,
+    input wire [1:0] rate,
+    input wire reset,
     input wire start,
     input wire write,
     input wire [25:0] addr,
@@ -23,34 +27,68 @@ module sdram_addon_port (
     output reg sdram_dqmh,
     output reg [15:0] dq_out,
     output reg dq_oe,
-    input wire [15:0] dq_in
+    // Both edges are captured in the IO cell. The rising-edge word is
+    // from the previous rising edge, because that register updates then.
+    input wire [15:0] dq_rise,
+    input wire [15:0] dq_fall
 );
-    localparam [3:0] ST_BOOT = 4'd0;
-    localparam [3:0] ST_PRE = 4'd1;
-    localparam [3:0] ST_REF1 = 4'd2;
-    localparam [3:0] ST_REF2 = 4'd3;
-    localparam [3:0] ST_MRS = 4'd4;
-    localparam [3:0] ST_IDLE = 4'd5;
-    localparam [3:0] ST_REF = 4'd6;
-    localparam [3:0] ST_REFW = 4'd7;
-    localparam [3:0] ST_ROW = 4'd8;
-    localparam [3:0] ST_ACT = 4'd9;
-    localparam [3:0] ST_RW = 4'd10;
-    localparam [3:0] ST_HOLD = 4'd11;
-    localparam [3:0] ST_CAP = 4'd12;
-    localparam [3:0] ST_PRE2 = 4'd13;
-    localparam [3:0] ST_FINISH = 4'd14;
+    localparam [4:0] ST_BOOT = 5'd0;
+    localparam [4:0] ST_PRE = 5'd1;
+    localparam [4:0] ST_REF1 = 5'd2;
+    localparam [4:0] ST_REF2 = 5'd3;
+    localparam [4:0] ST_MRS = 5'd4;
+    localparam [4:0] ST_IDLE = 5'd5;
+    localparam [4:0] ST_REF = 5'd6;
+    localparam [4:0] ST_REFW = 5'd7;
+    localparam [4:0] ST_ROW = 5'd8;
+    localparam [4:0] ST_ACT = 5'd9;
+    localparam [4:0] ST_RW = 5'd10;
+    localparam [4:0] ST_HOLD = 5'd11;
+    localparam [4:0] ST_CAP = 5'd12;
+    localparam [4:0] ST_PRE2 = 5'd13;
+    localparam [4:0] ST_FINISH = 5'd14;
+    localparam [4:0] ST_RCD1 = 5'd15;
+    localparam [4:0] ST_RCD2 = 5'd16;
 
-    reg [3:0] state = ST_BOOT;
-    reg [12:0] wait_count = 13'd0;
-    reg [8:0] refresh_div = 9'd0;
+    reg [4:0] state = ST_BOOT;
+    reg [13:0] wait_count = 14'd0;
+    reg [11:0] refresh_div = 12'd0;
     reg refresh_due = 1'b0;
     reg seen = 1'b0;
     reg writing = 1'b0;
     reg [25:0] held_addr = 26'd0;
     reg [15:0] held_data = 16'h0000;
+    reg init_hi = 1'b0;
+    reg ref_hi = 1'b0;
 
-    assign sdram_clk = clk;
+    // Same polarity as the Sorgelig controller: the pin rises on the FPGA
+    // falling edge, so the chip samples commands a half-cycle after they launch.
+    altddio_out #(
+        .width(1),
+        .intended_device_family("Cyclone V"),
+        .power_up_high("OFF"),
+        .oe_reg("UNREGISTERED"),
+        .extend_oe_disable("OFF"),
+        .invert_output("OFF")
+    ) sdram_clk_ddr (
+        .datain_h(1'b0),
+        .datain_l(1'b1),
+        .outclock(clk_pin),
+        .outclocken(1'b1),
+        .aset(1'b0),
+        .aclr(1'b0),
+        .sset(1'b0),
+        .sclr(1'b0),
+        .oe(1'b1),
+        .dataout(sdram_clk),
+        .oe_out()
+    );
+
+    // 7.8 us refresh. The count is in fabric clocks, so it tracks the rate.
+    wire [11:0] refresh_every =
+        rate == 2'd0 ? 12'd390 :
+        rate == 2'd1 ? 12'd1014 :
+        12'd780;
 
     always @(posedge clk) begin
         done <= 1'b0;
@@ -61,40 +99,56 @@ module sdram_addon_port (
         sdram_nras <= 1'b1;
         sdram_ncas <= 1'b1;
         sdram_nwe <= 1'b1;
-        if (refresh_div == 9'd390) begin
-            refresh_div <= 9'd0;
+        if (refresh_div == refresh_every) begin
+            refresh_div <= 12'd0;
             refresh_due <= 1'b1;
         end else begin
-            refresh_div <= refresh_div + 9'd1;
+            refresh_div <= refresh_div + 12'd1;
         end
-        case (state)
+        if (reset) begin
+            state <= ST_BOOT;
+            wait_count <= 14'd0;
+            refresh_due <= 1'b0;
+            seen <= 1'b0;
+            init_hi <= 1'b0;
+            ref_hi <= 1'b0;
+            sdram_cke <= 1'b0;
+        end else case (state)
             ST_BOOT: begin
                 sdram_cke <= 1'b0;
                 sdram_ncs <= 1'b1;
-                if (wait_count == 13'd5000) begin
+                // At least 100 us at 130 MHz.
+                if (wait_count == 14'd13000) begin
                     sdram_cke <= 1'b1;
                     state <= ST_PRE;
-                    wait_count <= 13'd0;
+                    wait_count <= 14'd0;
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_PRE: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd0) begin
+                if (wait_count == 14'd0) begin
+                    sdram_ncs <= init_hi;
                     sdram_nras <= 1'b0;
                     sdram_nwe <= 1'b0;
                     sdram_a[10] <= 1'b1;
-                    wait_count <= 13'd1;
-                end else if (wait_count == 13'd4) begin
-                    wait_count <= 13'd0;
-                    state <= ST_REF1;
+                    wait_count <= 14'd1;
+                end else if (wait_count == 14'd4) begin
+                    wait_count <= 14'd0;
+                    if (!init_hi)
+                        init_hi <= 1'b1;
+                    else begin
+                        init_hi <= 1'b0;
+                        state <= ST_REF1;
+                    end
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_PRE2: begin
                 sdram_cke <= 1'b1;
+                sdram_ncs <= held_addr[25];
                 sdram_nras <= 1'b0;
                 sdram_nwe <= 1'b0;
                 sdram_a[10] <= 1'b1;
@@ -102,31 +156,49 @@ module sdram_addon_port (
             end
             ST_REF1, ST_REF2: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd0) begin
+                if (wait_count == 14'd0) begin
+                    sdram_ncs <= init_hi;
                     sdram_nras <= 1'b0;
                     sdram_ncas <= 1'b0;
-                    wait_count <= 13'd1;
-                end else if (wait_count == 13'd8) begin
-                    wait_count <= 13'd0;
-                    state <= (state == ST_REF1) ? ST_REF2 : ST_MRS;
+                    wait_count <= 14'd1;
+                // 16 cycles is 160 ns at 100 MHz, inside tRFC, and longer when slower.
+                end else if (wait_count == 14'd16) begin
+                    wait_count <= 14'd0;
+                    if (state == ST_REF1)
+                        state <= ST_REF2;
+                    else if (!init_hi) begin
+                        init_hi <= 1'b1;
+                        state <= ST_REF1;
+                    end else begin
+                        init_hi <= 1'b0;
+                        state <= ST_MRS;
+                    end
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_MRS: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd0) begin
+                if (wait_count == 14'd0) begin
+                    sdram_ncs <= init_hi;
                     sdram_nras <= 1'b0;
                     sdram_ncas <= 1'b0;
                     sdram_nwe <= 1'b0;
                     sdram_ba <= 2'b00;
-                    sdram_a <= 13'h0020;
-                    wait_count <= 13'd1;
-                end else if (wait_count == 13'd4) begin
-                    wait_count <= 13'd0;
-                    state <= ST_IDLE;
+                    // CAS latency 3 at 130 MHz; 2 at the slower rates.
+                    // Burst length one throughout.
+                    sdram_a <= (rate == 2'd1) ? 13'h0030 : 13'h0020;
+                    wait_count <= 14'd1;
+                end else if (wait_count == 14'd4) begin
+                    wait_count <= 14'd0;
+                    if (!init_hi)
+                        init_hi <= 1'b1;
+                    else begin
+                        init_hi <= 1'b0;
+                        state <= ST_IDLE;
+                    end
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_IDLE: begin
@@ -142,11 +214,11 @@ module sdram_addon_port (
                     if (refresh_due) begin
                         state <= ST_REF;
                     end else begin
-                        sdram_ba <= addr[12:11];
-                        sdram_a <= addr[25:13];
-                        sdram_ncs <= 1'b0;
+                        sdram_ba <= addr[3:2];
+                        sdram_a <= addr[16:4];
+                        sdram_ncs <= addr[25];
                         sdram_nras <= 1'b0;
-                        state <= ST_ACT;
+                        state <= ST_RCD1;
                         // Data has to be valid before the write clock, not on it.
                         if (write) begin
                             dq_out <= wdata;
@@ -157,35 +229,52 @@ module sdram_addon_port (
             end
             ST_REF: begin
                 sdram_cke <= 1'b1;
+                sdram_ncs <= ref_hi;
                 sdram_nras <= 1'b0;
                 sdram_ncas <= 1'b0;
                 refresh_due <= 1'b0;
-                wait_count <= 13'd0;
+                wait_count <= 14'd0;
                 state <= ST_REFW;
             end
             ST_REFW: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd8) begin
-                    state <= ST_ROW;
+                sdram_ncs <= ref_hi;
+                if (wait_count == 14'd16) begin
+                    if (!ref_hi) begin
+                        ref_hi <= 1'b1;
+                        state <= ST_REF;
+                    end else begin
+                        ref_hi <= 1'b0;
+                        state <= ST_ROW;
+                    end
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_ROW: begin
                 sdram_cke <= 1'b1;
-                sdram_ba <= held_addr[12:11];
-                sdram_a <= held_addr[25:13];
+                sdram_ncs <= held_addr[25];
+                sdram_ba <= held_addr[3:2];
+                sdram_a <= held_addr[16:4];
                 sdram_nras <= 1'b0;
-                state <= ST_ACT;
+                state <= ST_RCD1;
                 if (writing) begin
                     dq_out <= held_data;
                     dq_oe <= 1'b1;
                 end
             end
+            ST_RCD1, ST_RCD2: begin
+                sdram_cke <= 1'b1;
+                dq_out <= held_data;
+                dq_oe <= writing;
+                state <= (state == ST_RCD1) ? ST_RCD2 : ST_ACT;
+            end
             ST_ACT: begin
                 sdram_cke <= 1'b1;
-                sdram_ba <= held_addr[12:11];
-                sdram_a <= {2'b00, held_addr[10:0]};
+                sdram_ncs <= held_addr[25];
+                sdram_ba <= held_addr[3:2];
+                // A10 is auto-precharge. Column is {addr[24:17], addr[1:0]}.
+                sdram_a <= {2'b00, 1'b1, held_addr[24:17], held_addr[1:0]};
                 sdram_ncas <= 1'b0;
                 sdram_nwe <= writing ? 1'b0 : 1'b1;
                 dq_out <= held_data;
@@ -197,7 +286,7 @@ module sdram_addon_port (
                 dq_out <= held_data;
                 dq_oe <= writing;
                 state <= writing ? ST_HOLD : ST_CAP;
-                wait_count <= 13'd0;
+                wait_count <= 14'd0;
             end
             ST_HOLD: begin
                 sdram_cke <= 1'b1;
@@ -205,11 +294,17 @@ module sdram_addon_port (
             end
             ST_CAP: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd2) begin
-                    rdata <= dq_in;
+                // READ is on the pins in ST_ACT. The chip samples it on the
+                // falling edge and launches the word two chip clocks later.
+                // 50 MHz keeps the rising edge 10 ns after that launch.
+                // 75 and 100 MHz keep the falling edge one chip clock after
+                // the launch. At 100 MHz the capture clock leads by 0.42 ns.
+                if (wait_count == (rate == 2'd1 ? 14'd4 :
+                                   rate == 2'd2 ? 14'd2 : 14'd3)) begin
+                    rdata <= (rate == 2'd0) ? dq_rise : dq_fall;
                     state <= ST_PRE2;
                 end else begin
-                    wait_count <= wait_count + 13'd1;
+                    wait_count <= wait_count + 14'd1;
                 end
             end
             ST_FINISH: begin

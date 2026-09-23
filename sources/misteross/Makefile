@@ -54,6 +54,7 @@ help:
 		"  sim-fes-demo  Test composable application endpoints and reference demos" \
 		"  sim-fes-ramtest  Test the RAM tester HDMI utility and fes.application identity" \
 		"  build-fes-ramtest  Seal the RAM tester utility with HIP nextpnr" \
+		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
 		"  build-fes-demo  Seal autonomous video application with HIP nextpnr" \
@@ -145,13 +146,16 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest
+.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
 
 build-fes-ramtest:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-ramtest-quartus:
+	$(PYTHON) scripts/build_fes_ramtest_quartus.py
 
 sim-fes-demo:
 	$(require_local_sim)

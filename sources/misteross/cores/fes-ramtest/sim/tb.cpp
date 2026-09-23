@@ -47,7 +47,7 @@ int main() {
     require(command(top, toggle, 2, 0, 1) == 0, "execution release failed");
     bool both = false;
     bool green = false;
-    for (int i = 0; i < 4000000 && !green; ++i) {
+    for (int i = 0; i < 30000000 && !green; ++i) {
         tick(top);
         both = top.bench->dut->sdram_pass && top.bench->dut->hps_pass
             && !top.bench->dut->sdram_fail && !top.bench->dut->hps_fail

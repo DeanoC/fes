@@ -176,9 +176,14 @@ or an application-name branch in host software.
 `fes.ramtest` is a separate utility on the same mailbox, fixed 720p
 interface, and gamepad interface. `make build-fes-ramtest` writes
 `build/fes-ramtest/core.rbf`. After execution release it pattern-tests the
-SDRAM addon and an HPS DDR window at 50 MHz and prints the pattern, address,
-and error count. A gamepad button, or a keyboard key the host maps to one,
-stops the scan. The ABI has no memory opcode. A `fes-gp-v1` package load
+SDRAM addon and an HPS DDR window and prints the pattern, address, clock
+and error count. The SDRAM clock pin is the inverted DDR output used by
+MiSTer controllers. The OSS bitstream runs that clock at 50 MHz.
+`make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
+Quartus 17.0.2; `RAMTEST_MHZ=100` selects a separate 100 MHz diagnostic.
+Each tests the full SDRAM range at one rate and keeps the six pattern counts
+on screen. A gamepad button, or a keyboard key the host maps to one, stops
+the scan. The ABI has no memory opcode. A `fes-gp-v1` package load
 releases the HPS bridges after user mode. A raw development RBF stays
 contained, so the HPS path fails until the bridges are released.
 

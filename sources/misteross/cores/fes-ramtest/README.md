@@ -9,13 +9,33 @@ The HDMI text shows the pattern, the live address, and the live expect/got
 values. The full error count stays on screen, with the first mismatch address
 and the data that was read there, and the most recent mismatch address.
 
-The SDRAM span is the 128 MB addon: 64M halfwords, with a refresh between
-commands. The HPS span is 256K steps starting at byte address `0x01000000`
+The SDRAM clock pin uses a DDR output and rises on the fabric falling edge.
+The Quartus diagnostic builds run at one selected rate for the entire scan:
+
+```sh
+QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0/quartus make build-fes-ramtest-quartus
+RAMTEST_MHZ=100 QUARTUS_ROOTDIR=/home/deano/intelFPGA_lite/17.0/quartus make build-fes-ramtest-quartus
+```
+
+The first command builds 130 MHz into `build/fes-ramtest-quartus/`; the second
+builds 100 MHz into `build/fes-ramtest-quartus-100/`. Each directory contains
+an RBF, timing report and loadable `comparison.fcore`. The bitstreams use
+different build identities. Both select the frequency directly from the PLL,
+pack SDRAM command/address registers into the output cells, and capture read
+data on a shifted clock in the input cells. The 130 MHz path also pipelines
+the captured data before the controller. The controller uses CAS latency 3
+at 130 MHz and CAS latency 2 at 100 MHz. A gamepad button stops a scan.
+
+The 50 MHz OSS build remains a separate path via `make build-fes-ramtest`;
+hardware acceptance of that path is still pending. The Quartus timing report
+covers internal setup paths but does not constrain external SDRAM I/O timing,
+so the full-memory hardware scan is the acceptance evidence for these rates.
+The HPS span is 256K steps starting at byte address `0x01000000`
 in the same command field the bridge probe used. It does not walk all of
 system RAM. A missing acknowledge stops that path, which is what a contained
 HPS bridge does. A data mismatch is counted and the scan continues.
 
-Any `fes.gamepad` button stops both scans and the status line says `STOP`.
+A `fes.gamepad` button stops both scans and the status line says `STOP`.
 The host maps a keyboard onto those buttons (arrows, Enter, Space, and the
 letter keys it already forwards). Escape and Backspace leave the session in
 the host and are not delivered to the core.

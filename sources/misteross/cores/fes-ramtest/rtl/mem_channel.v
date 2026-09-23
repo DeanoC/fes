@@ -27,6 +27,8 @@ module mem_channel #(
     output reg [31:0] last_addr,
     output reg [15:0] fault_got,
     output reg [31:0] errors,
+    // One count per pattern, in pattern order: 0000 FFFF 5555 AAAA ADDR INVR.
+    output reg [191:0] pattern_errors,
     output reg [15:0] shown_expect,
     output reg [15:0] shown_got
 );
@@ -37,7 +39,7 @@ module mem_channel #(
     localparam [2:0] ST_DONE = 3'd4;
     localparam [2:0] ST_STOP = 3'd5;
     localparam [2:0] PHASES = 3'd6;
-    localparam [15:0] TIMEOUT = 16'd8000;
+    localparam [15:0] TIMEOUT = 16'd20000;
 
     reg [2:0] state = ST_RESET;
     reg [31:0] index = 32'd0;
@@ -82,6 +84,7 @@ module mem_channel #(
             last_addr <= 32'd0;
             fault_got <= 16'h0000;
             errors <= 32'd0;
+            pattern_errors <= 192'd0;
             shown_expect <= 16'h0000;
             shown_got <= 16'h0000;
             state <= ST_RESET;
@@ -100,6 +103,7 @@ module mem_channel #(
                     reading <= 1'b0;
                     index <= 32'd0;
                     errors <= 32'd0;
+                    pattern_errors <= 192'd0;
                     fault_addr <= 32'd0;
                     last_addr <= 32'd0;
                     fault_got <= 16'h0000;
@@ -141,6 +145,20 @@ module mem_channel #(
                         faulted <= 1'b1;
                         if (errors != 32'hFFFFFFFF)
                             errors <= errors + 32'd1;
+                        case (phase)
+                            3'd0: if (pattern_errors[31:0] != 32'hFFFFFFFF)
+                                pattern_errors[31:0] <= pattern_errors[31:0] + 32'd1;
+                            3'd1: if (pattern_errors[63:32] != 32'hFFFFFFFF)
+                                pattern_errors[63:32] <= pattern_errors[63:32] + 32'd1;
+                            3'd2: if (pattern_errors[95:64] != 32'hFFFFFFFF)
+                                pattern_errors[95:64] <= pattern_errors[95:64] + 32'd1;
+                            3'd3: if (pattern_errors[127:96] != 32'hFFFFFFFF)
+                                pattern_errors[127:96] <= pattern_errors[127:96] + 32'd1;
+                            3'd4: if (pattern_errors[159:128] != 32'hFFFFFFFF)
+                                pattern_errors[159:128] <= pattern_errors[159:128] + 32'd1;
+                            default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
+                                pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
+                        endcase
                         state <= ST_DONE;
                     end else begin
                         timer <= timer + 16'd1;
@@ -158,6 +176,20 @@ module mem_channel #(
                         faulted <= 1'b1;
                         if (errors != 32'hFFFFFFFF)
                             errors <= errors + 32'd1;
+                        case (phase)
+                            3'd0: if (pattern_errors[31:0] != 32'hFFFFFFFF)
+                                pattern_errors[31:0] <= pattern_errors[31:0] + 32'd1;
+                            3'd1: if (pattern_errors[63:32] != 32'hFFFFFFFF)
+                                pattern_errors[63:32] <= pattern_errors[63:32] + 32'd1;
+                            3'd2: if (pattern_errors[95:64] != 32'hFFFFFFFF)
+                                pattern_errors[95:64] <= pattern_errors[95:64] + 32'd1;
+                            3'd3: if (pattern_errors[127:96] != 32'hFFFFFFFF)
+                                pattern_errors[127:96] <= pattern_errors[127:96] + 32'd1;
+                            3'd4: if (pattern_errors[159:128] != 32'hFFFFFFFF)
+                                pattern_errors[159:128] <= pattern_errors[159:128] + 32'd1;
+                            default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
+                                pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
+                        endcase
                     end
                     if (index + 32'd1 == WORDS) begin
                         index <= 32'd0;

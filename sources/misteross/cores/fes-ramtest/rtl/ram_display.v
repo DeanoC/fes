@@ -17,6 +17,7 @@ module ram_display (
     input wire [15:0] sdram_got,
     input wire sdram_pass,
     input wire sdram_fail,
+    input wire [7:0] sdram_mhz,
     input wire sdram_stopped,
     input wire [2:0] hps_phase,
     input wire hps_reading,
@@ -30,18 +31,30 @@ module ram_display (
     input wire hps_pass,
     input wire hps_fail,
     input wire hps_stopped,
+    // Six pattern counts for each finished rate, in pattern order.
+    input wire [191:0] pat50,
+    input wire [191:0] pat75,
+    input wire [191:0] pat100,
+    input wire [2:0] pat_ok,
     output reg [7:0] red,
     output reg [7:0] green,
     output reg [7:0] blue
 );
-    reg [365:0] sync0 = 366'd0;
-    reg [365:0] sync1 = 366'd0;
-    wire [365:0] snap = {
+    reg [952:0] sync0 = 953'd0;
+    reg [952:0] sync1 = 953'd0;
+    wire [952:0] snap = {
+        pat_ok, pat100, pat75, pat50,
+        sdram_mhz,
         sdram_phase, sdram_reading, sdram_addr, sdram_fault, sdram_last, sdram_errors, sdram_was,
         sdram_expect, sdram_got, sdram_pass, sdram_fail, sdram_stopped,
         hps_phase, hps_reading, hps_addr, hps_fault, hps_last, hps_errors, hps_was,
         hps_expect, hps_got, hps_pass, hps_fail, hps_stopped
     };
+    wire [2:0] s_pat_ok = sync1[952:950];
+    wire [191:0] s_pat100 = sync1[949:758];
+    wire [191:0] s_pat75 = sync1[757:566];
+    wire [191:0] s_pat50 = sync1[565:374];
+    wire [7:0] s_mhz = sync1[373:366];
     wire [2:0] s_phase = sync1[365:363];
     wire s_reading = sync1[362];
     wire [31:0] s_addr = sync1[361:330];
@@ -185,6 +198,25 @@ module ram_display (
         end
     endfunction
 
+    function [7:0] mhz_chars;
+        input [7:0] value;
+        input [5:0] column;
+        reg [23:0] text;
+        begin
+            case (value)
+                8'd50: text = " 50";
+                8'd130: text = "130";
+                8'd100: text = "100";
+                default: text = "   ";
+            endcase
+            case (column)
+                6'd0: mhz_chars = text[23:16];
+                6'd1: mhz_chars = text[15:8];
+                default: mhz_chars = text[7:0];
+            endcase
+        end
+    endfunction
+
     function [7:0] line_char;
         input [4:0] line;
         input [5:0] column;
@@ -198,6 +230,7 @@ module ram_display (
         input [15:0] was;
         input [15:0] expected_word;
         input [15:0] got;
+        input [7:0] mhz;
         input stopped;
         input passed;
         input failed;
@@ -215,6 +248,14 @@ module ram_display (
                         line_char = "/";
                     else if (column == 6'd9)
                         line_char = "6";
+                    else if (mhz != 8'd0 && column >= 6'd12 && column < 6'd15)
+                        line_char = mhz_chars(mhz, column - 6'd12);
+                    else if (mhz != 8'd0 && column == 6'd16)
+                        line_char = "M";
+                    else if (mhz != 8'd0 && column == 6'd17)
+                        line_char = "H";
+                    else if (mhz != 8'd0 && column == 6'd18)
+                        line_char = "Z";
                     else
                         line_char = 8'h00;
                 end
@@ -262,16 +303,102 @@ module ram_display (
         end
     endfunction
 
+    function [31:0] pattern_name;
+        input [2:0] which;
+        begin
+            case (which)
+                3'd0: pattern_name = "0000";
+                3'd1: pattern_name = "FFFF";
+                3'd2: pattern_name = "5555";
+                3'd3: pattern_name = "AAAA";
+                3'd4: pattern_name = "ADDR";
+                default: pattern_name = "INVR";
+            endcase
+        end
+    endfunction
+
+    function [31:0] pattern_count;
+        input [191:0] counts;
+        input [2:0] which;
+        begin
+            case (which)
+                3'd0: pattern_count = counts[31:0];
+                3'd1: pattern_count = counts[63:32];
+                3'd2: pattern_count = counts[95:64];
+                3'd3: pattern_count = counts[127:96];
+                3'd4: pattern_count = counts[159:128];
+                default: pattern_count = counts[191:160];
+            endcase
+        end
+    endfunction
+
+    function [7:0] pattern_digits;
+        input [31:0] count;
+        input have;
+        input [5:0] column;
+        input [5:0] first;
+        begin
+            if (have && column >= first && column < first + 6'd8)
+                pattern_digits = hex_digit(hex_nibble(count, column, first));
+            else
+                pattern_digits = 8'h00;
+        end
+    endfunction
+
+    // One row per pattern. Columns are 50 MHz, then 130, then 100.
+    function [7:0] pattern_row;
+        input [2:0] which;
+        input [5:0] column;
+        begin
+            if (column < 6'd4)
+                pattern_row = byte4(pattern_name(which), column);
+            else if (column < 6'd14)
+                pattern_row = pattern_digits(pattern_count(s_pat50, which), s_pat_ok[0], column, 6'd5);
+            else if (column < 6'd23)
+                pattern_row = pattern_digits(pattern_count(s_pat75, which), s_pat_ok[1], column, 6'd14);
+            else
+                pattern_row = pattern_digits(pattern_count(s_pat100, which), s_pat_ok[2], column, 6'd23);
+        end
+    endfunction
+
+    function [7:0] rate_head;
+        input [5:0] column;
+        begin
+            if (column == 6'd5)
+                rate_head = "5";
+            else if (column == 6'd6)
+                rate_head = "0";
+            else if (column == 6'd14)
+                rate_head = "1";
+            else if (column == 6'd15)
+                rate_head = "3";
+            else if (column == 6'd16)
+                rate_head = "0";
+            else if (column == 6'd23)
+                rate_head = "1";
+            else if (column == 6'd24)
+                rate_head = "0";
+            else if (column == 6'd25)
+                rate_head = "0";
+            else
+                rate_head = 8'h00;
+        end
+    endfunction
+
     function [7:0] screen_char;
         input [4:0] line;
         input [5:0] column;
         begin
             if (line < 5'd6)
                 screen_char = line_char(line, column, "SDRAM", s_phase, s_reading, s_addr,
-                    s_errors, s_fault, s_last, s_was, s_expect, s_got, s_stopped, s_pass, s_fail);
+                    s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail);
             else if (line >= 5'd7 && line < 5'd13)
                 screen_char = line_char(line - 5'd7, column, "HPS  ", h_phase, h_reading, h_addr,
-                    h_errors, h_fault, h_last, h_was, h_expect, h_got, h_stopped, h_pass, h_fail);
+                    h_errors, h_fault, h_last, h_was, h_expect, h_got, 8'd0, h_stopped, h_pass, h_fail);
+            else if (line == 5'd15)
+                screen_char = rate_head(column);
+            else if (line >= 5'd16 && line < 5'd22)
+                screen_char = pattern_row(line[2:0], column);
             else if (line == 5'd14) begin
                 if (column < 6'd6)
                     screen_char = byte6("BUTTON", column);
@@ -286,7 +413,14 @@ module ram_display (
 
     // The character decode is registered away from the video counters, then
     // the glyph lookup is registered away from that decode. The pixel clock
-    // cannot carry both in one 74.25 MHz cycle.
+    // cannot carry both in one 74.25 MHz cycle. The 3x scale is counted here
+    // so the raster does not divide the HDMI counters on this clock.
+    reg [9:0] field_x = 10'd0;
+    reg [9:0] field_y = 10'd0;
+    reg [1:0] x_phase = 2'd0;
+    reg [1:0] y_phase = 2'd0;
+    reg active_d = 1'b0;
+    reg [11:0] inactive = 12'd0;
     reg [9:0] x_q = 10'd0;
     reg [9:0] y_q = 10'd0;
     reg active_q = 1'b0;
@@ -327,9 +461,35 @@ module ram_display (
     always @(posedge pixel_clk) begin
         sync0 <= snap;
         sync1 <= sync0;
-        x_q <= x;
-        y_q <= y;
+        active_d <= active;
+        x_q <= field_x;
+        y_q <= field_y;
         active_q <= active;
+        if (!active) begin
+            field_x <= 10'd0;
+            x_phase <= 2'd0;
+            if (inactive != 12'hFFF)
+                inactive <= inactive + 12'd1;
+            // One falling edge per line. A gap longer than a blanking interval
+            // is vertical blank, which starts the next frame at line 0.
+            if (inactive == 12'd2000) begin
+                field_y <= 10'd0;
+                y_phase <= 2'd0;
+            end else if (active_d) begin
+                if (y_phase == 2'd2) begin
+                    y_phase <= 2'd0;
+                    field_y <= field_y + 10'd1;
+                end else
+                    y_phase <= y_phase + 2'd1;
+            end
+        end else begin
+            inactive <= 12'd0;
+            if (x_phase == 2'd2) begin
+                x_phase <= 2'd0;
+                field_x <= field_x + 10'd1;
+            end else
+                x_phase <= x_phase + 2'd1;
+        end
         ch_q <= ch_now;
         glyph_row_q <= y_q[2:0];
         glyph_col_q <= x_q[2:0];
