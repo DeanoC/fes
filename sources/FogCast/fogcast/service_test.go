@@ -932,6 +932,65 @@ func TestServiceShutdownCleanupRequiredClearsAfterOwnedStopAndRelease(t *testing
 	}
 }
 
+func TestSoftStopKeepsSameOwnerUntilExplicitRelease(t *testing.T) {
+	var stopCalls, releaseCalls int
+	var stopToken, releaseToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"same-owner"}`)
+		case "/v1/stop":
+			stopCalls++
+			stopToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			releaseCalls++
+			releaseToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"free"}`)
+		case "/v1/development/reboot":
+			t.Error("soft-stop armed a development reboot")
+		default:
+			http.Error(w, "unexpected path", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "fogcast@sofa", "interactive game/development session")
+	defer lease.Close(context.Background())
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	claim, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim lease: %v", err)
+	}
+	token := lease.CurrentToken()
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop = %+v, %v", status, err)
+	}
+	if stopCalls != 1 || stopToken != token || releaseCalls != 0 || !lease.Held() || lease.CurrentToken() != token {
+		t.Fatalf("stopCalls=%d releaseCalls=%d stopToken=%q held=%v token=%q", stopCalls, releaseCalls, stopToken, lease.Held(), lease.CurrentToken())
+	}
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if releaseCalls != 1 || releaseToken != token || lease.Held() {
+		t.Fatalf("releaseCalls=%d releaseToken=%q held=%v", releaseCalls, releaseToken, lease.Held())
+	}
+}
+
 func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {
 	payload := []byte("fcore")
 	packageStatus := protocol.Status{State: protocol.StateActive, Development: true,

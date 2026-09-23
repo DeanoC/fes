@@ -124,6 +124,9 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 	if stopCount != 1 || body != `{"retain_lease":true}` {
 		t.Fatalf("stops=%d body=%q", stopCount, body)
 	}
+	if chrome := app.Snapshot().ChromeLine(); strings.Contains(chrome, "Now playing") {
+		t.Fatalf("soft-stop left playing chrome %q", chrome)
+	}
 
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return snap.CoverHits >= 1

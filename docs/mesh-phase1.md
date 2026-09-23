@@ -59,41 +59,48 @@ Owners are component strawmen. Agree files before parallel edits
 
 ### 1. Soft-stop retains the kit lease — done
 
-**Owner:** FogCast host session API and tenfoot client.
+**Owner:** FogCast host session API and tenfoot client. Caster locked
+this acceptance for the kit contract.
 
-**Policy** ([mesh-lan.md](mesh-lan.md) Decision 4, rooms Scenario 1):
+**Acceptance:**
 
-| Action | Lease |
-| --- | --- |
-| Soft-stop (rooms B / tenfoot session stop that returns to the same room) | **Retain** after cleanup to idle |
-| Explicit user Stop (full stop / release ownership) | **Release** after cleanup |
-| Development `stop` / replacement Stop | **Retain** (already kit-sharing; unchanged) |
+- Soft-stop = rooms B/Back while session active → agent/runtime Stop → defined idle (LoadIdle path). NOT Start+Select. NOT lease release.
+- After Soft-stop: kit lease RETAINED by the same coordinator/owner. Release only on explicit shell leave / session end / EOF / release API — not Soft-stop.
+- Sofa/session record: clear “playing” / active play so Soft-stop→idle is visible; lease may still show held. Do NOT map Soft-stop to “Lease held” Unavailable for the same shell.
+- Conflict still rejects; Confirm does not steal. Ops takeover stays generation/reason path off Confirm.
+- Phase 0 bind + POST session/launch unchanged. No new mesh lease object. No remote reboot / Path B invent.
+- reboot_required / idle recovery stay kit-local unchanged.
 
-**Flag.** Both actions are `POST /api/v1/session/stop`. The body
-distinguishes them:
+**Routes that already exist.** No second lease object.
 
-- Empty body, or JSON with `retain_lease` absent or false: explicit
-  user Stop. After idle cleanup the host calls `ReleaseKitLease`.
-  CLI `fogcast stop`, the browser library stop, and the kit-grid stop
-  stay on this path.
-- `{"retain_lease":true}`: sofa Soft-stop. Idle cleanup does not
-  release. Tenfoot now-playing stop (East/B, Esc, Backspace, and `s`
-  outside play-HID letter entry) sends that body. Client stamps stay
-  on the existing `X-FogCast-Client-*` headers or the same JSON object.
-- A stop that does not reach idle, including `reboot_required` /
-  `stopping`, does not release, with or without the flag.
-- Failed cleanup does not release.
-- Host process shutdown still closes the live grant. Retain is for the
-  room stay, not for a dead host.
-- Unknown JSON fields and a non-boolean `retain_lease` stay
-  `BAD_REQUEST` and do not touch the lease.
+- Rooms B/Back while the session is active, and the sofa aliases that
+  share that room return (Esc, Backspace, and `s` outside play-HID
+  letter entry), post `POST /api/v1/session/stop` with
+  `{"retain_lease":true}`. The host still runs service Stop: agent
+  `POST /v1/stop`, then the runtime LoadIdle path. It does not call
+  `ReleaseKitLease`. The same kit-lease token stays with that owner.
+- Kit Select+Start is not Soft-stop. It posts an empty body on the same
+  session stop route. That is explicit session end and releases after
+  idle.
+- Release stays on the existing paths: empty-body session stop (CLI,
+  browser library, kit Select+Start), host process shutdown, and
+  `POST /v1/kit/release` from kit.py `release` or EOF. Soft-stop is
+  none of those.
+- The recorded session event is `session.stop` with state `idle`, so
+  playing is cleared. The same owner's held lease remains a lease
+  strip. It is not Unavailable for that shell. A foreign holder is
+  still "held by another session"; Confirm does not claim over it.
+  Takeover remains `POST /v1/kit/takeover` with the current generation
+  and a reason.
+- `POST /api/v1/session/launch` is unchanged. A stop that does not
+  reach idle, including `reboot_required`, does not release and does
+  not add a reboot.
 
-**Success:** host unit tests cover release versus retain, a non-idle
-stop, and a rejected body. Tenfoot posts `retain_lease: true`. No kit
-HIL required for this slice.
-
-**Does not:** change `LoadIdle()`, Path B, development `kit.py stop`,
-or replacement Stop.
+**Tests:** host session stop covers retain versus explicit release and
+an idle session record; service Stop keeps the same lease token until
+`ReleaseKitLease`; an owned held lease after idle stays ready; kit
+Select+Start posts an empty stop body. Kit HIL is optional and does
+not block merge.
 
 ### 2. Capability advertisements — not started
 

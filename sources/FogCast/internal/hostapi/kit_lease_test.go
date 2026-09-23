@@ -2,6 +2,7 @@ package hostapi_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -104,5 +105,52 @@ func TestSoftStopRetainsKitLeaseAfterIdleCleanup(t *testing.T) {
 				t.Fatalf("rejected stop mutated %q", strings.Join(order, ","))
 			}
 		})
+	}
+}
+
+func TestSoftStopRecordsIdleThenExplicitStopReleases(t *testing.T) {
+	order := []string{}
+	base := &fakeService{status: protocol.Status{State: protocol.StateIdle}, stopped: protocol.Status{State: protocol.StateIdle}, order: &order}
+	input := &fakeRemoteInput{order: &order, status: host.RemoteInputStatus{State: host.RemoteInputAttached}}
+	service := &leasedService{fakeService: base, releaseHook: func() {
+		order = append(order, "lease.release")
+	}}
+	handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+	soft := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"retain_lease":true}`))
+	soft.Host = "127.0.0.1"
+	soft.Header.Set("Content-Type", "application/json")
+	softResponse := httptest.NewRecorder()
+	handler.ServeHTTP(softResponse, soft)
+	if softResponse.Code != http.StatusOK {
+		t.Fatalf("soft-stop = %d %s", softResponse.Code, softResponse.Body.String())
+	}
+	var stopped struct {
+		State string `json:"state"`
+	}
+	if err := json.Unmarshal(softResponse.Body.Bytes(), &stopped); err != nil {
+		t.Fatal(err)
+	}
+	if stopped.State != "idle" || service.releases != 0 {
+		t.Fatalf("soft-stop state=%q releases=%d", stopped.State, service.releases)
+	}
+	events := decodeStampedEvents(t, handler)
+	var sawIdleStop bool
+	for _, event := range events {
+		if event.Event == "session.stop" && event.State == protocol.StateIdle {
+			sawIdleStop = true
+		}
+		if event.State == protocol.StateActive && event.Event == "session.stop" {
+			t.Fatalf("soft-stop record stayed active: %+v", events)
+		}
+	}
+	if !sawIdleStop {
+		t.Fatalf("session record = %+v", events)
+	}
+	explicit := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
+	explicit.Host = "127.0.0.1"
+	explicitResponse := httptest.NewRecorder()
+	handler.ServeHTTP(explicitResponse, explicit)
+	if explicitResponse.Code != http.StatusOK || service.releases != 1 {
+		t.Fatalf("explicit stop = %d releases=%d body=%s", explicitResponse.Code, service.releases, explicitResponse.Body.String())
 	}
 }

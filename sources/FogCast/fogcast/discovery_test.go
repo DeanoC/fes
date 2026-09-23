@@ -290,6 +290,23 @@ func TestLegacyPeerReportsReadinessAndActivityWithoutLeaseExtension(t *testing.T
 	}
 }
 
+func TestOwnedHeldLeaseAfterIdleStaysReady(t *testing.T) {
+	health := protocol.Health{APIVersion: "v1", Ready: true}
+	idle := protocol.Status{State: protocol.StateIdle}
+	owned := connectionFromStatus(health, idle, targetclient.KitOwnership{
+		State: "held", Owner: "fogcast@sofa", Owned: true,
+	}, "http://kit", "kit-id")
+	if owned.State != "ready" || owned.Message != "" || owned.Owner != "" {
+		t.Fatalf("same shell after soft-stop = %+v", owned)
+	}
+	foreign := connectionFromStatus(health, idle, targetclient.KitOwnership{
+		State: "held", Owner: "other-shell", Owned: false,
+	}, "http://kit", "kit-id")
+	if foreign.State != "busy" || foreign.Owner != "other-shell" || foreign.Message != "The kit is held by another session." {
+		t.Fatalf("foreign holder = %+v", foreign)
+	}
+}
+
 func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
 		t.Run(execution, func(t *testing.T) {
