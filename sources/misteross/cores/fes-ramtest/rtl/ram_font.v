@@ -45,5 +45,22 @@ module ram_font (
         end
     endfunction
 
-    assign pixels = bitmap(ch)[63 - {row, 3'b000} -: 8];
+    function [7:0] row_bits;
+        input [63:0] bits;
+        input [2:0] which;
+        begin
+            case (which)
+                3'd0: row_bits = bits[63:56];
+                3'd1: row_bits = bits[55:48];
+                3'd2: row_bits = bits[47:40];
+                3'd3: row_bits = bits[39:32];
+                3'd4: row_bits = bits[31:24];
+                3'd5: row_bits = bits[23:16];
+                3'd6: row_bits = bits[15:8];
+                default: row_bits = bits[7:0];
+            endcase
+        end
+    endfunction
+
+    assign pixels = row_bits(bitmap(ch), row);
 endmodule
