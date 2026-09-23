@@ -46,8 +46,10 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The production ZX81 producer exports format 3. Other core producers retain
-format 2 and their current media/firmware paths until explicitly converted.
+The production ZX81 and package-only SMS producers export format 3. Other
+core producers retain format 2 and their current media/firmware paths until
+explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`; pad a
+shorter fixed-map cartridge with `0xff` before import.
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate

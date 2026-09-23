@@ -215,7 +215,7 @@ class BundleTest(unittest.TestCase):
         self.assertTrue(producer.is_file())
         self.assertTrue((root / 'sources/misteross/toolchains/registered-memory.lock').is_file())
         text = producer.read_text()
-        self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(10,')
+        self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(3,')
         self.assertRegex(text, r'(?m)^SEED = PLACER_SEEDS\[0\]$')
         module = self.module()
         # Probe this working module's CLI, authentication and lock contract,

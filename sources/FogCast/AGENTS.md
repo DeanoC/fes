@@ -74,4 +74,5 @@ designated kit. Do not assume the same authorization for another device.
   acceptance. A full image rebuild remains mandatory when Buildroot, init
   scripts, package contents, image configuration, or locked inputs change.
   Native image assembly lives in the FES `image/` recipe.
-- Do not commit, push, or open a pull request unless the user authorizes it.
+- Commit, push, and open pull requests as needed for the requested work. Merge
+  a pull request only with user authorization.

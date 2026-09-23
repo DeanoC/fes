@@ -1,5 +1,5 @@
 import unittest
-from scripts.rom_map import parse_ram_offsets, zx81_blocks
+from scripts.rom_map import parse_ram_offsets, rom_blocks, ZX81_LANE_ROWS
 
 
 def mux_text():
@@ -18,6 +18,50 @@ def routed_rom():
 
 
 class ROMMapTests(unittest.TestCase):
+    def test_sms_32k_map_uses_32_verified_blank_lanes(self):
+        import hashlib
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from scripts import rom_map
+        from scripts.cyclonev_rbf import SX120F
+
+        rows = tuple(range(32, 56)) + tuple(range(73, 81))
+        self.assertEqual(rom_map.SMS_LANE_ROWS, rows)
+        with self.assertRaises(ValueError):
+            rom_map.validate_routed_rom({}, ())
+        routed = {'modules': {'top': {'cells': {
+            f'machine.rom.lane{i}': {
+                'type': 'MISTRAL_M10K',
+                'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.5.{row}.0'},
+                'parameters': {'CFG_ABITS': '00001010', 'CFG_DBITS': '00001010',
+                               'CFG_ASYNC_READ': '1', 'INIT': '0' * 10240},
+            } for i, row in enumerate(rows)
+        }}}}
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'data').mkdir()
+            (root / 'libmistral').mkdir()
+            (root / 'data/m10k-mux.txt').write_text(mux_text())
+            die = ('7605, 7024, // cram size\n// x to bit x\n{' +
+                   ','.join(map(str, SX120F.x_to_bx)) + '}\n// column types\n{' +
+                   ','.join(['T_EMPTY'] * 5 + ['T_M10K']) + '}\n' +
+                   'sx120f_bel_spans_info[] = {1, 9, 2, 32, 55, 73, 80, 0xff};')
+            (root / 'libmistral/cvd-sx120f.cc').write_text(die)
+            (root / 'libmistral/cyclonev.h').write_text('y = 2 + 86 * pos2y(pos);')
+            cram = bytearray(b'\xff') * ((SX120F.cram_sx * SX120F.cram_sy + 7) // 8)
+            with patch('scripts.rom_map.rbf_load', return_value=SimpleNamespace(cram=cram)):
+                mapping, _ = rom_map.build_rom_map(root, b'sms-base', routed=routed,
+                                                    lane_rows=rows)
+                self.assertEqual(mapping['source_size'], 32768)
+                self.assertEqual(mapping['base_sha256'], hashlib.sha256(b'sms-base').hexdigest())
+                self.assertEqual(len(mapping['blocks']), 32)
+                self.assertEqual(mapping['blocks'][-1]['source_offset'], 31744)
+                routed['modules']['top']['cells']['machine.rom.lane31']['parameters']['INIT'] = '1' + '0' * 10239
+                with self.assertRaisesRegex(ValueError, 'blank'):
+                    rom_map.build_rom_map(root, b'sms-base', routed=routed, lane_rows=rows)
+
     def test_routed_rom_rejects_misplacement_missing_lane_and_nonblank_init(self):
         from scripts import rom_map
         self.assertTrue(hasattr(rom_map, 'validate_routed_rom'), 'routed ROM validation is missing')
@@ -58,7 +102,7 @@ class ROMMapTests(unittest.TestCase):
                 rom_map.read_database(root, pins)
 
     def test_database_coordinates_and_lane_offsets(self):
-        blocks = zx81_blocks(parse_ram_offsets(mux_text()))
+        blocks = rom_blocks(parse_ram_offsets(mux_text()), ZX81_LANE_ROWS)
         self.assertEqual(len(blocks), 8)
         self.assertEqual(blocks[0]['bel'], 'M10K.005.073')
         self.assertEqual(blocks[-1]['source_offset'], 7168)

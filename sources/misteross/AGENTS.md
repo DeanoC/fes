@@ -74,4 +74,5 @@ normal. Keep private target addresses and credentials out of tracked files.
 - Prefer `rg` for source discovery.
 - Run the affected unit tests, build or simulate the affected experiment, and
   run `git diff --check`.
-- Do not commit, push, or open a pull request unless the user authorizes it.
+- Commit, push, and open pull requests as needed for the requested work. Merge
+  a pull request only with user authorization.
