@@ -224,3 +224,69 @@ func TestExplicitIdleStopReleasesWhenSelectedTargetUnavailable(t *testing.T) {
 		})
 	}
 }
+
+func TestExplicitIdleStopReleasesSoftStoppedLegacyNativeWhenSelectedTargetFails(t *testing.T) {
+	unavailable := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+	gameID := "snes-mario"
+	system := protocol.SystemSNES
+	core := "SNES"
+	active := protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system, ExpectedCore: &core, ObservedCore: &core}
+	cases := []struct {
+		name    string
+		body    string
+		after   func(*fakeService)
+		wantRel int
+	}{
+		{name: "selected stop fails", after: func(s *fakeService) { s.stopErr = unavailable }, wantRel: 1},
+		{name: "selected probe fails", after: func(s *fakeService) {
+			s.stopErr = context.DeadlineExceeded
+			s.statusErr = unavailable
+		}, wantRel: 1},
+		{name: "soft-stop keeps grant", body: `{"retain_lease":true}`, after: func(s *fakeService) { s.stopErr = unavailable }, wantRel: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			base := &fakeService{
+				status:  protocol.Status{State: protocol.StateIdle},
+				launch:  protocol.CachedLaunchResponse{Status: active},
+				stopped: protocol.Status{State: protocol.StateIdle},
+			}
+			service := &leasedService{fakeService: base}
+			handler := hostapi.New(service)
+			if launch := launchSession(t, handler, gameID); launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) {
+				t.Fatalf("launch = %d %s", launch.Code, launch.Body.String())
+			}
+			soft := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"retain_lease":true}`))
+			soft.Host = "127.0.0.1"
+			soft.Header.Set("Content-Type", "application/json")
+			softResponse := httptest.NewRecorder()
+			handler.ServeHTTP(softResponse, soft)
+			if softResponse.Code != http.StatusOK || service.releases != 0 {
+				t.Fatalf("soft-stop = %d releases=%d body=%s", softResponse.Code, service.releases, softResponse.Body.String())
+			}
+			// The leftover marker is the legacy label, not an empty coordinator.
+			observed := serve(t, handler, http.MethodGet, "/api/v1/session")
+			if observed.Code != http.StatusOK || !strings.Contains(observed.Body.String(), `"state":"idle"`) || !strings.Contains(observed.Body.String(), `"execution":"fpga_native"`) {
+				t.Fatalf("soft-stopped legacy session = %d %s", observed.Code, observed.Body.String())
+			}
+			tc.after(base)
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", body)
+			request.Host = "127.0.0.1"
+			if tc.body != "" {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code == http.StatusOK {
+				t.Fatalf("unavailable stop succeeded: %s", response.Body.String())
+			}
+			if service.releases != tc.wantRel {
+				t.Fatalf("releases = %d, want %d; body=%s", service.releases, tc.wantRel, response.Body.String())
+			}
+		})
+	}
+}

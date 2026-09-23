@@ -833,10 +833,11 @@ after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
 that same route and keeps the grant after idle cleanup. An idle selected-target
 change may drop that client; the retained grant stays reachable for a later
 explicit Stop. An already-idle explicit Stop still attempts that release when
-the newly selected target's probe or Stop fails; Soft-stop `retain_lease`
-still keeps the grants. Invalidating one target removes only that client's retained
-grant. A release that fails leaves that grant retained so the next explicit
-Stop can retry it. Replacement Stop retains ownership for the next launch.
+the newly selected target's probe or Stop fails. A Soft-stopped legacy
+non-package fpga_native session keeps its execution label and is still
+already idle for that release. Soft-stop `retain_lease` still keeps the grants.
+Invalidating one target removes only that client's retained grant. A release
+that fails leaves that grant retained so the next explicit Stop can retry it. Replacement Stop retains ownership for the next launch.
 Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
