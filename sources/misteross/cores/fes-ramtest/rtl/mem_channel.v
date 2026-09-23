@@ -44,8 +44,12 @@ module mem_channel #(
     reg [2:0] state = ST_RESET;
     reg [31:0] index = 32'd0;
     reg [15:0] timer = 16'd0;
+    reg timed_out = 1'b0;
     reg [15:0] captured = 16'd0;
+    reg mismatch = 1'b0;
     reg faulted = 1'b0;
+    reg pattern_bump = 1'b0;
+    reg [2:0] pattern_bump_phase = 3'd0;
 
     function [15:0] expect_of;
         input [2:0] which;
@@ -90,8 +94,32 @@ module mem_channel #(
             state <= ST_RESET;
             index <= 32'd0;
             timer <= 16'd0;
+            timed_out <= 1'b0;
             faulted <= 1'b0;
+            mismatch <= 1'b0;
+            pattern_bump <= 1'b0;
         end else begin
+            timed_out <= state == ST_WAIT && !done && timer == TIMEOUT - 16'd1;
+            // Count a mismatch on the following edge. The large counter bank
+            // sees registered phase and enable instead of the scan state and
+            // data comparison on the same timing path.
+            pattern_bump <= 1'b0;
+            if (pattern_bump) begin
+                case (pattern_bump_phase)
+                    3'd0: if (pattern_errors[31:0] != 32'hFFFFFFFF)
+                        pattern_errors[31:0] <= pattern_errors[31:0] + 32'd1;
+                    3'd1: if (pattern_errors[63:32] != 32'hFFFFFFFF)
+                        pattern_errors[63:32] <= pattern_errors[63:32] + 32'd1;
+                    3'd2: if (pattern_errors[95:64] != 32'hFFFFFFFF)
+                        pattern_errors[95:64] <= pattern_errors[95:64] + 32'd1;
+                    3'd3: if (pattern_errors[127:96] != 32'hFFFFFFFF)
+                        pattern_errors[127:96] <= pattern_errors[127:96] + 32'd1;
+                    3'd4: if (pattern_errors[159:128] != 32'hFFFFFFFF)
+                        pattern_errors[159:128] <= pattern_errors[159:128] + 32'd1;
+                    default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
+                        pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
+                endcase
+            end
             case (state)
                 ST_RESET: begin
                     start <= 1'b0;
@@ -108,6 +136,7 @@ module mem_channel #(
                     last_addr <= 32'd0;
                     fault_got <= 16'h0000;
                     faulted <= 1'b0;
+                    mismatch <= 1'b0;
                     state <= ST_SETUP;
                 end
                 ST_SETUP: begin
@@ -129,10 +158,11 @@ module mem_channel #(
                     if (done) begin
                         start <= 1'b0;
                         captured <= rdata;
+                        mismatch <= reading && rdata != shown_expect;
                         if (reading)
                             shown_got <= rdata;
                         state <= ST_GAP;
-                    end else if (timer == TIMEOUT) begin
+                    end else if (timed_out) begin
                         start <= 1'b0;
                         busy <= 1'b0;
                         fail <= 1'b1;
@@ -145,20 +175,8 @@ module mem_channel #(
                         faulted <= 1'b1;
                         if (errors != 32'hFFFFFFFF)
                             errors <= errors + 32'd1;
-                        case (phase)
-                            3'd0: if (pattern_errors[31:0] != 32'hFFFFFFFF)
-                                pattern_errors[31:0] <= pattern_errors[31:0] + 32'd1;
-                            3'd1: if (pattern_errors[63:32] != 32'hFFFFFFFF)
-                                pattern_errors[63:32] <= pattern_errors[63:32] + 32'd1;
-                            3'd2: if (pattern_errors[95:64] != 32'hFFFFFFFF)
-                                pattern_errors[95:64] <= pattern_errors[95:64] + 32'd1;
-                            3'd3: if (pattern_errors[127:96] != 32'hFFFFFFFF)
-                                pattern_errors[127:96] <= pattern_errors[127:96] + 32'd1;
-                            3'd4: if (pattern_errors[159:128] != 32'hFFFFFFFF)
-                                pattern_errors[159:128] <= pattern_errors[159:128] + 32'd1;
-                            default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
-                                pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
-                        endcase
+                        pattern_bump <= 1'b1;
+                        pattern_bump_phase <= phase;
                         state <= ST_DONE;
                     end else begin
                         timer <= timer + 16'd1;
@@ -167,7 +185,8 @@ module mem_channel #(
                 ST_GAP: begin
                     // Compare against this location. Expect and got follow the scan.
                     // The first miss and the latest miss stay on screen.
-                    if (reading && captured != expected) begin
+                    // The previous wait edge registered this word's compare.
+                    if (mismatch) begin
                         if (!faulted) begin
                             fault_addr <= location;
                             fault_got <= captured;
@@ -176,29 +195,17 @@ module mem_channel #(
                         faulted <= 1'b1;
                         if (errors != 32'hFFFFFFFF)
                             errors <= errors + 32'd1;
-                        case (phase)
-                            3'd0: if (pattern_errors[31:0] != 32'hFFFFFFFF)
-                                pattern_errors[31:0] <= pattern_errors[31:0] + 32'd1;
-                            3'd1: if (pattern_errors[63:32] != 32'hFFFFFFFF)
-                                pattern_errors[63:32] <= pattern_errors[63:32] + 32'd1;
-                            3'd2: if (pattern_errors[95:64] != 32'hFFFFFFFF)
-                                pattern_errors[95:64] <= pattern_errors[95:64] + 32'd1;
-                            3'd3: if (pattern_errors[127:96] != 32'hFFFFFFFF)
-                                pattern_errors[127:96] <= pattern_errors[127:96] + 32'd1;
-                            3'd4: if (pattern_errors[159:128] != 32'hFFFFFFFF)
-                                pattern_errors[159:128] <= pattern_errors[159:128] + 32'd1;
-                            default: if (pattern_errors[191:160] != 32'hFFFFFFFF)
-                                pattern_errors[191:160] <= pattern_errors[191:160] + 32'd1;
-                        endcase
+                        pattern_bump <= 1'b1;
+                        pattern_bump_phase <= phase;
                     end
-                    if (index + 32'd1 == WORDS) begin
+                    if (index == WORDS - 32'd1) begin
                         index <= 32'd0;
                         if (reading) begin
                             reading <= 1'b0;
                             if (phase == PHASES - 3'd1) begin
                                 busy <= 1'b0;
-                                pass <= ~faulted && captured == expected && errors == 32'd0;
-                                fail <= faulted || captured != expected || errors != 32'd0;
+                                pass <= ~faulted && !mismatch && errors == 32'd0;
+                                fail <= faulted || mismatch || errors != 32'd0;
                                 state <= ST_DONE;
                             end else begin
                                 phase <= phase + 3'd1;

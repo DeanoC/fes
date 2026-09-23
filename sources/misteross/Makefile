@@ -55,6 +55,8 @@ help:
 		"  sim-fes-ramtest  Test the RAM tester HDMI utility and fes.application identity" \
 		"  build-fes-ramtest  Seal the RAM tester utility with HIP nextpnr" \
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM diagnostic with HIP nextpnr" \
+		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM diagnostic with HIP nextpnr" \
+		"  toolchain-fes-ramtest-130  Provision the dedicated 130 MHz OSS toolchain" \
 		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
@@ -147,7 +149,7 @@ sim-pong:
 		--Mdir "$(CURDIR)/build/sim/pong" cores/pong/rtl/pong_game.sv "$(CURDIR)/cores/pong/sim/tb.cpp"
 	@build/sim/pong/Vpong_game
 
-.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-quartus
+.PHONY: sim-fes-demo build-fes-demo build-fes-demo-media sim-fes-splash build-fes-splash sim-fes-ramtest build-fes-ramtest build-fes-ramtest-100 build-fes-ramtest-130 build-fes-ramtest-quartus
 sim-fes-ramtest:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_ramtest.py
@@ -157,6 +159,9 @@ build-fes-ramtest:
 
 build-fes-ramtest-100:
 	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 100 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
+
+build-fes-ramtest-130:
+	$(FES_SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_ramtest.py --memory-mhz 130 $(if $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE),--cache-root "$(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)",)
 
 build-fes-ramtest-quartus:
 	$(PYTHON) scripts/build_fes_ramtest_quartus.py
@@ -789,6 +794,12 @@ toolchain:
 
 toolchain-fes:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_GPU_ROUTER=HIP \
+	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
+
+.PHONY: toolchain-fes-ramtest-130
+toolchain-fes-ramtest-130:
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest-130.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest-130") \
+	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
 toolchain-fes-zx81: toolchain-zx81-expansion

@@ -27,13 +27,19 @@ the captured data before the controller. The controller uses CAS latency 3
 at 130 MHz and CAS latency 2 at 100 MHz. A gamepad button stops a scan.
 
 The 50 MHz OSS build remains a separate path via `make build-fes-ramtest`.
-`make build-fes-ramtest-100` seals an experimental 100 MHz OSS package into
+`make build-fes-ramtest-100` seals a 100 MHz OSS package into
 `build/fes-ramtest-100/` using the pinned HIP nextpnr toolchain. The OSS packer
 does not support DDR input registers on bidirectional DQ pads, so that build
 uses a phase-shifted 100 MHz clock and a fabric input register. Its timing
 report covers the 100 MHz controller, capture, 50 MHz HPS and 74.25 MHz video
-domains. Hardware acceptance of the OSS package is pending. The pinned OSS
-PLL profiles do not yet include 130 MHz.
+domains. Package `58d29d3a99d04988083b04216726662ef6eae7d7af2c804fe3324e14fe721c83`
+passed all six full-span SDRAM patterns with zero errors in two hardware runs.
+`make toolchain-fes-ramtest-130` provisions the separate PLL profile, then
+`make build-fes-ramtest-130` seals its package. A local seed-2 route of that
+profile closed all timing domains and passed six full-span SDRAM patterns with
+zero errors on the designated kit. The local test package was unsealed;
+repeat acceptance on the authenticated package after the nextpnr pin is
+published and the toolchain is provisioned.
 
 The Quartus timing report
 covers internal setup paths but does not constrain external SDRAM I/O timing,

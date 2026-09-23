@@ -64,6 +64,10 @@ PINNED_INPUTS = (
 )
 OUTPUT = Path("build/fes-ramtest")
 OUTPUT_100 = Path("build/fes-ramtest-100")
+OUTPUT_130 = Path("build/fes-ramtest-130")
+TOOLCHAIN_LOCK_130 = "toolchains/ramtest-130.lock"
+TOOLCHAIN_ROOT_130 = Path("build/toolchain-ramtest-130")
+NEXTPNR_130 = "50a2832eca88f73fe02c28e763e89f0a9d68a036"
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -76,6 +80,36 @@ MEMORY_PLL_100 = {
     "phase_shift1": "5000 ps",
     "reference_clock_frequency": "50.0 MHz",
 }
+MEMORY_PLL_130 = {**MEMORY_PLL_100,
+    "output_clock_frequency0": "130.0 MHz",
+    "output_clock_frequency1": "130.0 MHz",
+    "phase_shift1": "6538 ps",
+}
+
+
+def high_speed(memory_mhz: int) -> bool:
+    return memory_mhz in (100, 130)
+
+
+def output_for(memory_mhz: int) -> Path:
+    return {50: OUTPUT, 100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
+
+
+def inputs_for(memory_mhz: int) -> tuple[str, ...]:
+    if memory_mhz == 130:
+        return tuple(path for path in PINNED_INPUTS if path != "toolchain.lock") + (TOOLCHAIN_LOCK_130, RAM_PLL)
+    return PINNED_INPUTS + ((RAM_PLL,) if memory_mhz == 100 else ())
+
+
+def authenticate_for(root: Path, memory_mhz: int, cache_root: Path | None):
+    if memory_mhz == 130:
+        return board._authenticate_tools(
+            root, lock_path=root / TOOLCHAIN_LOCK_130,
+            toolchain_root=root / TOOLCHAIN_ROOT_130,
+            expected_commits={**board.EXPECTED_TOOL_COMMITS, "nextpnr": NEXTPNR_130},
+            cache_root=cache_root,
+        )
+    return board._authenticate_tools(root, cache_root=cache_root)
 
 
 def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, memory_mhz: int = 50) -> dict:
@@ -87,7 +121,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": 2 if memory_mhz == 100 else 1, "top": "top",
+            "gpu_backend": "hip", "router": "gpu", "seed": 2 if high_speed(memory_mhz) else 1, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
             "memory_clock_hz": memory_mhz * 1_000_000, "pll_fractional_vco_multiplier": True,
         },
@@ -100,8 +134,8 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
         raise board.BuildError("unsupported build identity version")
     return encode_build_record(functional_record_fields(
         root, record_fields(root, repository, revision, identities, memory_mhz=memory_mhz),
-        source_roots_for_inputs(PINNED_INPUTS + ((RAM_PLL,) if memory_mhz == 100 else ())),
-        execution, pinned_inputs=PINNED_INPUTS + ((RAM_PLL,) if memory_mhz == 100 else ())))
+        source_roots_for_inputs(inputs_for(memory_mhz)),
+        execution, pinned_inputs=inputs_for(memory_mhz)))
 
 
 def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_mhz: int = 50):
@@ -109,12 +143,12 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
-    output = (OUTPUT_100 if memory_mhz == 100 else OUTPUT).as_posix()
+    output = output_for(memory_mhz).as_posix()
     program = (
         "read_verilog -sv "
-        + ("-D RAM_RATE_SWEEP=1 -D RAM_100_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 " if memory_mhz == 100 else "")
+        + (f"-D RAM_RATE_SWEEP=1 -D RAM_{memory_mhz}_ONLY=1 -D RAM_OSS_HIGH_SPEED=1 " if high_speed(memory_mhz) else "")
         + "-I cores/fes-common/generated "
-        + " ".join(RTL_SOURCES + ((RAM_PLL,) if memory_mhz == 100 else ()))
+        + " ".join(RTL_SOURCES + ((RAM_PLL,) if high_speed(memory_mhz) else ()))
         + f"; chparam -set BUILD_ID 128'h{build_id} top; "
         "synth_intel_alm -nobram -nolutram -nodsp -top top; "
         f"stat; write_json {output}/synth.json"
@@ -123,7 +157,7 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
          "--device", board.TARGET, "--qsf", QSF, "--sdc", board_evidence.SDC,
-         "--freq", "74.25", "--seed", "2" if memory_mhz == 100 else "1", "--router", "gpu",
+         "--freq", "74.25", "--seed", "2" if high_speed(memory_mhz) else "1", "--router", "gpu",
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
          "--detailed-timing-report"),
@@ -164,15 +198,15 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
     root = Path(root).resolve()
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
-    if memory_mhz not in (50, 100):
-        raise board.BuildError("OSS RAM tester supports 50 or 100 MHz")
-    pinned_inputs = PINNED_INPUTS + ((RAM_PLL,) if memory_mhz == 100 else ())
-    output_relative = OUTPUT_100 if memory_mhz == 100 else OUTPUT
+    if memory_mhz not in (50, 100, 130):
+        raise board.BuildError("OSS RAM tester supports 50, 100, or 130 MHz")
+    pinned_inputs = inputs_for(memory_mhz)
+    output_relative = output_for(memory_mhz)
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
     if package_store != root / "build/packages":
         raise board.BuildError("package store must be build/packages")
     repository, revision = require_clean_source(root, pinned_inputs)
-    authenticated = board._authenticate_tools(root, cache_root=cache_root)
+    authenticated = authenticate_for(root, memory_mhz, cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
@@ -188,8 +222,8 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
                         output_relative=output_relative, env=invocation.env, audit_source_root=root)
         evidence = board_evidence.validate_build_evidence(
             output, root, memory_clock_mhz=float(memory_mhz),
-            capture_clock_mhz=100.0 if memory_mhz == 100 else None,
-            memory_pll_parameters=MEMORY_PLL_100 if memory_mhz == 100 else None,
+            capture_clock_mhz=float(memory_mhz) if high_speed(memory_mhz) else None,
+            memory_pll_parameters={100: MEMORY_PLL_100, 130: MEMORY_PLL_130}.get(memory_mhz),
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
         evidence.update({"build_id": build_identity(record), "device": board.TARGET,
@@ -199,7 +233,7 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
                             (json.dumps(evidence, indent=2, sort_keys=True) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities, memory_mhz=memory_mhz)
         board._write_atomic(output / "manifest.toml", encoded)
-        final_tools = board._authenticate_tools(root, cache_root=cache_root)
+        final_tools = authenticate_for(root, memory_mhz, cache_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise board.BuildError("authenticated tool identity changed during build")
         if require_clean_source(root, pinned_inputs) != (repository, revision):
@@ -221,7 +255,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu-device", type=int, default=0)
-    parser.add_argument("--memory-mhz", type=int, choices=(50, 100), default=50)
+    parser.add_argument("--memory-mhz", type=int, choices=(50, 100, 130), default=50)
     args = parser.parse_args()
     print(build(args.root, cache_root=args.cache_root, gpu_device=args.gpu_device,
                 memory_mhz=args.memory_mhz))

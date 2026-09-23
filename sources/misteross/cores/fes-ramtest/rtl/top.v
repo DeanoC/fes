@@ -121,8 +121,18 @@ module top #(
     wire [15:0] sdram_was, hps_was;
     wire [15:0] sdram_expect, hps_expect, sdram_got, hps_got;
     wire [15:0] dq_out, dq_rise, dq_fall;
+`ifndef RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
     reg [15:0] dq_rise_q, dq_fall_q;
+`endif
+`endif
+`ifdef RAM_OSS_HIGH_SPEED
+`ifndef RAM_100_ONLY
+    // The shifted 130 MHz capture edge is too close to the next controller
+    // edge for a fabric-to-fabric transfer. Retiming on the following falling
+    // edge gives the controller a full half cycle to receive the word.
+    reg [15:0] dq_oss_hold;
+`endif
 `endif
     wire dq_oe;
     reg [1:0] hps_reset_sync = 2'b00;
@@ -315,13 +325,29 @@ module top #(
         .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH),
         .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A),
         .dq_out(dq_out), .dq_oe(dq_oe),
+`ifndef RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
         .dq_rise(dq_rise_q), .dq_fall(dq_fall_q)
 `else
         .dq_rise(dq_rise), .dq_fall(dq_fall)
 `endif
+`else
+`ifndef RAM_100_ONLY
+        .dq_rise(dq_oss_hold), .dq_fall(dq_oss_hold)
+`else
+        .dq_rise(dq_rise), .dq_fall(dq_fall)
+`endif
+`endif
     );
 
+`ifdef RAM_OSS_HIGH_SPEED
+`ifndef RAM_100_ONLY
+    always @(negedge mem_clk)
+        dq_oss_hold <= dq_rise;
+`endif
+`endif
+
+`ifndef RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
     // A fabric register next to the input DDIO cells removes the long
     // 130 MHz route from the pins through rate selection into rdata.
@@ -329,6 +355,7 @@ module top #(
         dq_rise_q <= dq_rise;
         dq_fall_q <= dq_fall;
     end
+`endif
 `endif
 
     genvar dq_bit;
