@@ -1118,6 +1118,150 @@ func TestSoftStopThenSelectedTargetChangeExplicitStopReleasesRetainedLease(t *te
 	}
 }
 
+func TestSoftStopRelaunchThenOtherExplicitStopKeepsLiveLease(t *testing.T) {
+	var alphaStops, alphaReleases, betaStops, betaReleases int
+	alphaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"alpha-live"}`)
+		case "/v1/stop":
+			alphaStops++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			alphaReleases++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer alphaServer.Close()
+	betaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"beta-stop"}`)
+		case "/v1/stop":
+			betaStops++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			betaReleases++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer betaServer.Close()
+	alphaBase, err := url.Parse(alphaServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaBase, err := url.Parse(betaServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaLease := targetclient.NewKitLease(alphaBase, "bearer", alphaServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer alphaLease.Close(context.Background())
+	alphaClient := targetclient.NewClient(alphaBase, "bearer", alphaServer.Client()).WithKitLease(alphaLease)
+	betaLease := targetclient.NewKitLease(betaBase, "bearer", betaServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer betaLease.Close(context.Background())
+	betaClient := targetclient.NewClient(betaBase, "bearer", betaServer.Client()).WithKitLease(betaLease)
+	for _, claim := range []struct {
+		lease *targetclient.KitLease
+		raw   string
+	}{
+		{alphaLease, alphaServer.URL},
+		{betaLease, betaServer.URL},
+	} {
+		req, err := http.NewRequest(http.MethodPost, claim.raw+"/v1/launch", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := claim.lease.Authorize(req, true); err != nil {
+			t.Fatalf("claim lease: %v", err)
+		}
+	}
+	if alphaLease.CurrentToken() != "alpha-live" || betaLease.CurrentToken() != "beta-stop" {
+		t.Fatalf("tokens alpha=%q beta=%q", alphaLease.CurrentToken(), betaLease.CurrentToken())
+	}
+	ctx := context.Background()
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "alpha", Enabled: true, Address: alphaServer.URL, Agent: "alpha-fixture-token"},
+				{Name: "beta", Enabled: true, Address: betaServer.URL, Agent: "beta-fixture-token"},
+			},
+			SelectedTarget: "alpha",
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, alphaClient,
+	)
+	service.targetMu.Lock()
+	service.targetClients["beta"] = betaClient
+	service.targetMu.Unlock()
+
+	noteForegroundPlay(service, "alpha", "game-a")
+	status, err := service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop alpha = %+v, %v", status, err)
+	}
+	if alphaStops != 1 || alphaReleases != 0 || !alphaLease.Held() {
+		t.Fatalf("after soft-stop stops=%d releases=%d held=%v", alphaStops, alphaReleases, alphaLease.Held())
+	}
+
+	// Relaunch reuses the same grant. The Soft-stop entry stays retained.
+	noteForegroundPlay(service, "alpha", "game-a")
+	noteForegroundPlay(service, "beta", "game-b")
+	plays := service.PlaySessions()
+	if len(plays) != 2 {
+		t.Fatalf("plays after relaunch = %+v", plays)
+	}
+
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop beta = %+v, %v", status, err)
+	}
+	plays = service.PlaySessions()
+	if len(plays) != 1 || plays[0].Target != "alpha" {
+		t.Fatalf("plays after beta stop = %+v", plays)
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if alphaReleases != 0 || !alphaLease.Held() || alphaLease.CurrentToken() != "alpha-live" {
+		t.Fatalf("live alpha released: releases=%d held=%v token=%q", alphaReleases, alphaLease.Held(), alphaLease.CurrentToken())
+	}
+	if betaStops != 1 || betaReleases != 1 || betaLease.Held() {
+		t.Fatalf("beta stop=%d release=%d held=%v", betaStops, betaReleases, betaLease.Held())
+	}
+
+	// Once alpha is no longer playing, a later explicit stop still releases it.
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop alpha = %+v, %v", status, err)
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("release alpha: %v", err)
+	}
+	if alphaStops != 2 || alphaReleases != 1 || alphaLease.Held() {
+		t.Fatalf("alpha after its own stop stops=%d releases=%d held=%v", alphaStops, alphaReleases, alphaLease.Held())
+	}
+}
+
+func noteForegroundPlay(service *Service, target, gameID string) {
+	service.targetMu.RLock()
+	defer service.targetMu.RUnlock()
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = target
+	service.activeGameID = gameID
+	service.activeSystem = protocol.SystemSNES
+	service.retainSessionTargetLocked()
+}
+
 func TestInvalidateOneTargetKeepsOtherRetainedGrants(t *testing.T) {
 	_, keepClient, keepLease := heldKitClient(t, "keep-a", nil)
 	_, dropClient, dropLease := heldKitClient(t, "drop-b", nil)

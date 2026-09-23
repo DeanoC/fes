@@ -838,6 +838,9 @@ non-package fpga_native session keeps its execution label and is still
 already idle for that release. Soft-stop `retain_lease` still keeps the grants.
 Invalidating one target removes only that client's retained grant. A release
 that fails leaves that grant retained so the next explicit Stop can retry it. Replacement Stop retains ownership for the next launch.
+Explicit release leaves a retained grant held when that lease still backs a
+remaining play, so Soft-stop, relaunch, and an explicit stop of another target
+do not revoke the live session.
 Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean

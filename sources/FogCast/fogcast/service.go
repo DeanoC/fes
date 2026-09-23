@@ -191,7 +191,8 @@ type Service struct {
 	// Grants captured by Stop and not yet released. Idle settings may drop
 	// the owning client; explicit ReleaseKitLease still frees each one.
 	// Invalidating one target removes only that client's grant. A release
-	// that fails stays here until a later attempt succeeds.
+	// that fails stays here until a later attempt succeeds. A grant that
+	// still backs a remaining play stays here and is not released.
 	stoppedKitLeases        []*targetclient.KitLease
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
@@ -2616,17 +2617,23 @@ func (s *Service) ShutdownCleanupRequired() bool {
 // ReleaseKitLease is for an explicit user Stop after input/media cleanup.
 // It releases every grant captured by Stop since the previous release,
 // including a kit dropped from targetClients by an idle selected-target
-// change. Sofa Soft-stop (session stop with retain_lease) does not call it.
-// A failed release stays in stoppedKitLeases. KitLease.Release keeps that
-// grant renewing so a later Stop can retry it; only a successful release
-// drops the entry. Replacement Stop retains ownership so the next launch
-// uses the same grant.
+// change. A grant that still backs a remaining PlaySession is left held:
+// Soft-stop keeps the lease in stoppedKitLeases, and relaunch does not
+// drop that entry, so stopping a different foreground target must not
+// revoke the live session. Sofa Soft-stop (session stop with retain_lease)
+// does not call it. A failed release stays in stoppedKitLeases.
+// KitLease.Release keeps that grant renewing so a later Stop can retry it;
+// only a successful release drops the entry. Replacement Stop retains
+// ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
 	s.executionMu.Lock()
 	pending := append([]*targetclient.KitLease(nil), s.stoppedKitLeases...)
 	s.executionMu.Unlock()
 	var first error
 	for _, lease := range pending {
+		if s.kitLeaseBacksPlay(lease) {
+			continue
+		}
 		if err := lease.Release(ctx); err != nil {
 			if first == nil {
 				first = err
@@ -2638,6 +2645,25 @@ func (s *Service) ReleaseKitLease(ctx context.Context) error {
 		s.executionMu.Unlock()
 	}
 	return first
+}
+
+// kitLeaseBacksPlay reports whether lease is the grant of a target that
+// still has a play. Caller must not hold targetMu or executionMu.
+func (s *Service) kitLeaseBacksPlay(lease *targetclient.KitLease) bool {
+	if lease == nil {
+		return false
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	for name := range s.plays {
+		leased, ok := s.targetClients[name].(interface{ KitLease() *targetclient.KitLease })
+		if ok && leased.KitLease() == lease {
+			return true
+		}
+	}
+	return false
 }
 
 func retainStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.KitLease) []*targetclient.KitLease {
