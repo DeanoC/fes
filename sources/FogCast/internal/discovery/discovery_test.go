@@ -6,6 +6,7 @@ import (
 	"net"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -244,9 +245,17 @@ func TestAdvertiseContainsOnlyIdentityAndProtocolAndStopsWithContext(t *testing.
 		if cfg.port != 8182 || cfg.name != "FogCast abababababab" || cfg.host != "fogcast-abababababab.local." {
 			t.Fatalf("config = %#v", cfg)
 		}
-		wantText := []string{"protocol=" + protocolVersion, "target_id=" + wantID}
+		wantText, textErr := EncodeKitTXT(wantID)
+		if textErr != nil {
+			t.Fatal(textErr)
+		}
 		if !reflect.DeepEqual(cfg.text, wantText) {
 			t.Fatalf("TXT = %#v, want %#v", cfg.text, wantText)
+		}
+		for _, forbidden := range []string{"token", "secret", "lease", "title", "password", "bearer"} {
+			if strings.Contains(strings.ToLower(strings.Join(cfg.text, "\n")), forbidden) {
+				t.Fatalf("TXT contains %q: %#v", forbidden, cfg.text)
+			}
 		}
 		return fakeAdvertiser{respond: func(ctx context.Context) error {
 			cancel()
@@ -284,7 +293,11 @@ func TestAdvertisementNamesDistinguishCopiedTargetIDs(t *testing.T) {
 	if first.name == second.name || first.host == second.host {
 		t.Fatalf("copied targets shared DNS identity: %#v %#v", first, second)
 	}
-	if !reflect.DeepEqual(first.text, second.text) || !reflect.DeepEqual(first.text, []string{"protocol=1", "target_id=" + id}) {
+	wantText, err := EncodeKitTXT(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(first.text, second.text) || !reflect.DeepEqual(first.text, wantText) {
 		t.Fatalf("TXT identity changed: %#v %#v", first.text, second.text)
 	}
 }

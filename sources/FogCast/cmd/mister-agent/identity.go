@@ -10,6 +10,8 @@ import (
 	"github.com/DeanoC/FogCast/internal/discovery"
 )
 
+// loadOrCreateTargetID returns the kit's stable node id. The persisted
+// target-id file is that id. This does not mint a second identifier.
 func loadOrCreateTargetID(path, configured string) (string, error) {
 	if configured != "" {
 		if !discovery.ValidID(configured) {
