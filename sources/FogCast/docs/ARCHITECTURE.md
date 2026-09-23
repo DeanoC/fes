@@ -775,7 +775,13 @@ no core/system/package identity. It supplies no package ABI, media, video or
 input guarantee. Stop restores the locked idle artifact. Ambiguous mutations
 are observed once and never replayed. An actual recovery failure retains
 `reboot_required`; a separately requested reboot is verified by changed boot
-identity and fresh idle. Development uploads remain volatile.
+identity and fresh idle. On the native agent that marker is HTTP 200
+`state=stopping`, `development=true`, and `recovery=reboot_required`, and only
+when the session was already development and runtime Stop returned
+`reboot_required`. A Stop reply that is still `starting`, or a lost Stop,
+stays `failed` with `development` set and no `recovery`, and does not arm
+`POST /v1/development/reboot`. The decision table is the FES
+[soft-restart Path B](../../../docs/soft-restart-path-b.md) note. Development uploads remain volatile.
 
 ### Target kit ownership
 

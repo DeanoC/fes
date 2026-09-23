@@ -42,6 +42,7 @@ Use these when the start-here page names the job and you need the steps.
 | Read source, CI, build and hardware evidence | [Status](status.md) |
 | Run only the tests a change affects | [Focused tests](test-changed.md) |
 | Rooms / Stop-idle design that is not built yet | [Idle MENU → rooms](idle-menu-rooms.md), [phase 2](idle-menu-rooms-phase2.md) |
+| See when a soft restart asks for a board reboot | [Soft-restart Path B](soft-restart-path-b.md). The kit check in that note is on hold. |
 
 ## Not current instructions
 
