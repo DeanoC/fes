@@ -43,20 +43,28 @@ int main() {
     top.eval();
     bool toggle = false;
     require(command(top, toggle, 1, 0, 0) == 0x4546, "fes.application magic mismatch");
-    require(command(top, toggle, 1, 7, 0) == 0x0002, "video capability missing");
+    require(command(top, toggle, 1, 7, 0) == 0x0003, "video and gamepad capabilities missing");
     require(command(top, toggle, 2, 0, 1) == 0, "execution release failed");
     bool both = false;
     bool green = false;
-    for (int i = 0; i < 1500000 && !green; ++i) {
+    for (int i = 0; i < 4000000 && !green; ++i) {
         tick(top);
         both = top.bench->dut->sdram_pass && top.bench->dut->hps_pass
-            && !top.bench->dut->sdram_fail && !top.bench->dut->hps_fail;
+            && !top.bench->dut->sdram_fail && !top.bench->dut->hps_fail
+            && top.bench->dut->sdram_errors == 0 && top.bench->dut->hps_errors == 0;
         const uint32_t pixel = top.HDMI_TX_D;
         if (both && top.HDMI_TX_DE && ((pixel >> 8) & 0xff) == 0xc0 && ((pixel >> 16) & 0xff) == 0x20)
             green = true;
     }
-    require(both, "memory march did not pass");
-    require(green, "HDMI did not show a passing bar");
-    std::cout << "PASS: fes.application release, SDRAM and HPS bars\n";
+    require(both, "memory scan did not pass");
+    require(green, "HDMI did not show a passing status");
+    require(command(top, toggle, 3, 0, 0x10) == 0, "gamepad button was rejected");
+    bool stopped = false;
+    for (int i = 0; i < 32 && !stopped; ++i) {
+        tick(top);
+        stopped = top.bench->dut->sdram_stopped && top.bench->dut->hps_stopped;
+    }
+    require(stopped, "button did not stop the scan");
+    std::cout << "PASS: pattern scan, status text, button stop\n";
     return 0;
 }

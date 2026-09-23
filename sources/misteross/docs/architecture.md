@@ -173,13 +173,14 @@ A white palette can be created with
 This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
-`fes.ramtest` is a separate utility on the same mailbox and fixed 720p
-interface. `make build-fes-ramtest` writes `build/fes-ramtest/core.rbf`. After
-execution release it marches four halfwords on the SDRAM addon and the HPS
-DDR bridge at 50 MHz and paints pass, fail, or busy. The ABI has no memory
-opcode. A `fes-gp-v1` package load releases the HPS bridges after user mode.
-A raw development RBF stays contained, so that bar fails until the bridges
-are released.
+`fes.ramtest` is a separate utility on the same mailbox, fixed 720p
+interface, and gamepad interface. `make build-fes-ramtest` writes
+`build/fes-ramtest/core.rbf`. After execution release it pattern-tests the
+SDRAM addon and an HPS DDR window at 50 MHz and prints the pattern, address,
+and error count. A gamepad button, or a keyboard key the host maps to one,
+stops the scan. The ABI has no memory opcode. A `fes-gp-v1` package load
+releases the HPS bridges after user mode. A raw development RBF stays
+contained, so the HPS path fails until the bridges are released.
 
 `scripts/build_fes_demo.py` reuses the existing board tool-authentication,
 timing/resource and HDMI electrical checks from `build_fes_pong.py`. It records

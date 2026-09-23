@@ -2,7 +2,12 @@
 // RAM tester utility. The host speaks fes.application 1.0. The picture is
 // fixed 720p. Memory traffic is local to the core; the ABI has no memory opcode.
 module top #(
-    parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000
+    parameter [127:0] BUILD_ID = 128'h00000000000000000000000000000000,
+    // Simulation uses a short span of the same patterns. The sealed core
+    // keeps the full SDRAM addon and the HPS window.
+    parameter [31:0] SDRAM_WORDS = `ifdef SIM 32'd2176 `else 32'h04000000 `endif,
+    parameter [31:0] HPS_WORDS = `ifdef SIM 32'd64 `else 32'h00040000 `endif,
+    parameter [31:0] HPS_BASE = `ifdef SIM 32'd0 `else 32'h01000000 `endif
 ) (
     input  wire        FPGA_CLK1_50,
     output wire        HDMI_TX_CLK,
@@ -45,6 +50,7 @@ module top #(
     wire [31:0] hps_to_fpga;
     wire mailbox_reset;
     wire pixel_clk;
+    wire [7:0] app_buttons;
     wire [7:0] play_red, play_green, play_blue;
     wire [7:0] video_red, video_green, video_blue;
     wire [9:0] playfield_x, playfield_y;
@@ -55,13 +61,13 @@ module top #(
         .gp_out(hps_to_fpga)
     );
 
-    fes_application_gp endpoint (
+    fes_application_gp #(.ENABLE_GAMEPAD(1)) endpoint (
         .clk(pixel_clk),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
         .gpi(fpga_to_hps),
         .exec_reset(mailbox_reset),
-        .buttons(), .controller_buttons(), .controller_keypad(),
+        .buttons(app_buttons), .controller_buttons(), .controller_keypad(),
         .media_ready(), .media_size(),
         .media_byte0(), .media_byte1(), .media_byte2(),
         .media_write_addr(), .media_write_data(), .media_write_enable(),
@@ -77,33 +83,47 @@ module top #(
 
     wire sdram_start, sdram_write, sdram_done;
     wire hps_start, hps_write, hps_done;
-    wire [15:0] sdram_addr, sdram_wdata, sdram_rdata;
-    wire [15:0] hps_addr, hps_wdata, hps_rdata;
-    wire sdram_busy;
+    wire [25:0] sdram_addr;
+    wire [31:0] hps_addr;
+    wire [15:0] sdram_wdata, sdram_rdata;
+    wire [15:0] hps_wdata, hps_rdata;
     wire sdram_pass /* verilator public_flat_rd */;
     wire sdram_fail /* verilator public_flat_rd */;
-    wire hps_busy;
     wire hps_pass /* verilator public_flat_rd */;
     wire hps_fail /* verilator public_flat_rd */;
-    wire [15:0] sdram_result_addr, hps_result_addr;
+    wire sdram_stopped /* verilator public_flat_rd */;
+    wire hps_stopped /* verilator public_flat_rd */;
+    wire [15:0] sdram_errors /* verilator public_flat_rd */;
+    wire [15:0] hps_errors /* verilator public_flat_rd */;
+    wire [2:0] sdram_phase, hps_phase;
+    wire sdram_reading, hps_reading;
+    wire [31:0] sdram_shown, hps_shown;
+    wire [15:0] sdram_expect, hps_expect, sdram_got, hps_got;
     wire [15:0] dq_out, dq_in;
     wire dq_oe;
     reg [1:0] reset_sync = 2'b00;
+    reg [1:0] button_sync = 2'b00;
 
-    always @(posedge FPGA_CLK1_50)
+    always @(posedge FPGA_CLK1_50) begin
         reset_sync <= {reset_sync[0], mailbox_reset};
+        button_sync <= {button_sync[0], |app_buttons};
+    end
 
-    mem_channel sdram_test (
-        .clk(FPGA_CLK1_50), .reset(reset_sync[1]),
+    mem_channel #(.ADDR_W(26), .WORDS(SDRAM_WORDS), .BASE(32'd0)) sdram_test (
+        .clk(FPGA_CLK1_50), .reset(reset_sync[1]), .stop(button_sync[1]),
         .start(sdram_start), .write(sdram_write), .addr(sdram_addr), .wdata(sdram_wdata),
         .done(sdram_done), .rdata(sdram_rdata),
-        .busy(sdram_busy), .pass(sdram_pass), .fail(sdram_fail), .result_addr(sdram_result_addr)
+        .busy(), .pass(sdram_pass), .fail(sdram_fail), .stopped(sdram_stopped),
+        .phase(sdram_phase), .reading(sdram_reading), .shown_addr(sdram_shown),
+        .errors(sdram_errors), .shown_expect(sdram_expect), .shown_got(sdram_got)
     );
-    mem_channel hps_test (
-        .clk(FPGA_CLK1_50), .reset(reset_sync[1]),
+    mem_channel #(.ADDR_W(32), .WORDS(HPS_WORDS), .BASE(HPS_BASE)) hps_test (
+        .clk(FPGA_CLK1_50), .reset(reset_sync[1]), .stop(button_sync[1]),
         .start(hps_start), .write(hps_write), .addr(hps_addr), .wdata(hps_wdata),
         .done(hps_done), .rdata(hps_rdata),
-        .busy(hps_busy), .pass(hps_pass), .fail(hps_fail), .result_addr(hps_result_addr)
+        .busy(), .pass(hps_pass), .fail(hps_fail), .stopped(hps_stopped),
+        .phase(hps_phase), .reading(hps_reading), .shown_addr(hps_shown),
+        .errors(hps_errors), .shown_expect(hps_expect), .shown_got(hps_got)
     );
 
     sdram_addon_port sdram (
@@ -142,8 +162,12 @@ module top #(
     ram_display display (
         .pixel_clk(pixel_clk),
         .x(playfield_x), .y(playfield_y), .active(playfield_active),
-        .sdram_pass(sdram_pass), .sdram_fail(sdram_fail),
-        .hps_pass(hps_pass), .hps_fail(hps_fail),
+        .sdram_phase(sdram_phase), .sdram_reading(sdram_reading), .sdram_addr(sdram_shown),
+        .sdram_errors(sdram_errors), .sdram_expect(sdram_expect), .sdram_got(sdram_got),
+        .sdram_pass(sdram_pass), .sdram_fail(sdram_fail), .sdram_stopped(sdram_stopped),
+        .hps_phase(hps_phase), .hps_reading(hps_reading), .hps_addr(hps_shown),
+        .hps_errors(hps_errors), .hps_expect(hps_expect), .hps_got(hps_got),
+        .hps_pass(hps_pass), .hps_fail(hps_fail), .hps_stopped(hps_stopped),
         .red(play_red), .green(play_green), .blue(play_blue)
     );
 
@@ -159,8 +183,4 @@ module top #(
 
     assign HDMI_TX_CLK = pixel_clk;
     assign HDMI_TX_D = {video_red, video_green, video_blue};
-
-    /* verilator lint_off UNUSEDSIGNAL */
-    wire unused_status = |{sdram_busy, hps_busy, sdram_result_addr, hps_result_addr};
-    /* verilator lint_on UNUSEDSIGNAL */
 endmodule

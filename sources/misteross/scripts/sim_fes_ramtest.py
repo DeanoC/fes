@@ -18,6 +18,7 @@ def main() -> None:
     sources = [
         CORE / "rtl" / "top.v",
         CORE / "rtl" / "mem_channel.v",
+        CORE / "rtl" / "ram_font.v",
         CORE / "rtl" / "ram_display.v",
         CORE / "rtl" / "sdram_addon_port.v",
         CORE / "rtl" / "hps_ddr_port.v",
@@ -32,7 +33,8 @@ def main() -> None:
     ]
     subprocess.run(
         [
-            "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
+            "verilator", "--cc", "--exe", "--build", "--top-module", "bench",             "+define+SIM",
+            "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
             "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
             f"-I{COMMON / 'generated'}",
             "-Mdir", str(output),

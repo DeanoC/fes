@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Cycle protocol matches the closed 910/911 probes. This core does not add a memory opcode.
 // 50 MHz 16-bit SDR SDRAM, burst length 1, CAS latency 2.
-// Halfword address 0..65535 stays inside the first 128 KB of every addon size.
+// 128 MB is 64M halfwords: 11 column bits, 2 banks, 13 row bits.
+// Column A10 is a real column bit. Precharge is explicit, not A10.
+// A refresh is inserted between commands so a full-chip scan keeps its data.
 module sdram_addon_port (
     input wire clk,
     input wire start,
     input wire write,
-    input wire [15:0] addr,
+    input wire [25:0] addr,
     input wire [15:0] wdata,
     output reg done,
     output reg [15:0] rdata,
@@ -30,18 +31,23 @@ module sdram_addon_port (
     localparam [3:0] ST_REF2 = 4'd3;
     localparam [3:0] ST_MRS = 4'd4;
     localparam [3:0] ST_IDLE = 4'd5;
-    localparam [3:0] ST_ACT = 4'd6;
-    localparam [3:0] ST_RW = 4'd7;
-    localparam [3:0] ST_HOLD = 4'd8;
-    localparam [3:0] ST_CAP = 4'd9;
-    localparam [3:0] ST_PRE2 = 4'd10;
-    localparam [3:0] ST_FINISH = 4'd11;
+    localparam [3:0] ST_REF = 4'd6;
+    localparam [3:0] ST_REFW = 4'd7;
+    localparam [3:0] ST_ROW = 4'd8;
+    localparam [3:0] ST_ACT = 4'd9;
+    localparam [3:0] ST_RW = 4'd10;
+    localparam [3:0] ST_HOLD = 4'd11;
+    localparam [3:0] ST_CAP = 4'd12;
+    localparam [3:0] ST_PRE2 = 4'd13;
+    localparam [3:0] ST_FINISH = 4'd14;
 
     reg [3:0] state = ST_BOOT;
     reg [12:0] wait_count = 13'd0;
+    reg [8:0] refresh_div = 9'd0;
+    reg refresh_due = 1'b0;
     reg seen = 1'b0;
     reg writing = 1'b0;
-    reg [15:0] held_addr = 16'h0000;
+    reg [25:0] held_addr = 26'd0;
     reg [15:0] held_data = 16'h0000;
 
     assign sdram_clk = clk;
@@ -55,6 +61,12 @@ module sdram_addon_port (
         sdram_nras <= 1'b1;
         sdram_ncas <= 1'b1;
         sdram_nwe <= 1'b1;
+        if (refresh_div == 9'd390) begin
+            refresh_div <= 9'd0;
+            refresh_due <= 1'b1;
+        end else begin
+            refresh_div <= refresh_div + 9'd1;
+        end
         case (state)
             ST_BOOT: begin
                 sdram_cke <= 1'b0;
@@ -99,17 +111,44 @@ module sdram_addon_port (
                     writing <= write;
                     held_addr <= addr;
                     held_data <= wdata;
-                    sdram_ba <= addr[10:9];
-                    sdram_a <= {8'd0, addr[15:11]};
-                    sdram_ncs <= 1'b0;
-                    sdram_nras <= 1'b0;
-                    state <= ST_ACT;
+                    if (refresh_due) begin
+                        state <= ST_REF;
+                    end else begin
+                        sdram_ba <= addr[12:11];
+                        sdram_a <= addr[25:13];
+                        sdram_ncs <= 1'b0;
+                        sdram_nras <= 1'b0;
+                        state <= ST_ACT;
+                    end
                 end
+            end
+            ST_REF: begin
+                sdram_cke <= 1'b1;
+                sdram_nras <= 1'b0;
+                sdram_ncas <= 1'b0;
+                refresh_due <= 1'b0;
+                wait_count <= 13'd0;
+                state <= ST_REFW;
+            end
+            ST_REFW: begin
+                sdram_cke <= 1'b1;
+                if (wait_count == 13'd4) begin
+                    state <= ST_ROW;
+                end else begin
+                    wait_count <= wait_count + 13'd1;
+                end
+            end
+            ST_ROW: begin
+                sdram_cke <= 1'b1;
+                sdram_ba <= held_addr[12:11];
+                sdram_a <= held_addr[25:13];
+                sdram_nras <= 1'b0;
+                state <= ST_ACT;
             end
             ST_ACT: begin
                 sdram_cke <= 1'b1;
-                sdram_ba <= held_addr[10:9];
-                sdram_a <= {4'b0000, held_addr[8:0]};
+                sdram_ba <= held_addr[12:11];
+                sdram_a <= {2'b00, held_addr[10:0]};
                 sdram_ncas <= 1'b0;
                 sdram_nwe <= writing ? 1'b0 : 1'b1;
                 dq_out <= held_data;

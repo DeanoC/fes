@@ -13,7 +13,8 @@ module sdram_model (
     input wire dqmh,
     inout wire [15:0] dq
 );
-    reg [15:0] mem [0:65535];
+    // The sealed core addresses 64M halfwords. Simulation covers the low span.
+    reg [15:0] mem [0:4095];
     reg [1:0] open_ba = 2'd0;
     reg [12:0] open_row = 13'd0;
     reg [15:0] beat = 16'h0000;
@@ -23,12 +24,12 @@ module sdram_model (
     integer index;
 
     initial begin
-        for (index = 0; index < 65536; index = index + 1)
+        for (index = 0; index < 4096; index = index + 1)
             mem[index] = 16'h0000;
     end
 
     wire [3:0] command = {ncs, nras, ncas, nwe};
-    wire [15:0] word_addr = {open_row[4:0], open_ba, a[8:0]};
+    wire [25:0] word_addr = {open_row, open_ba, a[10:0]};
 
     assign dq = reading ? read_data : 16'hzzzz;
 
@@ -51,15 +52,15 @@ module sdram_model (
                 end
                 4'b0101: begin
                     read_delay <= 2'd2;
-                    read_data <= mem[word_addr];
+                    read_data <= mem[word_addr[11:0]];
                 end
                 4'b0100: begin
-                    beat = mem[word_addr];
+                    beat = mem[word_addr[11:0]];
                     if (!dqml)
                         beat[7:0] = dq[7:0];
                     if (!dqmh)
                         beat[15:8] = dq[15:8];
-                    mem[word_addr] <= beat;
+                    mem[word_addr[11:0]] <= beat;
                 end
                 default: begin
                 end
