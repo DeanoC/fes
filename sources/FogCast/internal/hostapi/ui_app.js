@@ -884,6 +884,8 @@
     return { path: '/api/v1/session', options: { method: 'GET' } };
   }
 
+  // Empty body is the explicit user Stop: idle cleanup releases the kit lease.
+  // Tenfoot rooms Soft-stop sends {"retain_lease":true} instead.
   function stopRequest(stamp) {
     const options = { method: 'POST' };
     const headers = stampHeaders(stamp);

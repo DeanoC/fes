@@ -188,7 +188,12 @@ type Service struct {
 	nextLookup     time.Time
 	lookupFailures uint
 
-	stoppedKitLease         *targetclient.KitLease
+	// Grants captured by Stop and not yet released. Idle settings may drop
+	// the owning client; explicit ReleaseKitLease still frees each one.
+	// Invalidating one target removes only that client's grant. A release
+	// that fails stays here until a later attempt succeeds. A grant that
+	// still backs a remaining play stays here and is not released.
+	stoppedKitLeases        []*targetclient.KitLease
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
 	activePackageID         string
@@ -1917,10 +1922,12 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	}
 	// Preserve the exact ownership used for this Stop even when its response
 	// is lost and the public session layer later reconciles idle via Status.
+	// Keep earlier grants too: an idle selected-target change rebuilds
+	// targetClients and would otherwise drop the only reference a later
+	// explicit release uses.
 	s.executionMu.Lock()
-	s.stoppedKitLease = nil
 	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
-		s.stoppedKitLease = leased.KitLease()
+		s.stoppedKitLeases = retainStoppedKitLease(s.stoppedKitLeases, leased.KitLease())
 	}
 	s.executionMu.Unlock()
 	stage = "target_stop"
@@ -2608,11 +2615,87 @@ func (s *Service) ShutdownCleanupRequired() bool {
 }
 
 // ReleaseKitLease is for an explicit user Stop after input/media cleanup.
-// Replacement Stop retains ownership so the next launch uses the same grant.
+// It releases every grant captured by Stop since the previous release,
+// including a kit dropped from targetClients by an idle selected-target
+// change. A grant that still backs a remaining PlaySession is left held:
+// Soft-stop keeps the lease in stoppedKitLeases, and relaunch does not
+// drop that entry, so stopping a different foreground target must not
+// revoke the live session. A failed explicit Stop still calls this when
+// the coordinator was already idle, so idle grants from earlier Soft-stops
+// are released while the surviving play's grant stays held. Sofa Soft-stop
+// (session stop with retain_lease) does not call it. A failed release stays
+// in stoppedKitLeases.
+// KitLease.Release keeps that grant renewing so a later Stop can retry it;
+// only a successful release drops the entry. Replacement Stop retains
+// ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
 	s.executionMu.Lock()
-	lease := s.stoppedKitLease
-	s.stoppedKitLease = nil
+	pending := append([]*targetclient.KitLease(nil), s.stoppedKitLeases...)
 	s.executionMu.Unlock()
-	return lease.Release(ctx)
+	var first error
+	for _, lease := range pending {
+		if s.kitLeaseBacksPlay(lease) {
+			continue
+		}
+		if err := lease.Release(ctx); err != nil {
+			if first == nil {
+				first = err
+			}
+			continue
+		}
+		s.executionMu.Lock()
+		s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, lease)
+		s.executionMu.Unlock()
+	}
+	return first
+}
+
+// kitLeaseBacksPlay reports whether lease is the grant of a target that
+// still has a play. Caller must not hold targetMu or executionMu.
+func (s *Service) kitLeaseBacksPlay(lease *targetclient.KitLease) bool {
+	if lease == nil {
+		return false
+	}
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	for name := range s.plays {
+		leased, ok := s.targetClients[name].(interface{ KitLease() *targetclient.KitLease })
+		if ok && leased.KitLease() == lease {
+			return true
+		}
+	}
+	return false
+}
+
+func retainStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.KitLease) []*targetclient.KitLease {
+	if lease == nil {
+		return leases
+	}
+	for _, existing := range leases {
+		if existing == lease {
+			return leases
+		}
+	}
+	return append(leases, lease)
+}
+
+func dropStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.KitLease) []*targetclient.KitLease {
+	if lease == nil || len(leases) == 0 {
+		return leases
+	}
+	kept := make([]*targetclient.KitLease, 0, len(leases))
+	for _, existing := range leases {
+		if existing != lease {
+			kept = append(kept, existing)
+		}
+	}
+	if len(kept) == len(leases) {
+		return leases
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }

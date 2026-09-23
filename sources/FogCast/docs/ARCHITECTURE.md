@@ -517,7 +517,7 @@ Native SDL3 UI
   -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
   -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
-  -> POST /api/v1/session/stop (empty body or optional client stamp JSON; X-FogCast-Client-* headers)
+  -> POST /api/v1/session/stop (empty body releases the kit lease; optional client stamp JSON; retain_lease true keeps it; release_idle drops idle grants without stopping a surviving play; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
@@ -828,9 +828,26 @@ remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
 hardware. Stop, input detach and reboot require an existing grant and never
 claim someone else's active session. Replacement operations retain the grant.
-Explicit public Stop releases its grant after input/media/hardware cleanup;
-replacement Stop retains ownership for the next launch. Application shutdown
-releases its grants after input/session cleanup.
+Explicit public Stop (empty body, or `retain_lease` false) releases its grant
+after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
+that same route and keeps the grant after idle cleanup. An idle selected-target
+change may drop that client; the retained grant stays reachable for a later
+explicit Stop. An already-idle explicit Stop still attempts that release when
+the newly selected target's probe or Stop fails. A Soft-stopped legacy
+non-package fpga_native session keeps its execution label and is still
+already idle for that release. Soft-stop `retain_lease` still keeps the grants.
+Invalidating one target removes only that client's retained grant. A release
+that fails leaves that grant retained so the next explicit Stop can retry it. Replacement Stop retains ownership for the next launch.
+Explicit release leaves a retained grant held when that lease still backs a
+remaining play, so Soft-stop, relaunch, and an explicit stop of another target
+do not revoke the live session. A failed explicit Stop of that surviving play
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
+the retain request and keeps the grant while the shell stays up. Start, Q, or
+closing the window waits for an in-flight Soft-stop, then releases that idle
+grant. A confirmed idle service gets an empty-body Stop. When a play still
+survives, the shell posts `release_idle` so idle grants drop without stopping
+that play. A failed release is retried before the shell exits.
+Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
 idle after explicit Stop and never-owned idle skip the target Stop, while a
