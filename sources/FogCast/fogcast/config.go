@@ -92,6 +92,10 @@ type TargetConfig struct {
 	PreviousName string
 }
 
+// NodeID is this kit's stable mesh node id. It is TargetID. Phase 1 does
+// not mint a second identifier, including when a kit later gains a shell.
+func (t TargetConfig) NodeID() string { return t.TargetID }
+
 type LibraryConfig struct {
 	AttractIdleSeconds int
 	PreferredRegions   []string

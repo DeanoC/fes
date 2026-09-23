@@ -65,6 +65,8 @@ type Destination struct {
 // Unavailable, or Ready. The caller reports Checking while the query is
 // still in flight. query, when set, filters titles; an exact title match
 // wins over looser contains-matches.
+// Ready is Phase 0 composition for the bound executor. A mesh Execute
+// advertisement is not an input and cannot change the result.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
 	matches := matchingGames(games, query)
 	if len(matches) == 0 {

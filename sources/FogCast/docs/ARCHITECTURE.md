@@ -877,9 +877,24 @@ health reports it; anonymous health omits it. Advertisement runs independently
 of HTTP startup, waits for an addressed multicast interface, and recreates its
 listeners when interfaces or addresses change. Failed setup retries with capped
 backoff. This handles the kit starting its agent before Ethernet is ready.
-DNS-SD TXT contains only `target_id` and discovery protocol version. A random
-service instance and hostname distinguish cloned identities on the same link;
-the persistent TXT identity remains stable across reboots.
+DNS-SD TXT keeps `protocol` and `target_id`. It also carries `node_id` (the
+same stable id; the agent does not mint a second one), `mesh` (`major.minor`,
+currently `1.0`), and `cap` (a capability bag). The kit bag advertises Execute
+`fpga_native` and DisplaySink, plus InputSource for the kit's local pad path.
+ABI or package-family suffixes are included only when the advertiser knows
+them; the agent omits them because it does not inventory packages before
+announcing, and an empty list is not a claim that any RBF runs. DisplaySink
+means the node can present. It is not HDMI or ADV liveness, and a host preview
+is not this capability. Catalog, Content, Shell, and Coordinator are omitted.
+The advertisement carries no credentials, title list, or lease secret. A `ttl`
+key is parsed when a peer sends one and is not emitted here; the protocol
+strawman leaves the seconds unsigned. Parsed TTL silence is absence for a
+future placement choice only and does not release the kit lease. Phase 0
+announcements that omit `mesh` stay directly bindable. A mesh major other than
+1 does not remove that direct bind; a session that needs the mesh contract
+fails closed on that major. A random service instance and hostname distinguish
+cloned identities on the same link; the persistent TXT identity remains stable
+across reboots.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID

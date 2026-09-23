@@ -8,7 +8,8 @@ UX (Foggy), and anyone picking up a later slice. Bob coordinates. Read
 the locks first. This brief names owners, slices, and the Soft-stop
 flag. It does not reopen the design.
 
-**Base:** FES `main` tip `428dd224` (mesh draft PR #131).
+**Base:** FES `main` tip `81fe16ab` (Slice 1 Soft-stop lease retain, #132).
+Slice 2 capability advertisements are the PR on top of that tip.
 
 ---
 
@@ -57,7 +58,10 @@ Owners are component strawmen. Agree files before parallel edits
 
 ## Ordered slices
 
-### 1. Soft-stop retains the kit lease — done
+### 1. Soft-stop retains the kit lease — done on main
+
+Landed as #132 (`81fe16ab`). Do not reopen `retain_lease`, Path B,
+`LoadIdle`, or `reboot_required`.
 
 **Owner:** FogCast host session API and tenfoot client. Caster locked
 this acceptance for the kit contract.
@@ -106,17 +110,36 @@ grant for retry; an owned held lease after idle stays ready; kit
 Select+Start posts an empty stop body. Kit HIL is optional and does not
 block merge.
 
-### 2. Capability advertisements — not started
+### 2. Capability advertisements — this PR
 
 **Owner:** FogCast target agent discovery, then the host that reads it.
 
-**Do:** DNS-SD / discovery TXT grows a capability bag and a
-mesh-protocol version. Kits generalize `target_id` toward node-id.
-A DisplaySink advertisement means the node can present. It does not
-mean the picture is healthy.
+**Acceptance:**
 
-**Does not:** list titles, carry credentials, or carry lease secrets.
-Does not make Ready follow an advertisement from some other node.
+- DNS-SD TXT keeps Phase 0 `protocol` and `target_id`. It adds `node_id`
+  (the same stable id; no second id is minted), `mesh` (`1.0`), and `cap`.
+- The kit bag advertises Execute `fpga_native` and DisplaySink. InputSource
+  is included for the kit's local pad path. ABI / package-family suffixes
+  are encoded when the caller knows them; the agent omits them because it
+  does not inventory packages before it announces. An empty family list is
+  not "any RBF". Catalog, Content, Shell, and Coordinator are omitted.
+- DisplaySink means the node can present. Parsing it does not report HDMI
+  or ADV liveness, and it does not mean the picture is up.
+- The host reader parses the new fields additively. Phase 0 TXT that omits
+  `mesh` stays directly bindable. A mismatched or malformed mesh major does
+  not remove that bind; a session that needs the mesh contract fails closed
+  on the major.
+- Advertisements carry no credentials, no title list, and no lease secrets.
+- Ready stays Phase 0 composition against the bound executor. Another node's
+  Execute advertisement does not make a row Ready.
+- No TTL number is emitted. The protocol strawman still leaves seconds
+  unsigned, so this slice does not start an advertisement clock. A peer
+  `ttl` key is parse-only. Silence past that value is absence for a future
+  placement choice only. It does not release the kit lease.
+
+**Does not:** list titles, federate the catalog, add a second lease, reboot
+remotely, or change kit power, image, or SD card contents. Host node
+inventory and the second-shell "in use" copy stay Slice 3.
 
 ### 3. Host node inventory and second-shell in-use — not started
 

@@ -106,6 +106,8 @@ func ValidID(id string) bool {
 	return true
 }
 
+// NewID mints the stable kit id stored as target_id. That value is also
+// the mesh node id. Callers must not mint a second id beside it.
 func NewID() (string, error) {
 	var bytes [16]byte
 	if _, err := readRandom(bytes[:]); err != nil {
@@ -159,7 +161,10 @@ func Resolve(ctx context.Context, id string) ([]string, error) {
 	var mu sync.Mutex
 	instances := map[string]string{}
 	entryEndpoint := func(entry dnssd.BrowseEntry) (string, bool) {
-		if entry.Text["target_id"] != id || entry.Text["protocol"] != protocolVersion || entry.Port < 1 || entry.Port > 65535 {
+		// Mesh version and the capability bag are additive. Phase 0 text
+		// that omits them stays directly bindable. Parsed TTL is not a lease.
+		ad := ParseTXT(entry.Text)
+		if ad.TargetID != id || !ad.DirectBindable() || entry.Port < 1 || entry.Port > 65535 {
 			return "", false
 		}
 		var selected net.IP
@@ -290,11 +295,15 @@ func newAdvertisementConfig(id string, port int) (advertisementConfig, error) {
 		return advertisementConfig{}, fmt.Errorf("generate advertisement name: %w", err)
 	}
 	suffix := hex.EncodeToString(nonce[:])
+	text, err := EncodeKitTXT(id)
+	if err != nil {
+		return advertisementConfig{}, err
+	}
 	return advertisementConfig{
 		name: "FogCast " + suffix,
 		host: "fogcast-" + suffix + ".local.",
 		port: port,
-		text: []string{"protocol=" + protocolVersion, "target_id=" + id},
+		text: text,
 	}, nil
 }
 

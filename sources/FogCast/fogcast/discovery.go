@@ -285,6 +285,9 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 		resolve = discovery.Resolve
 	}
 	browseCtx, browseCancel := context.WithTimeout(ctx, time.Second)
+	// Resolve parses mesh-protocol version and the capability bag additively.
+	// Phase 0 announcements that omit them still return an endpoint. Parsed
+	// advertisement TTL does not release the kit lease.
 	candidates, err := resolve(browseCtx, selected.TargetID)
 	browseCancel()
 	unique := map[string]bool{}
