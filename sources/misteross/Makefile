@@ -638,7 +638,8 @@ sms-diagnostic:
 		--output build/diagnostics/fes-sms/mode4.rom \
 		--preview build/diagnostics/fes-sms/mode4.ppm
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --pad-to 32768 \
-		--output build/diagnostics/fes-sms/mode4-32k.rom
+		--output build/diagnostics/fes-sms/mode4-32k.rom \
+		--hex-output build/diagnostics/fes-sms/mode4-32k.hex
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive \
 		--output build/diagnostics/fes-sms/mode4-hil.rom \
 		--preview build/diagnostics/fes-sms/mode4-hil.ppm
@@ -733,15 +734,15 @@ sim-fes-sms-oss: sms-diagnostic
 	@build/sim/fes-sms-vdp-oss/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
-		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 \
-		-CFLAGS "-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1" \
+		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_rom_link.v cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -750,7 +751,7 @@ sim-fes-sms-oss: sms-diagnostic
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine-oss/Vsms_machine \
-		build/diagnostics/fes-sms/mode4.rom
+		build/diagnostics/fes-sms/mode4-32k.rom
 
 .PHONY: sim-fes-sms-quartus
 sim-fes-sms-quartus:

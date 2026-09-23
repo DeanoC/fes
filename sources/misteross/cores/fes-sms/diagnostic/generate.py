@@ -242,6 +242,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="raw cartridge path")
     parser.add_argument("--preview", type=Path, help="optional expected 1280x720 PPM")
+    parser.add_argument("--hex-output", type=Path, help="optional Verilog byte memory file")
     parser.add_argument(
         "--pad-to",
         type=int,
@@ -262,6 +263,9 @@ def main() -> None:
         data += bytes([0xFF]) * (args.pad_to - len(data))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(data)
+    if args.hex_output is not None:
+        args.hex_output.parent.mkdir(parents=True, exist_ok=True)
+        args.hex_output.write_text("".join(f"{byte:02x}\n" for byte in data))
     if args.preview is not None:
         args.preview.parent.mkdir(parents=True, exist_ok=True)
         args.preview.write_bytes(preview(args.interactive))

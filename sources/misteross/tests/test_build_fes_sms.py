@@ -96,7 +96,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("-DFES_SMS_OSS=1", result.stdout)
         self.assertIn("-DFES_COLECO_OSS=1", result.stdout)
-        self.assertIn('-CFLAGS "-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1"', result.stdout)
+        self.assertIn('-CFLAGS "-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1"', result.stdout)
         self.assertIn("fes-sms-machine-oss", result.stdout)
         self.assertNotIn("build_fes_sms_oss", result.stdout)
 
@@ -135,13 +135,15 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("coleco_vdp.sv", program)
         self.assertIn("coleco_dpram.v", program)
         self.assertIn("-DFES_SMS_OSS=1", program)
+        self.assertIn("-DFES_SMS_ROM_LINK=1", program)
+        self.assertIn("sms_rom_link.v", program)
         self.assertIn("-DFES_COLECO_OSS=1", program)
         self.assertIn("-DTV80_REFRESH=1", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
         self.assertNotIn("coleco_machine.sv", program)
         self.assertNotIn("sg1000_machine.sv", program)
         self.assertNotIn("coleco_reset_rom", program)
-        self.assertEqual(SEED, 10)
+        self.assertEqual(SEED, 3)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
         self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "1000")
         self.assertEqual(nextpnr[nextpnr.index("--placer-heap-critexp") + 1], "5")
@@ -235,9 +237,8 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("sms_mode4_vdp", vdp)
         self.assertIn("coleco_vdp", vdp)
         self.assertIn("cram [0:31]", vdp)
+        self.assertIn("sms_rom_link", machine)
         self.assertIn("coleco_dpram", machine)
-        self.assertIn("ADDRWIDTH(15)", machine)
-        self.assertIn("NUMWORDS(32768)", machine)
         self.assertIn("ADDRWIDTH(13)", machine)
         self.assertIn("NUMWORDS(8192)", machine)
         self.assertIn("15'h7fff", machine)
@@ -295,7 +296,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("Quartus", readme)
         self.assertIn("8 KiB", readme)
         self.assertIn("32 KiB", readme)
-        self.assertIn("blob-stream", readme)
+        self.assertIn("ROM map", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("Mode 4", readme)
         self.assertIn("SN76489", readme)
@@ -420,6 +421,8 @@ class BuildFesSmsTests(unittest.TestCase):
         evidence = {
             "build_id": "d" * 32,
             "rbf": {"size": 16, "sha256": "e" * 64},
+            "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 32768,
+                    "file": "rom-map.json", "size": 123, "sha256": "f" * 64},
         }
         oss = oss_manifest_fn(
             record,
@@ -428,7 +431,10 @@ class BuildFesSmsTests(unittest.TestCase):
             "a" * 40,
             {"yosys": "test"},
         )
-        self.assertIn(b'id = "fes.media.blob-stream"', oss)
+        self.assertIn(b'format = 3', oss)
+        self.assertIn(b'id = "cartridge-rom"', oss)
+        self.assertNotIn(b'fes.media.blob-stream', oss)
+        self.assertNotIn(b'fes.media.blob', oss)
         self.assertIn(b"required = true", oss)
 
 

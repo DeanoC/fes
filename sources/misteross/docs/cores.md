@@ -104,7 +104,7 @@ backend. A command line that merely contains `--router gpu` is not enough.
 CPU-reference fallback is rejected. The splash producer is the exception:
 it stays on the generic GPU-off toolchain.
 
-SMS place-and-route is a first-pass search: it starts at seed 10 / HeAP 1000,
+SMS place-and-route is a first-pass search: it starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300. Final structured `clk_sys`
 and `pixel_clk` rows must meet 52 MHz and 74.25 MHz.
 
