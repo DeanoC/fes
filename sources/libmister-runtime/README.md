@@ -11,7 +11,8 @@ physical lifecycle, media/input delivery, and recovery. FES described packages a
 Raw RBF loading is an explicit, idle-only hardware diagnostic using
 `development-contained-v1`; it does not infer a game, ABI, media, or persistence.
 Startup, Stop, and bounded failure recovery load the sealed splash through the
-same contained programming and ADV7513 video path. The runtime contains no
+contained programming profile and ADV7513 video path. A `fes-gp-v1` package
+load releases the HPS SDRAM bridges after the FPGA enters user mode. The runtime contains no
 Main launcher, conventional game profiles, MiSTer SPI driver, or framebuffer.
 
 Package admission retains validated artifacts before mutation. Activation

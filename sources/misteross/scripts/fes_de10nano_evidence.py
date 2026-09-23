@@ -104,7 +104,7 @@ def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool
     }
 
 
-def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False) -> dict:
+def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False, memory_clock_mhz: float | None = None) -> dict:
     output = Path(output)
     source_root = Path(source_root)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -136,11 +136,16 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
 
     timing = _read_json(output / "timing.json", "timing report")
     fmax = timing.get("fmax")
-    if not isinstance(fmax, dict) or len(fmax) != (2 if audio else 1):
+    expected_domains = (2 if audio else 1) + (0 if memory_clock_mhz is None else 1)
+    if not isinstance(fmax, dict) or len(fmax) != expected_domains:
+        if memory_clock_mhz is not None:
+            raise BuildError("timing report must contain the pixel, memory, and audio sequential domains" if audio
+                             else "timing report must contain the pixel and memory sequential domains")
         raise BuildError("timing report must contain exactly the pixel and audio sequential domains" if audio
                          else "timing report must contain the single pixel sequential domain")
     pixel = _frequency_rows(fmax, 74.25, "pixel clock")
     audio_timing = _frequency_rows(fmax, 12.288, "audio clock") if audio else None
+    memory_timing = _frequency_rows(fmax, memory_clock_mhz, "memory clock") if memory_clock_mhz is not None else None
     utilization = timing.get("utilization")
     if not isinstance(utilization, dict):
         raise BuildError("timing report has no structured utilization data")
@@ -191,6 +196,9 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
             **({"audio": {"clock": audio_timing[0], "constraint_mhz": audio_timing[1],
                            "requested_mhz": 12.288, "achieved_mhz": audio_timing[2],
                            "status": "pass"}} if audio_timing else {}),
+            **({"memory": {"clock": memory_timing[0], "constraint_mhz": memory_timing[1],
+                           "requested_mhz": memory_clock_mhz, "achieved_mhz": memory_timing[2],
+                           "status": "pass"}} if memory_timing else {}),
             "pixel": {
                 "clock": pixel[0],
                 "constraint_mhz": pixel[1],
