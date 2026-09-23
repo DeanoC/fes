@@ -42,6 +42,11 @@ That fixture is not a claim of full decoder equivalence. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.
+Installed FPGA `core_package` rows, and any row on the `fpga` catalog
+platform, stay `launchable` even when a cartridge platform such as Coleco
+has no host-emulator mapping. Rooms treat those titles as Ready once
+composition flags such as `firmware_ready` pass; raw Coleco library carts
+remain browse-only.
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.

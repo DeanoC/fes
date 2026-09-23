@@ -248,9 +248,12 @@ Rules:
 
 - **Core-present ≠ composition-ready.** An installed `fes.coleco` package
   is not enough to offer Play on Frogger.
-- Catalog `launchable` remains a platform/target gate. Composition
-  readiness is an additional predicate on the same `game_id`. Missing
-  flags still do not grant eligibility.
+- Catalog `launchable` remains a platform/target gate for raw library
+  carts. Installed FPGA `core_package` rows (and the `fpga` catalog
+  platform) stay launchable even when `PlatformLaunchable(coleco)` is
+  false, so rooms do not classify a firmware-ready Coleco package as
+  browse-only. Composition readiness is an additional predicate on the
+  same `game_id`. Missing flags still do not grant eligibility.
 - Confirm never silently no-ops. Unavailable shows the missing slot and a
   specific next action. Ready launches through the existing session API.
 - A successful package activation with a black HDMI picture is not a
