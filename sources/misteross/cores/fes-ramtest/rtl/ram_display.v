@@ -10,7 +10,9 @@ module ram_display (
     input wire sdram_reading,
     input wire [31:0] sdram_addr,
     input wire [31:0] sdram_fault,
-    input wire [15:0] sdram_errors,
+    input wire [31:0] sdram_last,
+    input wire [15:0] sdram_was,
+    input wire [31:0] sdram_errors,
     input wire [15:0] sdram_expect,
     input wire [15:0] sdram_got,
     input wire sdram_pass,
@@ -20,7 +22,9 @@ module ram_display (
     input wire hps_reading,
     input wire [31:0] hps_addr,
     input wire [31:0] hps_fault,
-    input wire [15:0] hps_errors,
+    input wire [31:0] hps_last,
+    input wire [15:0] hps_was,
+    input wire [31:0] hps_errors,
     input wire [15:0] hps_expect,
     input wire [15:0] hps_got,
     input wire hps_pass,
@@ -30,29 +34,33 @@ module ram_display (
     output reg [7:0] green,
     output reg [7:0] blue
 );
-    reg [237:0] sync0 = 238'd0;
-    reg [237:0] sync1 = 238'd0;
-    wire [237:0] snap = {
-        sdram_phase, sdram_reading, sdram_addr, sdram_fault, sdram_errors, sdram_expect, sdram_got,
-        sdram_pass, sdram_fail, sdram_stopped,
-        hps_phase, hps_reading, hps_addr, hps_fault, hps_errors, hps_expect, hps_got,
-        hps_pass, hps_fail, hps_stopped
+    reg [365:0] sync0 = 366'd0;
+    reg [365:0] sync1 = 366'd0;
+    wire [365:0] snap = {
+        sdram_phase, sdram_reading, sdram_addr, sdram_fault, sdram_last, sdram_errors, sdram_was,
+        sdram_expect, sdram_got, sdram_pass, sdram_fail, sdram_stopped,
+        hps_phase, hps_reading, hps_addr, hps_fault, hps_last, hps_errors, hps_was,
+        hps_expect, hps_got, hps_pass, hps_fail, hps_stopped
     };
-    wire [2:0] s_phase = sync1[237:235];
-    wire s_reading = sync1[234];
-    wire [31:0] s_addr = sync1[233:202];
-    wire [31:0] s_fault = sync1[201:170];
-    wire [15:0] s_errors = sync1[169:154];
-    wire [15:0] s_expect = sync1[153:138];
-    wire [15:0] s_got = sync1[137:122];
-    wire s_pass = sync1[121];
-    wire s_fail = sync1[120];
-    wire s_stopped = sync1[119];
-    wire [2:0] h_phase = sync1[118:116];
-    wire h_reading = sync1[115];
-    wire [31:0] h_addr = sync1[114:83];
-    wire [31:0] h_fault = sync1[82:51];
-    wire [15:0] h_errors = sync1[50:35];
+    wire [2:0] s_phase = sync1[365:363];
+    wire s_reading = sync1[362];
+    wire [31:0] s_addr = sync1[361:330];
+    wire [31:0] s_fault = sync1[329:298];
+    wire [31:0] s_last = sync1[297:266];
+    wire [31:0] s_errors = sync1[265:234];
+    wire [15:0] s_was = sync1[233:218];
+    wire [15:0] s_expect = sync1[217:202];
+    wire [15:0] s_got = sync1[201:186];
+    wire s_pass = sync1[185];
+    wire s_fail = sync1[184];
+    wire s_stopped = sync1[183];
+    wire [2:0] h_phase = sync1[182:180];
+    wire h_reading = sync1[179];
+    wire [31:0] h_addr = sync1[178:147];
+    wire [31:0] h_fault = sync1[146:115];
+    wire [31:0] h_last = sync1[114:83];
+    wire [31:0] h_errors = sync1[82:51];
+    wire [15:0] h_was = sync1[50:35];
     wire [15:0] h_expect = sync1[34:19];
     wire [15:0] h_got = sync1[18:3];
     wire h_pass = sync1[2];
@@ -184,8 +192,10 @@ module ram_display (
         input [2:0] which;
         input reading;
         input [31:0] cursor;
-        input [15:0] err_count;
+        input [31:0] err_count;
         input [31:0] fault_at;
+        input [31:0] last_at;
+        input [15:0] was;
         input [15:0] expected_word;
         input [15:0] got;
         input stopped;
@@ -213,18 +223,24 @@ module ram_display (
                         line_char = byte4("ADDR", column);
                     else if (column >= 6'd5 && column < 6'd13)
                         line_char = hex_digit(hex_nibble(cursor, column, 6'd5));
+                    else if (column >= 6'd14 && column < 6'd16)
+                        line_char = byte4("AT  ", column - 6'd14);
+                    else if (column >= 6'd17 && column < 6'd25)
+                        line_char = hex_digit(hex_nibble(fault_at, column, 6'd17));
+                    else if (column >= 6'd26 && column < 6'd34)
+                        line_char = hex_digit(hex_nibble(last_at, column, 6'd26));
                     else
                         line_char = 8'h00;
                 end
                 5'd3: begin
                     if (column < 6'd4)
                         line_char = byte4("ERR ", column);
-                    else if (column >= 6'd4 && column < 6'd8)
-                        line_char = hex_digit(hex16(err_count, column, 6'd4));
-                    else if (column >= 6'd9 && column < 6'd11)
-                        line_char = byte4("AT  ", column - 6'd9);
-                    else if (column >= 6'd12 && column < 6'd20)
-                        line_char = hex_digit(hex_nibble(fault_at, column, 6'd12));
+                    else if (column >= 6'd4 && column < 6'd12)
+                        line_char = hex_digit(hex_nibble(err_count, column, 6'd4));
+                    else if (column >= 6'd13 && column < 6'd16)
+                        line_char = byte4("WAS ", column - 6'd13);
+                    else if (column >= 6'd17 && column < 6'd21)
+                        line_char = hex_digit(hex16(was, column, 6'd17));
                     else
                         line_char = 8'h00;
                 end
@@ -252,10 +268,10 @@ module ram_display (
         begin
             if (line < 5'd6)
                 screen_char = line_char(line, column, "SDRAM", s_phase, s_reading, s_addr,
-                    s_errors, s_fault, s_expect, s_got, s_stopped, s_pass, s_fail);
+                    s_errors, s_fault, s_last, s_was, s_expect, s_got, s_stopped, s_pass, s_fail);
             else if (line >= 5'd7 && line < 5'd13)
                 screen_char = line_char(line - 5'd7, column, "HPS  ", h_phase, h_reading, h_addr,
-                    h_errors, h_fault, h_expect, h_got, h_stopped, h_pass, h_fail);
+                    h_errors, h_fault, h_last, h_was, h_expect, h_got, h_stopped, h_pass, h_fail);
             else if (line == 5'd14) begin
                 if (column < 6'd6)
                     screen_char = byte6("BUTTON", column);

@@ -79,27 +79,55 @@ module sdram_addon_port (
                     wait_count <= wait_count + 13'd1;
                 end
             end
-            ST_PRE, ST_PRE2: begin
+            ST_PRE: begin
+                sdram_cke <= 1'b1;
+                if (wait_count == 13'd0) begin
+                    sdram_nras <= 1'b0;
+                    sdram_nwe <= 1'b0;
+                    sdram_a[10] <= 1'b1;
+                    wait_count <= 13'd1;
+                end else if (wait_count == 13'd4) begin
+                    wait_count <= 13'd0;
+                    state <= ST_REF1;
+                end else begin
+                    wait_count <= wait_count + 13'd1;
+                end
+            end
+            ST_PRE2: begin
                 sdram_cke <= 1'b1;
                 sdram_nras <= 1'b0;
                 sdram_nwe <= 1'b0;
                 sdram_a[10] <= 1'b1;
-                state <= (state == ST_PRE) ? ST_REF1 : ST_FINISH;
+                state <= ST_FINISH;
             end
             ST_REF1, ST_REF2: begin
                 sdram_cke <= 1'b1;
-                sdram_nras <= 1'b0;
-                sdram_ncas <= 1'b0;
-                state <= (state == ST_REF1) ? ST_REF2 : ST_MRS;
+                if (wait_count == 13'd0) begin
+                    sdram_nras <= 1'b0;
+                    sdram_ncas <= 1'b0;
+                    wait_count <= 13'd1;
+                end else if (wait_count == 13'd8) begin
+                    wait_count <= 13'd0;
+                    state <= (state == ST_REF1) ? ST_REF2 : ST_MRS;
+                end else begin
+                    wait_count <= wait_count + 13'd1;
+                end
             end
             ST_MRS: begin
                 sdram_cke <= 1'b1;
-                sdram_nras <= 1'b0;
-                sdram_ncas <= 1'b0;
-                sdram_nwe <= 1'b0;
-                sdram_ba <= 2'b00;
-                sdram_a <= 13'h0020;
-                state <= ST_IDLE;
+                if (wait_count == 13'd0) begin
+                    sdram_nras <= 1'b0;
+                    sdram_ncas <= 1'b0;
+                    sdram_nwe <= 1'b0;
+                    sdram_ba <= 2'b00;
+                    sdram_a <= 13'h0020;
+                    wait_count <= 13'd1;
+                end else if (wait_count == 13'd4) begin
+                    wait_count <= 13'd0;
+                    state <= ST_IDLE;
+                end else begin
+                    wait_count <= wait_count + 13'd1;
+                end
             end
             ST_IDLE: begin
                 sdram_cke <= 1'b1;
@@ -119,6 +147,11 @@ module sdram_addon_port (
                         sdram_ncs <= 1'b0;
                         sdram_nras <= 1'b0;
                         state <= ST_ACT;
+                        // Data has to be valid before the write clock, not on it.
+                        if (write) begin
+                            dq_out <= wdata;
+                            dq_oe <= 1'b1;
+                        end
                     end
                 end
             end
@@ -132,7 +165,7 @@ module sdram_addon_port (
             end
             ST_REFW: begin
                 sdram_cke <= 1'b1;
-                if (wait_count == 13'd4) begin
+                if (wait_count == 13'd8) begin
                     state <= ST_ROW;
                 end else begin
                     wait_count <= wait_count + 13'd1;
@@ -144,6 +177,10 @@ module sdram_addon_port (
                 sdram_a <= held_addr[25:13];
                 sdram_nras <= 1'b0;
                 state <= ST_ACT;
+                if (writing) begin
+                    dq_out <= held_data;
+                    dq_oe <= 1'b1;
+                end
             end
             ST_ACT: begin
                 sdram_cke <= 1'b1;

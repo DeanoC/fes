@@ -24,7 +24,9 @@ module mem_channel #(
     output reg reading,
     output reg [31:0] shown_addr,
     output reg [31:0] fault_addr,
-    output reg [15:0] errors,
+    output reg [31:0] last_addr,
+    output reg [15:0] fault_got,
+    output reg [31:0] errors,
     output reg [15:0] shown_expect,
     output reg [15:0] shown_got
 );
@@ -77,7 +79,9 @@ module mem_channel #(
             reading <= 1'b0;
             shown_addr <= 32'd0;
             fault_addr <= 32'd0;
-            errors <= 16'd0;
+            last_addr <= 32'd0;
+            fault_got <= 16'h0000;
+            errors <= 32'd0;
             shown_expect <= 16'h0000;
             shown_got <= 16'h0000;
             state <= ST_RESET;
@@ -95,8 +99,10 @@ module mem_channel #(
                     phase <= 3'd0;
                     reading <= 1'b0;
                     index <= 32'd0;
-                    errors <= 16'd0;
+                    errors <= 32'd0;
                     fault_addr <= 32'd0;
+                    last_addr <= 32'd0;
+                    fault_got <= 16'h0000;
                     faulted <= 1'b0;
                     state <= ST_SETUP;
                 end
@@ -127,22 +133,31 @@ module mem_channel #(
                         busy <= 1'b0;
                         fail <= 1'b1;
                         pass <= 1'b0;
-                        if (errors != 16'hFFFF)
-                            errors <= errors + 16'd1;
+                        if (!faulted) begin
+                            fault_addr <= location;
+                            fault_got <= captured;
+                        end
+                        last_addr <= location;
+                        faulted <= 1'b1;
+                        if (errors != 32'hFFFFFFFF)
+                            errors <= errors + 32'd1;
                         state <= ST_DONE;
                     end else begin
                         timer <= timer + 16'd1;
                     end
                 end
                 ST_GAP: begin
-                    // Compare against this location. The expect and got lines keep
-                    // following the scan; only the first miss address is held.
+                    // Compare against this location. Expect and got follow the scan.
+                    // The first miss and the latest miss stay on screen.
                     if (reading && captured != expected) begin
-                        if (!faulted)
+                        if (!faulted) begin
                             fault_addr <= location;
+                            fault_got <= captured;
+                        end
+                        last_addr <= location;
                         faulted <= 1'b1;
-                        if (errors != 16'hFFFF)
-                            errors <= errors + 16'd1;
+                        if (errors != 32'hFFFFFFFF)
+                            errors <= errors + 32'd1;
                     end
                     if (index + 32'd1 == WORDS) begin
                         index <= 32'd0;
@@ -150,8 +165,8 @@ module mem_channel #(
                             reading <= 1'b0;
                             if (phase == PHASES - 3'd1) begin
                                 busy <= 1'b0;
-                                pass <= ~faulted && captured == expected && errors == 16'd0;
-                                fail <= faulted || captured != expected || errors != 16'd0;
+                                pass <= ~faulted && captured == expected && errors == 32'd0;
+                                fail <= faulted || captured != expected || errors != 32'd0;
                                 state <= ST_DONE;
                             end else begin
                                 phase <= phase + 3'd1;
