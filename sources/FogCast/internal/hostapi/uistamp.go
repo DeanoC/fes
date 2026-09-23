@@ -107,34 +107,36 @@ func validHostFlightID(value string) bool {
 	return err == nil && parsed.Version() == 4 && parsed.String() == value
 }
 
-type stampBody struct {
+type stopBody struct {
 	ClientTsUTC  string `json:"client_ts_utc"`
 	ClientMonoMS *int64 `json:"client_mono_ms"`
 	FlightID     string `json:"flight_id"`
+	// RetainLease is sofa Soft-stop. Absent or false is the explicit user Stop.
+	RetainLease bool `json:"retain_lease"`
 }
 
-func decodeOptionalStopStamp(w http.ResponseWriter, r *http.Request) (clientStamp, error) {
+func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-		return clientStamp{}, err
+		return clientStamp{}, false, err
 	}
 	body = bytes.TrimSpace(body)
-	var parsed stampBody
+	var parsed stopBody
 	if len(body) > 0 {
 		decoder := json.NewDecoder(bytes.NewReader(body))
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&parsed); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-			return clientStamp{}, err
+			return clientStamp{}, false, err
 		}
 		if err := decoder.Decode(&struct{}{}); err != io.EOF {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must contain exactly one JSON object")
-			return clientStamp{}, errors.New("trailing JSON")
+			return clientStamp{}, false, errors.New("trailing JSON")
 		}
 	}
-	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), nil
+	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, nil
 }
 
 // uiEvent is one sofa/tenfoot action in the debug ingest ring. It is not a

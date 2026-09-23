@@ -921,7 +921,7 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease bool) (sessionResult, error) {
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -1000,7 +1000,10 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 		}
 		s.mu.Unlock()
 	}
-	if st.State == protocol.StateIdle {
+	// Idle explicit Stop releases the kit lease. Sofa Soft-stop
+	// (retain_lease) keeps that grant for the room stay. A stop that
+	// does not reach idle, including reboot_required, never releases.
+	if st.State == protocol.StateIdle && !retainLease {
 		if owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error }); ok {
 			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			err := owner.ReleaseKitLease(releaseCtx)

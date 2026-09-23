@@ -1,11 +1,13 @@
 # Mesh LAN (design draft)
 
-**Status:** design draft awaiting Deano lock (2026-09-23). Caster's
-cast/kit contract review and Foggy's product review, both 2026-09-23,
-are folded into the recommended defaults and strawmen marked below.
+**Status:** merged as #131. Phase 1 is in progress under Bob; Deano
+merges parents. Still edit strawmen in place. Caster's cast/kit
+contract review and Foggy's product review, both 2026-09-23, are
+folded into the recommended defaults and strawmen marked below.
 Neither review is a design lock. The product intent under "Why this
-exists" is from Deano. Deano owns FES parent merge. This is not an
-implementation claim.
+exists" is from Deano. The execution brief is
+[`mesh-phase1.md`](mesh-phase1.md). This page is not an implementation
+claim for slices that brief still lists as open.
 
 **Audience:** FES parent, FogCast (rooms, tenfoot, host, target agent), and
 libmister-runtime session boundaries. Read
@@ -192,11 +194,13 @@ target may play while the first is still playing.
 
 Soft-stop and idle recovery stay kit-local in libmister-runtime. The
 mesh still states the lease policy rooms need, aligned with
-[`kit-sharing.md`](kit-sharing.md). Today, host
+[`kit-sharing.md`](kit-sharing.md). An empty-body
 `POST /api/v1/session/stop` that reaches idle releases the kit lease
-(`ReleaseKitLease` is the explicit user Stop). Replacement Stop and
-development `stop` retain. The mesh keeps that split and places sofa
-Soft-stop (B, back to the same room) on the retain side:
+(`ReleaseKitLease` is the explicit user Stop). Tenfoot rooms Soft-stop
+sends `{"retain_lease":true}` and keeps the grant after that same idle
+cleanup. Replacement Stop and development `stop` retain. The mesh keeps
+that split and places sofa Soft-stop (B, back to the same room) on the
+retain side:
 
 | Action | Hardware | Lease |
 | --- | --- | --- |
@@ -306,7 +310,7 @@ intent, not a claim that mesh code exists.
 | **Sitting down** | One shell (tenfoot rooms, browser, or kit grid) on one host's library, bound to configured kits. | Rooms and the library are one view of the LAN. OS, seat, and which disk holds a ROM stay hidden. |
 | **Picking a game** | Checking, Missing, Needs a choice, Unavailable, Ready against this host and the bound kit's packages. Each state already has its own Confirm behavior. | The same states, with the copy contract below. Phase 1 Ready stays bound-kit composition. Phase 2 Ready means this session can play here. |
 | **Playing** | Picture on the kit HDMI. Pad on the kit, or host input attached to the foreground session. A host V4L2 preview, when configured, is a local preview. | For FPGA execute the picture is the kit DisplaySink. A capture preview is not that sink. Where execute ran is not a prompt. |
-| **Soft-stop (B)** | B while now-playing is session Stop. That idle Stop releases the kit lease today. Replacement Stop and development `stop` already retain. | Same room. Defined idle. Observing shells clear "playing." Soft-stop retains the lease through the room stay. A separate explicit user Stop still releases after cleanup. |
+| **Soft-stop (B)** | Tenfoot now-playing stop posts `retain_lease: true` and keeps the lease. Empty-body session stop (CLI, browser, kit grid) still releases. Replacement Stop and development `stop` retain. | Same room. Defined idle. Observing shells clear "playing." Soft-stop retains the lease through the room stay. A separate explicit user Stop still releases after cleanup. |
 | **Renewer disappears** | The kit lease expires in about 90 seconds if renewal stops. The holder loses mutations. The kit is not taken early. | The sofa leaves the half-active session. Other shells see the executor free only after expiry and cleanup. |
 | **Another computer on the LAN** | Its own host and catalog, if someone started one. No shared rooms view. | The same rooms and games, subject to leases and version skew. |
 | **Kit alone** | `fogcast-kit` grid today. Locked direction: the same host binary (kit-as-host), not a second library. | Shell is just a capability on that node. Still one catalog: rooms. |

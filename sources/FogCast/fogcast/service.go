@@ -2608,6 +2608,7 @@ func (s *Service) ShutdownCleanupRequired() bool {
 }
 
 // ReleaseKitLease is for an explicit user Stop after input/media cleanup.
+// Sofa Soft-stop (session stop with retain_lease) does not call it.
 // Replacement Stop retains ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
 	s.executionMu.Lock()

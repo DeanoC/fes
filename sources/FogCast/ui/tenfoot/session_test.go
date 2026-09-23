@@ -121,7 +121,7 @@ func TestAppPollsSessionParksAndStops(t *testing.T) {
 	stopCount := stops
 	body := stopBody
 	mu.Unlock()
-	if stopCount != 1 || body != "" {
+	if stopCount != 1 || body != `{"retain_lease":true}` {
 		t.Fatalf("stops=%d body=%q", stopCount, body)
 	}
 

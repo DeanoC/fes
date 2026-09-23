@@ -318,11 +318,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerDevelopmentMediaRoute(mux, session)
 	registerLiveMediaSessionRoutes(mux, session)
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
-		stamp, err := decodeOptionalStopStamp(w, r)
+		stamp, retainLease, err := decodeOptionalStopRequest(w, r)
 		if err != nil {
 			return
 		}
-		result, err := session.stop(r.Context(), stamp)
+		result, err := session.stop(r.Context(), stamp, retainLease)
 		if err != nil {
 			writeSessionError(w, err)
 			return

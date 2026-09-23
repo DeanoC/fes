@@ -123,8 +123,10 @@ func (c *Client) Stop(ctx context.Context) (hostclient.SessionResult, error) {
 	return c.StopStamped(ctx, ClientStampNow())
 }
 
+// StopStamped is the rooms Soft-stop: now-playing B, Esc, Backspace, or s
+// returns to the same room and keeps the kit lease.
 func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
-	return c.Client.StopStamped(ctx, hostStamp(stamp))
+	return c.Client.StopRetainLease(ctx, hostStamp(stamp))
 }
 
 // SessionEvents loads GET /api/v1/session/events?after=N (JSON poll, not SSE).

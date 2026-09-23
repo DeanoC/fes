@@ -246,7 +246,7 @@ shelf, the sofa returns to All. Attract does not arm while the view picker,
 manage/confirm, name OSK, search OSK, filter overlay, settings overlay, or an in-flight
 remote-input attach/detach is open. Hold
 North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
-East/B stops it (`POST /api/v1/session/stop`); Start still quits the app.
+East/B stops it (`POST /api/v1/session/stop` with `retain_lease: true`); Start still quits the app.
 West/X attaches or detaches remote input when the session is `active` with
 `execution=fpga_native` and input is not `starting` or `reconnecting`. Browse
 header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
@@ -454,7 +454,8 @@ make tenfoot-smoke
   keyboard HID uses this path; a foreign or recovery-required kit lease is
   fail-closed. `fes.keyboard` posts ZX81 matrix codes; native SNES/MD post
   gamepad buttons so reconnect replay cannot treat those keys as axes.
-- `POST /api/v1/session/stop` with an empty body. Offered while the session is
+- `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
+  keeps the kit lease (rooms Soft-stop). Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
   Esc/Backspace, or `s`). Esc/Backspace still stop while play HID is attached;
   letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep

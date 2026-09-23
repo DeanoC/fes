@@ -55,8 +55,10 @@ compiling does not claim the kit. The CLI streams files through the existing
 FogCast development-RBF endpoint; it does not change artifact/build recipes.
 
 The normal FogCast host shares one lease between launches and remote input.
-Explicit user Stop releases it after cleanup; Stop used when replacing a game
-retains it. A client without ownership cannot claim merely to Stop another
+Explicit user Stop (empty-body `POST /api/v1/session/stop`) releases it after
+cleanup. Sofa Soft-stop (tenfoot now-playing B, with `retain_lease: true`)
+keeps the grant after that cleanup. Stop used when replacing a game retains
+it. A client without ownership cannot claim merely to Stop another
 session. Losing renewal disables that client's mutations rather than taking
 the kit back automatically; restart the client after resolving ownership.
 

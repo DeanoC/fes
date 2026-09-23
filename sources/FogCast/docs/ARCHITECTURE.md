@@ -517,7 +517,7 @@ Native SDL3 UI
   -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
   -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
-  -> POST /api/v1/session/stop (empty body or optional client stamp JSON; X-FogCast-Client-* headers)
+  -> POST /api/v1/session/stop (empty body releases the kit lease; optional client stamp JSON; retain_lease true keeps it; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
@@ -828,8 +828,10 @@ remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
 hardware. Stop, input detach and reboot require an existing grant and never
 claim someone else's active session. Replacement operations retain the grant.
-Explicit public Stop releases its grant after input/media/hardware cleanup;
-replacement Stop retains ownership for the next launch. Application shutdown
+Explicit public Stop (empty body, or `retain_lease` false) releases its grant
+after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
+that same route and keeps the grant after idle cleanup. Replacement Stop
+retains ownership for the next launch. Application shutdown
 releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean

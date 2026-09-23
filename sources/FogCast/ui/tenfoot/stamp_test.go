@@ -72,7 +72,7 @@ func TestClientLaunchAndStopSendStampHeaders(t *testing.T) {
 	if stopped.FlightID != stamp.FlightID {
 		t.Fatalf("stop flight_id = %q", stopped.FlightID)
 	}
-	if stopBody != "" {
+	if stopBody != `{"retain_lease":true}` {
 		t.Fatalf("stop body = %q", stopBody)
 	}
 	if stopHeaders.Get(headerFlightID) != stamp.FlightID {
