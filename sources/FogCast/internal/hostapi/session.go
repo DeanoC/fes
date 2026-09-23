@@ -928,7 +928,14 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	// Capture host idle before probing the currently selected target. After
+	// Soft-stop, idle settings may select an unrelated kit; that probe must
+	// not hide retained grants from an explicit Stop.
+	alreadyIdle := s.idleWithoutPlay()
 	if _, err := s.developmentActive(ctx); err != nil {
+		if relErr := s.releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease); relErr != nil {
+			return sessionResult{}, relErr
+		}
 		return sessionResult{}, fogcast.WithStopStage(err, "development_probe")
 	}
 	s.ensureFlight()
@@ -973,6 +980,9 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 			}
 			cancel()
 		}
+		if relErr := s.releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease); relErr != nil {
+			return sessionResult{}, relErr
+		}
 		return sessionResult{}, serviceErr
 	}
 	if inputErr != nil {
@@ -1005,17 +1015,38 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	// selected_target. Sofa Soft-stop (retain_lease) keeps those grants.
 	// A stop that does not reach idle, including reboot_required, never releases.
 	if st.State == protocol.StateIdle && !retainLease {
-		if owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error }); ok {
-			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err := owner.ReleaseKitLease(releaseCtx)
-			cancel()
-			if err != nil {
-				return sessionResult{}, fogcast.WithStopStage(err, "lease_release")
-			}
+		if err := s.releaseKitLeaseNow(); err != nil {
+			return sessionResult{}, err
 		}
 	}
 	s.recordStamp("session.stop", result, nil, stamp)
 	return result, nil
+}
+
+func (s *sessionCoordinator) idleWithoutPlay() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.execution == "" && s.mediaHandle == nil && !s.packageOwned
+}
+
+func (s *sessionCoordinator) releaseKitLeaseNow() error {
+	owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error })
+	if !ok {
+		return nil
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := owner.ReleaseKitLease(releaseCtx); err != nil {
+		return fogcast.WithStopStage(err, "lease_release")
+	}
+	return nil
+}
+
+func (s *sessionCoordinator) releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease bool) error {
+	if retainLease || !alreadyIdle {
+		return nil
+	}
+	return s.releaseKitLeaseNow()
 }
 
 func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,7 +32,14 @@ func TestExplicitStopReleasesKitOnlyAfterCleanup(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "failure"}[fail], func(t *testing.T) {
 			order := []string{}
-			base := &fakeService{status: protocol.Status{State: protocol.StateIdle}, stopped: protocol.Status{State: protocol.StateIdle}, order: &order}
+			gameID := "cleanup-game"
+			observed := "CORE"
+			base := &fakeService{
+				status:  protocol.Status{State: protocol.StateIdle},
+				stopped: protocol.Status{State: protocol.StateIdle},
+				launch:  protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, ObservedCore: &observed}},
+				order:   &order,
+			}
 			if fail {
 				base.stopErr = errors.New("cleanup failed")
 			}
@@ -42,7 +50,20 @@ func TestExplicitStopReleasesKitOnlyAfterCleanup(t *testing.T) {
 				}
 				order = append(order, "lease.release")
 			}}
-			response := serve(t, hostapi.New(service, hostapi.WithRemoteInput(input)), http.MethodPost, "/api/v1/session/stop")
+			handler := hostapi.New(service, hostapi.WithRemoteInput(input))
+			if fail {
+				launch := httptest.NewRequest(http.MethodPost, "/api/v1/session/launch", strings.NewReader(`{"game_id":"cleanup-game"}`))
+				launch.Host = "127.0.0.1"
+				launch.Header.Set("Content-Type", "application/json")
+				launchResponse := httptest.NewRecorder()
+				handler.ServeHTTP(launchResponse, launch)
+				if launchResponse.Code != http.StatusOK {
+					t.Fatalf("launch: %d %s", launchResponse.Code, launchResponse.Body.String())
+				}
+				order = order[:0]
+				input.detach = nil
+			}
+			response := serve(t, handler, http.MethodPost, "/api/v1/session/stop")
 			if fail {
 				if service.releases != 0 {
 					t.Fatal("released after failed cleanup")
@@ -152,5 +173,54 @@ func TestSoftStopRecordsIdleThenExplicitStopReleases(t *testing.T) {
 	handler.ServeHTTP(explicitResponse, explicit)
 	if explicitResponse.Code != http.StatusOK || service.releases != 1 {
 		t.Fatalf("explicit stop = %d releases=%d body=%s", explicitResponse.Code, service.releases, explicitResponse.Body.String())
+	}
+}
+
+func TestExplicitIdleStopReleasesWhenSelectedTargetUnavailable(t *testing.T) {
+	unavailable := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+	foreign := &protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "kit lease is foreign; HID is fail-closed"}
+	cases := []struct {
+		name    string
+		body    string
+		after   func(*fakeService)
+		wantRel int
+	}{
+		{name: "selected stop fails", after: func(s *fakeService) { s.stopErr = unavailable }, wantRel: 1},
+		{name: "selected probe fails", after: func(s *fakeService) { s.statusErr = unavailable }, wantRel: 1},
+		{name: "foreign selected session", after: func(s *fakeService) { s.stopErr = foreign }, wantRel: 1},
+		{name: "soft-stop keeps grant", body: `{"retain_lease":true}`, after: func(s *fakeService) { s.stopErr = unavailable }, wantRel: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			base := &fakeService{status: protocol.Status{State: protocol.StateIdle}, stopped: protocol.Status{State: protocol.StateIdle}}
+			service := &leasedService{fakeService: base}
+			handler := hostapi.New(service)
+			soft := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"retain_lease":true}`))
+			soft.Host = "127.0.0.1"
+			soft.Header.Set("Content-Type", "application/json")
+			softResponse := httptest.NewRecorder()
+			handler.ServeHTTP(softResponse, soft)
+			if softResponse.Code != http.StatusOK || service.releases != 0 {
+				t.Fatalf("soft-stop = %d releases=%d body=%s", softResponse.Code, service.releases, softResponse.Body.String())
+			}
+			tc.after(base)
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", body)
+			request.Host = "127.0.0.1"
+			if tc.body != "" {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code == http.StatusOK {
+				t.Fatalf("unavailable stop succeeded: %s", response.Body.String())
+			}
+			if service.releases != tc.wantRel {
+				t.Fatalf("releases = %d, want %d; body=%s", service.releases, tc.wantRel, response.Body.String())
+			}
+		})
 	}
 }
