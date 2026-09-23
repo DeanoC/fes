@@ -27,6 +27,7 @@ class ROMMapTests(unittest.TestCase):
 
         rows = tuple(range(32, 56)) + tuple(range(73, 81))
         self.assertEqual(rom_map.SMS_LANE_ROWS, rows)
+        self.assertEqual(rom_map.SG1000_LANE_ROWS, tuple(range(32, 48)))
         with self.assertRaises(ValueError):
             rom_map.validate_routed_rom({}, ())
         routed = {'modules': {'top': {'cells': {

@@ -21,6 +21,7 @@ except ImportError:
 DATABASE_FILES = ('data/m10k-mux.txt', 'libmistral/cvd-sx120f.cc', 'libmistral/cyclonev.h')
 ZX81_LANE_ROWS = tuple(range(73, 81))
 SMS_LANE_ROWS = tuple(range(32, 56)) + ZX81_LANE_ROWS
+SG1000_LANE_ROWS = tuple(range(32, 48))
 
 
 def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, bytes]:

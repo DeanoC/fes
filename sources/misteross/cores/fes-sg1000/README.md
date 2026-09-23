@@ -1,4 +1,4 @@
-# FES SG-1000 first slice
+# FES SG-1000 package
 
 This directory is a described FES core, not an `experiments/` place-and-route
 test. The core lane is [docs/cores.md](../../docs/cores.md).
@@ -17,15 +17,16 @@ This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using the
 Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). It seals a
-format-2 package from a clean tree. `fes.sg1000` is not registered in the
-parent recipe file and is not in the factory image.
+format-3 package from a clean tree. `fes.sg1000` is a package-only parent
+recipe; it is not in the factory image.
 
 ## Implemented first slice
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
-- Raw 1–16 KiB mailbox media blob mapped at `0x0000–0x3fff`. There is no BIOS
-  and no reset shim; reset fetches the cartridge.
+- Exact 16 KiB `cartridge-rom` linked into the RBF before FPGA download,
+  mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
+  library import. There is no BIOS or reset shim; reset fetches the cartridge.
 - 1 KiB CPU RAM at `0xc000–0xc3ff`, mirrored through `0xffff`.
 - TMS9918-style VDP ports `0xbe` / `0xbf` and the Coleco Graphics I / bounded
   Graphics II path.
@@ -35,14 +36,14 @@ parent recipe file and is not in the factory image.
 
 Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges, expansion
 hardware and cycle-perfect clocking remain outside this slice. The OSS
-producer can seal from a clean tree. Parent recipe registration is a separate
-decision: `fes.sg1000` is not registered and is not in the factory image.
+producer can seal from a clean tree; the package-only recipe does not change
+the factory image.
 
 ## Memory and host interfaces
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x3fff` | 16 KiB cartridge aperture (mailbox blob) |
+| `0x0000–0x3fff` | 16 KiB linked cartridge aperture |
 | `0x4000–0xbfff` | unmapped; reads `ff` |
 | `0xc000–0xffff` | mirrored 1 KiB CPU RAM |
 | I/O `0xbe` | VDP data |
@@ -50,10 +51,11 @@ decision: `fes.sg1000` is not registered and is not in the factory image.
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
-The mailbox, keyboard rows, media handshake, build identity and fixed-video
-interfaces are the existing `fes.simple-computer` boundary. The host holds
-execution reset while uploading and commits media before releasing it. CPU and
-VDP reset remain asserted until `media_ready && media_loaded`.
+The keyboard rows, build identity and fixed-video interfaces use the existing
+`fes.simple-computer` boundary. The format-3 manifest requires no startup
+`fes.media.blob`; the host and target agent link the selected cartridge before
+programming, then release reset. The diagnostic mailbox build still exercises
+the legacy media handshake in simulation and the Quartus oracle.
 
 VDP interrupt still connects to Z80 NMI. The cartridge itself occupies
 `0x0066`; there is no Coleco `JP 0x8066` shim.
@@ -116,6 +118,10 @@ It is host simulation, not hardware acceptance.
 `FES_SG1000_OSS`; the shared `coleco_dpram` / `coleco_vdp` OSS shapes are
 gated on `FES_COLECO_OSS`. Both defines are required.
 
+`make sim-fes-sg1000-rom-link` tests the production ROM path with a padded
+16 KiB diagnostic cartridge. It executes with `media_ready=0`, proving that
+the linked cartridge does not depend on a startup media upload.
+
 `make sim-fes-sg1000-quartus` checks the Quartus `altsyncram` RAM/media
 branches with a locally supplied Quartus 17 `altera_mf.v` and Icarus Verilog.
 
@@ -124,10 +130,13 @@ for `fes.sg1000` 1.0.0. It requires a clean committed tree, writes
 `build/fes-sg1000-quartus/build-inputs.json`, embeds that build id, and seals
 a format-2 package when timing passes. It does not program hardware.
 
-`make build-fes-sg1000` is the OSS recipe (`scripts/build_fes_sg1000_oss.py`).
+`make build-fes-sg1000` is the format-3 OSS recipe
+(`scripts/build_fes_sg1000_oss.py`). It exports a blank 16-lane M10K ROM and
+authenticated `rom-map.json` for the target agent's Go linker. The manifest
+requires one exact 16 KiB `cartridge-rom` and no startup media blob.
 It copies Coleco `constraints-oss.qsf` and `clocks-oss.sdc`, and selects
-the shared `toolchains/registered-memory.lock`. Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and
+the shared `toolchains/registered-memory.lock`. Yosys defines
+`TV80_REFRESH=1`, `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. `--synth-only` runs Yosys on a dirty tree and does not
-seal. HIP `--router gpu` of the synth-only netlist is recorded in the dated
-gap ladder (R13). That note is not a sealed-bitstream acceptance. `fes.sg1000`
-is not registered in the parent recipe file and is not in the factory image.
+seal. A prior synth-only gap ladder is not sealed-bitstream or hardware
+acceptance. `fes.sg1000` remains outside the factory image.

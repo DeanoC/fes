@@ -31,7 +31,7 @@ class RecipeRegistryTest(unittest.TestCase):
 
     def assert_existing_descriptors(self):
         self.assertTrue(
-            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms"}
+            {"fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000"}
             <= recipes.FORMAT2_RECIPES.keys())
         expected = {
             "fes.pong": {
@@ -69,6 +69,15 @@ class RecipeRegistryTest(unittest.TestCase):
                 "authenticate": "_authenticate_sms_tools",
                 "package_dir_env": "FES_SMS_PACKAGE_DIR",
                 "package_selection_env": "FES_SMS_PACKAGE_SELECTION",
+            },
+            "fes.sg1000": {
+                "producer_script": "scripts/build_fes_sg1000_oss.py",
+                "producer_module": "scripts.build_fes_sg1000_oss",
+                "lock_path": "toolchains/registered-memory.lock",
+                "selection_filename": "fes-sg1000.package-selection.toml",
+                "authenticate": "_authenticate_sg1000_tools",
+                "package_dir_env": "FES_SG1000_PACKAGE_DIR",
+                "package_selection_env": "FES_SG1000_PACKAGE_SELECTION",
             },
         }
         for core_id, fields in expected.items():

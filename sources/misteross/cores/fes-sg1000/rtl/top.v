@@ -89,6 +89,15 @@ module top #(
         .gpi(fpga_to_hps),
         .exec_reset(exec_reset),
         .keyboard(keyboard),
+`ifdef FES_SG1000_ROM_LINK
+        .media_ready(),
+        .media_size(),
+        .media_byte0(),
+        .media_byte1(),
+        .media_byte2(),
+        .media_addr(14'd0),
+        .media_q()
+`else
         .media_ready(media_ready),
         .media_size(media_size),
         .media_byte0(),
@@ -96,6 +105,7 @@ module top #(
         .media_byte2(),
         .media_addr(media_addr),
         .media_q(media_data)
+`endif
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -103,10 +113,17 @@ module top #(
         .clk_sys(clk_sys),
         .reset(exec_reset),
         .keyboard(keyboard),
+`ifdef FES_SG1000_ROM_LINK
+        .media_ready(1'b0),
+        .media_size(15'd0),
+        .media_data(8'hff),
+        .media_addr(),
+`else
         .media_ready(media_ready),
         .media_size(media_size),
         .media_data(media_data),
         .media_addr(media_addr),
+`endif
         .peek_addr(16'h0000),
         .peek_data(),
         .controller1_value(),

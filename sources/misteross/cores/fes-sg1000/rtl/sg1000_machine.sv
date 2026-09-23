@@ -43,7 +43,11 @@ module sg1000_machine (
     // MEDIA_COMMIT acknowledges the mailbox, not the subsequent cartridge
     // copy. An immediate host RELEASE must not let the CPU fetch partly
     // copied code or let the VDP run until the final write.
+`ifdef FES_SG1000_ROM_LINK
+    wire      machine_reset = reset;
+`else
     wire      machine_reset = reset || !media_ready || !media_loaded;
+`endif
 `ifdef FES_SG1000_REGISTERED_MEDIA
     reg       media_data_valid;
     reg       media_request_done;
@@ -107,9 +111,11 @@ module sg1000_machine (
                                 keyboard[8], keyboard[7], keyboard[5]};
 
     initial begin
+`ifndef FES_SG1000_ROM_LINK
         media_addr = 14'h0000;
         media_loaded = 1'b0;
         reset_d = 1'b0;
+`endif
         vdp_write_seen = 1'b0;
 `ifdef FES_SG1000_REGISTERED_MEDIA
         media_data_valid = 1'b0;
@@ -182,7 +188,18 @@ module sg1000_machine (
     wire peek_ram_select = peek_addr[15:14] == 2'b11;
     wire peek_cartridge_select = peek_addr[15:14] == 2'b00;
     wire ppi_select = cpu_addr[7:2] == 6'b110111;
+    wire [7:0] cartridge_read;
+    wire [7:0] cartridge_peek;
+    wire [7:0] ram_read;
+    wire [7:0] ram_peek;
 
+`ifdef FES_SG1000_ROM_LINK
+    always @* media_addr = 14'd0;
+    sg1000_rom_link rom (
+        .address(cpu_addr[13:0]), .data(cartridge_read),
+        .peek_address(peek_addr[13:0]), .peek_data(cartridge_peek)
+    );
+`else
 `ifdef FES_SG1000_REGISTERED_MEDIA
     wire media_load_write = !media_loaded && media_ready && media_data_valid;
     wire [13:0] cartridge_address_a = media_load_write ? media_write_addr :
@@ -194,11 +211,6 @@ module sg1000_machine (
                                       cpu_addr[13:0];
     wire cartridge_wren_a = media_load_active;
 `endif
-    wire [7:0] cartridge_read;
-    wire [7:0] cartridge_peek;
-    wire [7:0] ram_read;
-    wire [7:0] ram_peek;
-
     coleco_dpram #(
         .ADDRWIDTH(14),
         .NUMWORDS(16384)
@@ -213,6 +225,7 @@ module sg1000_machine (
         .wren_b(1'b0),
         .q_b(cartridge_peek)
     );
+`endif
 
     coleco_dpram #(
         .ADDRWIDTH(10),
@@ -250,6 +263,7 @@ module sg1000_machine (
         end
     end
 
+`ifndef FES_SG1000_ROM_LINK
     always @(posedge clk_sys) begin
         reset_d <= reset;
         if (!media_ready || (reset && !reset_d)) begin
@@ -291,6 +305,7 @@ module sg1000_machine (
 `endif
         end
     end
+`endif
 
     always @* begin
         peek_data = 8'hff;

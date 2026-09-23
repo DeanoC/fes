@@ -26,7 +26,7 @@ module does not put a package on that image.
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/registered-memory.lock` | `make build-fes-coleco` | yes |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sms` | no; package-only recipe |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | no; not registered |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | package-only |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
@@ -108,11 +108,12 @@ SMS place-and-route is a first-pass search: it starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300. Final structured `clk_sys`
 and `pixel_clk` rows must meet 52 MHz and 74.25 MHz.
 
-SG-1000's producer seals from a clean tree at seed 4. The 2026-09-16 gap
-ladder records a HIP route of the synth-only netlist (`BUILD_ID` all zeros),
-not a sealed bitstream. A sealed `BUILD_ID` is a different placement. The
-package is not registered in `config/core-recipes.toml` and is not in the
-factory image.
+SG-1000's format-3 producer seals from a clean tree at seed 4. It exports a
+blank 16 KiB cartridge ROM and authenticated map for download-time linking.
+The 2026-09-16 gap ladder records a HIP route of the earlier synth-only
+netlist (`BUILD_ID` all zeros), not acceptance of the new sealed bitstream.
+The package-only recipe is registered in `config/core-recipes.toml` and is not
+in the factory image.
 
 5. Stop at the RBF unless the task also includes a parent change. Registering
    a recipe, preparing a package, and kit use are FES steps:
@@ -184,7 +185,7 @@ framebuffer `0x002f`. Idle handling must not send those commands.
   image. Historical parent pins and launch/Stop records do not accept HDMI
   audio on a bitstream built later. Kit HDMI-audio acceptance of the current
   tree is not recorded here.
-- `fes.sg1000` has a seal producer and is not a parent recipe. A historical
+- `fes.sg1000` has a package-only parent recipe. A historical
   launch/Stop note does not accept the current bitstream, and it does not
   make the package part of the factory image.
 - Coleco audio is in the core (`make sim-fes-coleco-audio`, shared SN76489

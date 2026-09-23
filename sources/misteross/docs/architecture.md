@@ -19,7 +19,7 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81 and SMS packages use format 3 to seal their ROM maps; other producers keep
+ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other producers keep
 format 2. The external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
 
@@ -632,11 +632,13 @@ The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 Ki
 RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
 shim.
 
-`make sim-fes-sg1000` is the default Verilator machine check
+`make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
 machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,
 `coleco_dpram` M10K TDP, and the registered four-copy VDP are the shapes
 Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.
+`make sim-fes-sg1000-rom-link` tests the product shape with an exact 16 KiB
+diagnostic cartridge and no media handshake.
 
 `make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never
@@ -646,14 +648,17 @@ and timing evidence without sealing.
 `make build-fes-sg1000` is the OSS producer
 (`scripts/build_fes_sg1000_oss.py`). It uses `toolchains/registered-memory.lock`
 (Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
-Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
+Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`,
+`FES_SG1000_ROM_LINK=1`, and `FES_COLECO_OSS=1`. The product RBF contains a
+blank 16-lane M10K cartridge, and the format-3 package carries a validated
+`rom-map.json` and exact 16 KiB `cartridge-rom` requirement. Reset is not
+held for an application media upload.
 `--synth-only` runs Yosys without a clean tree and does not seal. HIP
 `--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
-the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. Format-2
-seal still requires a clean tree; a sealed BUILD_ID changes the placement
-search space. `fes.sg1000` is not registered in the parent recipe file and
-is not in the factory image. A historical launch/Stop record does not accept
-the current bitstream.
+the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. A sealed
+BUILD_ID changes the placement search space. `fes.sg1000` is registered as a
+package-only parent recipe and is not in the factory image. A historical
+launch/Stop record does not accept the current bitstream.
 
 ## FES Master System Quartus oracle and OSS recipe
 
