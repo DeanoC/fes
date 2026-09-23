@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
@@ -461,6 +462,30 @@ func meshNodeFrom(n discovery.ObservedNode) MeshNode {
 // shell's retained grant is not busy.
 func (s *Service) kitLeaseForeign() bool {
 	return s.TargetConnection().State == "busy"
+}
+
+// launchUsesForeignKit reports an FPGA launch that would use the kit whose
+// cached connection is held by another session. Host-only execution does not
+// use that kit. A different named target does not use the selected connection.
+func (s *Service) launchUsesForeignKit(target, execution string) bool {
+	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
+		return false
+	}
+	conn := s.TargetConnection()
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	name := strings.TrimSpace(target)
+	if name == "" {
+		name = s.selectedTarget
+	}
+	cfg := targetByName(s.targets, name)
+	if conn.TargetID != "" && cfg.TargetID != "" {
+		return conn.TargetID == cfg.TargetID
+	}
+	if conn.Address != "" && cfg.Address != "" {
+		return conn.Address == cfg.Address
+	}
+	return name == s.selectedTarget
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {

@@ -763,14 +763,14 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	// A foreign holder already reconciled as busy. Play stops here so this
-	// host does not claim or take over that kit. Generation takeover stays
-	// on the kit lease API.
-	if s.kitLeaseForeign() {
-		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
-	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
+			// A core entry executes on an FPGA kit. Deny only the kit whose
+			// connection is already held elsewhere; another named target does
+			// not use that lease. Generation takeover stays on the kit lease API.
+			if s.launchUsesForeignKit(target, ExecutionFPGANative) {
+				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+			}
 			return s.launchCoreEntry(ctx, gameID, target)
 		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
@@ -799,6 +799,17 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		}
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeInternal, safeContextError(admissionErr))
 	}
+	// Resolve execution before the lease decision, on the same path that skips
+	// target admission for host-only play. A foreign holder blocks only an
+	// FPGA launch aimed at that kit. Host-emulator play and a different named
+	// target do not claim or take over the lease.
+	execution, err := s.resolveExecution(ctx, admittedGame)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if s.launchUsesForeignKit(target, execution) {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+	}
 	if err := s.nativeCatalogAdmission(ctx, admittedGame); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
@@ -813,15 +824,9 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer s.clearUnstartedSessionTarget()
-	if s.protocolAdmissionEnabled() {
-		execution, err := s.SessionExecution(ctx, gameID)
-		if err != nil {
-			return protocol.CachedLaunchResponse{}, err
-		}
-		if execution != ExecutionHostOnly {
-			if _, err := s.refreshTargetAdmission(ctx); err != nil {
-				return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
-			}
+	if s.protocolAdmissionEnabled() && execution != ExecutionHostOnly {
+		if _, err := s.refreshTargetAdmission(ctx); err != nil {
+			return protocol.CachedLaunchResponse{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 		}
 	}
 	if err := s.incompatibleTargetError(); err != nil {

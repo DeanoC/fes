@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
@@ -72,24 +73,88 @@ func TestObserveMeshKeepsPhase0BindAndSilenceDoesNotRelease(t *testing.T) {
 	}
 }
 
-func TestForeignLeasePlayDoesNotClaimAndOwnedLaunchStillAdmits(t *testing.T) {
-	s := newService(Config{}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, &fakeServiceClient{})
+func TestForeignLeaseBlocksFPGALaunchOnTheBusyKit(t *testing.T) {
+	game := serviceGame(catalog.Content{})
+	client := &fakeServiceClient{}
+	store := &fakeServiceCatalog{games: []catalog.Game{game}}
+	s := newTestService(store, &fakeServicePreparer{}, client)
+	lease := &targetclient.KitLease{}
+	s.stoppedKitLeases = []*targetclient.KitLease{lease}
 	s.connection = TargetConnection{State: "busy", Owner: "other-shell"}
-	_, err := s.Launch(context.Background(), "snes-mario", nil)
-	var api *protocol.APIError
-	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
-		t.Fatalf("foreign play = %v", err)
+
+	for _, target := range []string{"", "dev"} {
+		_, err := s.LaunchOn(context.Background(), game.ID, target, nil)
+		var api *protocol.APIError
+		if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+			t.Fatalf("target %q = %v", target, err)
+		}
 	}
-	if s.catalog.(*fakeServiceCatalog).gameCalls != 0 {
-		t.Fatal("foreign play reached catalog admission")
+	if client.launchCalls != 0 || client.nativeLaunchCalls != 0 || client.coreCalls != 0 || client.healthCalls != 0 || client.statusCalls != 0 || client.stopCalls != 0 {
+		t.Fatalf("foreign kit launch contacted the target: %+v", client)
+	}
+	if len(s.stoppedKitLeases) != 1 || s.stoppedKitLeases[0] != lease {
+		t.Fatal("foreign denial released the retained grant")
 	}
 
 	s.connection = TargetConnection{State: "ready", Address: "http://192.0.2.10:8182"}
-	_, err = s.Launch(context.Background(), "snes-mario", nil)
+	_, err := s.Launch(context.Background(), game.ID, nil)
+	var api *protocol.APIError
 	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
 		t.Fatal("owned shell was treated as a foreign lease")
 	}
-	if s.catalog.(*fakeServiceCatalog).gameCalls == 0 {
-		t.Fatal("owned launch did not enter Phase 0 admission")
+	if store.gameCalls == 0 {
+		t.Fatal("owned launch did not enter catalog admission")
+	}
+}
+
+func TestForeignLeaseAllowsHostOnlyLaunch(t *testing.T) {
+	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	game := serviceGame(catalog.Content{})
+	game.Content = nil
+	prepared := preparedServiceFixture(t, []byte("rom"), identity)
+	client := &fakeServiceClient{}
+	adapter := &fakeHostExecutor{}
+	s := newTestServiceWithExecution(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{prepared: prepared}, client, ExecutionPolicy{
+		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+		Host:     adapter,
+	})
+	s.connection = TargetConnection{State: "busy", Owner: "other-shell"}
+
+	response, err := s.Launch(context.Background(), game.ID, nil)
+	if err != nil {
+		t.Fatalf("host launch = %v", err)
+	}
+	if response.Status.State != protocol.StateActive || adapter.launchCalls != 1 || adapter.contentPath != "rom" {
+		t.Fatalf("response=%+v calls=%d", response.Status, adapter.launchCalls)
+	}
+	if client.launchCalls != 0 || client.coreCalls != 0 || client.healthCalls != 0 || client.statusCalls != 0 {
+		t.Fatalf("host launch used the busy kit: %+v", client)
+	}
+	if s.activeExecution != ExecutionHostOnly || s.activeTarget != "" {
+		t.Fatalf("execution=%q target=%q", s.activeExecution, s.activeTarget)
+	}
+}
+
+func TestForeignLeaseAllowsDifferentNamedTarget(t *testing.T) {
+	s, dev, spare, entry := namedPackageFixture(t)
+	s.connection = TargetConnection{State: "busy", Owner: "other-shell", Address: "http://192.0.2.10:8182", TargetID: ""}
+
+	_, err := s.Launch(context.Background(), entry.GameID, nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+		t.Fatalf("default kit launch = %v", err)
+	}
+	if dev.coreCalls != 0 || spare.coreCalls != 0 {
+		t.Fatalf("default kit was contacted dev=%d spare=%d", dev.coreCalls, spare.coreCalls)
+	}
+
+	if _, err = s.LaunchOn(context.Background(), entry.GameID, "spare", nil); err != nil {
+		t.Fatalf("spare launch = %v", err)
+	}
+	if spare.coreCalls != 1 || dev.coreCalls != 0 {
+		t.Fatalf("loads dev=%d spare=%d", dev.coreCalls, spare.coreCalls)
+	}
+	if s.selectedTarget != "dev" {
+		t.Fatalf("selected target changed to %s", s.selectedTarget)
 	}
 }
