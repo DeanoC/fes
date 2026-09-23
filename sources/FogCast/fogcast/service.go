@@ -188,7 +188,9 @@ type Service struct {
 	nextLookup     time.Time
 	lookupFailures uint
 
-	stoppedKitLease         *targetclient.KitLease
+	// Grants captured by Stop and not yet released. Idle settings may drop
+	// the owning client; explicit ReleaseKitLease still frees each one.
+	stoppedKitLeases        []*targetclient.KitLease
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
 	activePackageID         string
@@ -1917,10 +1919,12 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration)
 	}
 	// Preserve the exact ownership used for this Stop even when its response
 	// is lost and the public session layer later reconciles idle via Status.
+	// Keep earlier grants too: an idle selected-target change rebuilds
+	// targetClients and would otherwise drop the only reference a later
+	// explicit release uses.
 	s.executionMu.Lock()
-	s.stoppedKitLease = nil
 	if leased, ok := client.(interface{ KitLease() *targetclient.KitLease }); ok {
-		s.stoppedKitLease = leased.KitLease()
+		s.stoppedKitLeases = retainStoppedKitLease(s.stoppedKitLeases, leased.KitLease())
 	}
 	s.executionMu.Unlock()
 	stage = "target_stop"
@@ -2608,12 +2612,32 @@ func (s *Service) ShutdownCleanupRequired() bool {
 }
 
 // ReleaseKitLease is for an explicit user Stop after input/media cleanup.
-// Sofa Soft-stop (session stop with retain_lease) does not call it.
+// It releases every grant captured by Stop since the previous release,
+// including a kit dropped from targetClients by an idle selected-target
+// change. Sofa Soft-stop (session stop with retain_lease) does not call it.
 // Replacement Stop retains ownership so the next launch uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
 	s.executionMu.Lock()
-	lease := s.stoppedKitLease
-	s.stoppedKitLease = nil
+	leases := s.stoppedKitLeases
+	s.stoppedKitLeases = nil
 	s.executionMu.Unlock()
-	return lease.Release(ctx)
+	var first error
+	for _, lease := range leases {
+		if err := lease.Release(ctx); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+func retainStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.KitLease) []*targetclient.KitLease {
+	if lease == nil {
+		return leases
+	}
+	for _, existing := range leases {
+		if existing == lease {
+			return leases
+		}
+	}
+	return append(leases, lease)
 }

@@ -1000,9 +1000,10 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 		}
 		s.mu.Unlock()
 	}
-	// Idle explicit Stop releases the kit lease. Sofa Soft-stop
-	// (retain_lease) keeps that grant for the room stay. A stop that
-	// does not reach idle, including reboot_required, never releases.
+	// Idle explicit Stop releases every kit grant retained by prior Stops,
+	// including one whose client was dropped when idle settings changed
+	// selected_target. Sofa Soft-stop (retain_lease) keeps those grants.
+	// A stop that does not reach idle, including reboot_required, never releases.
 	if st.State == protocol.StateIdle && !retainLease {
 		if owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error }); ok {
 			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

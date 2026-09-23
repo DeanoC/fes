@@ -98,7 +98,8 @@ this acceptance for the kit contract.
 
 **Tests:** host session stop covers retain versus explicit release and
 an idle session record; service Stop keeps the same lease token until
-`ReleaseKitLease`; an owned held lease after idle stays ready; kit
+`ReleaseKitLease`, including after an idle selected-target change drops
+that kit's client; an owned held lease after idle stays ready; kit
 Select+Start posts an empty stop body. Kit HIL is optional and does
 not block merge.
 

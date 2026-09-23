@@ -316,7 +316,7 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 // The explicit development reboot already holds lifecycle admission and the
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
- selected := targetByName(s.targets, s.sessionTargetNameLocked())
+	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	concrete, ok := client.(*targetclient.Client)
 	if !ok || selected.TargetID == "" {
 		return client.Health
@@ -363,7 +363,7 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	}
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
-	s.stoppedKitLease = nil
+	s.stoppedKitLeases = nil
 	s.selectedTargetReconciled = false
 }
 

@@ -991,6 +991,132 @@ func TestSoftStopKeepsSameOwnerUntilExplicitRelease(t *testing.T) {
 	}
 }
 
+func TestSoftStopThenSelectedTargetChangeExplicitStopReleasesRetainedLease(t *testing.T) {
+	var devStopCalls, devReleaseCalls, spareReleaseCalls int
+	var devReleaseToken string
+	devServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"retained-dev"}`)
+		case "/v1/stop":
+			devStopCalls++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			devReleaseCalls++
+			devReleaseToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"free"}`)
+		case "/v1/development/reboot":
+			t.Error("retained-lease stop armed a development reboot")
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer devServer.Close()
+	spareServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/status":
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/stop":
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			spareReleaseCalls++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer spareServer.Close()
+	devBase, err := url.Parse(devServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spareBase, err := url.Parse(spareServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	devLease := targetclient.NewKitLease(devBase, "bearer", devServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer devLease.Close(context.Background())
+	devClient := targetclient.NewClient(devBase, "bearer", devServer.Client()).WithKitLease(devLease)
+	spareLease := targetclient.NewKitLease(spareBase, "bearer", spareServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer spareLease.Close(context.Background())
+	spareClient := targetclient.NewClient(spareBase, "bearer", spareServer.Client()).WithKitLease(spareLease)
+	claim, err := http.NewRequest(http.MethodPost, devServer.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := devLease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim lease: %v", err)
+	}
+	token := devLease.CurrentToken()
+	ctx := context.Background()
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: devServer.URL, Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: spareServer.URL, Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, devClient,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spareClient, nil
+			}
+			return devClient, nil
+		}),
+	)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+
+	status, err := service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop = %+v, %v", status, err)
+	}
+	if devStopCalls != 1 || devReleaseCalls != 0 || !devLease.Held() || devLease.CurrentToken() != token {
+		t.Fatalf("after soft-stop stop=%d release=%d held=%v token=%q", devStopCalls, devReleaseCalls, devLease.Held(), devLease.CurrentToken())
+	}
+	settings := LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: devServer.URL},
+			{Name: "spare", Enabled: true, Address: spareServer.URL},
+		},
+		SelectedTarget: "spare",
+	}
+	if err := service.SetLibrarySettings(ctx, settings); err != nil {
+		t.Fatalf("selected target change: %v", err)
+	}
+	if service.LibrarySettings().SelectedTarget != "spare" || service.targetClients["dev"] != nil || service.targetClients["spare"] == nil {
+		t.Fatalf("selected=%q dev client dropped=%v spare present=%v", service.LibrarySettings().SelectedTarget, service.targetClients["dev"] == nil, service.targetClients["spare"] != nil)
+	}
+	if devReleaseCalls != 0 || !devLease.Held() {
+		t.Fatalf("settings change released retained lease: releases=%d held=%v", devReleaseCalls, devLease.Held())
+	}
+
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop on spare = %+v, %v", status, err)
+	}
+	if devReleaseCalls != 0 || !devLease.Held() || devLease.CurrentToken() != token {
+		t.Fatalf("stop before release freed retained lease: releases=%d held=%v token=%q", devReleaseCalls, devLease.Held(), devLease.CurrentToken())
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if devReleaseCalls != 1 || devReleaseToken != token || devLease.Held() || spareReleaseCalls != 0 {
+		t.Fatalf("devRelease=%d token=%q held=%v spareRelease=%d", devReleaseCalls, devReleaseToken, devLease.Held(), spareReleaseCalls)
+	}
+}
+
 func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {
 	payload := []byte("fcore")
 	packageStatus := protocol.Status{State: protocol.StateActive, Development: true,
