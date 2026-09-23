@@ -348,6 +348,16 @@ module top #(
                 .datain(dq_out[dq_bit]),
                 .dataout(dq_pin)
             );
+`ifdef RAM_OSS_HIGH_SPEED
+            // The OSS packer cannot attach DDR input capture to a
+            // bidirectional pad. Shift the PLL by the former falling-edge
+            // offset and sample the pad on the rising fabric clock instead.
+            reg dq_sample;
+            always @(posedge cap_clk)
+                dq_sample <= dq_pin;
+            assign dq_rise[dq_bit] = dq_sample;
+            assign dq_fall[dq_bit] = dq_sample;
+`else
             // Both edges are taken in the IO cell, on the capture clock.
             altddio_in #(
                 .width(1),
@@ -365,6 +375,7 @@ module top #(
                 .dataout_h(dq_rise[dq_bit]),
                 .dataout_l(dq_fall[dq_bit])
             );
+`endif
         end
     endgenerate
 

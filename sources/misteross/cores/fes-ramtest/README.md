@@ -26,8 +26,16 @@ data on a shifted clock in the input cells. The 130 MHz path also pipelines
 the captured data before the controller. The controller uses CAS latency 3
 at 130 MHz and CAS latency 2 at 100 MHz. A gamepad button stops a scan.
 
-The 50 MHz OSS build remains a separate path via `make build-fes-ramtest`;
-hardware acceptance of that path is still pending. The Quartus timing report
+The 50 MHz OSS build remains a separate path via `make build-fes-ramtest`.
+`make build-fes-ramtest-100` seals an experimental 100 MHz OSS package into
+`build/fes-ramtest-100/` using the pinned HIP nextpnr toolchain. The OSS packer
+does not support DDR input registers on bidirectional DQ pads, so that build
+uses a phase-shifted 100 MHz clock and a fabric input register. Its timing
+report covers the 100 MHz controller, capture, 50 MHz HPS and 74.25 MHz video
+domains. Hardware acceptance of the OSS package is pending. The pinned OSS
+PLL profiles do not yet include 130 MHz.
+
+The Quartus timing report
 covers internal setup paths but does not constrain external SDRAM I/O timing,
 so the full-memory hardware scan is the acceptance evidence for these rates.
 The HPS span is 256K steps starting at byte address `0x01000000`

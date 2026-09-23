@@ -178,7 +178,12 @@ interface, and gamepad interface. `make build-fes-ramtest` writes
 `build/fes-ramtest/core.rbf`. After execution release it pattern-tests the
 SDRAM addon and an HPS DDR window and prints the pattern, address, clock
 and error count. The SDRAM clock pin is the inverted DDR output used by
-MiSTer controllers. The OSS bitstream runs that clock at 50 MHz.
+MiSTer controllers. The default OSS bitstream runs that clock at 50 MHz;
+`make build-fes-ramtest-100` makes a separate experimental 100 MHz package.
+The latter samples the bidirectional DQ pads with phase-shifted fabric
+registers because the pinned OSS packer cannot put DDR input registers on
+those pads. The 100 MHz build has a four-domain timing gate but has not yet
+passed a full hardware scan. The pinned OSS PLL table stops at 100 MHz.
 `make build-fes-ramtest-quartus` compiles a fixed 130 MHz diagnostic with
 Quartus 17.0.2; `RAMTEST_MHZ=100` selects a separate 100 MHz diagnostic.
 Each tests the full SDRAM range at one rate and keeps the six pattern counts
