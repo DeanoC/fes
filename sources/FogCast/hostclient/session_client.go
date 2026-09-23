@@ -82,6 +82,12 @@ func (c *Client) StopRetainLease(ctx context.Context, stamp ClientStamp) (Sessio
 	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"retain_lease":true}`)), c.stopHTTP, stamp, "stop", "idle")
 }
 
+// ReleaseIdleGrants drops idle retained grants without stopping a play that
+// survived Soft-stop. The response may stay active when another play remains.
+func (c *Client) ReleaseIdleGrants(ctx context.Context, stamp ClientStamp) (SessionResult, error) {
+	return c.mutateSession(ctx, http.MethodPost, "/api/v1/session/stop", bytes.NewReader([]byte(`{"release_idle":true}`)), c.stopHTTP, stamp, "release", "")
+}
+
 func (c *Client) mutateSession(ctx context.Context, method, path string, body io.Reader, httpClient *http.Client, stamp ClientStamp, label, expectedState string) (SessionResult, error) {
 	req, err := c.NewRequest(ctx, method, path, body)
 	if err != nil {
@@ -115,7 +121,7 @@ func (c *Client) doSessionMutation(req *http.Request, httpClient *http.Client, l
 	if result.ErrorCode != "" {
 		return result, nil
 	}
-	if result.State != expectedState {
+	if expectedState != "" && result.State != expectedState {
 		return result, fmt.Errorf("%s response: expected %s session, got %q", label, expectedState, result.State)
 	}
 	return result, nil

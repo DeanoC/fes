@@ -1112,6 +1112,190 @@ func TestShellExitDoesNotReleaseActiveOrUnownedSession(t *testing.T) {
 	}
 }
 
+func TestShellExitDoesNotEmptyBodyStopPromotedPlay(t *testing.T) {
+	cases := []struct {
+		name     string
+		session  string
+		sessions string
+	}{
+		{name: "promoted session", session: `{"state":"active","game_id":"nes-still"}`},
+		{name: "session idle with surviving play", session: `{"state":"idle"}`, sessions: `{"sessions":[{"target":"kit-a","state":"active","game_id":"nes-still"}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var bodies []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+					_, _ = io.WriteString(w, tc.session)
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
+					if tc.sessions == "" {
+						http.NotFound(w, r)
+						return
+					}
+					_, _ = io.WriteString(w, tc.sessions)
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+					raw, _ := io.ReadAll(r.Body)
+					mu.Lock()
+					bodies = append(bodies, string(raw))
+					mu.Unlock()
+					_, _ = io.WriteString(w, tc.session)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+			app.retainedIdleLease = true
+			app.session.State = "idle"
+			app.Stop()
+			mu.Lock()
+			got := append([]string(nil), bodies...)
+			mu.Unlock()
+			if len(got) != 1 || got[0] != `{"release_idle":true}` {
+				t.Fatalf("stop bodies = %#v, want release_idle and no empty-body Stop", got)
+			}
+		})
+	}
+}
+
+func TestShellExitReleasesInFlightSoftStop(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []string
+	started := make(chan struct{})
+	releaseStop := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			bodies = append(bodies, string(raw))
+			mu.Unlock()
+			if string(raw) == `{"retain_lease":true}` {
+				close(started)
+				<-releaseStop
+			}
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.session.State = "active"
+	app.session.GameID = "snes-mario"
+	app.Press(CmdBack, time.Now())
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("soft-stop was not posted")
+	}
+	exited := make(chan struct{})
+	go func() {
+		app.Stop()
+		close(exited)
+	}()
+	select {
+	case <-exited:
+		t.Fatal("shell exit finished while Soft-stop was still in flight")
+	case <-time.After(200 * time.Millisecond):
+	}
+	mu.Lock()
+	if len(bodies) != 1 || bodies[0] != `{"retain_lease":true}` {
+		t.Fatalf("bodies before soft-stop completed = %#v", bodies)
+	}
+	mu.Unlock()
+	close(releaseStop)
+	select {
+	case <-exited:
+	case <-time.After(3 * time.Second):
+		t.Fatal("shell exit did not finish after Soft-stop")
+	}
+	mu.Lock()
+	got := append([]string(nil), bodies...)
+	mu.Unlock()
+	if len(got) != 2 || got[0] != `{"retain_lease":true}` || got[1] != "" {
+		t.Fatalf("shell-exit bodies = %#v", got)
+	}
+}
+
+func TestShellExitRetriesFailedLeaseRelease(t *testing.T) {
+	t.Run("api error", func(t *testing.T) {
+		assertShellExitReleaseRetries(t, func(w http.ResponseWriter, attempt int) bool {
+			if attempt < 3 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = io.WriteString(w, `{"error":{"code":"MISTER_UNAVAILABLE","message":"lease release failed"}}`)
+				return false
+			}
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+			return true
+		})
+	})
+	t.Run("transport error", func(t *testing.T) {
+		assertShellExitReleaseRetries(t, func(w http.ResponseWriter, attempt int) bool {
+			if attempt == 1 {
+				hj, ok := w.(http.Hijacker)
+				if !ok {
+					t.Fatalf("response cannot hijack")
+				}
+				conn, _, err := hj.Hijack()
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = conn.Close()
+				return false
+			}
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+			return true
+		})
+	})
+}
+
+func assertShellExitReleaseRetries(t *testing.T, respond func(http.ResponseWriter, int) bool) {
+	t.Helper()
+	var mu sync.Mutex
+	var bodies []string
+	var attempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			attempts++
+			n := attempts
+			bodies = append(bodies, string(raw))
+			mu.Unlock()
+			respond(w, n)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.retainedIdleLease = true
+	app.session.State = "idle"
+	app.Stop()
+	mu.Lock()
+	got := append([]string(nil), bodies...)
+	mu.Unlock()
+	if len(got) < 2 {
+		t.Fatalf("release attempts = %#v, want a retry", got)
+	}
+	for i, body := range got {
+		if body != "" {
+			t.Fatalf("attempt %d body = %q, want empty-body release", i, body)
+		}
+	}
+	if got[len(got)-1] != "" || len(got) > shellLeaseReleaseAttempts {
+		t.Fatalf("release attempts = %#v", got)
+	}
+}
+
 func TestAppSaveFailedEventLocksLaunchUntilStop(t *testing.T) {
 	var mu sync.Mutex
 	sessionJSON := `{"state":"active","game_id":"snes-mario"}`

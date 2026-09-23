@@ -928,7 +928,10 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease bool) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool) (sessionResult, error) {
+	if releaseIdle {
+		return s.releaseIdleGrants(ctx, stamp)
+	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
@@ -1039,6 +1042,25 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 		}
 	}
 	s.recordStamp("session.stop", result, nil, stamp)
+	return result, nil
+}
+
+// releaseIdleGrants drops retained grants that no longer back a play.
+// It does not call Service.Stop, so a promoted play keeps running.
+func (s *sessionCoordinator) releaseIdleGrants(ctx context.Context, stamp clientStamp) (sessionResult, error) {
+	if !s.begin() {
+		return sessionResult{}, busyError()
+	}
+	defer s.end()
+	if err := s.releaseKitLeaseNow(); err != nil {
+		return sessionResult{}, err
+	}
+	st, err := s.service.Status(ctx)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	result := s.publicSession(st, nil)
+	s.recordStamp("session.lease_release", result, nil, stamp)
 	return result, nil
 }
 

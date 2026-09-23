@@ -246,7 +246,7 @@ shelf, the sofa returns to All. Attract does not arm while the view picker,
 manage/confirm, name OSK, search OSK, filter overlay, settings overlay, or an in-flight
 remote-input attach/detach is open. Hold
 North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
-East/B stops it (`POST /api/v1/session/stop` with `retain_lease: true`) and keeps the kit lease while the shell stays up. Start, Q, or closing the window quits the app and, when that Soft-stop left an idle retained lease, posts an empty-body Stop so the host releases it.
+East/B stops it (`POST /api/v1/session/stop` with `retain_lease: true`) and keeps the kit lease while the shell stays up. Start, Q, or closing the window quits the app. That exit waits for an in-flight Soft-stop, then releases the idle grant: an empty-body Stop when the service is idle, or `release_idle` when a play still survives so that play is not stopped. A failed release is retried before the process exits.
 West/X attaches or detaches remote input when the session is `active` with
 `execution=fpga_native` and input is not `starting` or `reconnecting`. Browse
 header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
@@ -457,8 +457,10 @@ make tenfoot-smoke
 - `POST /api/v1/session/stop` with `{"retain_lease":true}` so idle cleanup
   keeps the kit lease (rooms Soft-stop). Offered while the session is
   active, a stop is in flight, or retry-Stop lockout is set (East/B,
-  Esc/Backspace, or `s`). Shell exit (Start, Q, or window close) posts the same
-  route with an empty body when this shell still owns that idle lease.
+  Esc/Backspace, or `s`). Shell exit (Start, Q, or window close) waits for
+  that in-flight Soft-stop. It then posts an empty body when the service is
+  idle, or `{"release_idle":true}` when a play still survives, and retries a
+  failed release. An empty body is not sent while a promoted play remains.
   Esc/Backspace still stop while play HID is attached;
   letter `s` stays a ZX81/core key on that path. SNES `save_failed` and other Stop errors that keep
   the session or lease retain launch lockout until a successful Stop.

@@ -20,14 +20,15 @@ import (
 )
 
 const (
-	coverWorkers         = 6
-	prefetchRows         = 2
-	maxInflight          = 8
-	coverJobBuffer       = 128
-	searchDebounce       = 280 * time.Millisecond
-	presentationRetryMin = 400 * time.Millisecond
-	presentationRetryMax = 8 * time.Second
-	sessionPollInterval  = time.Second
+	coverWorkers              = 6
+	prefetchRows              = 2
+	maxInflight               = 8
+	coverJobBuffer            = 128
+	searchDebounce            = 280 * time.Millisecond
+	presentationRetryMin      = 400 * time.Millisecond
+	presentationRetryMax      = 8 * time.Second
+	sessionPollInterval       = time.Second
+	shellLeaseReleaseAttempts = 3
 )
 
 var catalogSorts = []string{"title", "recently_added", "platform"}
@@ -370,8 +371,12 @@ type App struct {
 	sessionTitle           string
 	// retainedIdleLease is set when this shell's Soft-stop left the host idle
 	// and kept the kit lease. Shell exit releases it. B/Back does not.
-	retainedIdleLease  bool
-	shellExiting       bool
+	retainedIdleLease bool
+	// stopResponseLost is a Soft-stop whose transport failed after the host
+	// may already have retained the grant. Shell exit reconciles it.
+	stopResponseLost bool
+	// stopWait is closed when the in-flight Soft-stop goroutine returns.
+	stopWait           chan struct{}
 	sessionGen         int
 	stopPhase          string
 	stopMessage        string
@@ -576,11 +581,18 @@ func (a *App) Start(parent context.Context) {
 	go a.hydrateAttractIdle(ctx)
 }
 
-// Stop releases an idle lease this shell retained, then cancels background work.
+// Stop waits for an in-flight Soft-stop, releases an idle lease this shell
+// retained, then cancels background work.
 func (a *App) Stop() {
+	if a == nil {
+		return
+	}
 	a.mu.Lock()
-	a.shellExiting = true
+	done := a.stopWait
 	a.mu.Unlock()
+	if done != nil {
+		<-done
+	}
 	a.releaseOwnedIdleLease()
 	a.mu.Lock()
 	a.hideAttractLocked()
@@ -595,34 +607,87 @@ func (a *App) Stop() {
 	a.drainAttractResults()
 }
 
-// releaseOwnedIdleLease posts an explicit empty-body Stop when this shell
-// still owns an idle retained lease. An active play is left running.
+// releaseOwnedIdleLease posts the shell-exit release when this shell still
+// owns an idle retained lease or a Soft-stop response was lost. A surviving
+// play is not stopped: that path posts release_idle. A confirmed idle service
+// posts an empty-body Stop.
 func (a *App) releaseOwnedIdleLease() {
 	if a == nil {
 		return
 	}
 	a.mu.Lock()
 	client := a.client
-	release := a.retainedIdleLease && idleRetainedSession(a.session.State)
+	release := (a.retainedIdleLease && idleRetainedSession(a.session.State)) || a.stopResponseLost
 	var stamp ClientStamp
 	if release {
 		stamp = a.clientStampLocked()
-		a.retainedIdleLease = false
 	}
 	a.mu.Unlock()
 	if !release || client == nil {
 		return
 	}
-	postIdleLeaseRelease(client, stamp)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	view := observeLeaseExit(ctx, client)
+	cancel()
+	var releaseFn func(*Client, context.Context, ClientStamp) (hostclient.SessionResult, error)
+	switch view {
+	case leaseExitIdle:
+		releaseFn = (*Client).ReleaseIdleLease
+	default:
+		// A surviving play, or a service we could not read. release_idle does
+		// not stop the foreground. An empty-body Stop would.
+		releaseFn = (*Client).ReleaseIdleGrants
+	}
+	if postLeaseRelease(client, stamp, releaseFn) {
+		a.mu.Lock()
+		a.retainedIdleLease = false
+		a.stopResponseLost = false
+		a.mu.Unlock()
+	}
 }
 
-func postIdleLeaseRelease(client *Client, stamp ClientStamp) {
+type leaseExitView int
+
+const (
+	leaseExitUnknown leaseExitView = iota
+	leaseExitIdle
+	leaseExitPlaySurvives
+)
+
+func observeLeaseExit(ctx context.Context, client *Client) leaseExitView {
 	if client == nil {
-		return
+		return leaseExitUnknown
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = client.ReleaseIdleLease(ctx, stamp)
+	session, err := client.Session(ctx)
+	if err != nil || session.ErrorCode != "" {
+		return leaseExitUnknown
+	}
+	count, err := client.survivingPlayCount(ctx)
+	switch {
+	case err == nil && count > 0:
+		return leaseExitPlaySurvives
+	case err != nil && !errors.Is(err, errSessionsUnsupported):
+		return leaseExitUnknown
+	}
+	if !idleRetainedSession(session.State) {
+		return leaseExitPlaySurvives
+	}
+	return leaseExitIdle
+}
+
+func postLeaseRelease(client *Client, stamp ClientStamp, release func(*Client, context.Context, ClientStamp) (hostclient.SessionResult, error)) bool {
+	if client == nil || release == nil {
+		return false
+	}
+	for attempt := 0; attempt < shellLeaseReleaseAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		result, err := release(client, ctx, stamp)
+		cancel()
+		if err == nil && strings.TrimSpace(result.ErrorCode) == "" {
+			return true
+		}
+	}
+	return false
 }
 
 func idleRetainedSession(state string) bool {
@@ -1945,17 +2010,21 @@ func (a *App) startStopLocked() {
 		"game_id": a.session.GameID,
 		"state":   a.session.State,
 	})
-	go a.doStop(ctx, stamp)
+	done := make(chan struct{})
+	a.stopWait = done
+	go func() {
+		a.doStop(ctx, stamp)
+		a.mu.Lock()
+		if a.stopWait == done {
+			a.stopWait = nil
+		}
+		a.mu.Unlock()
+		close(done)
+	}()
 }
 
 func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	result, err := a.client.StopStamped(ctx, stamp)
-	var releaseAfterUnlock func()
-	defer func() {
-		if releaseAfterUnlock != nil {
-			releaseAfterUnlock()
-		}
-	}()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.stopPhase != "stopping" {
@@ -1966,6 +2035,9 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 		a.stopPhase = "error"
 		a.stopMessage = "stop failed: " + err.Error()
 		a.lockRetryStopLocked("", err.Error())
+		if result.ErrorCode == "" {
+			a.stopResponseLost = true
+		}
 		a.syncGPUParkLocked()
 		return
 	}
@@ -1983,14 +2055,8 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	a.stopMessage = ""
 	a.applySessionLocked(result)
 	if result.State == "" || result.State == "idle" {
-		if a.shellExiting {
-			client := a.client
-			releaseStamp := a.clientStampLocked()
-			a.retainedIdleLease = false
-			releaseAfterUnlock = func() { postIdleLeaseRelease(client, releaseStamp) }
-		} else {
-			a.retainedIdleLease = true
-		}
+		a.retainedIdleLease = true
+		a.stopResponseLost = false
 	}
 	a.kickSessionPollLocked()
 }

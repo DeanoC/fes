@@ -113,14 +113,16 @@ type stopBody struct {
 	FlightID     string `json:"flight_id"`
 	// RetainLease is sofa Soft-stop. Absent or false is the explicit user Stop.
 	RetainLease bool `json:"retain_lease"`
+	// ReleaseIdle drops idle retained grants and does not stop a surviving play.
+	ReleaseIdle bool `json:"release_idle"`
 }
 
-func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, error) {
+func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientStamp, bool, bool, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-		return clientStamp{}, false, err
+		return clientStamp{}, false, false, err
 	}
 	body = bytes.TrimSpace(body)
 	var parsed stopBody
@@ -129,14 +131,18 @@ func decodeOptionalStopRequest(w http.ResponseWriter, r *http.Request) (clientSt
 		decoder.DisallowUnknownFields()
 		if err := decoder.Decode(&parsed); err != nil {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must be empty or one JSON object")
-			return clientStamp{}, false, err
+			return clientStamp{}, false, false, err
 		}
 		if err := decoder.Decode(&struct{}{}); err != io.EOF {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request body must contain exactly one JSON object")
-			return clientStamp{}, false, errors.New("trailing JSON")
+			return clientStamp{}, false, false, errors.New("trailing JSON")
 		}
 	}
-	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, nil
+	if parsed.RetainLease && parsed.ReleaseIdle {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "stop request cannot both retain and release the lease")
+		return clientStamp{}, false, false, errors.New("retain and release")
+	}
+	return parseClientStamp(r, parsed.ClientTsUTC, parsed.ClientMonoMS, parsed.FlightID), parsed.RetainLease, parsed.ReleaseIdle, nil
 }
 
 // uiEvent is one sofa/tenfoot action in the debug ingest ring. It is not a

@@ -117,6 +117,7 @@ func TestSoftStopRetainsKitLeaseAfterIdleCleanup(t *testing.T) {
 		{name: "stopping does not release", body: `{"retain_lease":false}`, stopped: protocol.StateStopping, wantCode: http.StatusOK, wantRel: 0},
 		{name: "bad flag", body: `{"retain_lease":"yes"}`, stopped: protocol.StateIdle, wantCode: http.StatusBadRequest, wantRel: 0},
 		{name: "unknown field", body: `{"retain_lease":true,"lease":"keep"}`, stopped: protocol.StateIdle, wantCode: http.StatusBadRequest, wantRel: 0},
+		{name: "retain and release", body: `{"retain_lease":true,"release_idle":true}`, stopped: protocol.StateIdle, wantCode: http.StatusBadRequest, wantRel: 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -402,5 +403,46 @@ func TestFailedExplicitStopReleasesIdleGrantsWhenAnotherPlaySurvives(t *testing.
 				t.Fatalf("B after failed stop = %d %s", stillPlaying.Code, stillPlaying.Body.String())
 			}
 		})
+	}
+}
+
+func TestReleaseIdleDropsIdleGrantsWithoutStoppingSurvivor(t *testing.T) {
+	game := "nes-still-playing"
+	system := protocol.SystemNES
+	base := &fakeService{
+		status:  protocol.Status{State: protocol.StateActive, GameID: &game, System: &system},
+		stopped: protocol.Status{State: protocol.StateIdle},
+		playSessions: []fogcast.PlaySession{{
+			Target:    "kit-b",
+			TargetID:  "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+			Execution: fogcast.ExecutionFPGANative,
+			GameID:    game,
+			System:    system,
+		}},
+	}
+	service := &playFilteredLeases{fakeService: base, held: map[string]bool{
+		"kit-a": true,
+		"kit-b": true,
+	}}
+	handler := hostapi.New(service)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"release_idle":true}`))
+	request.Host = "127.0.0.1"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"state":"active"`) {
+		t.Fatalf("release_idle = %d %s", response.Code, response.Body.String())
+	}
+	if len(base.stopCtxErrs) != 0 {
+		t.Fatalf("release_idle stopped the survivor: %d", len(base.stopCtxErrs))
+	}
+	if service.releaseCalls != 1 {
+		t.Fatalf("release calls = %d", service.releaseCalls)
+	}
+	if service.held["kit-a"] {
+		t.Fatalf("idle grant stayed held: %#v", service.held)
+	}
+	if !service.held["kit-b"] {
+		t.Fatalf("released surviving lease: %#v", service.held)
 	}
 }

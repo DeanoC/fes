@@ -200,3 +200,24 @@ func TestStopRetainLeasePostsRetainFlag(t *testing.T) {
 		t.Fatalf("stop bodies = %#v", bodies)
 	}
 }
+
+func TestReleaseIdleGrantsPostsFlagAndAcceptsActivePlay(t *testing.T) {
+	t.Parallel()
+	var body string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		_, _ = io.WriteString(w, `{"state":"active","game_id":"nes-still"}`)
+	}))
+	t.Cleanup(server.Close)
+	result, err := NewClient(server.URL, server.Client()).ReleaseIdleGrants(context.Background(), ClientStamp{TsUTC: "2026-09-23T12:00:00Z", MonoMS: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.State != "active" || result.GameID != "nes-still" {
+		t.Fatalf("release = %#v", result)
+	}
+	if body != `{"release_idle":true}` {
+		t.Fatalf("body = %q", body)
+	}
+}
