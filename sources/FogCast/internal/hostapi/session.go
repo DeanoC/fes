@@ -99,24 +99,25 @@ type sessionEvent struct {
 }
 
 type sessionCoordinator struct {
-	id              string
-	service         sessionService
-	remoteInput     host.RemoteInputController
-	media           MediaSession
-	mediaHandle     MediaHandle
-	mediaGeneration uint64
-	execution       string
-	packageOwned    bool
-	mediaState      string
-	terminalStatus  *protocol.Status
-	inputBinding    sessionInputBinding
-	mu              sync.Mutex
-	observationMu   sync.Mutex
-	busy            bool
-	sequence        uint64
-	flightID        string
-	started         time.Time
-	events          []sessionEvent
+	id                string
+	service           sessionService
+	remoteInput       host.RemoteInputController
+	media             MediaSession
+	mediaHandle       MediaHandle
+	mediaGeneration   uint64
+	execution         string
+	packageOwned      bool
+	nativeStoppedIdle bool // Soft-stopped non-package fpga_native label left set after idle cleanup
+	mediaState        string
+	terminalStatus    *protocol.Status
+	inputBinding      sessionInputBinding
+	mu                sync.Mutex
+	observationMu     sync.Mutex
+	busy              bool
+	sequence          uint64
+	flightID          string
+	started           time.Time
+	events            []sessionEvent
 }
 
 type sessionInputBinding struct {
@@ -296,12 +297,14 @@ func (s *sessionCoordinator) status(ctx context.Context) (sessionResult, error) 
 			s.execution = execution
 			s.packageOwned = packageOwned
 			s.terminalStatus = nil
+			s.nativeStoppedIdle = false
 		}
 	}
 	if st.State == protocol.StateIdle && (s.execution == fogcast.ExecutionFPGADevelopment || s.packageOwned) {
 		s.execution = ""
 		s.packageOwned = false
 		s.terminalStatus = nil
+		s.nativeStoppedIdle = false
 	}
 	if s.execution != "" {
 		result.Execution = s.execution
@@ -468,6 +471,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	}
 	s.mu.Lock()
 	previousExecution := s.execution
+	previousNativeStoppedIdle := s.nativeStoppedIdle
 	previousFlight := s.flightID
 	s.mu.Unlock()
 	if err := s.stopMediaBounded(previousExecution); err != nil {
@@ -478,6 +482,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 
 	s.mu.Lock()
 	s.execution = execution
+	s.nativeStoppedIdle = false
 	s.terminalStatus = nil
 	if execution != fogcast.ExecutionHostOnly {
 		s.mediaHandle = nil
@@ -487,6 +492,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	if execution == fogcast.ExecutionHostOnly {
 		if err := s.startMedia(ctx, id, execution); err != nil {
 			s.restoreExecution(previousExecution)
+			s.restoreNativeStoppedIdle(previousNativeStoppedIdle)
 			s.restoreFlight(previousFlight)
 			return sessionResult{}, err
 		}
@@ -499,6 +505,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 	if err != nil {
 		_ = s.stopMediaBounded(execution)
 		s.restoreExecution(previousExecution)
+		s.restoreNativeStoppedIdle(previousNativeStoppedIdle)
 		s.restoreFlight(previousFlight)
 		return sessionResult{}, err
 	}
@@ -921,14 +928,27 @@ func (s *sessionCoordinator) stopMediaBounded(execution string) error {
 	return first
 }
 
-func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessionResult, error) {
+func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retainLease, releaseIdle bool) (sessionResult, error) {
+	if releaseIdle {
+		return s.releaseIdleGrants(ctx, stamp)
+	}
 	if !s.begin() {
 		return sessionResult{}, busyError()
 	}
 	defer s.end()
 	s.observationMu.Lock()
 	defer s.observationMu.Unlock()
+	// Capture host idle before probing the currently selected target. After
+	// Soft-stop, idle settings may select an unrelated kit; that probe must
+	// not hide retained grants from an explicit Stop. A Soft-stopped legacy
+	// fpga_native label is idle as well: cleanup leaves that marker set.
+	// Soft-stop of foreground B can still leave A playing: the coordinator
+	// only sees B's idle status, so the release fallback also checks plays.
+	alreadyIdle := s.idleWithoutPlay()
 	if _, err := s.developmentActive(ctx); err != nil {
+		if relErr := s.releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease); relErr != nil {
+			return sessionResult{}, relErr
+		}
 		return sessionResult{}, fogcast.WithStopStage(err, "development_probe")
 	}
 	s.ensureFlight()
@@ -973,6 +993,9 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 			}
 			cancel()
 		}
+		if relErr := s.releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease); relErr != nil {
+			return sessionResult{}, relErr
+		}
 		return sessionResult{}, serviceErr
 	}
 	if inputErr != nil {
@@ -997,21 +1020,88 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp) (sessi
 			s.execution = ""
 			s.packageOwned = false
 			s.terminalStatus = nil
+			s.nativeStoppedIdle = false
+		}
+		s.mu.Unlock()
+	} else if st.State == protocol.StateIdle && execution == fogcast.ExecutionFPGANative {
+		// Leave the legacy label in place. It is already idle for a later
+		// explicit Stop, including when the newly selected target cannot be probed.
+		s.mu.Lock()
+		if s.execution == execution && s.mediaHandle == nil && !s.packageOwned {
+			s.nativeStoppedIdle = true
 		}
 		s.mu.Unlock()
 	}
-	if st.State == protocol.StateIdle {
-		if owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error }); ok {
-			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err := owner.ReleaseKitLease(releaseCtx)
-			cancel()
-			if err != nil {
-				return sessionResult{}, fogcast.WithStopStage(err, "lease_release")
-			}
+	// Idle explicit Stop releases every kit grant retained by prior Stops,
+	// including one whose client was dropped when idle settings changed
+	// selected_target. Sofa Soft-stop (retain_lease) keeps those grants.
+	// A stop that does not reach idle, including reboot_required, never releases.
+	if st.State == protocol.StateIdle && !retainLease {
+		if err := s.releaseKitLeaseNow(); err != nil {
+			return sessionResult{}, err
 		}
 	}
 	s.recordStamp("session.stop", result, nil, stamp)
 	return result, nil
+}
+
+// releaseIdleGrants drops retained grants that no longer back a play.
+// It does not call Service.Stop, so a promoted play keeps running.
+func (s *sessionCoordinator) releaseIdleGrants(ctx context.Context, stamp clientStamp) (sessionResult, error) {
+	if !s.begin() {
+		return sessionResult{}, busyError()
+	}
+	defer s.end()
+	if err := s.releaseKitLeaseNow(); err != nil {
+		return sessionResult{}, err
+	}
+	st, err := s.service.Status(ctx)
+	if err != nil {
+		return sessionResult{}, err
+	}
+	result := s.publicSession(st, nil)
+	s.recordStamp("session.lease_release", result, nil, stamp)
+	return result, nil
+}
+
+func (s *sessionCoordinator) idleWithoutPlay() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mediaHandle != nil || s.packageOwned {
+		return false
+	}
+	if s.execution == "" {
+		return true
+	}
+	// Package Soft-stop clears its execution. Legacy non-package fpga_native
+	// keeps the label after idle cleanup; that leftover marker is idle too.
+	return s.nativeStoppedIdle && s.execution == fogcast.ExecutionFPGANative
+}
+
+func (s *sessionCoordinator) releaseKitLeaseNow() error {
+	owner, ok := s.service.(interface{ ReleaseKitLease(context.Context) error })
+	if !ok {
+		return nil
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := owner.ReleaseKitLease(releaseCtx); err != nil {
+		return fogcast.WithStopStage(err, "lease_release")
+	}
+	return nil
+}
+
+func (s *sessionCoordinator) releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease bool) error {
+	// alreadyIdle is the coordinator marker. Soft-stop of foreground B can
+	// promote still-playing A and return only B's idle status, so the marker
+	// is set while another play remains. ReleaseKitLease keeps a grant that
+	// still backs a play and releases idle grants from earlier Soft-stops.
+	// Skipping the call because any play remains would leave those idle
+	// grants renewing after a failed explicit Stop of the survivor.
+	if retainLease || !alreadyIdle {
+		return nil
+	}
+	return s.releaseKitLeaseNow()
 }
 
 func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {
@@ -1048,10 +1138,12 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 			s.execution = fogcast.ExecutionFPGANative
 			s.packageOwned = packageOwned
 			s.terminalStatus = nil
+			s.nativeStoppedIdle = false
 		case development:
 			s.execution = fogcast.ExecutionFPGADevelopment
 			s.packageOwned = packageOwned
 			s.terminalStatus = nil
+			s.nativeStoppedIdle = false
 		}
 	}
 	development = s.execution == fogcast.ExecutionFPGADevelopment
@@ -1064,8 +1156,20 @@ func (s *sessionCoordinator) restoreExecution(execution string) {
 	s.execution = execution
 	if execution == "" {
 		s.packageOwned = false
+		s.nativeStoppedIdle = false
 	}
 	s.terminalStatus = nil
+	s.mu.Unlock()
+}
+
+func (s *sessionCoordinator) restoreNativeStoppedIdle(nativeStoppedIdle bool) {
+	if !nativeStoppedIdle {
+		return
+	}
+	s.mu.Lock()
+	if s.execution == fogcast.ExecutionFPGANative && !s.packageOwned && s.mediaHandle == nil {
+		s.nativeStoppedIdle = true
+	}
 	s.mu.Unlock()
 }
 

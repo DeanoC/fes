@@ -436,10 +436,10 @@ func TestClientSessionAndStop(t *testing.T) {
 	if stopped.HTTPStatus != 200 || stopped.State != "idle" || stopped.Media != "stopped" || stopped.Execution != "fpga_native" {
 		t.Fatalf("stop = %#v", stopped)
 	}
-	if stopPath != "/api/v1/session/stop" || stopBody != "" {
+	if stopPath != "/api/v1/session/stop" || stopBody != `{"retain_lease":true}` {
 		t.Fatalf("stop request path=%q body=%q", stopPath, stopBody)
 	}
-	if stopCT != "" {
+	if stopCT != "application/json" {
 		t.Fatalf("stop Content-Type = %q", stopCT)
 	}
 }

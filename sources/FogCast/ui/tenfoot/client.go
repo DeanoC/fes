@@ -123,8 +123,66 @@ func (c *Client) Stop(ctx context.Context) (hostclient.SessionResult, error) {
 	return c.StopStamped(ctx, ClientStampNow())
 }
 
+// StopStamped is the rooms Soft-stop: now-playing B, Esc, Backspace, or s
+// returns to the same room and keeps the kit lease while the shell stays up.
 func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	return c.Client.StopRetainLease(ctx, hostStamp(stamp))
+}
+
+// ReleaseIdleLease is shell exit after that Soft-stop when the service is
+// idle. An empty body asks idle cleanup to release the retained kit lease.
+// B/Back stays on StopStamped.
+func (c *Client) ReleaseIdleLease(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
 	return c.Client.StopStamped(ctx, hostStamp(stamp))
+}
+
+// ReleaseIdleGrants is shell exit when a play survived Soft-stop. It drops
+// idle grants and does not stop that play.
+func (c *Client) ReleaseIdleGrants(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	return c.Client.ReleaseIdleGrants(ctx, hostStamp(stamp))
+}
+
+var errSessionsUnsupported = errors.New("play sessions are unavailable")
+
+// survivingPlayCount reads GET /api/v1/sessions. A 404 means this host has
+// no play list; callers then trust GET /api/v1/session alone.
+func (c *Client) survivingPlayCount(ctx context.Context) (int, error) {
+	if c == nil || c.Client == nil {
+		return 0, fmt.Errorf("tenfoot client is nil")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL()+"/api/v1/sessions", http.NoBody)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.HTTPClient().Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponse))
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return 0, errSessionsUnsupported
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0, hostclient.APIStatusError(resp.StatusCode, body)
+	}
+	var wire struct {
+		Sessions []json.RawMessage `json:"sessions"`
+	}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return 0, err
+	}
+	return len(wire.Sessions), nil
 }
 
 // SessionEvents loads GET /api/v1/session/events?after=N (JSON poll, not SSE).

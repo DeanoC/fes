@@ -20,14 +20,15 @@ import (
 )
 
 const (
-	coverWorkers         = 6
-	prefetchRows         = 2
-	maxInflight          = 8
-	coverJobBuffer       = 128
-	searchDebounce       = 280 * time.Millisecond
-	presentationRetryMin = 400 * time.Millisecond
-	presentationRetryMax = 8 * time.Second
-	sessionPollInterval  = time.Second
+	coverWorkers              = 6
+	prefetchRows              = 2
+	maxInflight               = 8
+	coverJobBuffer            = 128
+	searchDebounce            = 280 * time.Millisecond
+	presentationRetryMin      = 400 * time.Millisecond
+	presentationRetryMax      = 8 * time.Second
+	sessionPollInterval       = time.Second
+	shellLeaseReleaseAttempts = 3
 )
 
 var catalogSorts = []string{"title", "recently_added", "platform"}
@@ -368,32 +369,42 @@ type App struct {
 	hold                   HoldGate
 	session                hostclient.SessionResult
 	sessionTitle           string
-	sessionGen             int
-	stopPhase              string
-	stopMessage            string
-	gpuParked              bool
-	sessionKick            chan struct{}
-	health                 hostclient.HealthResult
-	healthHave             bool
-	hostUnreachable        bool
-	inputBusy              bool
-	inputAction            string
-	inputMessage           string
-	stopQueued             bool
-	retryStopLock          bool
-	retryStopHint          string
-	retryStopCode          string
-	sessionEvents          []hostclient.SessionEvent
-	sessionEventAfter      uint64
-	flightID               string
-	lastFocusKey           string
-	lastNavKey             string
-	debugHUD               bool
-	kitLease               KitLeaseStatus
-	kitLeaseHave           bool
-	developmentRBFPath     string
-	devLoadPhase           string
-	devLoadMessage         string
+	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
+	// grant. A later active or relaunched play does not clear it: another
+	// target's grant can still be retained. Shell exit releases idle grants.
+	// B/Back does not.
+	retainedIdleLease bool
+	// stopResponseLost is a Soft-stop whose transport failed after the host
+	// may already have retained the grant. Shell exit reconciles it.
+	stopResponseLost bool
+	// stopWait is closed when the in-flight Soft-stop goroutine returns.
+	stopWait           chan struct{}
+	sessionGen         int
+	stopPhase          string
+	stopMessage        string
+	gpuParked          bool
+	sessionKick        chan struct{}
+	health             hostclient.HealthResult
+	healthHave         bool
+	hostUnreachable    bool
+	inputBusy          bool
+	inputAction        string
+	inputMessage       string
+	stopQueued         bool
+	retryStopLock      bool
+	retryStopHint      string
+	retryStopCode      string
+	sessionEvents      []hostclient.SessionEvent
+	sessionEventAfter  uint64
+	flightID           string
+	lastFocusKey       string
+	lastNavKey         string
+	debugHUD           bool
+	kitLease           KitLeaseStatus
+	kitLeaseHave       bool
+	developmentRBFPath string
+	devLoadPhase       string
+	devLoadMessage     string
 
 	roomsIndex            *rooms.Index
 	roomsDir              string
@@ -572,8 +583,19 @@ func (a *App) Start(parent context.Context) {
 	go a.hydrateAttractIdle(ctx)
 }
 
-// Stop cancels background work.
+// Stop waits for an in-flight Soft-stop, releases an idle lease this shell
+// retained, then cancels background work.
 func (a *App) Stop() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	done := a.stopWait
+	a.mu.Unlock()
+	if done != nil {
+		<-done
+	}
+	a.releaseOwnedIdleLease()
 	a.mu.Lock()
 	a.hideAttractLocked()
 	a.stopPreviewLocked()
@@ -585,6 +607,100 @@ func (a *App) Stop() {
 		cancel()
 	}
 	a.drainAttractResults()
+}
+
+// releaseOwnedIdleLease posts the shell-exit release when this shell still
+// owns a retained idle grant or a Soft-stop response was lost. The local
+// session may already show another play; that does not skip the release.
+// A surviving play is not stopped: that path posts release_idle. A confirmed
+// idle service posts an empty-body Stop. The pending flag clears only after
+// that release succeeds.
+func (a *App) releaseOwnedIdleLease() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	client := a.client
+	release := a.retainedIdleLease || a.stopResponseLost
+	var stamp ClientStamp
+	if release {
+		stamp = a.clientStampLocked()
+	}
+	a.mu.Unlock()
+	if !release || client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	view := observeLeaseExit(ctx, client)
+	cancel()
+	var releaseFn func(*Client, context.Context, ClientStamp) (hostclient.SessionResult, error)
+	switch view {
+	case leaseExitIdle:
+		releaseFn = (*Client).ReleaseIdleLease
+	default:
+		// A surviving play, or a service we could not read. release_idle does
+		// not stop the foreground. An empty-body Stop would.
+		releaseFn = (*Client).ReleaseIdleGrants
+	}
+	if postLeaseRelease(client, stamp, releaseFn) {
+		a.mu.Lock()
+		a.retainedIdleLease = false
+		a.stopResponseLost = false
+		a.mu.Unlock()
+	}
+}
+
+type leaseExitView int
+
+const (
+	leaseExitUnknown leaseExitView = iota
+	leaseExitIdle
+	leaseExitPlaySurvives
+)
+
+func observeLeaseExit(ctx context.Context, client *Client) leaseExitView {
+	if client == nil {
+		return leaseExitUnknown
+	}
+	session, err := client.Session(ctx)
+	if err != nil || session.ErrorCode != "" {
+		return leaseExitUnknown
+	}
+	count, err := client.survivingPlayCount(ctx)
+	switch {
+	case err == nil && count > 0:
+		return leaseExitPlaySurvives
+	case err != nil && !errors.Is(err, errSessionsUnsupported):
+		return leaseExitUnknown
+	}
+	if !idleRetainedSession(session.State) {
+		return leaseExitPlaySurvives
+	}
+	return leaseExitIdle
+}
+
+func postLeaseRelease(client *Client, stamp ClientStamp, release func(*Client, context.Context, ClientStamp) (hostclient.SessionResult, error)) bool {
+	if client == nil || release == nil {
+		return false
+	}
+	for attempt := 0; attempt < shellLeaseReleaseAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		result, err := release(client, ctx, stamp)
+		cancel()
+		if err == nil && strings.TrimSpace(result.ErrorCode) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func idleRetainedSession(state string) bool {
+	switch strings.TrimSpace(state) {
+	case "", "idle":
+		return true
+	default:
+		return false
+	}
 }
 
 // HandleCommand applies a gamepad, USB-keyboard, or pointer-mapped command.
@@ -1898,7 +2014,17 @@ func (a *App) startStopLocked() {
 		"game_id": a.session.GameID,
 		"state":   a.session.State,
 	})
-	go a.doStop(ctx, stamp)
+	done := make(chan struct{})
+	a.stopWait = done
+	go func() {
+		a.doStop(ctx, stamp)
+		a.mu.Lock()
+		if a.stopWait == done {
+			a.stopWait = nil
+		}
+		a.mu.Unlock()
+		close(done)
+	}()
 }
 
 func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
@@ -1913,6 +2039,9 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 		a.stopPhase = "error"
 		a.stopMessage = "stop failed: " + err.Error()
 		a.lockRetryStopLocked("", err.Error())
+		if result.ErrorCode == "" {
+			a.stopResponseLost = true
+		}
 		a.syncGPUParkLocked()
 		return
 	}
@@ -1929,6 +2058,10 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	a.stopPhase = "ok"
 	a.stopMessage = ""
 	a.applySessionLocked(result)
+	if result.State == "" || result.State == "idle" {
+		a.retainedIdleLease = true
+		a.stopResponseLost = false
+	}
 	a.kickSessionPollLocked()
 }
 
@@ -2344,6 +2477,9 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	}
 	a.session = result
 	a.rememberFlightLocked(result.FlightID)
+	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
+	// a later launch can go active, while B's idle grant is still retained.
+	// Shell exit releases that grant; this poll does not.
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""

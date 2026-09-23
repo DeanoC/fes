@@ -1,12 +1,13 @@
 # Mesh node protocol (design draft)
 
-**Status:** design draft awaiting Deano lock (2026-09-23). Caster's
-cast/kit contract review is folded below. Foggy's product review is
-folded in [`docs/mesh-lan.md`](mesh-lan.md); this page changes only
-where that review meets a protocol rule. Neither review is a design
-lock. Conceptual contracts only. This is not a wire-format freeze, not
-an opcode list, and not an implementation claim. Deano owns FES parent
-merge.
+**Status:** merged as #131. Phase 1 is in progress under Bob; Deano
+merges parents. Still edit strawmen in place. Caster's cast/kit
+contract review is folded below. Foggy's product review is folded in
+[`docs/mesh-lan.md`](mesh-lan.md); this page changes only where that
+review meets a protocol rule. Neither review is a design lock.
+Conceptual contracts only. This is not a wire-format freeze, not an
+opcode list, and not an implementation claim for slices still open in
+[`mesh-phase1.md`](mesh-phase1.md). Deano owns FES parent merge.
 
 **Audience:** FES parent, FogCast host and target agent, libmister-runtime
 session boundaries, and mister-packages when a later phase actually
@@ -258,8 +259,9 @@ not renew.
   `LoadIdle()` is the Execute node's runtime path. A second Shell does
   not call it.
 - Sofa policy, matching [`kit-sharing.md`](kit-sharing.md) and
-  [`mesh-lan.md`](mesh-lan.md) Decision 4. Today's idle
-  `POST /api/v1/session/stop` releases the kit lease. Replacement Stop
+  [`mesh-lan.md`](mesh-lan.md) Decision 4. An empty-body idle
+  `POST /api/v1/session/stop` releases the kit lease. Tenfoot rooms
+  Soft-stop sends `retain_lease: true` and keeps it. Replacement Stop
   and development `stop` retain. This policy puts sofa Soft-stop on the
   retain side:
   - Sofa Soft-stop (B while playing; Play then B back to the same room)
