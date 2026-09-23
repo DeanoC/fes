@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.source_repository import canonical_repository
-from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, EXPECTED_TOOL_COMMITS, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic
+from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -23,7 +23,7 @@ TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
 SOCKET_TOOLCHAIN_LOCK = 'toolchains/zx81-expansion.lock'
-SOCKET_TOOL_COMMITS = {**EXPECTED_TOOL_COMMITS, 'mistral': '18db2489a63bd9fcfbb7ba727ac194e767e7dce3', 'nextpnr': '74f26cc1a5554a70cfca89be27850ec90f857030'}
+SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '18db2489a63bd9fcfbb7ba727ac194e767e7dce3', 'nextpnr': '74f26cc1a5554a70cfca89be27850ec90f857030'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
 ROM_DATABASE_SHA256 = {
@@ -182,20 +182,8 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     system = _frequency_row(timing.get('fmax'), 52.0, 'system clock', 'clk_sys')
     pixel = _frequency_row(timing.get('fmax'), 74.25, 'pixel clock')
     utilization = timing.get('utilization')
-    if not isinstance(utilization, dict):
-        raise BuildError('timing report has no structured utilization data')
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
-    unknown = sorted(set(utilization) - known)
-    if unknown:
-        raise BuildError('timing report contains unknown resources: ' + ', '.join(unknown))
-    resources: dict[str, dict[str, int]] = {}
-    for name, fields in sorted(utilization.items()):
-        if not isinstance(fields, dict):
-            raise BuildError(f'malformed resource evidence: {name}')
-        used, available = (fields.get('used'), fields.get('available'))
-        if not isinstance(used, int) or used < 0 or (not isinstance(available, int)) or (available < 0):
-            raise BuildError(f'malformed resource counts: {name}')
-        resources[name] = {'available': available, 'used': used}
+    resources = validate_timing_resources(utilization, known)
     rbf = output / 'core.rbf'
     if rbf.is_symlink() or not rbf.is_file() or (not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE):
         raise BuildError(f'RBF must be a nonempty bounded regular file: {rbf}')

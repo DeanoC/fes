@@ -1081,7 +1081,10 @@ forbidden memory/DSP synthesis cell or utilization resource is used, the known
 `cyclonev_oscillator` utilization row is present with zero use, and the route
 log proves normal completion. Synthesized and routed evidence must preserve the
 I2C low-or-release topology and pad feedback; routed evidence must use the exact
-HPS site and U10/AA4 pads. The single sequential timing domain must meet its
+HPS site and U10/AA4 pads. Newly reported utilization resources are retained
+when their counts are valid and use is zero; unrecognized resources in use are
+rejected. Known required and forbidden resource checks remain exact. The single
+sequential timing domain must meet its
 74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
 the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
 application in the route log, and identical fixed fractional PLL parameters in

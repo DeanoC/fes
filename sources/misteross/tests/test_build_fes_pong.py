@@ -797,7 +797,28 @@ class BuildFesPongTests(unittest.TestCase):
                 "available": 1,
             }
             (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
-            with self.assertRaisesRegex(BuildError, "unknown resources"):
+            self.assertEqual(
+                validate_build_evidence(output)["resources"]["MISTRAL_NOT_A_REAL_RESOURCE"]["used"], 0
+            )
+            timing["utilization"]["MISTRAL_NOT_A_REAL_RESOURCE"]["used"] = 1
+            (output / "timing.json").write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "unknown resources in use"):
+                validate_build_evidence(output)
+
+    def test_unused_hps_sdram_timing_row_is_allowed_but_use_is_rejected(self) -> None:
+        resource = "cyclonev_hps_interface_fpga2sdram"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            self._write_passing_outputs(output)
+            timing_path = output / "timing.json"
+            timing = json.loads(timing_path.read_text(encoding="utf-8"))
+            timing["utilization"][resource] = {"used": 0, "available": 1}
+            timing_path.write_text(json.dumps(timing), encoding="utf-8")
+            self.assertEqual(validate_build_evidence(output)["resources"][resource]["used"], 0)
+
+            timing["utilization"][resource]["used"] = 1
+            timing_path.write_text(json.dumps(timing), encoding="utf-8")
+            with self.assertRaisesRegex(BuildError, "unknown resources in use: .*fpga2sdram"):
                 validate_build_evidence(output)
 
     def test_recipe_pins_the_integrated_fractional_pll_toolchain(self) -> None:

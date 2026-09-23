@@ -26,6 +26,7 @@ from scripts.fes_build_common import (
     _run_tool,
     _sha256,
     _write_atomic,
+    validate_timing_resources,
 )
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
@@ -335,20 +336,8 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
-    if not isinstance(utilization, dict):
-        raise BuildError("timing report has no structured utilization data")
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
-    unknown = sorted(set(utilization) - known)
-    if unknown:
-        raise BuildError("timing report contains unknown resources: " + ", " .join(unknown))
-    resources: dict[str, dict[str, int]] = {}
-    for name, fields in sorted(utilization.items()):
-        if not isinstance(fields, dict):
-            raise BuildError(f"malformed resource evidence: {name}")
-        used, available = fields.get("used"), fields.get("available")
-        if not isinstance(used, int) or used < 0 or not isinstance(available, int) or available < 0:
-            raise BuildError(f"malformed resource counts: {name}")
-        resources[name] = {"available": available, "used": used}
+    resources = validate_timing_resources(utilization, known)
     rbf = output / "core.rbf"
     if rbf.is_symlink() or not rbf.is_file() or not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
