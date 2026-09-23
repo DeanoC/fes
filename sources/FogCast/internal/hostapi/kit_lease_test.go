@@ -29,6 +29,28 @@ func (s *leasedService) ReleaseKitLease(context.Context) error {
 	}
 	return nil
 }
+
+// playFilteredLeases mirrors Service.ReleaseKitLease: a grant that still
+// backs a PlaySession stays held, and idle grants are released.
+type playFilteredLeases struct {
+	*fakeService
+	held         map[string]bool
+	releaseCalls int
+}
+
+func (s *playFilteredLeases) ReleaseKitLease(context.Context) error {
+	s.releaseCalls++
+	playing := map[string]bool{}
+	for _, play := range s.PlaySessions() {
+		playing[play.Target] = true
+	}
+	for target, held := range s.held {
+		if held && !playing[target] {
+			s.held[target] = false
+		}
+	}
+	return nil
+}
 func TestExplicitStopReleasesKitOnlyAfterCleanup(t *testing.T) {
 	for _, fail := range []bool{false, true} {
 		t.Run(map[bool]string{false: "success", true: "failure"}[fail], func(t *testing.T) {
@@ -292,16 +314,16 @@ func TestExplicitIdleStopReleasesSoftStoppedLegacyNativeWhenSelectedTargetFails(
 	}
 }
 
-func TestFailedStopOfPromotedPlayDoesNotReleaseLease(t *testing.T) {
+func TestFailedExplicitStopReleasesIdleGrantsWhenAnotherPlaySurvives(t *testing.T) {
 	unavailable := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
 	saveFailed := &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "save failed", Phase: "save"}
 	gameB := "snes-foreground"
 	systemB := protocol.SystemSNES
 	core := "SNES"
 	foreground := protocol.Status{State: protocol.StateActive, GameID: &gameB, System: &systemB, ExpectedCore: &core, ObservedCore: &core}
-	promotedA := fogcast.PlaySession{
-		Target:    "kit-a",
-		TargetID:  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+	promotedB := fogcast.PlaySession{
+		Target:    "kit-b",
+		TargetID:  "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
 		Execution: fogcast.ExecutionFPGANative,
 		GameID:    "nes-still-playing",
 		System:    protocol.SystemNES,
@@ -319,34 +341,43 @@ func TestFailedStopOfPromotedPlayDoesNotReleaseLease(t *testing.T) {
 				status:        protocol.Status{State: protocol.StateIdle},
 				launch:        protocol.CachedLaunchResponse{Status: foreground},
 				stopped:       protocol.Status{State: protocol.StateIdle},
-				sessionTarget: "kit-b",
+				sessionTarget: "kit-a",
 				playSessions: []fogcast.PlaySession{
-					promotedA,
-					{Target: "kit-b", TargetID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Execution: fogcast.ExecutionFPGANative, GameID: gameB, System: systemB},
+					promotedB,
+					{Target: "kit-a", TargetID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Execution: fogcast.ExecutionFPGANative, GameID: gameB, System: systemB},
 				},
 			}
-			service := &leasedService{fakeService: base}
+			// A and C were Soft-stopped earlier. B is the play that survives
+			// a failed explicit Stop. ReleaseKitLease must drop A/C and keep B.
+			service := &playFilteredLeases{fakeService: base, held: map[string]bool{
+				"kit-a": true,
+				"kit-b": true,
+				"kit-c": true,
+			}}
 			handler := hostapi.New(service)
-			if launch := launchSessionOn(t, handler, gameB, "kit-b"); launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) {
-				t.Fatalf("launch B = %d %s", launch.Code, launch.Body.String())
+			if launch := launchSessionOn(t, handler, gameB, "kit-a"); launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) {
+				t.Fatalf("launch A = %d %s", launch.Code, launch.Body.String())
 			}
 			soft := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"retain_lease":true}`))
 			soft.Host = "127.0.0.1"
 			soft.Header.Set("Content-Type", "application/json")
 			softResponse := httptest.NewRecorder()
 			handler.ServeHTTP(softResponse, soft)
-			if softResponse.Code != http.StatusOK || service.releases != 0 {
-				t.Fatalf("soft-stop B = %d releases=%d body=%s", softResponse.Code, service.releases, softResponse.Body.String())
+			if softResponse.Code != http.StatusOK || service.releaseCalls != 0 {
+				t.Fatalf("soft-stop A = %d releases=%d body=%s", softResponse.Code, service.releaseCalls, softResponse.Body.String())
 			}
-			// clearForegroundPlayLocked has promoted A. The coordinator only
-			// observed B's idle response, so its local marker is idle too.
-			base.playSessions = []fogcast.PlaySession{promotedA}
+			if !service.held["kit-a"] || !service.held["kit-b"] || !service.held["kit-c"] {
+				t.Fatalf("soft-stop released grants: %#v", service.held)
+			}
+			// clearForegroundPlayLocked has promoted B. The coordinator only
+			// observed A's idle response, so its local marker is idle too.
+			base.playSessions = []fogcast.PlaySession{promotedB}
 			observed := serve(t, handler, http.MethodGet, "/api/v1/session")
 			if observed.Code != http.StatusOK || !strings.Contains(observed.Body.String(), `"state":"idle"`) {
-				t.Fatalf("coordinator after soft-stop B = %d %s", observed.Code, observed.Body.String())
+				t.Fatalf("coordinator after soft-stop A = %d %s", observed.Code, observed.Body.String())
 			}
 			plays := serve(t, handler, http.MethodGet, "/api/v1/sessions")
-			if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-a"`) || strings.Contains(plays.Body.String(), `"target":"kit-b"`) {
+			if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-b"`) || strings.Contains(plays.Body.String(), `"target":"kit-a"`) {
 				t.Fatalf("promoted plays = %d %s", plays.Code, plays.Body.String())
 			}
 			tc.after(base)
@@ -355,14 +386,20 @@ func TestFailedStopOfPromotedPlayDoesNotReleaseLease(t *testing.T) {
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 			if response.Code == http.StatusOK {
-				t.Fatalf("stop of A succeeded: %s", response.Body.String())
+				t.Fatalf("stop of B succeeded: %s", response.Body.String())
 			}
-			if service.releases != 0 {
-				t.Fatalf("released promoted lease while A is active: body=%s", response.Body.String())
+			if service.releaseCalls != 1 {
+				t.Fatalf("release calls = %d, want the service filter to run", service.releaseCalls)
+			}
+			if service.held["kit-a"] || service.held["kit-c"] {
+				t.Fatalf("idle grants stayed held: %#v", service.held)
+			}
+			if !service.held["kit-b"] {
+				t.Fatalf("released promoted lease while B is active: %#v", service.held)
 			}
 			stillPlaying := serve(t, handler, http.MethodGet, "/api/v1/sessions")
-			if stillPlaying.Code != http.StatusOK || !strings.Contains(stillPlaying.Body.String(), `"target":"kit-a"`) {
-				t.Fatalf("A after failed stop = %d %s", stillPlaying.Code, stillPlaying.Body.String())
+			if stillPlaying.Code != http.StatusOK || !strings.Contains(stillPlaying.Body.String(), `"target":"kit-b"`) {
+				t.Fatalf("B after failed stop = %d %s", stillPlaying.Code, stillPlaying.Body.String())
 			}
 		})
 	}

@@ -2620,8 +2620,11 @@ func (s *Service) ShutdownCleanupRequired() bool {
 // change. A grant that still backs a remaining PlaySession is left held:
 // Soft-stop keeps the lease in stoppedKitLeases, and relaunch does not
 // drop that entry, so stopping a different foreground target must not
-// revoke the live session. Sofa Soft-stop (session stop with retain_lease)
-// does not call it. A failed release stays in stoppedKitLeases.
+// revoke the live session. A failed explicit Stop still calls this when
+// the coordinator was already idle, so idle grants from earlier Soft-stops
+// are released while the surviving play's grant stays held. Sofa Soft-stop
+// (session stop with retain_lease) does not call it. A failed release stays
+// in stoppedKitLeases.
 // KitLease.Release keeps that grant renewing so a later Stop can retry it;
 // only a successful release drops the entry. Replacement Stop retains
 // ownership so the next launch uses the same grant.

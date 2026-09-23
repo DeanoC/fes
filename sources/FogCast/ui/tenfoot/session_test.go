@@ -1017,6 +1017,101 @@ func TestAppHistoricalSaveFailedDoesNotLockIdleSession(t *testing.T) {
 	}
 }
 
+func TestShellExitReleasesIdleRetainedLease(t *testing.T) {
+	var mu sync.Mutex
+	sessionJSON := `{"state":"idle"}`
+	var stopBodies []string
+	mario := availableGame("snes-mario", "Mario", "snes")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{mario}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			mu.Lock()
+			body := sessionJSON
+			mu.Unlock()
+			_, _ = io.WriteString(w, body)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
+			mu.Lock()
+			sessionJSON = `{"state":"active","game_id":"snes-mario","system":"snes","execution":"fpga_native"}`
+			mu.Unlock()
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","system":"snes","execution":"fpga_native"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			stopBodies = append(stopBodies, string(raw))
+			sessionJSON = `{"state":"idle","media":"stopped"}`
+			mu.Unlock()
+			_, _ = io.WriteString(w, `{"state":"idle","media":"stopped"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
+	app.Start(t.Context())
+	defer app.Stop()
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 1 && !snap.Loading
+	})
+	app.Press(CmdSelect, time.Now())
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
+	})
+	app.Press(CmdBack, time.Now())
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State != "active"
+	})
+	mu.Lock()
+	bodies := append([]string(nil), stopBodies...)
+	mu.Unlock()
+	if len(bodies) != 1 || bodies[0] != `{"retain_lease":true}` {
+		t.Fatalf("soft-stop bodies = %#v", bodies)
+	}
+
+	app.Stop()
+	mu.Lock()
+	bodies = append([]string(nil), stopBodies...)
+	mu.Unlock()
+	if len(bodies) != 2 || bodies[0] != `{"retain_lease":true}` || bodies[1] != "" {
+		t.Fatalf("shell-exit bodies = %#v", bodies)
+	}
+}
+
+func TestShellExitDoesNotReleaseActiveOrUnownedSession(t *testing.T) {
+	var mu sync.Mutex
+	var stops int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop" {
+			mu.Lock()
+			stops++
+			mu.Unlock()
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient(server.URL, server.Client())
+
+	active := NewApp(client, 800, 600, 10)
+	active.session.State = "active"
+	active.retainedIdleLease = true
+	active.Stop()
+
+	idle := NewApp(client, 800, 600, 10)
+	idle.session.State = "idle"
+	idle.Stop()
+
+	mu.Lock()
+	n := stops
+	mu.Unlock()
+	if n != 0 {
+		t.Fatalf("stops = %d, want no release for an active play or an unowned idle shell", n)
+	}
+}
+
 func TestAppSaveFailedEventLocksLaunchUntilStop(t *testing.T) {
 	var mu sync.Mutex
 	sessionJSON := `{"state":"active","game_id":"snes-mario"}`

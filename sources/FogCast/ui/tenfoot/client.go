@@ -124,9 +124,18 @@ func (c *Client) Stop(ctx context.Context) (hostclient.SessionResult, error) {
 }
 
 // StopStamped is the rooms Soft-stop: now-playing B, Esc, Backspace, or s
-// returns to the same room and keeps the kit lease.
+// returns to the same room and keeps the kit lease while the shell stays up.
 func (c *Client) StopStamped(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
 	return c.Client.StopRetainLease(ctx, hostStamp(stamp))
+}
+
+// ReleaseIdleLease is shell exit after that Soft-stop. An empty body asks
+// idle cleanup to release the retained kit lease. B/Back stays on StopStamped.
+func (c *Client) ReleaseIdleLease(ctx context.Context, stamp ClientStamp) (hostclient.SessionResult, error) {
+	if c == nil || c.Client == nil {
+		return hostclient.SessionResult{}, fmt.Errorf("tenfoot client is nil")
+	}
+	return c.Client.StopStamped(ctx, hostStamp(stamp))
 }
 
 // SessionEvents loads GET /api/v1/session/events?after=N (JSON poll, not SSE).

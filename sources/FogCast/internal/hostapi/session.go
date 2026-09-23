@@ -1070,22 +1070,16 @@ func (s *sessionCoordinator) releaseKitLeaseNow() error {
 }
 
 func (s *sessionCoordinator) releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease bool) error {
-	// alreadyIdle is the coordinator marker. Soft-stop of foreground B promotes
-	// still-playing A and returns only B's idle status, so the marker can be
-	// set while A is active. stopLocked records A's grant before Stop runs;
-	// releasing after that Stop fails would drop ownership of the live session.
-	if retainLease || !alreadyIdle || s.activePlaysRemain() {
+	// alreadyIdle is the coordinator marker. Soft-stop of foreground B can
+	// promote still-playing A and return only B's idle status, so the marker
+	// is set while another play remains. ReleaseKitLease keeps a grant that
+	// still backs a play and releases idle grants from earlier Soft-stops.
+	// Skipping the call because any play remains would leave those idle
+	// grants renewing after a failed explicit Stop of the survivor.
+	if retainLease || !alreadyIdle {
 		return nil
 	}
 	return s.releaseKitLeaseNow()
-}
-
-func (s *sessionCoordinator) activePlaysRemain() bool {
-	lister, ok := s.service.(interface{ PlaySessions() []fogcast.PlaySession })
-	if !ok {
-		return false
-	}
-	return len(lister.PlaySessions()) > 0
 }
 
 func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {

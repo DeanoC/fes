@@ -368,32 +368,36 @@ type App struct {
 	hold                   HoldGate
 	session                hostclient.SessionResult
 	sessionTitle           string
-	sessionGen             int
-	stopPhase              string
-	stopMessage            string
-	gpuParked              bool
-	sessionKick            chan struct{}
-	health                 hostclient.HealthResult
-	healthHave             bool
-	hostUnreachable        bool
-	inputBusy              bool
-	inputAction            string
-	inputMessage           string
-	stopQueued             bool
-	retryStopLock          bool
-	retryStopHint          string
-	retryStopCode          string
-	sessionEvents          []hostclient.SessionEvent
-	sessionEventAfter      uint64
-	flightID               string
-	lastFocusKey           string
-	lastNavKey             string
-	debugHUD               bool
-	kitLease               KitLeaseStatus
-	kitLeaseHave           bool
-	developmentRBFPath     string
-	devLoadPhase           string
-	devLoadMessage         string
+	// retainedIdleLease is set when this shell's Soft-stop left the host idle
+	// and kept the kit lease. Shell exit releases it. B/Back does not.
+	retainedIdleLease  bool
+	shellExiting       bool
+	sessionGen         int
+	stopPhase          string
+	stopMessage        string
+	gpuParked          bool
+	sessionKick        chan struct{}
+	health             hostclient.HealthResult
+	healthHave         bool
+	hostUnreachable    bool
+	inputBusy          bool
+	inputAction        string
+	inputMessage       string
+	stopQueued         bool
+	retryStopLock      bool
+	retryStopHint      string
+	retryStopCode      string
+	sessionEvents      []hostclient.SessionEvent
+	sessionEventAfter  uint64
+	flightID           string
+	lastFocusKey       string
+	lastNavKey         string
+	debugHUD           bool
+	kitLease           KitLeaseStatus
+	kitLeaseHave       bool
+	developmentRBFPath string
+	devLoadPhase       string
+	devLoadMessage     string
 
 	roomsIndex            *rooms.Index
 	roomsDir              string
@@ -572,8 +576,12 @@ func (a *App) Start(parent context.Context) {
 	go a.hydrateAttractIdle(ctx)
 }
 
-// Stop cancels background work.
+// Stop releases an idle lease this shell retained, then cancels background work.
 func (a *App) Stop() {
+	a.mu.Lock()
+	a.shellExiting = true
+	a.mu.Unlock()
+	a.releaseOwnedIdleLease()
 	a.mu.Lock()
 	a.hideAttractLocked()
 	a.stopPreviewLocked()
@@ -585,6 +593,45 @@ func (a *App) Stop() {
 		cancel()
 	}
 	a.drainAttractResults()
+}
+
+// releaseOwnedIdleLease posts an explicit empty-body Stop when this shell
+// still owns an idle retained lease. An active play is left running.
+func (a *App) releaseOwnedIdleLease() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	client := a.client
+	release := a.retainedIdleLease && idleRetainedSession(a.session.State)
+	var stamp ClientStamp
+	if release {
+		stamp = a.clientStampLocked()
+		a.retainedIdleLease = false
+	}
+	a.mu.Unlock()
+	if !release || client == nil {
+		return
+	}
+	postIdleLeaseRelease(client, stamp)
+}
+
+func postIdleLeaseRelease(client *Client, stamp ClientStamp) {
+	if client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = client.ReleaseIdleLease(ctx, stamp)
+}
+
+func idleRetainedSession(state string) bool {
+	switch strings.TrimSpace(state) {
+	case "", "idle":
+		return true
+	default:
+		return false
+	}
 }
 
 // HandleCommand applies a gamepad, USB-keyboard, or pointer-mapped command.
@@ -1903,6 +1950,12 @@ func (a *App) startStopLocked() {
 
 func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	result, err := a.client.StopStamped(ctx, stamp)
+	var releaseAfterUnlock func()
+	defer func() {
+		if releaseAfterUnlock != nil {
+			releaseAfterUnlock()
+		}
+	}()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.stopPhase != "stopping" {
@@ -1929,6 +1982,16 @@ func (a *App) doStop(ctx context.Context, stamp ClientStamp) {
 	a.stopPhase = "ok"
 	a.stopMessage = ""
 	a.applySessionLocked(result)
+	if result.State == "" || result.State == "idle" {
+		if a.shellExiting {
+			client := a.client
+			releaseStamp := a.clientStampLocked()
+			a.retainedIdleLease = false
+			releaseAfterUnlock = func() { postIdleLeaseRelease(client, releaseStamp) }
+		} else {
+			a.retainedIdleLease = true
+		}
+	}
 	a.kickSessionPollLocked()
 }
 
@@ -2344,6 +2407,9 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	}
 	a.session = result
 	a.rememberFlightLocked(result.FlightID)
+	if result.State == "active" || result.State == "launching" {
+		a.retainedIdleLease = false
+	}
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""

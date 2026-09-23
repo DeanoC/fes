@@ -1250,6 +1250,33 @@ func TestSoftStopRelaunchThenOtherExplicitStopKeepsLiveLease(t *testing.T) {
 	}
 }
 
+func TestReleaseKitLeaseReleasesIdleGrantsWhenPlaySurvives(t *testing.T) {
+	_, clientB, leaseB := heldKitClient(t, "live-b", nil)
+	_, _, leaseA := heldKitClient(t, "idle-a", nil)
+	_, _, leaseC := heldKitClient(t, "idle-c", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, clientB)
+	service.targetMu.Lock()
+	service.targetClients["b"] = clientB
+	service.targetMu.Unlock()
+	noteForegroundPlay(service, "b", "game-b")
+	service.executionMu.Lock()
+	service.stoppedKitLeases = []*targetclient.KitLease{leaseA, leaseB, leaseC}
+	service.executionMu.Unlock()
+
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if !leaseB.Held() || leaseB.CurrentToken() != "live-b" {
+		t.Fatalf("live grant held=%v token=%q", leaseB.Held(), leaseB.CurrentToken())
+	}
+	if leaseA.Held() || leaseC.Held() {
+		t.Fatalf("idle grants stayed held a=%v c=%v", leaseA.Held(), leaseC.Held())
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != leaseB {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+}
+
 func noteForegroundPlay(service *Service, target, gameID string) {
 	service.targetMu.RLock()
 	defer service.targetMu.RUnlock()

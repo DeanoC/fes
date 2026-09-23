@@ -145,6 +145,37 @@ func TestDebugHUDOffByDefaultAndPaintsWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestReleaseIdleLeasePostsEmptyBody(t *testing.T) {
+	t.Parallel()
+	var stopBody, stopCT string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/session/stop" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		raw, _ := io.ReadAll(r.Body)
+		stopBody = string(raw)
+		stopCT = r.Header.Get("Content-Type")
+		_, _ = io.WriteString(w, `{"state":"idle"}`)
+	}))
+	t.Cleanup(server.Close)
+	stamp := ClientStamp{TsUTC: "2026-09-23T12:00:00Z", MonoMS: 1, FlightID: "de305d54-75b4-431b-adb2-eb6b9e546014"}
+	stopped, err := NewClient(server.URL, server.Client()).ReleaseIdleLease(context.Background(), stamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.State != "idle" {
+		t.Fatalf("stop = %#v", stopped)
+	}
+	if stopBody != "" {
+		t.Fatalf("release body = %q, want explicit empty stop", stopBody)
+	}
+	if stopCT != "" {
+		t.Fatalf("release Content-Type = %q", stopCT)
+	}
+}
+
 func TestValidClientFlightID(t *testing.T) {
 	if !validClientFlightID("de305d54-75b4-431b-adb2-eb6b9e546014") {
 		t.Fatal("expected valid v4")

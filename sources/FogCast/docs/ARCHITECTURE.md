@@ -840,7 +840,11 @@ Invalidating one target removes only that client's retained grant. A release
 that fails leaves that grant retained so the next explicit Stop can retry it. Replacement Stop retains ownership for the next launch.
 Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
-do not revoke the live session.
+do not revoke the live session. A failed explicit Stop of that surviving play
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
+the retain request and keeps the grant while the shell stays up. Start, Q, or
+closing the window exits the shell and posts an empty-body Stop when that
+client still owns the idle retained lease.
 Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
