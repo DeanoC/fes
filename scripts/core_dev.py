@@ -17,7 +17,7 @@ import inputs
 import recipes
 
 MAX_MEDIA_BYTES = 32 << 20
-MAX_ARCHIVE_BYTES = 33 << 20
+MAX_ARCHIVE_BYTES = 65 << 20
 CHUNK_BYTES = 64 << 10
 
 
@@ -91,6 +91,12 @@ def reconstruct_archive(source, directory, destination, recipe, record):
              expected=record["manifest_sha256"])
     snapshot(directory / "core.rbf", limit=32 << 20, sealed=True,
              expected=record["core_rbf_sha256"])
+    rom_map = directory / "rom-map.json"
+    if rom_map.exists() or rom_map.is_symlink() or "rom_map_sha256" in record:
+        if "rom_map_sha256" not in record:
+            raise ValueError("resolved ROM map digest is missing")
+        snapshot(directory / "rom-map.json", limit=32 << 20, sealed=True,
+                 expected=record["rom_map_sha256"])
     temporary = destination.with_name("." + destination.name + ".tmp")
     program = '''
 import os, sys
@@ -99,7 +105,7 @@ sys.path.insert(0, sys.argv[1])
 from scripts.core_package import read_package
 from scripts.export_core_package import _archive_bytes
 package = read_package(Path(sys.argv[2]))
-data = _archive_bytes(package.manifest_bytes, package.payload_bytes)
+data = _archive_bytes(package.manifest_bytes, package.payload_bytes, package.rom_map_bytes)
 if not 1 <= len(data) <= int(sys.argv[4]):
     raise ValueError('reconstructed archive exceeds size bound')
 with open(sys.argv[3], 'xb') as stream:

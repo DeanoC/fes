@@ -249,6 +249,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 	}
 	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second,
+		agent.WithCoreLoadTimeout(60*time.Second),
 		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics),
 		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)))
 	content := agent.NewContentController(coordinator, cache)

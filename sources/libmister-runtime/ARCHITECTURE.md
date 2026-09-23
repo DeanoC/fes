@@ -12,7 +12,7 @@ video, Linux input, callback-only input session, and `NativeHardware`.
 There is no conventional Main, MiSTer SPI, framebuffer, cartridge profile table,
 or raw game launch operation.
 
-Package inspection/admission checks the exact format-2 descriptor, digest,
+Package activation admission checks the exact sealed descriptor, digest,
 board, programming profile, ABI and required interfaces before programming.
 Owned descriptors and retained file descriptors cross the mutation boundary;
 payload and composition identities are rechecked immediately before use.
@@ -183,3 +183,27 @@ those bytes. The sealed payload, and any linked cart payload, remain the
 identity artifacts. A digest mismatch rejects admission and leaves the current
 generation untouched. This path is software-covered and has no exact-artifact
 hardware acceptance.
+
+Format-3 package inspection validates the closed manifest/RBF/ROM-map file set,
+retains the map descriptor, and binds all three files to the package identity.
+The required ROM slot metadata is exposed in inspection. Map semantics and CRAM
+linking belong to the target agent; C++ does not implement another linker.
+Format-3 activation uses `load_rom_core`, `load_rom_library_core`, or
+`load_rom_composed_core`. Each carries `programmed_path` and a closed `rom_link`
+receipt: `rom_id`, `map_sha256`, `source_sha256`, `source_size`,
+`programmed_sha256`, and `programmed_size`. The runtime binds the receipt to the
+sealed ROM descriptor, retains the programmed FD, and rechecks its bytes and
+size before retiring input or quiescing hardware. The local agent owns linking
+and source-ROM validation. Ordinary and initialized operations reject format 3;
+ROM operations reject format 2. Native capabilities advertise `rom_linking: 1`.
+Active status retains the receipt until retirement; library ROM loads preserve
+core-scoped persistence. This path has host software coverage only and adds no
+hardware acceptance claim.
+
+Linked cartridge ROM packages cannot declare media blob-stream 1.0, firmware
+blob 1.0 (required or optional, for any ABI), or application 1.0 with media
+blob 1.0. Stream/application-media startup and firmware delivery hold reset
+until a later media commit, while a linked cartridge has already arrived in
+CRAM and skips that commit.
+Compatibility rejects that combination before mutation; firmware ROM packages
+retain normal later cartridge/tape/disk delivery semantics.

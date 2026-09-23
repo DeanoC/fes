@@ -53,11 +53,11 @@ func developmentCoreInspectionHandler(controller DevelopmentController) http.Han
 func developmentCoreHandler(controller DevelopmentController) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 ||
-			r.ContentLength < 1 || r.ContentLength > corepackage.MaxArchiveSize {
+			r.ContentLength < 1 || r.ContentLength > corepackage.MaxROMInputSize {
 			writeBadRequest(w, r, "development core upload requires a bounded application/octet-stream body")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxArchiveSize)
+		r.Body = http.MaxBytesReader(w, r.Body, corepackage.MaxROMInputSize)
 		status, apiErr := controller.LoadCore(r.Context(), r.ContentLength, r.Body)
 		setRequestState(r, status)
 		if apiErr != nil {

@@ -77,6 +77,8 @@ public:
 		const std::string&, const std::string&, const std::string&, CoreData*) override;
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, std::uint16_t, CoreData*) override;
+	Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&) override;
+	Error RecheckProgrammedBitstream(AdmittedCorePackage*) override;
 	Capabilities capabilities() const override;
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage>,
 		std::uint64_t generation) override;

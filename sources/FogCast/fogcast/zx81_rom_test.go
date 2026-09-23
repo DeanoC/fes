@@ -35,8 +35,14 @@ func (f fakeROM) Link(ctx context.Context, base []byte) ([]byte, string, error) 
 var errTestLink = bytes.ErrTooLarge
 
 func TestApplyZX81MachineROMWrapsTheSealedPackage(t *testing.T) {
-	manifest := []byte("format = 2\n")
-	payload := bytes.Repeat([]byte{0x33}, 32)
+	manifest, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/manifests/valid-basic.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile("../corepackage/testdata/core-bundle-v2/payloads/fes-fixture.rbf")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var archive bytes.Buffer
 	for _, member := range []struct {
 		name string

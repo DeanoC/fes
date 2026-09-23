@@ -1,7 +1,7 @@
 /* Browser-only management of existing host library APIs. No lifecycle operations. */
 (function(root) {
   'use strict';
-  const MAX_PACKAGE_BYTES = 33 * 1024 * 1024;
+  const MAX_PACKAGE_BYTES = 65 * 1024 * 1024;
   const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
   const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
   const clone = value => JSON.parse(JSON.stringify(value));

@@ -1,9 +1,8 @@
 # Installed FPGA packages in the library
 
-A library launch today selects one installed package and at most one media
-object. Proposed multi-slot composition (firmware, expansions, later
-removable media) is in [launch composition](launch-composition.md). The first
-ZX81 mid-session tape design lock is
+A library launch selects one installed package, optional media and expansion,
+and, for format-3 packages, an explicitly selected named ROM binary. Legacy
+firmware slots remain separate. The first ZX81 mid-session tape design lock is
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 FogCast keeps installed `.fcore` archives on the host, independently of the
@@ -348,7 +347,7 @@ admitted descriptor:
   "target_id": "<target identity>",
   "package_id": "<selected package ID>",
   "core_id": "fes.pong",
-  "descriptor": { "...": "complete admitted format-2 descriptor" },
+  "descriptor": { "...": "complete admitted package descriptor" },
   "layout": { "id": "fes.pong.progress", "major": 1, "minor": 0 },
   "mode": "persistent",
   "revision": "absent",
@@ -415,3 +414,54 @@ package and generation. Unsafe recovery retains the package and generation in
 failed status, with input blocked and ownership retained. Sudden power loss can
 lose progress since the last successful boundary, while preserving a complete
 previous record.
+
+
+Format-3 ROM-bearing packages preserve their sealed ROM map through import and
+inspection. Launch requires the explicit binary selection described below and a
+target supporting ROM linking. Package uploads are bounded to 65 MiB; individual
+FPGA payloads remain bounded to 32 MiB.
+
+## Named ROM selection for format-3 packages
+
+Format-3 packages declare one required ROM (`rom.id`, role `firmware` or
+`cartridge`, and exact `source_size`). Import its binary through the existing
+`POST /api/v1/core-media` endpoint, then bind the returned immutable digest to a
+library title:
+
+```http
+PUT /api/v1/library/core-entries/GAME_ID/rom
+Content-Type: application/json
+
+{"package_id":"PACKAGE_ID","rom_id":"machine-rom","expected_media_id":"","media_id":"IMPORTED_SHA256"}
+```
+
+`GET` on the same path returns the selection. To replace or clear it, supply
+its current digest as `expected_media_id`; an empty `media_id` clears it.
+Selection verifies the binary's digest and exact declared source size. It
+binds the package ID and ROM name; replacing a title's package requires an
+explicit new ROM selection. Import alone does not select content. These
+endpoints use the existing host API and catalog; the browser management panel
+continues to manage ordinary media separately.
+
+Library responses expose `rom_required`, `rom_ready`, `rom_id`, and
+`rom_media_id`. Missing, damaged, or stale selections block launch before core
+activation. A ROM selection is independent of ordinary tape/media selection
+and the legacy household Coleco firmware slot. Cartridge ROM bytes are consumed
+by linking and are never streamed a second time as media. Linked cartridge
+exports must omit `fes.media.blob-stream` 1.0, `fes.firmware.blob` 1.0, and,
+under `fes.application` 1.x, `fes.media.blob` 1.0, including optional declarations.
+These startup endpoints wait for a separate media upload and
+would leave the linked cartridge in reset. The host reports such combinations
+as not ready and rejects launch before contacting the target. Firmware-role
+ROMs retain their ordinary tape/media behavior. The browser launch control
+also requires `rom_ready` whenever `rom_required` is true.
+
+The host sends a canonical `rom-link.json` source envelope containing the exact
+sealed package, selected ROM binary and optional selected expansion. It does
+not invoke the Python ZX81 initializer or compose an expansion for format 3.
+The target agent links those sources and returns the ROM and programmed image
+identities. The host checks the returned ROM ID, source digest, map digest,
+size and optional expansion against the selection before accepting the normal
+library session. Format-2 ZX81 initialization retains its existing prototype
+path. This software support does not change the production package producers
+or establish hardware acceptance.

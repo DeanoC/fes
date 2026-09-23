@@ -45,11 +45,11 @@ func (s *Service) ImportCoreExpansion(ctx context.Context, size int64, body io.R
 	if err != nil {
 		return catalog.CoreExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
-	_, base, err := s.readInstalledCore(ctx, asset.Manifest.ShellPackageID)
+	inspection, base, err := s.readInstalledCore(ctx, asset.Manifest.ShellPackageID)
 	if err != nil {
 		return catalog.CoreExpansion{}, err
 	}
-	if _, err = corepackage.ComposeArchive(base, asset); err != nil {
+	if err = validateExpansionSelection(inspection, base, asset); err != nil {
 		return catalog.CoreExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
 	result, err := store.ImportCoreExpansion(ctx, asset)
@@ -84,11 +84,11 @@ func (s *Service) SelectCoreEntryExpansion(ctx context.Context, gameID, packageI
 		if err != nil {
 			return catalog.CoreEntryExpansion{}, expansionError(err)
 		}
-		_, base, err := s.readInstalledCore(ctx, packageID)
+		inspection, base, err := s.readInstalledCore(ctx, packageID)
 		if err != nil {
 			return catalog.CoreEntryExpansion{}, err
 		}
-		if _, err = corepackage.ComposeArchive(base, asset); err != nil {
+		if err = validateExpansionSelection(inspection, base, asset); err != nil {
 			return catalog.CoreEntryExpansion{}, expansionError(catalog.ErrInvalidCoreExpansion)
 		}
 	}
@@ -116,4 +116,12 @@ func (s *Service) composeCoreEntry(ctx context.Context, entry catalog.CoreEntry,
 		return nil, expansionError(catalog.ErrInvalidCoreExpansion)
 	}
 	return &bundle, nil
+}
+
+func validateExpansionSelection(inspection corepackage.Inspection, base []byte, asset expansion.Asset) error {
+	if inspection.Descriptor.ROM != nil {
+		return corepackage.ValidateExpansionArchive(base, asset)
+	}
+	_, err := corepackage.ComposeArchive(base, asset)
+	return err
 }

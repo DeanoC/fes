@@ -11,6 +11,7 @@ Hardware-supported package paths: 0.
 | Blob/stream media and firmware | covered | pending |
 | Mid-session ZX81 tape blob (no hold-reset) | covered | pending |
 | Described-core library persistence and retry | covered | pending |
+| Format-3 ROM-map inspection and receipt-bound activation | covered | none |
 | Static ZX81 composition | covered | pending |
 | Initialized machine-ROM bitstream | covered | pending |
 | Explicit contained RBF diagnostic and recovery | covered | diagnostic only; pending |

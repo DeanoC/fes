@@ -101,7 +101,7 @@ recorded cache volume before removing it.
   sharing the FES Git history.
 - **RBF:** the binary FPGA configuration loaded by the runtime.
 - **Bundle:** an RBF plus provenance describing its source and build recipe.
-- **Core package:** a closed format-2 manifest and RBF with a content-derived immutable package ID.
+- **Core package:** a closed manifest and RBF with a content-derived immutable package ID. Format 3 additionally seals a ROM map; the target links its selected ROM and optional expansion before download.
 - **Selection record:** the normalized description of the core installed in an
   image, including its origin and hash.
 - **Snapshot:** a disposable checkout of the real selected FES commit, retaining

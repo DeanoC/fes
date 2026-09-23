@@ -164,6 +164,62 @@ func (client *Client) loadInitialized(ctx context.Context, path, packageID, root
 	}
 	return response, nil
 }
+func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinkIdentity) (Protocol2Response, error) {
+	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if root != "" && !validRuntimePath(root) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if composition != nil && (root != "" || !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(*composition, packageID)) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	if composition == nil && (expansionPath != "" || payloadPath != "") {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
+	before, err := client.Protocol2Status(ctx)
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: false}
+	}
+	if before.Capabilities.ROMLinking != 1 {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
+	}
+	operation := "load_rom_core"
+	if root != "" {
+		operation = "load_rom_library_core"
+	}
+	if composition != nil {
+		operation = "load_rom_composed_core"
+	}
+	line, attempted, err := client.callRawTracked(ctx, struct {
+		Protocol       int                         `json:"protocol"`
+		Operation      string                      `json:"operation"`
+		PackagePath    string                      `json:"package_path"`
+		PackageID      string                      `json:"package_id"`
+		DataRoot       string                      `json:"data_root,omitempty"`
+		ExpansionPath  string                      `json:"expansion_path,omitempty"`
+		PayloadPath    string                      `json:"payload_path,omitempty"`
+		Composition    *expansion.Composition      `json:"composition,omitempty"`
+		ProgrammedPath string                      `json:"programmed_path"`
+		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
+	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: identity})
+	if err != nil {
+		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
+	}
+	response, err := decodeProtocol2Response(line)
+	if err != nil || response.InspectedPackage != nil {
+		if err != nil {
+			return Protocol2Response{}, protocol2MutationError{error: err, attempted: true}
+		}
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	if response.OK && (response.State != "running_development" ||
+		response.Execution != "development" || response.ActivePackage == nil ||
+		response.ActivePackage.PackageID != packageID || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity)) {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	return response, nil
+}
 func (client *Client) LoadComposedCore(ctx context.Context, path, packageID, expansionPath, payloadPath string, composition expansion.Composition) (Protocol2Response, error) {
 	if !validRuntimePath(expansionPath) || !validRuntimePath(payloadPath) || !validComposition(composition, packageID) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
@@ -290,7 +346,7 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 	}
-	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, []string{"media_stream"})
+	capabilities, err := exactRawObject(object["capabilities"], []string{"programming_profiles", "abis", "active_interfaces"}, []string{"media_stream", "rom_linking"})
 	if err != nil {
 		return err
 	}
@@ -299,6 +355,11 @@ func validateProtocol2Shape(line []byte) error {
 		"active_interfaces": rawArray,
 	}); err != nil {
 		return err
+	}
+	if raw, ok := capabilities["rom_linking"]; ok {
+		if err := requireRawKind(raw, rawUnsigned); err != nil {
+			return err
+		}
 	}
 	if raw, ok := capabilities["media_stream"]; ok {
 		stream, err := exactRawObject(raw, []string{"interface", "min_bytes", "max_bytes", "chunk_bytes"}, nil)
@@ -336,7 +397,7 @@ func validateProtocol2Shape(line []byte) error {
 		return err
 	}
 	if !isNull(object["active_package"]) {
-		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, []string{"persistence_mode", "composition"})
+		active, err := exactRawObject(object["active_package"], []string{"package_id", "descriptor", "observed"}, []string{"persistence_mode", "composition", "rom_link"})
 		if err != nil {
 			return err
 		}
@@ -345,6 +406,15 @@ func validateProtocol2Shape(line []byte) error {
 			"observed": rawObject,
 		}); err != nil {
 			return err
+		}
+		if raw, ok := active["rom_link"]; ok {
+			fields, err := exactRawObject(raw, []string{"rom_id", "map_sha256", "source_sha256", "source_size", "programmed_sha256", "programmed_size"}, nil)
+			if err != nil {
+				return err
+			}
+			if err := requireRawKinds(fields, map[string]rawKind{"rom_id": rawString, "map_sha256": rawString, "source_sha256": rawString, "source_size": rawUnsigned, "programmed_sha256": rawString, "programmed_size": rawUnsigned}); err != nil {
+				return err
+			}
 		}
 		if value, ok := active["composition"]; ok && !isNull(value) {
 			tuple, err := exactRawObject(value, []string{"composition_id", "package_id", "expansion_id", "shell_sha256", "payload_sha256", "payload_size"}, nil)
@@ -414,7 +484,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateDescriptorShape(raw json.RawMessage) error {
-	descriptor, err := exactRawObject(raw, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, nil)
+	descriptor, err := exactRawObject(raw, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, []string{"rom"})
 	if err != nil {
 		return err
 	}
@@ -424,6 +494,23 @@ func validateDescriptorShape(raw json.RawMessage) error {
 		"build": rawObject,
 	}); err != nil {
 		return err
+	}
+	var format uint64
+	if err := json.Unmarshal(descriptor["format"], &format); err != nil {
+		return errInvalidRuntimeResponse
+	}
+	rom, hasROM := descriptor["rom"]
+	if (format == 3) != hasROM {
+		return errInvalidRuntimeResponse
+	}
+	if hasROM {
+		fields, err := exactRawObject(rom, []string{"id", "role", "source_size", "file", "size", "sha256"}, nil)
+		if err != nil {
+			return err
+		}
+		if err := requireRawKinds(fields, map[string]rawKind{"id": rawString, "role": rawString, "source_size": rawUnsigned, "file": rawString, "size": rawUnsigned, "sha256": rawString}); err != nil {
+			return err
+		}
 	}
 	core, err := exactRawObject(descriptor["core"], []string{"id", "name", "description", "version"}, []string{"system"})
 	if err != nil {
@@ -807,6 +894,13 @@ func validSupportedInterfaces(interfaces []Protocol2Interface) bool {
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if active.Descriptor.ROM != nil {
+		if capabilities.ROMLinking != 1 || active.ROMLink == nil || !active.ROMLink.ValidFor(active.Descriptor) {
+			return false
+		}
+	} else if active.ROMLink != nil {
+		return false
+	}
 	if c := active.Composition; c != nil {
 		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" || active.Descriptor.ABI.ID != "fes.simple-computer" || active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
 			return false
@@ -868,6 +962,9 @@ func validInspection(inspection Protocol2Inspection, capabilities Protocol2Capab
 		return false
 	}
 	if inspection.Compatible {
+		if inspection.Descriptor.ROM != nil && capabilities.ROMLinking != 1 {
+			return false
+		}
 		abi := matchingABI(capabilities, inspection.Descriptor)
 		return inspection.CompatibilityError == nil && abi != nil &&
 			containsString(capabilities.ProgrammingProfiles,

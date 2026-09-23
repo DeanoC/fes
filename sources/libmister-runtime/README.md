@@ -4,8 +4,7 @@ Development lives in the FES repository under `sources/libmister-runtime`.
 The former standalone repository is archived.
 
 The C++14 library and local `mister-runtime` daemon own FPGA programming,
-physical lifecycle, media/input delivery, and recovery. FES format-2 described
-packages are the only product launch path. The installed driver supports
+physical lifecycle, media/input delivery, and recovery. FES described packages are the only product launch path. The installed driver supports
 `fes.simple-game`, `fes.simple-computer`, and `fes.application` through
 `fes-gp-v1`. Protocol 2 is the only local socket protocol.
 
@@ -33,3 +32,19 @@ Build and validate with `make all` and `make test`. See
 [development](DEVELOPMENT.md), [application I/O](docs/application-io.md),
 [stream media](docs/media-stream.md), and
 [core persistence](docs/core-persistence.md).
+
+Format-3 package inspection validates the closed manifest/RBF/ROM-map file set,
+retains the map descriptor, and binds all three files to the package identity.
+The required ROM slot metadata is exposed in inspection. Map semantics and CRAM
+linking belong to the target agent; C++ does not implement another linker.
+Format-3 activation uses `load_rom_core`, `load_rom_library_core`, or
+`load_rom_composed_core`. Each carries `programmed_path` and a closed `rom_link`
+receipt: `rom_id`, `map_sha256`, `source_sha256`, `source_size`,
+`programmed_sha256`, and `programmed_size`. The runtime binds the receipt to the
+sealed ROM descriptor, retains the programmed FD, and rechecks its bytes and
+size before retiring input or quiescing hardware. The local agent owns linking
+and source-ROM validation. Ordinary and initialized operations reject format 3;
+ROM operations reject format 2. Native capabilities advertise `rom_linking: 1`.
+Active status retains the receipt until retirement; library ROM loads preserve
+core-scoped persistence. This path has host software coverage only and adds no
+hardware acceptance claim.

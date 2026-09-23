@@ -28,7 +28,7 @@ func packageCoreName(coreID string) (string, error) {
 	case "fes.coleco":
 		return "coleco", nil
 	default:
-		return "", fmt.Errorf("unsupported format-2 package core %q", coreID)
+		return "", fmt.Errorf("unsupported package core %q", coreID)
 	}
 }
 
@@ -63,7 +63,7 @@ func PrepareCorePackageSelection(directory, record, cache, output string) (CoreP
 }
 
 // PrepareCorePackageSelectionForCore pins one selected record/package pair
-// while binding it to the expected format-2 core ID.
+// while binding it to the expected core ID.
 func PrepareCorePackageSelectionForCore(directory, record, cache, output, expectedCoreID string) (CorePackageSelection, error) {
 	return prepareCorePackageSelectionForCoreWithRename(directory, record, cache, output, expectedCoreID, os.Rename)
 }
@@ -187,7 +187,7 @@ func InspectCorePackageSelection(directory, record string) (CorePackageSelection
 }
 
 // InspectCorePackageSelectionForCore verifies one pair and binds its record
-// and manifest to the expected format-2 core ID.
+// and manifest to the expected core ID.
 func InspectCorePackageSelectionForCore(directory, record, expectedCoreID string) (CorePackageSelection, string, error) {
 	recordBytes, selection, err := readCorePackageSelection(record, true, expectedCoreID)
 	if err != nil {
@@ -265,8 +265,9 @@ func verifyClosedPackage(directory string, sealed bool) error {
 		names = append(names, entry.Name())
 	}
 	sort.Strings(names)
-	if len(names) != 2 || names[0] != "core.rbf" || names[1] != "manifest.toml" {
-		return fmt.Errorf("package must contain exactly manifest.toml and core.rbf")
+	if (len(names) != 2 && len(names) != 3) || names[0] != "core.rbf" || names[1] != "manifest.toml" ||
+		(len(names) == 3 && names[2] != "rom-map.json") {
+		return fmt.Errorf("package must contain manifest.toml and core.rbf, with only an optional rom-map.json")
 	}
 	for _, name := range names {
 		file, _, err := openRegularNoFollow(filepath.Join(directory, name), sealed)
@@ -284,7 +285,15 @@ func copyClosedPackage(source, destination string) error {
 	if err := verifyClosedPackage(source, true); err != nil {
 		return err
 	}
-	for _, name := range []string{"manifest.toml", "core.rbf"} {
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if name != "manifest.toml" && name != "core.rbf" && name != "rom-map.json" {
+			return fmt.Errorf("unexpected package member %s", name)
+		}
 		input, _, err := openRegularNoFollow(filepath.Join(source, name), true)
 		if err != nil {
 			return err

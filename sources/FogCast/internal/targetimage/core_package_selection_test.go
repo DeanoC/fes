@@ -17,13 +17,22 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 
 func packageSelectionFixtureForCore(t *testing.T, coreID string) (string, string, CorePackageSelection) {
 	t.Helper()
+	return packageSelectionFixtureWithFormat(t, coreID, 2)
+}
+
+func packageSelectionFixtureWithFormat(t *testing.T, coreID string, format int) (string, string, CorePackageSelection) {
+	t.Helper()
 	directory := filepath.Join(t.TempDir(), "package")
 	if err := os.Mkdir(directory, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"manifest.toml", "core.rbf"} {
-		data, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2",
-			map[string]string{"manifest.toml": "manifests/valid-basic.toml", "core.rbf": "payloads/fes-fixture.rbf"}[name]))
+	members := []string{"manifest.toml", "core.rbf"}
+	if format == 3 {
+		members = append(members, "rom-map.json")
+	}
+	for _, name := range members {
+		data, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", fmt.Sprintf("core-bundle-v%d", format),
+			map[string]string{"manifest.toml": "manifests/valid-basic.toml", "core.rbf": "payloads/fes-fixture.rbf", "rom-map.json": "maps/valid-basic.json"}[name]))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -318,5 +327,80 @@ func TestCorePackageSelectionReplacementPreservesOldPairAndClosesChangedID(t *te
 	}
 	if err := VerifyCorePackageSelection(filepath.Join(cache, "core-packages", secondInspection.PackageID), output); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCorePackageSelectionPreservesSealedROMMap(t *testing.T) {
+	directory, record, selection := packageSelectionFixtureWithFormat(t, "fes.pong", 3)
+	cache := t.TempDir()
+	t.Cleanup(func() { _ = removePath(cache) })
+	output := filepath.Join(cache, corePackageSelectionName)
+	if _, err := PrepareCorePackageSelection(directory, record, cache, output); err != nil {
+		t.Fatal(err)
+	}
+	published := filepath.Join(cache, "core-packages", selection.PackageID)
+	if err := VerifyCorePackageSelection(published, output); err != nil {
+		t.Fatal(err)
+	}
+	want, _ := os.ReadFile(filepath.Join(directory, "rom-map.json"))
+	path := filepath.Join(published, "rom-map.json")
+	got, err := os.ReadFile(path)
+	if err != nil || string(want) != string(got) {
+		t.Fatalf("ROM map changed or missing: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0444 {
+		t.Fatalf("ROM map not sealed: %v", err)
+	}
+	if err := os.Chmod(path, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyCorePackageSelection(published, output); err == nil {
+		t.Fatal("writable ROM map accepted")
+	}
+	if err := os.WriteFile(path, append(got, ' '), 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyCorePackageSelection(published, output); err == nil {
+		t.Fatal("tampered ROM map accepted")
+	}
+}
+
+func TestCorePackageSelectionRejectsInvalidROMMembers(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		format int
+		mutate func(string) error
+	}{
+		{"format2 with map", 2, func(dir string) error { return os.WriteFile(filepath.Join(dir, "rom-map.json"), []byte("{}"), 0444) }},
+		{"format3 missing map", 3, func(dir string) error { return os.Remove(filepath.Join(dir, "rom-map.json")) }},
+		{"format3 stray", 3, func(dir string) error { return os.WriteFile(filepath.Join(dir, "stray"), []byte("x"), 0444) }},
+		{"format3 symlink map", 3, func(dir string) error {
+			path := filepath.Join(dir, "rom-map.json")
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+			return os.Symlink("manifest.toml", path)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			directory, record, _ := packageSelectionFixtureWithFormat(t, "fes.pong", tc.format)
+			if err := os.Chmod(directory, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := tc.mutate(directory); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chmod(directory, 0555); err != nil {
+				t.Fatal(err)
+			}
+			cache := t.TempDir()
+			if _, err := PrepareCorePackageSelection(directory, record, cache, filepath.Join(cache, corePackageSelectionName)); err == nil {
+				t.Fatal("invalid package members accepted")
+			}
+		})
 	}
 }

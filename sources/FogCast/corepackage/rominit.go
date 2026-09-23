@@ -141,6 +141,9 @@ func romInitMember(data []byte, offset int, name string) ([]byte, int, error) {
 }
 
 func ArchivePayload(archive []byte) ([]byte, error) {
-	_, payload, err := readArchive(archive)
+	manifest, payload, mapping, err := readArchive(archive)
+	if err == nil {
+		_, err = decode(manifest, payload, mapping)
+	}
 	return payload, err
 }

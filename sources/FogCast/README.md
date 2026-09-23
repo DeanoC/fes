@@ -136,7 +136,7 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A separate reproducible `native-dev` image that packages the native runtime,
   native agent backend, one locked idle RBF, and the selected Mega Drive RBF
   with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
-  selected set of validated format-2 packages (`fes.pong`, `fes.zx81`, and
+  selected set of validated format-2/3 packages (`fes.pong`, `fes.zx81`, and
   `fes.coleco`) through the closed package selection described in [the
   development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the

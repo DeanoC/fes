@@ -130,7 +130,7 @@ host/UI-only packages.
 Target `GET /v1/health` may include an `artifacts` object: the SHA-256 of the
 installed `/usr/share/mister-runtime/build-inputs` record, the runtime commit,
 agent revision (stamped at `make build-agent`), agent and kit digests from that record, idle and catalog core digests, the
-optional format-2 package id, and on an appliance boot the bootstrap ticket
+optional sealed package ID, and on an appliance boot the bootstrap ticket
 `image_sha256`. The agent does not hash live binaries on each poll. Missing
 fields mean there is no sealed record (for example an unsealed diagnostic image), not
 that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
@@ -261,10 +261,10 @@ SNES, NES and Mega Drive records do not grant launch eligibility. Existing
 catalog rows, ROM caches and old saves are preserved; the host does not seed a
 raw Pong product. Package persistence uses the described-core records below.
 
-## Format-2 core package inspection and staging
+## Core package inspection and staging
 
-`corepackage` is the shared, hardware-independent format-2 reader. It
-inspects exact two-file directories or restricted uncompressed ustar archives,
+`corepackage` is the shared, hardware-independent format-2/3 reader. It
+inspects closed directories or restricted uncompressed ustar archives,
 validates the closed typed manifest and payload bytes, and computes package
 identity from the original manifest and payload. Unknown but well-formed ABIs
 remain inspectable; hardware compatibility belongs to the native runtime.
@@ -273,7 +273,8 @@ from the same pinned read for identity-reporting consumers such as
 `core-inspect`; the smaller `Inspect` wrapper returns only the descriptor.
 
 `corepackage.Stage` accepts a caller-bounded archive stream and publishes only
-validated `manifest.toml` and `core.rbf` bytes into a distinct sealed directory
+validated `manifest.toml`, `core.rbf` and, for format 3, `rom-map.json` bytes
+into a distinct sealed directory
 beneath an absolute private root. Cancellation or validation failure removes
 the incomplete directory, including cancellation observed after rename and
 before ownership handoff. The caller owns the returned directory lifetime and
@@ -732,14 +733,14 @@ FES produces:
 The only image variant is `native-dev`, which starts image-owned
 `mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
 and the selected closed FES package set (`fes.pong`, `fes.zx81`, `fes.coleco`).
-The image selector validates and copies only `manifest.toml` and
-`core.rbf` for each pair, installs them beneath their exact package IDs, and
+The image selector validates and copies the closed `manifest.toml` and
+`core.rbf` set, including `rom-map.json` for format 3, beneath exact package IDs. It
 retains the external producer/package selections beside the image,
 has no Main startup or legacy Menu-configuration helper, has no
 `/dev/MiSTer_cmd` wait, and retains the same read-only root with volatile
 `/run`, `/tmp`, and `/var/log`. Its build-input record identifies the runtime
 commit, agent binary and idle RBF provenance. For each
-format-2 package selected, the record also identifies the exact selection
+format-2/3 package selected, the record also identifies the exact selection
 digest, package and payload IDs, producer/schema revisions, and install path.
 The verifier reconstructs that projection from the installed package and
 external selection; it does not infer selection from cache or image contents.
@@ -1370,3 +1371,43 @@ label and host library association. A safely resumed save failure preserves
 its exact generation and can restore host input; unsafe persistence recovery
 retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
+
+
+## ROM-bearing package inspection
+
+`corepackage` accepts closed format-2 and format-3 packages during the ROM
+transition. Format 3 carries exactly `manifest.toml`, `core.rbf`, and
+`rom-map.json`. The required `rom` manifest table names one ROM requirement
+(id, firmware/cartridge role and exact binary source size) and binds the map's
+length and SHA256. Package identity uses the format-3 domain and hashes all
+three exact members. The maximum archive/import size is 65 MiB; format-2
+payload limits and identities remain unchanged.
+
+Import, private staging, inspection and restart adoption validate and preserve
+the map. The Go reader checks its closed JSON shape, unique destinations and
+source ranges, device/encoding, and binding to the manifest's payload digest
+and source size through `expansion.ParseROMMap`. It does not trust a map
+supplied separately by a media upload. Expansion composition retains the whole
+sealed shell package, including the map, and its package identity.
+
+Format-3 library entries select one exact-size binary through the named ROM
+selection API. The host sends a source-only `rom-link.json` envelope containing
+the sealed package, ROM bytes and optional expansion asset. It does not run
+Python or build the programmed RBF. The target negotiates `rom_linking: 1`,
+validates the package/map/source bindings, composes any expansion, then applies
+the ROM map using the Go linker before entering the input replacement barrier.
+
+The runtime accepts `load_rom_core`, `load_rom_library_core`, and
+`load_rom_composed_core` with the retained programmed artifact and a `rom_link`
+identity binding the named ROM, map digest, source digest/size, and programmed
+digest/size. It validates and rechecks the artifact before hardware mutation.
+Bare format-3 and old initialized format-3 loads are rejected. Active status,
+lost-reply reconciliation and restart adoption retain this tuple; adoption
+relinks retained source inputs and compares the programmed bytes and identity.
+Two ROM selections on the same core package are distinct active instances.
+
+Production ZX81 exports use format 3. Existing format-2 packages retain their
+launch behavior, including the older ZX81 Python prototype during transition.
+The image selector preserves all three sealed format-3 members. Host-side tests
+do not establish hardware acceptance or kit performance; those remain evidence
+for the exact tested package and software.

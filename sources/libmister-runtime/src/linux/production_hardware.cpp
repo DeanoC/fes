@@ -139,6 +139,11 @@ public:
 	{
 		return hardware_.UpdateCoreSettings(directory, expected_id, root, revision, speed, output);
 	}
+	Error AttachROMBitstream(AdmittedCorePackage* package, const std::string& path,
+		const CoreROMLink& link) override
+	{ return hardware_.AttachROMBitstream(package, path, link); }
+	Error RecheckProgrammedBitstream(AdmittedCorePackage* package) override
+	{ return hardware_.RecheckProgrammedBitstream(package); }
 	Capabilities capabilities() const override { return hardware_.capabilities(); }
 	HardwareResult LoadCore(std::unique_ptr<AdmittedCorePackage> package,
 		std::uint64_t generation) override

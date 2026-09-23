@@ -19,11 +19,11 @@ FPGA_SOFTWARE_TESTS = (
     'test_build_fes_*.py', 'test_functional_identity.py',
     'test_export_core_package.py', 'test_compiler_read_audit.py',
     'test_source_provenance.py', 'test_source_repository.py',
-    'test_core_package.py', 'test_search_placer_qor.py',
-    'test_coleco_sim_shards.py',
+    'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
+    'test_coleco_sim_shards.py', 'test_rom_map.py',
 )
 FPGA_PRODUCER_HELPERS = {
-    'build_fes_catch.py',
+    'build_fes_catch.py', 'rom_map.py', 'rom_map_oracle.py',
     'fes_build_common.py', 'fes_de10nano_evidence.py', 'compiler_read_audit.py',
     'source_repository.py', 'source_provenance.py', 'functional_execution.py',
     'core_package.py', 'export_core_package.py', 'search_placer_qor.py',

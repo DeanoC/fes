@@ -1,0 +1,49 @@
+format = 3
+
+[core]
+id = "fes.pong"
+name = "FES Pong"
+description = "Synthetic test-only core bundle fixture; never deploy."
+version = "0.1.0"
+
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+
+[payload]
+file = "core.rbf"
+size = 12
+sha256 = "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"
+
+[abi]
+id = "fes.simple-game"
+major = 1
+minor = 0
+
+[[interfaces]]
+id = "fes.gamepad"
+major = 1
+minor = 0
+required = true
+
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/fes-pong"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "synthetic fixture generator 1.0 (test-only)"
+
+[rom]
+id = "machine-rom"
+role = "firmware"
+source_size = 1024
+file = "rom-map.json"
+size = 72422
+sha256 = "458e962a7c1c05aa994ce9a4671d28cb89a2d0efb5b10583bd15d69ed557e5d8"

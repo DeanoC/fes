@@ -85,6 +85,30 @@ class ExportCorePackageTests(unittest.TestCase):
         self.fields = fields
         self.manifest = encode_manifest(fields)
 
+    def test_opt_in_rom_export_is_sealed_reusable_and_identity_bound(self):
+        fixture_root = ROOT / "tests" / "fixtures" / "core-bundle-v3"
+        mapping = (fixture_root / "maps" / "valid-basic.json").read_bytes()
+        map_path = self.build / "rom-map.json"
+        map_path.write_bytes(mapping)
+        directory = export_package(self.manifest, self.rbf, self.store,
+                                   rom_map=map_path, rom_id="machine-rom", rom_role="firmware")
+        package = read_package(directory)
+        self.assertEqual(3, package.fields["format"])
+        self.assertEqual(mapping, package.rom_map_bytes)
+        self.assertEqual({"manifest.toml", "core.rbf", "rom-map.json"}, {p.name for p in directory.iterdir()})
+        self.assertEqual(package, read_package(directory.with_suffix(".fcore")))
+        self.assertEqual(0, (directory / "rom-map.json").stat().st_mode & 0o222)
+        self.assertEqual(directory, export_package(self.manifest, self.rbf, self.store,
+                         rom_map=map_path, rom_id="machine-rom", rom_role="firmware"))
+        self.assertEqual(directory, export_package(package.manifest_bytes, self.rbf, self.store, rom_map=map_path))
+        self.assertNotEqual(package.package_id, package_identity(self.manifest, self.payload))
+        with self.assertRaises(PackageExportError):
+            export_package(self.manifest, self.rbf, self.store, rom_map=map_path)
+        map_path.write_bytes(mapping.replace(b'"format":1', b'"format":2'))
+        with self.assertRaises(PackageExportError):
+            export_package(self.manifest, self.rbf, self.store,
+                           rom_map=map_path, rom_id="machine-rom", rom_role="firmware")
+
     def tearDown(self):
         self.tempdir.cleanup()
 

@@ -28,6 +28,88 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
+    def test_build_exports_sealed_map_and_cleans_failed_database_recheck(self):
+        import hashlib
+        from types import SimpleNamespace
+        from scripts.core_package import read_package
+        from scripts.cyclonev_rbf import SX120F
+        from tests.test_rom_map import mux_text, routed_rom
+        from tests.test_build_fes_zx81_expansion import ZX81SocketProducerTests
+        producer = build_fes_zx81_oss
+        database = {
+            'data/m10k-mux.txt': mux_text().encode(),
+            'libmistral/cyclonev.h': b'y = 2 + 86 * pos2y(pos);',
+            'libmistral/cvd-sx120f.cc': ('7605, 7024, // cram size\n// x to bit x\n{' +
+                ','.join(map(str, SX120F.x_to_bx)) + '}\n// column types\n{' +
+                ','.join(['T_EMPTY']*5+['T_M10K']) + '}\n' +
+                'sx120f_bel_spans_info[] = {1, 9, 1, 73, 80, 0xff};').encode(),
+        }
+        pins = {name: hashlib.sha256(data).hexdigest() for name, data in database.items()}
+        cram = bytearray(b'\xff')*((SX120F.cram_sx*SX120F.cram_sy+7)//8)
+        output = ROOT / OUTPUT_RELATIVE
+        tools = {name: SimpleNamespace(path=ROOT/'build/toolchain/install/bin'/name, identity=name)
+                 for name in ('yosys', 'nextpnr-mistral', 'mistral')}
+        database_root = ROOT/'build/toolchain/src/mistral'
+        for name, data in database.items():
+            path = database_root/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+
+        def synth(*args, **kwargs):
+            design = ZX81SocketProducerTests().fixture()
+            (output/'synth.json').write_text(json.dumps(design))
+
+        def route(**kwargs):
+            (output/'routed.json').write_text(json.dumps(routed_rom()))
+            (output/'core.rbf').write_bytes(b'compiler fixture RBF')
+            return SimpleNamespace(seed=10, weight=1000)
+
+        def evidence(*args):
+            return {'route': {}, 'rbf': {'size': 20, 'sha256': hashlib.sha256(b'compiler fixture RBF').hexdigest()}}
+
+        with (patch.object(producer, 'ROM_DATABASE_SHA256', pins),
+              patch.object(producer, '_authenticate_tools', return_value=tools),
+              patch.object(producer, 'FunctionalInvocation', FakeInvocation),
+              patch.object(producer, '_run_tool', side_effect=synth),
+              patch.object(producer, 'route_after_synth', side_effect=route),
+              patch.object(producer, 'validate_build_evidence', side_effect=evidence),
+              patch('scripts.rom_map.rbf_load', return_value=SimpleNamespace(cram=cram))):
+            package_path = producer.build(ROOT)
+            self.addCleanup(package_path.chmod, 0o755)
+            package = read_package(package_path)
+            self.assertEqual(package.fields['format'], 3)
+            self.assertEqual(package.fields['rom']['id'], 'machine-rom')
+            self.assertEqual(package.fields['rom']['role'], 'firmware')
+            self.assertEqual(package.fields['rom']['source_size'], 8192)
+            self.assertEqual(package.manifest_bytes, (output/'manifest.toml').read_bytes())
+            self.assertEqual(package.rom_map_bytes, (output/'rom-map.json').read_bytes())
+            self.assertEqual(read_package(package_path.with_suffix('.fcore')), package)
+            self.assertEqual(producer.build(ROOT), package_path)
+
+            def tamper(*args):
+                (database_root/'data/m10k-mux.txt').write_bytes(b'changed during compilation')
+                return evidence()
+            with patch.object(producer, 'validate_build_evidence', side_effect=tamper):
+                with self.assertRaisesRegex(ValueError, 'database digest'):
+                    producer.build(ROOT)
+            for name in ('rom-map.json', 'manifest.toml', 'core.rbf', 'build-summary.json'):
+                self.assertFalse((output/name).exists(), name)
+            self.assertEqual(read_package(package_path), package)
+
+    def test_record_seals_rom_database_and_format(self):
+        record = json.loads(build_fes_zx81_oss.create_build_record(
+            ROOT, 'https://example.invalid/fes.git', 'a'*40, {'yosys': 'test'}, execution=EXECUTION))
+        self.assertEqual(record['parameters'].get('rom_id'), 'machine-rom')
+        self.assertEqual(record['parameters'].get('package_format'), 3)
+        self.assertIn('rom_database_sha256', record['parameters'])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root/OUTPUT_RELATIVE
+            output.mkdir(parents=True)
+            (output/'rom-map.json').write_bytes(b'stale map')
+            build_fes_zx81_oss._prepare_output(root)
+            self.assertFalse((output/'rom-map.json').exists())
+
     def test_record_seals_effective_search_policy(self) -> None:
         for mode in ("first-pass", "staged"):
             with self.subTest(mode=mode):
@@ -191,6 +273,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
         evidence = {
             "build_id": "d" * 32,
             "rbf": {"size": 16, "sha256": "e" * 64},
+            "rom": dict(id="machine-rom", role="firmware", source_size=8192, file="rom-map.json", size=100, sha256="f"*64),
         }
         tools = {
             "mistral": "commit=" + "f" * 40 + "; sha256=" + "1" * 64,
@@ -218,12 +301,16 @@ class BuildFesZx81OssTests(unittest.TestCase):
         )
         manifest = _manifest(
             record,
-            {"build_id": "d" * 32, "rbf": {"size": 16, "sha256": "e" * 64}},
+            {"build_id": "d" * 32, "rbf": {"size": 16, "sha256": "e" * 64},
+             "rom": dict(id="machine-rom", role="firmware", source_size=8192, file="rom-map.json", size=100, sha256="f"*64)},
             "https://github.com/DeanoC/misteross.git", "a" * 40,
             {"mistral": "m", "nextpnr-mistral": "n", "yosys": "y"},
         )
         fields = tomllib.loads(manifest.decode())
         self.assertEqual(fields["core"]["version"], "1.2.0")
+        self.assertEqual(fields["format"], 3)
+        self.assertEqual(fields["rom"]["id"], "machine-rom")
+        self.assertEqual(fields["rom"]["source_size"], 8192)
         interfaces = {item["id"] for item in fields["interfaces"]}
         self.assertIn("fes.expansion.zx81-bus", interfaces)
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)

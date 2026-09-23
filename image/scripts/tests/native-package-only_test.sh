@@ -49,6 +49,10 @@ case "$command" in
     mkdir -p "$destination"
     cp "$package/manifest.toml" "$destination/manifest.toml"
     cp "$package/core.rbf" "$destination/core.rbf"
+    if [ -f "$package/rom-map.json" ]; then
+      cp "$package/rom-map.json" "$destination/rom-map.json"
+      chmod 0444 "$destination/rom-map.json"
+    fi
     chmod 0444 "$destination/manifest.toml" "$destination/core.rbf"
     chmod 0555 "$destination"
     cp "$selection" "$output"
@@ -93,6 +97,10 @@ for core_id in $package_words; do
   printf "core_id = '%s'\n" "$core_id" >"$package/manifest.toml"
   printf '%s payload\n' "$core" >"$package/core.rbf"
   chmod 0444 "$package/manifest.toml" "$package/core.rbf"
+  if [ "$core_id" = fes.zx81 ]; then
+    printf 'sealed map fixture\n' >"$package/rom-map.json"
+    chmod 0444 "$package/rom-map.json"
+  fi
   chmod 0555 "$package"
   selection=$fixture/$core.package-selection.toml
   cat >"$selection" <<EOF
@@ -143,6 +151,10 @@ for core_id in $package_words; do
   test "$(stat -c %a "$installed")" = 555
   test "$(stat -c %a "$installed/manifest.toml")" = 444
   test "$(stat -c %a "$installed/core.rbf")" = 444
+  if [ "$core_id" = fes.zx81 ]; then
+    cmp "$FES_ZX81_PACKAGE_DIR/rom-map.json" "$installed/rom-map.json"
+    test "$(stat -c %a "$installed/rom-map.json")" = 444
+  fi
   test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-$core.package.toml")" = 444
 done
 "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"

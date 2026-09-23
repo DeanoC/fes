@@ -334,7 +334,10 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 		if inspection.Descriptor.Core.ID != entry.CoreID {
 			return coreLoadSource{}, canonicalError(protocol.CodeInvalidArchive, nil)
 		}
-		if protocol.RequiresCoreMedia(inspection.Descriptor) && entry.MediaID == "" {
+		if err := validateROMMediaContract(inspection.Descriptor); err != nil {
+			return coreLoadSource{}, err
+		}
+		if protocol.RequiresCoreMedia(inspection.Descriptor) && !(inspection.Descriptor.ROM != nil && inspection.Descriptor.ROM.Role == "cartridge") && entry.MediaID == "" {
 			return coreLoadSource{}, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "admission",
 				Message: "application requires selected library media before launch"}
 		}
@@ -357,6 +360,16 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID, target string)
 			if err != nil {
 				return coreLoadSource{}, err
 			}
+		}
+		if inspection.Descriptor.ROM != nil {
+			// Cartridge bytes are consumed by linking, never delivered again as media.
+			if inspection.Descriptor.ROM.Role != "cartridge" {
+				media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
+				if err != nil {
+					return coreLoadSource{}, err
+				}
+			}
+			return s.romLaunchSource(ctx, entry, inspection.Descriptor, data)
 		}
 		media, err = s.readCoreEntryMedia(ctx, inspection.Descriptor, entry.MediaRole, entry.MediaID)
 		if err != nil {
@@ -494,10 +507,15 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
-	composition *expansion.Composition
-	size        int64
-	body        io.Reader
-	entry       *catalog.CoreEntry
+	romID         string
+	romMediaID    string
+	romMapSHA256  string
+	romSourceSize int64
+	expansionID   string
+	composition   *expansion.Composition
+	size          int64
+	body          io.Reader
+	entry         *catalog.CoreEntry
 }
 
 // stopRejectedCore owns recovery when package activation cannot be accepted,

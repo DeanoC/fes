@@ -141,7 +141,10 @@ mailbox uses.
    directory `fes-sms`, id `fes.sms`, not a second spelling.
 3. Add a producer next to `scripts/build_fes_sms_oss.py` or the closest
    sibling. It authenticates one lock, requires a clean committed module,
-   seals format 2, and never programs hardware. Wire `make sim-…` and
+   and never programs hardware. A new core with a ROM embedded in CRAM seals
+   a producer-derived ROM map in format 3, as ZX81 does; ROM-less cores and
+   existing media-mailbox cores retain format 2 until explicitly converted.
+   Wire `make sim-…` and
    `make build-…` in the Makefile. Add the tests the sibling has for manifest
    identity and the simulation you claim.
 4. Update this guide's table, the core README, and the architecture section

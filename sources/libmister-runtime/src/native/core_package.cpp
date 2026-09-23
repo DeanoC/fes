@@ -49,7 +49,7 @@ private:
 	int descriptor_;
 };
 
-Error CheckDirectoryEntries(int directory)
+Error CheckDirectoryEntries(int directory, unsigned format)
 {
 	const int scan_descriptor = openat(directory, ".",
 		O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
@@ -69,9 +69,10 @@ Error CheckDirectoryEntries(int directory)
 	const int scan_error = errno;
 	closedir(scan);
 	if (scan_error != 0) return Invalid("cannot inspect package directory");
-	const std::set<std::string> expected = {"core.rbf", "manifest.toml"};
+	std::set<std::string> expected = {"core.rbf", "manifest.toml"};
+	if (format == 3) expected.insert("rom-map.json");
 	if (names != expected)
-		return Invalid("package directory must contain exactly manifest.toml and core.rbf");
+		return Invalid("package directory members do not match manifest format");
 	return {};
 }
 
@@ -393,15 +394,37 @@ Error ParseManifest(const std::string& bytes, CoreDescriptor* descriptor)
 		const toml::value root_value = toml::parse(input, "manifest.toml");
 		if (!root_value.is_table()) return Invalid("manifest root must be a table");
 		const toml::table& root = root_value.as_table(std::nothrow);
-		Error error = CheckKeys(root,
-			{"format", "core", "target", "payload", "abi", "interfaces", "build"});
 		std::int64_t format = 0;
-		if (error.ok()) error = IntegerField(root, "format", &format);
+		Error error = IntegerField(root, "format", &format);
 		if (!error.ok()) return error;
-		if (format != 2) return Invalid("unsupported core manifest format");
-
+		if (format != 2 && format != 3) return Invalid("unsupported core manifest format");
+		error = format == 3 ? CheckKeys(root,
+			{"format", "core", "target", "payload", "abi", "interfaces", "build", "rom"}) :
+			CheckKeys(root, {"format", "core", "target", "payload", "abi", "interfaces", "build"});
+		if (!error.ok()) return error;
 		CoreDescriptor candidate;
-		candidate.format = 2;
+		candidate.format = static_cast<std::uint16_t>(format);
+		if (format == 3) {
+			const toml::table* rom = nullptr;
+			error = TableField(root, "rom", &rom);
+			if (error.ok()) error = CheckKeys(*rom, {"id", "role", "source_size", "file", "size", "sha256"});
+			std::int64_t source_size = 0, size = 0;
+			if (error.ok()) error = StringField(*rom, "id", &candidate.rom.id);
+			if (error.ok()) error = StringField(*rom, "role", &candidate.rom.role);
+			if (error.ok()) error = IntegerField(*rom, "source_size", &source_size);
+			if (error.ok()) error = StringField(*rom, "file", &candidate.rom.file);
+			if (error.ok()) error = IntegerField(*rom, "size", &size);
+			if (error.ok()) error = StringField(*rom, "sha256", &candidate.rom.sha256);
+			if (!error.ok()) return error;
+			if (!ValidIdentifier(candidate.rom.id) ||
+				(candidate.rom.role != "firmware" && candidate.rom.role != "cartridge") ||
+				source_size < 1024 || source_size > 262144 || source_size % 1024 != 0 ||
+				candidate.rom.file != "rom-map.json" || size < 1 ||
+				size > static_cast<std::int64_t>(kMaximumPayloadSize) ||
+				!ValidHex(candidate.rom.sha256, 64, true)) return Invalid("invalid ROM map metadata");
+			candidate.rom.source_size = static_cast<std::uint64_t>(source_size);
+			candidate.rom.size = static_cast<std::uint64_t>(size);
+		}
 		const toml::table *core = nullptr, *target = nullptr, *payload = nullptr;
 		const toml::table *abi = nullptr, *build = nullptr;
 		if ((error = TableField(root, "core", &core)).ok()) error =
@@ -515,12 +538,12 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	if (!expected_id.empty() && !ValidHex(expected_id, 64, true))
 		return Invalid("invalid expected package identity");
 	DirectoryDescriptor directory_descriptor(raw_directory);
-	Error error = CheckDirectoryEntries(directory_descriptor.get());
-	if (!error.ok()) return error;
+	Error error;
 
 	PosixArtifactOpener opener;
 	Artifact manifest;
 	Artifact payload;
+	Artifact rom_map;
 	error = opener.OpenRelative(directory_descriptor.get(), directory,
 		"manifest.toml", kMaximumManifestSize, &manifest);
 	if (!error.ok()) return Invalid("invalid package manifest file");
@@ -533,6 +556,17 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 	CoreDescriptor descriptor;
 	error = ParseManifest(manifest_bytes, &descriptor);
 	if (!error.ok()) return error;
+	error = CheckDirectoryEntries(directory_descriptor.get(), descriptor.format);
+	if (!error.ok()) return error;
+	if (descriptor.format == 3) {
+		error = opener.OpenRelative(directory_descriptor.get(), directory,
+			"rom-map.json", kMaximumPayloadSize, &rom_map);
+		if (!error.ok()) return Invalid("invalid ROM map file");
+		Sha256 map_hash;
+		if (rom_map.size() != descriptor.rom.size || !HashArtifact(rom_map, &map_hash).ok() ||
+			Sha256Hex(map_hash.Final()) != descriptor.rom.sha256)
+			return Invalid("ROM map size or digest does not match manifest");
+	}
 	if (descriptor.payload.size != payload.size())
 		return Invalid("payload size does not match manifest");
 	Sha256 payload_hash;
@@ -543,23 +577,30 @@ Error OpenVerifiedCorePackage(int raw_directory, const std::string& directory,
 		return Invalid("payload digest does not match manifest");
 
 	Sha256 package_hash;
-	static constexpr char domain[] = "FES-CORE-PACKAGE-2\n";
-	package_hash.Update(domain, sizeof(domain) - 1);
+	const std::string domain = descriptor.format == 3 ?
+		"FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
+	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, manifest_bytes.size());
 	package_hash.Update(manifest_bytes.data(), manifest_bytes.size());
 	HashLittleEndian64(&package_hash, payload.size());
 	error = HashArtifact(payload, &package_hash);
 	if (!error.ok()) return error;
+	if (descriptor.format == 3) {
+		HashLittleEndian64(&package_hash, rom_map.size());
+		error = HashArtifact(rom_map, &package_hash);
+		if (!error.ok()) return error;
+	}
 	const std::string package_id = Sha256Hex(package_hash.Final());
 	if (!expected_id.empty() && package_id != expected_id)
 		return Invalid("package identity does not match expected identity");
-	error = CheckDirectoryEntries(directory_descriptor.get());
+	error = CheckDirectoryEntries(directory_descriptor.get(), descriptor.format);
 	if (!error.ok()) return error;
 
 	OpenedCorePackage opened;
 	opened.descriptor = std::move(descriptor);
 	opened.manifest_bytes = std::move(manifest_bytes);
 	opened.payload = std::move(payload);
+	opened.rom_map = std::move(rom_map);
 	opened.package_id = package_id;
 	error = RecheckCorePackage(opened);
 	if (!error.ok()) return Invalid("package changed during admission");
@@ -657,14 +698,38 @@ Error RecheckCorePackage(const OpenedCorePackage& package)
 		Sha256Hex(payload_hash.Final()) != package.descriptor.payload.sha256)
 		return changed();
 	Sha256 package_hash;
-	static constexpr char domain[] = "FES-CORE-PACKAGE-2\n";
-	package_hash.Update(domain, sizeof(domain) - 1);
+	const std::string domain = package.descriptor.format == 3 ?
+		"FES-CORE-PACKAGE-3\n" : "FES-CORE-PACKAGE-2\n";
+	package_hash.Update(domain.data(), domain.size());
 	HashLittleEndian64(&package_hash, package.manifest_bytes.size());
 	package_hash.Update(package.manifest_bytes.data(), package.manifest_bytes.size());
 	HashLittleEndian64(&package_hash, package.payload.size());
-	if (!HashArtifact(package.payload, &package_hash).ok() ||
-		Sha256Hex(package_hash.Final()) != package.package_id)
+	if (!HashArtifact(package.payload, &package_hash).ok()) return changed();
+	if (package.descriptor.format == 3) {
+		if (fstat(package.rom_map.fd(), &metadata) != 0 || !S_ISREG(metadata.st_mode) ||
+			metadata.st_size < 0 || static_cast<std::uint64_t>(metadata.st_size) != package.rom_map.size() ||
+			package.rom_map.size() != package.descriptor.rom.size) return changed();
+		Sha256 map_hash;
+		if (!HashArtifact(package.rom_map, &map_hash).ok() ||
+			Sha256Hex(map_hash.Final()) != package.descriptor.rom.sha256) return changed();
+		HashLittleEndian64(&package_hash, package.rom_map.size());
+		if (!HashArtifact(package.rom_map, &package_hash).ok()) return changed();
+	}
+	if (Sha256Hex(package_hash.Final()) != package.package_id)
 		return changed();
+	return {};
+}
+
+Error HashOpenedArtifact(const Artifact& artifact, std::string* digest)
+{
+	struct stat info {};
+	if (fstat(artifact.fd(), &info) != 0 || !S_ISREG(info.st_mode) || info.st_size < 0 ||
+		static_cast<std::uint64_t>(info.st_size) != artifact.size())
+		return {ErrorCode::invalid_request, "programmed bitstream size changed", "admission"};
+	Sha256 hash;
+	const Error error = HashArtifact(artifact, &hash);
+	if (!error.ok()) return error;
+	*digest = Sha256Hex(hash.Final());
 	return {};
 }
 
@@ -701,6 +766,22 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			descriptor.target.programming_profile);
 	if (!paired) return CompatibilityError(ErrorCode::unsupported_abi,
 		"unsupported profile and ABI pairing");
+	// Linked cartridges arrive in CRAM and have no later media commit. These
+	// mailbox contracts keep Start reset-held, so accepting them would publish
+	// a running session whose core never executes. Firmware delivery also holds
+	// reset until a later media commit. Firmware ROMs may still use
+	// a separate cartridge/tape/disk delivery and retain their normal lifecycle.
+	if (descriptor.format == 3 && descriptor.rom.role == "cartridge") {
+		for (const auto& interface : descriptor.interfaces) {
+			if (interface.major == 1 && interface.minor == 0 &&
+				(interface.id == FesApplicationInterfaceMediaBlobStreamID ||
+				 interface.id == FesApplicationInterfaceFirmwareBlobID ||
+				 (descriptor.abi.id == FesApplicationABIID &&
+				  descriptor.abi.major == 1 && interface.id == FesApplicationInterfaceMediaBlobID)))
+				return CompatibilityError(ErrorCode::unsupported_interface,
+					"linked cartridge cannot declare a reset-held media or firmware mailbox");
+		}
+	}
 	if (descriptor.abi.id == FesApplicationABIID &&
 		descriptor.abi.major == FesApplicationABIMajor) {
 		if (descriptor.abi.minor > FesApplicationABIMinor || !descriptor.core.system.empty())

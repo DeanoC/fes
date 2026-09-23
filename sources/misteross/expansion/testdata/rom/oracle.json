@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "synthetic_only": true,
+  "cases": [
+    {
+      "name": "blank",
+      "rom_gzip": "blank.rom.gz",
+      "rom_sha256": "9f1dcbc35c350d6027f98be0f5c8b43b42ca52b7604459c0c42be3aa88913d47",
+      "rbf_sha256": "a7e7ab262251f9a4d588e370224dd0e94debf8536ea409b0f72b508596d71a72",
+      "rbf_size": 1976933
+    },
+    {
+      "name": "ones",
+      "rom_gzip": "ones.rom.gz",
+      "rom_sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f",
+      "rbf_sha256": "902ab1241f4d4d5d5a1de776197556be0bf4aea02812f0d6164867bbb0fdbfd9",
+      "rbf_size": 1960805
+    },
+    {
+      "name": "ramp",
+      "rom_gzip": "ramp.rom.gz",
+      "rom_sha256": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+      "rbf_sha256": "9df2faea863aa537564d1e0dffd981212003a349e44ee129a66679c95f21f555",
+      "rbf_size": 1971149
+    },
+    {
+      "name": "walking",
+      "rom_gzip": "walking.rom.gz",
+      "rom_sha256": "fc81a64d126e36ff8933eed4db70237ee922df6e449ff1f1c137124705eb4b65",
+      "rbf_sha256": "91c1b0fc5421b0fde3f317fb46aa51213420401a9e596a9a30f64dc49f7cd099",
+      "rbf_size": 1976229
+    },
+    {
+      "name": "random",
+      "rom_gzip": "random.rom.gz",
+      "rom_sha256": "ac9ed3969fe1eb1c0aa2058315b8f9a83b1f438944fab4815e872250f4954d32",
+      "rbf_sha256": "28c64fa336155626d9e3942fb3810385e7e0b57b6041997c25f73532328876be",
+      "rbf_size": 1971265
+    }
+  ],
+  "provenance": {
+    "format": 1,
+    "database_sha256": {
+      "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+      "libmistral/cvd-sx120f.cc": "7acd2702c99680fea7cb76dc73efe4abc6d21f89e28c5b2b020454d917ae488d",
+      "libmistral/cyclonev.h": "e49782a465d9b6d09cc0e871e35ec73389111c89a113fa07cdb5f0bea3be2946"
+    },
+    "map_sha256": "2d4227c582cb111bdea889b807e454ce716605dd2cfe9289bfe6e7a239ed287c",
+    "mistral_cv_sha256": "b695fec274f7bb912b5295cf9ae5589c6c9d3c3babce26b759f5ee583ae60f62",
+    "synthetic_only": true,
+    "checks": {
+      "blank": {
+        "mistral_readback": true,
+        "outside_map_changes": 0
+      },
+      "ones": {
+        "mistral_readback": true,
+        "outside_map_changes": 0
+      },
+      "ramp": {
+        "mistral_readback": true,
+        "outside_map_changes": 0
+      },
+      "walking": {
+        "mistral_readback": true,
+        "outside_map_changes": 0
+      },
+      "random": {
+        "mistral_readback": true,
+        "outside_map_changes": 0
+      }
+    },
+    "fixture_sha256": {
+      "blank.bt": "d6101b6c996dc342f9995824dffe3ff47971442f28c1ecaa5e8819fad7d74a25",
+      "blank.rbf": "a7e7ab262251f9a4d588e370224dd0e94debf8536ea409b0f72b508596d71a72",
+      "blank.readback.bt": "481f03c81d7b14e35852a6aa5116046cdfed6194a5c6546d4b7a30593cd46d4c",
+      "blank.rom": "9f1dcbc35c350d6027f98be0f5c8b43b42ca52b7604459c0c42be3aa88913d47",
+      "ones.bt": "b850518f697628d0e5eafcbcafc4d1333c5ec214bbba8e49aec704166bde37b7",
+      "ones.rbf": "902ab1241f4d4d5d5a1de776197556be0bf4aea02812f0d6164867bbb0fdbfd9",
+      "ones.readback.bt": "343575bfe0f20442816c32aa42213ae026c20acc783dfcfad6ef5924e6d83fde",
+      "ones.rom": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f",
+      "ramp.bt": "20fd17b2a570fa93283386292c080e687c3e7f7080e2f7cd3f9d18d6ceffa501",
+      "ramp.rbf": "9df2faea863aa537564d1e0dffd981212003a349e44ee129a66679c95f21f555",
+      "ramp.readback.bt": "7f0b075fad70d734391fb44e0098195b087593d84d60e2f6b8a72ec34ce81820",
+      "ramp.rom": "dc404a613fedaeb54034514bc6505f56b933caa5250299ba7d094377a51caa46",
+      "random.bt": "1fcdadbf8e43c36642938d0d914eea22e30c5116a5bd0771688da46338add987",
+      "random.rbf": "28c64fa336155626d9e3942fb3810385e7e0b57b6041997c25f73532328876be",
+      "random.readback.bt": "f2089a399b5d916832b4409adf610c04ae918c7454a5a468a2f78e74a1504279",
+      "random.rom": "ac9ed3969fe1eb1c0aa2058315b8f9a83b1f438944fab4815e872250f4954d32",
+      "walking.bt": "7cf9c89b51341672223a67ba7ca58cde9f1f2ee7bd084aad3e9701499d0cd675",
+      "walking.rbf": "91c1b0fc5421b0fde3f317fb46aa51213420401a9e596a9a30f64dc49f7cd099",
+      "walking.readback.bt": "f74daeb8818210b9ed331782b3be814174d637c64dfecd3be12d9874add0e692",
+      "walking.rom": "fc81a64d126e36ff8933eed4db70237ee922df6e449ff1f1c137124705eb4b65"
+    }
+  }
+}

@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <algorithm>
+#include <cstdlib>
+#include <unistd.h>
 
 #include <fstream>
 #include <iostream>
@@ -12,6 +14,7 @@
 
 #include "daemon/json.hpp"
 #include "daemon/protocol.hpp"
+#include "native/core_package.hpp"
 
 namespace {
 
@@ -545,6 +548,30 @@ void TestApplicationResponseFixtures()
 		ApplicationResponseFixtures());
 }
 
+void TestROMLoadProtocol()
+{
+	const std::string digest(64, 'a');
+	const std::string tuple = "{\"rom_id\":\"bios.main\",\"map_sha256\":\"" + digest +
+		"\",\"source_sha256\":\"" + digest + "\",\"source_size\":8192,\"programmed_sha256\":\"" + digest +
+		"\",\"programmed_size\":40408}";
+	for (const auto& op : {"load_rom_core", "load_rom_library_core"}) {
+		const std::string input = "{\"protocol\":2,\"operation\":\"" + std::string(op) +
+			"\",\"package_path\":\"/package\",\"package_id\":\"" + digest +
+			"\",\"programmed_path\":\"/programmed.rbf\",\"rom_link\":" + tuple +
+			(std::string(op) == "load_rom_library_core" ? ",\"data_root\":\"/data\"}" : "}");
+		Request request;
+		assert(Parse(input, &request).ok());
+		assert(request.rom_link.source_size == 8192);
+		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+			{"8192", "-1"}, {"40408", "1.5"}, {"bios.main", ""},
+			{"source_sha256", "unknown"}, {"8192", "0"}}) {
+			auto bad = input;
+			bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+			assert(!Parse(bad, &request).ok());
+		}
+	}
+}
+
 void TestCompositionProtocol()
 {
  const std::string id(64, 'a');
@@ -583,6 +610,69 @@ void TestRetiredProtocolRejected()
  assert(!Parse(R"({"protocol":2,"operation":"recover_idle","rbf":"/idle.rbf"})", &recover).ok());
  ExpectError(R"({"protocol":2,"operation":"launch"})", ErrorCode::invalid_request);
 }
+std::vector<std::string> RomPackageResponseFixtures()
+{
+	char pattern[] = "/tmp/libmister-protocol-rom.XXXXXX";
+	const char* created = mkdtemp(pattern);
+	assert(created != nullptr);
+	const std::string directory(created);
+	const std::string root = "tests/fixtures/core-bundle-v3/";
+	for (const auto& member : std::vector<std::pair<std::string, std::string>>{
+		{"manifest.toml", "manifests/valid-basic.toml"},
+		{"core.rbf", "payloads/fes-fixture.rbf"},
+		{"rom-map.json", "maps/valid-basic.json"}}) {
+		std::ifstream input(root + member.second, std::ios::binary);
+		std::ofstream output(directory + "/" + member.first, std::ios::binary);
+		assert(input.good() && output.good());
+		output << input.rdbuf();
+		output.close();
+		assert(output.good());
+	}
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(directory,
+		"4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752", &opened).ok());
+	mister::CorePackageInspection inspection;
+	inspection.package_id = opened.package_id;
+	inspection.descriptor = opened.descriptor;
+	inspection.compatibility_error = mister::native::CheckCoreCompatibility(opened.descriptor);
+	inspection.compatible = inspection.compatibility_error.ok();
+	assert(inspection.compatible && inspection.compatibility_error.ok());
+	Status status;
+	status.state = State::idle;
+	status.capabilities = FixtureCapabilities();
+	status.capabilities.rom_linking = 1;
+	const std::string response = mister::daemon::EncodeResponse(2, true, status, "fixture", &inspection);
+	status.state = State::running_development;
+	status.execution = mister::Execution::development;
+	status.package_id = opened.package_id;
+	status.declared_core = opened.descriptor.core.id;
+	status.core = status.declared_core;
+	status.generation = 1;
+	status.active_package.package_id = opened.package_id;
+	status.active_package.descriptor = opened.descriptor;
+	status.capabilities.active_interfaces = {{"fes.gamepad", 1, 0}, {"fes.video.fixed-720p60", 1, 0}};
+	status.active_package.observed.abi = opened.descriptor.abi;
+	status.active_package.observed.build_id = opened.descriptor.build.id;
+	auto& link = status.active_package.rom_link;
+	link.rom_id = opened.descriptor.rom.id;
+	link.map_sha256 = opened.descriptor.rom.sha256;
+	link.source_sha256 = std::string(64, 'a');
+	link.source_size = opened.descriptor.rom.source_size;
+	link.programmed_sha256 = opened.descriptor.payload.sha256;
+	link.programmed_size = opened.descriptor.payload.size;
+	const std::string running = mister::daemon::EncodeResponse(2, true, status, "fixture");
+	for (const auto& member : {"manifest.toml", "core.rbf", "rom-map.json"})
+		assert(unlink((directory + "/" + member).c_str()) == 0);
+	assert(rmdir(directory.c_str()) == 0);
+	return {response, running};
+}
+
+void TestFormat3InspectionSerialization()
+{
+	assert(ReadLines("tests/fixtures/protocol-v2-rom-package-responses.jsonl") ==
+		RomPackageResponseFixtures());
+}
+
 int main(int argc, char** argv)
 {
  TestRetiredProtocolRejected();
@@ -595,7 +685,13 @@ int main(int argc, char** argv)
 		for (const auto& line : MediaStreamResponseFixtures()) std::cout << line << '\n';
 		return 0;
 	}
+	if (argc == 2 && std::string(argv[1]) == "--emit-rom-package-fixtures") {
+		for (const auto& line : RomPackageResponseFixtures()) std::cout << line << '\n';
+		return 0;
+	}
 	assert(argc == 1);
+	TestFormat3InspectionSerialization();
+	TestROMLoadProtocol();
 	TestCompositionProtocol();
 	TestControllerSnapshotRequest();
 	TestApplicationResponseFixtures();
@@ -615,5 +711,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 20 tests passed\n";
+	std::cout << "protocol_test: 21 tests passed\n";
 }

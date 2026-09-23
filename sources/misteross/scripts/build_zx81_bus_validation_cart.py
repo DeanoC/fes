@@ -28,7 +28,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
-INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
@@ -48,7 +48,9 @@ def cart_clock_constraints(root: Path) -> bytes:
 
 def validate_cart_timing(timing: dict) -> None:
     fmax = timing.get("fmax")
-    if not isinstance(fmax, dict) or set(fmax) != set(REQUIRED_CLOCKS_MHZ):
+    # nextpnr retains this hierarchy when the pixel net is owned by HDMI I2S.
+    accepted_clocks = ({"clk_sys", "pixel_clk"}, {"clk_sys", "hdmi_i2s.pixel_clk"})
+    if not isinstance(fmax, dict) or set(fmax) not in accepted_clocks:
         raise ValueError("cart timing must report exactly the system and pixel clocks")
     for name, expected in REQUIRED_CLOCKS_MHZ.items():
         # Shared validation accounts for nextpnr's picosecond quantization,
@@ -57,23 +59,28 @@ def validate_cart_timing(timing: dict) -> None:
         if achieved < expected:
             raise ValueError(f"cart {name} timing is below required {expected:g} MHz")
 
-def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
+def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None) -> Path:
     root, shell = root.resolve(), shell.resolve()
     _, revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
     package = read_package(package_path)
     if (shell / "manifest.toml").read_bytes() != package.manifest_bytes or (shell / "core.rbf").read_bytes() != package.payload_bytes:
         raise ValueError("frozen producer output differs from sealed shell package")
+    shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf")
+    if package.fields["format"] == 3:
+        if (shell / "rom-map.json").read_bytes() != package.rom_map_bytes:
+            raise ValueError("frozen producer ROM map differs from sealed shell package")
+        shell_members += ("rom-map.json",)
     slot = [item for item in package.fields["interfaces"] if item["id"] == "fes.expansion.zx81-bus"]
     if len(slot) != 1 or slot[0]["major"] != 1 or slot[0]["minor"] != 0 or slot[0]["required"]:
         raise ValueError("shell must declare the optional ZX81 expansion bus 1.0")
     for name in ("routed.json", "socket.qsf"):
         if not (shell / name).is_file():
             raise ValueError(f"shell producer directory requires {name}")
-    tools = _authenticate_tools(root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
+    tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
         expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in INPUTS}
-    closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in ("routed.json", "socket.qsf", "manifest.toml", "core.rbf")})
+    closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
     clock_constraints = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "slot_clock": "clk_sys", "map": "fes.zx81-bus.socket/1",
               "placer_seed": PLACER_SEED, "required_clocks_mhz": REQUIRED_CLOCKS_MHZ,
@@ -132,10 +139,10 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int) -> Path:
     _, final_revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
     if final_revision != revision or any(digest((root / path).read_bytes()) != closure[path] for path in INPUTS):
         raise ValueError("source changed during cart build")
-    for name in ("routed.json", "socket.qsf", "manifest.toml", "core.rbf"):
+    for name in shell_members:
         if digest((shell / name).read_bytes()) != closure["shell/" + name]:
             raise ValueError("frozen shell changed during cart build")
-    final_tools = _authenticate_tools(root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
+    final_tools = _authenticate_tools(root, cache_root=cache_root, lock_path=root / shell_recipe.SOCKET_TOOLCHAIN_LOCK,
         expected_commits=shell_recipe.SOCKET_TOOL_COMMITS, toolchain_root=root / "build/toolchain/zx81-expansion")
     if {name: tool.identity for name, tool in final_tools.items()} != identities:
         raise ValueError("authenticated compiler changed during cart build")
@@ -152,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--shell", type=Path, required=True, help="socket producer output with sealed package and routed netlist")
     parser.add_argument("--package", type=Path, required=True, help="exact sealed shell package")
+    parser.add_argument("--cache-root", type=Path, help="shared authenticated compiler cache")
     parser.add_argument("--gpu", type=int, default=0)
     args = parser.parse_args()
-    print(build(args.root, args.shell, args.package, args.gpu))
+    print(build(args.root, args.shell, args.package, args.gpu, cache_root=args.cache_root))

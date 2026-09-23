@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 
 	"github.com/DeanoC/FogCast/corepackage"
@@ -64,7 +65,7 @@ func (c *Client) LoadCore(ctx context.Context, size int64, content io.Reader) (p
 }
 func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, libraryID string, composition ...bool) (protocol.Status, error) {
 	composed := len(composition) == 1 && composition[0]
-	limit := int64(corepackage.MaxArchiveSize)
+	limit := int64(corepackage.MaxROMInputSize)
 	if composed {
 		limit = corepackage.MaxCompositionArchiveSize
 	}
@@ -104,11 +105,13 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if err := decodeResponse(response, &status); err != nil {
 		return protocol.Status{}, err
 	}
-	if !validCorePackageStatus(status) || ((status.CorePackage != nil && status.CorePackage.Composition != nil) != composed) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
+	if !validCorePackageStatus(status) || (composed && status.CorePackage.Composition == nil) || (!composed && status.CorePackage.Composition != nil && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
 	return status, nil
 }
+
+var romStatusIDRE = regexp.MustCompile(`^[a-z][a-z0-9_.-]{0,95}$`)
 
 func validCorePackageStatus(status protocol.Status) bool {
 	if status.State != protocol.StateActive || !status.Development || status.GameID != nil ||
@@ -117,6 +120,11 @@ func validCorePackageStatus(status protocol.Status) bool {
 		return false
 	}
 	value := status.CorePackage
+	if r := value.ROMLink; r != nil {
+		if !romStatusIDRE.MatchString(r.ROMID) || !lowerHex(r.MapSHA256, 64) || !lowerHex(r.SourceSHA256, 64) || !lowerHex(r.ProgrammedSHA256, 64) || r.SourceSize < 1024 || r.SourceSize > 256<<10 || r.SourceSize%1024 != 0 || r.ProgrammedSize < 1 || r.ProgrammedSize > corepackage.MaxPayloadSize {
+			return false
+		}
+	}
 	if value.MediaStream != nil && !protocol.MediaStreamCapable(value) {
 		return false
 	}

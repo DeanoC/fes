@@ -269,7 +269,7 @@ func TestDevelopmentCoreInspectionRejectsUnauthenticatedAndInvalidUploadsBeforeR
 }
 
 func TestDevelopmentCoreUploadRejectsInvalidStreamMetadataBeforeRead(t *testing.T) {
-	for _, size := range []int64{-1, 0, corepackage.MaxArchiveSize + 1} {
+	for _, size := range []int64{-1, 0, corepackage.MaxROMInputSize + 1} {
 		development := &fakeDevelopmentController{}
 		handler := httpapi.New(&fakeController{}, "test-token", "0.1.0", discardLogger(), httpapi.WithDevelopment(development))
 		body := &observedReader{data: []byte("fcore"), err: io.EOF}

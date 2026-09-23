@@ -26,6 +26,10 @@ type Game struct {
 	Variants         []Game   `json:"variants,omitempty"`
 	FirmwareRequired bool     `json:"firmware_required,omitempty"`
 	ExpansionID      string   `json:"expansion_id,omitempty"`
+	ROMRequired      bool     `json:"rom_required,omitempty"`
+	ROMReady         bool     `json:"rom_ready,omitempty"`
+	ROMID            string   `json:"rom_id,omitempty"`
+	ROMMediaID       string   `json:"rom_media_id,omitempty"`
 	ExpansionReady   bool     `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool     `json:"firmware_ready,omitempty"`
 }
@@ -41,6 +45,7 @@ const (
 	LaunchNotReady         LaunchBlock = "not_ready"
 	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
 	LaunchMissingExpansion LaunchBlock = "missing_expansion"
+	LaunchMissingROM       LaunchBlock = "missing_rom"
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
@@ -57,6 +62,9 @@ func (g Game) LaunchBlock() LaunchBlock {
 	}
 	if g.State != "available" {
 		return LaunchNotReady
+	}
+	if g.ROMRequired && !g.ROMReady {
+		return LaunchMissingROM
 	}
 	if g.ExpansionID != "" && !g.ExpansionReady {
 		return LaunchMissingExpansion

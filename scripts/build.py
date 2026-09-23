@@ -494,13 +494,23 @@ def _validate_package_input_records(packages):
         identities.add(identity)
 
 
+def _package_member_fields(package):
+    fields = [("manifest.toml", "manifest_sha256"), ("core.rbf", "core_rbf_sha256")]
+    if "rom_map_sha256" in package["inputs"]:
+        value = package["inputs"]["rom_map_sha256"]
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise ValueError("selected package has an invalid ROM map digest")
+        fields.append(("rom-map.json", "rom_map_sha256"))
+    return tuple(fields)
+
+
 def package_output_names(package):
     normalized, details = _package_details(package)
     if len(normalized) != 1:
         raise ValueError("package output names require exactly one selected package")
     _, recipe, identity = details[0]
     prefix = "core-packages/" + identity + "/"
-    return [recipe.selection_filename, prefix + "manifest.toml", prefix + "core.rbf"]
+    return [recipe.selection_filename] + [prefix + name for name, _ in _package_member_fields(normalized[0])]
 
 
 def package_selection_names(packages):
@@ -588,16 +598,12 @@ def verify_package_outputs(output, packages):
                 metadata = path.lstat()
                 if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
                     raise ValueError
-            if sorted(entry.name for entry in directory.iterdir()) != ["core.rbf", "manifest.toml"]:
+            members = _package_member_fields(package)
+            if sorted(entry.name for entry in directory.iterdir()) != sorted(name for name, _ in members):
                 raise ValueError
-            package_names = [recipe.selection_filename,
-                             f"core-packages/{identity}/manifest.toml",
-                             f"core-packages/{identity}/core.rbf"]
-            expected = {
-                output / package_names[0]: package["inputs"]["selection_sha256"],
-                output / package_names[1]: package["inputs"]["manifest_sha256"],
-                output / package_names[2]: package["inputs"]["core_rbf_sha256"],
-            }
+            package_names = package_output_names(package)
+            expected = {output / recipe.selection_filename: package["inputs"]["selection_sha256"]}
+            expected.update({directory / name: package["inputs"][field] for name, field in members})
             for path, expected_sha256 in expected.items():
                 metadata = path.lstat()
                 if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
@@ -686,9 +692,11 @@ def _package_tree_inventory(root, prefix='core-packages', *, closed=False):
             if not stat.S_ISREG(metadata.st_mode):
                 raise ValueError(
                     "package generation contains nested or special entries")
-        if [entry.name for entry in entries] != ["core.rbf", "manifest.toml"]:
-            raise ValueError("package directories must contain the closed two-file set")
-        files.extend(child_relative + '/' + name for name in ("manifest.toml", "core.rbf"))
+        member_names = [entry.name for entry in entries]
+        if member_names not in (["core.rbf", "manifest.toml"],
+                                ["core.rbf", "manifest.toml", "rom-map.json"]):
+            raise ValueError("package directories must contain the closed two-file set or three-file set")
+        files.extend(child_relative + '/' + name for name in member_names)
     return tuple(sorted(directories)), tuple(sorted(files))
 
 
@@ -1275,8 +1283,14 @@ def publish_package_outputs(packages, built_selections, output):
             if (built_selection.read_bytes() != selected_path.read_bytes() or
                     digest(selected_path) != package["inputs"]["selection_sha256"]):
                 raise ValueError
-            for name, field in (("manifest.toml", "manifest_sha256"),
-                                ("core.rbf", "core_rbf_sha256")):
+            members = _package_member_fields(package)
+            source = Path(package["directory"])
+            if {entry.name for entry in source.iterdir()} != {name for name, _ in members}:
+                raise ValueError
+            for name, field in members:
+                metadata = (source / name).lstat()
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise ValueError
                 if digest(Path(package["directory"]) / name) != package["inputs"][field]:
                     raise ValueError
     except (OSError, KeyError, TypeError, ValueError):
@@ -1295,7 +1309,7 @@ def publish_package_outputs(packages, built_selections, output):
         for package, recipe, identity in details:
             staged = staged_root / identity
             staged.mkdir()
-            for name in ("manifest.toml", "core.rbf"):
+            for name, _ in _package_member_fields(package):
                 shutil.copy2(Path(package["directory"]) / name, staged / name)
                 (staged / name).chmod(0o444)
             staged.chmod(0o555)
@@ -1335,9 +1349,7 @@ def publish_package_outputs(packages, built_selections, output):
             (staged_selections / selection_name).replace(output / selection_name)
         names = []
         for package, recipe, identity in details:
-            names.extend([recipe.selection_filename,
-                          f"core-packages/{identity}/manifest.toml",
-                          f"core-packages/{identity}/core.rbf"])
+            names.extend(package_output_names(package))
         verify_package_outputs(output, normalized)
         _fsync_package_output(output)
         backup_complete = False

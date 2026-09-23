@@ -394,7 +394,7 @@ func TestReadDirectoryRejectsRootReplacedAfterAdmission(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(path, "core.rbf"), payload, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readDirectory(path, admitted); err == nil {
+	if _, _, _, err := readDirectory(path, admitted); err == nil {
 		t.Fatal("replacement directory accepted after initial admission")
 	}
 }
