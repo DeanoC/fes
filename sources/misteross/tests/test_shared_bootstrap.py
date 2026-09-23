@@ -69,9 +69,9 @@ EOF
     status|fetch|checkout|submodule|sync) ;;
     rev-parse)
         case "$(basename "$source_dir")" in
-            yosys) echo ec34fcf38986217af9b5558936044b7197d968a7 ;;
+            yosys) echo fb879d81e0352f558297bdcc61bc7a4a922fa7b0 ;;
             mistral) echo b28e30a36b5139aaed5a5d361a30b542e6b7c758 ;;
-            nextpnr) echo 30ac6f47bd94aec97467bee9fcd2ff09643fbc55 ;;
+            nextpnr) echo 49ab82f54f801c6e0f3bdb2c3f53a33880c0bc94 ;;
             verilator) echo 5e4151e3e0c8ecf11d9845a93495f37a31b2f667 ;;
             openfpgaloader) echo 0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86 ;;
             *) exit 1 ;;

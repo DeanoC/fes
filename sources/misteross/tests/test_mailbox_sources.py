@@ -219,6 +219,8 @@ class MailboxSourcePolicyTests(unittest.TestCase):
             "905_zx81_ram16",
             "906_zx81_zonx",
             "907_zx81_qs_chrs",
+            "910_sdram_addon",
+            "911_hps_ddr",
         ):
             result = subprocess.run(
                 ["make", "-n", "sim", f"EXP={experiment}"],
