@@ -36,6 +36,9 @@ the core is running — distinct from launch-time machine-ROM splice).
   [FPGA cartridge expansion](../../../docs/fpga-expansion.md),
   misteross [`link_static_rbf.py`](../../misteross/scripts/link_static_rbf.py)
   and [Freeze-scaffold cartridges](../../misteross/README.md#freeze-scaffold-cartridges)
+- Later mesh catalog and content-id (design draft; does not change slots):
+  [mesh LAN](../../../docs/mesh-lan.md),
+  [mesh node protocol](../../../docs/mesh-node-protocol.md)
 
 ---
 
