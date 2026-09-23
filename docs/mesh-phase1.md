@@ -64,7 +64,7 @@ this acceptance for the kit contract.
 
 **Acceptance:**
 
-- Soft-stop = rooms B/Back while session active → agent/runtime Stop → defined idle (LoadIdle path). NOT Start+Select. NOT lease release.
+- Soft-stop = rooms B/Back while session active → agent/runtime Stop → defined idle (LoadIdle path). NOT Select+Start. NOT lease release.
 - After Soft-stop: kit lease RETAINED by the same coordinator/owner. Release only on explicit shell leave / session end / EOF / release API — not Soft-stop.
 - Sofa/session record: clear “playing” / active play so Soft-stop→idle is visible; lease may still show held. Do NOT map Soft-stop to “Lease held” Unavailable for the same shell.
 - Conflict still rejects; Confirm does not steal. Ops takeover stays generation/reason path off Confirm.
