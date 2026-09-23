@@ -18,7 +18,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
-
+	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
@@ -182,6 +182,9 @@ type Service struct {
 	connectionMu   sync.Mutex
 	connection     TargetConnection
 	resolveTarget  func(context.Context, string) ([]string, error)
+	meshMu         sync.Mutex
+	meshNodes      []MeshNode
+	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
 	lookupCancel   context.CancelFunc
 	monitorCancel  context.CancelFunc
 	monitorDone    chan struct{}
@@ -760,6 +763,12 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	// A foreign holder already reconciled as busy. Play stops here so this
+	// host does not claim or take over that kit. Generation takeover stays
+	// on the kit lease API.
+	if s.kitLeaseForeign() {
+		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
 			return s.launchCoreEntry(ctx, gameID, target)

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
@@ -458,5 +459,59 @@ func TestRoomEditionPreferencePersistsAndSkipsReask(t *testing.T) {
 	}
 	if !strings.Contains(h.launches[len(h.launches)-1], "nes-smb-usa") {
 		t.Fatalf("revisit launch %v", h.launches)
+	}
+}
+
+func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "ready", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell", Message: "The kit is held by another session."}
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if snap.Room.Destination.Availability != rooms.AvailUnavailable || snap.Room.Destination.Confirm() != rooms.ConfirmExplain {
+		t.Fatalf("foreign destination %+v confirm=%v", snap.Room.Destination, snap.Room.Destination.Confirm())
+	}
+	if !strings.Contains(snap.Room.Destination.Status, "in use") || snap.Room.Destination.Action != "Do not take the lease." {
+		t.Fatalf("in-use copy %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	if h.launchCount() != 0 || app.Snapshot().Launch.Phase == "ok" || app.Snapshot().Launch.Phase == "launching" {
+		t.Fatalf("foreign confirm launched %+v count=%d", app.Snapshot().Launch, h.launchCount())
+	}
+
+	app.mu.Lock()
+	app.games = []hostclient.Game{availableGame("snes-mario", "Mario", "snes")}
+	app.startLaunchGameLocked(app.games[0])
+	phase := app.launch.Phase
+	app.mu.Unlock()
+	if phase == "launching" || phase == "ok" || h.launchCount() != 0 {
+		t.Fatalf("library play stole the kit phase=%s launches=%d", phase, h.launchCount())
+	}
+
+	app.mu.Lock()
+	app.health.Connection = hostclient.TargetConnection{State: "ready", Address: "192.0.2.10:8182", TargetID: "01234567-89ab-cdef-0123-456789abcdef"}
+	app.launch = LaunchSnapshot{}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	if snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunch || snap.Room.Destination.Status != "Ready to play." {
+		t.Fatalf("same-shell retained lease %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "owned launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != 1 {
+		t.Fatalf("owned confirm launches=%v", h.launches)
 	}
 }

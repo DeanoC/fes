@@ -260,3 +260,32 @@ func TestClassifyColecoFirmwareReadiness(t *testing.T) {
 		t.Fatalf("raw coleco cart: %s %+v", state, matches)
 	}
 }
+
+func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
+	t.Parallel()
+	ready := Destination{
+		Kind: KindGame, Availability: AvailReady, GameID: "nes-smb", Label: "Super Mario Bros.",
+		Matches: []hostclient.Game{readyGame("nes-smb", "Super Mario Bros.", "nes")},
+	}
+	ready.FillCopy()
+	owned := ApplyForeignLease(ready, false)
+	if owned.Availability != AvailReady || owned.Confirm() != ConfirmLaunch || owned.LeaseHeld || owned.Status != "Ready to play." {
+		t.Fatalf("same-shell retained lease %+v confirm=%v", owned, owned.Confirm())
+	}
+	foreign := ApplyForeignLease(ready, true)
+	if foreign.Availability != AvailUnavailable || !foreign.LeaseHeld || foreign.Confirm() != ConfirmExplain {
+		t.Fatalf("foreign lease %+v confirm=%v", foreign, foreign.Confirm())
+	}
+	if foreign.Status != "This executor is in use." || foreign.Action != "Do not take the lease." {
+		t.Fatalf("in-use copy status=%q action=%q", foreign.Status, foreign.Action)
+	}
+	firmware := Destination{
+		Kind: KindGame, Availability: AvailUnavailable,
+		Matches: []hostclient.Game{blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)},
+	}
+	firmware.FillCopy()
+	kept := ApplyForeignLease(firmware, true)
+	if kept.Confirm() != ConfirmImportFirmware || kept.LeaseHeld {
+		t.Fatalf("firmware block became in use %+v", kept)
+	}
+}
