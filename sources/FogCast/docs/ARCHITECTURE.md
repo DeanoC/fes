@@ -830,9 +830,12 @@ hardware. Stop, input detach and reboot require an existing grant and never
 claim someone else's active session. Replacement operations retain the grant.
 Explicit public Stop (empty body, or `retain_lease` false) releases its grant
 after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
-that same route and keeps the grant after idle cleanup. Replacement Stop
-retains ownership for the next launch. Application shutdown
-releases its grants after input/session cleanup.
+that same route and keeps the grant after idle cleanup. An idle selected-target
+change may drop that client; the retained grant stays reachable for a later
+explicit Stop. Invalidating one target removes only that client's retained
+grant. A release that fails leaves that grant retained so the next explicit
+Stop can retry it. Replacement Stop retains ownership for the next launch.
+Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
 idle after explicit Stop and never-owned idle skip the target Stop, while a

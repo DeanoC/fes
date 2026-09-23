@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1115,6 +1116,108 @@ func TestSoftStopThenSelectedTargetChangeExplicitStopReleasesRetainedLease(t *te
 	if devReleaseCalls != 1 || devReleaseToken != token || devLease.Held() || spareReleaseCalls != 0 {
 		t.Fatalf("devRelease=%d token=%q held=%v spareRelease=%d", devReleaseCalls, devReleaseToken, devLease.Held(), spareReleaseCalls)
 	}
+}
+
+func TestInvalidateOneTargetKeepsOtherRetainedGrants(t *testing.T) {
+	_, keepClient, keepLease := heldKitClient(t, "keep-a", nil)
+	_, dropClient, dropLease := heldKitClient(t, "drop-b", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, keepClient)
+	service.stoppedKitLeases = []*targetclient.KitLease{keepLease, dropLease}
+
+	service.invalidateTargetSession(dropClient)
+
+	if !keepLease.Held() || keepLease.CurrentToken() != "keep-a" {
+		t.Fatalf("retained grant after other invalidation held=%v token=%q", keepLease.Held(), keepLease.CurrentToken())
+	}
+	if dropLease.Held() {
+		t.Fatal("invalidated target kept its grant")
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != keepLease {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if keepLease.Held() || service.stoppedKitLeases != nil {
+		t.Fatalf("surviving grant after release held=%v leases=%d", keepLease.Held(), len(service.stoppedKitLeases))
+	}
+}
+
+func TestReleaseKitLeaseKeepsGrantWhenReleaseFails(t *testing.T) {
+	var failKeep atomic.Bool
+	failKeep.Store(true)
+	_, _, keepLease := heldKitClient(t, "keep", func(w http.ResponseWriter, _ *http.Request) {
+		if failKeep.Load() {
+			http.Error(w, "transient", http.StatusBadGateway)
+			return
+		}
+		fmt.Fprint(w, `{"state":"free"}`)
+	})
+	_, _, dropLease := heldKitClient(t, "drop", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, nil)
+	service.stoppedKitLeases = []*targetclient.KitLease{keepLease, dropLease}
+
+	err := service.ReleaseKitLease(context.Background())
+	if err == nil {
+		t.Fatal("expected release error")
+	}
+	if !keepLease.Held() || keepLease.CurrentToken() != "keep" {
+		t.Fatalf("failed release dropped grant held=%v token=%q", keepLease.Held(), keepLease.CurrentToken())
+	}
+	if dropLease.Held() {
+		t.Fatal("successful release left its grant held")
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != keepLease {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+
+	failKeep.Store(false)
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("retry release: %v", err)
+	}
+	if keepLease.Held() || service.stoppedKitLeases != nil {
+		t.Fatalf("retry left held=%v leases=%d", keepLease.Held(), len(service.stoppedKitLeases))
+	}
+}
+
+func heldKitClient(t *testing.T, token string, release func(http.ResponseWriter, *http.Request)) (*httptest.Server, *targetclient.Client, *targetclient.KitLease) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":%q}`, token)
+		case "/v1/kit/release":
+			if got := r.Header.Get(targetclient.KitLeaseHeader); got != token {
+				t.Errorf("release token = %q, want %s", got, token)
+			}
+			if release != nil {
+				release(w, r)
+				return
+			}
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "fogcast@sofa", "interactive game/development session")
+	t.Cleanup(func() { _ = lease.Close(context.Background()) })
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	claim, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim %s: %v", token, err)
+	}
+	if !lease.Held() || lease.CurrentToken() != token {
+		t.Fatalf("claimed token = %q held=%v", lease.CurrentToken(), lease.Held())
+	}
+	return server, client, lease
 }
 
 func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {

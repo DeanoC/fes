@@ -363,7 +363,9 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	}
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
-	s.stoppedKitLeases = nil
+	// Forget this client's grant only. Another target's Soft-stop lease
+	// stays reachable for a later explicit release.
+	s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, client.KitLease())
 	s.selectedTargetReconciled = false
 }
 

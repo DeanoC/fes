@@ -190,6 +190,8 @@ type Service struct {
 
 	// Grants captured by Stop and not yet released. Idle settings may drop
 	// the owning client; explicit ReleaseKitLease still frees each one.
+	// Invalidating one target removes only that client's grant. A release
+	// that fails stays here until a later attempt succeeds.
 	stoppedKitLeases        []*targetclient.KitLease
 	closeKitLeases          func(context.Context) error
 	corePackages            *corepackage.Store
@@ -2615,17 +2617,25 @@ func (s *Service) ShutdownCleanupRequired() bool {
 // It releases every grant captured by Stop since the previous release,
 // including a kit dropped from targetClients by an idle selected-target
 // change. Sofa Soft-stop (session stop with retain_lease) does not call it.
-// Replacement Stop retains ownership so the next launch uses the same grant.
+// A failed release stays in stoppedKitLeases. KitLease.Release keeps that
+// grant renewing so a later Stop can retry it; only a successful release
+// drops the entry. Replacement Stop retains ownership so the next launch
+// uses the same grant.
 func (s *Service) ReleaseKitLease(ctx context.Context) error {
 	s.executionMu.Lock()
-	leases := s.stoppedKitLeases
-	s.stoppedKitLeases = nil
+	pending := append([]*targetclient.KitLease(nil), s.stoppedKitLeases...)
 	s.executionMu.Unlock()
 	var first error
-	for _, lease := range leases {
-		if err := lease.Release(ctx); err != nil && first == nil {
-			first = err
+	for _, lease := range pending {
+		if err := lease.Release(ctx); err != nil {
+			if first == nil {
+				first = err
+			}
+			continue
 		}
+		s.executionMu.Lock()
+		s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, lease)
+		s.executionMu.Unlock()
 	}
 	return first
 }
@@ -2640,4 +2650,23 @@ func retainStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.
 		}
 	}
 	return append(leases, lease)
+}
+
+func dropStoppedKitLease(leases []*targetclient.KitLease, lease *targetclient.KitLease) []*targetclient.KitLease {
+	if lease == nil || len(leases) == 0 {
+		return leases
+	}
+	kept := make([]*targetclient.KitLease, 0, len(leases))
+	for _, existing := range leases {
+		if existing != lease {
+			kept = append(kept, existing)
+		}
+	}
+	if len(kept) == len(leases) {
+		return leases
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
