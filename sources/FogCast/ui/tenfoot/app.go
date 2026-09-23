@@ -369,8 +369,10 @@ type App struct {
 	hold                   HoldGate
 	session                hostclient.SessionResult
 	sessionTitle           string
-	// retainedIdleLease is set when this shell's Soft-stop left the host idle
-	// and kept the kit lease. Shell exit releases it. B/Back does not.
+	// retainedIdleLease is set when this shell's Soft-stop kept an idle kit
+	// grant. A later active or relaunched play does not clear it: another
+	// target's grant can still be retained. Shell exit releases idle grants.
+	// B/Back does not.
 	retainedIdleLease bool
 	// stopResponseLost is a Soft-stop whose transport failed after the host
 	// may already have retained the grant. Shell exit reconciles it.
@@ -608,16 +610,18 @@ func (a *App) Stop() {
 }
 
 // releaseOwnedIdleLease posts the shell-exit release when this shell still
-// owns an idle retained lease or a Soft-stop response was lost. A surviving
-// play is not stopped: that path posts release_idle. A confirmed idle service
-// posts an empty-body Stop.
+// owns a retained idle grant or a Soft-stop response was lost. The local
+// session may already show another play; that does not skip the release.
+// A surviving play is not stopped: that path posts release_idle. A confirmed
+// idle service posts an empty-body Stop. The pending flag clears only after
+// that release succeeds.
 func (a *App) releaseOwnedIdleLease() {
 	if a == nil {
 		return
 	}
 	a.mu.Lock()
 	client := a.client
-	release := (a.retainedIdleLease && idleRetainedSession(a.session.State)) || a.stopResponseLost
+	release := a.retainedIdleLease || a.stopResponseLost
 	var stamp ClientStamp
 	if release {
 		stamp = a.clientStampLocked()
@@ -2473,9 +2477,9 @@ func (a *App) applySessionLocked(result hostclient.SessionResult) {
 	}
 	a.session = result
 	a.rememberFlightLocked(result.FlightID)
-	if result.State == "active" || result.State == "launching" {
-		a.retainedIdleLease = false
-	}
+	// Keep retainedIdleLease. Soft-stop of foreground B can promote A, and
+	// a later launch can go active, while B's idle grant is still retained.
+	// Shell exit releases that grant; this poll does not.
 	if result.State != "active" {
 		a.session.GameID = ""
 		a.session.System = ""
