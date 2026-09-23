@@ -1,11 +1,12 @@
 # Mesh node protocol (design draft)
 
-**Status:** design draft awaiting Deano lock (2026-09-23). Conceptual
+**Status:** design draft awaiting Deano lock (2026-09-23). Caster's
+cast/kit contract review of 2026-09-23 is folded into the recommended
+defaults marked below. That review is not a design lock. Conceptual
 contracts only. This is not a wire-format freeze, not an opcode list, and
-not an implementation claim. Recommended defaults and strawmen are
-labeled. Deano owns FES parent merge. Product intent lives in
-[`docs/mesh-lan.md`](mesh-lan.md); edit that file for sofa behavior and
-this file for what the shells agree.
+not an implementation claim. Deano owns FES parent merge. Product intent
+lives in [`docs/mesh-lan.md`](mesh-lan.md); edit that file for sofa
+behavior and this file for what the shells agree.
 
 **Audience:** FES parent, FogCast host and target agent, libmister-runtime
 session boundaries, and mister-packages when a later phase actually
@@ -72,8 +73,8 @@ still a host-local detail rather than a LAN-wide name.
 I/O today is the kit's HDMI and local controllers, plus host input
 attached to the foreground session. One primary host input stays on
 that foreground session. A Linux host may show a local V4L2 capture
-preview. That preview is a host setting. It is not a routable
-DisplaySink.
+preview. That preview, and any ShadowCast-class preview of the same
+kind, is a host setting. It is not a DisplaySink.
 
 Phase 0 sessions keep this path. Mesh fields, when they exist, are
 additive.
@@ -87,10 +88,10 @@ system, described so later phases have a floor.
 | Phase | Control | Content | I/O |
 | --- | --- | --- | --- |
 | **0 — now** | Host session API, named `target`, kit lease. No mesh-protocol version. | This host's library and that target's cache. | Kit HDMI and audio. Kit pad. Host input on the foreground session. |
-| **1 — see the nodes** | Node identity, capability advertisement, TTL and heartbeat, mesh-protocol version. One active Shell. | Unchanged. Advertisements do not list titles. | Unchanged. |
-| **2 — one library** | A session may name required content-ids. Failure class: content missing and no source. | Catalog entry shape. Federated content-id. Pull and cache onto the executor. | Unchanged. |
+| **1 — see the nodes** | Node identity, capability advertisement, TTL and heartbeat, mesh-protocol version. One active Shell. Ready stays Phase 0 composition against the bound executor. | Unchanged from Phase 0. Advertisements do not list titles and do not make some other node Ready. The shell's knowledge that the kit already has the package selected or installed is bound-target composition only. | Unchanged. A DisplaySink advertisement means the node can present. It does not mean the picture is up. |
+| **2 — one library** | A session may name required slot content-ids. Failure class: content missing and no source. Mid-pull stays Checking. | Catalog entry shape. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. Pull and cache onto the bound executor. | Unchanged. |
 | **3 — placement** | One coordinator. Chosen Execute, Display, and Input recorded on the session. Lease conflict rejects. | Ensure step completes before execute. | Bindings are named. They are still local to the chosen nodes. |
-| **4 — routable I/O** | An I/O route is a binding that can fail closed. | Unchanged. | Video, audio, and input may run on nodes other than the executor. |
+| **4 — routable I/O** | An I/O route is a binding that can fail closed. | Unchanged. | Video, audio, and input may run on nodes other than the executor. A captured remote sink bound as DisplaySink belongs here. Today's V4L2 or ShadowCast-class preview is not that sink. |
 | **5 — symmetry** | Any node may advertise Shell, Execute, or both. | Same content-ids. | Same routes. Kit-as-Shell is the same host binary. |
 
 ## Node identity
@@ -104,20 +105,28 @@ system, described so later phases have a floor.
 | **OS and arch** | Informational. `linux` / `arm` does not mean the node can program an FPGA. |
 | **mesh-protocol version** | Major and minor. A major mismatch fails closed for any session that needs the higher contract. Minor may add optional fields. |
 
-**Strawman, unsigned.** One id scheme covers every node, kits included,
-so a kit that later gains a shell keeps the same id. Today's `target_id`
-is the precedent to generalize, rather than a second identifier minted
-beside it. Phase 0 nodes that only speak the current target API omit
-mesh-protocol version and stay directly bindable.
+**Recommended default, updated from Caster review 2026-09-23.** Kits
+generalize today's `target_id` into node-id. A kit that later gains a
+shell keeps that id. It does not mint a second one. Phase 0 nodes that
+only speak the current target API omit mesh-protocol version and stay
+directly bindable.
+
+**Strawman, unsigned.** Hosts that are not targets need a minting rule:
+where the id is created, where it is stored, and what a reinstall does.
+This draft does not pick that rule. Phase 0 shells that are not kits
+keep working without a node-id, because Phase 0 is still the direct
+bind.
 
 ## Capability advertisement
 
-**Recommended default.** A node announces its bag with a TTL. A
-heartbeat refreshes the TTL. Silence past the TTL means placement
-treats the node as absent. Silence does not, by itself, release a
-kit-local lease. Lease expiry stays the rule in
-[`kit-sharing.md`](kit-sharing.md). A playing session follows its
-lease, not the advertisement TTL.
+**Recommended default, updated from Caster review 2026-09-23.** A node
+announces its bag with a TTL. A heartbeat refreshes the TTL. Silence
+past the TTL means placement may treat the node as absent for a new
+choice. That silence is not a lease release. A playing session follows
+its lease. Only lease expiry frees play, and only after the cleanup
+[`kit-sharing.md`](kit-sharing.md) already runs. Advertisement TTL is
+not a second clock that frees the kit, including relative to the
+roughly 90 second lease.
 
 Advertisements carry no credentials, no title list, and no lease
 secrets. That matches today's DNS-SD discipline (id and version only).
@@ -128,8 +137,8 @@ enum.
 | Capability | Advertises | Does not advertise |
 | --- | --- | --- |
 | **Execute** | Kind: `fpga_native`, `native_emu`, later kinds. For `fpga_native`, the ABIs / package families this node can run. | "Any RBF", a display name, or a raw file path. |
-| **DisplaySink** | This node can present session picture and audio. | A promise that HDMI is the only sink, or that capture preview is already routing. |
-| **InputSource** | This node can supply pad, keyboard, or pointer. | A second player on the same kit. |
+| **DisplaySink** | This node can present session picture and audio. Capability only. | Liveness. HDMI or ADV health is a session or health fact, not this advertisement. An advertisement must not be read as "the picture is up." A V4L2 or ShadowCast-class preview is not this capability. |
+| **InputSource** | This node can supply pad, keyboard, or pointer for the session. | A second simultaneous player on the same kit. One kit carries one play session. |
 | **Catalog** | This node can answer library queries for the mesh. | The whole library inside the advertisement. |
 | **Content** | This node can serve bytes for content-ids it holds. | Paths. |
 | **Shell** | This node runs rooms (the same host UI). | A distinct kit catalog. |
@@ -138,11 +147,8 @@ enum.
 Catalog without Content is a directory. Content without Catalog is a
 cache. A node may advertise both.
 
-**Strawman, unsigned.** TTL is short enough that a closed laptop drops
-out of placement within a few heartbeats, and long enough that a brief
-Wi-Fi gap does not remove a node that is still renewing a play lease.
-This draft does not pick seconds. Deano sets them when Phase 1 is
-scheduled.
+This draft does not pick TTL seconds. Deano sets them when Phase 1 is
+scheduled. Whatever the number, silence past TTL does not free play.
 
 ## Catalog entry
 
@@ -156,7 +162,7 @@ A catalog entry is what a shell may show. It is not a filesystem row.
 | --- | --- |
 | **Title identity** | Stable id for the work the person picks. The room and library already key off a game id. Mesh keeps that, separate from bytes. |
 | **System** | Browse system (`coleco`, `zx81`, and the rest). Not an execute capability. |
-| **Required content-ids** | Bytes that must be ensured before play: firmware, primary media, and expansions that are content. Empty when the package is the whole title (ROM-less Pong). |
+| **Required slot identities** | Package / ABI identity, plus BIOS, primary-media, and expansion content-ids when those slots are required. Empty content slots when the package is the whole title (ROM-less Pong). One hash of the whole launch is not this field. |
 | **Required execute capabilities** | For example Execute `fpga_native` plus a package ABI, or Execute `native_emu` for a system that has one. |
 | **Launchable versus browse-only** | The current split. See below. |
 
@@ -172,24 +178,47 @@ Launchable versus browse-only, carried forward on purpose:
   [`launch-composition.md`](../sources/FogCast/docs/launch-composition.md).
 - Missing flags do not grant eligibility.
 
-**Ready** on the mesh means all of the following:
+**Ready by phase. Recommended default, updated from Caster review
+2026-09-23.**
 
-- Some node advertises the required Execute capability.
-- Every required content-id has a source.
-- Mesh-protocol majors match for the nodes in the session.
-- The executor is free of a conflicting lease.
+- **Phase 0 and Phase 1.** Ready is Phase 0 composition against the
+  bound executor. The shell uses that target's installed or selected
+  package, plus firmware, primary media, and expansion flags for that
+  bind. Knowing the kit already has the package is bound-target
+  composition only. Another node's Execute advertisement does not make
+  the row Ready. There is no federated content yet.
+- **Phase 2 and later.** Ready also requires every required slot
+  content-id to have a source on the mesh, and mesh-protocol majors to
+  match for the nodes in the session. A slot mid-pull, or only partly
+  present, is Checking. It is not Ready, and it does not program the
+  FPGA.
+- **Phase 3 and later.** Placement may choose the bound executor.
+  Until that choice exists, Ready still does not mean "any node that
+  advertises Execute."
+- The executor for that session is free of a conflicting lease, and is
+  idle enough to accept a launch. Busy is its own class, below.
 
-Otherwise the row is Unavailable with one of the failure classes below,
-or it stays browse-only. Checking, Missing, and Needs a choice keep
-their rooms meanings
+Otherwise the row is Unavailable with one of the classes below, or it
+stays browse-only. Checking, Missing, and Needs a choice keep their
+rooms meanings
 ([`rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)).
 
 Paths do not appear in this shape.
 
-**Strawman, unsigned.** content-id is a cryptographic hash of the exact
-bytes the executor will load, not of a zip wrapper and not of a path.
-Title identity stays the catalog id. Deano picks the hash when Phase 2
-is scheduled.
+**Recommended default, updated from Caster review 2026-09-23.** One
+hash of "the exact bytes the executor loads" is not enough. A launch
+composition is:
+
+| Slot | Identity |
+| --- | --- |
+| **Package / ABI** | The described package and ABI the executor will run. Not a content-id of a raw RBF path. |
+| **BIOS** | Content-id when the composition requires firmware (Coleco-class). |
+| **Primary media** | Content-id when the title starts from a cart, ROM, or other primary medium. |
+| **Expansions** | Content-ids for expansion slots the composition includes. |
+
+Title identity stays the catalog id. The hash algorithm for each
+content-id stays unnamed until Phase 2. This draft does not freeze
+bytes.
 
 ## Session request
 
@@ -200,7 +229,7 @@ is scheduled.
 | Initiate | The Shell the person is using. |
 | Coordinate | One coordinator. Strawman: that same Shell, unless the household pinned another. |
 | Bind | Chosen Execute, DisplaySink, and InputSource, by node-id. |
-| Ensure content | Before execute, each required content-id is already on the Execute node or is pulled from a Content node. Failure happens before programming. |
+| Ensure content | Before execute, each required slot is already on the Execute node or is pulled from a Content node. A pull in progress is Checking. Failure or partial content happens before programming. |
 | Execute | The Execute node's existing runtime path. For `fpga_native`, that is still agent then mister-runtime. The mesh does not program the FPGA itself. |
 
 Phase 0 initiation remains `POST /api/v1/session/launch` to the
@@ -213,16 +242,43 @@ not renew.
 
 ## Lease
 
-**Recommended default.**
+**Recommended default, updated from Caster review 2026-09-23.**
 
 - Operations are claim, renew, and release.
 - Conflict rejects. A second shell's launch does not preempt the holder.
-- One owner per session.
-- Kit-local soft-stop, eject, idle, and `reboot_required` stay on the
-  executor. The mesh record does not load a bitstream.
-- Development expiry and explicit operator takeover in
-  [`kit-sharing.md`](kit-sharing.md) remain available for the designated
-  kit.
+- One owner per executor session. Many sessions may exist across
+  different executors. Phase 0 already allows a second configured
+  target to play.
+- Kit-local soft-stop and idle recovery stay on the executor. The mesh
+  record does not load a bitstream. When the Shell is remote,
+  `LoadIdle()` is the Execute node's runtime path. A second Shell does
+  not call it.
+- Sofa policy, matching [`kit-sharing.md`](kit-sharing.md) and
+  [`mesh-lan.md`](mesh-lan.md) Decision 4. Today's idle
+  `POST /api/v1/session/stop` releases the kit lease. Replacement Stop
+  and development `stop` retain. This policy puts sofa Soft-stop on the
+  retain side:
+  - Sofa Soft-stop (B while playing; Play then B back to the same room)
+    reaches defined idle, clears "playing" for observing shells, and
+    retains the lease through the room stay.
+  - Explicit user Stop releases after cleanup.
+  - Development `stop` returns hardware to idle and retains ownership.
+  - Stop that replaces a game retains the lease across that handoff.
+- Advertisement TTL silence does not release a lease. Only lease expiry
+  frees play, after cleanup.
+- **Renewal loss.** If the coordinator crashes or stops renewing, the
+  kit lease (about 90 seconds) is the recovery. The sofa leaves the
+  half-active session. Other shells see the lease free only after
+  expiry and cleanup. The mesh does not steal on silence.
+- **Operator takeover.** Generation takeover in kit-sharing is a
+  development and operations exception. It is explicit, it uses the
+  current generation, and it stays off the sofa Confirm path. It is not
+  the Lease held failure class and it is not a steal.
+
+`reboot_required` stays kit-local. The mesh does not add a remote
+reboot. Path B in [`soft-restart-path-b.md`](soft-restart-path-b.md)
+stays on hold. The class is sofa-visible; the recovery action is not a
+new mesh command.
 
 **Strawman, unsigned.** For an FPGA executor, the mesh claim is the
 same kit lease the agent already enforces, so two authorities cannot
@@ -230,23 +286,31 @@ both believe they own the kit. A separate mesh-only lease object waits
 until a session can bind an executor that has no kit lease (native
 execute on a host). Deano confirms this before Phase 1 code.
 
-## Failure classes
+## Failure and session classes
 
-**Recommended default.** Each class is visible. The sofa uses the
-Unavailable family or launch-failure chrome, with a specific next
-action. Confirm does not no-op. A session does not stay half-active.
+**Recommended default, updated from Caster review 2026-09-23.** Each
+class is visible. The sofa uses the Unavailable family, Checking, or
+launch-failure chrome, with a specific next action. Confirm does not
+no-op. A session does not stay half-active. Soft-stop completed is a
+success outcome in the same list so every shell uses one vocabulary.
 
 | Class | When | Sofa |
 | --- | --- | --- |
-| **No capable executor** | No node advertises the required Execute kind and ABI. | "Can't play here yet," naming the missing capability in plain language. |
-| **Content missing, no source** | A required content-id has no Content node. | Same honesty as a missing BIOS or ROM: name the missing piece and the resolution action. |
+| **No capable executor** | No bound executor can run the required Execute kind and ABI. Phase 1 judges the bound kit, not every advertisement on the LAN. | "Can't play here yet," naming the missing capability in plain language. |
+| **Content missing, no source** | A required slot has no source. Phase 2 and later for federated content. Phase 0 and 1 use today's bound-target composition miss. | Same honesty as a missing BIOS or ROM: name the missing slot and the resolution action. |
 | **Version skew** | Mesh-protocol major, or the required ABI, does not match. | "Can't play here yet." Not a silent skip, not a half-session. |
-| **Lease held** | Another session owns the executor. | Say it is in use. Do not steal. |
-| **I/O route unavailable** | The chosen DisplaySink or InputSource cannot be bound. Phase 4 for remote routes. Before that, the same class covers a chosen node that cannot present or accept input locally. | Name which binding failed. |
+| **Lease held** | Another owner holds this executor's session. | Say it is in use. Do not steal. Generation takeover is not this class. |
+| **Executor busy** | The executor is not idle, a transition is in progress, or the agent is busy. Distinct from Lease held. | Wait. Do not describe it as another person playing, and do not take the lease. |
+| **Ensure in progress** | A required slot is mid-pull or only partially present. | Checking. Never Ready. Never program the FPGA on partial content. |
+| **reboot_required** | Idle recovery failed, or the runtime already published `reboot_required`. | Sofa-visible. The mesh does not invent a remote reboot. Path B stays on hold and kit-local ([`soft-restart-path-b.md`](soft-restart-path-b.md)). |
+| **Agent unreachable** | Transport to the agent is dead, or the renewer crashed and the lease has not expired. | Expiry path. The sofa leaves the half-active session. Other shells see the lease free only after expiry and cleanup. Confirm does not retry as if the kit were idle. |
+| **I/O route unavailable** | The chosen DisplaySink or InputSource cannot be bound. Phase 4 for remote routes. Before that, the same class covers a chosen node that cannot present or accept input locally. HDMI or ADV health is this session/health path, not the DisplaySink advertisement. A V4L2 or ShadowCast-class preview does not satisfy the sink. | Name which binding failed. |
+| **Soft-stop completed** | Sofa Soft-stop finished. The executor is in defined idle. | Observing shells clear "playing." The lease stays with the owner through the room stay. `LoadIdle()` stays on the Execute node / runtime path. |
 
-Checking remains "still resolving." Missing remains "not in the
-household library" after federation has answered. Needs a choice
-remains an edition choice. These do not collapse into one error string.
+Checking remains "still resolving," including a slot that is mid-pull.
+Missing remains "not in the household library" after the phase's
+catalog has answered. Needs a choice remains an edition choice. These
+do not collapse into one error string.
 
 ## Non-goals for the v1 protocol
 
@@ -256,7 +320,8 @@ PR reopens that table.
 - WAN mesh
 - Cloud accounts
 - DRM
-- Simultaneous play by more than one person on one kit
+- Simultaneous play by more than one person on one kit. InputSource
+  is one play session on that kit, not a second player beside it.
 - Redesign of FPGA ABI packages, format-2 descriptors, or misteross
   recipes
 - A wire-format freeze in this document
@@ -271,14 +336,19 @@ Prefer the strawman. Change the sentence here, or in
 [`mesh-lan.md`](mesh-lan.md) when the question is the sofa, rather than
 forking a parallel design.
 
-**Hash and canonical bytes.** Strawman: content-id hashes the exact
-bytes the executor loads. Title identity stays the catalog id. Algorithm
-unnamed until Phase 2.
+**Per-slot hash.** Recommended default, updated from Caster review
+2026-09-23: package / ABI identity plus BIOS, primary-media, and
+expansion content-ids. One hash of the whole launch is not the model.
+The algorithm for each content-id stays unnamed until Phase 2.
 
-**node-id and `target_id`.** Strawman: generalize `target_id` into
-node-id. Kits do not gain a second stable id when they grow a shell.
+**node-id and `target_id`.** Recommended default, updated from Caster
+review 2026-09-23: kits generalize `target_id` and keep that id when
+they grow a shell. **Strawman, unsigned:** hosts that are not targets
+still need minting rules. Phase 0 does not require those hosts to have
+a node-id.
 
-**Heartbeat and TTL numbers.** Unspecified on purpose.
+**Heartbeat and TTL numbers.** Unspecified on purpose. Only lease
+expiry frees play. TTL silence does not.
 
 **Coordinator as a capability.** Strawman: advertise it so a headless
 node can coordinate later. Phase 1 may leave the capability unused and
@@ -293,7 +363,7 @@ the host that owns the shell, as they do now.
 
 | Doc | Why |
 | --- | --- |
-| [`docs/mesh-lan.md`](mesh-lan.md) | Product intent, placement strawman, phases |
+| [`docs/mesh-lan.md`](mesh-lan.md) | Product intent, placement policy, phases |
 | [`docs/README.md`](README.md) | Index |
 | [`docs/component-boundaries.md`](component-boundaries.md) | Agent coordinates; runtime touches hardware |
 | [`docs/kit-sharing.md`](kit-sharing.md) | Current claim / renew / expiry / takeover |
