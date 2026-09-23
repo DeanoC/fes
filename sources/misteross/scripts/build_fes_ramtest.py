@@ -95,6 +95,10 @@ def output_for(memory_mhz: int) -> Path:
     return {50: OUTPUT, 100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
 
 
+def seed_for(memory_mhz: int) -> int:
+    return {50: 1, 100: 6, 130: 2}[memory_mhz]
+
+
 def inputs_for(memory_mhz: int) -> tuple[str, ...]:
     if memory_mhz == 130:
         return tuple(path for path in PINNED_INPUTS if path != "toolchain.lock") + (TOOLCHAIN_LOCK_130, RAM_PLL)
@@ -121,7 +125,7 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": 2 if high_speed(memory_mhz) else 1, "top": "top",
+            "gpu_backend": "hip", "router": "gpu", "seed": seed_for(memory_mhz), "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
             "memory_clock_hz": memory_mhz * 1_000_000, "pll_fractional_vco_multiplier": True,
         },
@@ -157,7 +161,7 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
          "--device", board.TARGET, "--qsf", QSF, "--sdc", board_evidence.SDC,
-         "--freq", "74.25", "--seed", "2" if high_speed(memory_mhz) else "1", "--router", "gpu",
+         "--freq", "74.25", "--seed", str(seed_for(memory_mhz)), "--router", "gpu",
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
          "--detailed-timing-report"),
