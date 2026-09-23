@@ -245,6 +245,12 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	auto missing = descriptor;
 	missing.interfaces.pop_back();
 	assert(!mister::native::CheckCoreCompatibility(missing).ok());
+	auto linked_cartridge = missing;
+	linked_cartridge.format = 3;
+	linked_cartridge.rom.role = "cartridge";
+	assert(mister::native::CheckCoreCompatibility(linked_cartridge).ok());
+	linked_cartridge.rom.role = "firmware";
+	assert(!mister::native::CheckCoreCompatibility(linked_cartridge).ok());
 	auto gamepad = descriptor;
 	gamepad.interfaces.push_back({"fes.gamepad", 1, 0, true});
 	assert(!mister::native::CheckCoreCompatibility(gamepad).ok());

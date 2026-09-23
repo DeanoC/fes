@@ -27,10 +27,12 @@ is registered for package-only parent builds and is not in the factory image.
 
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52 MHz FES system
   domain (Coleco `t80pa` / `tv80`).
-- Raw mailbox media on a 32 KiB fixed map at `0x0000–0x7fff`. Legacy blob 1.0
-  still admits 1–16 KiB. Stream 1.0 admits 1–32 KiB. Unused mapped bytes after
-  commit read `0xff`, including after a shorter image replaces a longer one.
-  There is no BIOS and no reset shim; reset fetches the cartridge.
+- The OSS package seals a blank 32 KiB ROM map at `0x0000–0x7fff`.
+  Library launch selects `cartridge-rom` as an exact 32 KiB binary; the target
+  patches its bytes into the RBF before FPGA download. Pad shorter fixed-map
+  images with `0xff` before import. There is no BIOS, reset shim or mapper;
+  reset fetches the linked cartridge. The Quartus oracle and the default
+  mailbox simulation remain explicit media-transport diagnostics.
 - 8 KiB CPU RAM at `0xc000–0xdfff`, mirrored at `0xe000–0xffff`.
 - VDP ports `0xbe` / `0xbf` with legacy TMS modes plus SMS Mode 4. Mode 4 has
   16 KiB VRAM, 32-entry six-bit CRAM, 32×28 tilemaps, tile priority/palette and
@@ -60,7 +62,7 @@ here. An older parent pin or launch/Stop record does not accept it.
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x7fff` | 32 KiB fixed cartridge map (mailbox blob 1.0 and blob-stream 1.0) |
+| `0x0000–0x7fff` | 32 KiB fixed cartridge ROM linked at download time in the OSS package |
 | `0x8000–0xbfff` | unmapped; reads `ff` |
 | `0xc000–0xdfff` | 8 KiB CPU RAM |
 | `0xe000–0xffff` | mirror of the 8 KiB CPU RAM |
@@ -70,14 +72,12 @@ here. An older parent pin or launch/Stop record does not accept it.
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
 
-The mailbox, keyboard rows, media handshake, build identity and fixed-video
-interfaces are the existing `fes.simple-computer` boundary. SMS packages
-declare `fes.media.blob-stream` 1.0 required alongside blob 1.0, keyboard 1.0
-and fixed-video 1.0. The host holds execution reset while uploading and commits
-media before releasing it. CPU and VDP reset remain asserted until
-`media_ready && media_loaded`. After a stream or blob commit of length N, every
-mapped address N..0x7fff reads `0xff`. HoldReset aborts an incomplete legacy
-blob when stream is enabled and does not discard in-progress stream staging.
+The production package declares keyboard and fixed video through
+`fes.simple-computer` 1.0. Its `cartridge-rom` is required at library launch,
+and the target patches the sealed ROM lanes before programming. The mailbox
+releases execution reset without a separate media upload. The default
+simulation and Quartus oracle exercise the earlier mailbox media transport as
+explicit diagnostics; their format-2 seals are not the OSS product package.
 
 VDP interrupt connects to Z80 INT. The cartridge itself occupies `0x0038` if
 it installs an IM1 handler; there is no Coleco `JP 0x8066` shim and no
@@ -144,8 +144,8 @@ then the machine checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick
 ports, long-then-short `0xff` tails and the diagnostic ROM (including the
 programmed tone). It is host simulation, not hardware acceptance.
 
-`make sim-fes-sms-oss` compiles the registered-media machine and the Coleco
-registered VDP/RAM wrappers with `-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`. The
+`make sim-fes-sms-oss` compiles the linked-ROM machine and the Coleco
+registered VDP/RAM wrappers with `-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`. The
 shared `coleco_dpram` / `coleco_vdp` mappers key off `FES_COLECO_OSS`, not
 `FES_SMS_OSS`; do not drop the Coleco define.
 
@@ -158,13 +158,16 @@ for `fes.sms` 1.2.0. It requires a clean committed tree, writes
 a format-2 package when timing passes. `--compile-only` produces the RBF and
 timing evidence without sealing. It does not program hardware.
 
-`make build-fes-sms` is the OSS recipe (`scripts/build_fes_sms_oss.py`).
+`make build-fes-sms` is the format-3 OSS recipe (`scripts/build_fes_sms_oss.py`).
+It authenticates the selected Mistral ROM database, verifies all 32 routed
+blank M10K lanes and seals `rom-map.json` with `core.rbf`. The kit uses the Go
+linker; Python is needed only on the build machine.
 It copies Coleco `clocks-oss.sdc`, selects the shared
 `toolchains/registered-memory.lock`, and uses the SMS
 `constraints-oss.qsf` (Coleco video/I2C pins plus ADV7513 I2S). Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys on a dirty tree and does not seal. The producer uses `--router gpu` and
-a first-pass HIP seed/weight search (starts at seed 10 / HeAP 1000, then
+a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000, then
 the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
 `pixel_clk` rows must meet 52 MHz and 74.25 MHz. `fes.sms` is registered for
 package-only parent builds and is not in the factory image. Kit HDMI-audio

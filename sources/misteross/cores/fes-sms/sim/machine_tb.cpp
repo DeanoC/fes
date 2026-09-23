@@ -9,6 +9,68 @@
 #include <string>
 #include <vector>
 
+#ifdef FES_SMS_ROM_LINK
+static void linked_require(bool condition, const char *message) {
+    if (!condition) {
+        std::cerr << "FES SMS linked ROM: " << message << '\n';
+        std::exit(EXIT_FAILURE);
+    }
+}
+int main(int argc, char **argv) {
+    Verilated::commandArgs(argc, argv);
+    linked_require(argc == 2, "ROM argument missing");
+    FILE *rom = std::fopen(argv[1], "rb");
+    linked_require(rom != nullptr, "cannot open ROM");
+    std::vector<uint8_t> expected;
+    uint8_t byte;
+    while (std::fread(&byte, 1, 1, rom) == 1) expected.push_back(byte);
+    std::fclose(rom);
+    linked_require(expected.size() == 32768, "expected 32 KiB ROM");
+
+    Vsms_machine dut;
+    dut.clk_sys = 0;
+    dut.reset = 1;
+    dut.keyboard = 0xffffffffffull;
+    dut.media_ready = 0;
+    dut.media_size = 0;
+    dut.media_data = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+        dut.clk_sys = 1; dut.eval();
+        dut.clk_sys = 0; dut.eval();
+    }
+    for (unsigned address : {0u, 0x3fffu, 0x4000u, 0x7fffu}) {
+        dut.peek_addr = address;
+        dut.eval();
+        linked_require(uint8_t(dut.peek_data) == expected[address], "ROM peek differs from selected bytes");
+    }
+    dut.peek_addr = 0x8000;
+    dut.eval();
+    linked_require(uint8_t(dut.peek_data) == 0xff, "unmapped 8000 must read FF");
+    dut.reset = 0;
+    bool saw_upper = false;
+    unsigned cycles = 0;
+    for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles) {
+        dut.clk_sys = 1; dut.eval();
+        dut.clk_sys = 0; dut.eval();
+        if (dut.cpu_addr_debug >= 0x4000 && dut.cpu_addr_debug < 0x8000)
+            saw_upper = true;
+    }
+    linked_require(cycles < 40000000, "diagnostic did not HALT");
+    linked_require(saw_upper, "CPU never executed upper ROM");
+    dut.peek_addr = 0xc000;
+    dut.clk_sys = 1; dut.eval();
+    dut.clk_sys = 0; dut.eval();
+    linked_require(uint8_t(dut.peek_data) == 0xa5, "RAM signature missing");
+    dut.peek_addr = 0xc002;
+    dut.clk_sys = 1; dut.eval();
+    dut.clk_sys = 0; dut.eval();
+    linked_require(uint8_t(dut.peek_data) == 0x18, "upper-half data signature missing");
+    linked_require(dut.psg_tone0_period == 256 && dut.psg_tone0_atten == 0,
+                   "PSG tone absent");
+    std::cout << "FES SMS linked-ROM machine checks passed\n";
+    return 0;
+}
+#else
 namespace {
 
 [[noreturn]] void fail(const char *message) {
@@ -241,3 +303,4 @@ int main(int argc, char **argv) {
     std::cout << "FES SMS machine checks passed\n";
     return 0;
 }
+#endif

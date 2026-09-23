@@ -30,10 +30,12 @@ module top #(
     wire [31:0] hps_to_fpga;
     wire exec_reset;
     wire [39:0] keyboard;
+`ifndef FES_SMS_ROM_LINK
     wire media_ready;
     wire [15:0] media_size;
     wire [14:0] media_addr;
     wire [7:0] media_data;
+`endif
     wire [7:0] logical_x;
     wire [7:0] logical_y;
     wire [5:0] logical_color;
@@ -88,13 +90,26 @@ module top #(
         .outclk_0(pixel_clk)
     );
 
+`ifdef FES_SMS_ROM_LINK
+    fes_computer_gp gp_mailbox (
+`else
     fes_computer_gp #(.ENABLE_MEDIA_STREAM(1)) gp_mailbox (
+`endif
         .clk(clk_sys),
         .gpo(hps_to_fpga),
         .build_id(BUILD_ID),
         .gpi(fpga_to_hps),
         .exec_reset(exec_reset),
         .keyboard(keyboard),
+`ifdef FES_SMS_ROM_LINK
+        .media_ready(),
+        .media_size(),
+        .media_byte0(),
+        .media_byte1(),
+        .media_byte2(),
+        .media_addr(14'd0),
+        .media_q()
+`else
         .media_ready(media_ready),
         .media_size(media_size),
         .media_byte0(),
@@ -102,6 +117,7 @@ module top #(
         .media_byte2(),
         .media_addr(media_addr),
         .media_q(media_data)
+`endif
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -109,10 +125,17 @@ module top #(
         .clk_sys(clk_sys),
         .reset(exec_reset),
         .keyboard(keyboard),
+`ifdef FES_SMS_ROM_LINK
+        .media_ready(1'b0),
+        .media_size(16'd0),
+        .media_data(8'hff),
+        .media_addr(),
+`else
         .media_ready(media_ready),
         .media_size(media_size),
         .media_data(media_data),
         .media_addr(media_addr),
+`endif
         .peek_addr(16'h0000),
         .peek_data(),
         .controller1_value(),

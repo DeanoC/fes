@@ -868,7 +868,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 					"required interface is unsupported");
 			}
 		}
-		if (!keyboard || !video || !media)
+		const bool linked_cartridge = descriptor.format == 3 &&
+			descriptor.rom.role == "cartridge";
+		if (!keyboard || !video || (!media && !linked_cartridge))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"required FES computer interfaces are missing");
 		return {};
