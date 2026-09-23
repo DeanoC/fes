@@ -1,10 +1,11 @@
 # Mesh LAN (design draft)
 
 **Status:** design draft awaiting Deano lock (2026-09-23). Caster's
-cast/kit contract review of 2026-09-23 is folded into the recommended
-defaults marked below. That review is not a design lock. The product
-intent under "Why this exists" is from Deano. Deano owns FES parent
-merge. This is not an implementation claim.
+cast/kit contract review and Foggy's product review, both 2026-09-23,
+are folded into the recommended defaults and strawmen marked below.
+Neither review is a design lock. The product intent under "Why this
+exists" is from Deano. Deano owns FES parent merge. This is not an
+implementation claim.
 
 **Audience:** FES parent, FogCast (rooms, tenfoot, host, target agent), and
 libmister-runtime session boundaries. Read
@@ -121,11 +122,16 @@ sink.
 
 ## Decisions
 
-Recommended defaults, written 2026-09-23. Items marked "updated from
-Caster review 2026-09-23" replace the earlier strawmen on that point.
-Deano has not signed each bullet. Implementation work should treat the
-paragraph in this file as the working text and change it here rather
-than forking a parallel design.
+Recommended defaults, written 2026-09-23. Items marked Caster or Foggy
+replace the earlier strawman on that point. Deano has not signed each
+bullet. Implementation work should treat the paragraph in this file as
+the working text and change it here rather than forking a parallel
+design.
+
+Foggy's review endorses, and this draft keeps: content-id distinct from
+title id; one lease owner per executor; Phase 0 as the floor; a Windows
+node as Shell first; idle, splash, and `reboot_required` left as they
+stand in the idle and soft-restart docs.
 
 ### 1. Capabilities over roles
 
@@ -202,6 +208,13 @@ Soft-stop (B, back to the same room) on the retain side:
 When the Shell is remote from the kit, `LoadIdle()` belongs to the
 Execute node and its runtime path. A second Shell does not call it.
 
+**Stop restore. Recommended default, updated from Foggy product review
+2026-09-23.** Return from play restores the same room, location, and
+parent stack on the Shell that started play
+([`rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)).
+That restore stays on that Shell even if the coordinator later moves.
+Another Shell does not become the return surface.
+
 `LoadIdle()`, splash, attract, and `reboot_required` stay as written in
 [`idle-menu-rooms.md`](idle-menu-rooms.md) and
 [`soft-restart-path-b.md`](soft-restart-path-b.md). The mesh does not
@@ -243,21 +256,24 @@ without waiting for a mesh.
 
 ### 7. Placement policy
 
-**Recommended default, updated from Caster review 2026-09-23.** Phase 3.
-Deano has not locked this order.
+**Recommended default, reconciled from Foggy's product review and
+Caster's review, 2026-09-23.** Phase 3. Deano has not locked this order.
+The general rule is not "a display near the shell."
 
-1. Choose Execute first. Prefer `fpga_native` when an ABI /
-   `core_package` exists for the title. Otherwise native execute on a
-   node that advertises the required Execute kind.
-2. Bind the picture from that choice.
-   - `fpga_native`: that kit's DisplaySink. FPGA execute does not prefer
-     a display near the shell.
-   - Near the shell only when the shell and the sink are the same seat,
-     or when the session uses a captured remote sink in Phase 4.
-   - A V4L2 or ShadowCast-class preview is a host preview. It is not a
-     DisplaySink, and it does not win placement.
-3. Fail closed when the mesh-protocol major does not match, or a
-   required composition slot has no source.
+1. Prefer the household display preference, or, if none is set, the last
+   DisplaySink used for play. In the usual living room that is the kit
+   HDMI, including when the shell is a Mac. The laptop screen does not
+   win because the menu is running there.
+2. When Execute is `fpga_native`, prefer that kit's DisplaySink. FPGA
+   picture stays on the kit.
+3. Prefer FPGA execute when an ABI / `core_package` exists for the
+   title. Otherwise native execute on a node that can run it. Otherwise
+   fail closed: mesh-protocol major mismatch, or a required composition
+   slot with no source.
+4. "Near the shell" applies only when the shell and the sink are the
+   same seat, or when Phase 4 binds a captured remote sink.
+5. A V4L2 or ShadowCast-class preview is a host preview. It is not a
+   DisplaySink, and it does not win placement.
 
 An optional advanced override exists for a power user. The default sofa
 path does not ask which machine.
@@ -269,6 +285,16 @@ match [`idle-menu-rooms.md`](idle-menu-rooms.md): kit-as-host is the same
 host binary, not a second catalog. A host that executes locally uses the
 same Execute capability as any other node.
 
+### Attract
+
+**Recommended default, updated from Foggy product review 2026-09-23.**
+This draft does not reopen attract. Idle attract stays the ABI in
+[`idle-menu-rooms.md`](idle-menu-rooms.md). While a room is the focused
+surface, attract stays default off, as in
+[`rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md).
+A mesh node does not start attract, move focus, or steal input on
+another Shell.
+
 ## Visible contract
 
 What the person at the menu should see. "Today" is tip `97fadf24`.
@@ -278,12 +304,42 @@ intent, not a claim that mesh code exists.
 | Moment | Today | Target |
 | --- | --- | --- |
 | **Sitting down** | One shell (tenfoot rooms, browser, or kit grid) on one host's library, bound to configured kits. | Rooms and the library are one view of the LAN. OS, seat, and which disk holds a ROM stay hidden. |
-| **Picking a game** | Checking, Missing, Needs a choice, Unavailable, Ready against this host and the bound kit's packages. | The same states. Phase 1 Ready stays that bound-kit composition. Later Unavailable also covers no capable executor, a missing composition slot, version skew ("can't play here yet"), lease held, executor busy, `reboot_required`, and I/O route unavailable. A partial pull stays Checking. |
+| **Picking a game** | Checking, Missing, Needs a choice, Unavailable, Ready against this host and the bound kit's packages. Each state already has its own Confirm behavior. | The same states, with the copy contract below. Phase 1 Ready stays bound-kit composition. Phase 2 Ready means this session can play here. |
 | **Playing** | Picture on the kit HDMI. Pad on the kit, or host input attached to the foreground session. A host V4L2 preview, when configured, is a local preview. | For FPGA execute the picture is the kit DisplaySink. A capture preview is not that sink. Where execute ran is not a prompt. |
 | **Soft-stop (B)** | B while now-playing is session Stop. That idle Stop releases the kit lease today. Replacement Stop and development `stop` already retain. | Same room. Defined idle. Observing shells clear "playing." Soft-stop retains the lease through the room stay. A separate explicit user Stop still releases after cleanup. |
 | **Renewer disappears** | The kit lease expires in about 90 seconds if renewal stops. The holder loses mutations. The kit is not taken early. | The sofa leaves the half-active session. Other shells see the executor free only after expiry and cleanup. |
 | **Another computer on the LAN** | Its own host and catalog, if someone started one. No shared rooms view. | The same rooms and games, subject to leases and version skew. |
 | **Kit alone** | `fogcast-kit` grid today. Locked direction: the same host binary (kit-as-host), not a second library. | Shell is just a capability on that node. Still one catalog: rooms. |
+| **Second shell, kit leased** | A client without the lease cannot take the kit to Stop someone else. | Phase 1: Unavailable, copy "in use." No silent steal. The lease frees only after expiry and cleanup. |
+| **Stop restore** | Stop returns the sofa to the same room, location, and parent stack. | That restore stays on the Shell that started play, even if the coordinator later moves. |
+
+**Ready, Phase 2. Recommended default, updated from Foggy product review
+2026-09-23.** Ready means this session can play here:
+
+- an Execute binding this Shell can use
+- required content ensured for that binding
+- the executor's lease free
+- mesh-protocol major OK
+
+A title that only exists somewhere on the LAN is not Ready. Distant-only
+is Unavailable, with a next action. Phase 1 Ready is unchanged: composition
+against the bound executor, not an advertisement from some other node.
+
+**Availability copy. Recommended default, updated from Foggy product
+review 2026-09-23.** Details and Confirm stay distinct. These five do
+not collapse into one Unavailable string. Other protocol classes
+(executor busy, `reboot_required`, agent unreachable, ensure in
+progress, I/O route) keep their own copy in
+[`mesh-node-protocol.md`](mesh-node-protocol.md) and do not fold into
+this list.
+
+| State | Details | Confirm |
+| --- | --- | --- |
+| **Checking** | Still resolving whether this title can play here. | Wait. Do not launch. |
+| **Missing content** | Name the missing slot (BIOS, primary media, or expansion) and the way to supply it. | The resolution action for that slot. If there is no one-step action, open Details. |
+| **Needs a choice** | Several editions match and none is saved. | Force a clear choice. Remember it for the household. Do not launch an arbitrary edition. |
+| **In use** | This executor is in use. | Do not launch. Do not take the lease. |
+| **Version skew** | "Can't play here yet," with the mismatch in plain language. | Do not launch. |
 
 ## Process model
 
@@ -319,8 +375,8 @@ add a Host/Kit identity enum.
 | Phase | Delivers | Does not deliver |
 | --- | --- | --- |
 | **0 — now** | One Shell bound to configured kits. Direct session API, kit lease, rooms availability, `core_package` launchable versus browse-only. A second configured target may already play. This is the current post soft-restart / rooms T11 world. | Mesh discovery, a federated catalog, placement, routable I/O |
-| **1 — see the nodes** | Multi-node discovery and capability advertisements. Still one active Shell. Kits remain FPGA executors. Ready stays Phase 0 composition against the bound executor: the shell already knows that kit has the package selected or installed. Another node's Execute advertisement does not make the row Ready. | A second shell taking the kit; moving ROMs; remote HDMI; treating "some node advertises Execute" as Ready |
-| **2 — one library** | Federated catalog. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. Multi-host content with no "ROM is on machine X" in the UI. | Automatic placement; routable pads and picture; one hash standing in for a Coleco composition |
+| **1 — see the nodes** | Multi-node discovery and capability advertisements. Still one active Shell. Kits remain FPGA executors. Ready stays Phase 0 composition against the bound executor. A second shell that finds that kit leased shows Unavailable "in use" and does not take the lease. | A second shell taking the kit; silent steal; moving ROMs; remote HDMI; treating "some node advertises Execute" as Ready |
+| **2 — one library** | Federated catalog. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. No "ROM is on machine X" in the UI. Ready means this session can play here (Execute, content ensured, lease free, mesh major OK). | Automatic placement; routable pads and picture; one hash standing in for a Coleco composition; Ready merely because the bytes exist somewhere on the LAN |
 | **3 — placement** | Automatic placement, plus an optional advanced override. Policy is Decision 7. | Routable I/O as the normal path; a capture preview counted as DisplaySink |
 | **4 — routable I/O** | Remote pad toward a remote HDMI sink, or a captured remote sink that is actually bound as DisplaySink. | Kit-as-Shell required for ordinary play; treating today's V4L2 / ShadowCast-class preview as that sink |
 | **5 — symmetry** | Kit-as-Shell and host-as-Execute. Same host binary on the kit. Same Execute capability on a machine that also runs a shell. | WAN, accounts, DRM, two people playing one kit at once |
@@ -341,7 +397,7 @@ protocol page repeats the wire-level non-goals.
 - DRM
 - More than one player in simultaneous play on one kit (InputSource does not mean a second player on that kit)
 - Redesign of FPGA ABI packages
-- Redesign of `LoadIdle()`, splash, attract, or `reboot_required`
+- Redesign of `LoadIdle()`, splash, attract, or `reboot_required`. Attract stays default off on a focused room, and does not steal focus across nodes.
 - A second offline catalog beside rooms
 - Filesystem paths as the way the sofa names a game
 - A permanent Host or Kit role as node identity
@@ -352,18 +408,21 @@ protocol page repeats the wire-level non-goals.
 Prefer the strawman. Change the sentence in this document rather than
 forking a parallel design.
 
-**Placement order.** Recommended default, updated from Caster review
-2026-09-23: Decision 7. FPGA execute uses the kit DisplaySink. Near the
-shell only when the shell and the sink are the same seat, or for a
-Phase 4 captured remote sink. A V4L2 or ShadowCast-class preview is not
-a DisplaySink. Deano has not locked the paragraph. Which `native_emu`
+**Placement order.** Recommended default, Foggy and Caster, 2026-09-23:
+Decision 7. Household display preference or last play sink first
+(living-room kit HDMI over a Mac shell). FPGA execute uses that kit's
+DisplaySink. Near the shell only for the same seat or a Phase 4
+captured remote sink. A V4L2 or ShadowCast-class preview is not a
+DisplaySink. Deano has not locked the paragraph. Which `native_emu`
 node wins when several can run the title is still open.
 
-**Second shell.** Recommended default: Phase 1 still has one active
-Shell. A second shell may see nodes and must not take a lease. Many
-sessions across different executors stay allowed, as Phase 0 already
-allows a second configured target. Deano can pull a second shell onto
-one kit earlier if two sofas must share that kit before placement exists.
+**Second shell.** Recommended default, aligned with Caster and Foggy:
+Phase 1 still has one active Shell. A second shell may see the kit. If
+the lease is held, that shell shows Unavailable "in use" and does not
+take it. Many sessions across different executors stay allowed, as
+Phase 0 already allows a second configured target. Deano can pull a
+second shell onto one kit earlier if two sofas must share that kit
+before placement exists.
 
 **Content identity.** Recommended default, updated from Caster review
 2026-09-23: package / ABI identity plus BIOS, primary-media, and
@@ -375,10 +434,20 @@ per-slot hash algorithm is open in the protocol doc.
 the household has pinned another coordinator. Coordinator is an optional
 capability, not a box that must be bought.
 
-**Windows.** Intent includes sitting at Windows. Strawman: a Windows node
-is Shell, DisplaySink, and InputSource first. Execute waits until a
-native executor exists there. Mac, Linux, and kit phases do not wait on
-Windows.
+**Windows.** Intent includes sitting at Windows. Strawman, endorsed by
+Foggy: a Windows node is Shell, DisplaySink, and InputSource first.
+Execute waits until a native executor exists there. Mac, Linux, and kit
+phases do not wait on Windows.
+
+**Play facts.** Strawman, from Foggy's review. Last played, play count,
+and any later completion record key on the game / title id. They do not
+key on node-id. Two shells show the same played state for the same
+title. What happens when two shells write at once (write-wins) is TBD.
+
+**Destination strips.** Strawman, from Foggy's review. The compact
+destination strip in a room stays Shell-local Lua: the room script and
+the tenfoot display list. It is not a federated catalog object and it
+is not served from another node.
 
 No other product question is posed as locked. Wire encodings, TTL
 numbers, native-executor tie-break, and host node-id minting are

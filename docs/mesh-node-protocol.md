@@ -1,12 +1,12 @@
 # Mesh node protocol (design draft)
 
 **Status:** design draft awaiting Deano lock (2026-09-23). Caster's
-cast/kit contract review of 2026-09-23 is folded into the recommended
-defaults marked below. That review is not a design lock. Conceptual
-contracts only. This is not a wire-format freeze, not an opcode list, and
-not an implementation claim. Deano owns FES parent merge. Product intent
-lives in [`docs/mesh-lan.md`](mesh-lan.md); edit that file for sofa
-behavior and this file for what the shells agree.
+cast/kit contract review is folded below. Foggy's product review is
+folded in [`docs/mesh-lan.md`](mesh-lan.md); this page changes only
+where that review meets a protocol rule. Neither review is a design
+lock. Conceptual contracts only. This is not a wire-format freeze, not
+an opcode list, and not an implementation claim. Deano owns FES parent
+merge.
 
 **Audience:** FES parent, FogCast host and target agent, libmister-runtime
 session boundaries, and mister-packages when a later phase actually
@@ -88,8 +88,8 @@ system, described so later phases have a floor.
 | Phase | Control | Content | I/O |
 | --- | --- | --- | --- |
 | **0 — now** | Host session API, named `target`, kit lease. No mesh-protocol version. | This host's library and that target's cache. | Kit HDMI and audio. Kit pad. Host input on the foreground session. |
-| **1 — see the nodes** | Node identity, capability advertisement, TTL and heartbeat, mesh-protocol version. One active Shell. Ready stays Phase 0 composition against the bound executor. | Unchanged from Phase 0. Advertisements do not list titles and do not make some other node Ready. The shell's knowledge that the kit already has the package selected or installed is bound-target composition only. | Unchanged. A DisplaySink advertisement means the node can present. It does not mean the picture is up. |
-| **2 — one library** | A session may name required slot content-ids. Failure class: content missing and no source. Mid-pull stays Checking. | Catalog entry shape. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. Pull and cache onto the bound executor. | Unchanged. |
+| **1 — see the nodes** | Node identity, capability advertisement, TTL and heartbeat, mesh-protocol version. One active Shell. Ready stays Phase 0 composition against the bound executor. A second shell that sees the kit leased does not claim it. | Unchanged from Phase 0. Advertisements do not list titles and do not make some other node Ready. The shell's knowledge that the kit already has the package selected or installed is bound-target composition only. | Unchanged. A DisplaySink advertisement means the node can present. It does not mean the picture is up. |
+| **2 — one library** | A session may name required slot content-ids. Failure class: content missing and no source. Mid-pull stays Checking. Ready means this session can play here, not that the bytes exist on some LAN node. | Catalog entry shape. Package / ABI identity plus BIOS, primary-media, and expansion content-ids. Pull and cache onto the executor this session will use. | Unchanged. |
 | **3 — placement** | One coordinator. Chosen Execute, Display, and Input recorded on the session. Lease conflict rejects. | Ensure step completes before execute. | Bindings are named. They are still local to the chosen nodes. |
 | **4 — routable I/O** | An I/O route is a binding that can fail closed. | Unchanged. | Video, audio, and input may run on nodes other than the executor. A captured remote sink bound as DisplaySink belongs here. Today's V4L2 or ShadowCast-class preview is not that sink. |
 | **5 — symmetry** | Any node may advertise Shell, Execute, or both. | Same content-ids. | Same routes. Kit-as-Shell is the same host binary. |
@@ -187,9 +187,13 @@ Launchable versus browse-only, carried forward on purpose:
   bind. Knowing the kit already has the package is bound-target
   composition only. Another node's Execute advertisement does not make
   the row Ready. There is no federated content yet.
-- **Phase 2 and later.** Ready also requires every required slot
-  content-id to have a source on the mesh, and mesh-protocol majors to
-  match for the nodes in the session. A slot mid-pull, or only partly
+- **Phase 2 and later.** Ready means this session can play here: an
+  Execute binding this shell can use, every required slot content-id
+  ensured on that executor, the lease free, and mesh-protocol majors
+  matching. A copy that only exists somewhere else on the LAN is not
+  Ready. Distant-only is Unavailable with a next action. Sofa copy for
+  that split is the visible contract in
+  [`mesh-lan.md`](mesh-lan.md). A slot mid-pull, or only partly
   present, is Checking. It is not Ready, and it does not program the
   FPGA.
 - **Phase 3 and later.** Placement may choose the bound executor.
