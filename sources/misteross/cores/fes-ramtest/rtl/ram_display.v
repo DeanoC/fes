@@ -55,10 +55,7 @@ module ram_display (
     wire h_fail = sync1[1];
     wire h_stopped = sync1[0];
 
-    wire [5:0] col = x[8:3];
-    wire [4:0] row = y[7:3];
     wire [7:0] glyph_pixels;
-    wire [7:0] character;
 
     function [7:0] hex_digit;
         input [3:0] nibble;
@@ -262,25 +259,68 @@ module ram_display (
         end
     endfunction
 
-    assign character = screen_char(row, col);
+    // The character decode is registered away from the video counters, then
+    // the glyph lookup is registered away from that decode. The pixel clock
+    // cannot carry both in one 74.25 MHz cycle.
+    reg [9:0] x_q = 10'd0;
+    reg [9:0] y_q = 10'd0;
+    reg active_q = 1'b0;
+    reg [7:0] ch_q = 8'h00;
+    reg [2:0] glyph_row_q = 3'd0;
+    reg [2:0] glyph_col_q = 3'd0;
+    reg active_c = 1'b0;
+    reg status_c = 1'b0;
+    reg failed_c = 1'b0;
+    reg passed_c = 1'b0;
+    reg halted_c = 1'b0;
+    reg [7:0] pixels_q = 8'h00;
+    reg [2:0] glyph_col_p = 3'd0;
+    reg active_p = 1'b0;
+    reg status_p = 1'b0;
+    reg failed_p = 1'b0;
+    reg passed_p = 1'b0;
+    reg halted_p = 1'b0;
+
+    wire [4:0] row_q = y_q[7:3];
+    wire [5:0] col_q = x_q[8:3];
+    wire [7:0] ch_now = screen_char(row_q, col_q);
+    wire status_now = row_q == 5'd5 || row_q == 5'd12;
+    wire failed_now = (row_q == 5'd5) ? s_fail : h_fail;
+    wire passed_now = (row_q == 5'd5) ? s_pass : h_pass;
+    wire halted_now = (row_q == 5'd5) ? s_stopped : h_stopped;
+
     ram_font font (
-        .ch(character),
-        .row(y[2:0]),
+        .ch(ch_q),
+        .row(glyph_row_q),
         .pixels(glyph_pixels)
     );
-    wire ink = active && glyph_pixels[3'd7 - x[2:0]];
-    wire status_row = row == 5'd5 || row == 5'd12;
-    wire failed = (row == 5'd5) ? s_fail : h_fail;
-    wire passed = (row == 5'd5) ? s_pass : h_pass;
-    wire halted = (row == 5'd5) ? s_stopped : h_stopped;
-    wire [7:0] ink_red = halted ? 8'hE8 : (failed ? 8'hE0 : (passed ? 8'h20 : 8'hE0));
-    wire [7:0] ink_green = halted ? 8'hE8 : (failed ? 8'h30 : (passed ? 8'hC0 : 8'hA0));
-    wire [7:0] ink_blue = halted ? 8'hE8 : (failed ? 8'h28 : (passed ? 8'h40 : 8'h20));
+    wire ink = active_p && pixels_q[3'd7 - glyph_col_p];
+    wire [7:0] ink_red = halted_p ? 8'hE8 : (failed_p ? 8'hE0 : (passed_p ? 8'h20 : 8'hE0));
+    wire [7:0] ink_green = halted_p ? 8'hE8 : (failed_p ? 8'h30 : (passed_p ? 8'hC0 : 8'hA0));
+    wire [7:0] ink_blue = halted_p ? 8'hE8 : (failed_p ? 8'h28 : (passed_p ? 8'h40 : 8'h20));
 
     always @(posedge pixel_clk) begin
         sync0 <= snap;
         sync1 <= sync0;
-        if (ink && status_row) begin
+        x_q <= x;
+        y_q <= y;
+        active_q <= active;
+        ch_q <= ch_now;
+        glyph_row_q <= y_q[2:0];
+        glyph_col_q <= x_q[2:0];
+        active_c <= active_q;
+        status_c <= status_now;
+        failed_c <= failed_now;
+        passed_c <= passed_now;
+        halted_c <= halted_now;
+        pixels_q <= glyph_pixels;
+        glyph_col_p <= glyph_col_q;
+        active_p <= active_c;
+        status_p <= status_c;
+        failed_p <= failed_c;
+        passed_p <= passed_c;
+        halted_p <= halted_c;
+        if (ink && status_p) begin
             red <= ink_red;
             green <= ink_green;
             blue <= ink_blue;
