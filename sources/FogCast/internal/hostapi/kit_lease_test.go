@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/protocol"
@@ -286,6 +287,82 @@ func TestExplicitIdleStopReleasesSoftStoppedLegacyNativeWhenSelectedTargetFails(
 			}
 			if service.releases != tc.wantRel {
 				t.Fatalf("releases = %d, want %d; body=%s", service.releases, tc.wantRel, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestFailedStopOfPromotedPlayDoesNotReleaseLease(t *testing.T) {
+	unavailable := &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "target runtime is unavailable"}
+	saveFailed := &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "save failed", Phase: "save"}
+	gameB := "snes-foreground"
+	systemB := protocol.SystemSNES
+	core := "SNES"
+	foreground := protocol.Status{State: protocol.StateActive, GameID: &gameB, System: &systemB, ExpectedCore: &core, ObservedCore: &core}
+	promotedA := fogcast.PlaySession{
+		Target:    "kit-a",
+		TargetID:  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+		Execution: fogcast.ExecutionFPGANative,
+		GameID:    "nes-still-playing",
+		System:    protocol.SystemNES,
+	}
+	cases := []struct {
+		name  string
+		after func(*fakeService)
+	}{
+		{name: "stop unavailable", after: func(s *fakeService) { s.stopErr = unavailable }},
+		{name: "save failed", after: func(s *fakeService) { s.stopErr = saveFailed }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			base := &fakeService{
+				status:        protocol.Status{State: protocol.StateIdle},
+				launch:        protocol.CachedLaunchResponse{Status: foreground},
+				stopped:       protocol.Status{State: protocol.StateIdle},
+				sessionTarget: "kit-b",
+				playSessions: []fogcast.PlaySession{
+					promotedA,
+					{Target: "kit-b", TargetID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Execution: fogcast.ExecutionFPGANative, GameID: gameB, System: systemB},
+				},
+			}
+			service := &leasedService{fakeService: base}
+			handler := hostapi.New(service)
+			if launch := launchSessionOn(t, handler, gameB, "kit-b"); launch.Code != http.StatusOK || !strings.Contains(launch.Body.String(), `"execution":"fpga_native"`) {
+				t.Fatalf("launch B = %d %s", launch.Code, launch.Body.String())
+			}
+			soft := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", strings.NewReader(`{"retain_lease":true}`))
+			soft.Host = "127.0.0.1"
+			soft.Header.Set("Content-Type", "application/json")
+			softResponse := httptest.NewRecorder()
+			handler.ServeHTTP(softResponse, soft)
+			if softResponse.Code != http.StatusOK || service.releases != 0 {
+				t.Fatalf("soft-stop B = %d releases=%d body=%s", softResponse.Code, service.releases, softResponse.Body.String())
+			}
+			// clearForegroundPlayLocked has promoted A. The coordinator only
+			// observed B's idle response, so its local marker is idle too.
+			base.playSessions = []fogcast.PlaySession{promotedA}
+			observed := serve(t, handler, http.MethodGet, "/api/v1/session")
+			if observed.Code != http.StatusOK || !strings.Contains(observed.Body.String(), `"state":"idle"`) {
+				t.Fatalf("coordinator after soft-stop B = %d %s", observed.Code, observed.Body.String())
+			}
+			plays := serve(t, handler, http.MethodGet, "/api/v1/sessions")
+			if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-a"`) || strings.Contains(plays.Body.String(), `"target":"kit-b"`) {
+				t.Fatalf("promoted plays = %d %s", plays.Code, plays.Body.String())
+			}
+			tc.after(base)
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/session/stop", nil)
+			request.Host = "127.0.0.1"
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code == http.StatusOK {
+				t.Fatalf("stop of A succeeded: %s", response.Body.String())
+			}
+			if service.releases != 0 {
+				t.Fatalf("released promoted lease while A is active: body=%s", response.Body.String())
+			}
+			stillPlaying := serve(t, handler, http.MethodGet, "/api/v1/sessions")
+			if stillPlaying.Code != http.StatusOK || !strings.Contains(stillPlaying.Body.String(), `"target":"kit-a"`) {
+				t.Fatalf("A after failed stop = %d %s", stillPlaying.Code, stillPlaying.Body.String())
 			}
 		})
 	}

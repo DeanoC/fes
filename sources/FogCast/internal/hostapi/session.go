@@ -939,6 +939,8 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	// Soft-stop, idle settings may select an unrelated kit; that probe must
 	// not hide retained grants from an explicit Stop. A Soft-stopped legacy
 	// fpga_native label is idle as well: cleanup leaves that marker set.
+	// Soft-stop of foreground B can still leave A playing: the coordinator
+	// only sees B's idle status, so the release fallback also checks plays.
 	alreadyIdle := s.idleWithoutPlay()
 	if _, err := s.developmentActive(ctx); err != nil {
 		if relErr := s.releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease); relErr != nil {
@@ -1068,10 +1070,22 @@ func (s *sessionCoordinator) releaseKitLeaseNow() error {
 }
 
 func (s *sessionCoordinator) releaseKitLeaseAfterIdleExplicitStop(alreadyIdle, retainLease bool) error {
-	if retainLease || !alreadyIdle {
+	// alreadyIdle is the coordinator marker. Soft-stop of foreground B promotes
+	// still-playing A and returns only B's idle status, so the marker can be
+	// set while A is active. stopLocked records A's grant before Stop runs;
+	// releasing after that Stop fails would drop ownership of the live session.
+	if retainLease || !alreadyIdle || s.activePlaysRemain() {
 		return nil
 	}
 	return s.releaseKitLeaseNow()
+}
+
+func (s *sessionCoordinator) activePlaysRemain() bool {
+	lister, ok := s.service.(interface{ PlaySessions() []fogcast.PlaySession })
+	if !ok {
+		return false
+	}
+	return len(lister.PlaySessions()) > 0
 }
 
 func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error) {
