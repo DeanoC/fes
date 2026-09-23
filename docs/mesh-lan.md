@@ -1,13 +1,14 @@
 # Mesh LAN (design draft)
 
-**Status:** merged as #131. Phase 1 is in progress under Bob; Deano
+**Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
+execution is [`mesh-phase2.md`](mesh-phase2.md). Bob coordinates; Deano
 merges parents. Still edit strawmen in place. Caster's cast/kit
 contract review and Foggy's product review, both 2026-09-23, are
 folded into the recommended defaults and strawmen marked below.
 Neither review is a design lock. The product intent under "Why this
-exists" is from Deano. The execution brief is
+exists" is from Deano. Phase 1 execution is
 [`mesh-phase1.md`](mesh-phase1.md). This page is not an implementation
-claim for slices that brief still lists as open.
+claim for slices [`mesh-phase2.md`](mesh-phase2.md) still lists as open.
 
 **Audience:** FES parent, FogCast (rooms, tenfoot, host, target agent), and
 libmister-runtime session boundaries. Read
@@ -180,8 +181,8 @@ composition keeps separate identities:
 
 ROM-less Pong may be package / ABI only. The UI shows title, system, and
 an availability state. A path is a cache detail on the node that holds
-one of those objects. The per-slot hash algorithm stays unnamed until
-Phase 2. Shape:
+one of those objects. Phase 2 proposes an unsigned SHA-256 strawman
+in [`mesh-phase2.md`](mesh-phase2.md). Deano has not locked it. Shape:
 [`mesh-node-protocol.md`](mesh-node-protocol.md).
 
 ### 4. One owner per executor session
@@ -431,8 +432,10 @@ before placement exists.
 **Content identity.** Recommended default, updated from Caster review
 2026-09-23: package / ABI identity plus BIOS, primary-media, and
 expansion content-ids as the composition requires. Title identity stays
-the catalog id. One hash of the whole launch is not the model. The
-per-slot hash algorithm is open in the protocol doc.
+the catalog id. One hash of the whole launch is not the model. Phase 2
+Slice 1 proposes SHA-256 (`sha256:` plus 64 lowercase hex) as an
+unsigned strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has not
+locked it.
 
 **Who coordinates.** Strawman: the Shell that started the session, unless
 the household has pinned another coordinator. Coordinator is an optional
@@ -464,6 +467,8 @@ does.
 | Doc | Why |
 | --- | --- |
 | [`docs/mesh-node-protocol.md`](mesh-node-protocol.md) | Capability, lease, content-id, session, failure classes |
+| [`docs/mesh-phase1.md`](mesh-phase1.md) | Phase 1 execution, closed on `3d34b6e0` |
+| [`docs/mesh-phase2.md`](mesh-phase2.md) | Phase 2 execution, content plane |
 | [`docs/README.md`](README.md) | Index |
 | [`docs/idle-menu-rooms.md`](idle-menu-rooms.md) | Same host binary for kit-as-host; idle contracts this mesh does not reopen |
 | [`docs/soft-restart-path-b.md`](soft-restart-path-b.md) | `reboot_required` and idle recovery stay kit-local |
