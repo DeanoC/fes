@@ -8,8 +8,8 @@ UX (Foggy), and anyone picking up a later slice. Bob coordinates. Read
 the locks first. This brief names owners, slices, and the Soft-stop
 flag. It does not reopen the design.
 
-**Base:** FES `main` tip `81fe16ab` (Slice 1 Soft-stop lease retain, #132).
-Slice 2 capability advertisements are the PR on top of that tip.
+**Base:** FES `main` tip `3df59a65` (Slice 2 capability advertisements, #134).
+Slice 3 host inventory and second-shell in-use copy are the PR on top of that tip.
 
 ---
 
@@ -110,7 +110,11 @@ grant for retry; an owned held lease after idle stays ready; kit
 Select+Start posts an empty stop body. Kit HIL is optional and does not
 block merge.
 
-### 2. Capability advertisements — this PR
+### 2. Capability advertisements — done on main
+
+Landed as #134 (`3df59a65`). Do not reopen DNS-SD `mesh` / `cap` / `node_id`,
+Phase 0 direct bind, or the rule that advertisement silence is not a lease
+release.
 
 **Owner:** FogCast target agent discovery, then the host that reads it.
 
@@ -138,19 +142,36 @@ block merge.
   placement choice only. It does not release the kit lease.
 
 **Does not:** list titles, federate the catalog, add a second lease, reboot
-remotely, or change kit power, image, or SD card contents. Host node
-inventory and the second-shell "in use" copy stay Slice 3.
+remotely, or change kit power, image, or SD card contents.
 
-### 3. Host node inventory and second-shell in-use — not started
+### 3. Host node inventory and second-shell in-use — this PR
 
 **Owner:** FogCast host, then rooms UX for the Unavailable copy.
 
-**Do:** The host collects advertisements. An optional second shell /
-observer shows a leased kit as Unavailable "in use" and does not claim
-it. The active Shell's Phase 0 bind is unchanged.
+**Acceptance:**
+
+- The host collects directly bindable DNS-SD advertisements into an
+  in-memory inventory: `node_id`, mesh version, and the Slice 2 `cap` bag.
+  `GET /api/v1/mesh/nodes` serves that inventory to a second shell or
+  observer. The inventory carries no credentials, titles, or lease secrets.
+- Collecting advertisements does not adopt an endpoint and does not change
+  the active shell's Phase 0 bind. Another node's Execute advertisement
+  still does not make a title Ready.
+- When connection state is `busy` (a foreign holder has the kit lease), a
+  Ready rooms destination becomes Unavailable with the copy "This executor
+  is in use." Confirm explains and does not launch. Library Play takes the
+  same path and does not post a claim. `POST /api/v1/session/launch` on
+  that host returns the existing lease denial and does not claim.
+  Generation takeover stays `POST /v1/kit/takeover`.
+- The shell that holds the grant, including after Soft-stop, is not `busy`.
+  Its Ready destination stays Ready and Phase 0 Play is unchanged.
+- A later browse that no longer sees a node, including a node that omitted
+  `ttl` or whose parsed TTL has gone quiet, drops that inventory row only.
+  It does not release the kit lease.
 
 **Does not:** silent steal. Does not free the kit because an
-advertisement went quiet.
+advertisement went quiet. Does not add a second lease, federate the
+catalog, or treat an Execute advertisement as Ready.
 
 ---
 

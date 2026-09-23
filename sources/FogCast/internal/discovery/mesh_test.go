@@ -224,6 +224,69 @@ func TestResolveBindsPhase0AndMeshAdvertisements(t *testing.T) {
 	}
 }
 
+func TestCollectInventoriesAdsAndTreatsSilenceAsAbsence(t *testing.T) {
+	old := lookupType
+	t.Cleanup(func() { lookupType = old })
+	phase0 := "01234567-89ab-cdef-0123-456789abcdef"
+	meshID := "fedcba98-7654-3210-fedc-ba9876543210"
+	kit, err := EncodeKitTXT(meshID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kitText := txtMap(kit)
+	kitText["ttl"] = "30"
+	secret := "super-secret-token-value"
+	ctx, cancel := context.WithCancel(context.Background())
+	lookupType = func(ctx context.Context, _ string, add dnssd.AddFunc, _ dnssd.RmvFunc) error {
+		add(dnssd.BrowseEntry{Name: "phase0", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.10")}, Text: map[string]string{"target_id": phase0, "protocol": protocolVersion, "token": secret, "lease": "lease-secret"}})
+		add(dnssd.BrowseEntry{Name: "mesh", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.11")}, Text: kitText})
+		add(dnssd.BrowseEntry{Name: "wrong-protocol", Port: 8182, IPs: []net.IP{net.ParseIP("192.0.2.14")}, Text: map[string]string{"target_id": phase0, "protocol": "2"}})
+		cancel()
+		return ctx.Err()
+	}
+	got, err := Collect(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("inventory = %#v", got)
+	}
+	if got[0].NodeID != phase0 || got[0].Mesh != "" || got[0].Cap != "" || got[0].Address != "http://192.0.2.10:8182" {
+		t.Fatalf("phase 0 row = %#v", got[0])
+	}
+	if got[1].NodeID != meshID || got[1].TargetID != meshID || got[1].Mesh != MeshProtocol {
+		t.Fatalf("mesh row = %#v", got[1])
+	}
+	if got[1].Cap == "" || !strings.Contains(got[1].Cap, "execute:"+ExecuteFPGANative) || !got[1].Capabilities.DisplaySink || !got[1].Capabilities.InputSource {
+		t.Fatalf("cap bag = %#v", got[1])
+	}
+	if got[1].TTLSeconds == nil || *got[1].TTLSeconds != 30 || got[0].TTLSeconds != nil {
+		t.Fatalf("ttl phase0=%v mesh=%v", got[0].TTLSeconds, got[1].TTLSeconds)
+	}
+	for _, node := range got {
+		if node.SilenceReleasesLease() {
+			t.Fatal("inventory silence released a lease")
+		}
+		blob := strings.ToLower(node.NodeID + node.TargetID + node.Mesh + node.Cap + node.Address)
+		if strings.Contains(blob, "secret") || strings.Contains(blob, "lease") {
+			t.Fatalf("inventory kept a private field: %s", blob)
+		}
+	}
+
+	silent, cancelSilent := context.WithCancel(context.Background())
+	lookupType = func(ctx context.Context, _ string, _ dnssd.AddFunc, _ dnssd.RmvFunc) error {
+		cancelSilent()
+		return ctx.Err()
+	}
+	absent, err := Collect(silent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(absent) != 0 {
+		t.Fatalf("silence left rows %#v", absent)
+	}
+}
+
 func TestEncodeRejectsInvalidABI(t *testing.T) {
 	id := "01234567-89ab-cdef-0123-456789abcdef"
 	if _, err := EncodeTXT(id, Capabilities{Execute: []Execute{{Kind: ExecuteFPGANative, ABIs: []ABI{{ID: "FES.Pong", Major: 1}}}}}); err == nil {

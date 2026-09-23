@@ -890,9 +890,13 @@ The advertisement carries no credentials, title list, or lease secret. A `ttl`
 key is parsed when a peer sends one and is not emitted here; the protocol
 strawman leaves the seconds unsigned. Parsed TTL silence is absence for a
 future placement choice only and does not release the kit lease. Phase 0
-announcements that omit `mesh` stay directly bindable. A mesh major other than
-1 does not remove that direct bind; a session that needs the mesh contract
-fails closed on that major. A random service instance and hostname distinguish
+announcements that omit `mesh` stay directly bindable. The host collects those
+announcements into an in-memory node inventory (`node_id`, mesh version, and
+the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory does
+not adopt an endpoint, claim a lease, or make a title Ready. A later browse
+that no longer sees a node, including a node that omitted `ttl`, drops that
+row only. A mesh major other than 1 does not remove that direct bind; a
+session that needs the mesh contract fails closed on that major. A random service instance and hostname distinguish
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
@@ -933,6 +937,16 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
+Busy means another session holds the kit lease. Tenfoot rooms show a Ready
+FPGA title aimed at that kit as Unavailable, with the copy "This executor is
+in use." Confirm explains and does not launch. A host-only title stays Ready
+and Play reaches the host executor. `POST /api/v1/session/launch` returns the
+existing lease denial, without claiming, when that launch would use the busy
+kit. A host-emulator title and a launch aimed at a different target still
+proceed. That named target is the client used for the load, including while a
+host-only session is still the active execution. The shell that holds the grant,
+including after Soft-stop, stays ready and keeps Phase 0 Play. Generation
+takeover remains `POST /v1/kit/takeover`.
 The browser and tenfoot target views show this state. Manual addresses remain
 usable where multicast is unavailable. This path has host/fake-peer regression
 coverage; physical reboot and DHCP acceptance belongs to the selected FES image.

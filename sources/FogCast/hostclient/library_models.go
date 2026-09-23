@@ -25,13 +25,15 @@ type Game struct {
 	Series           string   `json:"series,omitempty"`
 	Variants         []Game   `json:"variants,omitempty"`
 	FirmwareRequired bool     `json:"firmware_required,omitempty"`
-	ExpansionID      string   `json:"expansion_id,omitempty"`
-	ROMRequired      bool     `json:"rom_required,omitempty"`
-	ROMReady         bool     `json:"rom_ready,omitempty"`
-	ROMID            string   `json:"rom_id,omitempty"`
-	ROMMediaID       string   `json:"rom_media_id,omitempty"`
-	ExpansionReady   bool     `json:"expansion_ready,omitempty"`
-	FirmwareReady    bool     `json:"firmware_ready,omitempty"`
+	// Execution is the service policy for this row (fpga_native, fpga_development, host_only).
+	Execution      string `json:"execution,omitempty"`
+	ExpansionID    string `json:"expansion_id,omitempty"`
+	ROMRequired    bool   `json:"rom_required,omitempty"`
+	ROMReady       bool   `json:"rom_ready,omitempty"`
+	ROMID          string `json:"rom_id,omitempty"`
+	ROMMediaID     string `json:"rom_media_id,omitempty"`
+	ExpansionReady bool   `json:"expansion_ready,omitempty"`
+	FirmwareReady  bool   `json:"firmware_ready,omitempty"`
 }
 
 // LaunchBlock is why a catalog row is ineligible for POST /api/v1/session/launch.
@@ -79,6 +81,15 @@ func (g Game) LaunchBlock() LaunchBlock {
 // from catalog state.
 func (g Game) LaunchEligible() bool {
 	return g.LaunchBlock() == ""
+}
+
+// ExecutionHostOnly is a title that plays on the host executor and does not
+// claim a kit lease.
+const ExecutionHostOnly = "host_only"
+
+// HostOnly reports a catalog row whose service execution is the host executor.
+func (g Game) HostOnly() bool {
+	return strings.TrimSpace(g.Execution) == ExecutionHostOnly
 }
 
 // CoreEntry is the stable library mapping for one FPGA-core game.
