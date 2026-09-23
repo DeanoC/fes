@@ -68,8 +68,9 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Target-side content caching, input, stop, and active-core observation.
 - Native targets advertise installed legacy-core availability. The shared host
   marks unavailable legacy platforms browse-only and rejects direct launch
-  requests before dispatch; described FPGA package entries retain their own
-  compatibility checks. Missing core files are also rejected by the agent
+  requests before dispatch; described FPGA `core_package` entries stay
+  launchable (including Coleco titles with `firmware_ready`) and retain their
+  own compatibility checks. Raw Coleco library carts remain browse-only. Missing core files are also rejected by the agent
   before runtime mutation. A new valid package-library launch can recover a
   narrowly recognized retained idle launch error with one leased Stop, then
   activate once. Save failures, foreign ownership and reboot-required states

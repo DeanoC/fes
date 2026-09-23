@@ -644,17 +644,33 @@ type platformLaunchService interface {
 }
 
 func enrichLaunchable(ctx context.Context, service Service, result gameResult) gameResult {
-	if resolver, ok := service.(sessionExecutionService); ok {
-		if execution, err := resolver.SessionExecution(ctx, result.ID); err == nil && execution != "" {
-			result.Execution = execution
+	apply := func(game *gameResult) {
+		if resolver, ok := service.(sessionExecutionService); ok {
+			if execution, err := resolver.SessionExecution(ctx, game.ID); err == nil && execution != "" {
+				game.Execution = execution
+			}
 		}
+		game.Launchable = gameRowLaunchable(service, *game)
+	}
+	apply(&result)
+	for i := range result.Variants {
+		apply(&result.Variants[i])
+	}
+	return result
+}
+
+// gameRowLaunchable reports the catalog platform/target gate for one row.
+// Installed FPGA packages stay launchable even when their browse system
+// (Coleco, for example) has no host-emulator mapping. Raw cartridge rows
+// still follow PlatformLaunchable / catalog.Launchable.
+func gameRowLaunchable(service Service, result gameResult) bool {
+	if result.Kind == catalog.SourceKindCorePackage || result.System == catalog.CorePlatform {
+		return true
 	}
 	if policy, ok := service.(platformLaunchService); ok {
-		result.Launchable = policy.PlatformLaunchable(result.System)
-		return result
+		return policy.PlatformLaunchable(result.System)
 	}
-	result.Launchable = catalog.Launchable(result.System)
-	return result
+	return catalog.Launchable(result.System)
 }
 
 type compositionService interface {

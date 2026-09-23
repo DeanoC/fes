@@ -247,4 +247,16 @@ func TestClassifyColecoFirmwareReadiness(t *testing.T) {
 	if state != AvailReady || len(matches) != 1 {
 		t.Fatalf("frogger with BIOS: %s %+v", state, matches)
 	}
+	packageReady := readyGame("fpga-donkey-kong-72a5215aeed0", "Donkey Kong", "coleco")
+	packageReady.FirmwareRequired = true
+	packageReady.FirmwareReady = true
+	state, matches = ClassifyGames([]hostclient.Game{packageReady}, "Donkey Kong")
+	if state != AvailReady || len(matches) != 1 || matches[0].LaunchBlock() != "" {
+		t.Fatalf("firmware-ready FPGA Coleco package: %s %+v", state, matches)
+	}
+	raw := blockedGame("coleco-donkey-kong", "Donkey Kong", "coleco", hostclient.LaunchBrowseOnly)
+	state, matches = ClassifyGames([]hostclient.Game{raw}, "Donkey Kong")
+	if state != AvailUnavailable || len(matches) != 1 || matches[0].LaunchBlock() != hostclient.LaunchBrowseOnly {
+		t.Fatalf("raw coleco cart: %s %+v", state, matches)
+	}
 }
