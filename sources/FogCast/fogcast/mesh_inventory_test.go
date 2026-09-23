@@ -169,6 +169,8 @@ func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
 	s.activeTarget = "host"
 	s.activeGameID = "prior-host"
 	s.executionMu.Unlock()
+	devCore, devStatus, devHealth, devStop := dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls
+	spareCore := spare.coreCalls
 
 	_, err := s.LaunchOn(context.Background(), entry.GameID, "", nil)
 	var api *protocol.APIError
@@ -178,15 +180,15 @@ func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
 	if _, err = s.LaunchOn(context.Background(), entry.GameID, "dev", nil); !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
 		t.Fatalf("named busy kit launch = %v", err)
 	}
-	if dev.coreCalls != 0 || spare.coreCalls != 0 || dev.statusCalls != 0 || dev.healthCalls != 0 || dev.stopCalls != 0 {
-		t.Fatalf("denied launch contacted a kit dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls, spare.coreCalls)
+	if dev.coreCalls != devCore || spare.coreCalls != spareCore || dev.statusCalls != devStatus || dev.healthCalls != devHealth || dev.stopCalls != devStop {
+		t.Fatalf("denied launch contacted a kit dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls-devCore, dev.statusCalls-devStatus, dev.healthCalls-devHealth, dev.stopCalls-devStop, spare.coreCalls-spareCore)
 	}
 
 	if _, err = s.LaunchOn(context.Background(), entry.GameID, "spare", nil); err != nil {
 		t.Fatalf("spare launch = %v", err)
 	}
-	if spare.coreCalls != 1 || dev.coreCalls != 0 || dev.statusCalls != 0 || dev.healthCalls != 0 || dev.stopCalls != 0 {
-		t.Fatalf("loads dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls, spare.coreCalls)
+	if spare.coreCalls != spareCore+1 || dev.coreCalls != devCore || dev.statusCalls != devStatus || dev.healthCalls != devHealth || dev.stopCalls != devStop {
+		t.Fatalf("loads dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls-devCore, dev.statusCalls-devStatus, dev.healthCalls-devHealth, dev.stopCalls-devStop, spare.coreCalls-spareCore)
 	}
 	if host.stopCalls != 1 {
 		t.Fatalf("host stop calls = %d", host.stopCalls)
