@@ -23,6 +23,7 @@ module mem_channel #(
     output reg [2:0] phase,
     output reg reading,
     output reg [31:0] shown_addr,
+    output reg [31:0] fault_addr,
     output reg [15:0] errors,
     output reg [15:0] shown_expect,
     output reg [15:0] shown_got
@@ -75,6 +76,7 @@ module mem_channel #(
             phase <= 3'd0;
             reading <= 1'b0;
             shown_addr <= 32'd0;
+            fault_addr <= 32'd0;
             errors <= 16'd0;
             shown_expect <= 16'h0000;
             shown_got <= 16'h0000;
@@ -94,6 +96,7 @@ module mem_channel #(
                     reading <= 1'b0;
                     index <= 32'd0;
                     errors <= 16'd0;
+                    fault_addr <= 32'd0;
                     faulted <= 1'b0;
                     state <= ST_SETUP;
                 end
@@ -106,10 +109,9 @@ module mem_channel #(
                         write <= ~reading;
                         addr <= location[ADDR_W-1:0];
                         wdata <= expected;
-                        if (!faulted) begin
-                            shown_addr <= location;
+                        shown_addr <= location;
+                        if (!faulted)
                             shown_expect <= expected;
-                        end
                         timer <= 16'd0;
                         state <= ST_WAIT;
                     end
@@ -134,12 +136,18 @@ module mem_channel #(
                     end
                 end
                 ST_GAP: begin
-                    if (reading && captured != shown_expect) begin
+                    // Compare against this location. shown_expect freezes at the
+                    // first miss so the picture can keep that sample, and must
+                    // not become the expected value for every later location.
+                    if (reading && captured != expected) begin
+                        if (!faulted) begin
+                            shown_expect <= expected;
+                            shown_got <= captured;
+                            fault_addr <= location;
+                        end
                         faulted <= 1'b1;
                         if (errors != 16'hFFFF)
                             errors <= errors + 16'd1;
-                        if (!faulted)
-                            shown_got <= captured;
                     end
                     if (index + 32'd1 == WORDS) begin
                         index <= 32'd0;
@@ -147,8 +155,8 @@ module mem_channel #(
                             reading <= 1'b0;
                             if (phase == PHASES - 3'd1) begin
                                 busy <= 1'b0;
-                                pass <= ~faulted && captured == shown_expect && errors == 16'd0;
-                                fail <= faulted || captured != shown_expect || errors != 16'd0;
+                                pass <= ~faulted && captured == expected && errors == 16'd0;
+                                fail <= faulted || captured != expected || errors != 16'd0;
                                 state <= ST_DONE;
                             end else begin
                                 phase <= phase + 3'd1;

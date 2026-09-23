@@ -5,8 +5,8 @@ The host mailbox is `fes.application` 1.0, with the fixed 720p picture and the
 gamepad interface. There is no memory opcode. After execution release, each
 path writes a span and reads it back for six patterns: `0000`, `FFFF`,
 `5555`, `AAAA`, the address mixed with its high half, and the inverse.
-The HDMI text shows the pattern, the address, the error count, and the first
-mismatch.
+The HDMI text shows the pattern and the live address. The error count and the
+first mismatch stay on screen while the scan continues.
 
 The SDRAM span is the 128 MB addon: 64M halfwords, with a refresh between
 commands. The HPS span is 256K steps starting at byte address `0x01000000`

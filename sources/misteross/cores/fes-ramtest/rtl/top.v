@@ -98,6 +98,7 @@ module top #(
     wire [2:0] sdram_phase, hps_phase;
     wire sdram_reading, hps_reading;
     wire [31:0] sdram_shown, hps_shown;
+    wire [31:0] sdram_fault, hps_fault;
     wire [15:0] sdram_expect, hps_expect, sdram_got, hps_got;
     wire [15:0] dq_out, dq_in;
     wire dq_oe;
@@ -115,6 +116,7 @@ module top #(
         .done(sdram_done), .rdata(sdram_rdata),
         .busy(), .pass(sdram_pass), .fail(sdram_fail), .stopped(sdram_stopped),
         .phase(sdram_phase), .reading(sdram_reading), .shown_addr(sdram_shown),
+        .fault_addr(sdram_fault),
         .errors(sdram_errors), .shown_expect(sdram_expect), .shown_got(sdram_got)
     );
     mem_channel #(.ADDR_W(32), .WORDS(HPS_WORDS), .BASE(HPS_BASE)) hps_test (
@@ -123,6 +125,7 @@ module top #(
         .done(hps_done), .rdata(hps_rdata),
         .busy(), .pass(hps_pass), .fail(hps_fail), .stopped(hps_stopped),
         .phase(hps_phase), .reading(hps_reading), .shown_addr(hps_shown),
+        .fault_addr(hps_fault),
         .errors(hps_errors), .shown_expect(hps_expect), .shown_got(hps_got)
     );
 
@@ -163,9 +166,11 @@ module top #(
         .pixel_clk(pixel_clk),
         .x(playfield_x), .y(playfield_y), .active(playfield_active),
         .sdram_phase(sdram_phase), .sdram_reading(sdram_reading), .sdram_addr(sdram_shown),
+        .sdram_fault(sdram_fault),
         .sdram_errors(sdram_errors), .sdram_expect(sdram_expect), .sdram_got(sdram_got),
         .sdram_pass(sdram_pass), .sdram_fail(sdram_fail), .sdram_stopped(sdram_stopped),
         .hps_phase(hps_phase), .hps_reading(hps_reading), .hps_addr(hps_shown),
+        .hps_fault(hps_fault),
         .hps_errors(hps_errors), .hps_expect(hps_expect), .hps_got(hps_got),
         .hps_pass(hps_pass), .hps_fail(hps_fail), .hps_stopped(hps_stopped),
         .red(play_red), .green(play_green), .blue(play_blue)
