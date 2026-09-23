@@ -515,3 +515,49 @@ func TestForeignLeaseShowsInUseAndDoesNotLaunch(t *testing.T) {
 		t.Fatalf("owned confirm launches=%v", h.launches)
 	}
 }
+
+func TestForeignLeaseHostOnlyStillLaunches(t *testing.T) {
+	h := newRoomHost(t)
+	index := rooms.NewIndex([]rooms.Pack{
+		testRoomPack(t, "overworld", destRoomScript),
+	})
+	app := newRoomApp(t, h, index, true)
+	now := time.Now()
+	waitFor(t, app, "picker", func(s Snapshot) bool { return s.RoomPicker.Open })
+	app.HandleCommand(CmdDown, now)
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "ready", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.Destination.Availability == rooms.AvailReady
+	})
+
+	app.mu.Lock()
+	app.healthHave = true
+	app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
+	hostGame := availableGame("snes-mario", "Mario", "snes")
+	hostGame.Execution = hostclient.ExecutionHostOnly
+	app.room.RefreshCachedGames([]hostclient.Game{hostGame})
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if snap.Room.Destination.Availability != rooms.AvailReady || snap.Room.Destination.Confirm() != rooms.ConfirmLaunch {
+		t.Fatalf("host-only destination %+v confirm=%v", snap.Room.Destination, snap.Room.Destination.Confirm())
+	}
+	if strings.Contains(snap.Room.Destination.Status, "in use") {
+		t.Fatalf("host-only shown in use %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdSelect, now)
+	waitFor(t, app, "host launch", func(s Snapshot) bool { return s.Launch.Phase == "ok" })
+	if h.launchCount() != 1 || !strings.Contains(h.launches[0], "snes-mario") {
+		t.Fatalf("host-only confirm launches=%v", h.launches)
+	}
+
+	app.mu.Lock()
+	app.launch = LaunchSnapshot{}
+	fpga := availableGame("snes-zelda", "Zelda", "snes")
+	app.games = []hostclient.Game{fpga}
+	app.startLaunchGameLocked(app.games[0])
+	phase := app.launch.Phase
+	app.mu.Unlock()
+	if phase == "launching" || phase == "ok" || h.launchCount() != 1 {
+		t.Fatalf("busy FPGA library play phase=%s launches=%d", phase, h.launchCount())
+	}
+}

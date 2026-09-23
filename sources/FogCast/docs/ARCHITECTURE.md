@@ -937,12 +937,14 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
-Busy means another session holds the kit lease. Tenfoot rooms then show that
-Ready title as Unavailable, with the copy "This executor is in use." Confirm
-explains and does not launch. `POST /api/v1/session/launch` returns the
+Busy means another session holds the kit lease. Tenfoot rooms show a Ready
+FPGA title aimed at that kit as Unavailable, with the copy "This executor is
+in use." Confirm explains and does not launch. A host-only title stays Ready
+and Play reaches the host executor. `POST /api/v1/session/launch` returns the
 existing lease denial, without claiming, when that launch would use the busy
 kit. A host-emulator title and a launch aimed at a different target still
-proceed. The shell that holds the grant,
+proceed. That named target is the client used for the load, including while a
+host-only session is still the active execution. The shell that holds the grant,
 including after Soft-stop, stays ready and keeps Phase 0 Play. Generation
 takeover remains `POST /v1/kit/takeover`.
 The browser and tenfoot target views show this state. Manual addresses remain

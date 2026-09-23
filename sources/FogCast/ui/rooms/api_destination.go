@@ -207,6 +207,7 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			State:            optString(row, "state"),
 			Launchable:       optBool(row, "launchable"),
 			RootOnline:       true,
+			Execution:        optString(row, "execution"),
 			FirmwareRequired: optBool(row, "firmware_required"),
 			FirmwareReady:    optBool(row, "firmware_ready"),
 		}

@@ -288,4 +288,15 @@ func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
 	if kept.Confirm() != ConfirmImportFirmware || kept.LeaseHeld {
 		t.Fatalf("firmware block became in use %+v", kept)
 	}
+	hostGame := readyGame("snes-mario", "Super Mario World", "snes")
+	hostGame.Execution = hostclient.ExecutionHostOnly
+	hostReady := Destination{
+		Kind: KindGame, Availability: AvailReady, GameID: hostGame.ID, Label: hostGame.Title,
+		Matches: []hostclient.Game{hostGame},
+	}
+	hostReady.FillCopy()
+	hostKept := ApplyForeignLease(hostReady, true)
+	if hostKept.Availability != AvailReady || hostKept.LeaseHeld || hostKept.Confirm() != ConfirmLaunch || hostKept.Status != "Ready to play." {
+		t.Fatalf("host-only foreign lease %+v confirm=%v", hostKept, hostKept.Confirm())
+	}
 }

@@ -158,3 +158,46 @@ func TestForeignLeaseAllowsDifferentNamedTarget(t *testing.T) {
 		t.Fatalf("selected target changed to %s", s.selectedTarget)
 	}
 }
+
+func TestForeignLeaseSpareLaunchAfterStickyHostOnlyUsesSpare(t *testing.T) {
+	s, dev, spare, entry := namedPackageFixture(t)
+	host := &fakeHostExecutor{}
+	s.hostExecutor = host
+	s.connection = TargetConnection{State: "busy", Owner: "other-shell", Address: "http://192.0.2.10:8182"}
+	s.executionMu.Lock()
+	s.activeExecution = ExecutionHostOnly
+	s.activeTarget = "host"
+	s.activeGameID = "prior-host"
+	s.executionMu.Unlock()
+
+	_, err := s.LaunchOn(context.Background(), entry.GameID, "", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+		t.Fatalf("default kit launch = %v", err)
+	}
+	if _, err = s.LaunchOn(context.Background(), entry.GameID, "dev", nil); !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+		t.Fatalf("named busy kit launch = %v", err)
+	}
+	if dev.coreCalls != 0 || spare.coreCalls != 0 || dev.statusCalls != 0 || dev.healthCalls != 0 || dev.stopCalls != 0 {
+		t.Fatalf("denied launch contacted a kit dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls, spare.coreCalls)
+	}
+
+	if _, err = s.LaunchOn(context.Background(), entry.GameID, "spare", nil); err != nil {
+		t.Fatalf("spare launch = %v", err)
+	}
+	if spare.coreCalls != 1 || dev.coreCalls != 0 || dev.statusCalls != 0 || dev.healthCalls != 0 || dev.stopCalls != 0 {
+		t.Fatalf("loads dev core=%d status=%d health=%d stop=%d spare=%d", dev.coreCalls, dev.statusCalls, dev.healthCalls, dev.stopCalls, spare.coreCalls)
+	}
+	if host.stopCalls != 1 {
+		t.Fatalf("host stop calls = %d", host.stopCalls)
+	}
+	if s.selectedTarget != "dev" {
+		t.Fatalf("selected target changed to %s", s.selectedTarget)
+	}
+	s.executionMu.Lock()
+	gotTarget, gotExec := s.activeTarget, s.activeExecution
+	s.executionMu.Unlock()
+	if gotTarget != "spare" || (gotExec != ExecutionFPGANative && gotExec != ExecutionFPGADevelopment) {
+		t.Fatalf("session target=%q execution=%q", gotTarget, gotExec)
+	}
+}

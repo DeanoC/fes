@@ -87,12 +87,16 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 	return AvailReady, matches
 }
 
-// ApplyForeignLease turns a Ready title into Unavailable when another
+// ApplyForeignLease turns a Ready FPGA title into Unavailable when another
 // session holds the kit lease. foreign is false for the shell that holds
 // the grant, including after Soft-stop. Confirm then explains and does not
-// launch or take the lease. An Execute advertisement is not an input.
+// launch or take the lease. A host-only title stays Ready so Play reaches
+// the host executor. An Execute advertisement is not an input.
 func ApplyForeignLease(d Destination, foreign bool) Destination {
 	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Availability != AvailReady {
+		return d
+	}
+	if game, ok := d.Game(); ok && game.HostOnly() {
 		return d
 	}
 	d.LeaseHeld = true
