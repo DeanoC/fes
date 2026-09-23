@@ -110,8 +110,7 @@ module mem_channel #(
                         addr <= location[ADDR_W-1:0];
                         wdata <= expected;
                         shown_addr <= location;
-                        if (!faulted)
-                            shown_expect <= expected;
+                        shown_expect <= expected;
                         timer <= 16'd0;
                         state <= ST_WAIT;
                     end
@@ -120,7 +119,7 @@ module mem_channel #(
                     if (done) begin
                         start <= 1'b0;
                         captured <= rdata;
-                        if (reading && !faulted)
+                        if (reading)
                             shown_got <= rdata;
                         state <= ST_GAP;
                     end else if (timer == TIMEOUT) begin
@@ -136,15 +135,11 @@ module mem_channel #(
                     end
                 end
                 ST_GAP: begin
-                    // Compare against this location. shown_expect freezes at the
-                    // first miss so the picture can keep that sample, and must
-                    // not become the expected value for every later location.
+                    // Compare against this location. The expect and got lines keep
+                    // following the scan; only the first miss address is held.
                     if (reading && captured != expected) begin
-                        if (!faulted) begin
-                            shown_expect <= expected;
-                            shown_got <= captured;
+                        if (!faulted)
                             fault_addr <= location;
-                        end
                         faulted <= 1'b1;
                         if (errors != 16'hFFFF)
                             errors <= errors + 16'd1;
