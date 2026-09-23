@@ -169,15 +169,15 @@ module ram_display (
         input [5:0] column;
         input [5:0] first;
         begin
-            case (column - first)
-                6'd0: hex_nibble = value[31:28];
-                6'd1: hex_nibble = value[27:24];
-                6'd2: hex_nibble = value[23:20];
-                6'd3: hex_nibble = value[19:16];
-                6'd4: hex_nibble = value[15:12];
-                6'd5: hex_nibble = value[11:8];
-                6'd6: hex_nibble = value[7:4];
-                6'd7: hex_nibble = value[3:0];
+            case (column)
+                first + 6'd0: hex_nibble = value[31:28];
+                first + 6'd1: hex_nibble = value[27:24];
+                first + 6'd2: hex_nibble = value[23:20];
+                first + 6'd3: hex_nibble = value[19:16];
+                first + 6'd4: hex_nibble = value[15:12];
+                first + 6'd5: hex_nibble = value[11:8];
+                first + 6'd6: hex_nibble = value[7:4];
+                first + 6'd7: hex_nibble = value[3:0];
                 default: hex_nibble = 4'h0;
             endcase
         end
@@ -188,11 +188,11 @@ module ram_display (
         input [5:0] column;
         input [5:0] first;
         begin
-            case (column - first)
-                6'd0: hex16 = value[15:12];
-                6'd1: hex16 = value[11:8];
-                6'd2: hex16 = value[7:4];
-                6'd3: hex16 = value[3:0];
+            case (column)
+                first + 6'd0: hex16 = value[15:12];
+                first + 6'd1: hex16 = value[11:8];
+                first + 6'd2: hex16 = value[7:4];
+                first + 6'd3: hex16 = value[3:0];
                 default: hex16 = 4'h0;
             endcase
         end
