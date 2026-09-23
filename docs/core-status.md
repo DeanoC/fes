@@ -2,7 +2,7 @@
 
 This is the current described-core matrix. It is taken from
 `config/core-recipes.toml`, `profiles/native-integration-dev.toml`, and the
-misteross producers that emit format-2 manifests, except ZX81 and SMS's
+misteross producers that emit format-2 manifests, except ZX81, SMS and SG-1000's
 format-3 manifests with sealed ROM maps. A dated note under
 [validation/](validation/) describes the artifact it names. It does not accept
 a bitstream built later.
@@ -24,7 +24,7 @@ selection are [core packages](core-packages.md).
 | Board firmware | A pinned RBF. Not a described play package and not a `fes.*` recipe. |
 
 The factory order is `fes.pong`, `fes.zx81`, `fes.coleco`. All of those, plus
-`fes.sms` and `fes.catch`, seal with HIP/nextpnr. Quartus is an oracle where
+`fes.sms`, `fes.sg1000` and `fes.catch`, seal with HIP/nextpnr. Quartus is an oracle where
 the recipe says so. It is not the product path and not a fallback.
 
 ## Matrix
@@ -36,7 +36,7 @@ the recipe says so. It is not the product path and not a fallback.
 | `fes.coleco` | 1.0.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.media.blob-stream` 1.0 | `fes.firmware.blob` 1.0 | Reduced ColecoVision. Blob 1–16 KiB keeps the mirrored map. Stream admits 1–32 KiB at `0x8000–0xffff`. Two gamepads, two 12-key keypads, SN76489, optional 8 KiB firmware overlay. Open `JP 0x8000` shim when no firmware is bound. Not a retail-complete core. Lock `toolchains/registered-memory.lock`. |
 | `fes.sms` | 1.3.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0 | — | Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, FPGA I2S into the ADV7513. No `fes.audio` mailbox or Sega mapper. Same registered-memory lock as Coleco. |
 | `fes.catch` | 1.0.0 | Package-only | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | ROM-less paddle game on the shared application shell. No BIOS, cartridge, or factory-image entry. Lock `toolchain.lock`. |
-| `fes.sg1000` | 1.0.0 | Unregistered | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0 | — | SG-1000 slice. Cartridge at `0x0000` (1–16 KiB), 1 KiB RAM at `0xc000`, joysticks on `0xdc`/`0xdd`. No PSG and no blob-stream. Producer can seal; there is no recipe row. |
+| `fes.sg1000` | 1.1.0 | Package-only | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0 | — | SG-1000 slice. Exact 16 KiB `cartridge-rom` linked before download at `0x0000`; pad shorter fixed-map images with `0xff`. 1 KiB RAM at `0xc000`, joysticks on `0xdc`/`0xdd`. No PSG or startup media blob. Same registered-memory lock as Coleco. |
 | `fes.demo` | 1.0.0 | Reference | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0 | — | Autonomous video. Not registered. |
 | `fes.demo-media` | 1.0.0 | Reference | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.media.blob` 1.0 | — | Palette-from-blob reference. Not registered. |
 | `fes.demo-audio` | 1.0.0 | Reference | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Stereo tone reference. Not registered. Catch is the registered game on this shell. |

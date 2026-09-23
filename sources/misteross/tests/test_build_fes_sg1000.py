@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import tomllib
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,7 @@ from scripts.build_fes_sg1000_oss import (
     SG1000_TOOL_COMMITS,
     build_commands,
     create_build_record,
+    _manifest as _oss_manifest,
 )
 from scripts.lockfile import load_lock
 
@@ -84,6 +86,14 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("fes-sg1000-machine", default.stdout)
         self.assertNotIn("fes-sg1000-machine-oss", default.stdout)
 
+    def test_linked_simulation_uses_sealed_rom_path(self) -> None:
+        result = subprocess.run(["make", "-n", "sim-fes-sg1000-rom-link"], cwd=ROOT,
+                                text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("-DFES_SG1000_ROM_LINK=1", result.stdout)
+        self.assertIn("sg1000_rom_link.v", result.stdout)
+        self.assertIn("graphics-i-16k.hex", result.stdout)
+
     def test_oss_toolchain_entrypoint_selects_coleco_compatibility_lock(self) -> None:
         result = subprocess.run(
             ["make", "-n", "toolchain-fes-sg1000"],
@@ -115,6 +125,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("coleco_vdp.sv", program)
         self.assertIn("coleco_dpram.v", program)
         self.assertIn("-DFES_SG1000_OSS=1", program)
+        self.assertIn("-DFES_SG1000_ROM_LINK=1", program)
+        self.assertIn("cores/fes-sg1000/rtl/sg1000_rom_link.v", OSS_RTL_SOURCES)
         self.assertIn("-DFES_COLECO_OSS=1", program)
         self.assertIn("-DTV80_REFRESH=1", program)
         self.assertIn("synth_intel_alm -nolutram -nodsp -top top", program)
@@ -151,10 +163,27 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
+        self.assertIn(b'"package_format":3', record)
+        self.assertIn(b'"rom_source_size":16384', record)
         self.assertIn(SG1000_GPU_ARCHITECTURES.encode(), record)
         self.assertEqual(SG1000_GPU_BACKEND, "hip")
         self.assertIn("cores/fes-sg1000/rtl/top.v", OSS_RTL_SOURCES)
         self.assertIn("cores/fes-sg1000/rtl/sg1000_machine.sv", OSS_RTL_SOURCES)
+
+    def test_oss_manifest_requires_linked_cartridge_without_media_mailbox(self) -> None:
+        record = b'{"recipe_sha256":"' + b"b" * 64 + b'"}'
+        evidence = {
+            "build_id": "d" * 32,
+            "rbf": {"size": 16, "sha256": "e" * 64},
+            "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                    "file": "rom-map.json", "size": 12, "sha256": "f" * 64},
+        }
+        manifest = tomllib.loads(_oss_manifest(record, evidence, "https://example.invalid", "a" * 40, {"yosys": "test"}).decode())
+        self.assertEqual(manifest["format"], 3)
+        self.assertEqual(manifest["core"]["version"], "1.1.0")
+        self.assertEqual(manifest["rom"]["source_size"], 16384)
+        self.assertEqual({item["id"] for item in manifest["interfaces"]},
+                         {"fes.keyboard", "fes.video.fixed-720p60"})
 
     def test_quartus_project_reuses_coleco_sibling_modules(self) -> None:
         qsf = project_qsf(ROOT, ROOT / QUARTUS_OUTPUT / "project", "00112233445566778899aabbccddeeff")
@@ -219,7 +248,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("Quartus", readme)
         self.assertIn("FES_COLECO_OSS", readme)
         self.assertIn("e2d425de", readme)
-        self.assertIn("not registered", readme.lower())
+        self.assertIn("package-only", readme.lower())
+        self.assertIn("sim-fes-sg1000-rom-link", readme)
         self.assertIn("not in the factory image", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
 
@@ -250,12 +280,15 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertEqual(second.read_bytes(), data)
             self.assertEqual(hashlib.sha256(second.read_bytes()).hexdigest(), digest)
             padded = Path(directory) / "padded.rom"
+            hex_output = Path(directory) / "padded.hex"
             subprocess.run(
-                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "16384"],
+                [sys.executable, str(GENERATOR), "--output", str(padded), "--pad-to", "16384",
+                 "--hex-output", str(hex_output)],
                 cwd=ROOT,
                 check=True,
             )
             self.assertEqual(padded.read_bytes(), data + b"\xff" * (16384 - len(data)))
+            self.assertEqual(hex_output.read_text().splitlines(), [f"{byte:02x}" for byte in padded.read_bytes()])
             self.assertTrue(preview.is_file())
             self.assertGreater(preview.stat().st_size, 1000)
 

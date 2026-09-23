@@ -93,7 +93,8 @@ class SimulationMatrixTests(unittest.TestCase):
         rows = simulation_matrix(['sms', 'sg1000'])['include']
         self.assertEqual({row['core'] for row in rows}, {'sms', 'sg1000'})
         self.assertEqual({row['target'] for row in rows},
-                         {'sim-fes-sms sim-fes-sms-oss', 'sim-fes-sg1000 sim-fes-sg1000-oss'})
+                         {'sim-fes-sms sim-fes-sms-oss',
+                          'sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link'})
         self.assertEqual({row['core'] for row in simulation_matrix(list(CORES))['include']}, set(CORES))
         for cores in (['unknown'], ['coleco', 'coleco']):
             with self.assertRaises(ValueError):

@@ -11,11 +11,12 @@ The locked splash and Stop-idle RBFs are the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms` and `fes.catch` HIP/nextpnr producers. The default
+`fes.coleco`, `fes.sms`, `fes.sg1000` and `fes.catch` HIP/nextpnr producers. The default
 target-image selector installs the ordered closed `fes.pong`, `fes.zx81` and
 `fes.coleco` package set, while focused profiles may select a smaller package
-set. `fes.sms` is registered for package-only host-library acceptance. Its
-selection filename is `fes-sms.package-selection.toml`. It is not in the
+set. `fes.sms` and `fes.sg1000` are registered for package-only host-library
+acceptance. Their selection filenames are `fes-sms.package-selection.toml` and
+`fes-sg1000.package-selection.toml`. They are not in the
 factory image closed set. The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
 compiler lock serves factory Pong; the standard ZX81 socket uses
@@ -46,10 +47,11 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The production ZX81 and package-only SMS producers export format 3. Other
-core producers retain format 2 and their current media/firmware paths until
-explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`; pad a
-shorter fixed-map cartridge with `0xff` before import.
+The production ZX81 and package-only SMS and SG-1000 producers export format 3.
+Other core producers retain format 2 and their current media/firmware paths
+until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
+SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
+cartridge with `0xff` before import.
 Hardware evidence is tied to the exact tested package and software; rebuilding
 a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate

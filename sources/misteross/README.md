@@ -30,9 +30,10 @@ programs the FPGA. misteross stops at the RBF. No build target programs a kit.
 go through FogCast as described packages; the contained development-RBF path
 serves experiments.
 
-ZX81 and SMS seal format-3 packages containing a blank base RBF and an
+ZX81, SMS and SG-1000 seal format-3 packages containing a blank base RBF and an
 authenticated ROM map. ZX81 requires an exact 8192-byte firmware input;
-SMS requires an exact 32768-byte cartridge input. Map extraction checks the
+SMS requires an exact 32768-byte cartridge input; SG-1000 requires an exact
+16384-byte cartridge input. Map extraction checks the
 selected Mistral database, routed ROM placements and blank INIT bits. Other
 normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
@@ -68,11 +69,13 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.zx81` | `make sim-fes-zx81` | `make build-fes-zx81` | `make build-fes-zx81-quartus` | factory image |
 | `fes.coleco` | `make sim-fes-coleco` | `make build-fes-coleco` | `make build-fes-coleco-quartus` | factory image |
 | `fes.sms` | `make sim-fes-sms` and `make sim-fes-sms-oss` | `make build-fes-sms` | `make build-fes-sms-quartus` | package-only, not in the factory image |
-| `fes.sg1000` | `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | not registered, not in the factory image |
+| `fes.sg1000` | `make sim-fes-sg1000-rom-link` (plus `make sim-fes-sg1000` and `make sim-fes-sg1000-oss` diagnostics) | `make build-fes-sg1000` | `make build-fes-sg1000-quartus` | package-only, not in the factory image |
 | `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
-`fes.sms` and `fes.sg1000` use the `fes.simple-computer` mailbox. Do not use `fes.mastersystem`. The SMS OSS producer (`fes-sms`) is a first-pass HIP
+`fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
+cartridge ROMs. Diagnostic builds retain the media mailbox. Do not use `fes.mastersystem`.
+The SMS OSS producer (`fes-sms`) is a first-pass HIP
 seed/weight search: it starts at seed 3 / HeAP 1000, then the remaining seeds
 and weight 300. Core details are in [Cores](docs/cores.md).
 
