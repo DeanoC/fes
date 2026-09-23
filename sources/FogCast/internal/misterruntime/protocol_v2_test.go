@@ -462,3 +462,64 @@ func (fixture *sequenceSocketFixture) wait(t *testing.T) []string {
 	}
 	return requests
 }
+
+func TestROMDescriptorShapeRequiresClosedFormat3Table(t *testing.T) {
+	var response map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(fixtureLines(t, "protocol-v2.jsonl")[3]), &response); err != nil {
+		t.Fatal(err)
+	}
+	var inspection map[string]json.RawMessage
+	if err := json.Unmarshal(response["inspected_package"], &inspection); err != nil {
+		t.Fatal(err)
+	}
+	raw := strings.Replace(string(inspection["descriptor"]), `"format":2`, `"format":3,"rom":{"id":"machine","role":"firmware","source_size":8192,"file":"rom-map.json","size":100,"sha256":"`+strings.Repeat("a", 64)+`"}`, 1)
+	if err := validateDescriptorShape([]byte(raw)); err != nil {
+		t.Fatal(err)
+	}
+	for name, bad := range map[string]string{
+		"wrong format": strings.Replace(raw, `"format":3`, `"format":2`, 1),
+		"missing size": strings.Replace(raw, `"source_size":8192,`, "", 1),
+		"null size":    strings.Replace(raw, `"source_size":8192`, `"source_size":null`, 1),
+		"unknown key":  strings.Replace(raw, `"role":"firmware"`, `"role":"firmware","extra":1`, 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateDescriptorShape([]byte(bad)); err == nil {
+				t.Fatal("invalid descriptor accepted")
+			}
+		})
+	}
+}
+
+func TestProtocol2ConsumesRuntimeROMInspection(t *testing.T) {
+	lines := fixtureLines(t, "protocol-v2-rom-package-responses.jsonl")
+	if len(lines) != 2 {
+		t.Fatal("expected inspection and running fixtures")
+	}
+	response, err := decodeProtocol2Response([]byte(lines[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspection := response.InspectedPackage
+	if !response.OK || inspection == nil || !inspection.Compatible || inspection.CompatibilityError != nil || response.Capabilities.ROMLinking != 1 || inspection.Descriptor.Format != 3 || inspection.Descriptor.ROM == nil {
+		t.Fatalf("incorrect format3 inspection: %+v", inspection)
+	}
+	fixture := newSequenceSocketFixture(t, []string{lines[0] + "\n"})
+	if _, err := NewClient(fixture.path).InspectCore(context.Background(), "/tmp/package", inspection.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	fixture.wait(t)
+}
+
+func TestProtocol2ROMLinkingCapabilityIsTyped(t *testing.T) {
+	base := fixtureLines(t, "protocol-v2.jsonl")[1]
+	advertised := strings.Replace(base, `"active_interfaces":[]`, `"active_interfaces":[],"rom_linking":1`, 1)
+	if _, err := decodeProtocol2Response([]byte(advertised)); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{`null`, `"1"`, `true`, `1.0`} {
+		malformed := strings.Replace(advertised, `"rom_linking":1`, `"rom_linking":`+bad, 1)
+		if _, err := decodeProtocol2Response([]byte(malformed)); err == nil {
+			t.Fatalf("invalid capability accepted: %s", bad)
+		}
+	}
+}

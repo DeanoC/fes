@@ -115,7 +115,7 @@ def candidate_arguments(receipt_path, provenance=None):
     if any(not isinstance(v, str) or not re.fullmatch(r"[0-9a-f]{40}", v) for v in sources.values()):
         raise ValueError("invalid prepared source revisions")
     archive = _object(data["archive"], {"path", "sha256", "size"})
-    archive_path = _file(path.parent, archive, "archive", 33 * 1024 * 1024, fixed="core.fcore")
+    archive_path = _file(path.parent, archive, "archive", 65 * 1024 * 1024, fixed="core.fcore")
     selection = _object(data["selection"], {"path", "sha256", "manifest_sha256", "payload_sha256"})
     for key in ("manifest_sha256", "payload_sha256"):
         if not isinstance(selection[key], str) or not re.fullmatch(r"[0-9a-f]{64}", selection[key]):

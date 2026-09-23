@@ -26,6 +26,7 @@ type Protocol2ABI struct {
 }
 
 type Protocol2Capabilities struct {
+	ROMLinking          uint64                          `json:"rom_linking,omitempty"`
 	MediaStream         *protocol.MediaStreamCapability `json:"media_stream,omitempty"`
 	ProgrammingProfiles []string                        `json:"programming_profiles"`
 	ABIs                []Protocol2ABI                  `json:"abis"`
@@ -38,11 +39,12 @@ type Protocol2Observed struct {
 }
 
 type Protocol2ActivePackage struct {
-	Composition     *expansion.Composition `json:"composition,omitempty"`
-	PersistenceMode string                 `json:"persistence_mode,omitempty"`
-	PackageID       string                 `json:"package_id"`
-	Descriptor      corepackage.Descriptor `json:"descriptor"`
-	Observed        Protocol2Observed      `json:"observed"`
+	ROMLink         *corepackage.ROMLinkIdentity `json:"rom_link,omitempty"`
+	Composition     *expansion.Composition       `json:"composition,omitempty"`
+	PersistenceMode string                       `json:"persistence_mode,omitempty"`
+	PackageID       string                       `json:"package_id"`
+	Descriptor      corepackage.Descriptor       `json:"descriptor"`
+	Observed        Protocol2Observed            `json:"observed"`
 }
 
 type Protocol2Inspection struct {

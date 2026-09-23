@@ -456,5 +456,36 @@ toolchain = "test"
         self.assertFalse((self.root / "bad.fcore").exists())
 
 
+class ROMArchiveReconstructionTest(unittest.TestCase):
+    def test_cached_rom_map_survives_archive_reconstruction(self):
+        source = Path(__file__).resolve().parents[1] / "sources/misteross"
+        fixture = source / "tests/fixtures/core-bundle-v3"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "package"
+            package.mkdir()
+            record = {}
+            for name, relative, key in (
+                ("manifest.toml", "manifests/valid-basic.toml", "manifest_sha256"),
+                ("core.rbf", "payloads/fes-fixture.rbf", "core_rbf_sha256"),
+                ("rom-map.json", "maps/valid-basic.json", "rom_map_sha256"),
+            ):
+                data = (fixture / relative).read_bytes()
+                (package / name).write_bytes(data)
+                (package / name).chmod(0o444)
+                record[key] = sha(data)
+            package.chmod(0o555)
+            archive = root / "core.fcore"
+            recipe = core_dev.recipes.recipe_for("fes.pong")
+            core_dev.reconstruct_archive(source, package, archive, recipe, record)
+            identity = core_dev.inspect_archive(source, archive, package, recipe)
+            self.assertEqual(identity["package_id"], json.loads((fixture / "cases.json").read_text())[0]["package_id"])
+            with tarfile.open(archive) as stream:
+                self.assertEqual(stream.getnames(), ["manifest.toml", "core.rbf", "rom-map.json"])
+            with self.assertRaisesRegex(ValueError, "digest|identity|SHA|hash"):
+                core_dev.reconstruct_archive(source, package, root / "wrong.fcore", recipe,
+                                             {**record, "rom_map_sha256": "0" * 64})
+
+
 if __name__ == "__main__":
     unittest.main()

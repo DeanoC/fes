@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/agent"
@@ -15,11 +16,12 @@ import (
 
 type packageRuntime struct {
 	fakeRuntime
-	activation misterruntime.CoreActivation
-	attempted  bool
-	packageErr *protocol.APIError
-	body       string
-	calls      int
+	activation           misterruntime.CoreActivation
+	attempted            bool
+	packageErr           *protocol.APIError
+	body                 string
+	calls                int
+	observationRemaining time.Duration
 }
 
 type confirmingPackageRuntime struct {
@@ -61,14 +63,29 @@ func (r *confirmingPackageRuntime) ConfirmIdle(ctx context.Context) bool {
 	return r.idle
 }
 
-func (r *packageRuntime) LoadCoreOwned(_ context.Context, _ context.Context, _ context.Context, size int64, body io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError) {
+func (r *packageRuntime) LoadCoreOwned(_ context.Context, observation context.Context, _ context.Context, size int64, body io.Reader) (misterruntime.CoreActivation, bool, *protocol.APIError) {
 	r.calls++
+	if deadline, ok := observation.Deadline(); ok {
+		r.observationRemaining = time.Until(deadline)
+	}
 	data, err := io.ReadAll(body)
 	if err != nil || int64(len(data)) != size {
 		return misterruntime.CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "bad package"}
 	}
 	r.body = string(data)
 	return r.activation, r.attempted, r.packageErr
+}
+
+func TestCorePackageUsesSeparateObservationBudget(t *testing.T) {
+	runtime := &packageRuntime{fakeRuntime: fakeRuntime{health: protocol.Health{Ready: true}},
+		packageErr: &protocol.APIError{Code: protocol.CodeInvalidArchive, Phase: "admission"}}
+	coordinator := agent.New(runtime, 10*time.Millisecond, time.Second,
+		agent.WithCoreLoadTimeout(100*time.Millisecond))
+	_, _ = coordinator.LoadCore(context.Background(), 3, strings.NewReader("bad"))
+	if runtime.calls != 1 || runtime.observationRemaining < 50*time.Millisecond ||
+		runtime.observationRemaining > 100*time.Millisecond {
+		t.Fatalf("core observation remaining = %s; want independent 100ms budget", runtime.observationRemaining)
+	}
 }
 
 func activeGameStatus() protocol.Status {

@@ -176,7 +176,7 @@ verify_sealed_package_dir() {
   for sealed_entry in "$sealed_package"/* "$sealed_package"/.[!.]* "$sealed_package"/..?*; do
     if [ -e "$sealed_entry" ] || [ -L "$sealed_entry" ]; then
       case "${sealed_entry##*/}" in
-        manifest.toml|core.rbf) ;;
+        manifest.toml|core.rbf|rom-map.json) ;;
         *) return 1 ;;
       esac
       [ -f "$sealed_entry" ] && [ ! -L "$sealed_entry" ] || return 1
@@ -184,7 +184,8 @@ verify_sealed_package_dir() {
       sealed_count=$((sealed_count + 1))
     fi
   done
-  [ "$sealed_count" -eq 2 ]
+  [ -f "$sealed_package/manifest.toml" ] && [ -f "$sealed_package/core.rbf" ] || return 1
+  [ "$sealed_count" -eq 2 ] || [ "$sealed_count" -eq 3 ]
 }
 validate_cached_package_set() {
   [ -d "$package_cache" ] && [ ! -L "$package_cache" ] || {
@@ -453,6 +454,9 @@ if [ "$native_mode" = package-only ]; then
         install -d -m 0755 "$installed"
         install -m 0444 "$cached_package/manifest.toml" "$installed/manifest.toml"
         install -m 0444 "$cached_package/core.rbf" "$installed/core.rbf"
+        if [ -f "$cached_package/rom-map.json" ]; then
+          install -m 0444 "$cached_package/rom-map.json" "$installed/rom-map.json"
+        fi
         chmod 0555 "$installed"
         package_installed_record_path_for "$selected_id"
         install -D -m 0444 "$package_record" "$installed_record"

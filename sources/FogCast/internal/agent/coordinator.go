@@ -74,6 +74,16 @@ func WithEventSink(sink flightdiag.Sink) CoordinatorOption {
 	return func(coordinator *Coordinator) { coordinator.events = sink }
 }
 
+// WithCoreLoadTimeout allows package admission, including target-side ROM
+// composition, to have a longer observation budget than raw-RBF diagnostics.
+func WithCoreLoadTimeout(timeout time.Duration) CoordinatorOption {
+	return func(coordinator *Coordinator) {
+		if timeout > 0 {
+			coordinator.coreLoadTimeout = timeout
+		}
+	}
+}
+
 // WithArtifacts attaches the sealed target identity reported on Health.
 func WithArtifacts(artifacts *protocol.Artifacts) CoordinatorOption {
 	return func(coordinator *Coordinator) {
@@ -85,6 +95,7 @@ type Coordinator struct {
 	runtime          Runtime
 	operationContext context.Context
 	launchTimeout    time.Duration
+	coreLoadTimeout  time.Duration
 	stopTimeout      time.Duration
 	transition       chan struct{}
 	mu               sync.RWMutex
@@ -111,6 +122,7 @@ func New(runtime Runtime, launchTimeout, stopTimeout time.Duration, options ...C
 		runtime:          runtime,
 		operationContext: context.Background(),
 		launchTimeout:    launchTimeout,
+		coreLoadTimeout:  launchTimeout,
 		stopTimeout:      stopTimeout,
 		transition:       make(chan struct{}, 1),
 		status:           protocol.Status{State: protocol.StateIdle},
@@ -260,7 +272,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 			Message: "requested operation is unsupported"}
 	}
 	previous := c.Status()
-	observation, cancel := context.WithTimeout(c.operationContext, c.launchTimeout)
+	observation, cancel := context.WithTimeout(c.operationContext, c.coreLoadTimeout)
 	defer cancel()
 	var activation misterruntime.CoreActivation
 	var attempted bool
@@ -320,6 +332,7 @@ func (c *Coordinator) loadCore(parent context.Context, size int64, content io.Re
 		interfaces[index] = protocol.RuntimeInterface{ID: value.ID, Major: value.Major, Minor: value.Minor}
 	}
 	active.CorePackage = &protocol.CorePackageStatus{
+		ROMLink:     activation.ROMLink,
 		Composition: activation.Composition,
 		MediaStream: activation.MediaStream,
 		PackageID:   activation.PackageID, Generation: activation.Generation,
@@ -532,6 +545,10 @@ func cloneStatus(status protocol.Status) protocol.Status {
 		if status.CorePackage.MediaStream != nil {
 			streamCopy := *status.CorePackage.MediaStream
 			packageCopy.MediaStream = &streamCopy
+		}
+		if status.CorePackage.ROMLink != nil {
+			romCopy := *status.CorePackage.ROMLink
+			packageCopy.ROMLink = &romCopy
 		}
 		copy.CorePackage = &packageCopy
 	}

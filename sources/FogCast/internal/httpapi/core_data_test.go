@@ -2,6 +2,8 @@ package httpapi_test
 
 import (
 	"context"
+	"fmt"
+	"github.com/DeanoC/FogCast/corepackage"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -74,5 +76,40 @@ func TestCoreDataRoutesRequireLeaseOnlyForWritesAndRejectRemotePaths(t *testing.
 	}
 	if c.dataCalls != 3 || c.coreCalls != 0 {
 		t.Fatalf("data calls=%d loads=%d", c.dataCalls, c.coreCalls)
+	}
+}
+
+func TestROMInputRoutesHaveDistinctLaunchAndInspectionLimits(t *testing.T) {
+	for _, path := range []string{"/v1/library/core/load", "/v1/development/core", "/v1/development/core/inspect", "/v1/library/core/data/inspect", "/v1/library/core/settings"} {
+		limit := int64(corepackage.MaxArchiveSize)
+		if path == "/v1/library/core/load" || path == "/v1/development/core" {
+			limit = corepackage.MaxROMInputSize
+		}
+		for _, size := range []int64{limit, limit + 1} {
+			t.Run(path+"/"+fmt.Sprint(size), func(t *testing.T) {
+				c := &dataController{}
+				handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithDevelopment(c))
+				req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("sentinel"))
+				req.ContentLength = size
+				req.Header.Set("Authorization", "Bearer bearer")
+				req.Header.Set("Content-Type", "application/octet-stream")
+				req.Header.Set("X-FogCast-Package-ID", strings.Repeat("a", 64))
+				req.Header.Set("X-FogCast-Expected-Revision", "absent")
+				req.Header.Set("X-FogCast-Paddle-Speed", "0")
+				out := httptest.NewRecorder()
+				handler.ServeHTTP(out, req)
+				want := 200
+				if size > limit {
+					want = 400
+				}
+				if out.Code != want {
+					t.Fatalf("code=%d want=%d body=%s", out.Code, want, out.Body)
+				}
+				calls := c.coreCalls + c.inspectCalls + c.dataCalls
+				if (size == limit) != (calls == 1) {
+					t.Fatalf("controller calls=%d", calls)
+				}
+			})
+		}
 	}
 }

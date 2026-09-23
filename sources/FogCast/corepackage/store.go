@@ -74,15 +74,15 @@ func (s *Store) Import(ctx context.Context, length int64, reader io.Reader) (Ins
 	if int64(len(data)) != length {
 		return Inspection{}, false, fmt.Errorf("%w: import length does not match the declared length", ErrInvalidPackage)
 	}
-	manifest, payload, err := readArchive(data)
+	manifest, payload, romMap, err := readArchive(data)
 	if err != nil {
 		return Inspection{}, false, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return Inspection{}, false, fmt.Errorf("%w: %v", ErrInvalidPackage, err)
 	}
-	inspection := Inspection{PackageID: packageIdentity(manifest, payload), Descriptor: descriptor}
+	inspection := Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}
 	if err := ctx.Err(); err != nil {
 		return Inspection{}, false, err
 	}
@@ -254,15 +254,15 @@ func (s *Store) readOpened(ctx context.Context, root *os.Root, packageID string)
 	if err != nil || !os.SameFile(opened, after) {
 		return Inspection{}, nil, errors.New("core package: installed archive changed while reading")
 	}
-	manifest, payload, err := readArchive(data)
+	manifest, payload, romMap, err := readArchive(data)
 	if err != nil {
 		return Inspection{}, nil, err
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return Inspection{}, nil, err
 	}
-	inspection := Inspection{PackageID: packageIdentity(manifest, payload), Descriptor: descriptor}
+	inspection := Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}
 	if inspection.PackageID != packageID {
 		return Inspection{}, nil, errors.New("core package: installed archive identity does not match its filename")
 	}

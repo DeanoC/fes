@@ -47,7 +47,7 @@ make host
 ```
 
 `make check` verifies clean selected modules, package YAML,
-twelve generated consumers and twenty shared fixture copies. It needs Go,
+twelve generated consumers and twenty-four shared fixture copies. It needs Go,
 not Docker or Quartus. `make host` builds the Linux CLI and browser API server. Run `make doctor`
 when preparing for container/image builds. See [getting started](docs/getting-started.md)
 for Git authentication and a minimal host configuration.
@@ -72,7 +72,7 @@ make verify
 
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
-closed format-2 package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
+closed package set `fes.pong`, `fes.zx81`, `fes.coleco`. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
 missing, extra or misidentified packages. The FES image has no legacy bundle
@@ -82,7 +82,7 @@ The normal package-only build uses the authenticated HIP/nextpnr producers and
 their shared compiler cache beneath the primary FES checkout’s `out/cache`
 (or the absolute `FES_CACHE_ROOT` override), reused across FES worktrees. A
 matching package is reused only after its locked inputs, manifest, payload and
-sealed selection are checked; a miss runs that package's format-2 producer.
+sealed selection are checked; a miss runs that package's registered producer.
 Quartus Lite 17.0.2 remains available only as an explicit bring-up/oracle check
 where a recipe documents one. It is not run by the default FES path, and a
 failed HIP route never falls back to Quartus.
@@ -96,7 +96,7 @@ out/native-integration-dev/
   linux.img                   ARMv7 target root filesystem
   idle.rbf                     locked MiSTer idle RBF
   fes-*.package-selection.toml one selection record per package
-  core-packages/<package-id>/  exact manifest.toml and core.rbf
+  core-packages/<package-id>/  manifest, RBF and optional sealed ROM map
   inputs.json                 selected sources, profile, Go and parent recipe
   host.json / image.json      input fingerprints, OS/arch (host), and output hashes
   reproducibility.txt         independent image hashes

@@ -3,6 +3,7 @@ package expansion
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -237,10 +238,18 @@ func Admit(shell Shell, asset Asset) error {
 }
 
 func Compose(shell Shell, asset Asset) (Composition, []byte, error) {
+	return ComposeContext(context.Background(), shell, asset)
+}
+
+// ComposeContext validates and links an expansion with cancellable frame work.
+func ComposeContext(ctx context.Context, shell Shell, asset Asset) (Composition, []byte, error) {
+	if err := ctx.Err(); err != nil {
+		return Composition{}, nil, err
+	}
 	if err := Admit(shell, asset); err != nil {
 		return Composition{}, nil, err
 	}
-	linked, err := Link(shell.Payload, asset.Cart)
+	linked, err := LinkContext(ctx, shell.Payload, asset.Cart)
 	if err != nil {
 		return Composition{}, nil, fmt.Errorf("link expansion: %w", err)
 	}

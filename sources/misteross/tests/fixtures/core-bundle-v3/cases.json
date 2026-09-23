@@ -1,0 +1,413 @@
+[
+  {
+    "name": "valid-basic",
+    "manifest": "manifests/valid-basic.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": true,
+    "package_id": "4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752"
+  },
+  {
+    "name": "valid-cartridge",
+    "manifest": "manifests/valid-cartridge.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": true,
+    "package_id": "99dc4eeb0cd0f4a95ec394af59e57a06ea7d342afd733573b200b5f183eea313"
+  },
+  {
+    "name": "valid-literal-rom",
+    "manifest": "manifests/valid-literal-rom.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": true,
+    "package_id": "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928"
+  },
+  {
+    "name": "invalid-missing-rom",
+    "manifest": "manifests/invalid-missing-rom.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "required ROM declaration absent"
+  },
+  {
+    "name": "invalid-rom-role",
+    "manifest": "manifests/invalid-rom-role.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid role"
+  },
+  {
+    "name": "invalid-rom-id",
+    "manifest": "manifests/invalid-rom-id.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid identifier"
+  },
+  {
+    "name": "invalid-rom-file",
+    "manifest": "manifests/invalid-rom-file.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "noncanonical map file"
+  },
+  {
+    "name": "invalid-rom-size",
+    "manifest": "manifests/invalid-rom-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "map size mismatch"
+  },
+  {
+    "name": "invalid-rom-digest",
+    "manifest": "manifests/invalid-rom-digest.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "map digest mismatch"
+  },
+  {
+    "name": "invalid-source-size-true",
+    "manifest": "manifests/invalid-source-size-true.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid source size"
+  },
+  {
+    "name": "invalid-source-size-1024-0",
+    "manifest": "manifests/invalid-source-size-1024-0.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid source size"
+  },
+  {
+    "name": "invalid-source-size-1025",
+    "manifest": "manifests/invalid-source-size-1025.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid source size"
+  },
+  {
+    "name": "invalid-source-size-0",
+    "manifest": "manifests/invalid-source-size-0.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid source size"
+  },
+  {
+    "name": "invalid-source-size-263168",
+    "manifest": "manifests/invalid-source-size-263168.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "invalid source size"
+  },
+  {
+    "name": "invalid-rom-unknown-field",
+    "manifest": "manifests/invalid-rom-unknown-field.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "unknown ROM key"
+  },
+  {
+    "name": "invalid-rom-missing-field",
+    "manifest": "manifests/invalid-rom-missing-field.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "missing ROM role"
+  },
+  {
+    "name": "invalid-v2-with-rom",
+    "manifest": "manifests/invalid-v2-with-rom.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/valid-basic.json",
+    "valid": false,
+    "validation_layer": "package",
+    "reason": "format 2 rejects ROM fields"
+  },
+  {
+    "name": "invalid-map-format",
+    "manifest": "manifests/invalid-map-format.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-format.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map format"
+  },
+  {
+    "name": "invalid-map-boolean-format",
+    "manifest": "manifests/invalid-map-boolean-format.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-boolean-format.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map boolean-format"
+  },
+  {
+    "name": "invalid-map-device",
+    "manifest": "manifests/invalid-map-device.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-device.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map device"
+  },
+  {
+    "name": "invalid-map-encoding",
+    "manifest": "manifests/invalid-map-encoding.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-encoding.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map encoding"
+  },
+  {
+    "name": "invalid-map-base",
+    "manifest": "manifests/invalid-map-base.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-base.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map base"
+  },
+  {
+    "name": "invalid-map-source-size",
+    "manifest": "manifests/invalid-map-source-size.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-source-size.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map source-size"
+  },
+  {
+    "name": "invalid-map-unknown",
+    "manifest": "manifests/invalid-map-unknown.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-unknown.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map unknown"
+  },
+  {
+    "name": "invalid-map-missing",
+    "manifest": "manifests/invalid-map-missing.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-missing.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map missing"
+  },
+  {
+    "name": "invalid-map-blocks-empty",
+    "manifest": "manifests/invalid-map-blocks-empty.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-blocks-empty.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map blocks-empty"
+  },
+  {
+    "name": "invalid-map-blocks-null",
+    "manifest": "manifests/invalid-map-blocks-null.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-blocks-null.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map blocks-null"
+  },
+  {
+    "name": "invalid-map-block-unknown",
+    "manifest": "manifests/invalid-map-block-unknown.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-block-unknown.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map block-unknown"
+  },
+  {
+    "name": "invalid-map-bel-empty",
+    "manifest": "manifests/invalid-map-bel-empty.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-bel-empty.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map bel-empty"
+  },
+  {
+    "name": "invalid-map-bel-large",
+    "manifest": "manifests/invalid-map-bel-large.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-bel-large.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map bel-large"
+  },
+  {
+    "name": "invalid-map-offset",
+    "manifest": "manifests/invalid-map-offset.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-offset.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map offset"
+  },
+  {
+    "name": "invalid-map-words",
+    "manifest": "manifests/invalid-map-words.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-words.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map words"
+  },
+  {
+    "name": "invalid-map-word-null",
+    "manifest": "manifests/invalid-map-word-null.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-word-null.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map word-null"
+  },
+  {
+    "name": "invalid-map-word-length",
+    "manifest": "manifests/invalid-map-word-length.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-word-length.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map word-length"
+  },
+  {
+    "name": "invalid-map-duplicate-bit",
+    "manifest": "manifests/invalid-map-duplicate-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-duplicate-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map duplicate-bit"
+  },
+  {
+    "name": "invalid-map-low-bit",
+    "manifest": "manifests/invalid-map-low-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-low-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map low-bit"
+  },
+  {
+    "name": "invalid-map-high-bit",
+    "manifest": "manifests/invalid-map-high-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-high-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map high-bit"
+  },
+  {
+    "name": "invalid-map-boolean-bit",
+    "manifest": "manifests/invalid-map-boolean-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-boolean-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map boolean-bit"
+  },
+  {
+    "name": "invalid-map-float-bit",
+    "manifest": "manifests/invalid-map-float-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-float-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map float-bit"
+  },
+  {
+    "name": "invalid-map-duplicate-key",
+    "manifest": "manifests/invalid-map-duplicate-key.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-duplicate-key.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map duplicate-key"
+  },
+  {
+    "name": "invalid-map-trailing",
+    "manifest": "manifests/invalid-map-trailing.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-trailing.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map trailing"
+  },
+  {
+    "name": "invalid-map-utf8",
+    "manifest": "manifests/invalid-map-utf8.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-utf8.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map utf8"
+  },
+  {
+    "name": "invalid-map-null",
+    "manifest": "manifests/invalid-map-null.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-null.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map null"
+  },
+  {
+    "name": "invalid-map-duplicate-bel",
+    "manifest": "manifests/invalid-map-duplicate-bel.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-duplicate-bel.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map duplicate-bel"
+  },
+  {
+    "name": "invalid-map-duplicate-source",
+    "manifest": "manifests/invalid-map-duplicate-source.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-duplicate-source.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map duplicate-source"
+  },
+  {
+    "name": "invalid-map-cross-block-bit",
+    "manifest": "manifests/invalid-map-cross-block-bit.toml",
+    "payload": "payloads/fes-fixture.rbf",
+    "rom_map": "maps/invalid-map-cross-block-bit.json",
+    "valid": false,
+    "validation_layer": "rom_map",
+    "reason": "invalid ROM map cross-block-bit"
+  }
+]

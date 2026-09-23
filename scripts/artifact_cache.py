@@ -60,7 +60,10 @@ def publish(root, record_path, package):
     with lock.open('a+b') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
         contents = {}
-        for name in ('manifest.toml', 'core.rbf'):
+        members = {item.name for item in package.iterdir()}
+        if members not in ({'manifest.toml', 'core.rbf'}, {'manifest.toml', 'core.rbf', 'rom-map.json'}):
+            raise ValueError('artifact package has unexpected members')
+        for name in sorted(members):
             plain(package / name)
             contents[package.name + "/" + name] = (package / name).read_bytes()
         contents['build-inputs.json'] = record
@@ -69,7 +72,7 @@ def publish(root, record_path, package):
             plain(target / package.name, directory=True)
             if set(item.name for item in target.iterdir()) != {package.name, 'build-inputs.json'}:
                 raise ValueError('existing artifact cache entry has unexpected members')
-            if set(item.name for item in (target / package.name).iterdir()) != {'manifest.toml', 'core.rbf'}:
+            if set(item.name for item in (target / package.name).iterdir()) != members:
                 raise ValueError('existing artifact package has unexpected members')
             for name, data in contents.items():
                 plain(target / name)

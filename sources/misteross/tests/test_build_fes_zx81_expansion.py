@@ -173,8 +173,9 @@ class ZX81CartPublicationTests(unittest.TestCase):
                            ("routed.json", b"{}"), ("socket.qsf", b"pins")):
             (self.shell / name).write_bytes(data)
         package = SimpleNamespace(manifest_bytes=b"manifest", payload_bytes=b"shell",
-            package_id="a" * 64, fields={"interfaces": [{"id": "fes.expansion.zx81-bus",
+            package_id="a" * 64, rom_map_bytes=None, fields={"format": 2, "interfaces": [{"id": "fes.expansion.zx81-bus",
             "major": 1, "minor": 0, "required": False}], "build": {"id": "b" * 32}})
+        self.package = package
         tools = {name: SimpleNamespace(path=Path("/tools") / name, identity={"name": name})
                  for name in ("yosys", "nextpnr-mistral")}
         for name, value in (("_require_clean_source", ("repository", "c" * 40)),
@@ -235,6 +236,48 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
 
+    def test_shared_cache_authenticates_before_and_after_compilation(self):
+        cache = self.root / "shared-cache"
+        cart_producer.build(self.root, self.shell, self.root / "package", 0, cache_root=cache)
+        self.assertEqual(cart_producer._authenticate_tools.call_count, 2)
+        for call in cart_producer._authenticate_tools.call_args_list:
+            self.assertEqual(call.kwargs["cache_root"], cache)
+
+    def test_format3_cart_closure_binds_the_sealed_rom_map(self):
+        self.package.fields["format"] = 3
+        self.package.rom_map_bytes = b"sealed ROM map"
+        (self.shell / "rom-map.json").write_bytes(self.package.rom_map_bytes)
+        self.build()
+        summary = json.loads((self.output / "build-summary.json").read_text())
+        self.assertEqual(summary["recipe"]["inputs"]["shell/rom-map.json"],
+                         cart_producer.digest(self.package.rom_map_bytes))
+        self.assertEqual(summary["manifest"]["shell_package_id"], self.package.package_id)
+
+    def test_format3_changed_rom_map_cannot_publish(self):
+        self.package.fields["format"] = 3
+        self.package.rom_map_bytes = b"sealed ROM map"
+        path = self.shell / "rom-map.json"
+        path.write_bytes(b"wrong map")
+        with self.assertRaisesRegex(ValueError, "differs from sealed shell package"):
+            self.build()
+        self.assertEqual(self.calls, [])
+        path.write_bytes(self.package.rom_map_bytes)
+        def mutate_during_compile(command, **kwargs):
+            result = self.run_tool(command, **kwargs)
+            path.write_bytes(b"changed map")
+            return result
+        with patch.object(cart_producer.subprocess, "run", side_effect=mutate_during_compile):
+            with self.assertRaisesRegex(ValueError, "frozen shell changed"):
+                self.build()
+        self.assertFalse(list(self.output.glob("*.tar")))
+
+    def test_actual_hierarchical_pixel_clock_report_publishes(self):
+        self.timing = {"fmax": {
+            "clk_sys": {"achieved": 52.803886, "constraint": 52.00208},
+            "hdmi_i2s.pixel_clk": {"achieved": 122.865, "constraint": 74.25},
+        }}
+        self.assertTrue(self.build().is_file())
+
     def test_missing_wrong_or_failing_clock_cannot_publish(self):
         good = copy.deepcopy(self.timing)
         cases = []
@@ -244,6 +287,16 @@ class ZX81CartPublicationTests(unittest.TestCase):
         nonfinite = copy.deepcopy(good); nonfinite["fmax"]["clk_sys"]["achieved"] = float("nan"); cases.append(nonfinite)
         too_low = copy.deepcopy(good); too_low["fmax"]["clk_sys"] = {"constraint": 51.999, "achieved": 51.9995}; cases.append(too_low)
         extra = copy.deepcopy(good); extra["fmax"]["unexpected"] = {"constraint": 1, "achieved": 2}; cases.append(extra)
+        duplicate = copy.deepcopy(good)
+        duplicate["fmax"]["hdmi_i2s.pixel_clk"] = copy.deepcopy(duplicate["fmax"]["pixel_clk"])
+        cases.append(duplicate)
+        unexpected_alias = copy.deepcopy(good)
+        unexpected_alias["fmax"]["unexpected.pixel_clk"] = unexpected_alias["fmax"].pop("pixel_clk")
+        cases.append(unexpected_alias)
+        hierarchical_slow = copy.deepcopy(good)
+        hierarchical_slow["fmax"]["hdmi_i2s.pixel_clk"] = {"achieved": 74.0, "constraint": 74.25}
+        del hierarchical_slow["fmax"]["pixel_clk"]
+        cases.append(hierarchical_slow)
         for timing in cases:
             with self.subTest(timing=timing):
                 self.timing = copy.deepcopy(good)

@@ -11956,3 +11956,12 @@ test('controller launch and stop send client stamp headers', async () => {
   assert.ok(stop.options.headers['X-FogCast-Client-Ts-Utc']);
   assert.equal(stop.options.headers['X-FogCast-Flight-Id'], flight);
 });
+
+
+test('launchBlockReason requires selected ROM readiness', () => {
+  const ready = { launchable: true, state: 'available', root_online: true };
+  assert.equal(launchBlockReason({ ...ready, rom_required: true }), 'This game’s required ROM is not ready.');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: false }), 'This game’s required ROM is not ready.');
+  assert.equal(launchBlockReason({ ...ready, rom_required: true, rom_ready: true }), '');
+  assert.equal(launchBlockReason({ ...ready, rom_required: false, rom_ready: false }), '');
+});

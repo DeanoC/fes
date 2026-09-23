@@ -22,6 +22,9 @@ COPIED_TREES = (
     ('testdata/core-bundle-v2', 'FogCast', 'corepackage/testdata/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'libmister-runtime', 'tests/fixtures/core-bundle-v2'),
     ('testdata/core-bundle-v2', 'misteross', 'tests/fixtures/core-bundle-v2'),
+    ('testdata/core-bundle-v3', 'FogCast', 'corepackage/testdata/core-bundle-v3'),
+    ('testdata/core-bundle-v3', 'libmister-runtime', 'tests/fixtures/core-bundle-v3'),
+    ('testdata/core-bundle-v3', 'misteross', 'tests/fixtures/core-bundle-v3'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
 )
 COPIED_FILES = (
@@ -40,6 +43,8 @@ COPIED_FILES = (
     ('testdata/core-persistence-v1/records.json', 'FogCast', 'internal/misterruntime/testdata/core-persistence-v1/records.json'),
 )
 COMPONENT_FIXTURES = (
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-rom-package-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-rom-package-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-application-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-application-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-media-stream-responses.jsonl',

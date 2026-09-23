@@ -203,7 +203,7 @@ public:
 
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
-		const std::string& programmed_path = "", const std::string& programmed_sha256 = "")
+		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -251,6 +251,12 @@ public:
 			Log("load_core", "", "", "validate", error);
 			return error;
 		}
+		if ((package->info().descriptor.format == 3) != (rom_link != nullptr)) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+			condition_.notify_all();
+			return {ErrorCode::unsupported_abi, "format-3 activation requires a bound ROM link", "admission"};
+		}
 		CoreData data;
 		data.package_id = package->info().package_id;
 		data.core_id = package->info().declared_core;
@@ -267,9 +273,9 @@ public:
 		}
 		const CorePackageInfo info = package->info();
 		const CoreComposition admitted_composition = package->composition();
-		if (!programmed_path.empty()) {
-			const Error attached = hardware_.AttachProgrammedBitstream(package.get(),
-				programmed_path, programmed_sha256);
+		if (!programmed_path.empty() || rom_link) {
+			const Error attached = rom_link ? hardware_.AttachROMBitstream(package.get(), programmed_path, *rom_link) :
+				hardware_.AttachProgrammedBitstream(package.get(), programmed_path, programmed_sha256);
 			if (!attached.ok()) {
 				{
 					std::lock_guard<std::mutex> lock(mutex_);
@@ -279,6 +285,13 @@ public:
 				Log("load_core", info.system, info.declared_core, "validate", attached);
 				return attached;
 			}
+		}
+		const Error rechecked = hardware_.RecheckProgrammedBitstream(package.get());
+		if (!rechecked.ok()) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+			condition_.notify_all();
+			return rechecked;
 		}
 		Log("load_core", info.system, info.declared_core, "validate");
 
@@ -342,6 +355,7 @@ public:
 			status_.active_package.package_id = info.package_id;
 			status_.active_package.descriptor = info.descriptor;
 			status_.active_package.composition = admitted_composition;
+			if (rom_link) status_.active_package.rom_link = *rom_link;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
 				info.descriptor.abi.id == "fes.application") {
@@ -969,6 +983,19 @@ Error Runtime::LoadLibraryCore(
 		return Invalid("invalid core-data root");
 	return impl_->LoadCore(directory, id, root);
 }
+Error Runtime::LoadROMCore(const std::string& directory, const std::string& id,
+	const std::string& path, const CoreROMLink& link)
+{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link); }
+Error Runtime::LoadROMLibraryCore(const std::string& directory, const std::string& id,
+	const std::string& root, const std::string& path, const CoreROMLink& link)
+{
+	if (!ValidAbsolutePath(root)) return Invalid("invalid core-data root");
+	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link);
+}
+Error Runtime::LoadROMComposedCore(const std::string& directory, const std::string& id,
+	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link)
+{ return impl_->LoadCore(directory, id, "", &request, path, "", &link); }
+
 Error Runtime::LoadInitializedCore(const std::string& directory, const std::string& id,
 	const std::string& programmed_path, const std::string& programmed_sha256)
 {

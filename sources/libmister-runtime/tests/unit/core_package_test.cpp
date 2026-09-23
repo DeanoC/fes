@@ -260,6 +260,41 @@ void TestSimpleComputerCompatibilityRequiresKeyboardVideoAndMedia()
 	assert(!mister::native::CheckCoreCompatibility(stream).ok()); // legacy remains required
 }
 
+void TestLinkedCartridgeRejectsResetHeldMediaContracts()
+{
+	mister::CoreDescriptor descriptor;
+	descriptor.format = 3;
+	descriptor.rom.role = "cartridge";
+	descriptor.target = {"de10_nano", "5CSEBA6U23I7", "fes-gp-v1"};
+	descriptor.abi = {"fes.application", 1, 0};
+	descriptor.interfaces = {{"fes.video.fixed-720p60", 1, 0, true}};
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	for (bool required : {false, true}) {
+		auto firmware_mailbox = descriptor;
+		firmware_mailbox.interfaces.push_back({"fes.firmware.blob", 1, 0, required});
+		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).code == mister::ErrorCode::unsupported_interface);
+		firmware_mailbox.rom.role = "firmware";
+		assert(mister::native::CheckCoreCompatibility(firmware_mailbox).ok());
+	}
+	auto game = descriptor;
+	game.abi = {"fes.simple-game", 1, 0};
+	game.interfaces.push_back({"fes.gamepad", 1, 0, true});
+	game.interfaces.push_back({"fes.firmware.blob", 1, 0, false});
+	assert(mister::native::CheckCoreCompatibility(game).code == mister::ErrorCode::unsupported_interface);
+	descriptor.interfaces.push_back({"fes.media.blob", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).code == mister::ErrorCode::unsupported_interface);
+	descriptor.rom.role = "firmware";
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.rom.role = "cartridge";
+	descriptor.abi = {"fes.simple-computer", 1, 0};
+	descriptor.interfaces.push_back({"fes.keyboard", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+	descriptor.interfaces.push_back({"fes.media.blob-stream", 1, 0, true});
+	assert(mister::native::CheckCoreCompatibility(descriptor).code == mister::ErrorCode::unsupported_interface);
+	descriptor.rom.role = "firmware";
+	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
+}
+
 void TestApplicationCompatibilityComposesInterfaces()
 {
 	mister::native::CoreDescriptor descriptor;
@@ -507,10 +542,139 @@ void TestMissingOrNonTableCoreIsRejectedWithoutChangingResult()
 	expect_invalid(non_table);
 }
 
+void TestSharedFormat3IdentityAndManifestFixtures()
+{
+	const std::string root = "tests/fixtures/core-bundle-v3/";
+	struct Case { const char* name; const char* map; const char* identity; bool structural; };
+	const std::vector<Case> cases = {
+		{"valid-basic", "maps/valid-basic.json", "4485543fd9c97cee6177e17300e6d6f5fe46aed9ac90a2ba0dc4663c042ee752", true},
+		{"valid-cartridge", "maps/valid-basic.json", "99dc4eeb0cd0f4a95ec394af59e57a06ea7d342afd733573b200b5f183eea313", true},
+		{"valid-literal-rom", "maps/valid-basic.json", "d038cd4a27b4b3cf806831bf084632412acf578b11b43722399b995c7d636928", true},
+		{"invalid-missing-rom", "maps/valid-basic.json", "", false},
+		{"invalid-rom-role", "maps/valid-basic.json", "", false},
+		{"invalid-rom-id", "maps/valid-basic.json", "", false},
+		{"invalid-rom-file", "maps/valid-basic.json", "", false},
+		{"invalid-rom-size", "maps/valid-basic.json", "", false},
+		{"invalid-rom-digest", "maps/valid-basic.json", "", false},
+		{"invalid-source-size-true", "maps/valid-basic.json", "", false},
+		{"invalid-source-size-1024-0", "maps/valid-basic.json", "", false},
+		{"invalid-source-size-1025", "maps/valid-basic.json", "", false},
+		{"invalid-source-size-0", "maps/valid-basic.json", "", false},
+		{"invalid-source-size-263168", "maps/valid-basic.json", "", false},
+		{"invalid-rom-unknown-field", "maps/valid-basic.json", "", false},
+		{"invalid-rom-missing-field", "maps/valid-basic.json", "", false},
+		{"invalid-v2-with-rom", "maps/valid-basic.json", "", false},
+		{"invalid-map-format", "maps/invalid-map-format.json", "", true},
+		{"invalid-map-boolean-format", "maps/invalid-map-boolean-format.json", "", true},
+		{"invalid-map-device", "maps/invalid-map-device.json", "", true},
+		{"invalid-map-encoding", "maps/invalid-map-encoding.json", "", true},
+		{"invalid-map-base", "maps/invalid-map-base.json", "", true},
+		{"invalid-map-source-size", "maps/invalid-map-source-size.json", "", true},
+		{"invalid-map-unknown", "maps/invalid-map-unknown.json", "", true},
+		{"invalid-map-missing", "maps/invalid-map-missing.json", "", true},
+		{"invalid-map-blocks-empty", "maps/invalid-map-blocks-empty.json", "", true},
+		{"invalid-map-blocks-null", "maps/invalid-map-blocks-null.json", "", true},
+		{"invalid-map-block-unknown", "maps/invalid-map-block-unknown.json", "", true},
+		{"invalid-map-bel-empty", "maps/invalid-map-bel-empty.json", "", true},
+		{"invalid-map-bel-large", "maps/invalid-map-bel-large.json", "", true},
+		{"invalid-map-offset", "maps/invalid-map-offset.json", "", true},
+		{"invalid-map-words", "maps/invalid-map-words.json", "", true},
+		{"invalid-map-word-null", "maps/invalid-map-word-null.json", "", true},
+		{"invalid-map-word-length", "maps/invalid-map-word-length.json", "", true},
+		{"invalid-map-duplicate-bit", "maps/invalid-map-duplicate-bit.json", "", true},
+		{"invalid-map-low-bit", "maps/invalid-map-low-bit.json", "", true},
+		{"invalid-map-high-bit", "maps/invalid-map-high-bit.json", "", true},
+		{"invalid-map-boolean-bit", "maps/invalid-map-boolean-bit.json", "", true},
+		{"invalid-map-float-bit", "maps/invalid-map-float-bit.json", "", true},
+		{"invalid-map-duplicate-key", "maps/invalid-map-duplicate-key.json", "", true},
+		{"invalid-map-trailing", "maps/invalid-map-trailing.json", "", true},
+		{"invalid-map-utf8", "maps/invalid-map-utf8.json", "", true},
+		{"invalid-map-null", "maps/invalid-map-null.json", "", true},
+	};
+	for (const auto& fixture : cases) {
+		TempDirectory package;
+		package.Add("manifest.toml", ReadFile(root + "manifests/" + fixture.name + ".toml"));
+		package.Add("core.rbf", ReadFile(root + "payloads/fes-fixture.rbf"));
+		package.Add("rom-map.json", ReadFile(root + fixture.map));
+		mister::native::OpenedCorePackage opened;
+		const auto error = mister::native::OpenCorePackage(package.path, fixture.identity, &opened);
+		if (error.ok() != fixture.structural)
+			fprintf(stderr, "%s: %s\n", fixture.name, error.message.c_str());
+		assert(error.ok() == fixture.structural);
+		// Semantic map validation belongs to the target agent; compatibility
+		// inspection is independent from receipt-bound activation.
+		if (error.ok()) {
+			assert(mister::native::RecheckCorePackage(opened).ok());
+			assert(mister::native::CheckCoreCompatibility(opened.descriptor).ok());
+		}
+	}
+}
+
+void TestFormat3IdentityAndRetainedMap()
+{
+	const std::string map = "{\"fixture\":true}\n";
+	const std::string payload = ReadFile(std::string(kFixtures) + "/payloads/fes-fixture.rbf");
+	std::string manifest = ReadFile(std::string(kFixtures) + "/manifests/valid-basic.toml");
+	manifest.replace(manifest.find("format = 2"), 10, "format = 3");
+	manifest += "\n[rom]\nid = \"bios.main\"\nrole = \"firmware\"\nsource_size = 8192\n"
+		"file = \"rom-map.json\"\nsize = " + std::to_string(map.size()) +
+		"\nsha256 = \"" + Digest(map, {map.size()}) + "\"\n";
+	auto identity = [&](const std::string& domain) {
+		std::string bytes = domain;
+		for (const auto& part : {manifest, payload, map}) {
+			for (unsigned i = 0; i < 8; ++i)
+				bytes.push_back(static_cast<char>(static_cast<std::uint64_t>(part.size()) >> (8 * i)));
+			bytes += part;
+		}
+		return Digest(bytes, {bytes.size()});
+	};
+	TempDirectory package;
+	package.Add("manifest.toml", manifest);
+	package.Add("core.rbf", payload);
+	package.Add("rom-map.json", map);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, identity("FES-CORE-PACKAGE-3\n"), &opened).ok());
+	assert(opened.descriptor.format == 3 && opened.descriptor.rom.source_size == 8192);
+	assert(opened.descriptor.rom.id == "bios.main" && opened.rom_map.fd() >= 0);
+	assert(mister::native::CheckCoreCompatibility(opened.descriptor).ok());
+	assert(!mister::native::OpenCorePackage(package.path, identity("FES-CORE-PACKAGE-2\n"), &opened).ok());
+	package.Add("extra", "x");
+	assert(!mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(unlink((package.path + "/extra").c_str()) == 0);
+	int fd = open((package.path + "/rom-map.json").c_str(), O_WRONLY);
+	assert(fd >= 0 && pwrite(fd, "!", 1, 0) == 1 && close(fd) == 0);
+	assert(!mister::native::RecheckCorePackage(opened).ok());
+	assert(!mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(unlink((package.path + "/rom-map.json").c_str()) == 0);
+	assert(!mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	WriteFile(package.path + "/rom-map.json", map);
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	assert(unlink((package.path + "/rom-map.json").c_str()) == 0);
+	WriteFile(package.path + "/rom-map.json", "replacement");
+	assert(mister::native::RecheckCorePackage(opened).ok()); // retained descriptor
+	assert(unlink((package.path + "/rom-map.json").c_str()) == 0);
+	WriteFile(package.path + "/rom-map.json", map);
+	for (const auto& mutation : std::vector<std::pair<std::string, std::string>>{
+		{"id = \"bios.main\"", "id = \"BIOS\""}, {"role = \"firmware\"", "role = \"other\""},
+		{"source_size = 8192", "source_size = 1025"}, {"source_size = 8192", "source_size = true"},
+		{"source_size = 8192", "source_size = 0"}, {"source_size = 8192", "source_size = 263168"},
+		{"file = \"rom-map.json\"", "file = \"other.json\""},
+		{"[rom]", "[rom]\nextra = 1"}, {"source_size = 8192\n", ""}}) {
+		std::string bad = manifest;
+		bad.replace(bad.find(mutation.first), mutation.first.size(), mutation.second);
+		assert(unlink((package.path + "/manifest.toml").c_str()) == 0);
+		WriteFile(package.path + "/manifest.toml", bad);
+		assert(!mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	}
+}
+
 } // namespace
 
 int main()
 {
+	TestSharedFormat3IdentityAndManifestFixtures();
+	TestFormat3IdentityAndRetainedMap();
+	TestLinkedCartridgeRejectsResetHeldMediaContracts();
 	TestApplicationCompatibilityComposesInterfaces();
 	TestSha256StandardVectorsAndStreaming();
 	TestAllSharedFixturesAndExactIdentity();
@@ -521,6 +685,6 @@ int main()
 	TestRepositoryMatchesSharedRfc3986Contract();
 	TestCoreSystemPresenceIsValidatedAndFesGpRequiresOmission();
 	TestMissingOrNonTableCoreIsRejectedWithoutChangingResult();
-	puts("core_package_test: 9 groups passed");
+	puts("core_package_test: 11 groups passed");
 	return 0;
 }

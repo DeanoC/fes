@@ -27,8 +27,14 @@ The doc index is [docs/README.md](docs/README.md).
 FogCast owns host selection, transfer and the target agent. libmister-runtime
 programs the FPGA. misteross stops at the RBF. No build target programs a kit.
 `make program` is an explicit JTAG SRAM maintenance diagnostic. Ordinary loads
-go through FogCast: a format-2 package for a core, or the contained
-development-RBF path for an experiment.
+go through FogCast as described packages; the contained development-RBF path
+serves experiments.
+
+The ZX81 producer seals a format-3 package containing a blank base RBF and an
+authenticated machine-ROM map. It requires an exact 8192-byte firmware input
+at launch; the build does not embed `zx8x.hex`. Map extraction checks the
+selected Mistral database, routed ROM placements and blank INIT bits. Other
+normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
 
 The factory image installs `fes.pong`, `fes.zx81` and `fes.coleco`. Another
 package is not added to that set merely because its producer exists.

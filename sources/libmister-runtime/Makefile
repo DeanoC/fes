@@ -265,10 +265,12 @@ $(BUILD_DIR)/tests/unit/native_hardware_test: tests/unit/native_hardware_test.cp
 
 $(BUILD_DIR)/tests/unit/protocol_test: tests/unit/protocol_test.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
+		src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
 		src/native/diagnostic.cpp
 	@mkdir -p "$(dir $@)"
 	$(CXX) $(TEST_CPPFLAGS) $(CXXFLAGS) tests/unit/protocol_test.cpp \
 		src/daemon/json.cpp src/daemon/protocol.cpp  src/runtime.cpp \
+		src/native/core_package.cpp src/native/artifacts.cpp src/native/sha256.cpp \
 		src/native/diagnostic.cpp -o "$@"
 
 $(BUILD_DIR)/tests/integration/daemon_server_test: \

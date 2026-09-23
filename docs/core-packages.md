@@ -35,6 +35,24 @@ Each package can be installed on the host and given an explicit library entry;
 the package route does not infer ROM or media inputs or replace the existing
 catalog system.
 
+## ROM linking transition
+
+Format-3 packages seal one named ROM requirement and its CRAM map alongside the
+base RBF. Select an exact-size binary for the title using the
+[ROM selection API](../sources/FogCast/docs/core-package-library.md).
+The host sends source inputs; the target agent's Go linker composes any selected
+expansion and merges the ROM before the runtime downloads the resulting RBF.
+This path needs no Python on the kit and requires runtime capability
+`rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
+restart adoption independently reconstructs the retained programmed bytes.
+
+The production ZX81 producer exports format 3. Other core producers retain
+format 2 and their current media/firmware paths until explicitly converted.
+Hardware evidence is tied to the exact tested package and software; rebuilding
+a package does not inherit earlier acceptance. Cartridge ROM packages must remove redundant reset-held application
+blob/stream and firmware mailboxes; firmware ROM packages may retain separate
+tape/disk input.
+
 ## Build and inspect
 
 For a single core without image assembly, use the
@@ -112,6 +130,7 @@ fes-zx81.package-selection.toml
 fes-coleco.package-selection.toml
 core-packages/<package-id>/manifest.toml
 core-packages/<package-id>/core.rbf
+core-packages/<package-id>/rom-map.json  # format 3 only
 ```
 
 The installed directory is
@@ -119,7 +138,7 @@ The installed directory is
 revalidates the package during fetch, install and image verification and records
 the selection in its installed build inputs. Cold builds compare the selection
 from both independent passes. Development and cold receipts include the exact
-selection, manifest and payload hashes; a metadata-only manifest change
+selection, manifest, payload and optional ROM-map hashes; a metadata-only manifest change
 invalidates image reuse even when the RBF bytes do not change.
 
 On a host with a running `fogcast-api`, inspect and explicitly load a package:
@@ -253,10 +272,11 @@ for response contracts, persistence and recovery behavior.
 
 ## Package and ABI compatibility
 
-`mister-packages` owns the format-2 schema, FES GP ABI and DE10-Nano programming
+`mister-packages` owns the format-2/3 schemas, FES GP ABI and DE10-Nano programming
 profiles. `misteross` owns package construction and build provenance. The
-package ID hashes the exact canonical manifest and payload, so changing either
-creates a different immutable identity. Package `version` follows semantic
+package ID hashes the exact manifest and payload bytes, plus the sealed ROM map
+for format 3, so changing any member creates a different immutable identity.
+Package `version` follows semantic
 version syntax and describes the packaged core release; it does not relax ABI
 checks.
 

@@ -92,6 +92,15 @@ struct CorePayload {
 	std::string sha256;
 };
 
+struct CoreRom {
+	std::string id;
+	std::string role;
+	std::uint64_t source_size = 0;
+	std::string file;
+	std::uint64_t size = 0;
+	std::string sha256;
+};
+
 struct VersionedContract {
 	std::string id;
 	std::uint16_t major = 0;
@@ -118,6 +127,7 @@ struct CoreDescriptor {
 	CoreMetadata core;
 	CoreTarget target;
 	CorePayload payload;
+	CoreRom rom;
 	VersionedContract abi;
 	std::vector<CoreInterface> interfaces;
 	CoreBuild build;
@@ -144,6 +154,7 @@ struct MediaStreamCapability {
 };
 
 struct Capabilities {
+	std::uint32_t rom_linking = 0;
 	std::vector<std::string> programming_profiles;
 	std::vector<SupportedABI> abis;
 	std::vector<SupportedInterface> active_interfaces;
@@ -167,11 +178,17 @@ struct CoreCompositionRequest {
 	CoreComposition composition;
 };
 
+struct CoreROMLink {
+	std::string rom_id, map_sha256, source_sha256, programmed_sha256;
+	std::uint64_t source_size = 0, programmed_size = 0;
+};
+
 struct ActiveCorePackage {
 	std::string package_id;
 	CoreDescriptor descriptor;
 	ObservedIdentity observed;
 	CoreComposition composition;
+	CoreROMLink rom_link;
 };
 
 struct CoreData {
@@ -292,6 +309,9 @@ public:
 	{
 		return {ErrorCode::unsupported_protocol, "programmed bitstream is unavailable"};
 	}
+	virtual Error AttachROMBitstream(AdmittedCorePackage*, const std::string&, const CoreROMLink&)
+	{ return {ErrorCode::unsupported_protocol, "ROM linking is unavailable"}; }
+	virtual Error RecheckProgrammedBitstream(AdmittedCorePackage*) { return {}; }
 	virtual Error InspectCoreData(
 		const std::string&, const std::string&, const std::string&, CoreData*)
 	{
@@ -368,6 +388,9 @@ public:
 		const std::string&, const std::string&);
 	Error LoadInitializedComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&,
 		const std::string&, const std::string&);
+	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&);
+	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&);
+	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&);
 	Error InspectCoreData(const std::string&, const std::string&, const std::string&, CoreData*);
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,
 		const std::string&, std::uint16_t, CoreData*);

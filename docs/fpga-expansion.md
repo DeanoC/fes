@@ -18,7 +18,8 @@ original shell. Host and target independently verify composition bytes; the
 runtime programs the admitted payload and retains the base package identity.
 
 This uses the scoped `toolchains/zx81-expansion.lock` and a separate expansion
-archive; it does not change format-2 package seals or the factory package set.
+archive; the cart is bound to the exact sealed ZX81 shell. Selecting a cart
+does not change that shell's package identity or the factory package set.
 Build, software verification and exact-kit acceptance remain separate evidence.
 
 ## Earlier development experiments

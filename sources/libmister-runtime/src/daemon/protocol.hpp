@@ -15,6 +15,9 @@ enum class Operation {
 	inspect_core,
 	load_core,
 	load_composed_core,
+	load_rom_core,
+	load_rom_library_core,
+	load_rom_composed_core,
 	load_initialized_core,
 	load_initialized_library_core,
 	load_initialized_composed_core,
@@ -54,6 +57,7 @@ struct Request {
 	CoreCompositionRequest composition_request;
 	std::string programmed_path;
 	std::string programmed_sha256;
+	CoreROMLink rom_link;
 };
 
 Error ParseRequest(const std::string& line, Request* request);

@@ -14,7 +14,6 @@
 #include "native/generated/fes_simple_computer.hpp"
 #include "native/generated/fes_application.hpp"
 #include "native/input.hpp"
-#include "native/sha256.hpp"
 #include "native/video.hpp"
 
 #include <algorithm>
@@ -25,7 +24,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <unistd.h>
 #include <vector>
 #include <utility>
 
@@ -138,6 +136,7 @@ public:
 	Artifact programmed_;
 	std::string programmed_sha256_;
 	bool has_programmed_ = false;
+	CoreROMLink rom_link_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -499,6 +498,7 @@ Error NativeHardware::UpdateCoreSettings(const std::string& path, const std::str
 Capabilities NativeHardware::capabilities() const
 {
 	Capabilities result;
+	result.rom_linking = 1;
 	result.programming_profiles = {"development-contained-v1"};
 	if (fes_gp_driver_ != nullptr) {
 		result.programming_profiles.insert(result.programming_profiles.begin() + 1,
@@ -668,25 +668,6 @@ Error NativeHardware::LoadComputerMediaStream(const std::string& path, std::uint
 	return error;
 }
 
-Error HashOpenedArtifact(const Artifact& artifact, std::string* digest)
-{
-	Sha256 hash;
-	std::array<unsigned char, 16384> buffer = {};
-	std::uint64_t offset = 0;
-	while (offset < artifact.size()) {
-		const std::size_t wanted = static_cast<std::size_t>(
-			std::min<std::uint64_t>(buffer.size(), artifact.size() - offset));
-		const ssize_t count = pread(artifact.fd(), buffer.data(), wanted,
-			static_cast<off_t>(offset));
-		if (count < 0 && errno == EINTR) continue;
-		if (count <= 0) return {ErrorCode::invalid_request, "incomplete programmed bitstream read", "admission"};
-		hash.Update(buffer.data(), static_cast<std::size_t>(count));
-		offset += static_cast<std::size_t>(count);
-	}
-	*digest = Sha256Hex(hash.Final());
-	return {};
-}
-
 Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
 	const std::string& path, const std::string& sha256)
 {
@@ -700,9 +681,51 @@ Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
 	error = HashOpenedArtifact(artifact, &digest);
 	if (!error.ok() || digest != sha256)
 		return {ErrorCode::invalid_request, "programmed bitstream does not match its receipt", "admission"};
+	admitted->rom_link_ = {};
 	admitted->programmed_ = std::move(artifact);
 	admitted->programmed_sha256_ = sha256;
 	admitted->has_programmed_ = true;
+	return {};
+}
+
+Error NativeHardware::AttachROMBitstream(AdmittedCorePackage* package,
+	const std::string& path, const CoreROMLink& link)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	auto digest = [](const std::string& value) {
+		return value.size() == 64 && std::all_of(value.begin(), value.end(),
+			[](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); });
+	};
+	if (!admitted || admitted->opened_.descriptor.format != 3)
+		return {ErrorCode::invalid_request, "ROM link requires format 3", "admission"};
+	const auto& rom = admitted->opened_.descriptor.rom;
+	if (link.rom_id != rom.id || link.map_sha256 != rom.sha256 ||
+		link.source_size != rom.source_size || !digest(link.map_sha256) ||
+		!digest(link.source_sha256) || !digest(link.programmed_sha256) || link.programmed_size == 0)
+		return {ErrorCode::invalid_request, "ROM link does not match package", "admission"};
+	const Error attached = AttachProgrammedBitstream(package, path, link.programmed_sha256);
+	if (!attached.ok()) return attached;
+	if (admitted->programmed_.size() != link.programmed_size) {
+		admitted->has_programmed_ = false;
+		return {ErrorCode::invalid_request, "ROM programmed size does not match receipt", "admission"};
+	}
+	admitted->rom_link_ = link;
+	return {};
+}
+
+Error NativeHardware::RecheckProgrammedBitstream(AdmittedCorePackage* package)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
+	if (admitted->opened_.descriptor.format == 3 &&
+		(!admitted->has_programmed_ || admitted->rom_link_.rom_id.empty()))
+		return {ErrorCode::unsupported_abi, "format-3 activation requires a bound ROM link", "admission"};
+	if (admitted->has_programmed_) {
+		std::string digest;
+		const Error error = HashOpenedArtifact(admitted->programmed_, &digest);
+		if (!error.ok() || digest != admitted->programmed_sha256_)
+			return {ErrorCode::invalid_request, "programmed bitstream changed after admission", "admission"};
+	}
 	return {};
 }
 
@@ -727,6 +750,8 @@ HardwareResult NativeHardware::LoadCore(
 			"admitted core driver changed before activation", "compatibility"},
 			false, ""};
 
+	error = RecheckProgrammedBitstream(package.get());
+	if (!error.ok()) return {error, false, ""};
 	const bool fes_gp = admitted->profile_ == ProgrammingProfile::fes_gp_v1;
 	const bool fes_gamepad = fes_gp &&
 		RequiresFesGamepad(admitted->opened_.descriptor);
@@ -760,13 +785,6 @@ HardwareResult NativeHardware::LoadCore(
 		const Error stopped = StopInput(Deadline(clock_, timeouts_.core_io_ms));
 		return {stopped.ok() ? quiesced.error : WithPhase(stopped, "input"),
 			quiesced.mutation_attempted, quiesced.observed_core};
-	}
-	if (admitted->has_programmed_) {
-		std::string digest;
-		Error check = HashOpenedArtifact(admitted->programmed_, &digest);
-		if (!check.ok() || digest != admitted->programmed_sha256_)
-			return {{ErrorCode::invalid_request,
-				"programmed bitstream changed after admission", "admission"}, false, ""};
 	}
 	const Artifact* bitstream = &admitted->opened_.payload;
 	if (admitted->has_programmed_) bitstream = &admitted->programmed_;

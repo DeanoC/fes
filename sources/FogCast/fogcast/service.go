@@ -1505,7 +1505,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
 
-	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !reflect.DeepEqual(status.CorePackage.Composition, selected.composition)) {
+	if selected.entry != nil && (status.CorePackage.PackageID != selected.entry.PackageID || !selected.matchesLoadedIdentity(status.CorePackage)) {
 		rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Message: "activated package differs from selected library package", Phase: "identity", Expected: selected.entry.PackageID, Observed: status.CorePackage.PackageID}
 		recoveryCtx, recoveryCancel := serviceTimeout(parent, s.coreLoadReconcileTimeout)
 		recovered, stopErr := client.Stop(recoveryCtx)

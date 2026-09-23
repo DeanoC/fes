@@ -4,6 +4,7 @@ package expansion
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -92,6 +93,10 @@ func frameBit(y int) int {
 }
 
 func decompress(data []byte) ([]byte, int, error) {
+	return decompressContext(context.Background(), data)
+}
+
+func decompressContext(ctx context.Context, data []byte) ([]byte, int, error) {
 	framed := make([]byte, cramWidth*frameBytes)
 	nibble := 0
 	read := func() (byte, error) {
@@ -103,6 +108,11 @@ func decompress(data []byte) ([]byte, int, error) {
 		return value, nil
 	}
 	for offset := 0; offset < len(framed); offset += 2 {
+		if offset%16384 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, 0, err
+			}
+		}
 		mask, err := read()
 		if err != nil {
 			return nil, 0, err
@@ -125,6 +135,11 @@ func decompress(data []byte) ([]byte, int, error) {
 }
 
 func compress(framed []byte) []byte {
+	result, _ := compressContext(context.Background(), framed)
+	return result
+}
+
+func compressContext(ctx context.Context, framed []byte) ([]byte, error) {
 	result := make([]byte, 0, len(framed)/3)
 	high := false
 	write := func(value byte) {
@@ -136,6 +151,11 @@ func compress(framed []byte) []byte {
 		high = !high
 	}
 	for offset := 0; offset < len(framed); offset += 2 {
+		if offset%16384 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
 		values := [4]byte{framed[offset] & 15, framed[offset] >> 4, framed[offset+1] & 15, framed[offset+1] >> 4}
 		var mask byte
 		for i, value := range values {
@@ -153,7 +173,7 @@ func compress(framed []byte) []byte {
 	if high {
 		write(15)
 	}
-	return result
+	return result, nil
 }
 
 func postamble() []byte {
@@ -173,6 +193,13 @@ func postamble() []byte {
 // directly in wire order. Avoiding row/column bit transposition is important on
 // the target ARM CPU; framing, padding, EDCRC and outer CRC remain checked.
 func loadFrames(data []byte) (framedRBF, error) {
+	return loadFramesContext(context.Background(), data)
+}
+
+func loadFramesContext(ctx context.Context, data []byte) (framedRBF, error) {
+	if err := ctx.Err(); err != nil {
+		return framedRBF{}, err
+	}
 	if len(data) < headerBytes || len(data) > maxRBFBytes {
 		return framedRBF{}, errors.New("invalid RBF size")
 	}
@@ -181,7 +208,7 @@ func loadFrames(data []byte) (framedRBF, error) {
 	consumed := cramWidth * frameBytes
 	if len(rest) != consumed+len(postamble()) {
 		var err error
-		framed, consumed, err = decompress(rest)
+		framed, consumed, err = decompressContext(ctx, rest)
 		if err != nil {
 			return framedRBF{}, err
 		}
@@ -193,6 +220,11 @@ func loadFrames(data []byte) (framedRBF, error) {
 	}
 	zoneIndex := 0
 	for x := 0; x < cramWidth; x++ {
+		if x%32 == 0 {
+			if err := ctx.Err(); err != nil {
+				return framedRBF{}, err
+			}
+		}
 		frame := framed[x*frameBytes : (x+1)*frameBytes]
 		var expected [frameBytes]byte
 		for i, mask := range frameDataMask {
@@ -282,11 +314,16 @@ func crcCompanionColumn(x int) bool {
 // region, any ORAM/PRAM header change, malformed framing or CRC rejects before
 // returning an artifact. Caller-owned input slices are never modified.
 func Link(shell, cart []byte) ([]byte, error) {
-	base, err := loadFrames(shell)
+	return LinkContext(context.Background(), shell, cart)
+}
+
+// LinkContext is the cancellable expansion linker.
+func LinkContext(ctx context.Context, shell, cart []byte) ([]byte, error) {
+	base, err := loadFramesContext(ctx, shell)
 	if err != nil {
 		return nil, fmt.Errorf("shell: %w", err)
 	}
-	addition, err := loadFrames(cart)
+	addition, err := loadFramesContext(ctx, cart)
 	if err != nil {
 		return nil, fmt.Errorf("cart: %w", err)
 	}
@@ -294,6 +331,9 @@ func Link(shell, cart []byte) ([]byte, error) {
 		return nil, errors.New("cart changes shell ORAM/PRAM header")
 	}
 	for x := 0; x < cramWidth; x++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		before := base.frames[x*frameBytes : (x+1)*frameBytes]
 		after := addition.frames[x*frameBytes : (x+1)*frameBytes]
 		if insideSocket(x, 32) {
@@ -310,6 +350,10 @@ func Link(shell, cart []byte) ([]byte, error) {
 			}
 		}
 	}
-	result := append(base.header, compress(base.frames)...)
+	packed, err := compressContext(ctx, base.frames)
+	if err != nil {
+		return nil, err
+	}
+	result := append(base.header, packed...)
 	return append(result, postamble()...), nil
 }

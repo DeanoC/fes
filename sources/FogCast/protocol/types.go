@@ -130,16 +130,17 @@ type RuntimeInterface struct {
 }
 
 type CorePackageStatus struct {
-	Composition      *expansion.Composition `json:"composition,omitempty"`
-	MediaStream      *MediaStreamCapability `json:"media_stream,omitempty"`
-	PersistenceMode  string                 `json:"persistence_mode,omitempty"`
-	PackageID        string                 `json:"package_id"`
-	ImageSHA256      string                 `json:"image_sha256,omitempty"`
-	Generation       uint64                 `json:"generation"`
-	ABI              RuntimeContract        `json:"abi"`
-	BuildID          string                 `json:"build_id"`
-	ActiveInterfaces []RuntimeInterface     `json:"active_interfaces"`
-	Gamepad          bool                   `json:"gamepad"`
+	ROMLink          *corepackage.ROMLinkIdentity `json:"rom_link,omitempty"`
+	Composition      *expansion.Composition       `json:"composition,omitempty"`
+	MediaStream      *MediaStreamCapability       `json:"media_stream,omitempty"`
+	PersistenceMode  string                       `json:"persistence_mode,omitempty"`
+	PackageID        string                       `json:"package_id"`
+	ImageSHA256      string                       `json:"image_sha256,omitempty"`
+	Generation       uint64                       `json:"generation"`
+	ABI              RuntimeContract              `json:"abi"`
+	BuildID          string                       `json:"build_id"`
+	ActiveInterfaces []RuntimeInterface           `json:"active_interfaces"`
+	Gamepad          bool                         `json:"gamepad"`
 }
 
 type Status struct {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export deterministic format-2 FES core packages."""
+"""Export deterministic format-2/3 FES core packages."""
 
 from __future__ import annotations
 
@@ -24,6 +24,10 @@ from scripts.compiler_read_audit import POLICY, excluded_markdown
 from scripts.source_repository import canonical_repository
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
+    MAX_ROM_MAP_SIZE,
+    MAX_ARCHIVE_SIZE_V3,
+    encode_manifest,
+    validate_rom_map,
     MAX_PAYLOAD_SIZE,
     PackageError,
     _decode_manifest,
@@ -451,11 +455,12 @@ def _verify_build_evidence(payload: Path, record: bytes, fields: dict, manifest_
     return root
 
 
-def _archive_bytes(manifest: bytes, payload: bytes) -> bytes:
+def _archive_bytes(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> bytes:
     def member(name: str, data: bytes) -> bytes:
         return _ustar_header(name, len(data)) + data + b"\0" * ((-len(data)) % 512)
 
-    return member("manifest.toml", manifest) + member("core.rbf", payload) + b"\0" * 1024
+    return (member("manifest.toml", manifest) + member("core.rbf", payload)
+            + (member("rom-map.json", rom_map) if rom_map is not None else b"") + b"\0" * 1024)
 
 
 def _write_sealed(path: Path, data: bytes) -> None:
@@ -486,25 +491,29 @@ def _is_read_only(path: Path) -> bool:
     return stat.S_IMODE(path.stat().st_mode) & 0o222 == 0
 
 
-def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes) -> Path:
+def _reuse_existing(directory: Path, archive: Path, evidence: Path, manifest: bytes, payload: bytes, archive_bytes: bytes, record: bytes, rom_map: bytes | None = None) -> Path:
     if not all(path.exists() and not path.is_symlink() for path in (directory, archive, evidence)):
         raise PackageExportError("existing package export is incomplete or contains a symlink")
     if not all(_is_read_only(path) for path in (directory, archive, evidence)):
         raise PackageExportError("existing package export is writable")
     members = (directory / "manifest.toml", directory / "core.rbf")
+    if rom_map is not None:
+        members += (directory / "rom-map.json",)
     if not all(path.exists() and not path.is_symlink() and _is_read_only(path) for path in members):
         raise PackageExportError("existing package members are missing, linked, or writable")
     package = read_package(directory)
-    if package.manifest_bytes != manifest or package.payload_bytes != payload:
+    if package.manifest_bytes != manifest or package.payload_bytes != payload or package.rom_map_bytes != rom_map:
         raise PackageExportError("existing package directory differs")
-    if _snapshot_regular(archive, 33 * 1024 * 1024, "existing archive") != archive_bytes:
+    if _snapshot_regular(archive, MAX_ARCHIVE_SIZE_V3 if rom_map is not None else 33 * 1024 * 1024, "existing archive") != archive_bytes:
         raise PackageExportError("existing package archive differs")
     if _snapshot_regular(evidence, MAX_BUILD_RECORD_SIZE, "existing build evidence") != record:
         raise PackageExportError("existing package build evidence differs")
     return directory
 
 
-def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
+def export_package(manifest: bytes, payload: Path, destination: Path, *,
+                   rom_map: Path | None = None, rom_id: str | None = None,
+                   rom_role: str | None = None) -> Path:
     """Verify pinned build inputs and publish a content-addressed directory and archive."""
 
     if not isinstance(manifest, bytes):
@@ -513,6 +522,23 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
     snapshot = _snapshot_regular(payload, MAX_PAYLOAD_SIZE, "RBF payload")
     try:
         manifest_fields = _decode_manifest(manifest, snapshot)
+        map_snapshot = _snapshot_regular(Path(rom_map), MAX_ROM_MAP_SIZE, "ROM map") if rom_map is not None else None
+        if rom_id is not None or rom_role is not None:
+            if map_snapshot is None or rom_id is None or rom_role is None or manifest_fields["format"] != 2:
+                raise PackageExportError("ROM metadata requires a format-2 manifest, map, ID and role")
+            # Source size is checked strictly by validate_rom_map before publication.
+            try:
+                source_size = json.loads(map_snapshot)["source_size"]
+            except (ValueError, KeyError, TypeError, UnicodeDecodeError, RecursionError) as exc:
+                raise PackageExportError("ROM map has no valid source_size") from exc
+            manifest_fields["format"] = 3
+            manifest_fields["rom"] = dict(id=rom_id, role=rom_role, source_size=source_size,
+                file="rom-map.json", size=len(map_snapshot), sha256=hashlib.sha256(map_snapshot).hexdigest())
+            manifest = encode_manifest(manifest_fields)
+        if (manifest_fields["format"] == 3) != (map_snapshot is not None):
+            raise PackageExportError("ROM map is required only for format-3 packages")
+        if map_snapshot is not None:
+            validate_rom_map(map_snapshot, manifest_fields)
     except PackageError as exc:
         raise PackageExportError(str(exc)) from exc
     record_path = payload.with_name("build-inputs.json")
@@ -520,7 +546,7 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
     record_fields = _decode_build_record(record)
     root = _verify_build_evidence(payload, record, record_fields, manifest_fields)
 
-    package_id = package_identity(manifest, snapshot)
+    package_id = package_identity(manifest, snapshot, map_snapshot)
     store = Path(destination)
     store.mkdir(parents=True, exist_ok=True)
     if store.is_symlink() or not store.is_dir():
@@ -528,9 +554,9 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
     directory = store / package_id
     archive = directory.with_suffix(".fcore")
     evidence = directory.with_suffix(".build-inputs.json")
-    archive_data = _archive_bytes(manifest, snapshot)
+    archive_data = _archive_bytes(manifest, snapshot, map_snapshot)
     if any(path.exists() or path.is_symlink() for path in (directory, archive, evidence)):
-        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record)
+        return _reuse_existing(directory, archive, evidence, manifest, snapshot, archive_data, record, map_snapshot)
 
     staging = Path(tempfile.mkdtemp(prefix=".export-files-", dir=store))
     staged_directory = Path(tempfile.mkdtemp(prefix=".export-package-", dir=store))
@@ -540,6 +566,8 @@ def export_package(manifest: bytes, payload: Path, destination: Path) -> Path:
     try:
         _write_sealed(staged_directory / "manifest.toml", manifest)
         _write_sealed(staged_directory / "core.rbf", snapshot)
+        if map_snapshot is not None:
+            _write_sealed(staged_directory / "rom-map.json", map_snapshot)
         staged_directory.chmod(0o555)
         _write_sealed(staged_archive, archive_data)
         _write_sealed(staged_evidence, record)
@@ -584,10 +612,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--rbf", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path, help="content-addressed package store")
+    parser.add_argument("--rom-map", type=Path, help="producer ROM map; never uploaded ROM content")
+    parser.add_argument("--rom-id", help="ROM identifier; opts a format-2 manifest into format 3")
+    parser.add_argument("--rom-role", choices=("firmware", "cartridge"))
     arguments = parser.parse_args(argv)
     try:
         manifest = _snapshot_regular(arguments.manifest, MAX_MANIFEST_SIZE, "manifest")
-        print(export_package(manifest, arguments.rbf, arguments.output))
+        print(export_package(manifest, arguments.rbf, arguments.output, rom_map=arguments.rom_map,
+                             rom_id=arguments.rom_id, rom_role=arguments.rom_role))
     except (OSError, PackageExportError, PackageError) as exc:
         print(f"export-core-package: {exc}", file=sys.stderr)
         return 1

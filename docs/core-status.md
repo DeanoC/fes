@@ -2,7 +2,8 @@
 
 This is the current described-core matrix. It is taken from
 `config/core-recipes.toml`, `profiles/native-integration-dev.toml`, and the
-misteross producers that emit the format-2 manifests. A dated note under
+misteross producers that emit format-2 manifests, except ZX81's format-3
+manifest with a sealed ROM map. A dated note under
 [validation/](validation/) describes the artifact it names. It does not accept
 a bitstream built later.
 
@@ -20,7 +21,7 @@ selection are [core packages](core-packages.md).
 | Package-only | Registered in `config/core-recipes.toml`. Not in that image. Prepare it with `make core-dev`. |
 | Unregistered | A misteross producer exists. FES will not prepare or install it until a recipe row is added. |
 | Reference | A producer exists for experiments and examples. No recipe row. |
-| Board firmware | A pinned RBF. Not a format-2 play package and not a `fes.*` recipe. |
+| Board firmware | A pinned RBF. Not a described play package and not a `fes.*` recipe. |
 
 The factory order is `fes.pong`, `fes.zx81`, `fes.coleco`. All of those, plus
 `fes.sms` and `fes.catch`, seal with HIP/nextpnr. Quartus is an oracle where

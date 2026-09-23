@@ -30,6 +30,7 @@ func registerCoreLibrary(mux *http.ServeMux, service Service) {
 	registerCoreMediaLibrary(mux, service)
 	registerCoreFirmwareLibrary(mux, service)
 	registerCoreExpansions(mux, service)
+	registerCoreROMs(mux, service)
 	withService := func(fn func(http.ResponseWriter, *http.Request, coreLibraryService)) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			s, ok := service.(coreLibraryService)

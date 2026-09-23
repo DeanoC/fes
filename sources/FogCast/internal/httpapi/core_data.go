@@ -28,6 +28,9 @@ func registerCoreDataRoutes(mux *http.ServeMux, token string, controller Develop
 				return
 			}
 			limit := int64(corepackage.MaxArchiveSize)
+			if r.URL.Path == "/v1/library/core/load" {
+				limit = corepackage.MaxROMInputSize
+			}
 			if r.URL.Path == "/v1/library/core/compose" {
 				limit = corepackage.MaxCompositionArchiveSize
 			}

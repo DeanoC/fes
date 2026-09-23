@@ -163,7 +163,8 @@ reused after receipt/hash checks. Otherwise, full Buildroot finalization runs to
 install the current agent, locked idle RBF, selected package set and build-input record. A package
 selection change retains the compiler/base volume but forces final image
 assembly. The development receipt binds the emitted package selection and the
-exact external `manifest.toml` and `core.rbf` bytes.
+exact external `manifest.toml` and `core.rbf` bytes, plus `rom-map.json` when
+the selected package is format 3.
 A failed build leaves no development success receipt; the next invocation can
 resume package compilation.
 
@@ -354,6 +355,8 @@ reject it, including when a profile selects its module revision. Removing the
 working marker does not change that classification. Commit reviewed edits in
 the feature worktree before producing release or hardware-acceptance evidence.
 Snapshots do not update the feature branch or qualify hardware automatically.
+For `make dev`, set `FES_CACHE_ROOT` to the primary FES checkout's absolute
+`out/cache` if the snapshot's own `out/cache` has no authenticated toolchain.
 
 Host builds publish `out/<profile>/host-inputs.json` on both successful builds
 and cache reuse. Its canonical JSON digest equals `host.json.inputs`; snapshot

@@ -1833,8 +1833,108 @@ void TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities()
 	}
 }
 
+void TestFormat3InspectionAndLoadGateBeforeMutation()
+{
+	std::vector<std::string> driver_events;
+	RecordingDriver driver(driver_events);
+	IntegratedFixture fixture(&driver);
+	fixture.Start();
+	TempDirectory outgoing;
+	PopulateFesGpPackage(&outgoing);
+	mister::native::OpenedCorePackage base;
+	assert(mister::native::OpenCorePackage(outgoing.path, "", &base).ok());
+	assert(fixture.runtime.LoadCore(outgoing.path, base.package_id).ok());
+	const auto before = fixture.runtime.status();
+	fixture.native.events.clear();
+	driver_events.clear();
+	TempDirectory package;
+	const std::string map = "{}\n";
+	mister::native::Sha256 hash;
+	hash.Update(map.data(), map.size());
+	std::string manifest = base.manifest_bytes;
+	ReplaceAll(&manifest, "format = 2", "format = 3");
+	manifest += "\n[rom]\nid = \"bios.main\"\nrole = \"firmware\"\nsource_size = 8192\n"
+		"file = \"rom-map.json\"\nsize = 3\nsha256 = \"" +
+		mister::native::Sha256Hex(hash.Final()) + "\"\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText(outgoing.path + "/core.rbf"));
+	package.File("rom-map.json", map);
+	mister::native::OpenedCorePackage opened;
+	assert(mister::native::OpenCorePackage(package.path, "", &opened).ok());
+	mister::CorePackageInspection inspection;
+	assert(fixture.runtime.InspectCore(package.path, opened.package_id, &inspection).ok());
+	assert(inspection.descriptor.format == 3 && inspection.compatible);
+	assert(inspection.compatibility_error.ok());
+	assert(fixture.runtime.LoadCore(package.path, opened.package_id).code == mister::ErrorCode::unsupported_abi);
+	assert(fixture.runtime.LoadInitializedCore(package.path, opened.package_id,
+		outgoing.path + "/core.rbf", base.descriptor.payload.sha256).code == mister::ErrorCode::unsupported_abi);
+	assert(driver_events.empty());
+	assert(std::all_of(fixture.native.events.begin(), fixture.native.events.end(),
+		[](const std::string& event) { return event.find("artifact.open:") == 0; }));
+	assert(fixture.runtime.status().generation == before.generation);
+	assert(fixture.runtime.status().active_package.package_id == before.active_package.package_id);
+	mister::CoreROMLink link;
+	link.rom_id = opened.descriptor.rom.id;
+	link.map_sha256 = opened.descriptor.rom.sha256;
+	link.source_sha256 = std::string(64, 'a');
+	link.source_size = opened.descriptor.rom.source_size;
+	link.programmed_sha256 = base.descriptor.payload.sha256;
+	link.programmed_size = base.descriptor.payload.size;
+	const std::string programmed = outgoing.path + "/core.rbf";
+	for (unsigned mismatch = 0; mismatch < 6; ++mismatch) {
+		auto bad = link;
+		if (mismatch == 0) bad.rom_id = "other";
+		if (mismatch == 1) bad.map_sha256 = std::string(64, 'b');
+		if (mismatch == 2) bad.source_size++;
+		if (mismatch == 3) bad.source_sha256 = std::string(64, 'A');
+		if (mismatch == 4) bad.programmed_sha256 = std::string(64, 'b');
+		if (mismatch == 5) bad.programmed_size++;
+		assert(!fixture.runtime.LoadROMCore(package.path, opened.package_id, programmed, bad).ok());
+		assert(driver_events.empty());
+		assert(std::all_of(fixture.native.events.begin(), fixture.native.events.end(),
+			[](const std::string& event) { return event.find("artifact.open:") == 0; }));
+		assert(fixture.runtime.status().generation == before.generation);
+	}
+	assert(!fixture.runtime.LoadROMCore(outgoing.path, base.package_id, programmed, link).ok());
+	assert(driver_events.empty());
+	assert(std::all_of(fixture.native.events.begin(), fixture.native.events.end(),
+		[](const std::string& event) { return event.find("artifact.open:") == 0; }));
+	std::unique_ptr<mister::AdmittedCorePackage> unbound;
+	assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &unbound).ok());
+	assert(fixture.native.hardware.AttachProgrammedBitstream(unbound.get(), programmed, link.programmed_sha256).ok());
+	const auto rejected = fixture.native.hardware.LoadCore(std::move(unbound), 99);
+	assert(!rejected.error.ok() && !rejected.mutation_attempted);
+	assert(driver_events.empty());
+	assert(std::all_of(fixture.native.events.begin(), fixture.native.events.end(),
+		[](const std::string& event) { return event.find("artifact.open:") == 0; }));
+	assert(fixture.runtime.LoadROMCore(package.path, opened.package_id, programmed, link).ok());
+	assert(fixture.runtime.status().active_package.rom_link.source_sha256 == link.source_sha256);
+	assert(fixture.runtime.status().capabilities.rom_linking == 1);
+	fixture.native.events.clear(); driver_events.clear();
+	for (bool append : {false, true}) {
+		TempDirectory linked;
+		const auto linked_path = linked.File("linked.rbf", ReadText(programmed));
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		assert(fixture.native.hardware.AdmitCorePackage(package.path, opened.package_id, &admitted).ok());
+		assert(fixture.native.hardware.AttachROMBitstream(admitted.get(), linked_path, link).ok());
+		fixture.native.events.clear();
+		int fd = open(linked_path.c_str(), O_WRONLY);
+		assert(fd >= 0);
+		assert(pwrite(fd, "!", 1, append ? link.programmed_size : 0) == 1);
+		assert(close(fd) == 0);
+		const auto result = fixture.native.hardware.LoadCore(std::move(admitted), 99);
+		assert(!result.error.ok() && !result.mutation_attempted);
+		assert(driver_events.empty());
+		assert(std::all_of(fixture.native.events.begin(), fixture.native.events.end(),
+			[](const std::string& event) { return event.find("artifact.open:") == 0; }));
+	}
+	assert(fixture.runtime.Stop().ok());
+	assert(fixture.runtime.status().active_package.rom_link.rom_id.empty());
+}
+
 int main()
 {
+	TestFormat3InspectionAndLoadGateBeforeMutation();
 	TestApplicationVideoOnlyLifecycleNeedsNoInput();
 	TestApplicationFirmwareStatusAdvertisesOptionalSlot();
 	TestNativeStreamSnapshotSizeCleanupAndObservedCapabilities();

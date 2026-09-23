@@ -197,7 +197,23 @@ void AppendDescriptor(BoundedOutput* output, const CoreDescriptor& descriptor)
 	output->Append(std::to_string(descriptor.payload.size));
 	output->Append(",\"sha256\":");
 	AppendQuoted(output, descriptor.payload.sha256);
-	output->Append("},\"abi\":");
+	output->Append("}");
+	if (descriptor.format == 3) {
+		output->Append(",\"rom\":{\"id\":");
+		AppendQuoted(output, descriptor.rom.id);
+		output->Append(",\"role\":");
+		AppendQuoted(output, descriptor.rom.role);
+		output->Append(",\"source_size\":");
+		output->Append(std::to_string(descriptor.rom.source_size));
+		output->Append(",\"file\":");
+		AppendQuoted(output, descriptor.rom.file);
+		output->Append(",\"size\":");
+		output->Append(std::to_string(descriptor.rom.size));
+		output->Append(",\"sha256\":");
+		AppendQuoted(output, descriptor.rom.sha256);
+		output->Append("}");
+	}
+	output->Append(",\"abi\":");
 	AppendContract(output, descriptor.abi);
 	output->Append(",\"interfaces\":[");
 	for (std::size_t index = 0; index < descriptor.interfaces.size(); ++index) {
@@ -300,6 +316,10 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 			status.capabilities.active_interfaces[index]);
 	}
 	output.Append("]");
+	if (status.capabilities.rom_linking != 0) {
+		output.Append(",\"rom_linking\":");
+		output.Append(std::to_string(status.capabilities.rom_linking));
+	}
 	const auto& media = status.capabilities.media_stream;
 	if (!media.interface.id.empty() && status.generation != 0 &&
 		!status.active_package.package_id.empty()) {
@@ -321,6 +341,16 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
 		AppendQuoted(&output, status.active_package.package_id);
 		output.Append(",\"descriptor\":");
 		AppendDescriptor(&output, status.active_package.descriptor);
+		const auto& link=status.active_package.rom_link;
+		if (!link.rom_id.empty()) {
+			output.Append(",\"rom_link\":{\"rom_id\":"); AppendQuoted(&output,link.rom_id);
+			output.Append(",\"map_sha256\":"); AppendQuoted(&output,link.map_sha256);
+			output.Append(",\"source_sha256\":"); AppendQuoted(&output,link.source_sha256);
+			output.Append(",\"source_size\":"); output.Append(std::to_string(link.source_size));
+			output.Append(",\"programmed_sha256\":"); AppendQuoted(&output,link.programmed_sha256);
+			output.Append(",\"programmed_size\":"); output.Append(std::to_string(link.programmed_size));
+			output.Append("}");
+		}
 		const auto& composition=status.active_package.composition;
 		if (!composition.id.empty()) {
 			output.Append(",\"composition\":");
@@ -444,6 +474,77 @@ Error ParseRequest(const std::string& line, Request* request)
 			c.payload_size=static_cast<std::uint64_t>(size->integer_value);
 			parsed.operation=Operation::load_composed_core;parsed.package_path=*path;parsed.package_id=*id;
 			parsed.composition_request.expansion_path=*expansion;parsed.composition_request.payload_path=*payload;
+		} else if (operation->string_value == "load_rom_core" ||
+			operation->string_value == "load_rom_library_core" ||
+			operation->string_value == "load_rom_composed_core") {
+			const bool library = operation->string_value == "load_rom_library_core";
+			const bool composed = operation->string_value == "load_rom_composed_core";
+			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path","rom_link"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path","rom_link"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id","expansion_path","payload_path","composition","programmed_path","rom_link"};
+			const char* const* fields = plain;
+			unsigned count = 6;
+			if (library) { fields = with_root; count = 7; }
+			if (composed) { fields = with_cart; count = 9; }
+			if (!HasOnly(root, fields, count, &error)) return error;
+			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr;
+			if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error) ||
+				!StringMember(root,"programmed_path",&programmed,&error)) return error;
+			if (!Path(*path) || !Path(*programmed) || !PackageID(*id)) return Invalid("invalid ROM load paths or identity");
+			parsed.package_path=*path; parsed.package_id=*id; parsed.programmed_path=*programmed;
+			const auto* link=Find(root,"rom_link");
+			if (!link || link->type!=json::Type::object) return Invalid("rom_link must be an object");
+			const char* keys[]={"rom_id","map_sha256","source_sha256","programmed_sha256","source_size","programmed_size"};
+			if (!HasOnly(*link,keys,6,&error)) return error;
+			std::string* destinations[]={&parsed.rom_link.rom_id,&parsed.rom_link.map_sha256,
+				&parsed.rom_link.source_sha256,&parsed.rom_link.programmed_sha256};
+			for (unsigned i=0;i<4;++i) {
+				const std::string* value=nullptr;
+				if (!StringMember(*link,keys[i],&value,&error)) return error;
+				if (i ? !PackageID(*value) : (value->empty() || value->find('\0')!=std::string::npos))
+					return Invalid("invalid ROM link identity");
+				*destinations[i]=*value;
+			}
+			std::uint64_t* sizes[]={&parsed.rom_link.source_size,&parsed.rom_link.programmed_size};
+			for (unsigned i=0;i<2;++i) {
+				const auto* value=Find(*link,keys[i+4]);
+				if (!value || value->type!=json::Type::integer || value->integer_value<=0)
+					return Invalid("invalid ROM link size");
+				*sizes[i]=static_cast<std::uint64_t>(value->integer_value);
+			}
+			parsed.operation = Operation::load_rom_core;
+			if (library) {
+				const std::string* root_path=nullptr;
+				if (!StringMember(root,"data_root",&root_path,&error) || !Path(*root_path))
+					return Invalid("invalid initialized core data root");
+				parsed.data_root=*root_path;
+				parsed.operation = Operation::load_rom_library_core;
+			}
+			if (composed) {
+				const std::string *expansion=nullptr,*payload=nullptr;
+				if (!StringMember(root,"expansion_path",&expansion,&error) || !StringMember(root,"payload_path",&payload,&error) ||
+					!Path(*expansion) || !Path(*payload))
+					return Invalid("invalid initialized composition paths");
+				const auto* tuple=Find(root,"composition");
+				if (!tuple || tuple->type!=json::Type::object) return Invalid("composition must be an object");
+				const char* const tuple_fields[]={"composition_id","package_id","expansion_id","shell_sha256","payload_sha256","payload_size"};
+				if (!HasOnly(*tuple,tuple_fields,6,&error)) return error;
+				auto& c=parsed.composition_request.composition;
+				std::string* destinations[]={&c.id,&c.package_id,&c.expansion_id,&c.shell_sha256,&c.payload_sha256};
+				for (unsigned i=0;i<5;++i) {
+					const std::string* value=nullptr;
+					if (!StringMember(*tuple,tuple_fields[i],&value,&error)) return error;
+					if (!PackageID(*value)) return Invalid("composition identities must be lowercase SHA-256");
+					*destinations[i]=*value;
+				}
+				const auto* size=Find(*tuple,"payload_size");
+				if (!size || size->type!=json::Type::integer || size->integer_value<40408 || size->integer_value>32*1024*1024 || c.package_id!=*id)
+					return Invalid("invalid composition size or package binding");
+				c.payload_size=static_cast<std::uint64_t>(size->integer_value);
+				parsed.composition_request.expansion_path=*expansion;
+				parsed.composition_request.payload_path=*payload;
+				parsed.operation = Operation::load_rom_composed_core;
+			}
 		} else if (operation->string_value == "load_initialized_core" ||
 			operation->string_value == "load_initialized_library_core" ||
 			operation->string_value == "load_initialized_composed_core") {

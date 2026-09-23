@@ -1,4 +1,4 @@
-// Package corepackage validates and privately stages FES format-2 core packages.
+// Package corepackage validates and privately stages FES format-2 and format-3 core packages.
 package corepackage
 
 import (
@@ -26,7 +26,8 @@ import (
 const (
 	MaxManifestSize = 65_536
 	MaxPayloadSize  = 33_554_432
-	MaxArchiveSize  = 33 * 1024 * 1024
+	MaxArchiveSize  = 65 * 1024 * 1024
+	MaxROMMapSize   = expansion.MaxROMMapBytes
 )
 
 var (
@@ -39,7 +40,17 @@ var (
 	ipvFutureRE   = regexp.MustCompile(`^v[0-9A-Fa-f]+\.[A-Za-z0-9_.~!$&'()*+,;=:-]+$`)
 )
 
+type ROM struct {
+	ID         string `toml:"id" json:"id"`
+	Role       string `toml:"role" json:"role"`
+	SourceSize int64  `toml:"source_size" json:"source_size"`
+	File       string `toml:"file" json:"file"`
+	Size       int64  `toml:"size" json:"size"`
+	SHA256     string `toml:"sha256" json:"sha256"`
+}
+
 type Descriptor struct {
+	ROM        *ROM        `toml:"rom,omitempty" json:"rom,omitempty"`
 	Format     int64       `toml:"format" json:"format"`
 	Core       Core        `toml:"core" json:"core"`
 	Target     Target      `toml:"target" json:"target"`
@@ -91,6 +102,8 @@ type Build struct {
 }
 
 type Staged struct {
+	ROMLink            *ROMLinkIdentity       `json:"rom_link,omitempty"`
+	ProgrammedPath     string                 `json:"programmed_path,omitempty"`
 	Composition        *expansion.Composition `json:"composition,omitempty"`
 	ExpansionDirectory string                 `json:"expansion_directory,omitempty"`
 	PayloadPath        string                 `json:"payload_path,omitempty"`
@@ -190,15 +203,15 @@ type Inspection struct {
 // InspectPackage validates a package and returns its identity and descriptor
 // from the same pinned manifest and payload bytes.
 func InspectPackage(path string) (Inspection, error) {
-	manifest, payload, err := readPath(path)
+	manifest, payload, romMap, err := readPath(path)
 	if err != nil {
 		return Inspection{}, err
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return Inspection{}, err
 	}
-	return Inspection{PackageID: packageIdentity(manifest, payload),
+	return Inspection{PackageID: packageIdentity(manifest, payload, romMap),
 		Descriptor: descriptor}, nil
 }
 
@@ -272,6 +285,9 @@ func adoptOpenedRoot(root string, rootHandle *os.Root, rootInfo os.FileInfo) ([]
 		if err := adoptComposition(rootHandle, &adopted[len(adopted)-1]); err != nil {
 			return nil, err
 		}
+		if err := adoptROMInput(rootHandle, &adopted[len(adopted)-1]); err != nil {
+			return nil, err
+		}
 	}
 	return adopted, nil
 }
@@ -286,29 +302,19 @@ func inspectRootedPublication(parent *os.Root, name string, expected os.FileInfo
 	if err != nil || !os.SameFile(expected, opened) {
 		return Inspection{}, errors.New("core package: staged publication changed while opening")
 	}
-	if err := exactDirectoryEntries(root); err != nil {
-		return Inspection{}, errors.New("core package: staged publication must contain exactly manifest.toml and core.rbf")
-	}
-	manifest, err := readRootMember(root, "manifest.toml", MaxManifestSize)
+	manifest, payload, romMap, err := readRootContents(root)
 	if err != nil {
 		return Inspection{}, err
-	}
-	payload, err := readRootMember(root, "core.rbf", MaxPayloadSize)
-	if err != nil {
-		return Inspection{}, err
-	}
-	if err := exactDirectoryEntries(root); err != nil {
-		return Inspection{}, errors.New("core package: staged publication changed while reading")
 	}
 	after, err := parent.Lstat(name)
 	if err != nil || !os.SameFile(opened, after) {
 		return Inspection{}, errors.New("core package: staged publication changed while inspecting")
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return Inspection{}, err
 	}
-	return Inspection{PackageID: packageIdentity(manifest, payload), Descriptor: descriptor}, nil
+	return Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}, nil
 }
 
 func Stage(ctx context.Context, root string, length int64, reader io.Reader) (Staged, error) {
@@ -335,15 +341,15 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	if int64(len(data)) != length {
 		return Staged{}, errors.New("core package: upload length does not match the declared length")
 	}
-	manifest, payload, err := readArchive(data)
+	manifest, payload, romMap, err := readArchive(data)
 	if err != nil {
 		return Staged{}, err
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return Staged{}, err
 	}
-	id := packageIdentity(manifest, payload)
+	id := packageIdentity(manifest, payload, romMap)
 	rootHandle, err := os.OpenRoot(root)
 	if err != nil {
 		return Staged{}, fmt.Errorf("core package: open staging root: %w", err)
@@ -374,6 +380,11 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	}
 	if err := writePrivate(rootHandle, filepath.Join(temporary, "core.rbf"), payload); err != nil {
 		return Staged{}, err
+	}
+	if romMap != nil {
+		if err := writePrivate(rootHandle, filepath.Join(temporary, "rom-map.json"), romMap); err != nil {
+			return Staged{}, err
+		}
 	}
 	if err := rootHandle.Chmod(temporary, 0o500); err != nil {
 		return Staged{}, fmt.Errorf("core package: seal staging directory: %w", err)
@@ -448,55 +459,86 @@ func randomToken() (string, error) {
 	return hex.EncodeToString(value[:]), nil
 }
 
-func readPath(path string) ([]byte, []byte, error) {
+func readPath(path string) ([]byte, []byte, []byte, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("core package: inspect path: %w", err)
+		return nil, nil, nil, fmt.Errorf("core package: inspect path: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return nil, nil, errors.New("core package: package path must not be a symlink")
+		return nil, nil, nil, errors.New("core package: package path must not be a symlink")
 	}
 	if info.IsDir() {
 		return readDirectory(path, info)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, nil, errors.New("core package: path must be a directory or regular archive")
+		return nil, nil, nil, errors.New("core package: path must be a directory or regular archive")
 	}
 	data, err := readRegular(path, info, MaxArchiveSize, "archive")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	return readArchive(data)
 }
 
-func readDirectory(path string, expected os.FileInfo) ([]byte, []byte, error) {
+func readDirectory(path string, expected os.FileInfo) ([]byte, []byte, []byte, error) {
 	root, err := os.OpenRoot(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("core package: open directory: %w", err)
+		return nil, nil, nil, fmt.Errorf("core package: open directory: %w", err)
 	}
 	defer root.Close()
 	opened, err := root.Stat(".")
 	if err != nil || !os.SameFile(expected, opened) {
-		return nil, nil, errors.New("core package: directory changed while opening")
+		return nil, nil, nil, errors.New("core package: directory changed while opening")
 	}
-	if err := exactDirectoryEntries(root); err != nil {
-		return nil, nil, errors.New("core package: directory must contain exactly manifest.toml and core.rbf")
+	return readRootContents(root)
+}
+
+func manifestRequiresROM(manifest []byte) (bool, error) {
+	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
+		return false, errors.New("invalid manifest size or UTF-8")
 	}
+	var fields struct {
+		Format int64 `toml:"format"`
+	}
+	if err := toml.Unmarshal(manifest, &fields); err != nil {
+		return false, err
+	}
+	if fields.Format != 2 && fields.Format != 3 {
+		return false, errors.New("unsupported core package format")
+	}
+	return fields.Format == 3, nil
+}
+
+func readRootContents(root *os.Root) ([]byte, []byte, []byte, error) {
 	manifest, err := readRootMember(root, "manifest.toml", MaxManifestSize)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	withROM, err := manifestRequiresROM(manifest)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := exactDirectoryEntries(root, withROM); err != nil {
+		return nil, nil, nil, err
 	}
 	payload, err := readRootMember(root, "core.rbf", MaxPayloadSize)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	if err := exactDirectoryEntries(root); err != nil {
-		return nil, nil, errors.New("core package: directory changed while reading")
+	var romMap []byte
+	if withROM {
+		romMap, err = readRootMember(root, "rom-map.json", MaxROMMapSize)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
-	return manifest, payload, nil
+	if err := exactDirectoryEntries(root, withROM); err != nil {
+		return nil, nil, nil, err
+	}
+	return manifest, payload, romMap, nil
 }
 
-func exactDirectoryEntries(root *os.Root) error {
+func exactDirectoryEntries(root *os.Root, withROM bool) error {
 	directory, err := root.Open(".")
 	if err != nil {
 		return err
@@ -509,14 +551,18 @@ func exactDirectoryEntries(root *os.Root) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	if len(entries) != 2 {
+	expected := 2
+	if withROM {
+		expected = 3
+	}
+	if len(entries) != expected {
 		return errors.New("wrong entry count")
 	}
 	found := map[string]bool{}
 	for _, entry := range entries {
 		found[entry.Name()] = true
 	}
-	if !found["manifest.toml"] || !found["core.rbf"] {
+	if !found["manifest.toml"] || !found["core.rbf"] || (withROM && !found["rom-map.json"]) {
 		return errors.New("wrong entries")
 	}
 	return nil
@@ -584,42 +630,60 @@ func readOpenFile(file *os.File, size, maximum int64, field string) ([]byte, err
 	return data, nil
 }
 
-func readArchive(data []byte) ([]byte, []byte, error) {
+func readArchive(data []byte) ([]byte, []byte, []byte, error) {
 	offset := 0
 	values := make([][]byte, 0, 2)
-	for _, member := range []struct {
+	members := []struct {
 		name    string
 		maximum int64
-	}{{"manifest.toml", MaxManifestSize}, {"core.rbf", MaxPayloadSize}} {
+	}{{"manifest.toml", MaxManifestSize}, {"core.rbf", MaxPayloadSize}}
+	for index := 0; index < len(members); index++ {
+		member := members[index]
 		if len(data)-offset < 512 {
-			return nil, nil, fmt.Errorf("core package: archive is missing %s header", member.name)
+			return nil, nil, nil, fmt.Errorf("core package: archive is missing %s header", member.name)
 		}
 		header := data[offset : offset+512]
 		size, err := canonicalSize(header[124:136])
 		if err != nil || size < 1 || size > member.maximum {
-			return nil, nil, fmt.Errorf("core package: invalid %s archive size", member.name)
+			return nil, nil, nil, fmt.Errorf("core package: invalid %s archive size", member.name)
 		}
 		if !bytes.Equal(header, canonicalHeader(member.name, size)) {
-			return nil, nil, fmt.Errorf("core package: %s header is not canonical restricted ustar", member.name)
+			return nil, nil, nil, fmt.Errorf("core package: %s header is not canonical restricted ustar", member.name)
 		}
 		offset += 512
 		padded := (size + 511) &^ 511
 		if padded > int64(len(data)-offset) {
-			return nil, nil, fmt.Errorf("core package: archive member %s is truncated", member.name)
+			return nil, nil, nil, fmt.Errorf("core package: archive member %s is truncated", member.name)
 		}
 		value := append([]byte(nil), data[offset:offset+int(size)]...)
 		for _, padding := range data[offset+int(size) : offset+int(padded)] {
 			if padding != 0 {
-				return nil, nil, fmt.Errorf("core package: archive member %s has nonzero padding", member.name)
+				return nil, nil, nil, fmt.Errorf("core package: archive member %s has nonzero padding", member.name)
+			}
+		}
+		if index == 0 {
+			withROM, err := manifestRequiresROM(value)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if withROM {
+				members = append(members, struct {
+					name    string
+					maximum int64
+				}{"rom-map.json", MaxROMMapSize})
 			}
 		}
 		values = append(values, value)
 		offset += int(padded)
 	}
 	if len(data)-offset != 1024 || !allZero(data[offset:]) {
-		return nil, nil, errors.New("core package: archive must end with exactly two zero blocks")
+		return nil, nil, nil, errors.New("core package: archive must end with exactly two zero blocks")
 	}
-	return values[0], values[1], nil
+	var romMap []byte
+	if len(values) == 3 {
+		romMap = values[2]
+	}
+	return values[0], values[1], romMap, nil
 }
 
 func canonicalSize(field []byte) (int64, error) {
@@ -667,7 +731,7 @@ func allZero(data []byte) bool {
 	return true
 }
 
-func decode(manifest, payload []byte) (Descriptor, error) {
+func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
 	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
 		return Descriptor{}, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
 	}
@@ -687,11 +751,36 @@ func decode(manifest, payload []byte) (Descriptor, error) {
 	if err := validateDescriptor(descriptor, payload); err != nil {
 		return Descriptor{}, err
 	}
+	if len(maps) > 1 {
+		return Descriptor{}, errors.New("multiple ROM maps")
+	}
+	var mapping []byte
+	if len(maps) == 1 {
+		mapping = maps[0]
+	}
+	if descriptor.ROM == nil {
+		if mapping != nil {
+			return Descriptor{}, errors.New("format 2 cannot contain ROM map")
+		}
+	} else {
+		r := descriptor.ROM
+		hash := sha256.Sum256(mapping)
+		if int64(len(mapping)) != r.Size || hex.EncodeToString(hash[:]) != r.SHA256 {
+			return Descriptor{}, errors.New("ROM map size or digest mismatch")
+		}
+		if _, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(r.SourceSize)); err != nil {
+			return Descriptor{}, fmt.Errorf("ROM map: %w", err)
+		}
+	}
 	return descriptor, nil
 }
 
 func validateShape(root map[string]any) error {
-	if err := exactKeys(root, []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}, nil, "manifest"); err != nil {
+	required := []string{"format", "core", "target", "payload", "abi", "interfaces", "build"}
+	if root["format"] == int64(3) {
+		required = append(required, "rom")
+	}
+	if err := exactKeys(root, required, nil, "manifest"); err != nil {
 		return err
 	}
 	tables := []struct {
@@ -704,6 +793,15 @@ func validateShape(root map[string]any) error {
 		{"payload", []string{"file", "size", "sha256"}, nil},
 		{"abi", []string{"id", "major", "minor"}, nil},
 		{"build", []string{"id", "repository", "revision", "recipe_sha256", "toolchain"}, nil},
+	}
+	if root["format"] == int64(3) {
+		table, ok := root["rom"].(map[string]any)
+		if !ok {
+			return errors.New("rom must be a TOML table")
+		}
+		if err := exactKeys(table, []string{"id", "role", "source_size", "file", "size", "sha256"}, nil, "rom"); err != nil {
+			return err
+		}
 	}
 	for _, item := range tables {
 		table, ok := root[item.name].(map[string]any)
@@ -755,8 +853,22 @@ func exactKeys(table map[string]any, required, optional []string, field string) 
 // payload size and digest to the bytes they opened; protocol projections reuse
 // it so they cannot drift from package admission semantics.
 func ValidateDescriptor(d Descriptor) error {
-	if d.Format != 2 {
-		return errors.New("core package: format must be 2")
+	if d.Format != 2 && d.Format != 3 {
+		return errors.New("core package: unsupported format")
+	}
+	if (d.Format == 3) != (d.ROM != nil) {
+		return errors.New("core package: ROM declaration requires format 3")
+	}
+	if r := d.ROM; r != nil {
+		if err := identifier(r.ID, "rom.id"); err != nil {
+			return err
+		}
+		if r.Role != "firmware" && r.Role != "cartridge" {
+			return errors.New("invalid ROM role")
+		}
+		if r.SourceSize < 1024 || r.SourceSize > 262144 || r.SourceSize%1024 != 0 || r.File != "rom-map.json" || r.Size < 1 || r.Size > MaxROMMapSize || !hex64RE.MatchString(r.SHA256) {
+			return errors.New("invalid ROM metadata")
+		}
 	}
 	if err := identifier(d.Core.ID, "core.id"); err != nil {
 		return err
@@ -983,9 +1095,17 @@ func isHex(value byte) bool {
 	return value >= '0' && value <= '9' || value >= 'a' && value <= 'f' || value >= 'A' && value <= 'F'
 }
 
-func packageIdentity(manifest, payload []byte) string {
+func packageIdentity(manifest, payload []byte, maps ...[]byte) string {
 	digest := sha256.New()
-	_, _ = digest.Write([]byte("FES-CORE-PACKAGE-2\n"))
+	domain := "FES-CORE-PACKAGE-2\n"
+	var mapping []byte
+	if len(maps) == 1 {
+		mapping = maps[0]
+	}
+	if mapping != nil {
+		domain = "FES-CORE-PACKAGE-3\n"
+	}
+	_, _ = digest.Write([]byte(domain))
 	var length [8]byte
 	binary.LittleEndian.PutUint64(length[:], uint64(len(manifest)))
 	_, _ = digest.Write(length[:])
@@ -993,5 +1113,10 @@ func packageIdentity(manifest, payload []byte) string {
 	binary.LittleEndian.PutUint64(length[:], uint64(len(payload)))
 	_, _ = digest.Write(length[:])
 	_, _ = digest.Write(payload)
+	if mapping != nil {
+		binary.LittleEndian.PutUint64(length[:], uint64(len(mapping)))
+		_, _ = digest.Write(length[:])
+		_, _ = digest.Write(mapping)
+	}
 	return hex.EncodeToString(digest.Sum(nil))
 }

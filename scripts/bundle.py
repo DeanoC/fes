@@ -141,7 +141,10 @@ def _inspect_package_candidate(source, package, record_path, recipe=None):
     record_path = Path(record_path).absolute()
     _sealed(package, directory=True)
     _sealed(record_path)
-    for name in ("manifest.toml", "core.rbf"):
+    members = {entry.name for entry in package.iterdir()}
+    if members not in ({"manifest.toml", "core.rbf"}, {"manifest.toml", "core.rbf", "rom-map.json"}):
+        raise ValueError("package input has unexpected members")
+    for name in members:
         _sealed(package / name)
     program = r'''
 import hashlib
@@ -173,9 +176,12 @@ if (build["id"] != build_identity(record) or
     build["recipe_sha256"] != record_fields["recipe_sha256"] or
     build["toolchain"] != toolchain):
     raise ValueError("package descriptor differs from canonical build inputs")
-print(json.dumps({"manifest": manifest, "package_id": package.package_id,
-                  "manifest_sha256": hashlib.sha256(package.manifest_bytes).hexdigest(),
-                  "core_rbf_sha256": hashlib.sha256(package.payload_bytes).hexdigest()}, sort_keys=True))
+inspected = {"manifest": manifest, "package_id": package.package_id,
+             "manifest_sha256": hashlib.sha256(package.manifest_bytes).hexdigest(),
+             "core_rbf_sha256": hashlib.sha256(package.payload_bytes).hexdigest()}
+if manifest["format"] == 3:
+    inspected["rom_map_sha256"] = hashlib.sha256(package.rom_map_bytes).hexdigest()
+print(json.dumps(inspected, sort_keys=True))
 '''
     try:
         result = subprocess.run(
@@ -186,7 +192,10 @@ print(json.dumps({"manifest": manifest, "package_id": package.package_id,
         detail = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) else ""
         raise ValueError(f"cached {recipe.core_id} package failed producer validation" +
                          (f": {detail}" if detail else "")) from error
-    if set(inspected) != {"manifest", "package_id", "manifest_sha256", "core_rbf_sha256"}:
+    expected = {"manifest", "package_id", "manifest_sha256", "core_rbf_sha256"}
+    if inspected.get("manifest", {}).get("format") == 3:
+        expected.add("rom_map_sha256")
+    if set(inspected) != expected:
         raise ValueError("producer package inspection returned an unexpected result")
     return inspected
 
@@ -300,8 +309,9 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         raise ValueError(f"selected recipe did not produce a matching {recipe.core_id} package")
     if len(candidates) > 1:
         # Commits with identical functional inputs may have different immutable
-        # manifests. Equivalent payloads can use the first stable package ID.
-        if len({item[2]["core_rbf_sha256"] for item in candidates}) == 1:
+        # manifests. Equivalent payloads and ROM maps can use the first stable package ID.
+        if len({(item[2]["core_rbf_sha256"], item[2].get("rom_map_sha256"))
+                for item in candidates}) == 1:
             candidates = candidates[:1]
     if len(candidates) != 1:
         raise ValueError("multiple package IDs match the canonical format-2 build inputs")
@@ -338,6 +348,11 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "manifest_sha256": manifest_sha256,
         "core_rbf_sha256": core_rbf_sha256,
     }
+    if manifest.get("format") == 3:
+        rom_map_sha256 = digest(package / "rom-map.json")
+        if rom_map_sha256 != inspected.get("rom_map_sha256"):
+            raise ValueError("selected package members changed after inspection")
+        inputs["rom_map_sha256"] = rom_map_sha256
     original_record = original_record_path.read_bytes()
     original = json.loads(original_record)
     selected = json.loads(record)

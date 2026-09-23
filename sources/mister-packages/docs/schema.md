@@ -49,6 +49,72 @@ Positive fixtures include literal strings, dotted keys, inline tables, full
 SemVer, and exact multibyte bounds so consumers test TOML meaning rather than a
 single canonical spelling.
 
+## Core bundle manifest format 3 and ROM map format 1
+
+[`schema/core-bundle-v3.json`](../schema/core-bundle-v3.json) extends the same
+closed fields and semantic restrictions as format 2 with `format = 3` and a
+required `[rom]` table. Format 2 rejects that table and retains its original
+identity domain. Format 3 requires exactly these ROM keys:
+
+| Key | Meaning and constraints |
+| --- | --- |
+| `id` | Normal identifier `[a-z][a-z0-9_.-]{0,95}` |
+| `role` | `firmware` or `cartridge` |
+| `source_size` | Integer, 1024 through 262144 inclusive, divisible by 1024 |
+| `file` | Exactly `rom-map.json` |
+| `size` | Exact map byte length, integer 1 through 33554432 |
+| `sha256` | Exact map digest, 64 lowercase hexadecimal characters |
+
+A format-3 directory contains exactly `manifest.toml`, `core.rbf`, and
+`rom-map.json`, all regular non-symlink files. Its uncompressed restricted ustar
+archive is at most 65 MiB and contains exactly those three regular members in
+that order. Headers use mode 0644, UID/GID/mtime zero, empty owner/group/link
+names, canonical octal sizes, and no extensions or prefixes. Header bytes must
+match canonical POSIX ustar encoding. Member padding is zero, and the archive
+ends with exactly two zero blocks. Format 2 retains its two members and 33 MiB
+archive bound.
+
+The identity is lowercase SHA-256 of `FES-CORE-PACKAGE-3\n`, followed by
+LE64(manifest length), exact manifest bytes, LE64(RBF length), exact RBF bytes,
+LE64(map length), and exact map bytes. No member is normalized before hashing.
+The ROM map is trusted producer metadata sealed into this identity; uploaded
+ROM content must never supply or replace it.
+
+[`schema/rom-map-v1.json`](../schema/rom-map-v1.json) defines the map structure.
+Its exact root keys are `format` (integer 1), `device` (`5CSEBA6U23I7`),
+`encoding` (`m10k-1024x10-v1`), `base_sha256` (the manifest payload digest),
+`source_size` (the manifest ROM source size), and `blocks`. UTF-8 JSON must
+have unique keys, no trailing document, and exact integer scalars: Boolean,
+floating-point and nonfinite numbers are rejected. Unknown or missing fields
+and nulls are rejected at every structured level.
+
+There are exactly `source_size / 1024` blocks, from 1 through 256. A block has
+exactly `bel`, `source_offset`, and `word_bits`. BEL labels are unique, nonempty
+strings of at most 64 UTF-8 bytes without control characters. Source offsets
+are unique, nonnegative multiples of 1024; each covers 1024 bytes within the
+source. Together the blocks cover the complete source exactly once.
+`word_bits` contains exactly 256 arrays, each with exactly 40 integer physical
+destinations in Mistral stored-bit order. Each destination lies in
+`[32 * 7605, 7605 * 7024)` and is globally unique across the map. These are
+linear CRAM bit addresses, not compressed RBF offsets. Python and Go host
+inspectors validate map length, digest, structure and bindings without decoding
+frames. The physical C++ runtime inspector validates only the sealed member
+length/digest, manifest metadata and package identity; it does not parse map
+semantics and refuses activation of format-3 packages. The linker separately
+validates frame encoding and blank ROM destinations before patching.
+
+[`testdata/core-bundle-v3/cases.json`](../testdata/core-bundle-v3/cases.json)
+indexes synthetic conformance data: `manifest`, `payload`, and `rom_map` are
+relative file paths; positives carry `package_id`, negatives carry `reason`
+and `validation_layer`. `package` failures concern member/manifest/digest
+validation; `rom_map` failures concern JSON map semantics after package hashes
+pass. A target reader that only validates sealed bytes must distinguish those
+layers and must not claim JSON semantic validation. Full host readers reject
+both. The synthetic RBF is not hardware-valid. Its map has one synthetic block
+(two for cross-block overlap tests); the payload digest remains bound correctly.
+Generate with `python3 scripts/core_bundle_v3_fixtures.py`; `--check` verifies
+exact checked-in bytes. The format-2 corpus and its identities are unchanged.
+
 ## Package schema `mister-packages.v1`
 
 Every package file starts with:

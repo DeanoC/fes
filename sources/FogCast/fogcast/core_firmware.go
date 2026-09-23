@@ -65,6 +65,14 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			return nil, mapCoreEntryError(err)
 		}
 		comp := protocol.CoreComposition{FirmwareRequired: entry.FirmwareRequired}
+		inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
+		if inspectErr == nil && inspection.Descriptor.ROM != nil {
+			comp.ROMRequired = true
+			comp.ROMID = inspection.Descriptor.ROM.ID
+			selected, _, romErr := s.readCoreEntryROM(ctx, entry, inspection.Descriptor)
+			comp.ROMMediaID = selected.MediaID
+			comp.ROMReady = romErr == nil
+		}
 		if expansions, ok := s.catalog.(coreExpansionCatalog); ok {
 			selected, err := expansions.CoreEntryExpansion(ctx, id)
 			if err != nil {
@@ -73,11 +81,14 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 			comp.ExpansionID = selected.ExpansionID
 			if selected.ExpansionID != "" {
 				asset, assetErr := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
-				inspection, _, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
+				inspection, base, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
 				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
+				if comp.ExpansionReady && inspection.Descriptor.ROM != nil {
+					comp.ExpansionReady = corepackage.ValidateExpansionArchive(base, asset) == nil
+				}
 			}
 		}
-		if !entry.FirmwareRequired {
+		if !comp.FirmwareRequired {
 			comp.FirmwareReady = true
 			out[id] = comp
 			continue

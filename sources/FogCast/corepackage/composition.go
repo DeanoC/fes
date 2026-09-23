@@ -25,15 +25,15 @@ type CompositionBundle struct {
 }
 
 func ComposeArchive(base []byte, asset expansion.Asset) (CompositionBundle, error) {
-	manifest, payload, err := readArchive(base)
+	manifest, payload, romMap, err := readArchive(base)
 	if err != nil {
 		return CompositionBundle{}, err
 	}
-	descriptor, err := decode(manifest, payload)
+	descriptor, err := decode(manifest, payload, romMap)
 	if err != nil {
 		return CompositionBundle{}, err
 	}
-	shell, err := compositionShell(Inspection{PackageID: packageIdentity(manifest, payload), Descriptor: descriptor}, payload)
+	shell, err := compositionShell(Inspection{PackageID: packageIdentity(manifest, payload, romMap), Descriptor: descriptor}, payload)
 	if err != nil {
 		return CompositionBundle{}, err
 	}
@@ -151,6 +151,11 @@ func StageComposition(ctx context.Context, root string, size int64, input io.Rea
 	if err != nil {
 		return Staged{}, err
 	}
+	return stageCompositionBundle(ctx, root, bundle)
+}
+
+// stageCompositionBundle consumes a bundle already independently composed by this package.
+func stageCompositionBundle(ctx context.Context, root string, bundle CompositionBundle) (Staged, error) {
 	staged, err := Stage(ctx, root, int64(len(bundle.Package)), bytes.NewReader(bundle.Package))
 	if err != nil {
 		return Staged{}, err
@@ -324,4 +329,22 @@ func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, e
 		return expansion.Shell{}, errors.New("composition requires exactly one ZX81 expansion bus")
 	}
 	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: expansion.Slot, SlotMajor: 1}, nil
+}
+
+// ValidateExpansionArchive binds an expansion to its sealed package and declared
+// optional socket without producing a bitstream. Targets independently compose.
+func ValidateExpansionArchive(base []byte, asset expansion.Asset) error {
+	manifest, payload, mapping, err := readArchive(base)
+	if err != nil {
+		return err
+	}
+	descriptor, err := decode(manifest, payload, mapping)
+	if err != nil {
+		return err
+	}
+	shell, err := compositionShell(Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: descriptor}, payload)
+	if err != nil {
+		return err
+	}
+	return expansion.Admit(shell, asset)
 }

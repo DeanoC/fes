@@ -19,8 +19,8 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-Package manifests remain format 2; their runtime readers are unchanged. The
-external `build-inputs.json` record gains format 2, while the exporter still
+ZX81 packages use format 3 to seal the machine-ROM map; other producers keep
+format 2. The external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
@@ -447,10 +447,62 @@ The OSS `fes.zx81` recipe instantiates `zx81_rom_link` under
 Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
 empty socket; launch splices BASIC into the programmed bitstream.
 
+
+The `expansion` Go module also provides `LinkROM` and the standalone
+`fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
+frames and regenerate the affected EDCRC/CRC16 checksums, preserving other CRAM
+bits, the ORAM/PRAM header and compressed/uncompressed representation. No Python,
+Mistral executable or device database is needed by that linker. Context
+cancellation is checked during decoding, validation, patching and compression.
+The current encoding is 1024x10, with two zero padding bits per input byte;
+ROM input must have the exact declared binary size. All-zero ROMs are valid.
+
+`scripts/rom_map.py` extracts the eight ZX81 machine sites. The production
+`build_fes_zx81_oss.py` recipe authenticates the three Mistral database files
+against SHA256 pins taken from the selected compiler commit. The database
+snapshot is checked before compilation and again before export; mutable compiler
+source directories are not assumed to be covered by `FunctionalInvocation`'s
+installed support inventory. The pins, ROM encoding and package format enter
+functional build identity alongside the extractor and codec source closure.
+
+Map export requires all eight routed `machine.rom.lane0` through `lane7` cells
+at their fixed column-5, row-73–80 `NEXTPNR_BEL` placements, with 1024x10
+asynchronous read parameters and empty INIT. It also decodes the actual base RBF
+and checks every mapped INIT bit is blank. Explicit destinations are Mistral
+linear CRAM addresses in stored-bit order, bound to the base RBF SHA256.
+
+The producer writes a format-3 `manifest.toml`, `core.rbf`, and `rom-map.json`;
+its sealed ROM is `machine-rom`, role `firmware`, source size 8192. The same exact
+manifest and map bytes enter the immutable package and archive. Database hashes
+are retained in the build summary. Failed validation removes the new map,
+manifest and RBF. ROM uploads supply bytes only and cannot select destinations.
+The standalone extractor remains a diagnostic tool; its unsealed output does
+not constitute a production package.
+
+Host diagnostic (use a blank ZX81 OSS RBF and its selected Mistral sources):
+
+```sh
+python3 scripts/rom_map.py --mistral-source /path/to/selected/mistral \
+  --base /path/to/blank.rbf --output /tmp/rom-map.json
+cd expansion
+go run ./cmd/fes-rom-link -base /path/to/blank.rbf -map /tmp/rom-map.json \
+  -rom /path/to/8192-byte-rom.bin -output /tmp/initialized.rbf
+CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build \
+  -o /tmp/fes-rom-link-arm ./cmd/fes-rom-link
+```
+
+The diagnostic publishes its output only after a successful link; it does not
+program hardware. Synthetic Mistral fixtures exercise bit ordering, frame
+checksums and preservation outside INIT. They are not routed-core or physical
+acceptance. The first ARMv7 exact-kit diagnostic linked a production ZX81 ROM in
+3.20–3.26 seconds; that result does not establish image acceptance. A five-iteration host benchmark on an Intel Core Ultra 7
+270K Plus measured 99.6 ms/link and 18.0 MB allocated/link for the eight-block
+random-ROM fixture (Go 1.26.5, linux/amd64). Allocated bytes are not peak RSS;
+this is not an ARM performance claim. Reproduce with `go test ./... -run '^$'
+-bench BenchmarkLinkROM -benchtime=5x -benchmem` from `expansion/`.
+
 Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
-The module README keeps a short entry point at
-[Freeze-scaffold cartridges](../README.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
 The locked nextpnr `30ac6f47` provides those flags after `make toolchain-fes`.
@@ -1062,20 +1114,41 @@ step. Direct `make program` remains
 a maintenance bypass outside this protection, and compilation never acquires a
 lease.
 
-## Format-2 package boundary
+## Core package boundary
 
-`scripts/core_package.py` is the host inspector for format-2 package directories
+`scripts/core_package.py` is the host inspector for format-2/3 package directories
 and `.fcore` archives. Its public Python API is
 `read_package(path: Path) -> CorePackage`,
 `encode_manifest(fields: dict) -> bytes`, and
-`package_identity(manifest: bytes, payload: bytes) -> str`. `CorePackage` exposes
+`package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> str`. `CorePackage` exposes
 the original `manifest_bytes`, parsed `fields`, bounded `payload_bytes`, and
 `package_id`. The inspector validates every manifest field and payload digest;
-an unknown well-formed ABI remains inspectable. A directory has exactly two
-regular non-symlink entries. An archive is at most 33 MiB and is exactly two
+an unknown well-formed ABI remains inspectable. A format-2 directory has exactly two
+regular non-symlink entries. Its archive is at most 33 MiB and is exactly two
 canonical uncompressed POSIX ustar regular-file members, manifest first, with
 zero member padding and exactly two final zero blocks. Alternate paths, links,
 extensions, extra members, base-256 sizes and trailing bytes are rejected.
+
+Format 3 adds an explicit required `[rom]` declaration and a third sealed member,
+`rom-map.json`, after `core.rbf`, with an archive bound of 65 MiB. Other manifest
+restrictions and canonical header rules remain the same. `CorePackage` exposes
+optional `rom_map_bytes`, and `package_identity` accepts those exact bytes as an
+optional third argument to select the format-3 domain. The inspector validates
+map digest, size, exact JSON structure, integer coordinates, duplicate keys and
+destinations, complete source coverage, and payload/source-size bindings. It
+performs no FPGA frame decoding; the launch linker checks blank destinations.
+The authoritative contract and fixture corpus live in mister-packages
+`schema/core-bundle-v3.json`, `schema/rom-map-v1.json`, and
+`testdata/core-bundle-v3`. ROM uploads cannot provide a map.
+
+The exporter opts in through `export_package(..., rom_map=path,
+rom_id="machine-rom", rom_role="firmware")`, which promotes a supplied format-2
+manifest to format 3 with the map's declared source size and exact digest/length.
+Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
+The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
+snapshotted, validated, sealed read-only and compared during reuse alongside the
+manifest and RBF. ZX81 now exports format 3; the other production producers
+continue to export format 2.
 
 Repository URI syntax uses the host-only vendored
 `rfc3986-validator` 0.1.1 module from
