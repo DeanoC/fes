@@ -27,6 +27,10 @@ chrome.
   [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md)
 - Launch composition (slots, not idle):
   [`sources/FogCast/docs/launch-composition.md`](../sources/FogCast/docs/launch-composition.md)
+- Later mesh (draft, does not reopen this lock): kit-as-Shell stays the
+  same host binary:
+  [`docs/mesh-lan.md`](mesh-lan.md),
+  [`docs/mesh-node-protocol.md`](mesh-node-protocol.md)
 - Native image: no Main process, Menu bitstream retained:
   [`docs/bootable-media.md`](bootable-media.md),
   [`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)
@@ -269,5 +273,6 @@ implementation follow-ups inside the classes above.
 | [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md) | Rooms UI; Stop restores room on the sofa |
 | [`sources/libmister-runtime/ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md) | `LoadIdle()` MENU + HPS fb sequence |
 | [`sources/FogCast/ui/gfx/fpga_protocol.md`](../sources/FogCast/ui/gfx/fpga_protocol.md) | FC2D software stream; not implemented accelerator |
+| [`docs/mesh-lan.md`](mesh-lan.md) | Later mesh draft; kit-as-Shell stays this lock's same host binary |
 
 FES parent merges stay Deano’s.
