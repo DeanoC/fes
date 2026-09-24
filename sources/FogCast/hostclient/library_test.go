@@ -93,6 +93,21 @@ func TestLaunchBlockClassifiesCatalogReadiness(t *testing.T) {
 		eligible bool
 	}{
 		{name: "ready", game: ready, block: "", eligible: true},
+		{name: "ready-here-keeps-offline", game: func() Game {
+			game := ready
+			game.Execution = ExecutionHostOnly
+			here := true
+			game.ReadyHere = &here
+			game.RootOnline = false
+			game.State = "missing"
+			return game
+		}(), block: LaunchSourceOffline, eligible: false},
+		{name: "ready-here-keeps-catalog", game: func() Game {
+			game := ready
+			here := true
+			game.ReadyHere = &here
+			return game
+		}(), block: "", eligible: true},
 		{name: "browse-only", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: true, Launchable: false}, block: LaunchBrowseOnly, eligible: false},
 		{name: "missing", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},
 		{name: "offline", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},

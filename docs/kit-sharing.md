@@ -114,8 +114,11 @@ Lease admission covers game launches, development uploads/reboots, Stop, input
 attach/detach/streams, cast start/stop, and mesh content pull and link. Mesh
 content pull acquires the session grant: a fresh session's first pull claims a
 free kit, and a kit held by another session fails closed. Mesh content link
-requires that grant. Node, slot, and source reads stay available to other
-clients, as do status and content-cache operations. Revocation interrupts stalled HTTP uploads
+requires that grant. A grant claimed for that ensure is released when Ensure
+does not start execution. A grant the session already held, including after
+Soft-stop, stays held. Node, slot, and source reads stay available to other
+clients, as do status and content-cache operations. A batch slot read is
+`GET /v1/mesh/content/slots`. Revocation interrupts stalled HTTP uploads
 and input streams, while the existing coordinator retains already-dispatched
 physical operations until completion.
 

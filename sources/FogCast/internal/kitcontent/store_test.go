@@ -204,6 +204,9 @@ func TestStoreOrphanPartialIsNotPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "partial"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "partial", id.Digest+".orphan"), []byte("half"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -322,3 +325,53 @@ func (r *blockingReader) Read(p []byte) (int, error) {
 }
 
 func (r *blockingReader) Close() error { return nil }
+
+func TestOpenDoesNotCreateDirectoriesAndSweepsPartial(t *testing.T) {
+	root := t.TempDir()
+	partial := filepath.Join(root, "partial")
+	if err := os.MkdirAll(partial, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(partial, "stale"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(root, "kit-a", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects")); !os.IsNotExist(err) {
+		t.Fatalf("open created objects: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(partial, "stale")); !os.IsNotExist(err) {
+		t.Fatalf("stale partial remained: %v", err)
+	}
+}
+
+func TestPullRefusesLowFreeSpaceAndQuota(t *testing.T) {
+	id := meshcontent.SumSHA256([]byte("abcd"))
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", memSource{blobs: map[string][]byte{id.String(): []byte("abcd")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origFree := availableBytes
+	origQuota := meshContentQuota
+	t.Cleanup(func() {
+		availableBytes = origFree
+		meshContentQuota = origQuota
+	})
+	availableBytes = func(string) (uint64, error) { return meshContentReserve - 1, nil }
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("free space err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("low free space committed an object")
+	}
+	availableBytes = origFree
+	meshContentQuota = 3
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("quota err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("quota committed an object")
+	}
+}

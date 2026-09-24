@@ -478,6 +478,16 @@ func (s *Service) launchUsesForeignKit(pinned launchSnapshot, execution string) 
 	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
 		return false
 	}
+	return s.launchObservesSelectedConnection(pinned)
+}
+
+// launchObservesSelectedConnection reports whether this launch executes
+// on the kit the cached target connection describes. An explicit launch
+// to another target does not.
+func (s *Service) launchObservesSelectedConnection(pinned launchSnapshot) bool {
+	if s == nil {
+		return false
+	}
 	conn := s.TargetConnection()
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()

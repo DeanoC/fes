@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/DeanoC/FogCast/internal/meshcontent"
@@ -20,11 +21,15 @@ func WithMeshContent(executor meshcontent.Executor) Option {
 	}
 }
 
-func registerMeshContentRoutes(mux *http.ServeMux, token string, executor meshcontent.Executor) {
+func registerMeshContentRoutes(mux *http.ServeMux, token string, executor meshcontent.Executor, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	mux.Handle("GET /v1/mesh/content/node", authenticate(token, exactMethod(http.MethodGet, meshNodeHandler(executor))))
 	mux.Handle("GET /v1/mesh/content/slot", authenticate(token, exactMethod(http.MethodGet, meshSlotHandler(executor))))
+	mux.Handle("GET /v1/mesh/content/slots", authenticate(token, exactMethod(http.MethodGet, meshSlotsHandler(executor))))
 	mux.Handle("GET /v1/mesh/content/source", authenticate(token, exactMethod(http.MethodGet, meshSourceHandler(executor))))
-	mux.Handle("POST /v1/mesh/content/pull", authenticate(token, exactMethod(http.MethodPost, meshPullHandler(executor))))
+	mux.Handle("POST /v1/mesh/content/pull", authenticate(token, exactMethod(http.MethodPost, meshPullHandler(executor, logger))))
 	mux.Handle("POST /v1/mesh/content/link", authenticate(token, exactMethod(http.MethodPost, meshLinkHandler(executor))))
 }
 
@@ -44,6 +49,16 @@ type meshStateJSON struct {
 
 type meshSourceJSON struct {
 	Advertises bool `json:"advertises"`
+}
+
+type meshSlotFactJSON struct {
+	ID         string `json:"id"`
+	State      string `json:"state"`
+	Advertises bool   `json:"advertises"`
+}
+
+type meshSlotsJSON struct {
+	Slots []meshSlotFactJSON `json:"slots"`
 }
 
 type meshLinkJSON struct {
@@ -75,6 +90,39 @@ func meshSlotHandler(executor meshcontent.Executor) http.Handler {
 	})
 }
 
+func meshSlotsHandler(executor meshcontent.Executor) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := r.URL.Query()["id"]
+		if len(raw) == 0 || len(raw) > meshcontent.MaxSlotBatch || len(r.URL.Query()) != 1 {
+			writeError(w, http.StatusBadRequest, "BAD_REQUEST", "mesh slots require one to 128 ids")
+			return
+		}
+		out := make([]meshSlotFactJSON, 0, len(raw))
+		for _, text := range raw {
+			if r.Context().Err() != nil {
+				return
+			}
+			id, err := meshcontent.ParseContentID(text)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "BAD_REQUEST", "mesh content-id is invalid")
+				return
+			}
+			state := executor.Slot(id)
+			switch state {
+			case meshcontent.StatePresent, meshcontent.StateChecking, meshcontent.StateMissing:
+			default:
+				state = meshcontent.StateMissing
+			}
+			out = append(out, meshSlotFactJSON{
+				ID:         id.String(),
+				State:      string(state),
+				Advertises: executor.SourceAdvertises(id),
+			})
+		}
+		writeJSON(w, http.StatusOK, meshSlotsJSON{Slots: out})
+	})
+}
+
 func meshSourceHandler(executor meshcontent.Executor) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := meshQueryID(w, r)
@@ -85,7 +133,7 @@ func meshSourceHandler(executor meshcontent.Executor) http.Handler {
 	})
 }
 
-func meshPullHandler(executor meshcontent.Executor) http.Handler {
+func meshPullHandler(executor meshcontent.Executor, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := meshQueryID(w, r)
 		if !ok {
@@ -102,6 +150,7 @@ func meshPullHandler(executor meshcontent.Executor) http.Handler {
 		state, err := executor.Pull(r.Context(), id)
 		if err != nil {
 			if r.Context().Err() != nil {
+				logger.Info("mesh content pull canceled", "content_id", id.String(), "error", r.Context().Err())
 				return
 			}
 			if errors.Is(err, meshcontent.ErrContentPullFailed) {
@@ -136,7 +185,7 @@ func meshLinkHandler(executor meshcontent.Executor) http.Handler {
 			return
 		}
 		if err := executor.LinkExpansion(name, id); err != nil {
-			writeError(w, http.StatusUnprocessableEntity, "CONTENT_PULL_FAILED", "mesh link failed")
+			writeError(w, http.StatusUnprocessableEntity, "CONTENT_LINK_FAILED", "mesh link failed")
 			return
 		}
 		writeJSON(w, http.StatusOK, meshLinkJSON{ContentID: id.String()})

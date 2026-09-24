@@ -224,8 +224,10 @@ session is installed. A title is Ready here only when this shell has
 an Execute binding, every required slot is Present on that executor,
 the lease is free for this session, and the mesh-protocol major is
 compatible. Lease-free means this session's current grant and
-generation, or a kit that is unleased and claimable. A foreign holder
-is not Ready. Distant-only bytes are Unavailable with `ready_block`
+generation on the bound node, or an unleased kit whose client can
+claim the pull. A lost grant is not free. A client for a different
+kit is not that lease. A foreign holder is not Ready. A true ReadyHere
+result still has to pass the catalog admission checks. Distant-only bytes are Unavailable with `ready_block`
 and `next_action` on the games row (`fetch_here`). A slot mid-pull
 stays Checking. Copy stays the five-way split in
 [mesh LAN](mesh-lan.md). Phase 0 and Phase 1 sessions that are not

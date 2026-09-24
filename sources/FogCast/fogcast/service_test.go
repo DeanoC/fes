@@ -797,6 +797,7 @@ type fakeServiceClient struct {
 	statusErr           error
 	stopErr             error
 	meshLeaseGeneration string
+	meshLeaseAbandoned  bool
 }
 
 func (f *fakeServiceClient) MeshKitLease() (bool, string) {
@@ -804,6 +805,10 @@ func (f *fakeServiceClient) MeshKitLease() (bool, string) {
 		return false, ""
 	}
 	return true, f.meshLeaseGeneration
+}
+
+func (f *fakeServiceClient) MeshKitLeaseAbandoned() bool {
+	return f != nil && f.meshLeaseAbandoned
 }
 
 type shutdownOwnershipServiceClient struct {
