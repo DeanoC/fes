@@ -32,8 +32,12 @@ type MeshTitle struct {
 	Expansions []MeshExpansion
 }
 
-// MeshExpansion is one named expansion asset. Digest is the SHA-256
-// the host already stored for that asset.
+// MeshExpansion is one named expansion slot.
+// Digest is the slot-bytes digest: SHA-256 of that slot's own bytes,
+// the cart payload (expansion.Manifest.CartSHA256). It is not
+// expansion.Asset.ID, not the archive media_id of the stored tar, and
+// not a post-link ProgrammedSHA256. Ensure asks the bound executor to
+// link these bytes. The host does not pre-link them into primary media.
 type MeshExpansion struct {
 	Name   string
 	Digest string
@@ -47,7 +51,10 @@ type MeshSkip struct {
 }
 
 // ProjectMeshLibrary fills mesh catalog entries from the host library.
-// Stored digests go through meshcontent.FromSHA256. The function does
+// Stored digests go through meshcontent.FromSHA256. Primary media uses
+// PrimarySourceID (the format-3 source MediaID / SourceSHA256, never
+// ProgrammedSHA256). Each expansion uses ExpansionSlotBytesID
+// (MeshExpansion.Digest, the slot-bytes digest). The function does
 // not open files and does not hash bytes. A title that cannot be named
 // is omitted; the skip result carries the reason. ReadyHere is not called.
 // There is no cross-node pull and no host route.
@@ -136,14 +143,14 @@ func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]me
 	}
 	firmwareRequired := title.Core != nil && title.Core.FirmwareRequired
 	if firmwareRequired {
-		next, reason, ok := appendStoredDigest(slots, firmwareDigest, true, "household firmware", meshcontent.BIOSSlot)
+		next, reason, ok := appendStoredDigest(slots, firmwareDigest, true, "household firmware", meshcontent.FromSHA256, meshcontent.BIOSSlot)
 		if !ok {
 			return nil, reason, false
 		}
 		slots = next
 	}
 	primaryRequired := !packageBacked && title.Launchable
-	next, reason, ok := appendStoredDigest(slots, storedPrimaryDigest(title), primaryRequired, "primary media", meshcontent.PrimaryMediaSlot)
+	next, reason, ok := appendStoredDigest(slots, storedPrimaryDigest(title), primaryRequired, "primary media", PrimarySourceID, meshcontent.PrimaryMediaSlot)
 	if !ok {
 		return nil, reason, false
 	}
@@ -153,7 +160,7 @@ func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]me
 			return nil, "expansion name is missing", false
 		}
 		var built []meshcontent.Slot
-		built, reason, ok = appendStoredDigest(nil, expansion.Digest, true, "expansion "+expansion.Name, func(id meshcontent.ContentID) meshcontent.Slot {
+		built, reason, ok = appendStoredDigest(nil, expansion.Digest, true, "expansion "+expansion.Name, ExpansionSlotBytesID, func(id meshcontent.ContentID) meshcontent.Slot {
 			return meshcontent.ExpansionSlot(expansion.Name, id)
 		})
 		if !ok {
@@ -162,6 +169,22 @@ func meshSlots(firmwareDigest string, title MeshTitle, packageBacked bool) ([]me
 		slots = append(slots, built...)
 	}
 	return slots, "", true
+}
+
+// PrimarySourceID names primary media by the format-3 source digest.
+// That digest is the catalog MediaID, which the executor records as
+// ROMLink.SourceSHA256. ProgrammedSHA256 is the post-link image and
+// is not this id.
+func PrimarySourceID(sourceSHA256 string) (meshcontent.ContentID, error) {
+	return meshcontent.FromSHA256(sourceSHA256)
+}
+
+// ExpansionSlotBytesID names an expansion by MeshExpansion.Digest, the
+// slot-bytes digest (SHA-256 of the cart payload). Asset.ID, the
+// archive media_id, and ProgrammedSHA256 are not this id. The host
+// does not link the bytes; the bound executor does.
+func ExpansionSlotBytesID(slotBytesDigest string) (meshcontent.ContentID, error) {
+	return meshcontent.FromSHA256(slotBytesDigest)
 }
 
 func meshPackage(title MeshTitle) (meshcontent.PackageABI, string, bool) {
@@ -179,6 +202,10 @@ func meshPackage(title MeshTitle) (meshcontent.PackageABI, string, bool) {
 	return pkg, "", true
 }
 
+// storedPrimaryDigest is the format-3 source identity. Core.MediaID is
+// the source SHA-256 (ROMLink.SourceSHA256 on the executor). A native
+// title uses the catalog content SHA-256 in that same role. Neither
+// value is ROMLink.ProgrammedSHA256.
 func storedPrimaryDigest(title MeshTitle) string {
 	if title.Core != nil && title.Core.MediaID != "" {
 		return title.Core.MediaID
@@ -189,14 +216,14 @@ func storedPrimaryDigest(title MeshTitle) string {
 	return ""
 }
 
-func appendStoredDigest(slots []meshcontent.Slot, digest string, required bool, slot string, build func(meshcontent.ContentID) meshcontent.Slot) ([]meshcontent.Slot, string, bool) {
+func appendStoredDigest(slots []meshcontent.Slot, digest string, required bool, slot string, parse func(string) (meshcontent.ContentID, error), build func(meshcontent.ContentID) meshcontent.Slot) ([]meshcontent.Slot, string, bool) {
 	if digest == "" {
 		if required {
 			return nil, slot + " digest is required", false
 		}
 		return slots, "", true
 	}
-	id, err := meshcontent.FromSHA256(digest)
+	id, err := parse(digest)
 	if err != nil {
 		return nil, slot + " digest is not a stored sha256", false
 	}

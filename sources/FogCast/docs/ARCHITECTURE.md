@@ -905,22 +905,63 @@ Host-side content identity lives in `internal/meshcontent`.
 into that catalog shape: described package id and ABI, the household
 firmware digest when that slot is required, the selected primary-media
 digest, and named expansion digests. Stored SHA-256 strings pass
-through `FromSHA256`. The projection does not hash files again. A title
-that cannot be named is skipped. A catalog entry names the title id (a
-catalog game id: lowercase ASCII slug), one execute kind, and the
-required slots. A launchable `fpga_native` entry requires a package/ABI
-slot. A launchable `native_emu` entry requires primary media and carries
-no package/ABI slot; BIOS and expansion content-ids are optional. A
-content-id is the unsigned strawman `sha256:` plus 64 lowercase hex of
-that slot's bytes. Deano has not locked the algorithm. The package/ABI
-slot is the described package id and ABI, not a content-id of an RBF.
-`PackageABI.Major` is that ABI's major, not the mesh protocol major.
-The package can record which of those content-ids one local cache
-holds. It stores no bytes and contacts no peer. The projection is not a
-host route. Session launch, rooms Ready, `GET /api/v1/games`, and
-`GET /api/v1/mesh/nodes` do not read it, and they do not call
-`ReadyHere`. Phase 1 Ready remains composition against the bound
-executor.
+through `FromSHA256`. Primary media uses `PrimarySourceID`: the
+format-3 source `MediaID`, which the executor records as
+`SourceSHA256`. That id is not the post-link `ProgrammedSHA256`.
+`MeshExpansion.Digest` is the slot-bytes digest, SHA-256 of the
+expansion slot's own bytes (`expansion.Manifest.CartSHA256`). It is
+not `Asset.ID`, not the archive `media_id`, and not
+`ProgrammedSHA256`. `ExpansionSlotBytesID` names that digest. The
+projection does not hash files again and does not link expansion bytes.
+A title that cannot be named is skipped. A catalog entry names the
+title id (a catalog game id: lowercase ASCII slug), one execute kind,
+and the required slots. A launchable `fpga_native` entry requires a
+package/ABI slot. A launchable `native_emu` entry requires primary
+media and carries no package/ABI slot; BIOS and expansion content-ids
+are optional. A content-id is the unsigned strawman `sha256:` plus 64
+lowercase hex of that slot's bytes. Deano has not locked the algorithm.
+The package/ABI slot is the described package id and ABI, not a
+content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
+mesh protocol major. `ReadyHere` requires that package id and an
+eligible ABI id and major before it reports Ready. Package id alone is
+not eligibility.
+
+`meshcontent.Ensure` is the host ensure step. It takes one projected
+entry and the executor the session is already bound to. Each required
+content-id comes back Present, Checking (mid-pull), or Missing. A
+required id that is missing and has no source is
+`ErrContentMissingNoSource`. A Checking slot stays Checking.
+`Result.Execute` stays false while any required slot is Checking or
+the executor's ABI id and major are not eligible, and Launch returns
+before the existing execute path. Expansion content-ids stay separate
+and are linked by `Executor.LinkExpansion` on that executor. The host
+does not pre-link them. Ensure does not choose a node, does not pull
+onto a node the session did not bind, and does not release or change a
+lease. When a mesh session is installed, `LaunchOn` captures the target
+once, before Ensure, and bind uses that same name and node id. Bind
+keeps the captured client and returns `ErrUnboundNode` when that name's
+address or TargetID no longer matches the capture. An implicit target
+with an empty TargetID is the bound node only when its name is that
+node. Otherwise Ensure returns `ErrUnboundNode` and does not pull. With
+the seam off, Launch leaves the target live: bind resolves the selected
+target under the target lock at bind time, so a settings change that
+selects another target or replaces its client is the endpoint that
+launches. Before execute, and after lifecycle admission, Launch compares
+the ensured catalog row with the row now selected. The core path and the
+host-only path both do this, and both refuse a changed package, media,
+firmware, ROM, or expansion composition. Host-only mesh play
+stays on the installed session node. A launchable FPGA entry that the
+foreign-kit check would deny is rejected before Ensure. The executor
+is an interface. Tests pass a fake. The kit store that pulls bytes
+through the target agent is not in this slice.
+
+The projection is not a host route. JSON tags stay on the host catalog
+shape. Ensure results have no JSON tags. Rooms Ready,
+`GET /api/v1/games`, and `GET /api/v1/mesh/nodes` do not call
+`ReadyHere` or `Ensure`. `POST /api/v1/session/launch` calls Ensure
+only when `SetMeshExecuteSession` installed a session; otherwise Phase
+0 and Phase 1 launch are unchanged. Phase 1 Ready remains composition
+against the bound executor.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID
