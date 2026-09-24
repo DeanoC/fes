@@ -141,6 +141,36 @@ func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	}
 }
 
+func TestPreferLaunchableKeepsPackageAndSkipsDistant(t *testing.T) {
+	t.Parallel()
+	raw := Game{ID: "coleco-dk-cart", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: false}
+	pkg := Game{ID: "fpga-coleco-dk", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true, FirmwareReady: true}
+	group := raw
+	group.Variants = []Game{raw, pkg}
+	got := preferLaunchable(group)
+	if got.ID != pkg.ID || !got.LaunchEligible() {
+		t.Fatalf("package variant %+v", got)
+	}
+	distant := false
+	pkg.ReadyHere = &distant
+	pkg.ReadyBlock = string(LaunchDistant)
+	pkg.NextAction = "fetch_here"
+	group.Variants = []Game{raw, pkg}
+	got = preferLaunchable(group)
+	if got.LaunchEligible() || got.ID != raw.ID {
+		t.Fatalf("distant package became playable %+v", got)
+	}
+	here := true
+	pkg.ReadyHere = &here
+	pkg.ReadyBlock = ""
+	pkg.NextAction = ""
+	group.Variants = []Game{raw, pkg}
+	got = preferLaunchable(group)
+	if got.ID != pkg.ID || !got.LaunchEligible() {
+		t.Fatalf("ready package %+v", got)
+	}
+}
+
 func TestStillHandlesReturnsNilWhenNoMedia(t *testing.T) {
 	t.Parallel()
 	if got := (AttractItem{}).StillHandles(); got != nil {

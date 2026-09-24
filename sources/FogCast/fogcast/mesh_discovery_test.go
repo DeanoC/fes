@@ -28,10 +28,10 @@ func TestHostParsesPhase0OmissionAndIgnoresForeignExecuteForReady(t *testing.T) 
 	if !foreign.Capabilities.DisplaySink || foreign.PictureUp() {
 		t.Fatalf("display sink was treated as picture-up: %#v picture %v", foreign.Capabilities, foreign.PictureUp())
 	}
-	if discovery.ReadyForBoundExecutor(false, foreign) {
+	if ready, _ := discovery.ReadyForBoundExecutor(false, foreign, nil); ready {
 		t.Fatal("another node's Execute advertisement flipped Ready")
 	}
-	if !discovery.ReadyForBoundExecutor(true, foreign) {
+	if ready, _ := discovery.ReadyForBoundExecutor(true, foreign, nil); !ready {
 		t.Fatal("bound composition lost Ready")
 	}
 	if foreign.SilenceReleasesLease() || (foreign.TTLSeconds != nil) {

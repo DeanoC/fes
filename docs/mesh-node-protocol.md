@@ -197,7 +197,14 @@ Launchable versus browse-only, carried forward on purpose:
   that split is the visible contract in
   [`mesh-lan.md`](mesh-lan.md). A slot mid-pull, or only partly
   present, is Checking. It is not Ready, and it does not program the
-  FPGA.
+  FPGA. The host implements that rule when a mesh execute session is
+  installed: rooms and `GET /api/v1/games` call `ReadyHere`. The games
+  row then includes `ready_here`, and, when the title is not Ready,
+  `ready_block` plus `next_action`. Those are host catalog fields, not
+  a mesh wire freeze. Lease-free for that view is this session's grant
+  and generation, or an unleased kit this session can claim. A foreign
+  holder is not Ready. When the session is not installed the fields
+  are omitted and Phase 0 composition Ready stays in force.
 - **Phase 3 and later.** Placement may choose the bound executor.
   Until that choice exists, Ready still does not mean "any node that
   advertises Execute."

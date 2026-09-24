@@ -813,7 +813,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// catalog access. With the seam off, bind still resolves the
 	// selected target under targetMu at bind time. A nil executor
 	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
-	// GET /api/v1/games do not use this seam.
+	// GET /api/v1/games read ReadyHere only when this seam is installed.
 	if err := ctx.Err(); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}

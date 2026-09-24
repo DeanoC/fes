@@ -56,8 +56,8 @@ type MeshSkip struct {
 // ProgrammedSHA256). Each expansion uses ExpansionSlotBytesID
 // (MeshExpansion.Digest, the slot-bytes digest). The function does
 // not open files and does not hash bytes. A title that cannot be named
-// is omitted; the skip result carries the reason. ReadyHere is not called.
-// There is no cross-node pull and no host route.
+// is omitted; the skip result carries the reason. This projection does
+// not call ReadyHere. There is no cross-node pull and no host route.
 func ProjectMeshLibrary(lib MeshLibrary) (entries []meshcontent.Entry, skipped []MeshSkip) {
 	for _, title := range lib.Titles {
 		entry, skip, ok := projectMeshTitle(lib.Firmware.MediaID, title)

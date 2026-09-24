@@ -50,8 +50,10 @@ func snapshotMismatch(reason string) error {
 }
 
 // MeshExecuteSession is the optional seam Launch calls before execute.
-// A nil Executor leaves Phase 0 and Phase 1 launch unchanged. Rooms and
-// GET /api/v1/games do not read it. The executor is one node. A
+// A nil Executor leaves Phase 0 and Phase 1 launch unchanged. GET
+// /api/v1/games calls ReadyHere through this session when an executor
+// and a catalog projection are installed. Rooms follow that result.
+// Neither path Ensures or pulls. The executor is one node. A
 // launchable FPGA entry is ensured on the target this call will
 // execute on. Launch does not pull onto a different node and does not
 // release a lease.

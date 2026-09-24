@@ -2,8 +2,10 @@
 
 **Status:** Phase 2 started. Slices 1 and 2 are on main. Slice 3 host
 ensure and the #152 host-hardening follow-up are on main. The kit
-content store is this change. Phase 2 Ready is next. Bob coordinates.
-Deano owns FES parent merges. Do not merge from this brief.
+content store and the kit-lease gate on pull and link are on main.
+Phase 2 Ready in rooms and `GET /api/v1/games` is this change. The
+ensure seam stays off. Bob coordinates. Deano owns FES parent merges.
+Do not merge from this brief.
 
 **Audience:** FogCast host (library and host API), Caster when the kit
 content store lands, rooms UX (Foggy) when Ready copy lands, and anyone
@@ -108,10 +110,11 @@ does. Caster reviews that boundary.
   execute kind, and launchable versus browse-only. Paths do not appear.
 - An in-memory cache records which content-ids one executor holds. It
   stores no bytes and does not contact a peer.
-- `ReadyHere` evaluates the Phase 2 Ready rule for tests. Rooms,
-  `POST /api/v1/session/launch`, `GET /api/v1/games`, and
-  `discovery.ReadyForBoundExecutor` do not call it. Phase 1 Ready stays
-  composition against the bound executor.
+- `ReadyHere` evaluates the Phase 2 Ready rule. This slice did not call
+  it from rooms, launch, `GET /api/v1/games`, or
+  `discovery.ReadyForBoundExecutor`. Slice 5 does, when a mesh session
+  is installed. With the seam off, Phase 1 Ready stays composition
+  against the bound executor.
 
 **Does not:** federated pull, byte cache, a new host route, a title
 list on advertisements, or a Ready change.
@@ -134,9 +137,9 @@ Launchable `fpga_native` requires the package slot. Title ids are
 catalog game ids (`protocol.ValidateGameID`). A title that cannot be
 projected is omitted and returned with a reason. It is not invented.
 
-There is no new host route. Rooms, `POST /api/v1/session/launch`,
-`GET /api/v1/games`, and `discovery.ReadyForBoundExecutor` do not call
-`ReadyHere` or this projection.
+There is no new host route. This slice did not call `ReadyHere`. The
+projection still does not. Slice 5 calls `ReadyHere` from rooms and
+`GET /api/v1/games` when a mesh session is installed.
 
 **Does not:** treat that projection as Phase 2 Ready. Does not move
 bytes onto the kit. Does not pull across nodes. Does not add a
@@ -181,9 +184,9 @@ on the executor. The host does not pre-link them.
 
 `ReadyHere` checks package ABI id and major as well as package id. An
 unlisted ABI is no capable executor. The same ABI id at another major
-is version skew. Package id alone is not eligibility. Rooms,
-`GET /api/v1/games`, and `discovery.ReadyForBoundExecutor` still do
-not call `ReadyHere`.
+is version skew. Package id alone is not eligibility. This slice still
+did not call `ReadyHere` from rooms, `GET /api/v1/games`, or
+`discovery.ReadyForBoundExecutor`. Slice 5 does.
 
 **Failure class:** `ErrContentMissingNoSource`. A required content-id
 that is missing on the bound executor and has no source. Fail closed.
@@ -211,19 +214,31 @@ is installed. Phase 0 and Phase 1 launch do not install one.
 session did not bind. Does not free a lease. Does not turn rooms Ready
 on. That is the following slice.
 
-### 5. Phase 2 Ready — not started
+### 5. Phase 2 Ready — this change
 
 **Owner:** FogCast host for the predicate. Foggy for the sofa copy.
 
-**Do:** Rooms Ready uses the Phase 2 rule for a mesh session: Execute
-binding, every required slot ensured on that executor, lease free,
-mesh major OK. Distant-only is Unavailable with a next action. Copy
-stays the five-way split in
+**Do:** Rooms Ready and Play, `GET /api/v1/games`, and
+`discovery.ReadyForBoundExecutor` use `ReadyHere` when a mesh execute
+session is installed. A title is Ready here only when this shell has
+an Execute binding, every required slot is Present on that executor,
+the lease is free for this session, and the mesh-protocol major is
+compatible. Lease-free means this session's current grant and
+generation, or a kit that is unleased and claimable. A foreign holder
+is not Ready. Distant-only bytes are Unavailable with `ready_block`
+and `next_action` on the games row (`fetch_here`). A slot mid-pull
+stays Checking. Copy stays the five-way split in
 [mesh LAN](mesh-lan.md). Phase 0 and Phase 1 sessions that are not
 asking for the mesh content contract keep today's composition Ready.
+With the seam off, `ready_here` is omitted and Coleco, ZX81, and
+host-only titles stay Ready and launch as they do now.
+`enrichLaunchable` still prefers a launchable package over a
+browse-only cart.
 
 **Does not:** Ready from an Execute advertisement alone. Does not
-Ready from bytes that only exist on some other LAN node.
+Ready from bytes that only exist on some other LAN node. Does not
+install the executor or a content source. The production seam stays
+off and Source stays nil. Does not program the FPGA.
 
 ---
 
