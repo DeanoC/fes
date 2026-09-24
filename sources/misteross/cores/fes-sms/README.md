@@ -20,7 +20,7 @@ top, Quartus pins and the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sms` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). `fes.sms`
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `5dea3ecd`). `fes.sms`
 is registered for package-only parent builds and is not in the factory image.
 
 ## Implemented slice
@@ -42,7 +42,10 @@ is registered for package-only parent builds and is not in the factory image.
   horizontal/vertical flip, horizontal/vertical scrolling and lock bits, the
   left-column mask, 8×8/8×16 zoomable sprites, eight-sprite overflow, sprite
   collision, line interrupts and VBlank interrupts on the fixed 256×192 logical
-  raster. NTSC timing accuracy and cycle-perfect raster behavior remain outside
+  raster. The TMS fallback uses a fractional enable for nominal 60 Hz across
+  262 lines. SMS Mode 4 keeps its existing slower raster enable because its
+  serial scanline renderer cannot complete a line at 60 Hz. Composite sync,
+  half-line behavior, PAL timing and cycle-perfect raster effects remain outside
   this slice. VDP IRQ drives Z80 INT
   (maskable). Pause NMI is unused.
 - Two joysticks on the SMS 8255 ports `0xdc` / `0xdd`, adapted from the

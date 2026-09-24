@@ -96,7 +96,7 @@ path.
 
 Pong authenticates `toolchain.lock`. ZX81 authenticates
 `toolchains/zx81-expansion.lock`. Coleco, SG-1000 and SMS share
-`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
+`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `5dea3ecd`,
 Mistral `b28e30a`) and therefore the same HIP cache slot. They do not alias
 another lock's slot.
 

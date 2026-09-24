@@ -44,19 +44,23 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-SEED = 4
-# Seed 4 is the historical packed-sprite placement. A sealed BUILD_ID can
-# miss 52 MHz on that seed while nearby seeds close; try 4 first, then the
-# HIP-checked fallbacks.
-PLACER_SEEDS = (4, 1, 2, 3, 5, 12, 7, 10)
-# HeAP timing weight 300 + critexp 5 closed seed 4 at 57.45 MHz on the
-# sealed HIP netlist (default weight 10 was 51.67 FAIL). Weight 1000 also
-# passed (56.62); 2000 was only 52.27. ZX81 keeps 1000 for its own seed 10.
-PLACER_TIMING_WEIGHT = 300
+# Seed 5 at weight 100 is the known timing-closing route for the current
+# Coleco raster netlist. Start there to avoid repeating the slow exploratory
+# routes on every normal build.
+SEED = 5
+# Keep seed 5 first, then the historical seed order for fallback routes.
+PLACER_SEEDS = (5, 4, 1, 2, 3, 12, 7, 10)
+# The current Coleco raster netlist passed at 55.21 MHz with seed 5 / weight
+# 100. Preserve the previous weight and the other measured passing weight as
+# fallbacks. ZX81 keeps weight 1000 for its own seed 10.
+PLACER_TIMING_WEIGHT = 100
 PLACER_CRITICALITY_EXPONENT = 5
-# Search policy for --best-fmax. First-pass still uses PLACER_TIMING_WEIGHT
-# only. The winner is recorded in evidence, not substituted back into these
-# constants (that would change BUILD_ID and invalidate the search).
+# The normal first-pass starts with the measured timing-closing candidate,
+# then tries the historical weight and the other measured fallback. It stops
+# at the first passing route; --best-fmax remains the full ranking run.
+PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 1000)
+# The full best-Fmax search records the winner rather than replacing these
+# constants, which would change BUILD_ID and invalidate the search.
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
 PLACER_QOR_BUDGET = 24
 PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
@@ -71,7 +75,7 @@ COLECO_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
     "mistral": "b28e30a36b5139aaed5a5d361a30b542e6b7c758",
-    "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
+    "nextpnr": "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
@@ -250,6 +254,14 @@ def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str
     return require_source(root, pinned_inputs=PINNED_INPUTS, identity_version=identity_version)
 
 
+def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
+    if mode == "first-pass":
+        return PLACER_FIRST_PASS_WEIGHTS, len(PLACER_SEEDS) * len(PLACER_FIRST_PASS_WEIGHTS)
+    if mode == "staged":
+        return PLACER_WEIGHTS, PLACER_QOR_BUDGET
+    raise BuildError(f"unsupported placement mode: {mode}")
+
+
 @guard_functional_source
 def create_build_record(
     root: Path,
@@ -262,6 +274,7 @@ def create_build_record(
     execution: dict | None = None,
     bios_snapshot: PrivateBiosSnapshot | None = None,
 ) -> bytes:
+    qor_weights, qor_budget = placement_policy(qor_mode)
     fields = {
         "format": 1,
         "repository": repository,
@@ -284,10 +297,10 @@ def create_build_record(
             "seed": PLACER_SEEDS[0],
             "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
-            "placer_heap_timingweights": ",".join(str(weight) for weight in PLACER_WEIGHTS),
+            "placer_heap_timingweights": ",".join(str(weight) for weight in qor_weights),
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT,
             "placer_qor_mode": qor_mode,
-            "placer_qor_budget": PLACER_QOR_BUDGET,
+            "placer_qor_budget": qor_budget,
             "router": ROUTER,
             "toolchain_lock": COLECO_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, COLECO_TOOLCHAIN_LOCK)),
@@ -578,8 +591,7 @@ def build(
         raise BuildError("private BIOS requires build identity version 2")
     package_store = _package_store(root, package_store, private_bios=bios is not None)
     qor_mode = "staged" if best_fmax else "first-pass"
-    qor_weights = PLACER_WEIGHTS if best_fmax else (PLACER_TIMING_WEIGHT,)
-    qor_budget = PLACER_QOR_BUDGET if best_fmax else max(len(PLACER_SEEDS), 1)
+    qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_coleco_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
@@ -687,7 +699,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--best-fmax",
         action="store_true",
-        help="after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass",
+        help="search the full staged HeAP weight/seed space for best Fmax instead of first-pass",
     )
     parser.add_argument(
         "--gpu-devices",

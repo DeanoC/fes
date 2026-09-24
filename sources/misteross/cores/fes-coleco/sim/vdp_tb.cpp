@@ -26,9 +26,9 @@ void tick(Vcoleco_vdp &dut) {
 
 void raster_gap(Vcoleco_vdp &dut) {
     dut.raster_ce = 0;
-    // The machine's VDP enable is one pulse every sixteen negedges (roughly
-    // thirty-two full system clocks). Keep the direct unit on that cadence so
-    // the registered sprite line walker has time to prepare the next line.
+    // This direct VDP unit deliberately leaves 32 system clocks between
+    // samples. The machine-level sprite board test separately exercises the
+    // production fractional raster cadence and line-build deadline.
     for (unsigned i = 0; i != 32; ++i) tick(dut);
 }
 
