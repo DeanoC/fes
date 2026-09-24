@@ -39,9 +39,9 @@ BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
 PLACER_SEED = 4
 REQUIRED_CLOCKS_MHZ = {"system_clock.clocks[0]": 52.224, "pixel_clk": 74.25, "system_clock.clocks[1]": 12.288}
 CRAM_REGION = (1769, 32, 2806, 1034)  # fes.coleco-bus.socket/1, half-open
-RESPONSE_BOUNDARY_CONTRACT = "fes.coleco.response-boundary/2"
+RESPONSE_BOUNDARY_CONTRACT = "fes.coleco.response-boundary/3"
 RESPONSE_BOUNDARY_COORDINATES = (
-    (2429, 1100), (2430, 1101),
+    (2917, 797), (2917, 799), (3328, 906),
 )
 
 def boundary_patch_for(placed) -> dict[str, object]:

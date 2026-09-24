@@ -103,10 +103,11 @@ func colecoBoundaryAsset(t *testing.T) (Shell, Asset) {
 }
 
 func TestColecoResponseBoundaryPatchIsClosedAndComposed(t *testing.T) {
-	if colecoResponseBoundaryContract != "fes.coleco.response-boundary/2" ||
-		len(colecoResponseBoundaryCoordinates) != 2 ||
-		colecoResponseBoundaryCoordinates[0] != (cramCoordinate{x: 2429, y: 1100}) ||
-		colecoResponseBoundaryCoordinates[1] != (cramCoordinate{x: 2430, y: 1101}) {
+	if colecoResponseBoundaryContract != "fes.coleco.response-boundary/3" ||
+		len(colecoResponseBoundaryCoordinates) != 3 ||
+		colecoResponseBoundaryCoordinates[0] != (cramCoordinate{x: 2917, y: 797}) ||
+		colecoResponseBoundaryCoordinates[1] != (cramCoordinate{x: 2917, y: 799}) ||
+		colecoResponseBoundaryCoordinates[2] != (cramCoordinate{x: 3328, y: 906}) {
 		t.Fatal("Coleco response boundary contract changed")
 	}
 	shell, asset := colecoBoundaryAsset(t)

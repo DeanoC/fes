@@ -52,15 +52,16 @@ builder reconstructs the system PLL's second output from the exact frozen net
 metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
 route. The full-response diagnostic route completes and passes all three clock
 gates. Against the sealed shell built with the Coleco nextpnr pin, it changes
-two bits outside the declared region at `(2429,1100)` and `(2430,1101)`.
-They map to routing mux `V2.027.010.0020`, which the frozen shell uses on
+three bits outside the declared region at `(2917,797)`, `(2917,799)` and
+`(3328,906)`. They map to routing muxes `H3.033.009.0019` and
+`H14.025.010.0001`, which the frozen shell uses on
 `$PACKER_GND_NET` response `DATAIN` stubs. Cart merge disconnects those
 placeholder ground sinks when it connects the response bank, so these are
 deselected shell muxes rather than newly selected cart routes escaping the
 fence. The one-bit response control does not exercise the full set of response
 boundary stubs. The producer records the exact coordinates and resulting values
-in a `fes.coleco.response-boundary/2` manifest patch. The Go linker accepts
-that closed two-bit patch alongside the CPU-bus rectangle and rejects any
+in a `fes.coleco.response-boundary/3` manifest patch. The Go linker accepts
+that closed three-bit patch alongside the CPU-bus rectangle and rejects any
 other outside change; the socket rectangle itself is unchanged.
 `cram-diff.json` retains the changed coordinates and reports whether the
 declared contract matches. The diagnostic's WAIT request stays armed until a

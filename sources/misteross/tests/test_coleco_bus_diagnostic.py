@@ -82,7 +82,7 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             diagnostic.cart_qsf(b"pin constraints\n")
 
     def test_outside_cram_report_keeps_coordinates_and_rejects_publication(self):
-        coordinates = [[2429, 1100], [2430, 1101]]
+        coordinates = [[2917, 797], [2917, 799], [3328, 906]]
         changes = {
             "bits_inside_slot": 65,
             "bits_outside_slot": len(coordinates),
@@ -114,10 +114,10 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             old, new = index % 2, 1 - index % 2
             cram_set(base.cram, die, x, y, old)
             cram_set(placed.cram, die, x, y, new)
-        coordinates = [[2429, 1100], [2430, 1101]]
+        coordinates = [[2917, 797], [2917, 799], [3328, 906]]
         changes = {
             "bits_inside_slot": 65,
-            "bits_outside_slot": 2,
+            "bits_outside_slot": 3,
             "outside_slot_coordinates": coordinates,
             "outside_slot_coordinates_truncated": False,
         }
@@ -134,7 +134,7 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             self.assertTrue(report["archive_published"])
             self.assertEqual(report["boundary_patch"], patch_manifest)
 
-        extra_change = dict(changes, bits_outside_slot=3,
+        extra_change = dict(changes, bits_outside_slot=4,
                             outside_slot_coordinates=coordinates + [[100, 100]])
         with self.assertRaisesRegex(ValueError, "outside the socket and declared response patch"):
             diagnostic.enforce_cram_region(extra_change, Path("cram-diff.json"), base, placed)
