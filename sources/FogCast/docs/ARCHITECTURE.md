@@ -794,7 +794,8 @@ The production target agent enforces a renewable kit lease across game and
 native development sessions. Authenticated clients read `GET /v1/kit/lease`,
 claim with `POST /v1/kit/claim` (`request_id`, `owner`, `purpose`), and carry the
 returned secret in `X-FogCast-Kit-Lease` on every hardware mutation and input
-CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
+CONNECT. Mesh content pull and link are hardware mutations on that list.
+Node, slot, and source reads are not. Request IDs are random hexadecimal strings of at least 32 characters;
 retries reuse the same ID. Cache transfer, status inspection, and
 `GET /v2/hostless/identity/{game_id}` do not reserve the kit. A Stop
 ends the current runtime session but retains ownership for another launch.
@@ -822,7 +823,10 @@ remains a maintenance escape outside the lease boundary.
 
 The production service owns a renewable target kit lease, shared explicitly
 with its game/development client and target input bridge (including CONNECT).
-The first hardware mutation claims ownership; renewal runs every 20 seconds
+The first hardware mutation claims ownership. Mesh content pull is one of
+those acquiring mutations, so a fresh session's first FPGA mesh launch on a
+free kit claims before Ensure. Mesh content link requires the grant already
+held. Renewal runs every 20 seconds
 against the target's 90-second timeout. Client expiry uses the returned
 remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
@@ -959,9 +963,12 @@ name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
 not pull. Host-only mesh play stays on the installed session node. A
 launchable FPGA entry that the foreign-kit check would deny is rejected
 before Ensure. For an FPGA entry, LeaseFree is the session-owned kit
-grant and its generation. A free kit stays unleased. InUse is the
-Phase 1 busy connection: another session holds that kit. Host-only
-play stays on the host executor.
+grant and its generation. InUse is the Phase 1 busy connection: another
+session holds that kit. A fresh session does not yet hold a grant.
+Content pull is the lease-acquiring mutation: when that kit is free,
+Launch claims the session grant before Ensure, and Ensure then sees
+LeaseFree. A held grant whose observed generation differs fails closed
+before any pull. Host-only play stays on the host executor.
 
 Immediately before execute, and while lifecycle admission is held,
 `revalidateLaunchSnapshot` compares that snapshot with live state. Any
@@ -994,12 +1001,16 @@ on that kit, and links expansion slot-bytes there without folding them
 into primary media or a programmed image. Pull honors the caller's
 context and deletes a partial file on cancel or failure, so that file
 is not Present. The agent serves that store at `/v1/mesh/content/*`
-for the node's id. Those routes are how a host executor drives the
-kit. They are not an Ensure-result document. The host does not install
-the executor unless `SetMeshExecuteSession` is called, so Phase 0 and
-Phase 1 launch stay on the existing path. The store does not program
-the FPGA. An empty ABI list is not eligibility. A nil content source
-advertises nothing.
+for the node's id. Pull and link require the current kit lease. Node,
+slot, and source reads remain available to other clients. The host
+authorizes pull as a lease-acquiring mutation and link as a mutation
+that needs the grant already held. Those routes drive the kit store.
+They are not an Ensure-result document. The host installs the executor
+only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
+launch stay on the existing path. The store does not program the FPGA.
+The production agent opens the store with a nil content source and an
+empty ABI list. An empty ABI list is not eligibility. A nil content
+source advertises nothing.
 
 The projection is not a host route. JSON tags stay on the host catalog
 shape. Ensure results have no JSON tags. Rooms Ready,

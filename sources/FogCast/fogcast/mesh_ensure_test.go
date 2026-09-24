@@ -292,6 +292,7 @@ func TestLaunchOnForeignKitDoesNotPull(t *testing.T) {
 	}
 }
 
+// A session that cannot claim still fails closed before any pull.
 func TestFreeKitDoesNotPull(t *testing.T) {
 	entry, _ := fpgaMeshEntry("coleco-frogger")
 	exec := &meshLaunchExecutor{

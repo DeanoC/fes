@@ -327,8 +327,9 @@ session bound. The host calls Ensure against that executor. Ensure's
 `Result` still has no JSON tags and is not this section.
 
 The agent exposes the executor's operations so the host can drive the
-store. Each call is one method. None of them programs the FPGA, claims
-a lease, or returns an Ensure result.
+store. Each call is one method. None of them programs the FPGA or
+returns an Ensure result. Pull and link are kit-lease mutations. Node,
+slot, and source reads are not.
 
 | Call | Request | Response |
 | --- | --- | --- |
@@ -344,6 +345,17 @@ that expansion's slot-bytes content-id. It does not rewrite primary
 media and it does not store a programmed image. Linking the same name
 and content-id again is a no-op. A later link failure leaves earlier
 links in place.
+
+Pull and link carry `X-FogCast-Kit-Lease` and use the same kit-lease
+admission as other kit mutations. A missing or foreign token is
+rejected. A hostless owner is `KIT_LEASE_DENIED`. On the host, pull is
+the lease-acquiring mutation: a fresh session's first FPGA mesh launch
+on a free kit claims that session's grant and then Ensure proceeds. A
+kit held by another session fails closed and does not pull. Link
+requires the grant the session already holds. LeaseFree stays this
+session's current grant and its generation. InUse stays the busy
+connection. A held grant whose observed generation does not match
+fails closed before any pull.
 
 A pull that does not land the id returns `CONTENT_PULL_FAILED`. The
 host session API uses that same class, plus `CONTENT_MISSING`,

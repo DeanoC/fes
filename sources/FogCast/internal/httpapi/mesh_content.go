@@ -12,7 +12,8 @@ import (
 // WithMeshContent serves the kit content store for the node this agent
 // is. The routes are an operational seam so a host Ensure can drive
 // that store. They are not an Ensure-result wire format. The handler
-// does not program the FPGA and does not claim a kit lease.
+// does not program the FPGA. Pull and link are admitted by the kit
+// lease guard; node, slot, and source reads are not.
 func WithMeshContent(executor meshcontent.Executor) Option {
 	return func(options *serverOptions) {
 		options.meshContent = executor
