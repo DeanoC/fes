@@ -83,14 +83,14 @@ id = "fes.rejected"
 major = 1
 `)
 	}
-	outside := t.TempDir()
-	writeManifest(t, outside, `
+	linked := filepath.Join(t.TempDir(), "staged")
+	writeManifest(t, linked, `
 [abi]
 id = "fes.linked"
 major = 1
 `)
 	link := filepath.Join(root, strings.Repeat("12", 32)+"-"+strings.Repeat("34", 16))
-	if err := os.Symlink(outside, link); err != nil {
+	if err := os.Symlink(linked, link); err != nil {
 		t.Fatal(err)
 	}
 	abis, packages := ReadInstalledPackages([]string{root})
