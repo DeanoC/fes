@@ -545,24 +545,29 @@ shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
 twelve keypad bits represent 0..9, *, #. Each active-high full-state write
 addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
 staging RAM preserves registered media-copy timing. The first slice contains a TV80
-Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
-Graphics I and Graphics II video, two active-low controller views and the FES
-fixed-video shell. A raw 1–32 KiB cartridge image uses the fixed
+Z80-compatible CPU, the Coleco reset/cartridge/RAM map, a shared TMS9918-style
+renderer for Graphics I, Graphics II, Text and Multicolor on the fixed
+256×192 logical raster, two active-low controller views and the FES fixed-video
+shell. A raw 1–32 KiB cartridge image uses the fixed
 `0x8000–0xffff` aperture. Images up to 16 KiB preserve the prior C000 mirror;
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
 publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
-holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio). Expansion hardware, bank
-switching, full VDP modes, cycle-perfect timing and retail-cartridge
-compatibility remain outside this slice.
+holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB.
+Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio).
+Expansion hardware, bank switching, NTSC timing, cycle-perfect raster behavior
+and retail-cartridge compatibility remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
 screen-third pattern/color addressing and the register masks for table mirroring.
-Both paths carry four-bit foreground, background and sprite colors through the
-framebuffer to the TMS palette; color zero resolves to the backdrop and display
-disable suppresses the playfield. The sprite renderer covers normal 8x8/16x16 sprites, magnification, early-clock
-positioning, signed/clipped X coordinates, transparency/priority, four visible
-sprites per line, collision and fifth-sprite status. The VDP uses four coherent
+Text renders 40×24 six-pixel glyphs with eight-pixel side margins and suppresses
+sprites. Multicolor selects four 4×4 color blocks per character and keeps
+sprites active. Unsupported mode selectors render the R7 backdrop. All four
+modes retain the four-bit palette path and color-zero backdrop behavior; display
+disable suppresses the playfield. The sprite renderer covers normal 8x8/16x16
+sprites, magnification, early-clock positioning, signed/clipped X coordinates,
+transparency/priority, four visible sprites per line, collision and
+fifth-sprite status. The VDP uses four coherent
 VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
 pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
@@ -645,7 +650,10 @@ separate FES integration step.
 ## FES SG-1000 Quartus oracle and OSS recipe
 
 `cores/fes-sg1000` is the Coleco sibling bring-up for package `fes.sg1000`.
-It reuses Coleco TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers,
+It reuses Coleco TV80 and the shared TMS9918-style VDP, which renders Graphics
+I, Graphics II, Text and Multicolor on a fixed 256×192 logical raster. Text
+suppresses sprites, Multicolor keeps them active, and unsupported selectors
+render the backdrop. It also reuses the dual-port RAM wrappers,
 the `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell.
 The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 KiB
 RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
@@ -683,8 +691,11 @@ launch/Stop record does not accept the current bitstream.
 
 `cores/fes-sms` is the Coleco / SG-1000 sibling bring-up for package `fes.sms`
 (FogCast `protocol.SystemSMS = "sms"`). Do not use `fes.mastersystem`. It
-reuses Coleco TV80, the bounded legacy TMS9918-style VDP, dual-port RAM wrappers,
-the `fes.simple-computer` mailbox and both PLL wrappers. The SMS-specific RTL is
+reuses Coleco TV80 and the shared legacy TMS9918-style VDP. Graphics I, Graphics
+II, Text and Multicolor use its fixed 256×192 logical raster; Text suppresses
+sprites, Multicolor keeps them active, and unsupported selectors render the
+backdrop. Dual-port RAM wrappers, the `fes.simple-computer` mailbox and both
+PLL wrappers are also shared. The SMS-specific RTL is
 the Mode 4 VDP and six-bit 720p video shell plus the memory map (32 KiB fixed
 cartridge at `0x0000–0x7fff`,
 unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
@@ -697,11 +708,11 @@ explicitly padded with `0xff`. The Quartus oracle and default mailbox
 simulation remain format-2 media-transport diagnostics. There is no BIOS shim. Mode 4 implements
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and
-VBlank interrupts in the 256×192 NTSC logical raster. The PSG mix is a signed
+VBlank interrupts on the fixed 256×192 logical raster. The PSG mix is a signed
 16-bit sample; HDMI I2S0 is 16-bit 48 kHz against the existing runtime ADV7513
 program (N=6144, CTS=74250). There is no host `fes.audio` mailbox. Mappers,
-banked/48 KiB retail images, 224/240-line modes, PAL timing and cycle-perfect
-raster effects remain outside this slice.
+banked/48 KiB retail images, 224/240-line modes, NTSC/PAL timing accuracy and
+cycle-perfect raster effects remain outside this slice.
 
 `make sms-diagnostic` emits a 32 KiB-capable Mode 4 cartridge that jumps
 from `0x0000` to code at `0x4000` and programs an SN76489 square wave. The sim
@@ -709,7 +720,8 @@ image HALTs after the RAM signature; the HIL image (`--interactive`) keeps the
 controller poll loop with the tone running.
 `make sim-fes-sms` is the default Verilator check (`-DTV80_REFRESH=1` only):
 the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
-unit covers VRAM buffering, CRAM color, tile priority/palette, sprite collision,
+unit covers legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color,
+tile priority/palette, sprite collision,
 line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
 square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic

@@ -22,9 +22,9 @@ retail-game compatibility.
   overlay this aperture through `fes.firmware.blob` 1.0.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
-  VRAM, register-based Graphics I/II name/pattern/color tables, four-bit tile
-  and sprite colors, buffered VRAM reads, VBlank status and enabled
-  VBlank NMI delivery.
+  VRAM, Graphics I, Graphics II, Text and Multicolor rendering on a fixed
+  256×192 logical raster, four-bit tile and sprite colors, buffered VRAM reads,
+  VBlank status and enabled VBlank NMI delivery.
 - Two standard controllers with joystick/keypad mode selection, twelve encoded
   keypad keys and two fire buttons through shared native controller ports.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
@@ -34,10 +34,13 @@ retail-game compatibility.
   System/audio clocks share one 52.224/12.288 MHz PLL; the CPU/raster cadence is
   0.43% faster than the earlier 52 MHz profile, while HDMI pixel timing is fixed.
 
-Expansion hardware, bank switching, full VDP modes,
-and cycle-perfect clocking remain outside this first slice. Native host/runtime
-selection follows the declared interfaces. Graphics II supports screen-third
-pattern/color addressing and register masks. The bounded sprite path includes
+Expansion hardware, bank switching, NTSC timing and cycle-perfect raster
+behavior remain outside this first slice. Native host/runtime selection follows
+the declared interfaces. Graphics II supports screen-third pattern/color
+addressing and register masks. Text mode renders 40×24 six-pixel glyphs with
+eight-pixel side margins and suppresses sprites; Multicolor selects four 4×4
+color blocks per character and keeps sprites active. Unsupported mode selectors
+render the R7 backdrop. The bounded sprite path includes
 normal 8x8/16x16 sprites, magnification, early-clock positioning,
 clipping, transparency/priority, four visible sprites per line, collision and
 fifth-sprite status. The raw media limit and reset shim are deliberate
@@ -142,10 +145,11 @@ complete TMS9918 compatibility.
 
 `make sim-fes-coleco-graphics` and `make sim-fes-coleco-graphics-oss` check
 literal VRAM fixtures for Graphics I color grouping, Graphics II table masks
-and screen thirds, foreground/background colors, backdrop substitution,
-display blanking and full-color sprites. Both are included in the corresponding
-Coleco regression targets. The video test carries all sixteen color codes
-through the actual framebuffer and HDMI palette.
+and screen thirds, Text margins/glyph colors/sprite suppression, Multicolor
+byte pairs/nibbles/backdrop/sprite overlay, invalid mode selectors, backdrop
+substitution, display blanking and full-color sprites. Both are included in the
+corresponding Coleco regression targets. The video test carries all sixteen
+color codes through the actual framebuffer and HDMI palette.
 
 The data/control interface follows the read-ahead and interrupt behavior in
 the [TI TMS9918A data manual](https://computers.baffa.tec.br/pages/datasheet/TMS9918A_TMS9928A_TMS9929A_Video_Display_Processors_Data_Manual_Nov82.pdf),

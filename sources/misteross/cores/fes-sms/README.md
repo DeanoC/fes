@@ -34,11 +34,16 @@ is registered for package-only parent builds and is not in the factory image.
   reset fetches the linked cartridge. The Quartus oracle and the default
   mailbox simulation remain explicit media-transport diagnostics.
 - 8 KiB CPU RAM at `0xc000–0xdfff`, mirrored at `0xe000–0xffff`.
-- VDP ports `0xbe` / `0xbf` with legacy TMS modes plus SMS Mode 4. Mode 4 has
-  16 KiB VRAM, 32-entry six-bit CRAM, 32×28 tilemaps, tile priority/palette and
+- VDP ports `0xbe` / `0xbf` with shared TMS Graphics I, Graphics II, Text and
+  Multicolor modes on the 256×192 logical raster, plus separate SMS Mode 4.
+  Unsupported TMS selectors show the R7 backdrop; Text suppresses sprites and
+  Multicolor keeps them active. Mode 4 has 16 KiB VRAM, 32-entry six-bit CRAM,
+  32×28 tilemaps, tile priority/palette and
   horizontal/vertical flip, horizontal/vertical scrolling and lock bits, the
   left-column mask, 8×8/8×16 zoomable sprites, eight-sprite overflow, sprite
-  collision, line interrupts and VBlank interrupts. VDP IRQ drives Z80 INT
+  collision, line interrupts and VBlank interrupts on the fixed 256×192 logical
+  raster. NTSC timing accuracy and cycle-perfect raster behavior remain outside
+  this slice. VDP IRQ drives Z80 INT
   (maskable). Pause NMI is unused.
 - Two joysticks on the SMS 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
@@ -137,8 +142,8 @@ claim. Kit HDMI-audio HIL remains later.
 
 `make sim-fes-sms` is the cheap Verilator check: the stream-enabled mailbox
 consumes `cores/fes-sms/generated/stream-exchanges.json`; the focused VDP unit
-checks Mode 4 VRAM buffering, CRAM color, tile priority/palette, sprite
-collision, line IRQ and VBlank IRQ; the PSG unit checks register writes on
+checks legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color, tile
+priority/palette, sprite collision, line IRQ and VBlank IRQ; the PSG unit checks register writes on
 `0x7E`/`0x7F` and the tone-0 square wave; HDMI I2S checks 16-bit 48 kHz frames;
 then the machine checks 32 KiB fixed-map copy, 8 KiB RAM mirror, joystick
 ports, long-then-short `0xff` tails and the diagnostic ROM (including the

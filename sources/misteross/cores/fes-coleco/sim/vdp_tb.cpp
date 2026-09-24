@@ -265,9 +265,13 @@ int main(int argc, char **argv) {
     }
     require(saw_sprite, "sprite test did not reach its visible pixel");
     require(saw_second_sprite, "sprite test did not reach its second visible pixel");
+    write_register(dut, 0, 0x00);
+    write_register(dut, 1, 0x50);
     const uint8_t collision_status = io_read(dut, 0xbf);
     require((collision_status & 0x20) != 0,
             "overlapping sprites did not latch collision");
+    require((io_read(dut, 0xbf) & 0x20) == 0,
+            "status read did not clear collision after switching to Text mode");
 
     // In 16x16 mode both low pattern-name bits are ignored. Magnification
     // repeats the top source row vertically and horizontally, while the

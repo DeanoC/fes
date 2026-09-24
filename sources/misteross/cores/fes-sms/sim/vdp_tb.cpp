@@ -196,6 +196,24 @@ int main(int argc, char **argv) {
     require(sample_pixel(dut, 192, 0, 3) == 0x07,
             "rightmost eight tile columns did not inhibit vertical scroll");
 
-    std::cout << "FES SMS Mode 4 VDP checks passed\n";
+    write_register(dut, 0, 0x00);  // Return from SMS Mode 4 to legacy TMS modes.
+    write_register(dut, 1, 0x50);
+    write_register(dut, 2, 6);
+    write_register(dut, 4, 1);
+    write_register(dut, 7, 0xa4);
+    write_vram(dut, 0x1800, 3);
+    write_vram(dut, 0x0818, 0xa7);
+    require(sample_pixel(dut, 8, 0, 3) == 0x1f,
+            "legacy Text glyph did not pass through SMS palette conversion");
+
+    write_register(dut, 1, 0x48);
+    write_vram(dut, 0x1801, 2);
+    write_vram(dut, 0x0810, 0x2a);
+    require(sample_pixel(dut, 8, 0, 3) == 0x1c,
+            "legacy Multicolor high nibble did not pass through SMS palette conversion");
+    require(sample_pixel(dut, 12, 0, 3) == 0x1f,
+            "legacy Multicolor low nibble did not pass through SMS palette conversion");
+
+    std::cout << "FES SMS Mode 4 and legacy TMS VDP checks passed\n";
     return EXIT_SUCCESS;
 }
