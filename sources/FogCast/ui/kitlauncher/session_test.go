@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -131,6 +132,7 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 	var state atomic.Value
 	state.Store("idle")
 	var launchCalls, stopCalls atomic.Int64
+	var stopBody atomic.Value
 	game := hostclient.Game{ID: "sonic", Title: "Sonic", System: "megadrive", State: "available", RootOnline: true, Launchable: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -149,6 +151,8 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 			state.Store("active")
 			_, _ = w.Write([]byte(`{"state":"active","game_id":"sonic","execution":"fpga_native"}`))
 		case "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			stopBody.Store(string(raw))
 			stopCalls.Add(1)
 			state.Store("idle")
 			_, _ = w.Write([]byte(`{"state":"idle"}`))
@@ -181,6 +185,9 @@ func TestRunActiveStopThenRelaunchUsesSessionAPI(t *testing.T) {
 	}
 	if got := stopCalls.Load(); got != 1 {
 		t.Fatalf("session stops = %d, want one persistent stop", got)
+	}
+	if body, _ := stopBody.Load().(string); body != "" {
+		t.Fatalf("Select+Start stop body = %q, want explicit release", body)
 	}
 	if !idleAfterStop.Load() {
 		t.Fatal("missing authoritative idle transition after stop")

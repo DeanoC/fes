@@ -19,7 +19,7 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81 packages use format 3 to seal the machine-ROM map; other producers keep
+ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other producers keep
 format 2. The external `build-inputs.json` record gains format 2, while the exporter still
 reads format 1 with its original full-record SHA256 correlation algorithm.
 
@@ -651,11 +651,13 @@ The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 Ki
 RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
 shim.
 
-`make sim-fes-sg1000` is the default Verilator machine check
+`make sim-fes-sg1000` is the diagnostic Verilator machine check
 (`-DTV80_REFRESH=1` only). `make sim-fes-sg1000-oss` compiles the same
 machine with `-DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1` so registered media,
 `coleco_dpram` M10K TDP, and the registered four-copy VDP are the shapes
 Yosys maps. `FES_SG1000_OSS` alone does not select those Coleco wrappers.
+`make sim-fes-sg1000-rom-link` tests the product shape with an exact 16 KiB
+diagnostic cartridge and no media handshake.
 
 `make build-fes-sg1000-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never
@@ -665,14 +667,17 @@ and timing evidence without sealing.
 `make build-fes-sg1000` is the OSS producer
 (`scripts/build_fes_sg1000_oss.py`). It uses `toolchains/registered-memory.lock`
 (Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
-Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`, and `FES_COLECO_OSS=1`.
+Yosys defines `TV80_REFRESH=1`, `FES_SG1000_OSS=1`,
+`FES_SG1000_ROM_LINK=1`, and `FES_COLECO_OSS=1`. The product RBF contains a
+blank 16-lane M10K cartridge, and the format-3 package carries a validated
+`rom-map.json` and exact 16 KiB `cartridge-rom` requirement. Reset is not
+held for an application media upload.
 `--synth-only` runs Yosys without a clean tree and does not seal. HIP
 `--router gpu` of that synth-only netlist (BUILD_ID all zeros, seed 4) met
-the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. Format-2
-seal still requires a clean tree; a sealed BUILD_ID changes the placement
-search space. `fes.sg1000` is not registered in the parent recipe file and
-is not in the factory image. A historical launch/Stop record does not accept
-the current bitstream.
+the 52 MHz and 74.25 MHz structured fmax rows on a live HIP backend. A sealed
+BUILD_ID changes the placement search space. `fes.sg1000` is registered as a
+package-only parent recipe and is not in the factory image. A historical
+launch/Stop record does not accept the current bitstream.
 
 ## FES Master System Quartus oracle and OSS recipe
 
@@ -684,12 +689,12 @@ the Mode 4 VDP and six-bit 720p video shell plus the memory map (32 KiB fixed
 cartridge at `0x0000–0x7fff`,
 unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
 joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, the SN76489
-on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the stream-enabled
-`fes.simple-computer` mailbox (`ENABLE_MEDIA_STREAM=1`). Legacy blob 1.0 stays
-1–16 KiB. Stream 1.0 admits 1–32 KiB. After a commit of length N, mapped
-addresses N..0x7fff read `0xff`. HoldReset aborts an incomplete legacy blob
-even when stream is enabled (`media_open`/`media_ptr` cleared) and leaves
-in-progress stream staging in place. There is no BIOS shim. Mode 4 implements
+on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
+`fes.simple-computer` mailbox. The OSS package uses 32 fixed blank M10K
+cartridge lanes, authenticated by its format-3 ROM map; the target links an
+exact 32 KiB `cartridge-rom` before download. Shorter fixed-map ROMs must be
+explicitly padded with `0xff`. The Quartus oracle and default mailbox
+simulation remain format-2 media-transport diagnostics. There is no BIOS shim. Mode 4 implements
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and
 VBlank interrupts in the 256×192 NTSC logical raster. The PSG mix is a signed
@@ -709,10 +714,10 @@ line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
 square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic
 (not reset-only peeks).
-`make sim-fes-sms-oss` is the OSS-conditional check
-(`-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1`). Both are host simulation, not hardware
-acceptance. SMS format-2 packages declare `fes.media.blob-stream` 1.0 required
-alongside blob 1.0, keyboard 1.0 and fixed-video 1.0.
+`make sim-fes-sms-oss` is the linked-ROM OSS-conditional check
+(`-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1`). Both are host
+simulation, not hardware acceptance. The OSS format-3 package declares only
+keyboard and fixed-video interfaces alongside its required ROM.
 
 `make build-fes-sms-quartus` is the Quartus Prime Lite 17.0.2 oracle recipe.
 It requires a clean committed tree to seal a format-2 package and never
@@ -723,9 +728,9 @@ and timing evidence without sealing.
 (`scripts/build_fes_sms_oss.py`). It uses `toolchains/registered-memory.lock`
 (shared registered-memory compiler selection), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
-`TV80_REFRESH=1`, `FES_SMS_OSS=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
+`TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
-and a first-pass HIP seed/weight search (starts at seed 10 / HeAP 1000,
+and a first-pass HIP seed/weight search (starts at seed 3 / HeAP 1000,
 then the remaining `PLACER_SEEDS` and weight 300). Final structured `clk_sys` and
 `pixel_clk` rows must meet 52 MHz and 74.25 MHz. `fes.sms` is registered for
 package-only parent builds and is not in the factory image. Historical parent
@@ -1100,7 +1105,10 @@ forbidden memory/DSP synthesis cell or utilization resource is used, the known
 `cyclonev_oscillator` utilization row is present with zero use, and the route
 log proves normal completion. Synthesized and routed evidence must preserve the
 I2C low-or-release topology and pad feedback; routed evidence must use the exact
-HPS site and U10/AA4 pads. The single sequential timing domain must meet its
+HPS site and U10/AA4 pads. Newly reported utilization resources are retained
+when their counts are valid and use is zero; unrecognized resources in use are
+rejected. Known required and forbidden resource checks remain exact. The single
+sequential timing domain must meet its
 74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
 the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
 application in the route log, and identical fixed fractional PLL parameters in

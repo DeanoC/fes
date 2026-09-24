@@ -68,7 +68,7 @@ make check-generated
 
 After a shared definition or fixture changes, use `make generate`, review the
 resulting consumer changes and run affected tests. Commit the reviewed FES
-change when authorized, then run `make check` and the appropriate build. Parent
+change, then run `make check` and the appropriate build. Parent
 builds consume real committed FES snapshots under ignored `out/work/`; they do
 not build arbitrary unstaged module edits. A snapshot retains the actual FES
 repository and commit, with the module's path and tree identity. It is not a

@@ -427,6 +427,26 @@ def _read_json(path: Path, label: str) -> dict:
     return value
 
 
+def validate_timing_resources(utilization: object, known: set[str] | frozenset[str]) -> dict[str, dict[str, int]]:
+    """Keep valid unused toolchain rows, but reject any unrecognized resource in use."""
+    if not isinstance(utilization, dict):
+        raise BuildError("timing report has no structured utilization data")
+    if any(not isinstance(name, str) or not name for name in utilization):
+        raise BuildError("timing report has an invalid resource name")
+    resources: dict[str, dict[str, int]] = {}
+    for name, fields in sorted(utilization.items()):
+        if not isinstance(fields, dict):
+            raise BuildError(f"malformed resource evidence: {name}")
+        used, available = fields.get("used"), fields.get("available")
+        if type(used) is not int or used < 0 or type(available) is not int or available < 0:
+            raise BuildError(f"malformed resource counts: {name}")
+        resources[name] = {"available": available, "used": used}
+    unknown_used = sorted(name for name in resources if name not in known and resources[name]["used"] != 0)
+    if unknown_used:
+        raise BuildError("timing report contains unknown resources in use: " + ", ".join(unknown_used))
+    return resources
+
+
 def _cell_counts(synthesis: dict) -> dict[str, int]:
     modules = synthesis.get("modules")
     if not isinstance(modules, dict):

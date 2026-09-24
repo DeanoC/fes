@@ -6,7 +6,7 @@
 
 **Related:** FogCast `docs/rooms.md` (authoring). Tip pin: FES #85 / FogCast `690b51a` (rooms selected for tenfoot). Proposed launch-slot readiness (core-present is not composition-ready): [`launch-composition.md`](launch-composition.md). Proposed replacement of kit MENU idle with rooms through FES ABI (splash vs attract ABI vs play; kit-as-host is the same host, not a second catalog): [FES idle MENU → rooms](../../../docs/idle-menu-rooms.md).
 
-**Out of scope here (separate specs later):** room discovery/download UI, room authoring tools, automatic routing across LAN machines. This flow must accommodate those later without rewriting the core model.
+**Out of scope here (separate specs later):** room discovery/download UI, room authoring tools, automatic routing across LAN machines. LAN routing is drafted in [mesh LAN](../../../docs/mesh-lan.md) and [mesh node protocol](../../../docs/mesh-node-protocol.md) (design draft awaiting Deano; it does not change this experience spec). This flow must accommodate those later without rewriting the core model.
 
 ---
 

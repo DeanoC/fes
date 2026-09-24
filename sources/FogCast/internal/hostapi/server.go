@@ -318,11 +318,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 	registerDevelopmentMediaRoute(mux, session)
 	registerLiveMediaSessionRoutes(mux, session)
 	mux.HandleFunc("POST /api/v1/session/stop", func(w http.ResponseWriter, r *http.Request) {
-		stamp, err := decodeOptionalStopStamp(w, r)
+		stamp, retainLease, releaseIdle, err := decodeOptionalStopRequest(w, r)
 		if err != nil {
 			return
 		}
-		result, err := session.stop(r.Context(), stamp)
+		result, err := session.stop(r.Context(), stamp, retainLease, releaseIdle)
 		if err != nil {
 			writeSessionError(w, err)
 			return
@@ -409,6 +409,15 @@ func New(service Service, options ...ServerOption) http.Handler {
 			result.Error = &apiError{Code: string(status.LastError.Code), Message: publicErrorMessage(status.LastError.Code)}
 		}
 		writeJSON(w, http.StatusOK, result)
+	})
+	mux.HandleFunc("GET /api/v1/mesh/nodes", func(w http.ResponseWriter, r *http.Request) {
+		nodes := []fogcast.MeshNode{}
+		if provider, ok := service.(interface{ MeshNodes() []fogcast.MeshNode }); ok {
+			if listed := provider.MeshNodes(); len(listed) > 0 {
+				nodes = listed
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"nodes": nodes})
 	})
 	mux.HandleFunc("GET /api/v1/games", func(w http.ResponseWriter, r *http.Request) {
 		handleGamesList(w, r, service)

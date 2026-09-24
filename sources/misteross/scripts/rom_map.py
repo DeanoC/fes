@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export ZX81 machine ROM INIT destinations from the selected Mistral database.
+"""Export machine ROM INIT destinations from the selected Mistral database.
 
 This is a producer tool, never a kit dependency. word_bits uses stored mux bit
 order and linear CRAM addresses (y * 7605 + x), not offsets into an RBF file.
@@ -19,6 +19,9 @@ except ImportError:
 
 
 DATABASE_FILES = ('data/m10k-mux.txt', 'libmistral/cvd-sx120f.cc', 'libmistral/cyclonev.h')
+ZX81_LANE_ROWS = tuple(range(73, 81))
+SMS_LANE_ROWS = tuple(range(32, 56)) + ZX81_LANE_ROWS
+SG1000_LANE_ROWS = tuple(range(32, 48))
 
 
 def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, bytes]:
@@ -37,15 +40,17 @@ def read_database(root: Path, pins: dict[str, str] | None = None) -> dict[str, b
     return result
 
 
-def validate_routed_rom(routed: dict) -> None:
+def validate_routed_rom(routed: dict, lane_rows: tuple[int, ...] = ZX81_LANE_ROWS) -> None:
     """Require the actual routed BEL, lane shape and empty INIT for every bank."""
+    if not lane_rows or len(lane_rows) > 256 or len(lane_rows) != len(set(lane_rows)):
+        raise ValueError('invalid ROM lane selection')
     cells = routed.get('modules', {}).get('top', {}).get('cells', {})
     if not isinstance(cells, dict):
         raise ValueError('routed ROM cells missing')
-    for index in range(8):
+    for index, row in enumerate(lane_rows):
         name = f'machine.rom.lane{index}'
         cell = cells.get(name, {})
-        bel = f'MISTRAL_M10K.5.{73+index}.0'
+        bel = f'MISTRAL_M10K.5.{row}.0'
         if cell.get('type') != 'MISTRAL_M10K' or cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'routed ROM lane {name} must occupy {bel}')
         parameters = cell.get('parameters', {})
@@ -93,11 +98,11 @@ def parse_ram_offsets(text: str) -> list[list[tuple[int, int]]]:
     return words
 
 
-def zx81_blocks(words: list[list[tuple[int, int]]]) -> list[dict]:
+def rom_blocks(words: list[list[tuple[int, int]]], lane_rows: tuple[int, ...]) -> list[dict]:
     return [dict(bel=f'M10K.005.{row:03d}', source_offset=index*1024,
                  word_bits=[[(2+86*row+y)*SX120F.cram_sx+SX120F.x_to_bx[5]+x
                              for x, y in word] for word in words])
-            for index, row in enumerate(range(73, 81))]
+            for index, row in enumerate(lane_rows)]
 
 
 def _section(text: str, label: str) -> str:
@@ -107,9 +112,13 @@ def _section(text: str, label: str) -> str:
     return match[1]
 
 
-def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *, routed: dict | None = None) -> tuple[dict, dict]:
+def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *,
+                  routed: dict | None = None,
+                  lane_rows: tuple[int, ...] = ZX81_LANE_ROWS) -> tuple[dict, dict]:
+    if not lane_rows or len(lane_rows) > 256 or len(lane_rows) != len(set(lane_rows)):
+        raise ValueError('invalid ROM lane selection')
     if routed is not None:
-        validate_routed_rom(routed)
+        validate_routed_rom(routed, lane_rows)
     paths = DATABASE_FILES
     sources = read_database(mistral_source) if isinstance(mistral_source, Path) else mistral_source
     die = sources[paths[1]].decode()
@@ -132,12 +141,12 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *, route
             for i in range(count):
                 legal.update(range(numbers[3+2*i], numbers[4+2*i]+1))
         numbers = numbers[3+2*count:]
-    if not set(range(73, 81)) <= legal:
-        raise ValueError('ZX81 machine ROM placement is not legal in database')
+    if len(lane_rows) != len(set(lane_rows)) or not set(lane_rows) <= legal:
+        raise ValueError('machine ROM placement is not legal in database')
     header = sources[paths[2]].decode()
     if not re.search(r'y\s*=\s*2\s*\+\s*86\s*\*\s*pos2y\(pos\)', header):
         raise ValueError('Mistral tile row geometry differs from codec')
-    blocks = zx81_blocks(parse_ram_offsets(sources[paths[0]].decode()))
+    blocks = rom_blocks(parse_ram_offsets(sources[paths[0]].decode()), lane_rows)
     loaded = rbf_load(base)
     for block in blocks:
         for word in block['word_bits']:
@@ -145,7 +154,8 @@ def build_rom_map(mistral_source: Path | dict[str, bytes], base: bytes, *, route
                 if not (loaded.cram[bit >> 3] >> (bit & 7)) & 1:
                     raise ValueError(f"{block['bel']} is not a blank ROM INIT")
     mapping = dict(format=1, device=TARGET_DEVICE, encoding='m10k-1024x10-v1',
-                   base_sha256=hashlib.sha256(base).hexdigest(), source_size=8192, blocks=blocks)
+                   base_sha256=hashlib.sha256(base).hexdigest(),
+                   source_size=1024 * len(blocks), blocks=blocks)
     evidence = dict(format=1, database_sha256={name: hashlib.sha256(data).hexdigest()
                                              for name, data in sources.items()})
     return mapping, evidence

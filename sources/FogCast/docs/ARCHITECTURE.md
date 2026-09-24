@@ -42,6 +42,11 @@ That fixture is not a claim of full decoder equivalence. Launch, stop,
 and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.
+Installed FPGA `core_package` rows, and any row on the `fpga` catalog
+platform, stay `launchable` even when a cartridge platform such as Coleco
+has no host-emulator mapping. Rooms treat those titles as Ready once
+composition flags such as `firmware_ready` pass; raw Coleco library carts
+remain browse-only.
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.
@@ -512,7 +517,7 @@ Native SDL3 UI
   -> GET /api/v1/session/events?after= (poll; sofa event list; additive flight_id plus host/client clocks)
   -> POST /api/v1/debug/ui-events and GET /api/v1/debug/ui-events?after= (sofa/tenfoot focus/nav/launch/stop stamps; not a kit mutation)
   -> GET /api/v1/session/preview (optional MJPEG; 404/503/inactive is unavailable)
-  -> POST /api/v1/session/stop (empty body or optional client stamp JSON; X-FogCast-Client-* headers)
+  -> POST /api/v1/session/stop (empty body releases the kit lease; optional client stamp JSON; retain_lease true keeps it; release_idle drops idle grants without stopping a surviving play; X-FogCast-Client-* headers)
   -> GET /api/v1/health (poll; kit chrome)
   -> GET /api/v1/status (503 TARGET_UNAVAILABLE treated as kit-down)
   -> GET /v1/kit/lease on the selected target address (status-only lease strip)
@@ -823,9 +828,26 @@ remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
 hardware. Stop, input detach and reboot require an existing grant and never
 claim someone else's active session. Replacement operations retain the grant.
-Explicit public Stop releases its grant after input/media/hardware cleanup;
-replacement Stop retains ownership for the next launch. Application shutdown
-releases its grants after input/session cleanup.
+Explicit public Stop (empty body, or `retain_lease` false) releases its grant
+after input/media/hardware cleanup. Sofa Soft-stop sets `retain_lease` true on
+that same route and keeps the grant after idle cleanup. An idle selected-target
+change may drop that client; the retained grant stays reachable for a later
+explicit Stop. An already-idle explicit Stop still attempts that release when
+the newly selected target's probe or Stop fails. A Soft-stopped legacy
+non-package fpga_native session keeps its execution label and is still
+already idle for that release. Soft-stop `retain_lease` still keeps the grants.
+Invalidating one target removes only that client's retained grant. A release
+that fails leaves that grant retained so the next explicit Stop can retry it. Replacement Stop retains ownership for the next launch.
+Explicit release leaves a retained grant held when that lease still backs a
+remaining play, so Soft-stop, relaunch, and an explicit stop of another target
+do not revoke the live session. A failed explicit Stop of that surviving play
+still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
+the retain request and keeps the grant while the shell stays up. Start, Q, or
+closing the window waits for an in-flight Soft-stop, then releases that idle
+grant. A confirmed idle service gets an empty-body Stop. When a play still
+survives, the shell posts `release_idle` so idle grants drop without stopping
+that play. A failed release is retried before the shell exits.
+Application shutdown releases its grants after input/session cleanup.
 Shutdown cleanup first checks local ownership: it invokes Service.Stop only for
 an active host-only session or a foreground target with a held grant. Clean
 idle after explicit Stop and never-owned idle skip the target Stop, while a
@@ -855,9 +877,28 @@ health reports it; anonymous health omits it. Advertisement runs independently
 of HTTP startup, waits for an addressed multicast interface, and recreates its
 listeners when interfaces or addresses change. Failed setup retries with capped
 backoff. This handles the kit starting its agent before Ethernet is ready.
-DNS-SD TXT contains only `target_id` and discovery protocol version. A random
-service instance and hostname distinguish cloned identities on the same link;
-the persistent TXT identity remains stable across reboots.
+DNS-SD TXT keeps `protocol` and `target_id`. It also carries `node_id` (the
+same stable id; the agent does not mint a second one), `mesh` (`major.minor`,
+currently `1.0`), and `cap` (a capability bag). The kit bag advertises Execute
+`fpga_native` and DisplaySink, plus InputSource for the kit's local pad path.
+ABI or package-family suffixes are included only when the advertiser knows
+them; the agent omits them because it does not inventory packages before
+announcing, and an empty list is not a claim that any RBF runs. DisplaySink
+means the node can present. It is not HDMI or ADV liveness, and a host preview
+is not this capability. Catalog, Content, Shell, and Coordinator are omitted.
+The advertisement carries no credentials, title list, or lease secret. A `ttl`
+key is parsed when a peer sends one and is not emitted here; the protocol
+strawman leaves the seconds unsigned. Parsed TTL silence is absence for a
+future placement choice only and does not release the kit lease. Phase 0
+announcements that omit `mesh` stay directly bindable. The host collects those
+announcements into an in-memory node inventory (`node_id`, mesh version, and
+the `cap` bag) and serves it at `GET /api/v1/mesh/nodes`. The inventory does
+not adopt an endpoint, claim a lease, or make a title Ready. A later browse
+that no longer sees a node, including a node that omitted `ttl`, drops that
+row only. A mesh major other than 1 does not remove that direct bind; a
+session that needs the mesh contract fails closed on that major. A random service instance and hostname distinguish
+cloned identities on the same link; the persistent TXT identity remains stable
+across reboots.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID
@@ -896,6 +937,16 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
+Busy means another session holds the kit lease. Tenfoot rooms show a Ready
+FPGA title aimed at that kit as Unavailable, with the copy "This executor is
+in use." Confirm explains and does not launch. A host-only title stays Ready
+and Play reaches the host executor. `POST /api/v1/session/launch` returns the
+existing lease denial, without claiming, when that launch would use the busy
+kit. A host-emulator title and a launch aimed at a different target still
+proceed. That named target is the client used for the load, including while a
+host-only session is still the active execution. The shell that holds the grant,
+including after Soft-stop, stays ready and keeps Phase 0 Play. Generation
+takeover remains `POST /v1/kit/takeover`.
 The browser and tenfoot target views show this state. Manual addresses remain
 usable where multicast is unavailable. This path has host/fake-peer regression
 coverage; physical reboot and DHCP acceptance belongs to the selected FES image.

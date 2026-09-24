@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/libraryuser"
 	"github.com/DeanoC/FogCast/protocol"
@@ -283,6 +284,80 @@ func TestGamesListHonorsHostPlatformLaunchPolicy(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), `"launchable":true`) {
 		t.Fatalf("host-emulator launchable missing: %s", response.Body.String())
+	}
+}
+
+type launchCompositionFake struct {
+	launchableFake
+	compositions map[string]protocol.CoreComposition
+}
+
+func (s *launchCompositionFake) CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error) {
+	return s.compositions, nil
+}
+
+func TestGamesListFPGAColecoPackageLaunchableDespiteColecoPlatform(t *testing.T) {
+	pkg := catalog.Game{
+		ID: "fpga-donkey-kong-72a5215aeed0", Title: "Donkey Kong", System: protocol.SystemColecoVision,
+		Kind: catalog.SourceKindCorePackage, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	fpga := pkg
+	fpga.ID = "fpga-frogger-ready"
+	fpga.Title = "Frogger"
+	fpga.System = catalog.CorePlatform
+	raw := catalog.Game{
+		ID: "coleco-donkey-kong-cart", Title: "Donkey Kong", System: protocol.SystemColecoVision,
+		Kind: catalog.SourceKindRaw, State: catalog.SourceStateAvailable, RootOnline: true,
+	}
+	service := &launchCompositionFake{
+		launchableFake: launchableFake{
+			fakeService: fakeService{games: []catalog.Game{pkg, fpga, raw}, game: pkg},
+			launchable:  map[protocol.System]bool{protocol.SystemColecoVision: false, catalog.CorePlatform: false},
+		},
+		compositions: map[string]protocol.CoreComposition{
+			pkg.ID:  {FirmwareRequired: true, FirmwareReady: true},
+			fpga.ID: {FirmwareRequired: true, FirmwareReady: true},
+		},
+	}
+	handler := hostapi.New(service)
+	list := serve(t, handler, http.MethodGet, "/api/v1/games")
+	if list.Code != http.StatusOK {
+		t.Fatal(list.Body.String())
+	}
+	var page struct {
+		Games []hostclient.Game `json:"games"`
+	}
+	if err := json.Unmarshal(list.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Games) != 3 {
+		t.Fatalf("games = %+v", page.Games)
+	}
+	byID := map[string]hostclient.Game{}
+	for _, game := range page.Games {
+		byID[game.ID] = game
+	}
+	for _, id := range []string{pkg.ID, fpga.ID} {
+		game := byID[id]
+		if !game.Launchable || game.LaunchBlock() != "" || !game.FirmwareRequired || !game.FirmwareReady {
+			t.Fatalf("%s launchable=%v block=%q firmware=%v/%v", id, game.Launchable, game.LaunchBlock(), game.FirmwareRequired, game.FirmwareReady)
+		}
+	}
+	cart := byID[raw.ID]
+	if cart.Launchable || cart.LaunchBlock() != hostclient.LaunchBrowseOnly {
+		t.Fatalf("raw coleco launchable=%v block=%q", cart.Launchable, cart.LaunchBlock())
+	}
+
+	detail := serve(t, handler, http.MethodGet, "/api/v1/games/"+pkg.ID)
+	if detail.Code != http.StatusOK {
+		t.Fatal(detail.Body.String())
+	}
+	var one hostclient.Game
+	if err := json.Unmarshal(detail.Body.Bytes(), &one); err != nil {
+		t.Fatal(err)
+	}
+	if !one.Launchable || one.LaunchBlock() != "" || !one.FirmwareRequired || !one.FirmwareReady {
+		t.Fatalf("detail launchable=%v block=%q firmware=%v/%v", one.Launchable, one.LaunchBlock(), one.FirmwareRequired, one.FirmwareReady)
 	}
 }
 

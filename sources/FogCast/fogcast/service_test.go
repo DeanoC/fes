@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -930,6 +931,464 @@ func TestServiceShutdownCleanupRequiredClearsAfterOwnedStopAndRelease(t *testing
 	if stopCalls != 1 || releaseCalls != 1 {
 		t.Fatalf("target lifecycle calls = stop:%d release:%d, want 1 each", stopCalls, releaseCalls)
 	}
+}
+
+func TestSoftStopKeepsSameOwnerUntilExplicitRelease(t *testing.T) {
+	var stopCalls, releaseCalls int
+	var stopToken, releaseToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"same-owner"}`)
+		case "/v1/stop":
+			stopCalls++
+			stopToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			releaseCalls++
+			releaseToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"free"}`)
+		case "/v1/development/reboot":
+			t.Error("soft-stop armed a development reboot")
+		default:
+			http.Error(w, "unexpected path", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "fogcast@sofa", "interactive game/development session")
+	defer lease.Close(context.Background())
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	claim, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim lease: %v", err)
+	}
+	token := lease.CurrentToken()
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, client)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+	status, err := service.Stop(context.Background())
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop = %+v, %v", status, err)
+	}
+	if stopCalls != 1 || stopToken != token || releaseCalls != 0 || !lease.Held() || lease.CurrentToken() != token {
+		t.Fatalf("stopCalls=%d releaseCalls=%d stopToken=%q held=%v token=%q", stopCalls, releaseCalls, stopToken, lease.Held(), lease.CurrentToken())
+	}
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if releaseCalls != 1 || releaseToken != token || lease.Held() {
+		t.Fatalf("releaseCalls=%d releaseToken=%q held=%v", releaseCalls, releaseToken, lease.Held())
+	}
+}
+
+func TestSoftStopThenSelectedTargetChangeExplicitStopReleasesRetainedLease(t *testing.T) {
+	var devStopCalls, devReleaseCalls, spareReleaseCalls int
+	var devReleaseToken string
+	devServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"retained-dev"}`)
+		case "/v1/stop":
+			devStopCalls++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			devReleaseCalls++
+			devReleaseToken = r.Header.Get(targetclient.KitLeaseHeader)
+			fmt.Fprint(w, `{"state":"free"}`)
+		case "/v1/development/reboot":
+			t.Error("retained-lease stop armed a development reboot")
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer devServer.Close()
+	spareServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/status":
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/stop":
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			spareReleaseCalls++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer spareServer.Close()
+	devBase, err := url.Parse(devServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spareBase, err := url.Parse(spareServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	devLease := targetclient.NewKitLease(devBase, "bearer", devServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer devLease.Close(context.Background())
+	devClient := targetclient.NewClient(devBase, "bearer", devServer.Client()).WithKitLease(devLease)
+	spareLease := targetclient.NewKitLease(spareBase, "bearer", spareServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer spareLease.Close(context.Background())
+	spareClient := targetclient.NewClient(spareBase, "bearer", spareServer.Client()).WithKitLease(spareLease)
+	claim, err := http.NewRequest(http.MethodPost, devServer.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := devLease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim lease: %v", err)
+	}
+	token := devLease.CurrentToken()
+	ctx := context.Background()
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "dev", Enabled: true, Address: devServer.URL, Agent: "dev-fixture-token"},
+				{Name: "spare", Enabled: true, Address: spareServer.URL, Agent: "spare-fixture-token"},
+			},
+			SelectedTarget: "dev",
+			Library:        LibraryConfig{AttractIdleSeconds: 60, PreferredRegions: []string{"usa"}},
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, devClient,
+		withTargetClientFactory(func(target TargetConfig) (serviceClient, error) {
+			if target.Name == "spare" {
+				return spareClient, nil
+			}
+			return devClient, nil
+		}),
+	)
+	service.executionMu.Lock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = "dev"
+	service.executionMu.Unlock()
+
+	status, err := service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop = %+v, %v", status, err)
+	}
+	if devStopCalls != 1 || devReleaseCalls != 0 || !devLease.Held() || devLease.CurrentToken() != token {
+		t.Fatalf("after soft-stop stop=%d release=%d held=%v token=%q", devStopCalls, devReleaseCalls, devLease.Held(), devLease.CurrentToken())
+	}
+	settings := LibraryConfig{
+		AttractIdleSeconds: 60,
+		PreferredRegions:   []string{"usa"},
+		Targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: devServer.URL},
+			{Name: "spare", Enabled: true, Address: spareServer.URL},
+		},
+		SelectedTarget: "spare",
+	}
+	if err := service.SetLibrarySettings(ctx, settings); err != nil {
+		t.Fatalf("selected target change: %v", err)
+	}
+	if service.LibrarySettings().SelectedTarget != "spare" || service.targetClients["dev"] != nil || service.targetClients["spare"] == nil {
+		t.Fatalf("selected=%q dev client dropped=%v spare present=%v", service.LibrarySettings().SelectedTarget, service.targetClients["dev"] == nil, service.targetClients["spare"] != nil)
+	}
+	if devReleaseCalls != 0 || !devLease.Held() {
+		t.Fatalf("settings change released retained lease: releases=%d held=%v", devReleaseCalls, devLease.Held())
+	}
+
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop on spare = %+v, %v", status, err)
+	}
+	if devReleaseCalls != 0 || !devLease.Held() || devLease.CurrentToken() != token {
+		t.Fatalf("stop before release freed retained lease: releases=%d held=%v token=%q", devReleaseCalls, devLease.Held(), devLease.CurrentToken())
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if devReleaseCalls != 1 || devReleaseToken != token || devLease.Held() || spareReleaseCalls != 0 {
+		t.Fatalf("devRelease=%d token=%q held=%v spareRelease=%d", devReleaseCalls, devReleaseToken, devLease.Held(), spareReleaseCalls)
+	}
+}
+
+func TestSoftStopRelaunchThenOtherExplicitStopKeepsLiveLease(t *testing.T) {
+	var alphaStops, alphaReleases, betaStops, betaReleases int
+	alphaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"alpha-live"}`)
+		case "/v1/stop":
+			alphaStops++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			alphaReleases++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer alphaServer.Close()
+	betaServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/health":
+			json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", Ready: true})
+		case "/v1/kit/claim":
+			fmt.Fprint(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":"beta-stop"}`)
+		case "/v1/stop":
+			betaStops++
+			fmt.Fprint(w, `{"state":"idle"}`)
+		case "/v1/kit/release":
+			betaReleases++
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.Error(w, "unexpected path "+r.URL.Path, http.StatusNotFound)
+		}
+	}))
+	defer betaServer.Close()
+	alphaBase, err := url.Parse(alphaServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaBase, err := url.Parse(betaServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaLease := targetclient.NewKitLease(alphaBase, "bearer", alphaServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer alphaLease.Close(context.Background())
+	alphaClient := targetclient.NewClient(alphaBase, "bearer", alphaServer.Client()).WithKitLease(alphaLease)
+	betaLease := targetclient.NewKitLease(betaBase, "bearer", betaServer.Client(), "fogcast@sofa", "interactive game/development session")
+	defer betaLease.Close(context.Background())
+	betaClient := targetclient.NewClient(betaBase, "bearer", betaServer.Client()).WithKitLease(betaLease)
+	for _, claim := range []struct {
+		lease *targetclient.KitLease
+		raw   string
+	}{
+		{alphaLease, alphaServer.URL},
+		{betaLease, betaServer.URL},
+	} {
+		req, err := http.NewRequest(http.MethodPost, claim.raw+"/v1/launch", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := claim.lease.Authorize(req, true); err != nil {
+			t.Fatalf("claim lease: %v", err)
+		}
+	}
+	if alphaLease.CurrentToken() != "alpha-live" || betaLease.CurrentToken() != "beta-stop" {
+		t.Fatalf("tokens alpha=%q beta=%q", alphaLease.CurrentToken(), betaLease.CurrentToken())
+	}
+	ctx := context.Background()
+	service := newService(
+		Config{
+			Targets: []TargetConfig{
+				{Name: "alpha", Enabled: true, Address: alphaServer.URL, Agent: "alpha-fixture-token"},
+				{Name: "beta", Enabled: true, Address: betaServer.URL, Agent: "beta-fixture-token"},
+			},
+			SelectedTarget: "alpha",
+			RequestTimeout: time.Second,
+		},
+		Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, alphaClient,
+	)
+	service.targetMu.Lock()
+	service.targetClients["beta"] = betaClient
+	service.targetMu.Unlock()
+
+	noteForegroundPlay(service, "alpha", "game-a")
+	status, err := service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("soft-stop alpha = %+v, %v", status, err)
+	}
+	if alphaStops != 1 || alphaReleases != 0 || !alphaLease.Held() {
+		t.Fatalf("after soft-stop stops=%d releases=%d held=%v", alphaStops, alphaReleases, alphaLease.Held())
+	}
+
+	// Relaunch reuses the same grant. The Soft-stop entry stays retained.
+	noteForegroundPlay(service, "alpha", "game-a")
+	noteForegroundPlay(service, "beta", "game-b")
+	plays := service.PlaySessions()
+	if len(plays) != 2 {
+		t.Fatalf("plays after relaunch = %+v", plays)
+	}
+
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop beta = %+v, %v", status, err)
+	}
+	plays = service.PlaySessions()
+	if len(plays) != 1 || plays[0].Target != "alpha" {
+		t.Fatalf("plays after beta stop = %+v", plays)
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if alphaReleases != 0 || !alphaLease.Held() || alphaLease.CurrentToken() != "alpha-live" {
+		t.Fatalf("live alpha released: releases=%d held=%v token=%q", alphaReleases, alphaLease.Held(), alphaLease.CurrentToken())
+	}
+	if betaStops != 1 || betaReleases != 1 || betaLease.Held() {
+		t.Fatalf("beta stop=%d release=%d held=%v", betaStops, betaReleases, betaLease.Held())
+	}
+
+	// Once alpha is no longer playing, a later explicit stop still releases it.
+	status, err = service.Stop(ctx)
+	if err != nil || status.State != protocol.StateIdle {
+		t.Fatalf("explicit stop alpha = %+v, %v", status, err)
+	}
+	if err := service.ReleaseKitLease(ctx); err != nil {
+		t.Fatalf("release alpha: %v", err)
+	}
+	if alphaStops != 2 || alphaReleases != 1 || alphaLease.Held() {
+		t.Fatalf("alpha after its own stop stops=%d releases=%d held=%v", alphaStops, alphaReleases, alphaLease.Held())
+	}
+}
+
+func TestReleaseKitLeaseReleasesIdleGrantsWhenPlaySurvives(t *testing.T) {
+	_, clientB, leaseB := heldKitClient(t, "live-b", nil)
+	_, _, leaseA := heldKitClient(t, "idle-a", nil)
+	_, _, leaseC := heldKitClient(t, "idle-c", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, clientB)
+	service.targetMu.Lock()
+	service.targetClients["b"] = clientB
+	service.targetMu.Unlock()
+	noteForegroundPlay(service, "b", "game-b")
+	service.executionMu.Lock()
+	service.stoppedKitLeases = []*targetclient.KitLease{leaseA, leaseB, leaseC}
+	service.executionMu.Unlock()
+
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	if !leaseB.Held() || leaseB.CurrentToken() != "live-b" {
+		t.Fatalf("live grant held=%v token=%q", leaseB.Held(), leaseB.CurrentToken())
+	}
+	if leaseA.Held() || leaseC.Held() {
+		t.Fatalf("idle grants stayed held a=%v c=%v", leaseA.Held(), leaseC.Held())
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != leaseB {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+}
+
+func noteForegroundPlay(service *Service, target, gameID string) {
+	service.targetMu.RLock()
+	defer service.targetMu.RUnlock()
+	service.executionMu.Lock()
+	defer service.executionMu.Unlock()
+	service.activeExecution = ExecutionFPGANative
+	service.activeTarget = target
+	service.activeGameID = gameID
+	service.activeSystem = protocol.SystemSNES
+	service.retainSessionTargetLocked()
+}
+
+func TestInvalidateOneTargetKeepsOtherRetainedGrants(t *testing.T) {
+	_, keepClient, keepLease := heldKitClient(t, "keep-a", nil)
+	_, dropClient, dropLease := heldKitClient(t, "drop-b", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, keepClient)
+	service.stoppedKitLeases = []*targetclient.KitLease{keepLease, dropLease}
+
+	service.invalidateTargetSession(dropClient)
+
+	if !keepLease.Held() || keepLease.CurrentToken() != "keep-a" {
+		t.Fatalf("retained grant after other invalidation held=%v token=%q", keepLease.Held(), keepLease.CurrentToken())
+	}
+	if dropLease.Held() {
+		t.Fatal("invalidated target kept its grant")
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != keepLease {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("explicit release: %v", err)
+	}
+	if keepLease.Held() || service.stoppedKitLeases != nil {
+		t.Fatalf("surviving grant after release held=%v leases=%d", keepLease.Held(), len(service.stoppedKitLeases))
+	}
+}
+
+func TestReleaseKitLeaseKeepsGrantWhenReleaseFails(t *testing.T) {
+	var failKeep atomic.Bool
+	failKeep.Store(true)
+	_, _, keepLease := heldKitClient(t, "keep", func(w http.ResponseWriter, _ *http.Request) {
+		if failKeep.Load() {
+			http.Error(w, "transient", http.StatusBadGateway)
+			return
+		}
+		fmt.Fprint(w, `{"state":"free"}`)
+	})
+	_, _, dropLease := heldKitClient(t, "drop", nil)
+	service := newTestService(&fakeServiceCatalog{}, &fakeServicePreparer{}, nil)
+	service.stoppedKitLeases = []*targetclient.KitLease{keepLease, dropLease}
+
+	err := service.ReleaseKitLease(context.Background())
+	if err == nil {
+		t.Fatal("expected release error")
+	}
+	if !keepLease.Held() || keepLease.CurrentToken() != "keep" {
+		t.Fatalf("failed release dropped grant held=%v token=%q", keepLease.Held(), keepLease.CurrentToken())
+	}
+	if dropLease.Held() {
+		t.Fatal("successful release left its grant held")
+	}
+	if len(service.stoppedKitLeases) != 1 || service.stoppedKitLeases[0] != keepLease {
+		t.Fatalf("retained grants = %#v", service.stoppedKitLeases)
+	}
+
+	failKeep.Store(false)
+	if err := service.ReleaseKitLease(context.Background()); err != nil {
+		t.Fatalf("retry release: %v", err)
+	}
+	if keepLease.Held() || service.stoppedKitLeases != nil {
+		t.Fatalf("retry left held=%v leases=%d", keepLease.Held(), len(service.stoppedKitLeases))
+	}
+}
+
+func heldKitClient(t *testing.T, token string, release func(http.ResponseWriter, *http.Request)) (*httptest.Server, *targetclient.Client, *targetclient.KitLease) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/claim":
+			fmt.Fprintf(w, `{"status":{"state":"held","generation":"generation","expires_in_ms":60000},"token":%q}`, token)
+		case "/v1/kit/release":
+			if got := r.Header.Get(targetclient.KitLeaseHeader); got != token {
+				t.Errorf("release token = %q, want %s", got, token)
+			}
+			if release != nil {
+				release(w, r)
+				return
+			}
+			fmt.Fprint(w, `{"state":"free"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	base, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease := targetclient.NewKitLease(base, "bearer", server.Client(), "fogcast@sofa", "interactive game/development session")
+	t.Cleanup(func() { _ = lease.Close(context.Background()) })
+	client := targetclient.NewClient(base, "bearer", server.Client()).WithKitLease(lease)
+	claim, err := http.NewRequest(http.MethodPost, server.URL+"/v1/launch", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Authorize(claim, true); err != nil {
+		t.Fatalf("claim %s: %v", token, err)
+	}
+	if !lease.Held() || lease.CurrentToken() != token {
+		t.Fatalf("claimed token = %q held=%v", lease.CurrentToken(), lease.Held())
+	}
+	return server, client, lease
 }
 
 func TestServiceCorePackageMutatesOnlyAfterTargetAdmission(t *testing.T) {

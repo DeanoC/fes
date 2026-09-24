@@ -9,6 +9,63 @@
 #include <string>
 #include <vector>
 
+#ifdef FES_SG1000_ROM_LINK
+int main(int argc, char **argv) {
+    Verilated::commandArgs(argc, argv);
+    if (argc != 2) {
+        std::cerr << "FES SG-1000 linked ROM: ROM argument missing\n";
+        return EXIT_FAILURE;
+    }
+    FILE *rom = std::fopen(argv[1], "rb");
+    if (rom == nullptr) return EXIT_FAILURE;
+    std::vector<uint8_t> expected;
+    uint8_t byte = 0;
+    while (std::fread(&byte, 1, 1, rom) == 1) expected.push_back(byte);
+    std::fclose(rom);
+    if (expected.size() != 16384) return EXIT_FAILURE;
+
+    Vsg1000_machine dut;
+    dut.clk_sys = 0;
+    dut.reset = 1;
+    dut.keyboard = 0xffffffffffull;
+    dut.media_ready = 0;
+    dut.media_size = 0;
+    dut.media_data = 0;
+    dut.peek_addr = 0;
+    dut.eval();
+    auto tick = [&]() {
+        dut.clk_sys = 1; dut.eval();
+        dut.clk_sys = 0; dut.eval();
+    };
+    for (unsigned i = 0; i < 8; ++i) tick();
+    for (unsigned address : {0u, 0x03ffu, 0x1000u, 0x3fffu}) {
+        dut.peek_addr = address;
+        dut.eval();
+        if (uint8_t(dut.peek_data) != expected[address]) {
+            std::cerr << "FES SG-1000 linked ROM: peek mismatch at " << address << '\n';
+            return EXIT_FAILURE;
+        }
+    }
+    dut.peek_addr = 0x4000;
+    dut.eval();
+    if (uint8_t(dut.peek_data) != 0xff) return EXIT_FAILURE;
+    dut.reset = 0;
+    unsigned cycles = 0;
+    for (; cycles < 40000000 && dut.cpu_halt_n; ++cycles) tick();
+    if (cycles == 40000000) {
+        std::cerr << "FES SG-1000 linked ROM: diagnostic did not HALT\n";
+        return EXIT_FAILURE;
+    }
+    dut.peek_addr = 0xc000;
+    tick();
+    if (uint8_t(dut.peek_data) != 0xa5) {
+        std::cerr << "FES SG-1000 linked ROM: RAM signature missing\n";
+        return EXIT_FAILURE;
+    }
+    std::cout << "FES SG-1000 linked-ROM machine checks passed\n";
+    return EXIT_SUCCESS;
+}
+#else
 namespace {
 
 [[noreturn]] void fail(const char *message) {
@@ -199,3 +256,4 @@ int main(int argc, char **argv) {
     std::cout << "FES SG-1000 machine checks passed\n";
     return 0;
 }
+#endif

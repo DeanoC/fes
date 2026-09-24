@@ -59,12 +59,17 @@ type Destination struct {
 	Platform     string
 	Matches      []hostclient.Game
 	History      History
+	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
+	// grant leaves this false so that shell stays Ready.
+	LeaseHeld bool
 }
 
 // ClassifyGames maps a library result set onto Missing, Needs a choice,
 // Unavailable, or Ready. The caller reports Checking while the query is
 // still in flight. query, when set, filters titles; an exact title match
 // wins over looser contains-matches.
+// Ready is Phase 0 composition for the bound executor. A mesh Execute
+// advertisement is not an input and cannot change the result.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
 	matches := matchingGames(games, query)
 	if len(matches) == 0 {
@@ -80,6 +85,24 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 		return AvailUnavailable, matches
 	}
 	return AvailReady, matches
+}
+
+// ApplyForeignLease turns a Ready FPGA title into Unavailable when another
+// session holds the kit lease. foreign is false for the shell that holds
+// the grant, including after Soft-stop. Confirm then explains and does not
+// launch or take the lease. A host-only title stays Ready so Play reaches
+// the host executor. An Execute advertisement is not an input.
+func ApplyForeignLease(d Destination, foreign bool) Destination {
+	if !foreign || d.Kind == KindRoom || d.Kind == KindLibrary || d.Availability != AvailReady {
+		return d
+	}
+	if game, ok := d.Game(); ok && game.HostOnly() {
+		return d
+	}
+	d.LeaseHeld = true
+	d.Availability = AvailUnavailable
+	d.FillCopy()
+	return d
 }
 
 func matchingGames(games []hostclient.Game, query string) []hostclient.Game {
@@ -189,6 +212,11 @@ func (d *Destination) FillCopy() {
 		d.Status = "Several editions match. Choose one."
 		d.Action = "Choose an edition."
 	case AvailUnavailable:
+		if d.LeaseHeld {
+			d.Status = "This executor is in use."
+			d.Action = "Do not take the lease."
+			break
+		}
 		d.Status = "This title cannot play on the current setup."
 		d.Action = "See why this title cannot play."
 		if len(d.Matches) > 0 {
@@ -224,6 +252,9 @@ func (d Destination) Confirm() ConfirmIntent {
 	case AvailNeedsChoice:
 		return ConfirmChoose
 	case AvailUnavailable:
+		if d.LeaseHeld {
+			return ConfirmExplain
+		}
 		if len(d.Matches) > 0 && d.Matches[0].LaunchBlock() == hostclient.LaunchMissingFirmware {
 			return ConfirmImportFirmware
 		}

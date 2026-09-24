@@ -4,12 +4,31 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
+
+const meshInventoryWindow = time.Second
+
+// MeshNode is one discovered node advertisement. It is not a lease and it
+// does not make a title Ready.
+type MeshNode struct {
+	NodeID       string                 `json:"node_id"`
+	TargetID     string                 `json:"target_id"`
+	Mesh         string                 `json:"mesh,omitempty"`
+	Cap          string                 `json:"cap,omitempty"`
+	Capabilities discovery.Capabilities `json:"capabilities"`
+	Address      string                 `json:"address,omitempty"`
+	TTLSeconds   *int                   `json:"ttl_seconds,omitempty"`
+}
+
+// SilenceReleasesLease reports whether dropping this row frees a kit lease.
+func (MeshNode) SilenceReleasesLease() bool { return false }
 
 type TargetConnection struct {
 	State    string `json:"state"`
@@ -179,6 +198,14 @@ func (s *Service) startTargetMonitor() {
 				request, cancel := context.WithTimeout(ctx, 4*time.Second)
 				_, _ = s.Health(request)
 				cancel()
+				if ctx.Err() != nil {
+					return
+				}
+				if s.discoveryEnabled() || s.meshCollectInstalled() {
+					observe, observeCancel := context.WithTimeout(ctx, meshInventoryWindow)
+					_, _ = s.ObserveMesh(observe)
+					observeCancel()
+				}
 			}
 		}
 	}()
@@ -285,6 +312,9 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 		resolve = discovery.Resolve
 	}
 	browseCtx, browseCancel := context.WithTimeout(ctx, time.Second)
+	// Resolve parses mesh-protocol version and the capability bag additively.
+	// Phase 0 announcements that omit them still return an endpoint. Parsed
+	// advertisement TTL does not release the kit lease.
 	candidates, err := resolve(browseCtx, selected.TargetID)
 	browseCancel()
 	unique := map[string]bool{}
@@ -316,7 +346,7 @@ func (s *Service) probeTarget(ctx context.Context, client *targetclient.Client, 
 // The explicit development reboot already holds lifecycle admission and the
 // target read lock. Its read-only polling may resolve without reacquiring either.
 func (s *Service) developmentRecoveryHealth(client serviceClient, oldBoot string) func(context.Context) (protocol.Health, error) {
- selected := targetByName(s.targets, s.sessionTargetNameLocked())
+	selected := targetByName(s.targets, s.sessionTargetNameLocked())
 	concrete, ok := client.(*targetclient.Client)
 	if !ok || selected.TargetID == "" {
 		return client.Health
@@ -363,8 +393,99 @@ func (s *Service) invalidateTargetSession(client *targetclient.Client) {
 	}
 	s.activePackageID, s.activePackageGeneration = "", 0
 	s.packageRejection = nil
-	s.stoppedKitLease = nil
+	// Forget this client's grant only. Another target's Soft-stop lease
+	// stays reachable for a later explicit release.
+	s.stoppedKitLeases = dropStoppedKitLease(s.stoppedKitLeases, client.KitLease())
 	s.selectedTargetReconciled = false
+}
+
+func (s *Service) meshCollectInstalled() bool {
+	s.meshMu.Lock()
+	defer s.meshMu.Unlock()
+	return s.collectNodes != nil
+}
+
+// MeshNodes returns the last collected advertisement inventory. The slice is
+// a copy. An empty inventory is not a lease release.
+func (s *Service) MeshNodes() []MeshNode {
+	s.meshMu.Lock()
+	defer s.meshMu.Unlock()
+	if len(s.meshNodes) == 0 {
+		return []MeshNode{}
+	}
+	return append([]MeshNode(nil), s.meshNodes...)
+}
+
+// ObserveMesh browses node advertisements and replaces the inventory with
+// that window. A browse error keeps the previous rows. Replacing the rows,
+// including with an empty set when an advertisement goes quiet or omits ttl,
+// does not release a kit lease and does not change the Phase 0 target bind.
+func (s *Service) ObserveMesh(ctx context.Context) ([]MeshNode, error) {
+	s.meshMu.Lock()
+	collect := s.collectNodes
+	s.meshMu.Unlock()
+	if collect == nil {
+		collect = discovery.Collect
+	}
+	observed, err := collect(ctx)
+	if err != nil {
+		return s.MeshNodes(), err
+	}
+	nodes := make([]MeshNode, 0, len(observed))
+	for _, n := range observed {
+		nodes = append(nodes, meshNodeFrom(n))
+	}
+	sort.Slice(nodes, func(i, j int) bool { return nodes[i].NodeID < nodes[j].NodeID })
+	s.meshMu.Lock()
+	s.meshNodes = nodes
+	s.meshMu.Unlock()
+	return s.MeshNodes(), nil
+}
+
+func meshNodeFrom(n discovery.ObservedNode) MeshNode {
+	node := MeshNode{
+		NodeID:       n.NodeID,
+		TargetID:     n.TargetID,
+		Mesh:         n.Mesh,
+		Cap:          n.Cap,
+		Capabilities: n.Capabilities,
+		Address:      n.Address,
+	}
+	if n.TTLSeconds != nil {
+		seconds := *n.TTLSeconds
+		node.TTLSeconds = &seconds
+	}
+	return node
+}
+
+// kitLeaseForeign reports a kit lease held by another session. The same
+// shell's retained grant is not busy.
+func (s *Service) kitLeaseForeign() bool {
+	return s.TargetConnection().State == "busy"
+}
+
+// launchUsesForeignKit reports an FPGA launch that would use the kit whose
+// cached connection is held by another session. Host-only execution does not
+// use that kit. A different named target does not use the selected connection.
+func (s *Service) launchUsesForeignKit(target, execution string) bool {
+	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
+		return false
+	}
+	conn := s.TargetConnection()
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	name := strings.TrimSpace(target)
+	if name == "" {
+		name = s.selectedTarget
+	}
+	cfg := targetByName(s.targets, name)
+	if conn.TargetID != "" && cfg.TargetID != "" {
+		return conn.TargetID == cfg.TargetID
+	}
+	if conn.Address != "" && cfg.Address != "" {
+		return conn.Address == cfg.Address
+	}
+	return name == s.selectedTarget
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {

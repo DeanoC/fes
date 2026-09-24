@@ -43,16 +43,19 @@ The archive is checked against the resolved manifest/payload identity before
 publishing that receipt. Partial failures have no success receipt. Do not edit
 the frozen candidate to follow a newer branch; prepare a new candidate instead.
 
-For a core requiring a diagnostic ROM, supply an explicit file and independently
-checked digest:
+For format-3 SMS or SG-1000, prepare the package without a startup media blob:
 
 ```sh
-make core-dev CORE_DEV_ARGS='prepare --core fes.sms --output out/core-dev/sms-001 --library-media /absolute/path/diagnostic.bin --expected-media-sha256 ROM_SHA256'
+make core-dev CORE_DEV_ARGS='prepare --core fes.sms --output out/core-dev/sms-001'
+make core-dev CORE_DEV_ARGS='prepare --core fes.sg1000 --output out/core-dev/sg1000-001'
 ```
 
-Preparation snapshots those media bytes. It does not infer cartridge format,
-mapper support, target capacity or hardware success from the filename or size.
-Package-specific capacity admission remains the host's responsibility.
+The SMS library entry must bind an exact 32 KiB `cartridge-rom`; the SG-1000
+entry must bind an exact 16 KiB `cartridge-rom` through the
+named-ROM selection API. The prepared-candidate acceptance adapter below
+still supports only ordinary blob media and cannot select a format-3 ROM;
+use the isolated host library and kit lease directly for ROM diagnostics.
+Preparation does not infer mapper support or hardware success from a filename.
 
 ## Exercise the frozen candidate
 

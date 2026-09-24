@@ -26,11 +26,13 @@ from scripts.fes_build_common import (
     _run_tool,
     _sha256,
     _write_atomic,
+    validate_timing_resources,
 )
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
+from scripts import rom_map
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +57,11 @@ SG1000_TOOL_COMMITS = {
     "nextpnr": "0fad53a75a0218941c417ec6bb58bdede9070987",
     "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
 }
+ROM_DATABASE_SHA256 = {
+    "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+    "libmistral/cvd-sx120f.cc": "7acd2702c99680fea7cb76dc73efe4abc6d21f89e28c5b2b020454d917ae488d",
+    "libmistral/cyclonev.h": "e49782a465d9b6d09cc0e871e35ec73389111c89a113fa07cdb5f0bea3be2946",
+}
 RECIPE = "scripts/build_fes_sg1000_oss.py"
 ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
 QSF = "cores/fes-sg1000/constraints-oss.qsf"
@@ -68,6 +75,7 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/coleco_vdp.sv",
     "cores/fes-common/rtl/coleco_video_720p.v",
     "cores/fes-sg1000/rtl/sg1000_machine.sv",
+    "cores/fes-sg1000/rtl/sg1000_rom_link.v",
     "cores/fes-common/rtl/t80pa.v",
     "cores/fes-common/rtl/tv80/tv80_core.v",
     "cores/fes-common/rtl/tv80/tv80_alu.v",
@@ -77,7 +85,7 @@ RTL_SOURCES = (
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
-    "scripts/fes_build_common.py",
+    "scripts/fes_build_common.py", "scripts/rom_map.py", "scripts/cyclonev_rbf.py",
     ABI_DEFINITION,
     SG1000_TOOLCHAIN_LOCK,
     QSF,
@@ -93,6 +101,7 @@ BUILD_OUTPUTS = (
     "nextpnr.log",
     "build-summary.json",
     "manifest.toml",
+    "rom-map.json",
 )
 ORDINARY_RESOURCES = frozenset(
     {
@@ -187,6 +196,12 @@ def create_build_record(
             "toolchain_lock": SG1000_TOOLCHAIN_LOCK,
             "toolchain_lock_sha256": _sha256(_regular_input(root, SG1000_TOOLCHAIN_LOCK)),
             "top": TOP,
+            "package_format": 3,
+            "rom_id": "cartridge-rom",
+            "rom_role": "cartridge",
+            "rom_source_size": 16384,
+            "rom_encoding": "m10k-1024x10-v1",
+            "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
         },
     }
     if identity_version != 2:
@@ -209,7 +224,7 @@ def build_commands(
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     sources = " ".join(RTL_SOURCES)
     yosys_program = (
-        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_COLECO_OSS=1 "
+        f"read_verilog -sv -DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
         f"-I cores/fes-sg1000/generated {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; "
@@ -335,20 +350,8 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     system = _frequency_row(timing.get("fmax"), 52.0, "system clock", "clk_sys")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     utilization = timing.get("utilization")
-    if not isinstance(utilization, dict):
-        raise BuildError("timing report has no structured utilization data")
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
-    unknown = sorted(set(utilization) - known)
-    if unknown:
-        raise BuildError("timing report contains unknown resources: " + ", " .join(unknown))
-    resources: dict[str, dict[str, int]] = {}
-    for name, fields in sorted(utilization.items()):
-        if not isinstance(fields, dict):
-            raise BuildError(f"malformed resource evidence: {name}")
-        used, available = fields.get("used"), fields.get("available")
-        if not isinstance(used, int) or used < 0 or not isinstance(available, int) or available < 0:
-            raise BuildError(f"malformed resource counts: {name}")
-        resources[name] = {"available": available, "used": used}
+    resources = validate_timing_resources(utilization, known)
     rbf = output / "core.rbf"
     if rbf.is_symlink() or not rbf.is_file() or not 1 <= rbf.stat().st_size <= MAX_PAYLOAD_SIZE:
         raise BuildError(f"RBF must be a nonempty bounded regular file: {rbf}")
@@ -389,12 +392,12 @@ def _manifest(
     record_fields = json.loads(record)
     toolchain = "; ".join(f"{name} {tools[name]}" for name in sorted(tools))
     fields = {
-        "format": 2,
+        "format": 3,
         "core": {
             "id": "fes.sg1000",
             "name": "FES SG-1000",
-            "description": "Standalone fixed-720p SG-1000 slice for the FES simple-computer ABI (OSS)",
-            "version": "1.0.0",
+            "description": "Fixed-map SG-1000 with a linked 16 KiB cartridge ROM",
+            "version": "1.1.0",
         },
         "target": {
             "platform": "de10_nano",
@@ -406,7 +409,6 @@ def _manifest(
         "interfaces": [
             {"id": "fes.keyboard", "major": 1, "minor": 0, "required": True},
             {"id": "fes.video.fixed-720p60", "major": 1, "minor": 0, "required": True},
-            {"id": "fes.media.blob", "major": 1, "minor": 0, "required": True},
         ],
         "build": {
             "id": evidence["build_id"],
@@ -415,6 +417,7 @@ def _manifest(
             "recipe_sha256": record_fields["recipe_sha256"],
             "toolchain": toolchain,
         },
+        "rom": evidence["rom"],
     }
     return encode_manifest(fields)
 
@@ -428,6 +431,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     repository, revision = _require_clean_source(root, identity_version=identity_version)
     authenticated = _authenticate_sg1000_tools(root, cache_root=cache_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
+    database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
+    database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
         identity_version=identity_version, execution=invocation.inputs)
@@ -444,6 +449,17 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             raise BuildError("Yosys did not produce synthesis evidence")
         _run_tool(commands[1] + (("--gpu-device", str(gpu_device))), root, output / "nextpnr.log", **({"env": invocation.env, "audit_source_root": root}), output_relative=OUTPUT_RELATIVE)
         evidence = validate_build_evidence(output, root)
+        mapping, map_evidence = rom_map.build_rom_map(
+            database, (output / "core.rbf").read_bytes(),
+            routed=_read_json(output / "routed.json", "routed ROM design"),
+            lane_rows=rom_map.SG1000_LANE_ROWS,
+        )
+        map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        _write_atomic(output / "rom-map.json", map_bytes)
+        evidence["rom"] = {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                           "file": "rom-map.json", "size": len(map_bytes),
+                           "sha256": _sha256(output / "rom-map.json")}
+        evidence["rom_map"] = map_evidence
         evidence["execution"] = invocation.inputs
         evidence.update(
             {
@@ -467,12 +483,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if (final_repository, final_revision) != (repository, revision):
             raise BuildError("source identity changed during build")
         invocation.verify()
+        if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
+            raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
             identity_version=identity_version, execution=invocation.inputs) != record:
             raise BuildError("functional source inputs changed during build")
-        return export_package(manifest, output / "core.rbf", package_store)
+        return export_package(manifest, output / "core.rbf", package_store,
+                              rom_map=output / "rom-map.json")
     except Exception:
-        for name in ("core.rbf", "manifest.toml", "build-summary.json"):
+        for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
             path = output / name
             if path.is_file() or path.is_symlink():
                 path.unlink()

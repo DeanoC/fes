@@ -51,8 +51,7 @@ ownership before parallel edits. There are no first-party gitlinks to update.
 Regenerate shared consumers in the same change. Preserve unrelated changes.
 
 Parent builds use committed FES module bytes, not uncommitted worker changes.
-Return an uncommitted diff when committing has not been authorized. Never claim
-a parent build tested edits that have not been selected.
+Never claim a parent build tested edits that have not been selected.
 
 ## Coordinate and validate
 
@@ -111,5 +110,5 @@ root-switch tests, watchdog diagnostics and exact-artifact hardware acceptance.
 
 Handoff: state scope, base and result commit (or uncommitted diff), tests and
 results, hardware classification, effects on module/shared contracts,
-and the next integration step. Do not commit, push, or open a PR without user
-authorization.
+and the next integration step. Commit, push, and open PRs as needed for the
+requested work. Merge a PR only with user authorization.

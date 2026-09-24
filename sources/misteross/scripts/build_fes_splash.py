@@ -18,6 +18,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_pong as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.export_core_package import build_identity, encode_build_record
+from scripts.fes_build_common import validate_timing_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_splash.py"
@@ -219,29 +220,13 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
         raise board.BuildError("timing report must contain the single pixel sequential domain")
     pixel = board_evidence._frequency_rows(fmax, 74.25, "pixel clock")
     utilization = timing.get("utilization")
-    if not isinstance(utilization, dict):
-        raise board.BuildError("timing report has no structured utilization data")
-    resources: dict[str, dict[str, int]] = {}
     known = (
         board.ORDINARY_RESOURCES
         | set(REQUIRED_RESOURCES)
         | FORBIDDEN_RESOURCES
         | board.REQUIRED_ZERO_RESOURCES
     )
-    unknown = sorted(set(utilization) - known)
-    if unknown:
-        raise board.BuildError("timing report contains unknown resources: " + ", ".join(unknown))
-    for name, fields in sorted(utilization.items()):
-        if not isinstance(fields, dict):
-            raise board.BuildError(f"malformed resource evidence: {name}")
-        used = fields.get("used")
-        available = fields.get("available")
-        if (
-            isinstance(used, bool) or not isinstance(used, int) or used < 0
-            or isinstance(available, bool) or not isinstance(available, int) or available < 0
-        ):
-            raise board.BuildError(f"malformed resource counts: {name}")
-        resources[name] = {"available": available, "used": used}
+    resources = validate_timing_resources(utilization, known)
     for name, expected in REQUIRED_RESOURCES.items():
         if name not in resources or resources[name]["used"] != expected:
             actual = "missing" if name not in resources else str(resources[name]["used"])

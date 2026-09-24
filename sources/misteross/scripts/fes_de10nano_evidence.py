@@ -14,6 +14,7 @@ from scripts.fes_build_common import (
     _regular_input,
     _require_gpu_backend,
     _sha256,
+    validate_timing_resources,
 )
 
 SDC = "boards/de10nano/clocks.sdc"
@@ -180,33 +181,13 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
         fmax, 50.0, "50 MHz fabric clock", clock_name="hps_ddr.clk"
     ) if capture_clock_mhz is not None else None
     utilization = timing.get("utilization")
-    if not isinstance(utilization, dict):
-        raise BuildError("timing report has no structured utilization data")
-    resources: dict[str, dict[str, int]] = {}
     known = (
         ordinary_resources
         | set(required_resources)
         | forbidden_resources
         | required_zero_resources
     )
-    unknown = sorted(set(utilization) - known)
-    if unknown:
-        raise BuildError("timing report contains unknown resources: " + ", ".join(unknown))
-    for name, fields in sorted(utilization.items()):
-        if not isinstance(fields, dict):
-            raise BuildError(f"malformed resource evidence: {name}")
-        used = fields.get("used")
-        available = fields.get("available")
-        if (
-            isinstance(used, bool)
-            or not isinstance(used, int)
-            or used < 0
-            or isinstance(available, bool)
-            or not isinstance(available, int)
-            or available < 0
-        ):
-            raise BuildError(f"malformed resource counts: {name}")
-        resources[name] = {"available": available, "used": used}
+    resources = validate_timing_resources(utilization, known)
     for name, expected in required_resources.items():
         if name not in resources or resources[name]["used"] != expected:
             actual = "missing" if name not in resources else str(resources[name]["used"])

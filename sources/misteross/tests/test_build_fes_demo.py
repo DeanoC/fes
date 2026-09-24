@@ -15,6 +15,28 @@ from tests import test_build_fes_pong as pong_tests
 ROOT = Path(__file__).resolve().parents[1]
 
 class ApplicationProducerTests(unittest.TestCase):
+    def test_unused_hps_sdram_timing_row_is_allowed_but_use_is_rejected(self):
+        resource = "cyclonev_hps_interface_fpga2sdram"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            pong_tests.BuildFesPongTests()._write_passing_outputs(output)
+            timing_path = output / "timing.json"
+            timing = json.loads(timing_path.read_text())
+            timing["utilization"][resource] = {"used": 0, "available": 1}
+            timing_path.write_text(json.dumps(timing))
+            def validate():
+                return demo.board_evidence.validate_build_evidence(
+                    output, ROOT, ordinary_resources=demo.ORDINARY_RESOURCES,
+                    required_resources=demo.REQUIRED_RESOURCES,
+                    forbidden_resources=demo.FORBIDDEN_RESOURCES,
+                    required_zero_resources=demo.REQUIRED_ZERO_RESOURCES)
+            self.assertEqual(validate()["resources"][resource]["used"], 0)
+
+            timing["utilization"][resource]["used"] = 1
+            timing_path.write_text(json.dumps(timing))
+            with self.assertRaisesRegex(board.BuildError, "unknown resources in use: .*fpga2sdram"):
+                validate()
+
     def test_audio_variant_identity_interfaces_and_source_closure(self):
         record = demo.create_build_record(ROOT, "https://example.invalid/repo", "a" * 40,
                                          {"yosys": "test"}, audio=True, execution=EXECUTION)

@@ -45,7 +45,7 @@ Base: <FES commit>
 Worktree: <absolute FES task worktree>
 Interface: <contracts coordinated with other workers>
 Validation: <focused tests and integration checks>
-Handoff: <diff or authorized commit, evidence and remaining work>
+Handoff: <commit or diff, evidence and remaining work>
 ```
 
 Agree file ownership before concurrent edits. Workers sharing a FES task
@@ -75,7 +75,7 @@ provenance receipt identify the actual build and reuse.
 ## 4. Integrate once
 
 Reconcile worker diffs in the task's FES branch, review the shared contracts and
-consumers, and make one compatible commit when authorized. No component SHA-only
+consumers, and make one compatible commit. No component SHA-only
 PRs are needed. FES owns `image/build/native-inputs.toml` and derives the concrete
 runtime assembly lock inside disposable build snapshots.
 
@@ -91,7 +91,8 @@ maintenance under [kit sharing](kit-sharing.md), preserve the exact device
 qualification and authorization, and report cleanup and release. A passing
 software test or build does not authorize deployment to another device.
 
-Follow the user's authorization for commits, pushes and PRs. The imported source
+Commit, push, and open PRs as needed for the requested work; merge a PR only
+with user authorization. The imported source
 histories and original URLs are recorded in
 [config/source-imports.toml](../config/source-imports.toml). Those URLs are
 historical import provenance. Do not open day-to-day PRs against standalone

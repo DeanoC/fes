@@ -31,8 +31,9 @@ contract versions expose no supported media roles; optional interfaces still
 require active runtime support before delivery.
 
 The original host-only storage slice did not change the package format, target
-wire, shared ABI, runtime or FPGA. Its legacy SMS package remains limited to
-16 KiB; storage capacity alone does not widen that package's contract.
+wire, shared ABI, runtime or FPGA. Storage capacity alone does not widen a
+package's contract. The current package-only SMS producer uses a required
+exact 32 KiB linked cartridge ROM instead of a startup media transfer.
 
 ## Versioned larger-media integration
 
@@ -42,7 +43,8 @@ Runtime and host software are merged and selected for integration. They
 use 32-bit lengths and offsets, ordered 512-byte chunks and CRC32/IEEE, while
 keeping legacy blob 1.0 unchanged. The stream contract guarantees 1..32768
 bytes; the runtime separately checks the active endpoint's observed capacity.
-The concrete SMS target is a 32 KiB fixed map, not general mapper support.
+The earlier SMS media-transport diagnostic has a 32 KiB fixed map, not general
+mapper support; the current OSS package links those bytes before download.
 The selected Coleco application uses the same stream contract with two
 controller ports and keypads. Its 32 KiB cartridge aperture maps CPU addresses
 `0x8000–0xffff`; images above 16 KiB return `0xff` beyond their committed size.

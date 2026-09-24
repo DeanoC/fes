@@ -213,4 +213,6 @@ blob 1.0. Stream/application-media startup and firmware delivery hold reset
 until a later media commit, while a linked cartridge has already arrived in
 CRAM and skips that commit.
 Compatibility rejects that combination before mutation; firmware ROM packages
-retain normal later cartridge/tape/disk delivery semantics.
+retain normal later cartridge/tape/disk delivery semantics. A format-3
+`fes.simple-computer` cartridge may omit `fes.media.blob` when it has no later
+media mailbox; format-2 and firmware-ROM computer packages still require it.

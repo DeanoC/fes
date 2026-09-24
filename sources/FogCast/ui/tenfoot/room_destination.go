@@ -28,10 +28,17 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 	d := a.room.Destination()
 	if key := roomPickKey(d); key != "" && a.roomPicks != nil {
 		if id := strings.TrimSpace(a.roomPicks[key]); id != "" {
-			return rooms.ApplyEditionPreference(d, id)
+			d = rooms.ApplyEditionPreference(d, id)
 		}
 	}
-	return d
+	return rooms.ApplyForeignLease(d, a.foreignKitLeaseLocked())
+}
+
+// foreignKitLeaseLocked reports a kit lease held by another session.
+// Connection state busy is that holder. The same shell's retained grant
+// stays ready or active and is not foreign.
+func (a *App) foreignKitLeaseLocked() bool {
+	return a != nil && a.healthHave && a.health.Connection.State == "busy"
 }
 
 func (a *App) rememberRoomPickLocked(d rooms.Destination, game hostclient.Game) {

@@ -247,4 +247,56 @@ func TestClassifyColecoFirmwareReadiness(t *testing.T) {
 	if state != AvailReady || len(matches) != 1 {
 		t.Fatalf("frogger with BIOS: %s %+v", state, matches)
 	}
+	packageReady := readyGame("fpga-donkey-kong-72a5215aeed0", "Donkey Kong", "coleco")
+	packageReady.FirmwareRequired = true
+	packageReady.FirmwareReady = true
+	state, matches = ClassifyGames([]hostclient.Game{packageReady}, "Donkey Kong")
+	if state != AvailReady || len(matches) != 1 || matches[0].LaunchBlock() != "" {
+		t.Fatalf("firmware-ready FPGA Coleco package: %s %+v", state, matches)
+	}
+	raw := blockedGame("coleco-donkey-kong", "Donkey Kong", "coleco", hostclient.LaunchBrowseOnly)
+	state, matches = ClassifyGames([]hostclient.Game{raw}, "Donkey Kong")
+	if state != AvailUnavailable || len(matches) != 1 || matches[0].LaunchBlock() != hostclient.LaunchBrowseOnly {
+		t.Fatalf("raw coleco cart: %s %+v", state, matches)
+	}
+}
+
+func TestForeignLeaseIsUnavailableInUseAndOwnedLeaseStaysReady(t *testing.T) {
+	t.Parallel()
+	ready := Destination{
+		Kind: KindGame, Availability: AvailReady, GameID: "nes-smb", Label: "Super Mario Bros.",
+		Matches: []hostclient.Game{readyGame("nes-smb", "Super Mario Bros.", "nes")},
+	}
+	ready.FillCopy()
+	owned := ApplyForeignLease(ready, false)
+	if owned.Availability != AvailReady || owned.Confirm() != ConfirmLaunch || owned.LeaseHeld || owned.Status != "Ready to play." {
+		t.Fatalf("same-shell retained lease %+v confirm=%v", owned, owned.Confirm())
+	}
+	foreign := ApplyForeignLease(ready, true)
+	if foreign.Availability != AvailUnavailable || !foreign.LeaseHeld || foreign.Confirm() != ConfirmExplain {
+		t.Fatalf("foreign lease %+v confirm=%v", foreign, foreign.Confirm())
+	}
+	if foreign.Status != "This executor is in use." || foreign.Action != "Do not take the lease." {
+		t.Fatalf("in-use copy status=%q action=%q", foreign.Status, foreign.Action)
+	}
+	firmware := Destination{
+		Kind: KindGame, Availability: AvailUnavailable,
+		Matches: []hostclient.Game{blockedGame("fpga-frogger", "Frogger", "fpga", hostclient.LaunchMissingFirmware)},
+	}
+	firmware.FillCopy()
+	kept := ApplyForeignLease(firmware, true)
+	if kept.Confirm() != ConfirmImportFirmware || kept.LeaseHeld {
+		t.Fatalf("firmware block became in use %+v", kept)
+	}
+	hostGame := readyGame("snes-mario", "Super Mario World", "snes")
+	hostGame.Execution = hostclient.ExecutionHostOnly
+	hostReady := Destination{
+		Kind: KindGame, Availability: AvailReady, GameID: hostGame.ID, Label: hostGame.Title,
+		Matches: []hostclient.Game{hostGame},
+	}
+	hostReady.FillCopy()
+	hostKept := ApplyForeignLease(hostReady, true)
+	if hostKept.Availability != AvailReady || hostKept.LeaseHeld || hostKept.Confirm() != ConfirmLaunch || hostKept.Status != "Ready to play." {
+		t.Fatalf("host-only foreign lease %+v confirm=%v", hostKept, hostKept.Confirm())
+	}
 }

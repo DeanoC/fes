@@ -80,6 +80,7 @@ help:
 		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
+		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
 		"  sim-fes-sg1000-quartus  Test SG-1000 RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sg1000-diagnostic  Generate the open SG-1000 Graphics I cartridge and reference image" \
 		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
@@ -134,13 +135,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -592,7 +593,8 @@ sg1000-diagnostic:
 		--output build/diagnostics/fes-sg1000/graphics-i.rom \
 		--preview build/diagnostics/fes-sg1000/graphics-i.ppm
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --pad-to 16384 \
-		--output build/diagnostics/fes-sg1000/graphics-i-16k.rom
+		--output build/diagnostics/fes-sg1000/graphics-i-16k.rom \
+		--hex-output build/diagnostics/fes-sg1000/graphics-i-16k.hex
 	$(PYTHON) cores/fes-sg1000/diagnostic/generate.py --controllers \
 		--output build/diagnostics/fes-sg1000/controller.rom \
 		--preview build/diagnostics/fes-sg1000/controller.ppm
@@ -642,6 +644,28 @@ sim-fes-sg1000-oss: sg1000-diagnostic
 		build/diagnostics/fes-sg1000/graphics-i.rom \
 		build/diagnostics/fes-sg1000/controller.rom
 
+sim-fes-sg1000-rom-link: sg1000-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sg1000-rom-link
+	$(VERILATOR) --cc --exe --build --top-module sg1000_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_SG1000_ROM_LINK=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ \
+		-Icores/fes-sg1000/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-sg1000-rom-link" \
+		cores/fes-sg1000/rtl/sg1000_machine.sv cores/fes-sg1000/rtl/sg1000_rom_link.v \
+		cores/fes-common/rtl/coleco_vdp.sv \
+		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-sg1000/sim/machine_tb.cpp"
+	@build/sim/fes-sg1000-rom-link/Vsg1000_machine \
+		build/diagnostics/fes-sg1000/graphics-i-16k.rom
+
 .PHONY: sim-fes-sg1000-quartus
 sim-fes-sg1000-quartus:
 	$(require_local_sim)
@@ -660,7 +684,8 @@ sms-diagnostic:
 		--output build/diagnostics/fes-sms/mode4.rom \
 		--preview build/diagnostics/fes-sms/mode4.ppm
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --pad-to 32768 \
-		--output build/diagnostics/fes-sms/mode4-32k.rom
+		--output build/diagnostics/fes-sms/mode4-32k.rom \
+		--hex-output build/diagnostics/fes-sms/mode4-32k.hex
 	$(PYTHON) cores/fes-sms/diagnostic/generate.py --interactive \
 		--output build/diagnostics/fes-sms/mode4-hil.rom \
 		--preview build/diagnostics/fes-sms/mode4-hil.ppm
@@ -755,15 +780,15 @@ sim-fes-sms-oss: sms-diagnostic
 	@build/sim/fes-sms-vdp-oss/Vsms_vdp
 	@mkdir -p build/sim/fes-sms-machine-oss
 	$(VERILATOR) --cc --exe --build --top-module sms_machine -Wall \
-		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_COLECO_OSS=1 \
-		-CFLAGS "-DFES_SMS_OSS=1 -DFES_COLECO_OSS=1" \
+		-DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1" \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ \
 		-Icores/fes-sms/generated -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
 		--Mdir "$(CURDIR)/build/sim/fes-sms-machine-oss" \
-		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_vdp.sv \
+		cores/fes-sms/rtl/sms_machine.sv cores/fes-sms/rtl/sms_rom_link.v cores/fes-sms/rtl/sms_vdp.sv \
 		cores/fes-sms/rtl/sms_psg.sv \
 		cores/fes-common/rtl/coleco_vdp.sv \
 		cores/fes-common/rtl/coleco_dpram.v cores/fes-common/rtl/coleco_video_dpram.v \
@@ -772,7 +797,7 @@ sim-fes-sms-oss: sms-diagnostic
 		cores/fes-common/rtl/tv80/tv80_reg.v \
 		"$(CURDIR)/cores/fes-sms/sim/machine_tb.cpp"
 	@build/sim/fes-sms-machine-oss/Vsms_machine \
-		build/diagnostics/fes-sms/mode4.rom
+		build/diagnostics/fes-sms/mode4-32k.rom
 
 .PHONY: sim-fes-sms-quartus
 sim-fes-sms-quartus:

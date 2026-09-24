@@ -12,7 +12,7 @@ TARGETS = {
         for scenario in ('unit', *('board-' + name for name in COLECO_SCENARIOS))
     ),
     'sms': ('sim-fes-sms sim-fes-sms-oss',),
-    'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss',),
+    'sg1000': ('sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link',),
 }
 
 

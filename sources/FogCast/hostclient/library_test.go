@@ -102,6 +102,8 @@ func TestLaunchBlockClassifiesCatalogReadiness(t *testing.T) {
 		{name: "graphics-i-no-firmware", game: Game{ID: "fpga-graphics-i", Title: "Graphics I", System: "fpga", State: "available", RootOnline: true, Launchable: true}, block: "", eligible: true},
 		{name: "frogger-missing-firmware", game: Game{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true}, block: LaunchMissingFirmware, eligible: false},
 		{name: "frogger-ready-firmware", game: Game{ID: "fpga-frogger", Title: "Frogger", System: "fpga", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true, FirmwareReady: true}, block: "", eligible: true},
+		{name: "fpga-coleco-package-ready", game: Game{ID: "fpga-donkey-kong", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true, FirmwareReady: true}, block: "", eligible: true},
+		{name: "raw-coleco-browse-only", game: Game{ID: "coleco-donkey-kong", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: false}, block: LaunchBrowseOnly, eligible: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
