@@ -111,8 +111,11 @@ Claim/takeover retries use the same random request ID to reconcile a lost
 response. Cleanup may still be running when release returns `revoking`.
 
 Lease admission covers game launches, development uploads/reboots, Stop, input
-attach/detach/streams and cast start/stop. Status and content-cache operations
-remain available to other clients. Revocation interrupts stalled HTTP uploads
+attach/detach/streams, cast start/stop, and mesh content pull and link. Mesh
+content pull acquires the session grant: a fresh session's first pull claims a
+free kit, and a kit held by another session fails closed. Mesh content link
+requires that grant. Node, slot, and source reads stay available to other
+clients, as do status and content-cache operations. Revocation interrupts stalled HTTP uploads
 and input streams, while the existing coordinator retains already-dispatched
 physical operations until completion.
 

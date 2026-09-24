@@ -259,8 +259,16 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			if nodeResponse.Code != http.StatusOK || !strings.Contains(nodeResponse.Body.String(), `"node_id":"`+targetID+`"`) {
 				t.Fatalf("mesh node = HTTP %d %s", nodeResponse.Code, nodeResponse.Body.String())
 			}
+			unleasedPull := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id=sha256:"+strings.Repeat("ab", 32), nil)
+			unleasedPull.Header.Set("Authorization", "Bearer test-token")
+			unleasedResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(unleasedResponse, unleasedPull)
+			if unleasedResponse.Code != http.StatusForbidden || !strings.Contains(unleasedResponse.Body.String(), "KIT_LEASE_REQUIRED") {
+				t.Fatalf("unleased mesh pull = HTTP %d %s", unleasedResponse.Code, unleasedResponse.Body.String())
+			}
 			pullRequest := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id=sha256:"+strings.Repeat("ab", 32), nil)
 			pullRequest.Header.Set("Authorization", "Bearer test-token")
+			pullRequest.Header.Set(httpapi.KitLeaseHeader, kitToken)
 			pullResponse := httptest.NewRecorder()
 			server.Handler.ServeHTTP(pullResponse, pullRequest)
 			if pullResponse.Code != http.StatusUnprocessableEntity || !strings.Contains(pullResponse.Body.String(), "CONTENT_PULL_FAILED") {

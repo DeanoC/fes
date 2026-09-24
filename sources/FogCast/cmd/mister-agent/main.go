@@ -262,10 +262,12 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
 	if dependencies.meshContentRoot != "" && targetID != "" {
-		// The kit store is served for this node's id. The host launch
-		// seam stays off until a session installs an executor, so Phase
-		// 0 and Phase 1 do not call it. Eligible ABIs stay empty: the
-		// agent does not inventory packages before it can name them.
+		// The kit store is served for this node's id. Pull and link are
+		// kit-lease mutations. The host launch seam stays off until a
+		// session installs an executor, so Phase 0 and Phase 1 do not
+		// call it. The content source stays nil and eligible ABIs stay
+		// empty: the agent does not inventory packages before it can
+		// name them.
 		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, nil, nil)
 		if meshErr != nil {
 			logger.Error("mesh content store unavailable", "error", meshErr)

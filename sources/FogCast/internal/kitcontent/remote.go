@@ -13,15 +13,23 @@ import (
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 )
 
+// MutationAuthorizer admits one host mutation with the session kit lease.
+// Pull acquires that grant. Link requires the grant already held.
+type MutationAuthorizer interface {
+	AuthorizeMutation(*http.Request) error
+}
+
 // Remote is a host-side meshcontent.Executor for one kit content store.
 // Ensure calls it. The kit holds the bytes. This type does not program
-// the FPGA and does not claim a lease.
+// the FPGA. Pull and link ask the mutation authorizer, when one is set,
+// before the request is sent.
 type Remote struct {
 	base   url.URL
 	token  string
 	client *http.Client
 	nodeID string
 	abis   []meshcontent.EligibleABI
+	auth   MutationAuthorizer
 }
 
 type nodeDocument struct {
@@ -64,6 +72,15 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 		remote.abis = append(remote.abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
 	}
 	return remote, nil
+}
+
+// SetMutationAuthorizer installs the host kit-lease check for pull and
+// link. Node, slot, and source reads do not use it. Set it before Ensure.
+func (r *Remote) SetMutationAuthorizer(auth MutationAuthorizer) {
+	if r == nil {
+		return
+	}
+	r.auth = auth
 }
 
 func (r *Remote) NodeID() string {
@@ -171,6 +188,11 @@ func (r *Remote) do(ctx context.Context, method, path string, query url.Values, 
 	req.Header.Set("Authorization", "Bearer "+r.token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if r.auth != nil && method == http.MethodPost {
+		if err := r.auth.AuthorizeMutation(req); err != nil {
+			return err
+		}
 	}
 	resp, err := r.client.Do(req)
 	if err != nil {

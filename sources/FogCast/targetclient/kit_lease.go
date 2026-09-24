@@ -219,12 +219,51 @@ func (c *Client) MeshKitLease() (bool, string) {
 }
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
-	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":
+	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
 		return c.kitLease.Authorize(r, true)
-	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate":
+	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
 		return c.kitLease.Authorize(r, false)
 	}
 	return nil
+}
+
+// AuthorizeMutation applies the host kit-lease rule for r.
+// Content pull acquires the session grant. Content link requires it.
+func (c *Client) AuthorizeMutation(r *http.Request) error {
+	if c == nil {
+		return ErrKitLeaseLost
+	}
+	return c.authorizeMutation(r)
+}
+
+// AcquireContentPullLease claims this session's kit grant the way a
+// content pull does. A kit held by another session returns that claim
+// error and does not steal. The call does not copy bytes.
+func (c *Client) AcquireContentPullLease(ctx context.Context) error {
+	if c == nil {
+		return ErrKitLeaseLost
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/v1/mesh/content/pull", nil).String(), nil)
+	if err != nil {
+		return err
+	}
+	return c.authorizeMutation(request)
+}
+
+// PullMeshContent copies id onto the kit. A fresh session claims the
+// kit lease first. The body is empty; the kit reads its content source.
+func (c *Client) PullMeshContent(ctx context.Context, id string) (string, error) {
+	var doc struct {
+		State string `json:"state"`
+	}
+	err := c.doJSONQuery(ctx, http.MethodPost, "/v1/mesh/content/pull", url.Values{"id": {id}}, nil, &doc)
+	return doc.State, err
+}
+
+// LinkMeshContent records one expansion link. The session must already
+// hold the kit grant.
+func (c *Client) LinkMeshContent(ctx context.Context, name, contentID string) error {
+	return c.doJSONQuery(ctx, http.MethodPost, "/v1/mesh/content/link", url.Values{"name": {name}}, map[string]string{"content_id": contentID}, &struct{}{})
 }
 
 func (l *KitLease) CurrentToken() string {

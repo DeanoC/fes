@@ -229,8 +229,11 @@ func (s *Service) captureTargetLocked(session MeshExecuteSession, requested stri
 // before Ensure, so a rejected FPGA launch does not pull. A node
 // mismatch returns ErrUnboundNode before Pull or Link. LeaseFree is
 // this session's grant and generation, not the absence of a foreign
-// holder. InUse is the Phase 1 busy connection. Either one returns
-// before Pull.
+// holder. InUse is the Phase 1 busy connection. A fresh FPGA session
+// on a free kit claims through the content-pull mutation before
+// Ensure, so that first launch holds the grant and can pull. A held
+// grant whose observed generation differs, and a kit another session
+// holds, both return before Pull.
 // ErrContentMissingNoSource fails closed. A slot that stays Checking
 // until the host timeout returns ErrCheckingTimeout. Launch must not
 // continue into execute.
@@ -249,13 +252,24 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 		return meshcontent.ErrUnboundNode
 	}
 	// LeaseFree is this session's grant on the kit this launch executes
-	// on, including that grant's generation. A free kit is not owned.
-	// InUse is the Phase 1 busy connection: another session holds the
-	// kit. Host-only play does not take that lease. A foreign holder
-	// still returns the lease denial before Ensure.
+	// on, including that grant's generation. InUse is the Phase 1 busy
+	// connection: another session holds the kit. Host-only play does
+	// not take that lease. A foreign holder still returns the lease
+	// denial before Ensure. A launchable FPGA session that does not
+	// yet hold a grant claims it here, using the same acquiring
+	// authorization as content pull, and Ensure then sees that grant.
+	// A grant that is already held and fails the generation check is
+	// left unchanged.
+	fpga := meshLaunchExecution(snap.entry) != ExecutionHostOnly
 	leaseFree, inUse := s.meshLeaseFacts(snap)
-	if meshLaunchExecution(snap.entry) != ExecutionHostOnly && inUse {
+	if fpga && inUse {
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
+	}
+	if fpga && snap.entry.Launchable && !leaseFree {
+		if err := s.claimContentPullLease(ctx, snap); err != nil {
+			return err
+		}
+		leaseFree = true
 	}
 	result, err := meshcontent.Ensure(ctx, snap.entry, node, snap.executor, meshcontent.EnsureOption{
 		LeaseFree:       leaseFree,
@@ -403,6 +417,42 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 // generation is empty when this session does not hold a current grant.
 type meshKitLease interface {
 	MeshKitLease() (owned bool, generation string)
+}
+
+// meshPullAcquirer claims the session grant the way content pull does.
+// A client that cannot claim leaves the launch fail-closed.
+type meshPullAcquirer interface {
+	AcquireContentPullLease(context.Context) error
+}
+
+// claimContentPullLease acquires the session grant before Ensure when
+// this launch does not already hold one. A held grant that failed the
+// generation check is not claimed again. After a successful claim,
+// LeaseFree is that new grant; the selected connection's previous free
+// observation is not a mismatch against a grant that did not exist yet.
+func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot) error {
+	owned, generation := false, ""
+	if lease, ok := snap.client.(meshKitLease); ok && lease != nil {
+		owned, generation = lease.MeshKitLease()
+	}
+	if owned && generation != "" {
+		return meshcontent.ErrLeaseNotFree
+	}
+	acquirer, ok := snap.client.(meshPullAcquirer)
+	if !ok || acquirer == nil {
+		return meshcontent.ErrLeaseNotFree
+	}
+	if err := acquirer.AcquireContentPullLease(ctx); err != nil {
+		return err
+	}
+	owned, generation = false, ""
+	if lease, ok := snap.client.(meshKitLease); ok && lease != nil {
+		owned, generation = lease.MeshKitLease()
+	}
+	if !owned || generation == "" {
+		return meshcontent.ErrLeaseNotFree
+	}
+	return nil
 }
 
 // meshLeaseFacts is what Ensure's LeaseFree and InUse options are.
