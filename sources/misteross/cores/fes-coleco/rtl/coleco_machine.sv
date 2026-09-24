@@ -65,8 +65,16 @@ module coleco_machine (
 
     reg ce_cpu_p;
     reg ce_cpu_n;
-    reg ce_vdp;
     reg [4:0] ce_counter;
+    wire ce_raster;
+
+    tms9918_raster_ce #(
+        .SYSTEM_CLOCK_HZ(52_224_000)
+    ) raster_timing (
+        .clk(clk_sys),
+        .reset(machine_reset),
+        .raster_ce(ce_raster)
+    );
 
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
@@ -176,20 +184,16 @@ module coleco_machine (
 `endif
         ce_cpu_p = 1'b0;
         ce_cpu_n = 1'b0;
-        ce_vdp = 1'b0;
         ce_counter = 5'h00;
     end
 
-    // This audio-capable profile runs at 52.224 MHz (+0.43% from 52 MHz).
-    // The reduced CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
-    // These pulses retain the
-    // proven ZX81 TV80 half-cycle shape while approximating the Coleco 3.58
-    // MHz CPU/VDP cadence for the first OSS route.
+    // This audio-capable profile runs at 52.224 MHz. The reduced CPU remains
+    // /16 (3.264 MHz); the logical VDP raster uses its separate nominal 60 Hz
+    // enable so video frame pacing does not inherit the CPU approximation.
     always @(negedge clk_sys) begin
         ce_counter <= ce_counter + 1'b1;
         ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
         ce_cpu_n <= ce_counter[3] && !ce_counter[2:0];
-        ce_vdp <= !ce_counter[3:0];
     end
 
     T80pa cpu (
@@ -224,7 +228,7 @@ module coleco_machine (
         .cpu_a(cpu_addr[7:0]),
         .cpu_din(cpu_dout),
         .cpu_dout(vdp_cpu_dout),
-        .raster_ce(ce_vdp),
+        .raster_ce(ce_raster),
         .raster_x(vdp_raster_x),
         .raster_y(vdp_raster_y),
         .raster_pixel(vdp_raster_pixel),

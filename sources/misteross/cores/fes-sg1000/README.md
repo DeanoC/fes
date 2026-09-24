@@ -35,10 +35,12 @@ recipe; it is not in the factory image.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
 Text mode suppresses sprites, Multicolor keeps them active, and unsupported
-mode selectors render only the R7 backdrop. Audio (SN76489), SC-3000 keyboard,
-banked 32/48 KiB cartridges, expansion hardware, NTSC timing and cycle-perfect
-raster behavior remain outside this slice. The OSS producer can seal from a
-clean tree; the package-only recipe does not change the factory image.
+mode selectors render only the R7 backdrop. The shared 256×262 logical raster
+uses a fractional enable for a nominal 60 Hz frame cadence. Composite sync,
+half-line behavior and cycle-perfect raster effects remain outside this slice.
+Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges and expansion
+hardware remain outside this slice. The OSS producer can seal from a clean
+tree; the package-only recipe does not change the factory image.
 
 ## Memory and host interfaces
 

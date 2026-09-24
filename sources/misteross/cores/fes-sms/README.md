@@ -42,7 +42,10 @@ is registered for package-only parent builds and is not in the factory image.
   horizontal/vertical flip, horizontal/vertical scrolling and lock bits, the
   left-column mask, 8×8/8×16 zoomable sprites, eight-sprite overflow, sprite
   collision, line interrupts and VBlank interrupts on the fixed 256×192 logical
-  raster. NTSC timing accuracy and cycle-perfect raster behavior remain outside
+  raster. The TMS fallback uses a fractional enable for nominal 60 Hz across
+  262 lines. SMS Mode 4 keeps its existing slower raster enable because its
+  serial scanline renderer cannot complete a line at 60 Hz. Composite sync,
+  half-line behavior, PAL timing and cycle-perfect raster effects remain outside
   this slice. VDP IRQ drives Z80 INT
   (maskable). Pause NMI is unused.
 - Two joysticks on the SMS 8255 ports `0xdc` / `0xdd`, adapted from the

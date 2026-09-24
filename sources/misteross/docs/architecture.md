@@ -284,9 +284,10 @@ state survives lock loss to avoid interpreting a stale acknowledgement as a
 new sample. The custom tone demo remains a native audio-clock source and needs
 no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
 417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
-the separate video PLL. This raises the reduced CPU and logical raster cadence
-by 0.43% from the old 52 MHz profile; the CPU remains /16 (3.264 MHz), not
-cycle-accurate NTSC. HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
+the separate video PLL. This raises the reduced CPU cadence by 0.43% from the
+old 52 MHz profile; the CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
+The TMS9918 logical raster now uses its independent fractional 60 Hz enable.
+HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
 The producer checks all three timing domains and each audio output pad before
 packaging. SG-1000/SMS keep their existing shared 52 MHz system PLL.
 
@@ -555,8 +556,12 @@ The shared stream endpoint validates ordered chunks and complete CRC before
 publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
 holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB.
 Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio).
-Expansion hardware, bank switching, NTSC timing, cycle-perfect raster behavior
-and retail-cartridge compatibility remain outside this slice.
+The shared 32-bit fractional raster enable emits 4,024,320 logical samples per
+second from each core's configured system clock; 256 samples × 262 lines gives
+a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
+models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
+effects. Expansion hardware, bank switching and retail-cartridge compatibility
+remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
 screen-third pattern/color addressing and the register masks for table mirroring.
@@ -653,7 +658,8 @@ separate FES integration step.
 It reuses Coleco TV80 and the shared TMS9918-style VDP, which renders Graphics
 I, Graphics II, Text and Multicolor on a fixed 256×192 logical raster. Text
 suppresses sprites, Multicolor keeps them active, and unsupported selectors
-render the backdrop. It also reuses the dual-port RAM wrappers,
+render the backdrop. Its 256×262 logical raster shares Coleco's nominal 60 Hz
+fractional enable. It also reuses the dual-port RAM wrappers,
 the `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell.
 The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 KiB
 RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
@@ -701,7 +707,12 @@ cartridge at `0x0000–0x7fff`,
 unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
 joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, the SN76489
 on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
-`fes.simple-computer` mailbox. The OSS package uses 32 fixed blank M10K
+`fes.simple-computer` mailbox. The TMS fallback uses the shared nominal 60 Hz,
+262-line fractional raster enable. SMS Mode 4 retains its prior `/16` enable
+(about 48.5 frames/s), because its serial scanline builder exceeds the 60 Hz
+line budget; optimizing that renderer is separate work. This timing model
+covers logical frame pacing only, not composite sync, half-lines, PAL timing or
+cycle-perfect raster effects. The OSS package uses 32 fixed blank M10K
 cartridge lanes, authenticated by its format-3 ROM map; the target links an
 exact 32 KiB `cartridge-rom` before download. Shorter fixed-map ROMs must be
 explicitly padded with `0xff`. The Quartus oracle and default mailbox
@@ -711,8 +722,8 @@ zoomable sprites with collision/eight-sprite overflow, line interrupts and
 VBlank interrupts on the fixed 256×192 logical raster. The PSG mix is a signed
 16-bit sample; HDMI I2S0 is 16-bit 48 kHz against the existing runtime ADV7513
 program (N=6144, CTS=74250). There is no host `fes.audio` mailbox. Mappers,
-banked/48 KiB retail images, 224/240-line modes, NTSC/PAL timing accuracy and
-cycle-perfect raster effects remain outside this slice.
+banked/48 KiB retail images, 224/240-line modes and PAL timing remain outside
+this slice.
 
 `make sms-diagnostic` emits a 32 KiB-capable Mode 4 cartridge that jumps
 from `0x0000` to code at `0x4000` and programs an SN76489 square wave. The sim

@@ -31,12 +31,16 @@ retail-game compatibility.
 
 - TI SN76489A tone/noise synthesis at ports E0–FF with shared 48 kHz stereo
   HDMI output. `make sim-fes-coleco-audio` checks PSG and coherent PCM transfer.
-  System/audio clocks share one 52.224/12.288 MHz PLL; the CPU/raster cadence is
-  0.43% faster than the earlier 52 MHz profile, while HDMI pixel timing is fixed.
+  System/audio clocks share one 52.224/12.288 MHz PLL. The reduced CPU stays
+  on its /16 enable; a shared 32-bit fractional accumulator drives 4,024,320
+  logical raster samples per second for 256×262 frames at a nominal 60 Hz.
+  HDMI pixel timing stays fixed and independent.
 
-Expansion hardware, bank switching, NTSC timing and cycle-perfect raster
-behavior remain outside this first slice. Native host/runtime selection follows
-the declared interfaces. Graphics II supports screen-third pattern/color
+Expansion hardware and bank switching remain outside this first slice. The
+logical frame cadence follows the TMS9918A manual's 262-line, approximately
+60-frame/s noninterlaced mode; composite sync details, half-line behavior and
+cycle-perfect raster effects remain outside this slice. Native host/runtime
+selection follows the declared interfaces. Graphics II supports screen-third pattern/color
 addressing and register masks. Text mode renders 40×24 six-pixel glyphs with
 eight-pixel side margins and suppresses sprites; Multicolor selects four 4×4
 color blocks per character and keeps sprites active. Unsupported mode selectors
@@ -576,7 +580,7 @@ Yosys/nextpnr/Mistral owner:
 | VDP multi-read VRAM | A single inferred VRAM with one CPU port and three combinational raster reads fails Mistral memory mapping and also leaves Quartus with an oversized direct-memory implementation. Both compiler paths use four coherent `coleco_dpram` copies, broadcast CPU writes, and pipeline name → pattern/color reads by two clocks; the fourth copy is the serial SAT/pattern walker for sprites. |
 | Quartus framebuffer inference | The original 49,152-entry async-read framebuffer expanded to 241,553 combinational nodes, exceeding the Cyclone V limit of 83,820. `coleco_video_dpram` uses independent-clock altsyncram with a registered B address and UNREGISTERED B output, matching the OSS wrapper's single read edge. |
 | Quartus VDP inference | After the framebuffer fix, a direct VDP VRAM array still produced 186,906 combinational nodes and could not fit. The registered four-copy VDP path is therefore selected for `QUARTUS` as well as `FES_COLECO_OSS`; this is a Quartus resource-inference workaround, not a mailbox-contract change. |
-| Registered sprite evaluator | The SAT and pattern bytes are walked serially through one registered M10K/altsyncram port. Each alternating 256-entry line bank is one packed 6-bit word: pixel, occupied and visible metadata share the M10K entry. Port A performs a registered read followed by a write for each source pixel; port B supplies the registered raster read. A sequential 256-word clear and matching-y publication interlock keep the renderer inside the production ~4K system-clock line budget without unrolled reset/start loops. Yosys `e2d425de` (PR #14) keeps this registered `ramstyle=M10K` shape as a synchronous TDP with a live CLK2; the earlier `ec34fcf3` flow-through mapper had reclassified it as `CFG_ASYNC_READ` with a constant CLK2, which nextpnr rejects. |
+| Registered sprite evaluator | The SAT and pattern bytes are walked serially through one registered M10K/altsyncram port. Each alternating 256-entry line bank is one packed 6-bit word: pixel, occupied and visible metadata share the M10K entry. Port A performs a registered read followed by a write for each source pixel; port B supplies the registered raster read. A sequential 256-word clear and matching-y publication interlock keep the renderer inside the nominal 3.3K system-clock logical-line budget at 60 Hz. The FSM's worst case is under 800 system clocks (clear 256 entries, scan 32 SAT entries, fetch/render four maximum-size magnified sprites), leaving more than 4× margin without unrolled reset/start loops. Yosys `e2d425de` (PR #14) keeps this registered `ramstyle=M10K` shape as a synchronous TDP with a live CLK2; the earlier `ec34fcf3` flow-through mapper had reclassified it as `CFG_ASYNC_READ` with a constant CLK2, which nextpnr rejects. |
 | Sprite render fabric | A procedural 16x2 render loop synthesized to about 42K mapped combinational cells and left the fixed route running for more than 55 minutes without a report; `router2` also plateaued with tens of thousands of overused resources. The registered path therefore advances one source pixel per system clock with registered column/repeat counters and a read/write pair. Packing pixel and occupancy metadata into the M10K entry reduces the measured mapped ALUT fabric to about 3.1K while preserving priority, collision and clipping behavior. Do not restore the wide procedural write loop without a new fit/timing reproduction. |
 | Sprite evaluator startup/interlock | The evaluator begins priming line zero immediately after reset, while the CPU may still be writing the SAT and VDP registers. The diagnostic allows one frame for the configured table to replace that reset-time sample before checking line-zero sprites; a production cartridge should likewise complete setup during its normal startup warm-up. A `!sprite_pending_valid` guard also prevents a new build from clearing the bank whose publication is still pending. |
 | Bulk initialization | Clearing 16 KiB VRAM, 16 KiB cartridge, or the 49,152-entry framebuffer in an `initial` loop expands into thousands of `$meminit` cells and can exhaust the synthesis memory budget. The bring-up leaves those RAMs uninitialized and initializes only scalar state. |

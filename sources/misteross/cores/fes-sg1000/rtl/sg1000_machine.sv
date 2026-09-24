@@ -67,8 +67,16 @@ module sg1000_machine (
 
     reg ce_cpu_p;
     reg ce_cpu_n;
-    reg ce_vdp;
     reg [4:0] ce_counter;
+    wire ce_raster;
+
+    tms9918_raster_ce #(
+        .SYSTEM_CLOCK_HZ(52_000_000)
+    ) raster_timing (
+        .clk(clk_sys),
+        .reset(machine_reset),
+        .raster_ce(ce_raster)
+    );
 
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
@@ -124,17 +132,15 @@ module sg1000_machine (
 `endif
         ce_cpu_p = 1'b0;
         ce_cpu_n = 1'b0;
-        ce_vdp = 1'b0;
         ce_counter = 5'h00;
     end
 
-    // Same 52 MHz enable shape as the Coleco first slice, approximating the
-    // 3.58 MHz CPU/VDP cadence.
+    // Keep the reduced TV80 CPU's /16 enable shape. The shared TMS9918 raster
+    // has a separate nominal 60 Hz enable generated above.
     always @(negedge clk_sys) begin
         ce_counter <= ce_counter + 1'b1;
         ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
         ce_cpu_n <= ce_counter[3] && !ce_counter[2:0];
-        ce_vdp <= !ce_counter[3:0];
     end
 
     T80pa cpu (
@@ -169,7 +175,7 @@ module sg1000_machine (
         .cpu_a(cpu_addr[7:0]),
         .cpu_din(cpu_dout),
         .cpu_dout(vdp_cpu_dout),
-        .raster_ce(ce_vdp),
+        .raster_ce(ce_raster),
         .raster_x(vdp_raster_x),
         .raster_y(vdp_raster_y),
         .raster_pixel(vdp_raster_pixel),
