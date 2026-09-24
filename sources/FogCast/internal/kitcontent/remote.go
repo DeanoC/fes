@@ -38,13 +38,14 @@ type MutationAuthorizer interface {
 // the FPGA. Pull and link ask the mutation authorizer, when one is set,
 // before the request is sent.
 type Remote struct {
-	base   url.URL
-	token  string
-	client *http.Client
-	nodeID string
-	abis   []meshcontent.EligibleABI
-	auth   MutationAuthorizer
-	snap   snapCache
+	base     url.URL
+	token    string
+	client   *http.Client
+	nodeID   string
+	abis     []meshcontent.EligibleABI
+	packages []string
+	auth     MutationAuthorizer
+	snap     snapCache
 }
 
 type snapCache struct {
@@ -60,6 +61,7 @@ type nodeDocument struct {
 		ID    string `json:"id"`
 		Major int    `json:"major"`
 	} `json:"abis"`
+	Packages []string `json:"packages"`
 }
 
 type stateDocument struct {
@@ -95,6 +97,7 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 	for _, abi := range doc.ABIs {
 		remote.abis = append(remote.abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
 	}
+	remote.packages = normalizePackageIDs(doc.Packages)
 	return remote, nil
 }
 
@@ -119,6 +122,16 @@ func (r *Remote) EligibleABIs() []meshcontent.EligibleABI {
 		return nil
 	}
 	return append([]meshcontent.EligibleABI(nil), r.abis...)
+}
+
+// Packages returns described package ids the kit reported. An empty
+// list is not eligibility. Executor method signatures are unchanged;
+// ReadyHere reads this through PackageHolder.
+func (r *Remote) Packages() []string {
+	if r == nil {
+		return nil
+	}
+	return append([]string(nil), r.packages...)
 }
 
 func (r *Remote) Slot(id meshcontent.ContentID) meshcontent.SlotState {

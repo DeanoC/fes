@@ -94,7 +94,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 
 func launcherOperation(method, path string) bool {
 	switch method + " " + path {
-	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
+	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path))

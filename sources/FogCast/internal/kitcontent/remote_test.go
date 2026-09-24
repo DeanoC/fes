@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -273,6 +274,32 @@ func TestRemoteLinkFailureIsNotAPullFailure(t *testing.T) {
 	err = remote.LinkExpansion("port", id)
 	if !errors.Is(err, meshcontent.ErrContentLinkFailed) || errors.Is(err, meshcontent.ErrContentPullFailed) {
 		t.Fatalf("link err %v", err)
+	}
+}
+
+func TestDialCopiesDescribedPackages(t *testing.T) {
+	pkg := strings.Repeat("ab", 32)
+	store, err := Open(t.TempDir(), "kit-a", nil, []meshcontent.EligibleABI{{ID: "fes.simple-game", Major: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackages([]string{pkg, "not-a-package", pkg})
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := remote.Packages()
+	if len(got) != 1 || got[0] != pkg {
+		t.Fatalf("packages %v", got)
+	}
+	if len(remote.EligibleABIs()) != 1 || remote.EligibleABIs()[0].ID != "fes.simple-game" {
+		t.Fatalf("abis %+v", remote.EligibleABIs())
 	}
 }
 

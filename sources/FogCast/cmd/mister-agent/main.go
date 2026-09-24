@@ -29,6 +29,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
@@ -40,6 +41,8 @@ const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
 	meshContentRoot         = "/media/fat/fogcast/mesh-content"
+	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
+	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
@@ -263,15 +266,30 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
 	if dependencies.meshContentRoot != "" && targetID != "" {
 		// The kit store is served for this node's id. Pull and link are
-		// kit-lease mutations. The host launch seam stays off until a
-		// session installs an executor, so Phase 0 and Phase 1 do not
-		// call it. The content source stays nil and eligible ABIs stay
-		// empty: the agent does not inventory packages before it can
-		// name them.
-		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, nil, nil)
+		// kit-lease mutations and their bodies stay empty. mesh_content
+		// defaults on: the source reads the host through the provisioned
+		// launcher credential, and installed package manifests supply
+		// ABIs and package ids. mesh_content = false keeps a nil source
+		// and an empty ABI list.
+		var source kitcontent.Source
+		var abis []meshcontent.EligibleABI
+		var packages []string
+		if cfg.MeshContent {
+			abis, packages = kitcontent.ReadInstalledPackages([]string{installedPackageRoot, developmentCoreRoot})
+			opened, sourceErr := kitcontent.OpenLauncherSource(launcherConfigPath)
+			switch {
+			case sourceErr == nil:
+				source = opened
+			case errors.Is(sourceErr, os.ErrNotExist):
+			default:
+				logger.Error("mesh content source unavailable", "error", sourceErr)
+			}
+		}
+		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, source, abis)
 		if meshErr != nil {
 			logger.Error("mesh content store unavailable", "error", meshErr)
 		} else {
+			meshStore.SetPackages(packages)
 			options = append(options, httpapi.WithMeshContent(meshStore))
 		}
 	}

@@ -81,6 +81,25 @@ func TestLauncherRestrictionAndAuthentication(t *testing.T) {
 	}
 }
 
+func TestLauncherAllowsMeshContentGET(t *testing.T) {
+	handler := launcherHandler(t, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/mesh/content/source?id=sha256:"+strings.Repeat("ab", 32), nil))
+	if w.Code == http.StatusNotFound && strings.Contains(w.Body.String(), "launcher operation is unavailable") {
+		t.Fatalf("source was not a launcher operation: %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("GET", "http://192.0.2.1:8789/api/v1/mesh/content/object?id=sha256:"+strings.Repeat("ab", 32), nil))
+	if w.Code == http.StatusNotFound && strings.Contains(w.Body.String(), "launcher operation is unavailable") {
+		t.Fatalf("object was not a launcher operation: %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, launcherRequest("POST", "http://192.0.2.1:8789/api/v1/mesh/content/object", nil))
+	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "launcher operation is unavailable") {
+		t.Fatalf("rejected object: %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestLauncherAllowsArtworkGET(t *testing.T) {
 	handler := launcherHandler(t, nil)
 	handle := strings.Repeat("ab", 32)

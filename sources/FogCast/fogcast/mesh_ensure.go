@@ -166,6 +166,7 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 	if s == nil {
 		return launchSnapshot{}, nil
 	}
+	s.activateMeshExecutor(context.Background())
 	s.meshMu.Lock()
 	session := s.meshExecute
 	s.meshMu.Unlock()

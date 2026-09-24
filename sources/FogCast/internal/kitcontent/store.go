@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,9 +30,12 @@ import (
 
 var (
 	// meshContentReserve is free space a pull leaves on the card.
-	// A pull that would start below this reserve fails closed.
+	// A pull that would start below this reserve fails closed. Each
+	// chunk is also capped at free-reserve, and free space is read
+	// again while the copy is running.
 	meshContentReserve uint64 = 32 << 20
-	// meshContentQuota is the most object bytes this store will keep.
+	// meshContentQuota is the most bytes this store will keep, counting
+	// committed objects and in-flight partial files together.
 	meshContentQuota int64 = 2 << 30
 )
 
@@ -55,6 +59,7 @@ type Store struct {
 	abis     []meshcontent.EligibleABI
 	mu       sync.Mutex
 	inflight map[string]struct{}
+	packages []string
 }
 
 // Open prepares one node's store. It does not create directories: the
@@ -119,6 +124,29 @@ func (s *Store) EligibleABIs() []meshcontent.EligibleABI {
 		return nil
 	}
 	return append([]meshcontent.EligibleABI(nil), s.abis...)
+}
+
+// SetPackages records described package ids installed on this node.
+// ReadyHere reads them through PackageHolder. Call it before the store
+// serves requests. An empty list is not eligibility. Ids that are not
+// 64 lowercase hex digits are dropped.
+func (s *Store) SetPackages(ids []string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.packages = normalizePackageIDs(ids)
+	s.mu.Unlock()
+}
+
+// Packages returns the described package ids SetPackages recorded.
+func (s *Store) Packages() []string {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.packages...)
 }
 
 func (s *Store) SourceAdvertises(id meshcontent.ContentID) bool {
@@ -196,12 +224,11 @@ func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	free, err := availableBytes(s.root)
-	if err != nil || free < meshContentReserve {
-		return "", meshcontent.ErrContentPullFailed
-	}
-	used := s.usedBytes()
-	if used >= meshContentQuota {
+	// Refuse before creating a partial when the card or the quota already
+	// has no room. The writer applies the same cap to every chunk and
+	// re-reads free space, so a pull cannot run the card down to ENOSPC
+	// and two in-flight pulls cannot each spend the same remainder.
+	if !s.roomFor(1) {
 		return "", meshcontent.ErrContentPullFailed
 	}
 	body, err := s.source.Open(ctx, id)
@@ -224,7 +251,7 @@ func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent
 		_ = os.Remove(tmpName)
 	}
 	sum := sha256.New()
-	limited := &quotaWriter{w: io.MultiWriter(tmp, sum), used: used, quota: meshContentQuota}
+	limited := &spaceWriter{store: s, w: io.MultiWriter(tmp, sum)}
 	if _, err := io.Copy(limited, &ctxReader{ctx: ctx, r: body}); err != nil {
 		cleanup()
 		if ctx.Err() != nil {
@@ -333,8 +360,15 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 	return c.r.Read(p)
 }
 
+// usedBytes is committed objects plus in-flight partial files. Callers
+// that decide whether another byte fits hold s.mu across this read and
+// the write, so two pulls cannot both observe the same remainder.
 func (s *Store) usedBytes() int64 {
-	entries, err := os.ReadDir(filepath.Join(s.root, "objects"))
+	return dirBytes(filepath.Join(s.root, "objects")) + dirBytes(filepath.Join(s.root, "partial"))
+}
+
+func dirBytes(dir string) int64 {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0
 	}
@@ -349,6 +383,40 @@ func (s *Store) usedBytes() int64 {
 	return total
 }
 
+// roomFor reports whether at least n more bytes fit under the quota and
+// the free-space reserve. n is at least 1 for the pre-copy check.
+func (s *Store) roomFor(n int64) bool {
+	if n < 1 {
+		n = 1
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.roomLocked() >= n
+}
+
+// roomLocked is min(quota-used, free-reserve). Caller holds s.mu.
+// used includes partial/, so an in-flight pull of another id counts.
+func (s *Store) roomLocked() int64 {
+	used := s.usedBytes()
+	if used >= meshContentQuota {
+		return 0
+	}
+	quotaRoom := meshContentQuota - used
+	free, err := availableBytes(s.root)
+	if err != nil || free < meshContentReserve {
+		return 0
+	}
+	space := free - meshContentReserve
+	if space > uint64(math.MaxInt64) {
+		return quotaRoom
+	}
+	spaceRoom := int64(space)
+	if spaceRoom < quotaRoom {
+		return spaceRoom
+	}
+	return quotaRoom
+}
+
 func statAvailable(path string) (uint64, error) {
 	var st unix.Statfs_t
 	if err := unix.Statfs(path, &st); err != nil {
@@ -357,16 +425,33 @@ func statAvailable(path string) (uint64, error) {
 	return uint64(st.Bsize) * uint64(st.Bavail), nil
 }
 
-type quotaWriter struct {
-	w              io.Writer
-	used, quota, n int64
+// spaceWriter caps each chunk at min(quota-used, free-reserve) and
+// re-reads free space while the copy is running. A chunk that does not
+// fit is not written past the cap. The pull then fails and drops the
+// partial file.
+type spaceWriter struct {
+	store *Store
+	w     io.Writer
 }
 
-func (q *quotaWriter) Write(p []byte) (int, error) {
-	if q.used+q.n+int64(len(p)) > q.quota {
+func (q *spaceWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	q.store.mu.Lock()
+	defer q.store.mu.Unlock()
+	room := q.store.roomLocked()
+	if room <= 0 {
 		return 0, meshcontent.ErrContentPullFailed
 	}
+	capped := false
+	if int64(len(p)) > room {
+		p = p[:room]
+		capped = true
+	}
 	n, err := q.w.Write(p)
-	q.n += int64(n)
+	if capped && err == nil {
+		err = meshcontent.ErrContentPullFailed
+	}
 	return n, err
 }

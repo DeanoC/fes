@@ -1033,9 +1033,16 @@ node. Those routes drive the kit store.
 They are not an Ensure-result document. The host installs the executor
 only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
 launch stay on the existing path. The store does not program the FPGA.
-The production agent opens the store with a nil content source and an
-empty ABI list. An empty ABI list is not eligibility. A nil content
-source advertises nothing.
+Production `fogcast-api` and the `fogcast` CLI call `EnableMeshContent`
+after open unless `[mesh] ensure = false`. The agent installs a
+launcher-backed content source and the ABIs and package ids from
+installed package manifests unless `mesh_content = false`, which
+restores a nil source and an empty ABI list. An empty ABI list is not
+eligibility. A nil content source advertises nothing. A pull still caps
+each write at `min(quota-used, free-reserve)`, re-reads free space
+while copying, and counts `partial/` bytes toward the 2 GiB quota. A
+failed dial leaves the host seam off, so Phase 0 and Phase 1 launch
+continue. Host-only titles are not projected into the seam.
 
 The projection is not a host route. JSON tags stay on the host catalog
 shape. Ensure results have no JSON tags. `GET /api/v1/mesh/nodes` does

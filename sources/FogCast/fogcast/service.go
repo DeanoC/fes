@@ -178,19 +178,23 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset    func()
-	connectionMu   sync.Mutex
-	connection     TargetConnection
-	resolveTarget  func(context.Context, string) ([]string, error)
-	meshMu         sync.Mutex
-	meshNodes      []MeshNode
-	meshExecute    MeshExecuteSession
-	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
-	lookupCancel   context.CancelFunc
-	monitorCancel  context.CancelFunc
-	monitorDone    chan struct{}
-	nextLookup     time.Time
-	lookupFailures uint
+	targetReset      func()
+	connectionMu     sync.Mutex
+	connection       TargetConnection
+	resolveTarget    func(context.Context, string) ([]string, error)
+	meshMu           sync.Mutex
+	meshNodes        []MeshNode
+	meshExecute      MeshExecuteSession
+	meshEnsureConfig bool
+	meshEnsure       bool
+	meshHTTP         *http.Client
+	meshDialAt       time.Time
+	collectNodes     func(context.Context) ([]discovery.ObservedNode, error)
+	lookupCancel     context.CancelFunc
+	monitorCancel    context.CancelFunc
+	monitorDone      chan struct{}
+	nextLookup       time.Time
+	lookupFailures   uint
 
 	// Grants captured by Stop and not yet released. Idle settings may drop
 	// the owning client; explicit ReleaseKitLease still frees each one.
@@ -412,6 +416,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	service.meshEnsureConfig = config.MeshEnsure
+	service.meshHTTP = &http.Client{}
 	if config.ZX81MachineROM.Script != "" {
 		service.SetMachineROMLinker(PythonMachineROM{
 			Python: config.ZX81MachineROM.Python, Script: config.ZX81MachineROM.Script,

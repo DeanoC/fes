@@ -217,6 +217,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux := http.NewServeMux()
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
+	registerMeshHostContent(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)

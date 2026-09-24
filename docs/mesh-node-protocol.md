@@ -343,7 +343,7 @@ slot, and source reads are not.
 
 | Call | Request | Response |
 | --- | --- | --- |
-| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`) |
+| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`), optional `packages` (described package ids, 64 lowercase hex). An empty or omitted list is not eligibility. |
 | Slot | `GET /v1/mesh/content/slot?id=sha256:<64 hex>` | `state`: `present`, `checking`, or `missing` |
 | Source | `GET /v1/mesh/content/source?id=sha256:<64 hex>` | `advertises` |
 | Pull | `POST /v1/mesh/content/pull?id=sha256:<64 hex>` with an empty body | `state` after the kit reads its content source |
@@ -372,6 +372,24 @@ host session API uses that same class, plus `CONTENT_MISSING`,
 `ABI_INELIGIBLE`, `CONTENT_CHECKING_TIMEOUT`, and `KIT_LEASE_DENIED`.
 `CONTENT_CHECKING` is Ensure's in-progress block. Launch waits with a
 positive timeout, so session launch returns the timeout class instead.
+
+### Kit content source reads the host
+
+The kit's content `Source` reads the host, which is the content node,
+with the provisioned launcher credential (`Authorization: Bearer` and
+`X-FogCast-Target-ID` from `launcher.json`). This is not a second pull.
+`POST /v1/mesh/content/pull` still has an empty body. The kit then reads
+its source. Executor method signatures are unchanged.
+
+| Call | Request | Response |
+| --- | --- | --- |
+| Advertises | `GET /api/v1/mesh/content/source?id=sha256:<64 hex>` | `{"advertises": true\|false}` with status 200 |
+| Object | `GET /api/v1/mesh/content/object?id=sha256:<64 hex>` | `application/octet-stream` body |
+
+The host serves core-media whose media id is that digest, or an
+expansion cart payload whose `CartSHA256` is that digest. A library
+path is not the id. These two GETs are launcher operations so the kit
+can use the existing launcher listener. They are not kit-lease mutations.
 
 ## Non-goals for the v1 protocol
 

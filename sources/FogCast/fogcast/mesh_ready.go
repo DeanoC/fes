@@ -30,6 +30,10 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	if s == nil || ctx.Err() != nil {
 		return nil, false
 	}
+	s.activateMeshExecutor(ctx)
+	if ctx.Err() != nil {
+		return nil, false
+	}
 	s.meshMu.Lock()
 	session := s.meshExecute
 	nodes := append([]MeshNode(nil), s.meshNodes...)
