@@ -20,6 +20,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/hostexec"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/systems"
 	"github.com/DeanoC/FogCast/librarymedia"
 	"github.com/DeanoC/FogCast/libraryuser"
@@ -613,11 +614,23 @@ func (s *Service) clearUnstartedSessionTarget() {
 var launchPinnedTargetBoundHook func(name string)
 
 func (s *Service) bindPinnedLaunchTarget(pinned pinnedLaunchTarget) error {
+	s.meshMu.Lock()
+	meshOn := s.meshExecute.Executor != nil
+	s.meshMu.Unlock()
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
 	name := pinned.name
 	explicit := pinned.explicit
 	cfg := targetByName(s.targets, name)
+	if meshOn && !pinned.endpointMatches(cfg) {
+		return meshcontent.ErrUnboundNode
+	}
+	if pinned.client != nil {
+		if s.targetClients == nil {
+			s.targetClients = map[string]serviceClient{}
+		}
+		s.targetClients[name] = pinned.client
+	}
 	if explicit && (strings.TrimSpace(cfg.Name) == "" || !cfg.Enabled) {
 		return canonicalError(protocol.CodeBadRequest, nil)
 	}
@@ -808,7 +821,8 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// named content failure returns before catalog execute and before
 	// the FPGA path.
 	pinned := s.pinLaunchTarget(target)
-	if err := s.meshEnsureBeforeExecute(gameID, pinned); err != nil {
+	ensured, ensuredOK, err := s.meshEnsureBeforeExecute(gameID, pinned)
+	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
@@ -819,7 +833,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 			if s.launchUsesForeignKit(pinned, ExecutionFPGANative) {
 				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
 			}
-			return s.launchCoreEntry(ctx, gameID, pinned)
+			return s.launchCoreEntry(ctx, gameID, pinned, ensured, ensuredOK)
 		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
 			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
 		}

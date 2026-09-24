@@ -159,8 +159,12 @@ ensures a launchable FPGA entry on the target that call will execute
 on. A named target or a changed selected target that is not that
 executor is rejected before any pull. The launch captures that target
 once; Ensure and bind both use the capture, so a settings change
-during the call cannot bind a different node. A foreign-kit denial for
-that FPGA launch returns before Ensure. Host-only play stays on the
+during the call cannot bind a different node. A changed address or
+TargetID on that same name is rejected, and the captured client stays
+on an unchanged endpoint. Launch also refuses to program when the
+selected package, media, firmware, ROM, or expansion composition no
+longer matches the row Ensure checked. A foreign-kit denial for that
+FPGA launch returns before Ensure. Host-only play stays on the
 installed session node.
 
 `MeshExpansion.Digest` is the slot-bytes digest: SHA-256 of that

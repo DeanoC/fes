@@ -3,6 +3,7 @@ package fogcast
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -111,7 +112,7 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 		Executor:  exec,
 		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
 	})
-	if err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
+	if _, _, err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.Slot(cart) != meshcontent.StatePresent {
@@ -120,7 +121,7 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 	// A second ensure sees the id Present and does not pull again.
 	// Launch would continue into the existing path; this service has
 	// no catalog, so the assertion stops at the seam.
-	if err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
+	if _, _, err := service.meshEnsureBeforeExecute(entry.TitleID, service.pinLaunchTarget("")); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 {
@@ -291,6 +292,121 @@ func TestImplicitLaunchKeepsPinnedTargetWhenSelectionChanges(t *testing.T) {
 	}
 	if service.selectedTarget != "spare" {
 		t.Fatalf("selected target %q", service.selectedTarget)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
+		t.Fatalf("pulls %+v", exec.pulls)
+	}
+}
+
+func TestLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
+	service, client, coreEntry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
+	active := coreEntryActiveStatus(inspection, 7, true)
+	client.mediaStatus = active
+	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		client.statusResult = active
+		return active, nil
+	}
+	cartA := meshcontent.SumSHA256([]byte("composition-a"))
+	cartB := meshcontent.SumSHA256([]byte("composition-b"))
+	current := cartA
+	exec := &meshLaunchExecutor{
+		node:    "dev",
+		sources: map[string]bool{cartA.String(): true, cartB.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.simple-computer", Major: 1}},
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "dev",
+		Executor:  exec,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			if gameID != coreEntry.GameID {
+				return meshcontent.Entry{}, false
+			}
+			return meshcontent.Entry{
+				TitleID:    coreEntry.GameID,
+				System:     "coleco",
+				Launchable: true,
+				Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteFPGANative}},
+				Slots: []meshcontent.Slot{
+					meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: strings.Repeat("ab", 32), ABI: "fes.simple-computer", Major: 1}),
+					meshcontent.PrimaryMediaSlot(current),
+				},
+			}, true
+		},
+	})
+	meshEnsureFinishedHook = func() { current = cartB }
+	t.Cleanup(func() { meshEnsureFinishedHook = nil })
+
+	_, err := service.Launch(context.Background(), coreEntry.GameID, nil)
+	if !errors.Is(err, errMeshCompositionChanged) {
+		t.Fatalf("err %v", err)
+	}
+	if client.coreCalls != 0 || client.mediaCalls != 0 {
+		t.Fatalf("programmed core=%d media=%d", client.coreCalls, client.mediaCalls)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cartA {
+		t.Fatalf("pulls %+v", exec.pulls)
+	}
+}
+
+func TestBindRejectsPinnedEndpointChange(t *testing.T) {
+	for _, change := range []string{"target-id", "address"} {
+		t.Run(change, func(t *testing.T) {
+			entry, cart := fpgaMeshEntry("coleco-frogger")
+			exec := &meshLaunchExecutor{
+				node:    "node-a",
+				sources: map[string]bool{cart.String(): true},
+				abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+			}
+			service := meshTargetService(exec, "node-a", entry)
+			service.targets[0].Address = "http://192.0.2.10:8182"
+			original := &fakeServiceClient{}
+			replacement := &fakeServiceClient{}
+			service.targetClients = map[string]serviceClient{"dev": original}
+			service.catalog = &flipSelectedCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service}
+			meshEnsureFinishedHook = func() {
+				switch change {
+				case "target-id":
+					service.targets[0].TargetID = "node-b"
+				case "address":
+					service.targets[0].Address = "http://192.0.2.99:8182"
+				}
+				service.targetClients["dev"] = replacement
+			}
+			t.Cleanup(func() { meshEnsureFinishedHook = nil })
+
+			_, err := service.Launch(context.Background(), entry.TitleID, nil)
+			if !errors.Is(err, meshcontent.ErrUnboundNode) {
+				t.Fatalf("err %v", err)
+			}
+			if original.coreCalls != 0 || replacement.coreCalls != 0 {
+				t.Fatalf("clients original=%d replacement=%d", original.coreCalls, replacement.coreCalls)
+			}
+			if len(exec.pulls) != 1 || exec.pulls[0] != cart {
+				t.Fatalf("pulls %+v", exec.pulls)
+			}
+		})
+	}
+}
+
+func TestBindKeepsPinnedClientWhenEndpointIsUnchanged(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.targets[0].Address = "http://192.0.2.10:8182"
+	original := &fakeServiceClient{}
+	replacement := &fakeServiceClient{}
+	service.targetClients = map[string]serviceClient{"dev": original}
+	service.catalog = &flipSelectedCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service}
+	meshEnsureFinishedHook = func() { service.targetClients["dev"] = replacement }
+	t.Cleanup(func() { meshEnsureFinishedHook = nil })
+
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	if service.targetClients["dev"] != original {
+		t.Fatalf("client = replacement, err %v", err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
 		t.Fatalf("pulls %+v", exec.pulls)
