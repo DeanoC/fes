@@ -116,6 +116,45 @@ func (s *Service) activateMeshExecutor(ctx context.Context) {
 	s.installDialedMeshSession(want, remote)
 }
 
+// dialNamedMeshExecutor dials one configured kit and returns its content
+// store. It does not install or replace the selected-target session.
+// The caller uses the remote for one explicit launch snapshot.
+func (s *Service) dialNamedMeshExecutor(ctx context.Context, name string) *kitcontent.Remote {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ctx.Err() != nil {
+		return nil
+	}
+	s.targetMu.RLock()
+	want := meshTargetIdentityOf(name, targetByName(s.targets, name))
+	s.meshMu.Lock()
+	client := s.meshHTTP
+	s.meshMu.Unlock()
+	s.targetMu.RUnlock()
+	if !want.dialable() {
+		return nil
+	}
+	if client == nil {
+		client = &http.Client{}
+	}
+	endpoint, err := url.Parse(want.address)
+	if err != nil {
+		return nil
+	}
+	remote, err := kitcontent.Dial(ctx, endpoint, want.agent, client)
+	if err != nil || remote == nil {
+		return nil
+	}
+	if want.nodeID != "" && remote.NodeID() != want.nodeID {
+		return nil
+	}
+	return remote
+}
+
 // installDialedMeshSession installs remote when the selected target and
 // the in-flight dial are still want. A target change that landed during
 // the dial leaves the seam off for the next call to bind.

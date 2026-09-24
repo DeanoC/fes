@@ -29,7 +29,6 @@ import (
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
-	"github.com/DeanoC/FogCast/internal/meshcontent"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
@@ -69,7 +68,10 @@ type runDependencies struct {
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
 	meshContentRoot       string
-	newUpdate             func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
+	// packageRoots are the directories the node document scans for
+	// described packages. Nil uses the installed and development roots.
+	packageRoots []string
+	newUpdate    func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 }
 
 func run(ctx context.Context, configPath string, logger *slog.Logger) error {
@@ -268,14 +270,12 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		// The kit store is served for this node's id. Pull and link are
 		// kit-lease mutations and their bodies stay empty. mesh_content
 		// defaults on: the source reads the host through the provisioned
-		// launcher credential, and installed package manifests supply
-		// ABIs and package ids. mesh_content = false keeps a nil source
-		// and an empty ABI list.
+		// launcher credential. The node document reads installed and
+		// staged package manifests on each request, so a stage published
+		// after startup is included and a removed stage is not.
+		// mesh_content = false keeps a nil source and an empty ABI list.
 		var source kitcontent.Source
-		var abis []meshcontent.EligibleABI
-		var packages []string
 		if cfg.MeshContent {
-			abis, packages = kitcontent.ReadInstalledPackages([]string{installedPackageRoot, developmentCoreRoot})
 			opened, sourceErr := kitcontent.OpenLauncherSource(launcherConfigPath)
 			switch {
 			case sourceErr == nil:
@@ -285,11 +285,17 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 				logger.Error("mesh content source unavailable", "error", sourceErr)
 			}
 		}
-		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, source, abis)
+		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, source, nil)
 		if meshErr != nil {
 			logger.Error("mesh content store unavailable", "error", meshErr)
 		} else {
-			meshStore.SetPackages(packages)
+			if cfg.MeshContent {
+				roots := dependencies.packageRoots
+				if roots == nil {
+					roots = []string{installedPackageRoot, developmentCoreRoot}
+				}
+				meshStore.SetPackageRoots(roots)
+			}
 			options = append(options, httpapi.WithMeshContent(meshStore))
 		}
 	}

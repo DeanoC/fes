@@ -960,8 +960,16 @@ firmware, ROM, and expansion slots). Ensure runs against that snapshot.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
-not pull. Host-only mesh play stays on the installed session node. A
-launchable FPGA entry that the foreign-kit check would deny is rejected
+not pull. Host-only mesh play stays on the installed session node.
+When mesh ensure is on, an explicit FPGA `LaunchOn` whose kit is not the
+executor already installed dials that kit and Ensures there. Readiness
+keeps the selected-target session. That snapshot's executor is the
+dial, so a later change of the selected session does not by itself
+fail revalidation; the named kit's address, TargetID, and enabled flag
+still do. A dial that does not return that kit's node leaves the
+installed executor in the snapshot, and Ensure returns `ErrUnboundNode`
+without pulling on it. A launchable FPGA entry that the foreign-kit
+check would deny is rejected
 before Ensure. For an FPGA entry, LeaseFree is the session-owned kit
 grant and its generation. InUse is the Phase 1 busy connection: another
 session holds that kit. A fresh session does not yet hold a grant.
@@ -1035,11 +1043,16 @@ only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
 launch stay on the existing path. The store does not program the FPGA.
 Production `fogcast-api` and the `fogcast` CLI call `EnableMeshContent`
 after open unless `[mesh] ensure = false`. The agent installs a
-launcher-backed content source and the ABIs and package ids from
-installed package manifests unless `mesh_content = false`, which
-restores a nil source and an empty ABI list. A directory named with
-the 64-hex package id, or with a Stage publication
-`<package-id>-<token>`, contributes that package id. An empty ABI list
+launcher-backed content source unless `mesh_content = false`, which
+restores a nil source and an empty ABI list. With the switch on, the
+node document's ABIs and package ids are read from installed package
+manifests when that document is served. A directory named with the
+64-hex package id, or with a Stage publication
+`<package-id>-<token>`, contributes that package id. A package staged
+after the agent starts is included on the next read, and a removed
+stage is left out. The host re-reads that document when it asks the
+bound executor for package ids or eligible ABIs, and keeps the previous
+lists when the read fails. An empty ABI list
 is not eligibility. A nil content source advertises nothing. A pull
 still caps each write at `min(quota-used, free-reserve)`, re-reads free
 space while copying, and counts `partial/` bytes toward the 2 GiB

@@ -303,6 +303,56 @@ func TestDialCopiesDescribedPackages(t *testing.T) {
 	}
 }
 
+func TestRemotePackagesFollowStagedPackages(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(t.TempDir(), "kit-a", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackageRoots([]string{root})
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := remoteNodeTTL
+	remoteNodeTTL = 0
+	t.Cleanup(func() { remoteNodeTTL = previous })
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := remote.Packages(); got != nil {
+		t.Fatalf("packages before stage %v", got)
+	}
+	pkg := strings.Repeat("cd", 32)
+	token := strings.Repeat("02", 16)
+	stage := filepath.Join(root, pkg+"-"+token)
+	writeManifest(t, stage, `
+[abi]
+id = "fes.coleco"
+major = 2
+`)
+	got := remote.Packages()
+	if len(got) != 1 || got[0] != pkg {
+		t.Fatalf("packages after stage %v", got)
+	}
+	abis := remote.EligibleABIs()
+	if len(abis) != 1 || abis[0] != (meshcontent.EligibleABI{ID: "fes.coleco", Major: 2}) {
+		t.Fatalf("abis after stage %+v", abis)
+	}
+	if err := os.RemoveAll(stage); err != nil {
+		t.Fatal(err)
+	}
+	if got = remote.Packages(); got != nil {
+		t.Fatalf("packages after removal %v", got)
+	}
+	if got := remote.EligibleABIs(); got != nil {
+		t.Fatalf("abis after removal %+v", got)
+	}
+}
+
 func TestRemoteReadHonorsItsDeadline(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/mesh/content/node" {

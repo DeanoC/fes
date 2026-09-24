@@ -60,6 +60,10 @@ type Store struct {
 	mu       sync.Mutex
 	inflight map[string]struct{}
 	packages []string
+	// packageRoots are directories whose described packages are this
+	// node's ABI and package lists. Empty means EligibleABIs and
+	// Packages return the lists recorded at Open and SetPackages.
+	packageRoots []string
 }
 
 // Open prepares one node's store. It does not create directories: the
@@ -120,16 +124,15 @@ func (s *Store) NodeID() string {
 }
 
 func (s *Store) EligibleABIs() []meshcontent.EligibleABI {
-	if s == nil {
-		return nil
-	}
-	return append([]meshcontent.EligibleABI(nil), s.abis...)
+	abis, _ := s.inventory()
+	return abis
 }
 
 // SetPackages records described package ids installed on this node.
 // ReadyHere reads them through PackageHolder. Call it before the store
 // serves requests. An empty list is not eligibility. Ids that are not
-// 64 lowercase hex digits are dropped.
+// 64 lowercase hex digits are dropped. SetPackageRoots replaces this
+// list: the node document then reads the directories on each request.
 func (s *Store) SetPackages(ids []string) {
 	if s == nil {
 		return
@@ -139,14 +142,52 @@ func (s *Store) SetPackages(ids []string) {
 	s.mu.Unlock()
 }
 
-// Packages returns the described package ids SetPackages recorded.
-func (s *Store) Packages() []string {
+// SetPackageRoots records directories of described packages. EligibleABIs
+// and Packages read them on each call, so a stage published after Open
+// is served and a removed stage is not. An empty or nil list restores
+// the ABIs and package ids recorded by Open and SetPackages.
+func (s *Store) SetPackageRoots(roots []string) {
 	if s == nil {
-		return nil
+		return
+	}
+	cleaned := make([]string, 0, len(roots))
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		cleaned = append(cleaned, root)
+	}
+	if len(cleaned) == 0 {
+		cleaned = nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]string(nil), s.packages...)
+	s.packageRoots = cleaned
+	s.mu.Unlock()
+}
+
+// Packages returns the described package ids on this node.
+func (s *Store) Packages() []string {
+	_, packages := s.inventory()
+	return packages
+}
+
+// inventory is the ABI and package lists the node document serves.
+// Package roots are scanned outside the store lock. Without roots, the
+// lists recorded at Open and SetPackages are returned.
+func (s *Store) inventory() ([]meshcontent.EligibleABI, []string) {
+	if s == nil {
+		return nil, nil
+	}
+	s.mu.Lock()
+	roots := append([]string(nil), s.packageRoots...)
+	abis := append([]meshcontent.EligibleABI(nil), s.abis...)
+	packages := append([]string(nil), s.packages...)
+	s.mu.Unlock()
+	if len(roots) == 0 {
+		return abis, packages
+	}
+	return ReadInstalledPackages(roots)
 }
 
 func (s *Store) SourceAdvertises(id meshcontent.ContentID) bool {

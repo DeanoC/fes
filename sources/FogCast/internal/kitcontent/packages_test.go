@@ -118,6 +118,54 @@ major = 1
 	}
 }
 
+func TestStorePackageRootsFollowStaging(t *testing.T) {
+	root := t.TempDir()
+	recorded := strings.Repeat("11", 32)
+	store, err := Open(t.TempDir(), "kit-a", nil, []meshcontent.EligibleABI{{ID: "fes.recorded", Major: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackages([]string{recorded})
+	if got := store.Packages(); len(got) != 1 || got[0] != recorded {
+		t.Fatalf("recorded packages %v", got)
+	}
+	store.SetPackageRoots([]string{root, " "})
+	if got := store.Packages(); got != nil {
+		t.Fatalf("empty root packages %v", got)
+	}
+	if got := store.EligibleABIs(); got != nil {
+		t.Fatalf("empty root abis %+v", got)
+	}
+	pkg := strings.Repeat("ab", 32)
+	token := strings.Repeat("01", 16)
+	stage := filepath.Join(root, pkg+"-"+token)
+	writeManifest(t, stage, `
+[abi]
+id = "fes.simple-game"
+major = 1
+`)
+	if got := store.Packages(); len(got) != 1 || got[0] != pkg {
+		t.Fatalf("staged packages %v", got)
+	}
+	abis := store.EligibleABIs()
+	if len(abis) != 1 || abis[0] != (meshcontent.EligibleABI{ID: "fes.simple-game", Major: 1}) {
+		t.Fatalf("staged abis %+v", abis)
+	}
+	if err := os.RemoveAll(stage); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Packages(); got != nil {
+		t.Fatalf("removed stage packages %v", got)
+	}
+	store.SetPackageRoots(nil)
+	if got := store.Packages(); len(got) != 1 || got[0] != recorded {
+		t.Fatalf("restored packages %v", got)
+	}
+	if got := store.EligibleABIs(); len(got) != 1 || got[0].ID != "fes.recorded" {
+		t.Fatalf("restored abis %+v", got)
+	}
+}
+
 func TestNormalizePackageIDsDropsInvalid(t *testing.T) {
 	good := strings.Repeat("a", 64)
 	got := normalizePackageIDs([]string{good, "nope", strings.ToUpper(good), good})

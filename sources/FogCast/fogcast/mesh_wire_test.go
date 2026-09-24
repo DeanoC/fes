@@ -18,6 +18,7 @@ import (
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -153,6 +154,199 @@ func meshNodeServer(hits *atomic.Int32, node, token string) *httptest.Server {
 			"abis":     []map[string]any{{"id": "fes.simple-game", "major": 1}},
 			"packages": []string{strings.Repeat("ab", 32)},
 		})
+	}))
+}
+
+func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
+	const (
+		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	)
+	var hitsA, hitsB atomic.Int32
+	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
+	defer serverA.Close()
+	serverB := meshContentServer(&hitsB, nodeB, "token-b")
+	defer serverB.Close()
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	selected := &meshLaunchExecutor{
+		node:    nodeA,
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := &Service{
+		meshEnsureConfig: true,
+		targets: []TargetConfig{
+			{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
+			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
+		},
+		selectedTarget: "kit-a",
+		targetClients: map[string]serviceClient{
+			"kit-a": ownedMeshClient(),
+			"kit-b": ownedMeshClient(),
+		},
+	}
+	service.EnableMeshContent()
+	if _, on := service.GamesMeshReady(context.Background(), nil); !on || hitsA.Load() != 1 || hitsB.Load() != 0 {
+		t.Fatalf("selected dial on=%v hits A=%d B=%d", on, hitsA.Load(), hitsB.Load())
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: nodeA,
+		Executor:  selected,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	snap, err := service.captureLaunchSnapshot(entry.TitleID, "kit-b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.executor == nil || !snap.siblingExecutor || snap.executor == selected || snap.executor.NodeID() != nodeB || snap.nodeID != nodeB {
+		t.Fatalf("sibling executor flag=%v node=%s", snap.siblingExecutor, snap.nodeID)
+	}
+	if err := service.revalidateLaunchSnapshot(snap); err != nil {
+		t.Fatalf("revalidate %v", err)
+	}
+	service.meshMu.Lock()
+	installed := service.meshExecute.Executor
+	service.meshMu.Unlock()
+	if installed != selected {
+		t.Fatal("explicit launch replaced the selected session")
+	}
+	beforeB := hitsB.Load()
+	_, err = service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
+	if errors.Is(err, meshcontent.ErrUnboundNode) || beforeB == hitsB.Load() {
+		t.Fatalf("sibling launch err=%v hitsB %d -> %d", err, beforeB, hitsB.Load())
+	}
+	if len(selected.pulls) != 0 || len(selected.links) != 0 {
+		t.Fatalf("selected executor pulled %+v linked %+v", selected.pulls, selected.links)
+	}
+	same, err := service.captureLaunchSnapshot(entry.TitleID, "kit-a")
+	if err != nil || same.siblingExecutor || same.executor != selected {
+		t.Fatalf("selected launch sibling=%v err=%v", same.siblingExecutor, err)
+	}
+}
+
+func TestLaunchOnNonSelectedHostEntryStaysOnSelectedExecutor(t *testing.T) {
+	const (
+		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	)
+	var hitsA, hitsB atomic.Int32
+	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
+	defer serverA.Close()
+	serverB := meshContentServer(&hitsB, nodeB, "token-b")
+	defer serverB.Close()
+	cart := meshcontent.SumSHA256([]byte("source-rom"))
+	entry := meshcontent.Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
+	}
+	selected := &meshLaunchExecutor{
+		node:    nodeA,
+		sources: map[string]bool{cart.String(): true},
+	}
+	service := &Service{
+		meshEnsureConfig: true,
+		targets: []TargetConfig{
+			{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
+			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
+		},
+		selectedTarget: "kit-a",
+		targetClients: map[string]serviceClient{
+			"kit-a": ownedMeshClient(),
+			"kit-b": ownedMeshClient(),
+		},
+		catalog: &fakeServiceCatalog{gameErr: errors.New("stop after ensure")},
+	}
+	service.EnableMeshContent()
+	if _, on := service.GamesMeshReady(context.Background(), nil); !on {
+		t.Fatal("selected kit did not install the seam")
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: nodeA,
+		Executor:  selected,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+		t.Fatalf("err %v", err)
+	}
+	if hitsB.Load() != 0 || len(selected.pulls) != 1 || selected.pulls[0] != cart {
+		t.Fatalf("hitsB=%d pulls %+v", hitsB.Load(), selected.pulls)
+	}
+}
+
+func TestLaunchOnMismatchedSiblingDoesNotPullOnSelectedExecutor(t *testing.T) {
+	const (
+		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	)
+	var hitsA, hitsB atomic.Int32
+	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
+	defer serverA.Close()
+	serverB := meshNodeServer(&hitsB, "11111111-1111-1111-1111-111111111111", "token-b")
+	defer serverB.Close()
+	entry, _ := fpgaMeshEntry("coleco-frogger")
+	selected := &meshLaunchExecutor{
+		node: nodeA,
+		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := &Service{
+		meshEnsureConfig: true,
+		targets: []TargetConfig{
+			{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
+			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
+		},
+		selectedTarget: "kit-a",
+		targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient(), "kit-b": ownedMeshClient()},
+	}
+	service.EnableMeshContent()
+	if _, on := service.GamesMeshReady(context.Background(), nil); !on {
+		t.Fatal("selected kit did not install the seam")
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: nodeA,
+		Executor:  selected,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("err %v", err)
+	}
+	if len(selected.pulls) != 0 || len(selected.links) != 0 {
+		t.Fatalf("mismatched sibling pulled %+v", selected.pulls)
+	}
+}
+
+func meshContentServer(hits *atomic.Int32, node, token string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/mesh/content/node":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"node_id":  node,
+				"abis":     []map[string]any{{"id": "fes.simple-game", "major": 1}},
+				"packages": []string{strings.Repeat("ab", 32)},
+			})
+		case "/v1/mesh/content/slot":
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "missing"})
+		case "/v1/mesh/content/source":
+			_ = json.NewEncoder(w).Encode(map[string]bool{"advertises": false})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 }
 

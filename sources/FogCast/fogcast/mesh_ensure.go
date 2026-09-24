@@ -157,11 +157,18 @@ type launchSnapshot struct {
 	executor meshcontent.Executor
 	entry    meshcontent.Entry
 	entryOK  bool
+	// siblingExecutor is set when this snapshot dialed an explicit
+	// FPGA kit other than the installed selected-target session.
+	// Revalidation still checks that kit. It does not require the
+	// selected session to stay on this executor.
+	siblingExecutor bool
 }
 
 // captureLaunchSnapshot reads the target, the bound node, and the
 // catalog row once. A disabled known target returns before Ensure.
-// With the seam off, only the requested name is kept.
+// With the seam off, only the requested name is kept. An explicit
+// FPGA launch whose kit is a different node dials that kit for this
+// snapshot and leaves the selected-target session installed.
 func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, error) {
 	if s == nil {
 		return launchSnapshot{}, nil
@@ -185,7 +192,38 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 	if snap.known && !snap.enabled {
 		return snap, snapshotMismatch(launchSnapshotTargetDisabled)
 	}
+	s.useRequestedMeshExecutor(&snap)
 	return snap, nil
+}
+
+// useRequestedMeshExecutor dials the kit an explicit FPGA launch named
+// when the installed executor is a different node. Readiness keeps the
+// selected-target session. A failed dial leaves that executor in the
+// snapshot, so Ensure returns ErrUnboundNode and does not pull on it.
+// Host-only play stays on the installed session node.
+func (s *Service) useRequestedMeshExecutor(snap *launchSnapshot) {
+	if s == nil || snap == nil || !snap.explicit || !snap.entryOK || !snap.known || !snap.enabled {
+		return
+	}
+	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
+		return
+	}
+	if snap.executor == nil || strings.TrimSpace(snap.nodeID) == "" || snap.executor.NodeID() == snap.nodeID {
+		return
+	}
+	s.meshMu.Lock()
+	ensure := s.meshEnsure
+	s.meshMu.Unlock()
+	if !ensure {
+		return
+	}
+	remote := s.dialNamedMeshExecutor(context.Background(), snap.name)
+	if remote == nil || remote.NodeID() != snap.nodeID {
+		return
+	}
+	snap.executor = remote
+	snap.siblingExecutor = true
+	s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: snap.nodeID, Executor: remote})
 }
 
 func (s *Service) captureTargetLocked(session MeshExecuteSession, requested string) launchSnapshot {
@@ -351,7 +389,7 @@ func (s *Service) snapshotSessionDrift(snap launchSnapshot) error {
 	s.meshMu.Lock()
 	session := s.meshExecute
 	s.meshMu.Unlock()
-	if session.BoundNode != snap.boundNode || session.Executor != snap.executor {
+	if !snap.siblingExecutor && (session.BoundNode != snap.boundNode || session.Executor != snap.executor) {
 		return snapshotMismatch(launchSnapshotBoundNodeChanged)
 	}
 	if !snap.entryOK {
