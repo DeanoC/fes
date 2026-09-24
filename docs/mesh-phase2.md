@@ -1,11 +1,12 @@
 # Mesh LAN — Phase 2 execution brief
 
-**Status:** Phase 2 started. Slice 1 is this change. Bob coordinates.
-Deano owns FES parent merges. Do not merge from this brief.
+**Status:** Phase 2 started. Slice 1 is on main. Slice 2 is this
+change. Bob coordinates. Deano owns FES parent merges. Do not merge
+from this brief.
 
 **Audience:** FogCast host (library and host API), Caster when a later
 slice's ensure touches the kit, rooms UX (Foggy) when Ready copy
-lands, and anyone picking up Slice 2. Read the locks first. This brief
+lands, and anyone picking up Slice 3. Read the locks first. This brief
 names owners, slices, and the unsigned hash strawman. It does not
 reopen Phase 1 and it does not freeze a wire format.
 
@@ -80,7 +81,7 @@ writes executor cache or session ensure.
 
 ## Ordered slices
 
-### 1. Content-id and catalog entry shape — this change
+### 1. Content-id and catalog entry shape — on main
 
 **Owner:** FogCast host. Package `internal/meshcontent`.
 
@@ -113,18 +114,32 @@ writes executor cache or session ensure.
 **Does not:** federated pull, byte cache, a new host route, a title
 list on advertisements, or a Ready change.
 
-### 2. Project today's library into that shape — not started
+### 2. Project today's library into that shape — this change
 
 **Owner:** FogCast host.
 
-**Do:** Fill catalog entries from the host library that already
-exists: package id and ABI, household firmware digest when the slot is
-required, selected primary-media digest, expansion asset digests. Use
-the strawman adapter for digests the host already stores. Still no
-cross-node pull. Still do not call `ReadyHere` from rooms.
+`fogcast.ProjectMeshLibrary` fills `[]meshcontent.Entry` from the host
+library that already exists. A package-backed title gets a
+`package_abi` slot: the described package id, the ABI id, and the ABI
+major. That major is the package ABI major, not the mesh protocol
+major. A title that requires household firmware gets that slot's stored
+core-media digest. The selected primary-media digest and each named
+expansion's stored digest are content-ids. Digests the host already
+stores pass through `meshcontent.FromSHA256`. The projection does not
+open those files and does not hash them again. Today's `host_only`
+execution projects as `native_emu` and carries no package slot.
+Launchable `fpga_native` requires the package slot. Title ids are
+catalog game ids (`protocol.ValidateGameID`). A title that cannot be
+projected is omitted and returned with a reason. It is not invented.
+
+There is no new host route. Rooms, `POST /api/v1/session/launch`,
+`GET /api/v1/games`, and `discovery.ReadyForBoundExecutor` do not call
+`ReadyHere` or this projection.
 
 **Does not:** treat that projection as Phase 2 Ready. Does not move
-bytes onto the kit.
+bytes onto the kit. Does not pull across nodes. Does not add a
+removable or secondary slot. The hash algorithm stays the unsigned
+sha256 strawman.
 
 ### 3. Pull and cache onto the bound executor — not started
 
@@ -135,6 +150,11 @@ the kit. Caster reviews that kit boundary.
 execute, each required content-id is already on that executor or is
 pulled from a content source. Failure class: content missing, no
 source. Mid-pull stays Checking and does not program the FPGA.
+
+**Handoff:** Expansion bytes stay separate and are linked on the
+executor. ABI eligibility must be checked before Ready is wired. The
+expansion slot digest must be named as the slot-bytes digest before
+ensure.
 
 **Does not:** automatic placement. Does not pull onto a node the
 session did not bind. Does not free a lease.
@@ -169,7 +189,7 @@ advertisement still does not make a row Ready.
 
 **Per-slot hash algorithm.** Not locked.
 
-Strawman, for Slice 1 only: SHA-256 over that slot's bytes, lowercase
+Strawman, still unsigned: SHA-256 over that slot's bytes, lowercase
 hex, text form `sha256:<64 hex>`. The same digest family as today's
 catalog content hash and core-media id, with an algorithm prefix so
 the value is not a title id and not a package id. Package / ABI stays
