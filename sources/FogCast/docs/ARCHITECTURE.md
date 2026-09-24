@@ -900,19 +900,27 @@ session that needs the mesh contract fails closed on that major. A random servic
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
-Host-side content identity for a later library slice lives in
-`internal/meshcontent`. A catalog entry names the title id (a catalog
-game id: lowercase ASCII slug), one execute kind, and the required
-slots. A launchable `fpga_native` entry requires a package/ABI slot.
-A launchable `native_emu` entry requires primary media and carries no
-package/ABI slot; BIOS and expansion content-ids are optional. A
+Host-side content identity lives in `internal/meshcontent`.
+`fogcast.ProjectMeshLibrary` projects the host library already stored
+into that catalog shape: described package id and ABI, the household
+firmware digest when that slot is required, the selected primary-media
+digest, and named expansion digests. Stored SHA-256 strings pass
+through `FromSHA256`. The projection does not hash files again. A title
+that cannot be named is skipped. A catalog entry names the title id (a
+catalog game id: lowercase ASCII slug), one execute kind, and the
+required slots. A launchable `fpga_native` entry requires a package/ABI
+slot. A launchable `native_emu` entry requires primary media and carries
+no package/ABI slot; BIOS and expansion content-ids are optional. A
 content-id is the unsigned strawman `sha256:` plus 64 lowercase hex of
 that slot's bytes. Deano has not locked the algorithm. The package/ABI
 slot is the described package id and ABI, not a content-id of an RBF.
+`PackageABI.Major` is that ABI's major, not the mesh protocol major.
 The package can record which of those content-ids one local cache
-holds. It stores no bytes and contacts no peer. Session launch, rooms
-Ready, `GET /api/v1/games`, and `GET /api/v1/mesh/nodes` do not read it.
-Phase 1 Ready remains composition against the bound executor.
+holds. It stores no bytes and contacts no peer. The projection is not a
+host route. Session launch, rooms Ready, `GET /api/v1/games`, and
+`GET /api/v1/mesh/nodes` do not read it, and they do not call
+`ReadyHere`. Phase 1 Ready remains composition against the bound
+executor.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID
