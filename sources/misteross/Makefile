@@ -404,7 +404,7 @@ sim-fes-coleco-audio:
 COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
 COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
 .PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
-sim-fes-coleco: sim-fes-tms9918-timing sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
+sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
 sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
 
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
@@ -434,7 +434,7 @@ sim-fes-coleco-firmware sim-fes-coleco-firmware-oss:
 		"$(CURDIR)/cores/fes-coleco/sim/firmware_tb.cpp"
 	@build/sim/$@/Vfirmware_model
 
-sim-fes-coleco-unit: sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
+sim-fes-coleco-unit: sim-fes-tms9918-timing sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco-stream sim-fes-coleco-vdp-io sim-fes-coleco-firmware
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-coleco-gp
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
