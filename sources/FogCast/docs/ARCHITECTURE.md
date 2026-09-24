@@ -901,9 +901,11 @@ cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
 Host-side content identity for a later library slice lives in
-`internal/meshcontent`. A catalog entry names the title id, one execute
-kind, and the required slots: package/ABI identity plus BIOS,
-primary-media, and expansion content-ids when those slots exist. A
+`internal/meshcontent`. A catalog entry names the title id (a catalog
+game id: lowercase ASCII slug), one execute kind, and the required
+slots. A launchable `fpga_native` entry requires a package/ABI slot.
+A launchable `native_emu` entry requires primary media and carries no
+package/ABI slot; BIOS and expansion content-ids are optional. A
 content-id is the unsigned strawman `sha256:` plus 64 lowercase hex of
 that slot's bytes. Deano has not locked the algorithm. The package/ABI
 slot is the described package id and ABI, not a content-id of an RBF.

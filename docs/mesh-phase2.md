@@ -92,10 +92,15 @@ writes executor cache or session ensure.
   Deano has not locked the algorithm. See Parked, below.
 - Package / ABI is its own slot: described package id (64 lowercase
   hex, the existing package identity) plus ABI id and major. It is not
-  a content-id and it is not a hash of a raw RBF path.
+  a content-id and it is not a hash of a raw RBF path. A launchable
+  `fpga_native` entry requires this slot. A launchable `native_emu`
+  entry carries no package slot.
 - BIOS, primary media, and each named expansion carry a content-id
-  when that slot is required. ROM-less titles omit those slots. Title
-  id is the catalog game id and does not parse as a content-id.
+  when that slot is required. ROM-less package titles omit those
+  slots. A launchable `native_emu` entry requires primary media; BIOS
+  and named expansions stay optional. Title id is the catalog game id
+  (`protocol.ValidateGameID`, a lowercase ASCII slug) and does not
+  parse as a content-id.
 - A catalog entry carries title id, system, those slots, one required
   execute kind, and launchable versus browse-only. Paths do not appear.
 - An in-memory cache records which content-ids one executor holds. It

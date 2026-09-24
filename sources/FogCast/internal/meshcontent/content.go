@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 const (
@@ -27,6 +29,15 @@ const (
 	SlotBIOS         = "bios"
 	SlotPrimaryMedia = "primary_media"
 	SlotExpansion    = "expansion"
+
+	// ExecuteFPGANative is package-backed execution. A launchable entry
+	// of this kind requires a package_abi slot. The name matches
+	// mesh-node-protocol.md.
+	ExecuteFPGANative = "fpga_native"
+	// ExecuteNativeEmu is host-emulator execution. A launchable entry
+	// of this kind requires primary media and carries no package_abi
+	// slot. BIOS and expansion slots stay optional.
+	ExecuteNativeEmu = "native_emu"
 )
 
 var (
@@ -233,6 +244,15 @@ func (e Entry) Validate() error {
 	if len(e.Execute) != 1 || !token(e.Execute[0].Kind, false) {
 		return fmt.Errorf("%w: execute", ErrEntry)
 	}
+	if e.Execute[0].Kind == ExecuteNativeEmu {
+		if packages != 0 {
+			return fmt.Errorf("%w: package slot", ErrEntry)
+		}
+		if primary != 1 {
+			return fmt.Errorf("%w: primary media", ErrEntry)
+		}
+		return nil
+	}
 	if packages != 1 {
 		return fmt.Errorf("%w: package slot", ErrEntry)
 	}
@@ -253,7 +273,7 @@ func validContentSlot(title string, slot Slot) error {
 }
 
 func validTitle(title string) error {
-	if title == "" || len(title) > 128 || strings.ContainsAny(title, "/\\ \t") {
+	if err := protocol.ValidateGameID(title); err != nil {
 		return fmt.Errorf("%w: title", ErrEntry)
 	}
 	if _, err := ParseContentID(title); err == nil {
@@ -336,6 +356,10 @@ type Bound struct {
 // Rooms, session launch, and discovery.ReadyForBoundExecutor do not
 // call it. A true result is not Phase 0 or Phase 1 Ready.
 //
+// Package-backed execution (fpga_native) also requires that package id
+// on the executor. Host-emulator execution (native_emu) is ready from
+// its content slots once the other session checks pass.
+//
 // A required content slot that is not on the executor, not distant, and
 // not mid-pull is content missing. Distant-only is not Ready. Mid-pull
 // is Checking. A fully local id wins over distant and checking.
@@ -352,7 +376,7 @@ func ReadyHere(entry Entry, bound Bound) (bool, Block) {
 	if !bound.LeaseFree {
 		return false, BlockLeaseHeld
 	}
-	if !bound.Execute || !packageHeld(entry, bound.Packages) {
+	if !bound.Execute || (packageBacked(entry.Execute[0].Kind) && !packageHeld(entry, bound.Packages)) {
 		return false, BlockNoExecutor
 	}
 	switch worstContent(entry, bound) {
@@ -375,6 +399,13 @@ const (
 	presenceDistant
 	presenceMissing
 )
+
+// packageBacked is true for package-backed execution, including
+// fpga_native. native_emu is the host-emulator kind and has no
+// package slot. Any other launchable kind still requires one.
+func packageBacked(kind string) bool {
+	return kind != ExecuteNativeEmu
+}
 
 func packageHeld(entry Entry, packages []string) bool {
 	var id string

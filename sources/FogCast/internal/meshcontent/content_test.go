@@ -108,7 +108,7 @@ func TestPongIsPackageOnly(t *testing.T) {
 		TitleID:    "pong",
 		System:     "pong",
 		Launchable: true,
-		Execute:    []Execute{{Kind: "fpga_native"}},
+		Execute:    []Execute{{Kind: ExecuteFPGANative}},
 		Slots:      []Slot{PackageSlot(pkg)},
 	}
 	ready, block := ReadyHere(entry, Bound{
@@ -191,6 +191,95 @@ func TestReadyHereClassifiesContentWithoutPulling(t *testing.T) {
 	}
 }
 
+func TestNativeEmuLaunchableNeedsNoPackage(t *testing.T) {
+	cart := SumSHA256([]byte("cart"))
+	bios := SumSHA256([]byte("bios"))
+	ram := SumSHA256([]byte("ram"))
+	entry := Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots: []Slot{
+			BIOSSlot(bios),
+			PrimaryMediaSlot(cart),
+			ExpansionSlot("port", ram),
+		},
+	}
+	if err := entry.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	local := NewCache()
+	for _, id := range entry.ContentIDs() {
+		if err := local.Hold(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ready, block := ReadyHere(entry, Bound{
+		Execute: true, LeaseFree: true, MeshMajorOK: true,
+		Local: local,
+	})
+	if !ready || block != BlockNone {
+		t.Fatalf("native ready=%v block=%s", ready, block)
+	}
+
+	primaryOnly := Entry{
+		TitleID:    "sms-alex",
+		System:     "sms",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots:      []Slot{PrimaryMediaSlot(cart)},
+	}
+	if err := primaryOnly.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	withPackage := primaryOnly
+	withPackage.Slots = []Slot{
+		PackageSlot(PackageABI{PackageID: strings.Repeat("ab", 32), ABI: "fes.application", Major: 1}),
+		PrimaryMediaSlot(cart),
+	}
+	if err := withPackage.Validate(); !errors.Is(err, ErrEntry) {
+		t.Fatalf("native_emu accepted a package slot: %v", err)
+	}
+	missingPrimary := Entry{
+		TitleID:    "nes-still",
+		System:     "nes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+	}
+	if err := missingPrimary.Validate(); !errors.Is(err, ErrEntry) {
+		t.Fatalf("native_emu without primary media: %v", err)
+	}
+
+	fpga := colecoEntry(bios, cart, ram)
+	fpga.Slots = fpga.Slots[1:]
+	if err := fpga.Validate(); !errors.Is(err, ErrEntry) {
+		t.Fatalf("fpga without package: %v", err)
+	}
+	ready, block = ReadyHere(fpga, Bound{
+		Execute: true, LeaseFree: true, MeshMajorOK: true,
+		Local: local,
+	})
+	if ready || block != BlockInvalid {
+		t.Fatalf("fpga without package ready=%v block=%s", ready, block)
+	}
+}
+
+func TestTitleIDUsesCatalogGameID(t *testing.T) {
+	cases := []string{
+		"Coleco-Frogger",
+		"coleco:frogger",
+		"coleco\nfrogger",
+	}
+	for _, title := range cases {
+		entry := Entry{TitleID: title, System: "coleco", Launchable: false}
+		if err := entry.Validate(); !errors.Is(err, ErrEntry) {
+			t.Fatalf("title %q: %v", title, err)
+		}
+	}
+}
+
 func TestBrowseOnlyIsNotReady(t *testing.T) {
 	entry := Entry{TitleID: "coleco-cart", System: "coleco", Launchable: false}
 	ready, block := ReadyHere(entry, Bound{Execute: true, LeaseFree: true, MeshMajorOK: true})
@@ -204,7 +293,7 @@ func colecoEntry(bios, cart, ram ContentID) Entry {
 		TitleID:    "coleco-frogger",
 		System:     "coleco",
 		Launchable: true,
-		Execute:    []Execute{{Kind: "fpga_native"}},
+		Execute:    []Execute{{Kind: ExecuteFPGANative}},
 		Slots: []Slot{
 			PackageSlot(PackageABI{PackageID: strings.Repeat("ab", 32), ABI: "fes.application", Major: 1}),
 			BIOSSlot(bios),
