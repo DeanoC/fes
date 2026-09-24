@@ -68,6 +68,37 @@ void ColecoBusAdmission() {
 	f.base.descriptor.abi.id="fes.simple-computer";
 	assert(!f.Open(&out).ok());
 }
+void ColecoBoundaryPatchAdmission() {
+	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":2917,\"y\":797},"
+		"{\"value\":1,\"x\":2917,\"y\":799},{\"value\":0,\"x\":3328,\"y\":906}],"
+		"\"contract\":\"fes.coleco.response-boundary/3\"},";
+	Fixture f(true);OpenedCoreComposition out;
+	f.manifest.insert(1,patch);f.Seal();
+	assert(f.Open(&out).ok());
+	assert(RecheckCoreComposition(out).ok());
+}
+void RejectColecoBoundaryPatchVariants() {
+	const std::string valid="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":2917,\"y\":797},"
+		"{\"value\":1,\"x\":2917,\"y\":799},{\"value\":0,\"x\":3328,\"y\":906}],"
+		"\"contract\":\"fes.coleco.response-boundary/3\"},";
+	for (const auto& mutation : {
+		std::pair<std::string,std::string>{"\"value\":1", "\"value\":2"},
+		{"\"x\":3328", "\"x\":3329"},
+		{"\"y\":797", "\"y\":798"},
+		{"response-boundary/3", "response-boundary/2"},
+		{"],\"contract\"", ",{\"value\":0,\"x\":3328,\"y\":906}],\"contract\""},
+	}) {
+		Fixture f(true);OpenedCoreComposition out;
+		std::string patch=valid;
+		const auto at=patch.find(mutation.first);assert(at!=std::string::npos);
+		patch.replace(at,mutation.first.size(),mutation.second);
+		f.manifest.insert(1,patch);f.Seal();
+		assert(!f.Open(&out).ok());
+	}
+	Fixture zx81;OpenedCoreComposition out;
+	zx81.manifest.insert(1,valid);zx81.Seal();
+	assert(!zx81.Open(&out).ok());
+}
 void RejectBindings() {
 	for(unsigned test=0;test<10;++test) {
 		Fixture f;OpenedCoreComposition out;
@@ -114,4 +145,4 @@ void SharedGoIdentityVector() {
   std::string(1,'\0')+"f0d17b28a77c63ee338391caf258c854007e6e5854997cd8aeeb1ffc7a59b808"+std::string(1,'\0')+"8be0d02e30165a365e563e52c8d6adea541f68fd1941c8c98f88f480dedba5fd";
  assert(Hash(identity)=="2c13493d7e935b366908cd17a97c6e741083dddbdeeab6bb985366a52b460b4b");
 }
-int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();RejectBindings();RejectBytesAndPaths();}
+int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();}
