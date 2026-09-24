@@ -78,7 +78,7 @@ help:
 		"  build-fes-zx81-quartus  Quartus 17.0.2 oracle package for FES ZX81" \
 		"  build-fes-zx81  Seal FES ZX81 HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
 		"  build-fes-coleco-quartus  Quartus 17.0.2 oracle package for FES ColecoVision" \
-		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 GPU_DEVICES=0,1 searches weight/seed)" \
+		"  build-fes-coleco  Seal FES ColecoVision HIP (CACHE_ROOT=; BEST_FMAX=1 searches weight/seed on one GPU_DEVICES=N)" \
 		"  sim-fes-sg1000  Test the FES simple-computer SG-1000 machine (Coleco sibling)" \
 		"  sim-fes-sg1000-oss  Test OSS-conditional SG-1000 registered media, RAM and VDP" \
 		"  sim-fes-sg1000-rom-link  Test the sealed 16 KiB SG-1000 ROM path" \
