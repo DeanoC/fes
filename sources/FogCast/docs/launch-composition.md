@@ -1,7 +1,9 @@
 # Launch composition
 
 **Status:** The existing library session path implements household Coleco
-firmware readiness and optional ZX81 expansion composition. Coleco exact-package
+firmware readiness and optional ZX81 and Coleco CPU-bus expansion composition.
+The Coleco socket remains a development-only package pending product selection
+and kit acceptance. Coleco exact-package
 video/audio/input evidence is recorded in the
 [playable application validation](../../../docs/validation/2026-09-21-playable-audio.md).
 The [ZX81 expansion-bus guide](../../../docs/zx81-expansion-bus.md) documents its producer,

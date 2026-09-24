@@ -123,6 +123,7 @@ void controller_reads(uint64_t matrix) {
     dut.media_data = 0; dut.peek_addr = 0;
     dut.firmware_we_a = 0; dut.firmware_we_b = 0;
     dut.firmware_addr = 0; dut.firmware_data = 0;
+    dut.bus_response = 0;
     dut.eval();
     uint8_t registered_media_data = 0;
     for (unsigned reset = 0; reset < 2; ++reset) {
@@ -184,6 +185,7 @@ int main(int argc, char **argv) {
     dut.firmware_we_b = 0;
     dut.firmware_addr = 0;
     dut.firmware_data = 0;
+    dut.bus_response = 0;
     dut.eval();
     uint8_t registered_media_data = 0;
     for (unsigned i = 0; i != cartridge.size() + 32; ++i)

@@ -87,6 +87,19 @@ bool ClosedDirectory(int fd) {
 class ManifestReader {
 public:
 	explicit ManifestReader(const std::string& bytes): bytes_(bytes) {}
+	bool HasBoundaryPatch() const {return bytes_.find("{\"boundary_patch\":")==0;}
+	bool ColecoBoundaryPatch() {
+		if (!Take("{\"boundary_patch\":{\"bits\":[")) return false;
+		const std::array<const char*,2> coordinates={{
+			",\"x\":3332,\"y\":803}",
+			",\"x\":3333,\"y\":802}",
+		}};
+		for (std::size_t i=0;i<coordinates.size();++i) {
+			if (i && !Take(",")) return false;
+			if (!Take("{\"value\":") || !(Take("0") || Take("1")) || !Take(coordinates[i])) return false;
+		}
+		return Take("],\"contract\":\"fes.coleco.response-boundary/4\"}");
+	}
 	bool Text(const std::string& key, std::string* value) {
 		if (!Key(key) || !Take("\"")) return false;
 		const auto end=bytes_.find('"', offset_);
@@ -131,11 +144,16 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	const OpenedCorePackage& base, const CoreCompositionRequest& request, OpenedCoreComposition* output) {
 	if (!output) return Invalid("missing composition output");
 	const auto& descriptor=base.descriptor;
-	bool socket=false;
-	for (const auto& interface : descriptor.interfaces)
-		if (interface.id=="fes.expansion.zx81-bus" && interface.major==1 && interface.minor==0 && !interface.required) socket=true;
-	if (!socket || descriptor.abi.id!="fes.simple-computer" || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
-		return Invalid("base package does not declare the optional ZX81 expansion bus");
+	std::string socket;
+	for (const auto& interface : descriptor.interfaces) {
+		if (interface.id!="fes.expansion.zx81-bus" && interface.id!="fes.expansion.coleco-bus") continue;
+		if (!socket.empty() || interface.major!=1 || interface.minor!=0 || interface.required)
+			return Invalid("base package has an unsupported or ambiguous expansion bus");
+		socket=interface.id;
+	}
+	const std::string abi=socket=="fes.expansion.coleco-bus" ? "fes.application" : "fes.simple-computer";
+	if (socket.empty() || descriptor.abi.id!=abi || descriptor.abi.major!=1 || descriptor.abi.minor!=0)
+		return Invalid("base package does not declare a matching optional expansion bus");
 	const auto& info=request.composition;
 	if (!Hex(info.id,64) || !Hex(info.package_id,64) || !Hex(info.expansion_id,64) ||
 		!Hex(info.shell_sha256,64) || !Hex(info.payload_sha256,64) || info.package_id!=base.package_id ||
@@ -157,6 +175,9 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	error=Read(opened.manifest,&opened.manifest_bytes,nullptr);
 	if (!error.ok()) return error;
 	ManifestReader reader(opened.manifest_bytes);
+	if (reader.HasBoundaryPatch() &&
+		(socket!="fes.expansion.coleco-bus" || !reader.ColecoBoundaryPatch()))
+		return Invalid("expansion manifest must use canonical JSON");
 	std::string cart_hash,device,map,recipe,revision,build,package,shell,slot;
 	std::uint64_t size=0,format=0,major=0,minor=0;
 	if (!reader.Text("cart_sha256",&cart_hash) || !reader.Number("cart_size",&size) ||
@@ -168,10 +189,11 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 		return Invalid("expansion manifest must use canonical JSON");
 	if (!Hex(cart_hash,64) || !Hex(recipe,64) || !Hex(revision,40) || !Hex(build,32) ||
 		format!=1 || device!="5CSEBA6U23I7" || descriptor.target.device!=device ||
-		map!="fes.zx81-bus.socket/1" || slot!="fes.expansion.zx81-bus" || major!=1 || minor!=0 ||
+		!(slot==socket && ((slot=="fes.expansion.zx81-bus" && map=="fes.zx81-bus.socket/1") ||
+			(slot=="fes.expansion.coleco-bus" && map=="fes.coleco-bus.socket/1"))) || major!=1 || minor!=0 ||
 		size<40408 || size!=opened.cart.size() || package!=base.package_id ||
 		build!=descriptor.build.id || shell!=descriptor.payload.sha256)
-		return Invalid("expansion manifest does not match the supported ZX81 bus and frozen shell");
+		return Invalid("expansion manifest does not match the supported bus and frozen shell");
 	if (Hash(std::string("fes-expansion-v1\0",17)+opened.manifest_bytes)!=info.expansion_id)
 		return Invalid("expansion ID does not match canonical manifest");
 	opened.cart_sha256=cart_hash;

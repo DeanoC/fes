@@ -1251,10 +1251,11 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 		"development-contained-v1", "fes-gp-v1"}));
 	assert(capabilities.abis.size() == 3);
 	assert(capabilities.abis[0].id == "fes.application");
-	assert(capabilities.abis[0].interfaces.size() == 8);
-	assert(capabilities.abis[0].interfaces[1].id == "fes.firmware.blob");
+	assert(capabilities.abis[0].interfaces.size() == 9);
+	assert(capabilities.abis[0].interfaces[1].id == "fes.expansion.coleco-bus");
 	assert(capabilities.abis[0].interfaces[1].major == 1);
 	assert(capabilities.abis[0].interfaces[1].minor == 0);
+	assert(capabilities.abis[0].interfaces[2].id == "fes.firmware.blob");
 	assert(capabilities.abis[1].id == "fes.simple-computer");
 	assert(capabilities.abis[2].id == "fes.simple-game");
 

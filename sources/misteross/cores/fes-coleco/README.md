@@ -36,12 +36,50 @@ retail-game compatibility.
   logical raster samples per second for 256×262 frames at a nominal 60 Hz.
   HDMI pixel timing stays fixed and independent.
 
-Expansion hardware and bank switching remain outside this first slice. The
-logical frame cadence follows the TMS9918A manual's 262-line, approximately
-60-frame/s noninterlaced mode; composite sync details, half-line behavior and
+The machine now models a normally vacant CPU peripheral edge. It exposes Z80
+address/data/control cycles and accepts read data, claim, WAIT and maskable INT
+from a future independently placed module. The machine
+masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports; BIOS, RAM,
+cartridge, VDP and controller reads retain console priority. The
+`sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
+diagnostic responder. A registered physical socket is available only behind
+`FES_COLECO_EXPANSION_DEV`. The separate
+`scripts/build_fes_coleco_socket_dev.py` recipe uses
+`toolchains/coleco-expansion.lock` to seal a timed development shell with an
+empty `24 1 28 11` region. It declares optional `fes.expansion.coleco-bus`
+1.0 and leaves the factory Coleco producer unchanged. The diagnostic module
+recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
+shell and checks its CRAM diff before publishing an expansion archive. The
+builder reconstructs the system PLL's second output from the exact frozen net
+metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
+route. The full-response diagnostic route completes and passes all three clock
+gates. The final integrated shell/cart changes no bits outside the declared
+region. An earlier route against the same RTL changed two bits outside at
+`(3332,803)` and `(3333,802)`. Both belong to routing mux
+`H6.033.009.0035`, which the frozen shell uses on `$PACKER_GND_NET` leading
+to the vacant response `DATAIN` stub at row 9. Cart merge disconnects that
+placeholder ground sink when it drives the response bank, so these are
+deselected shell mux bits rather than newly selected cart routes escaping the
+fence. The one-bit response control does not exercise the full set of response
+boundary stubs. If this exact pair changes, the producer records the resulting
+values in a `fes.coleco.response-boundary/4` manifest patch. The Go linker
+accepts that closed two-bit patch alongside the CPU-bus rectangle and rejects
+any other outside change; the socket rectangle itself is unchanged.
+`cram-diff.json` retains the changed coordinates and reports whether the
+declared contract matches. The diagnostic's WAIT request stays armed until a
+CPU read starts, then advances every sixteen system clocks.
+`sim-fes-coleco-diagnostic` exercises this through the registered socket with a
+real CPU program. A previous linked diagnostic has a functional kit check in
+the dated Coleco expansion bus validation note. That check covers its recorded
+artifact only; the integrated shell and cart still need their own kit check.
+The factory image continues to use the normal package.
+
+External bus mastering, video/audio takeover and bank switching remain outside
+this first slice. The logical frame cadence follows the TMS9918A manual's
+262-line, approximately 60-frame/s noninterlaced mode; composite sync details, half-line behavior and
 cycle-perfect raster effects remain outside this slice. Native host/runtime
-selection follows the declared interfaces. Graphics II supports screen-third pattern/color
-addressing and register masks. Text mode renders 40×24 six-pixel glyphs with
+selection follows the declared interfaces. Graphics II supports screen-third
+pattern/color addressing and register masks. Text mode renders 40×24 six-pixel glyphs with
 eight-pixel side margins and suppresses sprites; Multicolor selects four 4×4
 color blocks per character and keeps sprites active. Unsupported mode selectors
 render the R7 backdrop. The bounded sprite path includes

@@ -19,7 +19,8 @@ module quartus_media_tb;
         .media_ready(ready), .media_size(size), .media_addr(address), .media_data(data),
         .peek_addr(peek_addr), .peek_data(peek_data),
         .firmware_we_a(1'b0), .firmware_we_b(1'b0),
-        .firmware_addr(13'd0), .firmware_data(16'h0000));
+        .firmware_addr(13'd0), .firmware_data(16'h0000),
+        .bus_request(), .bus_response(11'b0));
     reg toggle = 0;
     task exchange(input [7:0] opcode, input [7:0] index, input [15:0] argument);
         integer timeout;

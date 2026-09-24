@@ -468,6 +468,16 @@ Simulation keeps the `zx81_dpram` hex path. The sealed package stays the
 empty socket; launch splices BASIC into the programmed bitstream.
 
 
+The `expansion` Go linker admits only the versioned ZX81 full-height socket or
+the Coleco CPU-bus rectangle `(1769, 32, 2806, 1034)`, selected by the exact
+slot/map pair. A Coleco manifest may also declare
+`fes.coleco.response-boundary/4`: exactly two fixed shell-response CRAM
+coordinates and each cart bit's resulting value. The linker requires both
+bits to change as declared, applies them with the socket overlay and rejects
+every other outside change. This patch does not enlarge the socket rectangle.
+Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
+behavior and output remain unchanged.
+
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
 frames and regenerate the affected EDCRC/CRC16 checksums, preserving other CRAM
@@ -560,8 +570,20 @@ The shared 32-bit fractional raster enable emits 4,024,320 logical samples per
 second from each core's configured system clock; 256 samples × 262 lines gives
 a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
-effects. Expansion hardware, bank switching and retail-cartridge compatibility
-remain outside this slice.
+effects. The development Coleco machine edge has an inactive vacant response
+and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
+physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
+`coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware
+Mistral and nextpnr pins. The development producer seals a timed shell with a
+vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus`
+1.0. The diagnostic module uses the frozen shell and restores the system PLL's
+second output from exact routed metadata. The integrated shell/cart has no
+outside CRAM changes. Its producer permits only the two fixed response-stub
+changes declared by `fes.coleco.response-boundary/4` if a route needs them,
+alongside the CPU-bus rectangle; the linker rejects every other outside change.
+The selected factory recipe and FES registration remain unchanged. External
+bus mastering, video/audio takeover, bank switching and retail-cartridge
+compatibility remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
 screen-third pattern/color addressing and the register masks for table mirroring.

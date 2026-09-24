@@ -17,18 +17,20 @@ struct Fixture {
 	std::string root,manifest,cart=std::string(40408,'c'),linked=std::string(40408,'l');
 	OpenedCorePackage base;
 	CoreCompositionRequest request;
-	Fixture() {
+	Fixture(bool coleco=false) {
 		char path[]="/tmp/fes-composition.XXXXXX";root=mkdtemp(path);
 		assert(mkdir((root+"/expansion").c_str(),0700)==0);
 		assert(mkdir((root+"/composition").c_str(),0700)==0);
-		base.package_id=std::string(64,'a');base.descriptor.abi={"fes.simple-computer",1,0};
-		base.descriptor.interfaces={{"fes.expansion.zx81-bus",1,0,false}};
+		base.package_id=std::string(64,'a');base.descriptor.abi={coleco ? "fes.application" : "fes.simple-computer",1,0};
+		const std::string slot=coleco ? "fes.expansion.coleco-bus" : "fes.expansion.zx81-bus";
+		const std::string map=coleco ? "fes.coleco-bus.socket/1" : "fes.zx81-bus.socket/1";
+		base.descriptor.interfaces={{slot,1,0,false}};
 		base.descriptor.target.device="5CSEBA6U23I7";
 		base.descriptor.build.id=std::string(32,'b');base.descriptor.payload.sha256=Hash("base");
 		manifest="{\"cart_sha256\":\""+Hash(cart)+"\",\"cart_size\":40408,\"device\":\"5CSEBA6U23I7\",\"format\":1,"
-			"\"map\":\"fes.zx81-bus.socket/1\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
+			"\"map\":\""+map+"\",\"recipe_sha256\":\""+std::string(64,'c')+"\",\"revision\":\""+std::string(40,'d')+
 			"\",\"shell_build_id\":\""+base.descriptor.build.id+"\",\"shell_package_id\":\""+base.package_id+
-			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\"fes.expansion.zx81-bus\",\"slot_major\":1,\"slot_minor\":0}";
+			"\",\"shell_sha256\":\""+base.descriptor.payload.sha256+"\",\"slot\":\""+slot+"\",\"slot_major\":1,\"slot_minor\":0}";
 		request.expansion_path=root+"/expansion";request.payload_path=root+"/composition/linked.rbf";
 		request.composition.package_id=base.package_id;request.composition.shell_sha256=base.descriptor.payload.sha256;
 		request.composition.payload_sha256=Hash(linked);request.composition.payload_size=linked.size();
@@ -55,6 +57,47 @@ void ValidAndRetained() {
 	Write(f.request.payload_path,std::string(40408,'x'));assert(RecheckCoreComposition(out).ok());
 	// In-place mutation of the retained inode is detected before programming.
 	Write(f.root+"/composition/old.rbf",std::string(40408,'y'));assert(!RecheckCoreComposition(out).ok());
+}
+void ColecoBusAdmission() {
+	Fixture f(true);OpenedCoreComposition out;assert(f.Open(&out).ok());
+	f.base.descriptor.interfaces={{"fes.expansion.zx81-bus",1,0,false}};
+	assert(!f.Open(&out).ok());
+	f.base.descriptor.interfaces={{"fes.expansion.coleco-bus",1,0,false},{"fes.expansion.zx81-bus",1,0,false}};
+	assert(!f.Open(&out).ok());
+	f.base.descriptor.interfaces={{"fes.expansion.coleco-bus",1,0,false}};
+	f.base.descriptor.abi.id="fes.simple-computer";
+	assert(!f.Open(&out).ok());
+}
+void ColecoBoundaryPatchAdmission() {
+	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
+		"{\"value\":1,\"x\":3333,\"y\":802}],"
+		"\"contract\":\"fes.coleco.response-boundary/4\"},";
+	Fixture f(true);OpenedCoreComposition out;
+	f.manifest.insert(1,patch);f.Seal();
+	assert(f.Open(&out).ok());
+	assert(RecheckCoreComposition(out).ok());
+}
+void RejectColecoBoundaryPatchVariants() {
+	const std::string valid="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
+		"{\"value\":1,\"x\":3333,\"y\":802}],"
+		"\"contract\":\"fes.coleco.response-boundary/4\"},";
+	for (const auto& mutation : {
+		std::pair<std::string,std::string>{"\"value\":1", "\"value\":2"},
+		{"\"x\":3333", "\"x\":3334"},
+		{"\"y\":803", "\"y\":804"},
+		{"response-boundary/4", "response-boundary/3"},
+		{"],\"contract\"", ",{\"value\":0,\"x\":3328,\"y\":906}],\"contract\""},
+	}) {
+		Fixture f(true);OpenedCoreComposition out;
+		std::string patch=valid;
+		const auto at=patch.find(mutation.first);assert(at!=std::string::npos);
+		patch.replace(at,mutation.first.size(),mutation.second);
+		f.manifest.insert(1,patch);f.Seal();
+		assert(!f.Open(&out).ok());
+	}
+	Fixture zx81;OpenedCoreComposition out;
+	zx81.manifest.insert(1,valid);zx81.Seal();
+	assert(!zx81.Open(&out).ok());
 }
 void RejectBindings() {
 	for(unsigned test=0;test<10;++test) {
@@ -102,4 +145,4 @@ void SharedGoIdentityVector() {
   std::string(1,'\0')+"f0d17b28a77c63ee338391caf258c854007e6e5854997cd8aeeb1ffc7a59b808"+std::string(1,'\0')+"8be0d02e30165a365e563e52c8d6adea541f68fd1941c8c98f88f480dedba5fd";
  assert(Hash(identity)=="2c13493d7e935b366908cd17a97c6e741083dddbdeeab6bb985366a52b460b4b");
 }
-int main() {SharedGoIdentityVector();ValidAndRetained();RejectBindings();RejectBytesAndPaths();}
+int main() {SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();}

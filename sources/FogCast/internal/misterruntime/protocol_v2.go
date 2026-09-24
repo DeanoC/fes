@@ -902,12 +902,24 @@ func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Cap
 		return false
 	}
 	if c := active.Composition; c != nil {
-		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" || active.Descriptor.ABI.ID != "fes.simple-computer" || active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+		if !validComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 || active.PersistenceMode == "persistent" || active.Descriptor.ABI.Major != 1 || active.Descriptor.ABI.Minor != 0 {
+			return false
+		}
+		var socketID string
+		switch active.Descriptor.ABI.ID {
+		case "fes.simple-computer":
+			socketID = "fes.expansion.zx81-bus"
+		case "fes.application":
+			socketID = "fes.expansion.coleco-bus"
+		default:
 			return false
 		}
 		socket := false
 		for _, i := range active.Descriptor.Interfaces {
-			if i.ID == "fes.expansion.zx81-bus" && i.Major == 1 && i.Minor == 0 && !i.Required {
+			if (i.ID == "fes.expansion.zx81-bus" || i.ID == "fes.expansion.coleco-bus") && i.ID != socketID {
+				return false
+			}
+			if i.ID == socketID && i.Major == 1 && i.Minor == 0 && !i.Required {
 				socket = true
 			}
 		}

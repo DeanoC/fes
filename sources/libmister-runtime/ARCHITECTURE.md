@@ -162,11 +162,16 @@ software coverage only; no physical support claim is added.
 `NativeHardware::AdmitCoreComposition` first performs normal sealed base-package
 admission, then opens expansion companions with descriptor-relative, no-follow
 traversal beneath the package roots. `core_composition.cpp` accepts the fixed
-canonical ZX81 expansion-bus manifest grammar and verifies its manifest-derived expansion
+canonical ZX81 and Coleco CPU-bus manifest grammar. ZX81 requires
+`fes.simple-computer` 1.0; Coleco requires `fes.application` 1.0. The matching
+optional slot and map are checked together with the manifest-derived expansion
 ID, exact base package/BUILD_ID/payload binding, cart digest and linked payload
 size/digest. The composition ID uses the shared `fes-composition-v1` domain and
 base/expansion/payload identities. Descriptor and GP identity remain the base's;
 only the FPGA programming artifact comes from the admitted composition.
+Coleco manifests may carry the canonical `fes.coleco.response-boundary/4`
+patch before the cart fields. Runtime admission accepts only its two fixed
+coordinates and binary values; ZX81 manifests cannot carry that patch.
 
 The network-facing target agent owns deterministic CRAM recomposition using the
 shared misteross implementation. Runtime admission verifies that agent-owned

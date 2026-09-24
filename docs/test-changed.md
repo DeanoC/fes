@@ -49,15 +49,16 @@ its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
 
 The local runner includes the default and OSS
-SMS/SG-1000 simulations; Coleco's aggregate target includes its OSS tests. It
+SMS/SG-1000 simulations; Coleco's aggregate includes its OSS unit/board cases,
+the CPU-bus probe and registered diagnostic-through-socket test. It
 never invokes a synthesis, placement, Quartus, image-building or deployment target.
 
 CI uses the same producer-test list and affected families, but runs independent
-components and simulation targets in separate jobs. Coleco has two unit-test
-jobs and twelve board-case jobs: graphics, stream, interactive, controllers,
-VDP I/O and sprites, each in default and registered OSS lanes. These preserve
-the cases and compiler flags in the local aggregate commands. Each job has
-isolated build output; the matrix runs at most eight jobs concurrently.
+components and simulation targets in separate jobs. Coleco has 16 focused jobs:
+seven unit/board scenarios in default and registered OSS lanes (14 jobs), plus
+the CPU expansion probe and diagnostic through the registered socket. These
+preserve the cases and compiler flags in the local aggregate commands. Each job
+has isolated build output; the matrix runs at most eight jobs concurrently.
 
 PRs run against their merge result; pushes to `main` validate the merged result.
 Feature-branch pushes do not duplicate PR runs. Merge groups remain supported;

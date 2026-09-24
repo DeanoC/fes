@@ -1366,7 +1366,7 @@ renderers over the same session model and do not own physical transitions.
 
 ## Installed core packages and library entries
 
-Coleco firmware and optional ZX81 expansion-bus carts use the normal library launch
+Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the normal library launch
 path. A title may require a household firmware object; rooms/catalog **Ready**
 follows that fill, and `session/launch` binds firmware before cartridge media
 and reset release. Tenfoot Confirm imports an 8192-byte BIOS through the
@@ -1376,7 +1376,12 @@ in [launch composition](launch-composition.md).
 
 Library list, detail and variant responses report expansion selection and
 readiness independently of firmware requirements, including firmware-free ZX81
-shells. Expansion admission distinguishes missing/invalid packs from catalog
+shells. Coleco's bus belongs to `fes.application` 1.0; ZX81's belongs to
+`fes.simple-computer` 1.0. Each package may declare exactly one optional bus,
+and the selected module must bind that bus, map, package, BUILD_ID and payload.
+The target agent validates the runtime's composed status against that ABI and
+optional bus pair before confirming a launch or reconciling a running session.
+Expansion admission distinguishes missing/invalid packs from catalog
 failures: missing titles retain not-found responses, concurrent choices retain
 conflict responses, and unexpected storage failures remain internal errors.
 Malformed archives or incompatible compositions are rejected as admission
@@ -1404,8 +1409,8 @@ input stream and reports `core_package.gamepad: true`. It has two digital ports;
 optional `fes.keypad.ports` 1.0 adds a twelve-key mask on each port. Attachment
 uses exact observed interface versions, not a core-ID allowlist. A migrated
 Coleco package omits `fes.keyboard`, so its pad does not pass through the old
-controller-to-ZX81-matrix translation. Existing simple-computer Coleco and SMS
-packages retain that translation.
+controller-to-ZX81-matrix translation. Packages that still declare
+`fes.keyboard` retain that translation.
 
 `remoteinput.Event.Player` and the existing binary frame's `Player` carry port
 0 or 1. Omitting the JSON field preserves port 0. The public

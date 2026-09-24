@@ -39,8 +39,8 @@ and content selection; the MiSTer is a small, directly controlled target.
   expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`
   entry (`fes.keyboard`, no gamepad); `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
-  cores with a recognized play ABI (including ZX81 and Coleco
-  `fes.simple-computer` 1.0) are ordinary `fpga_native` play sessions, not
+  cores with a recognized play ABI (including ZX81 `fes.simple-computer` 1.0
+  and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not
   Diagnostic `fpga_development`. That development label is the no-ABI
   fallback and the explicit LoadDevelopmentRBF path. Development package
   loads remain volatile.

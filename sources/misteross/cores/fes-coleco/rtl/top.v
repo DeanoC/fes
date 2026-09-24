@@ -39,6 +39,18 @@ module top #(
     wire [3:0] logical_pixel;
     wire logical_blank;
     wire [15:0] audio_sample;
+    wire [30:0] bus_request;
+    wire [10:0] bus_response;
+`ifdef FES_COLECO_EXPANSION_DEV
+    (* keep *) wire [30:0] plug_request;
+    wire [10:0] plug_response = 11'b0;
+    coleco_expansion_socket socket (
+        .clock(clk_sys), .request(bus_request), .response(bus_response),
+        .plug_request(plug_request), .plug_response(plug_response)
+    );
+`else
+    assign bus_response = 11'b0;
+`endif
     wire audio_clk, audio_locked;
     fes_audio_output audio (
         .source_clk(clk_sys), .audio_clk(audio_clk), .locked(audio_locked), .hold(exec_reset),
@@ -137,7 +149,8 @@ module top #(
         .firmware_we_a(firmware_write_enable[0]),
         .firmware_we_b(firmware_write_enable[1]),
         .firmware_addr(firmware_write_addr),
-        .firmware_data(firmware_write_data)
+        .firmware_data(firmware_write_data),
+        .bus_request(bus_request), .bus_response(bus_response)
     );
     /* verilator lint_on PINCONNECTEMPTY */
 

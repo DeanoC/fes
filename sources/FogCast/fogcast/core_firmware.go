@@ -83,7 +83,7 @@ func (s *Service) CoreCompositions(ctx context.Context, ids []string) (map[strin
 				asset, assetErr := expansions.ReadCoreExpansion(ctx, selected.ExpansionID)
 				inspection, base, inspectErr := s.readInstalledCore(ctx, entry.PackageID)
 				comp.ExpansionReady = assetErr == nil && inspectErr == nil && asset.Manifest.ShellPackageID == entry.PackageID && asset.Manifest.ShellBuildID == inspection.Descriptor.Build.ID && asset.Manifest.ShellSHA256 == inspection.Descriptor.Payload.SHA256
-				if comp.ExpansionReady && inspection.Descriptor.ROM != nil {
+				if comp.ExpansionReady {
 					comp.ExpansionReady = corepackage.ValidateExpansionArchive(base, asset) == nil
 				}
 			}
