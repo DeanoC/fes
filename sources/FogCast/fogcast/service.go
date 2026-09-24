@@ -808,7 +808,9 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
 	// Admit before Ensure so a canceled or malformed request never
-	// starts a pull. With the seam off, bind still resolves the
+	// starts a pull. The same two checks run before the core-entry
+	// lookup when the seam is off, so that request returns before
+	// catalog access. With the seam off, bind still resolves the
 	// selected target under targetMu at bind time. A nil executor
 	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
 	// GET /api/v1/games do not use this seam.

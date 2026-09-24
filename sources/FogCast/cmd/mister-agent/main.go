@@ -27,6 +27,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -38,6 +39,7 @@ import (
 const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
+	meshContentRoot         = "/media/fat/fogcast/mesh-content"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
@@ -63,6 +65,7 @@ type runDependencies struct {
 	serve                 func(*http.Server) error
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
+	meshContentRoot       string
 	newUpdate             func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 }
 
@@ -95,9 +98,10 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				StopTimeout: 2 * time.Second,
 			}, nil)
 		},
-		serve:        func(server *http.Server) error { return server.ListenAndServe() },
-		advertise:    discovery.Advertise,
-		targetIDPath: targetIDFile,
+		serve:           func(server *http.Server) error { return server.ListenAndServe() },
+		advertise:       discovery.Advertise,
+		targetIDPath:    targetIDFile,
+		meshContentRoot: meshContentRoot,
 	}
 	if nativeControl == nil {
 		nativeControl = misterruntime.NewClient(misterruntime.DefaultSocketPath)
@@ -257,6 +261,18 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
+	if dependencies.meshContentRoot != "" && targetID != "" {
+		// The kit store is served for this node's id. The host launch
+		// seam stays off until a session installs an executor, so Phase
+		// 0 and Phase 1 do not call it. Eligible ABIs stay empty: the
+		// agent does not inventory packages before it can name them.
+		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, nil, nil)
+		if meshErr != nil {
+			logger.Error("mesh content store unavailable", "error", meshErr)
+		} else {
+			options = append(options, httpapi.WithMeshContent(meshStore))
+		}
+	}
 	if targetID != "" {
 		options = append(options, httpapi.WithTargetID(targetID))
 	}

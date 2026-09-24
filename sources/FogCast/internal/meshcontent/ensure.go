@@ -36,8 +36,12 @@ var (
 	// ErrCheckingTimeout is the host deadline for a slot that stayed
 	// Checking. It is not ErrExecuteBlocked and it is not a down target.
 	ErrCheckingTimeout = errors.New("mesh content stayed checking until the host timeout")
-	errSlotState       = errors.New("meshcontent: executor slot state is invalid")
-	errPullMissed      = errors.New("meshcontent: pull left the content-id missing")
+	// ErrContentPullFailed is a copy that was advertised and still did
+	// not leave the content-id Present. It is not the no-source class
+	// and it is not a down target. Callers must not treat partial bytes
+	// as Present.
+	ErrContentPullFailed = errors.New("mesh content pull failed")
+	errSlotState         = errors.New("meshcontent: executor slot state is invalid")
 )
 
 // MaxCheckingTimeout is the upper bound on a Checking wait. Callers
@@ -89,26 +93,38 @@ func (e *ExecuteBlockedError) Error() string {
 func (e *ExecuteBlockedError) Unwrap() error { return ErrExecuteBlocked }
 
 // Executor is the node this session is already bound to.
-// Ensure does not pick another node, does not release or change a
-// lease, and does not transfer bytes. A kit store behind the target
-// agent is a later slice. Tests pass a fake.
+// Ensure does not pick another node and does not release or change a
+// lease. Pull copies bytes onto this executor. The kit content store
+// on the target agent implements this for the bound node. Tests may
+// pass a fake.
+//
+// LinkExpansion is idempotent for the same expansion name and
+// content-id: repeating that pair leaves one link. Ensure does not
+// roll back links that already succeeded when a later LinkExpansion
+// returns an error. A caller must not program the FPGA while any
+// required slot is Checking, and must not link until every required
+// sibling is Present and the package ABI is eligible.
 type Executor interface {
 	// NodeID is this executor. Ensure refuses the call when it is not
 	// the session's bound node.
 	NodeID() string
 	// Slot reports id on this executor: Present, Checking, or Missing.
-	// Checking means a pull is already in progress.
+	// Checking means a pull is already in progress. Partial bytes are
+	// not Present.
 	Slot(id ContentID) SlotState
 	// SourceAdvertises reports whether some content source can serve id.
 	// The source may be another node. The pull still lands on this one.
 	SourceAdvertises(id ContentID) bool
 	// Pull copies id from a source onto this executor.
 	// Checking means the copy is still running. Present means it finished.
-	// A canceled context must not leave a new pull running.
+	// A canceled or failed pull must not leave a new pull running and
+	// must not leave partial bytes visible as Present.
 	Pull(ctx context.Context, id ContentID) (SlotState, error)
 	// LinkExpansion links one expansion's slot bytes on this executor.
 	// id is that slot's content-id. The host does not pre-link those
-	// bytes with primary media or with any other slot.
+	// bytes with primary media or with any other slot. The same name
+	// and content-id may be linked again; that second call is a no-op
+	// success. Ensure does not remove an earlier link if a later one fails.
 	LinkExpansion(name string, id ContentID) error
 	// EligibleABIs are the package ABI id and major pairs this executor
 	// can run. An empty list is not eligibility.
@@ -151,10 +167,13 @@ type ensurePlan struct {
 // cart payload's SHA-256). Ensure does not read a post-link
 // ProgrammedSHA256 and does not link expansion bytes on the host.
 // A slot that is already Checking stays Checking and is not pulled
-// again. LinkExpansion does not run while any sibling slot is still
-// Checking. A required id that is missing and has no source returns
-// ErrContentMissingNoSource before any pull. A canceled context or a
-// lease that is not free returns before any pull.
+// again. LinkExpansion runs only when every required slot is Present
+// and, for a package-backed entry, the executor ABI is eligible. A
+// sibling that is Checking or Missing is not linked. A required id
+// that is missing and has no source returns ErrContentMissingNoSource
+// before any pull. A pull that finishes Missing returns
+// ErrContentPullFailed. A canceled context or a lease that is not
+// free returns before any pull. Ensure does not program the FPGA.
 func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, opt EnsureOption) (Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -212,7 +231,7 @@ func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, o
 		if state == StateMissing {
 			// A source advertised this id. A pull that still reports
 			// Missing is a failed copy, not the no-source class.
-			return Result{}, errPullMissed
+			return Result{}, ErrContentPullFailed
 		}
 		plans[i].state = state
 	}
@@ -236,18 +255,6 @@ func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, o
 			State:   plan.state,
 		})
 	}
-	// Link only after every required slot is Present. A sibling that
-	// is still Checking must not observe a partial expansion link.
-	if !sawChecking {
-		for _, plan := range plans {
-			if plan.slot.Kind != SlotExpansion || plan.state != StatePresent {
-				continue
-			}
-			if err := exec.LinkExpansion(plan.slot.Name, *plan.slot.Content); err != nil {
-				return Result{}, err
-			}
-		}
-	}
 
 	result := Result{Node: boundNode, Slots: slots, Execute: allPresent, Block: BlockNone}
 	if sawChecking {
@@ -264,6 +271,22 @@ func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, o
 	}
 	if !result.Execute && result.Block == BlockNone {
 		result.Block = BlockContentMissing
+	}
+	// Link only when execute is allowed: every required slot is Present
+	// and the ABI is eligible. A missing or Checking sibling, and an
+	// ineligible ABI, must not observe a link. LinkExpansion is
+	// idempotent for one name and content-id. A mid-loop failure leaves
+	// earlier links in place; Ensure does not roll them back.
+	if !result.Execute {
+		return result, nil
+	}
+	for _, plan := range plans {
+		if plan.slot.Kind != SlotExpansion {
+			continue
+		}
+		if err := exec.LinkExpansion(plan.slot.Name, *plan.slot.Content); err != nil {
+			return Result{}, err
+		}
 	}
 	return result, nil
 }

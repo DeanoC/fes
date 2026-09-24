@@ -21,9 +21,14 @@ func TestMeshLaunchErrorsUseTheirOwnStatuses(t *testing.T) {
 	}{
 		{"checking", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockEnsureProgress}, http.StatusConflict, "CONTENT_CHECKING"},
 		{"missing", &meshcontent.ContentMissingError{Kind: meshcontent.SlotPrimaryMedia, ID: cart}, http.StatusUnprocessableEntity, "CONTENT_MISSING"},
+		{"missing after check", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockContentMissing}, http.StatusUnprocessableEntity, "CONTENT_MISSING"},
+		{"pull failed", meshcontent.ErrContentPullFailed, http.StatusUnprocessableEntity, "CONTENT_PULL_FAILED"},
+		{"abi skew", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockVersionSkew}, http.StatusConflict, "ABI_INELIGIBLE"},
+		{"abi missing", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockNoExecutor}, http.StatusConflict, "ABI_INELIGIBLE"},
+		{"lease", meshcontent.ErrLeaseNotFree, http.StatusForbidden, "KIT_LEASE_DENIED"},
 		{"timeout", meshcontent.ErrCheckingTimeout, http.StatusGatewayTimeout, "CONTENT_CHECKING_TIMEOUT"},
 		{"snapshot", &fogcast.LaunchSnapshotError{Reason: "target disabled"}, http.StatusConflict, "LAUNCH_CHANGED"},
-		{"other block", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockVersionSkew}, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE"},
+		{"other block", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockBrowseOnly}, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
