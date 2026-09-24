@@ -1324,9 +1324,13 @@ Keypad codes 120–129 mean digits 0–9; 130 means `*` and 131 means `#`.
 These are semantic gamepad-button events, independent of a keyboard layout.
 Input profiles can bind spare physical controls to `keypad-0` through
 `keypad-9`, `keypad-star`, and `keypad-hash`. Keypad events require the observed
-keypad interface. Host snapshots and reconnect replay retain each player's
-buttons and axes separately. Axis directions use an 8000 deadzone and combine
-with held digital directions, so centering a stick cannot release a held D-pad.
+keypad interface. For packages advertising `fes.keypad.ports`, gamepad Start
+also asserts keypad `1` (the common one-player game-select key), and Select also
+asserts keypad `*` (the common replay key); both ordinary gamepad bits remain
+set. Explicit keypad events combine with these aliases in the same keypad mask.
+Host snapshots and reconnect replay retain each player's buttons and axes
+separately. Axis directions use an 8000 deadzone and combine with held digital
+directions, so centering a stick cannot release a held D-pad.
 
 `ui/kitlauncher/controller.Hub` assigns the lowest free port in stable device-ID
 order, never renumbers a surviving controller, and emits releases and zero axes
