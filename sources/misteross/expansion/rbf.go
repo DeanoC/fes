@@ -311,18 +311,15 @@ type socketPolicy struct {
 var zx81Socket = socketPolicy{Slot, Map, 1769, 32, 2806, cramHeight}
 var colecoSocket = socketPolicy{ColecoSlot, ColecoMap, 1769, 32, 2806, 1034}
 
-const colecoResponseBoundaryContract = "fes.coleco.response-boundary/1"
+const colecoResponseBoundaryContract = "fes.coleco.response-boundary/2"
 
 type cramCoordinate struct {
 	x, y int
 }
 
 var colecoResponseBoundaryCoordinates = []cramCoordinate{
-	{x: 2072, y: 1161},
-	{x: 2439, y: 1123},
-	{x: 2440, y: 1122},
-	{x: 3332, y: 870},
-	{x: 3333, y: 872},
+	{x: 2429, y: 1100},
+	{x: 2430, y: 1101},
 }
 
 func policyFor(slot, mapping string) (socketPolicy, error) {
