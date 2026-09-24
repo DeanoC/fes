@@ -276,13 +276,13 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/top.v", program)
         self.assertIn("--freq", nextpnr)
         self.assertIn("74.25", nextpnr)
-        self.assertEqual(SEED, 4)
+        self.assertEqual(SEED, 5)
         self.assertEqual(PLACER_SEEDS[0], SEED)
-        self.assertEqual(PLACER_TIMING_WEIGHT, 300)
+        self.assertEqual(PLACER_TIMING_WEIGHT, 100)
         self.assertEqual(PLACER_CRITICALITY_EXPONENT, 5)
         self.assertIn("--seed", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--seed") + 1], str(SEED))
-        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "300")
+        self.assertEqual(nextpnr[nextpnr.index("--placer-heap-timingweight") + 1], "100")
         self.assertEqual(nextpnr[nextpnr.index("--placer-heap-critexp") + 1], "5")
         self.assertIn("--router", nextpnr)
         self.assertEqual(nextpnr[nextpnr.index("--router") + 1], "gpu")
@@ -301,9 +301,9 @@ class BuildFesColecoTests(unittest.TestCase):
             {"yosys": "test"}, execution=EXECUTION,
         )
         self.assertIn(f'"seed":{SEED}'.encode(), record)
-        self.assertIn(b'"seed_order":"4,1,2,3,5,12,7,10"', record)
-        self.assertIn(b'"placer_heap_timingweight":300', record)
-        self.assertIn(b'"placer_heap_timingweights":"300,100,1000"', record)
+        self.assertIn(b'"seed_order":"5,4,1,2,3,12,7,10"', record)
+        self.assertIn(b'"placer_heap_timingweight":100', record)
+        self.assertIn(b'"placer_heap_timingweights":"100,300,1000"', record)
         self.assertIn(b'"placer_heap_critexp":5', record)
         self.assertIn(b'"placer_qor_mode":"first-pass"', record)
         self.assertIn(b'"placer_qor_budget":24', record)
@@ -529,13 +529,9 @@ class BuildFesColecoTests(unittest.TestCase):
             budget=budget, mode="first-pass", extra=(), timeout=1, run_one=route,
         )
 
-        self.assertEqual(weights, (300, 100, 1000))
+        self.assertEqual(weights, (100, 300, 1000))
         self.assertEqual(budget, 24)
-        self.assertEqual(
-            calls,
-            [(seed, 300) for seed in PLACER_SEEDS]
-            + [(seed, 100) for seed in PLACER_SEEDS[:5]],
-        )
+        self.assertEqual(calls, [(5, 100)])
         self.assertTrue(ranked[0].passing)
         self.assertEqual((ranked[0].seed, ranked[0].weight), (5, 100))
 

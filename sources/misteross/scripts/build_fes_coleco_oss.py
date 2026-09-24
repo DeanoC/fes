@@ -44,20 +44,21 @@ ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
 ROUTER = "gpu"
-SEED = 4
-# Seed 4 is the historical packed-sprite placement. A sealed BUILD_ID can
-# miss 52 MHz on that seed while nearby seeds close; try 4 first, then the
-# HIP-checked fallbacks.
-PLACER_SEEDS = (4, 1, 2, 3, 5, 12, 7, 10)
-# HeAP timing weight 300 + critexp 5 closed seed 4 at 57.45 MHz on the
-# sealed HIP netlist (default weight 10 was 51.67 FAIL). Weight 1000 also
-# passed (56.62); 2000 was only 52.27. ZX81 keeps 1000 for its own seed 10.
-PLACER_TIMING_WEIGHT = 300
+# Seed 5 at weight 100 is the known timing-closing route for the current
+# Coleco raster netlist. Start there to avoid repeating the slow exploratory
+# routes on every normal build.
+SEED = 5
+# Keep seed 5 first, then the historical seed order for fallback routes.
+PLACER_SEEDS = (5, 4, 1, 2, 3, 12, 7, 10)
+# The current Coleco raster netlist passed at 55.21 MHz with seed 5 / weight
+# 100. Preserve the previous weight and the other measured passing weight as
+# fallbacks. ZX81 keeps weight 1000 for its own seed 10.
+PLACER_TIMING_WEIGHT = 100
 PLACER_CRITICALITY_EXPONENT = 5
-# The normal first-pass preserves the historical weight first, then tries the
-# two weights that have closed this Coleco netlist in the staged sweep. It
-# stops at the first passing route; --best-fmax remains the full ranking run.
-PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 100, 1000)
+# The normal first-pass starts with the measured timing-closing candidate,
+# then tries the historical weight and the other measured fallback. It stops
+# at the first passing route; --best-fmax remains the full ranking run.
+PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 300, 1000)
 # The full best-Fmax search records the winner rather than replacing these
 # constants, which would change BUILD_ID and invalidate the search.
 PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
