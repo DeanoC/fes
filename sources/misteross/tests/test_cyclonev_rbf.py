@@ -30,6 +30,18 @@ TINY = DieInfo(
     postamble_2=8,
 )
 
+COLECO_DIFF_TINY = DieInfo(
+    name="coleco-diff-tiny",
+    cram_sx=4000,
+    cram_sy=1200,
+    frame_size=16,
+    pram_sizes=(0,) * 32,
+    noedcrc_zones=(0,) * 12,
+    postamble_1=8,
+    postamble_2=8,
+    x_to_bx=(0, 1769, 2806),
+)
+
 
 def _blank(die: DieInfo) -> LoadedRbf:
     header = bytes(header_nbytes(die))
@@ -111,6 +123,30 @@ class CycloneVRBFTests(unittest.TestCase):
         self.assertEqual(report["bits_inside_slot"], 1)
         self.assertEqual(report["bits_outside_slot"], 1)
         self.assertFalse(report["inside_slot_column"])
+
+    def test_classify_can_report_bounded_outside_coordinates(self) -> None:
+        left = _blank(COLECO_DIFF_TINY)
+        right = _blank(COLECO_DIFF_TINY)
+        outside = [(3332, 870), (3333, 872), (2440, 1122), (2439, 1123), (2072, 1161)]
+        for x, y in outside:
+            cram_set(right.cram, COLECO_DIFF_TINY, x, y, 1)
+        cram_set(right.cram, COLECO_DIFF_TINY, 2440, 900, 1)
+
+        report = classify_cram_diff(
+            left, right, CramRect(1769, 32, 2806, 1034), include_outside_coordinates=True
+        )
+        self.assertEqual(report["bits_inside_slot"], 1)
+        self.assertEqual(report["bits_outside_slot"], 5)
+        self.assertEqual(report["outside_slot_coordinates"], [list(point) for point in outside])
+        self.assertFalse(report["outside_slot_coordinates_truncated"])
+
+        truncated = classify_cram_diff(
+            left, right, CramRect(1769, 32, 2806, 1034),
+            include_outside_coordinates=True, coordinate_limit=3,
+        )
+        self.assertEqual(truncated["bits_outside_slot"], 5)
+        self.assertEqual(truncated["outside_slot_coordinates"], [list(point) for point in outside[:3]])
+        self.assertTrue(truncated["outside_slot_coordinates_truncated"])
 
     def test_overlay_rejects_mismatched_dies(self) -> None:
         with self.assertRaisesRegex(ValueError, "dies"):

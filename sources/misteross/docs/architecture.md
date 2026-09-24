@@ -469,9 +469,13 @@ empty socket; launch splices BASIC into the programmed bitstream.
 
 The `expansion` Go linker admits only the versioned ZX81 full-height socket or
 the Coleco CPU-bus rectangle `(1769, 32, 2806, 1034)`, selected by the exact
-slot/map pair. A partial Coleco column regenerates its frame checksums; the
-host-only diagnostic composes byte-for-byte with the independently routed
-Python oracle. The existing ZX81 `Link` behavior and output remain unchanged.
+slot/map pair. A Coleco manifest may also declare
+`fes.coleco.response-boundary/1`: exactly five fixed shell-response CRAM
+coordinates and each cart bit's resulting value. The linker requires all five
+bits to change as declared, applies them with the socket overlay and rejects
+every other outside change. This patch does not enlarge the socket rectangle.
+Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
+behavior and output remain unchanged.
 
 The `expansion` Go module also provides `LinkROM` and the standalone
 `fes-rom-link` diagnostic. They patch mapped M10K INIT bits directly in decoded
@@ -558,7 +562,7 @@ fixed-video shell. A raw 1–32 KiB cartridge image uses the fixed
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
 publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
-holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio). The development Coleco machine edge has an inactive vacant response and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate `coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware Mistral and nextpnr pins. The development-only producer seals a timed shell with a vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus` 1.0. The diagnostic module uses the frozen shell, restores the system PLL's second output from exact routed metadata, and passes routing, timing and a CRAM diff confined to the socket. The selected factory recipe and FES registration remain unchanged. External bus mastering, video/audio takeover, bank
+holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio). The development Coleco machine edge has an inactive vacant response and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate `coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware Mistral and nextpnr pins. The development-only producer seals a timed shell with a vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus` 1.0. The diagnostic module uses the frozen shell and restores the system PLL's second output from exact routed metadata. Its producer permits only the five fixed response-stub changes declared by `fes.coleco.response-boundary/1`, alongside the CPU-bus rectangle; the linker rejects every other outside change. The selected factory recipe and FES registration remain unchanged. External bus mastering, video/audio takeover, bank
 switching, full VDP modes, cycle-perfect timing and retail-cartridge
 compatibility remain outside this slice.
 

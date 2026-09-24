@@ -14,6 +14,7 @@ from dataclasses import dataclass
 TARGET_DEVICE = "5CSEBA6U23I7"
 SLOT_BEL = "MISTRAL_M10K.26.1.0"
 SLOT_COLUMN = 26
+MAX_CRAM_DIFF_COORDINATES = 4096
 
 
 @dataclass(frozen=True)
@@ -431,14 +432,21 @@ def diff_cram(left: LoadedRbf, right: LoadedRbf, rect: CramRect | None = None) -
 
 
 def classify_cram_diff(
-    left: LoadedRbf, right: LoadedRbf, slot: CramRect | None = None
+    left: LoadedRbf,
+    right: LoadedRbf,
+    slot: CramRect | None = None,
+    *,
+    include_outside_coordinates: bool = False,
+    coordinate_limit: int = MAX_CRAM_DIFF_COORDINATES,
 ) -> dict[str, object]:
-    """Bucket CRAM diffs by tile column so a chip-wide bbox does not hide locality."""
-
+    """Bucket CRAM diffs by column, optionally listing outside-slot bits."""
+    if coordinate_limit < 0:
+        raise ValueError("CRAM diff coordinate limit must be nonnegative")
     die = left.die
     if slot is None:
         slot = default_slot_rect(die)
     column_bits: dict[int, int] = {}
+    outside_coordinates: list[list[int]] = []
     inside = 0
     outside = 0
     min_x = min_y = max_x = max_y = None
@@ -464,13 +472,15 @@ def classify_cram_diff(
             inside += 1
         else:
             outside += 1
+            if include_outside_coordinates and len(outside_coordinates) < coordinate_limit:
+                outside_coordinates.append([x, y])
     total = inside + outside
     box = (
         None
         if total == 0
         else BoundingBox(x0=min_x, y0=min_y, x1=max_x + 1, y1=max_y + 1, bits=total)
     )
-    return {
+    report = {
         "identical": total == 0,
         "bits_inside_slot": inside,
         "bits_outside_slot": outside,
@@ -478,6 +488,10 @@ def classify_cram_diff(
         "diff": None if box is None else box.as_dict(),
         "inside_slot_column": False if box is None else rect_inside(box, slot),
     }
+    if include_outside_coordinates:
+        report["outside_slot_coordinates"] = outside_coordinates
+        report["outside_slot_coordinates_truncated"] = len(outside_coordinates) < outside
+    return report
 
 
 def rect_inside(inner: BoundingBox, outer: CramRect) -> bool:

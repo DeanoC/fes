@@ -311,6 +311,20 @@ type socketPolicy struct {
 var zx81Socket = socketPolicy{Slot, Map, 1769, 32, 2806, cramHeight}
 var colecoSocket = socketPolicy{ColecoSlot, ColecoMap, 1769, 32, 2806, 1034}
 
+const colecoResponseBoundaryContract = "fes.coleco.response-boundary/1"
+
+type cramCoordinate struct {
+	x, y int
+}
+
+var colecoResponseBoundaryCoordinates = []cramCoordinate{
+	{x: 2072, y: 1161},
+	{x: 2439, y: 1123},
+	{x: 2440, y: 1122},
+	{x: 3332, y: 870},
+	{x: 3333, y: 872},
+}
+
 func policyFor(slot, mapping string) (socketPolicy, error) {
 	switch {
 	case slot == Slot && mapping == Map:
@@ -359,10 +373,10 @@ func Link(shell, cart []byte) ([]byte, error) {
 
 // LinkContext is the cancellable expansion linker.
 func LinkContext(ctx context.Context, shell, cart []byte) ([]byte, error) {
-	return linkContextWithPolicy(ctx, shell, cart, zx81Socket)
+	return linkContextWithPolicy(ctx, shell, cart, zx81Socket, nil)
 }
 
-func linkContextWithPolicy(ctx context.Context, shell, cart []byte, policy socketPolicy) ([]byte, error) {
+func linkContextWithPolicy(ctx context.Context, shell, cart []byte, policy socketPolicy, boundaryPatch *BoundaryPatch) ([]byte, error) {
 	base, err := loadFramesContext(ctx, shell)
 	if err != nil {
 		return nil, fmt.Errorf("shell: %w", err)
@@ -373,6 +387,12 @@ func linkContextWithPolicy(ctx context.Context, shell, cart []byte, policy socke
 	}
 	if !bytes.Equal(base.header, addition.header) {
 		return nil, errors.New("cart changes shell ORAM/PRAM header")
+	}
+	patchBits := make(map[cramCoordinate]int)
+	if boundaryPatch != nil {
+		for _, patch := range boundaryPatch.Bits {
+			patchBits[cramCoordinate{x: patch.X, y: patch.Y}] = patch.Value
+		}
 	}
 	for x := 0; x < cramWidth; x++ {
 		if err := ctx.Err(); err != nil {
@@ -390,16 +410,37 @@ func linkContextWithPolicy(ctx context.Context, shell, cart []byte, policy socke
 		changed := false
 		for y := 32; y < cramHeight; y++ {
 			pos := frameBit(y)
-			if (before[pos/8]^after[pos/8])&(1<<(pos%8)) != 0 {
-				if !policy.inside(x, y) {
+			mask := byte(1 << (pos % 8))
+			if (before[pos/8]^after[pos/8])&mask != 0 {
+				if policy.inside(x, y) {
+					before[pos/8] = (before[pos/8] &^ mask) | (after[pos/8] & mask)
+					changed = true
+					continue
+				}
+				coordinate := cramCoordinate{x: x, y: y}
+				declaredValue, allowed := patchBits[coordinate]
+				if !allowed {
 					return nil, fmt.Errorf("cart changes CRAM outside socket at %d,%d", x, y)
 				}
-				before[pos/8] = (before[pos/8] &^ (1 << (pos % 8))) | (after[pos/8] & (1 << (pos % 8)))
+				value := 0
+				if after[pos/8]&mask != 0 {
+					value = 1
+				}
+				if declaredValue != value {
+					return nil, fmt.Errorf("response boundary patch value differs from manifest at %d,%d", x, y)
+				}
+				before[pos/8] = (before[pos/8] &^ mask) | (after[pos/8] & mask)
+				delete(patchBits, coordinate)
 				changed = true
 			}
 		}
 		if changed {
 			refreshFrameChecksums(before, x)
+		}
+	}
+	if len(patchBits) != 0 {
+		for coordinate := range patchBits {
+			return nil, fmt.Errorf("declared response boundary patch did not change CRAM bit at %d,%d", coordinate.x, coordinate.y)
 		}
 	}
 	packed, err := compressContext(ctx, base.frames)

@@ -33,19 +33,34 @@ var hex40 = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // Manifest binds one separately built cart to one sealed frozen shell. The
 // payload is the placed cart's complete RBF, never an unbounded patch recipe.
 type Manifest struct {
-	CartSHA256     string `json:"cart_sha256"`
-	CartSize       int64  `json:"cart_size"`
-	Device         string `json:"device"`
-	Format         int    `json:"format"`
-	Map            string `json:"map"`
-	RecipeSHA256   string `json:"recipe_sha256"`
-	Revision       string `json:"revision"`
-	ShellBuildID   string `json:"shell_build_id"`
-	ShellPackageID string `json:"shell_package_id"`
-	ShellSHA256    string `json:"shell_sha256"`
-	Slot           string `json:"slot"`
-	SlotMajor      int    `json:"slot_major"`
-	SlotMinor      int    `json:"slot_minor"`
+	BoundaryPatch  *BoundaryPatch `json:"boundary_patch,omitempty"`
+	CartSHA256     string         `json:"cart_sha256"`
+	CartSize       int64          `json:"cart_size"`
+	Device         string         `json:"device"`
+	Format         int            `json:"format"`
+	Map            string         `json:"map"`
+	RecipeSHA256   string         `json:"recipe_sha256"`
+	Revision       string         `json:"revision"`
+	ShellBuildID   string         `json:"shell_build_id"`
+	ShellPackageID string         `json:"shell_package_id"`
+	ShellSHA256    string         `json:"shell_sha256"`
+	Slot           string         `json:"slot"`
+	SlotMajor      int            `json:"slot_major"`
+	SlotMinor      int            `json:"slot_minor"`
+}
+
+// BoundaryPatch declares the only Coleco shell-response mux stubs that a cart
+// may change outside its placed socket. Its coordinates are closed by the
+// linker, and the manifest binds each bit's exact resulting value.
+type BoundaryPatch struct {
+	Bits     []CRAMPatchBit `json:"bits"`
+	Contract string         `json:"contract"`
+}
+
+type CRAMPatchBit struct {
+	Value int `json:"value"`
+	X     int `json:"x"`
+	Y     int `json:"y"`
 }
 
 func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }
@@ -56,6 +71,19 @@ func (m Manifest) validate() error {
 	}
 	if _, err := policyFor(m.Slot, m.Map); err != nil {
 		return err
+	}
+	if m.BoundaryPatch != nil {
+		if m.Slot != ColecoSlot || m.Map != ColecoMap ||
+			m.BoundaryPatch.Contract != colecoResponseBoundaryContract ||
+			len(m.BoundaryPatch.Bits) != len(colecoResponseBoundaryCoordinates) {
+			return errors.New("unsupported expansion boundary patch")
+		}
+		for i, coordinate := range colecoResponseBoundaryCoordinates {
+			patch := m.BoundaryPatch.Bits[i]
+			if patch.X != coordinate.x || patch.Y != coordinate.y || (patch.Value != 0 && patch.Value != 1) {
+				return errors.New("unsupported expansion boundary patch")
+			}
+		}
 	}
 	if !hex64.MatchString(m.CartSHA256) || !hex64.MatchString(m.ShellPackageID) ||
 		!hex64.MatchString(m.ShellSHA256) || !hex64.MatchString(m.RecipeSHA256) ||
@@ -259,7 +287,7 @@ func ComposeContext(ctx context.Context, shell Shell, asset Asset) (Composition,
 	if err != nil {
 		return Composition{}, nil, err
 	}
-	linked, err := linkContextWithPolicy(ctx, shell.Payload, asset.Cart, policy)
+	linked, err := linkContextWithPolicy(ctx, shell.Payload, asset.Cart, policy, asset.Manifest.BoundaryPatch)
 	if err != nil {
 		return Composition{}, nil, fmt.Errorf("link expansion: %w", err)
 	}
