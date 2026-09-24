@@ -129,31 +129,17 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 		nativeRuntime.ConfigureCoreReplacementBarrier(barrier)
 		if ports, ok := controller.(interface {
 			ConfigureControllerPorts(func(context.Context) (*input.ControllerBinding, error), input.ControllerPoster)
+			ObserveCore(func(context.Context) (input.CoreObservation, error))
 		}); ok {
+			ports.ObserveCore(func(ctx context.Context) (input.CoreObservation, error) {
+				return observeRuntimeInput(ctx, nativeRuntime)
+			})
 			ports.ConfigureControllerPorts(func(ctx context.Context) (*input.ControllerBinding, error) {
-				status, err := nativeRuntime.ControllerStatus(ctx)
+				obs, err := observeRuntimeInput(ctx, nativeRuntime)
 				if err != nil {
 					return nil, err
 				}
-				var enabled, keypad bool
-				for _, contract := range status.Capabilities.ActiveInterfaces {
-					if contract.Major != 1 || contract.Minor != 0 {
-						continue
-					}
-					if contract.ID == "fes.gamepad.ports" {
-						enabled = true
-					}
-					if contract.ID == "fes.keypad.ports" {
-						keypad = true
-					}
-				}
-				if !enabled {
-					return nil, nil
-				}
-				if !status.OK || status.State != "running_development" || status.ActivePackage == nil || status.Generation == nil || *status.Generation == 0 {
-					return nil, errors.New("controller package is not active")
-				}
-				return &input.ControllerBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation, Keypad: keypad}, nil
+				return obs.Binding, nil
 			}, func(packageID string, generation uint64, port, buttons uint8, keypad uint16) error {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
@@ -194,6 +180,41 @@ func bindApplianceData(logger *slog.Logger) error {
 		logger.Info("appliance data partition bound", "device", result.Device, "paths", result.Bound)
 	}
 	return nil
+}
+
+func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (input.CoreObservation, error) {
+	status, err := runtime.ControllerStatus(ctx)
+	if err != nil {
+		return input.CoreObservation{}, err
+	}
+	var ports, keypad, keyboard bool
+	for _, contract := range status.Capabilities.ActiveInterfaces {
+		if contract.Major != 1 || contract.Minor != 0 {
+			continue
+		}
+		switch contract.ID {
+		case "fes.gamepad.ports":
+			ports = true
+		case "fes.keypad.ports":
+			keypad = true
+		case "fes.keyboard":
+			keyboard = true
+		}
+	}
+	active := status.OK && status.State == "running_development" && status.ActivePackage != nil && status.Generation != nil && *status.Generation != 0
+	observation := input.CoreObservation{Active: active, Keyboard: keyboard}
+	if !ports {
+		return observation, nil
+	}
+	if !active {
+		return observation, errors.New("controller package is not active")
+	}
+	observation.Binding = &input.ControllerBinding{
+		PackageID:  status.ActivePackage.PackageID,
+		Generation: *status.Generation,
+		Keypad:     keypad,
+	}
+	return observation, nil
 }
 
 func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterruntime.Runtime {
@@ -256,6 +277,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if err := dependencies.configureRuntime(runtime, inputController); err != nil {
 			return errors.New("native input replacement barrier could not be configured")
 		}
+	}
+	if feed, ok := inputController.(*input.TargetController); ok && feed != nil {
+		go func() {
+			err := feed.ServeLocalInput(ctx, input.DefaultLocalInputSocket)
+			if err != nil && ctx.Err() == nil && !errors.Is(err, net.ErrClosed) {
+				logger.Error("kit-local input feed stopped", "error", err)
+			}
+		}()
 	}
 	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second,
 		agent.WithCoreLoadTimeout(60*time.Second),

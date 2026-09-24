@@ -1445,10 +1445,25 @@ it bypasses uinput and sends the local protocol-2 `set_controller` full snapshot
 `package_id`, `expected_generation`, `port`, `buttons`, and `keypad`. Digital
 bits are Up, Down, Left, Right, A, B, Select, Start; keypad bits are 0–9, `*`, `#`.
 The runtime validates the complete request and owns the physical GP writes.
-There is no additional network input endpoint or virtual-device discovery rule.
+The kit-local feed is a unix socket at `/run/fogcast/local-input.sock` (mode 0600),
+not another network endpoint, and there is no additional virtual-device discovery rule.
 Other cores retain the single virtual gamepad and keyboard sink.
 
-Disconnect, detach, source handoff and Stop neutralize both dirty ports. A failed
+A pad or USB keyboard on the kit writes raw input frames to that socket. mister-agent
+shapes them with `playhid.StreamEvent` from the runtime's controller-port and keyboard
+capabilities, then applies the same keypad Start/Select aliases as the host stream.
+The socket is not an HTTP route and does not consult the kit lease, so a pad on the
+kit drives the running core whichever host launched it. Frames are delivered only
+while a runtime core is bound. The host stream and the local socket keep separate
+button and axis state. On one player they combine by OR for buttons and keypad bits
+and by the larger stick deflection for axes, so a release or a centred stick from
+one source leaves the other source's hold in place. Local pads occupy P1 and P2
+first; a remote pad uses the next free port, and Coleco's two-port limit rejects
+a player that does not fit. Closing the local socket releases the local source
+only. The kit launcher still forwards physical pads through the host stream.
+
+Disconnect of the host stream releases the remote source. Lease expiry, core
+replacement and Stop neutralize every source on both dirty ports. A failed
 write remains dirty because delivery may have happened. Cleanup attempts both
 ports and propagates failures. A reconnect cannot publish its replay until the
 old stream finishes releasing input. Core replacement uses the existing input

@@ -38,8 +38,14 @@ type TargetController struct {
 	keyboard      *KeyboardSink
 	ports         *controllerPortsSink
 	portsBinding  func(context.Context) (*ControllerBinding, error)
+	observe       func(context.Context) (CoreObservation, error)
 	needsRelease  bool
 	closed        bool
+	localMu       sync.Mutex
+	localLn       net.Listener
+	localConn     net.Conn
+	localPath     string
+	localClosed   bool
 	pending       *lease
 	closeOnce     sync.Once
 	closeErr      error
@@ -73,7 +79,8 @@ func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*Tar
 		return nil, err
 	}
 	keys := NewKeyboardSink()
-	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: pads}}
+	merged := newPadMerge(pads)
+	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: merged}, keys: keys, pads: merged}
 	controller := newTargetControllerWithSink(listenAddress, ports)
 	controller.ports = ports
 	controller.keyboard = keys
@@ -86,6 +93,17 @@ func (c *TargetController) ConfigureControllerPorts(binding func(context.Context
 	}
 	c.portsBinding = binding
 	c.ports.poster = poster
+}
+
+// ObserveCore stores the runtime read used by Attach and the kit-local feed.
+// It does not require a host input lease.
+func (c *TargetController) ObserveCore(observe func(context.Context) (CoreObservation, error)) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.observe = observe
+	c.mu.Unlock()
 }
 
 func (c *TargetController) SetKeyboardPoster(poster func(uint64) error) {
@@ -149,16 +167,35 @@ func (c *TargetController) attachLocked(ctx context.Context, spec Spec) error {
 	}
 
 	var sink bridge.Sink
-	if c.ports != nil && c.portsBinding != nil {
-		binding, err := c.portsBinding(ctx)
-		if err != nil {
-			return err
-		}
-		if err := c.ports.bind(binding); err != nil {
-			return err
+	c.mu.Lock()
+	observe := c.observe
+	bindingFn := c.portsBinding
+	c.mu.Unlock()
+	if c.ports != nil && (observe != nil || bindingFn != nil) {
+		if observe != nil {
+			obs, err := observe(ctx)
+			if err != nil {
+				return err
+			}
+			c.ports.setObservation(obs)
+			if err := c.ports.bind(obs.Binding); err != nil {
+				return err
+			}
+		} else {
+			binding, err := bindingFn(ctx)
+			if err != nil {
+				return err
+			}
+			if err := c.ports.bind(binding); err != nil {
+				return err
+			}
 		}
 	}
-	if c.persistent != nil {
+	if c.ports != nil {
+		// The host bridge releases only its own source. The retained sink
+		// still receives lease and core-replacement neutralization.
+		sink = retainedSink{Sink: remoteSourceSink{ports: c.ports}}
+	} else if c.persistent != nil {
 		sink = retainedSink{Sink: c.persistent}
 	} else {
 		var err error
@@ -258,6 +295,15 @@ func (c *TargetController) BeginCoreReplacement(ctx context.Context) (func(conte
 		c.mu.Unlock()
 		c.lifecycle.Unlock()
 		return nil, err
+	}
+	if c.ports != nil {
+		if err := c.ports.ReleaseAll(); err != nil {
+			c.mu.Lock()
+			c.needsRelease = true
+			c.mu.Unlock()
+			c.lifecycle.Unlock()
+			return nil, err
+		}
 	}
 
 	var once sync.Once
@@ -379,6 +425,7 @@ func (c *TargetController) Close() error {
 		return nil
 	}
 	c.closeOnce.Do(func() {
+		c.closeLocal()
 		c.mu.Lock()
 		c.closed = true
 		pending := c.pending

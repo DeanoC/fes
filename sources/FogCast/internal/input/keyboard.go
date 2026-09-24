@@ -11,15 +11,17 @@ import (
 )
 
 // KeyboardSink maps FogCast key frames onto the ZX81 ULA matrix and posts
-// them through the native runtime set_keyboard operation.
+// them through the native runtime set_keyboard operation. Each source keeps
+// its own held keys; the matrix is the union, so one source releasing a key
+// leaves another source's hold in place.
 type KeyboardSink struct {
 	mu      sync.Mutex
-	pressed map[remoteinput.Code]bool
+	pressed [sourceCount]map[remoteinput.Code]bool
 	poster  func(uint64) error
 }
 
 func NewKeyboardSink() *KeyboardSink {
-	return &KeyboardSink{pressed: map[remoteinput.Code]bool{}}
+	return &KeyboardSink{}
 }
 
 func (s *KeyboardSink) SetPoster(poster func(uint64) error) {
@@ -29,17 +31,27 @@ func (s *KeyboardSink) SetPoster(poster func(uint64) error) {
 }
 
 func (s *KeyboardSink) Apply(f protocol.InputFrame) error {
+	return s.ApplyFrom(sourceRemote, f)
+}
+
+func (s *KeyboardSink) ApplyFrom(source inputSource, f protocol.InputFrame) error {
 	if f.Kind != uint8(remoteinput.KindKey) && f.Device != uint8(remoteinput.DeviceKeyboard) {
 		return errors.New("unsupported input frame")
 	}
+	if source >= sourceCount {
+		source = sourceRemote
+	}
 	code := remoteinput.Code(f.Code)
 	s.mu.Lock()
-	if f.Action == uint8(remoteinput.ActionPress) {
-		s.pressed[code] = true
-	} else if f.Action == uint8(remoteinput.ActionRelease) {
-		delete(s.pressed, code)
+	if s.pressed[source] == nil {
+		s.pressed[source] = map[remoteinput.Code]bool{}
 	}
-	matrix := zx81keys.Matrix(s.pressed)
+	if f.Action == uint8(remoteinput.ActionPress) {
+		s.pressed[source][code] = true
+	} else if f.Action == uint8(remoteinput.ActionRelease) {
+		delete(s.pressed[source], code)
+	}
+	matrix := zx81keys.Matrix(s.unionLocked())
 	poster := s.poster
 	s.mu.Unlock()
 	if poster == nil {
@@ -48,9 +60,37 @@ func (s *KeyboardSink) Apply(f protocol.InputFrame) error {
 	return poster(matrix)
 }
 
+func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
+	union := make(map[remoteinput.Code]bool)
+	for source := range s.pressed {
+		for code := range s.pressed[source] {
+			union[code] = true
+		}
+	}
+	return union
+}
+
+func (s *KeyboardSink) ReleaseSource(source inputSource) error {
+	if source >= sourceCount {
+		source = sourceRemote
+	}
+	s.mu.Lock()
+	s.pressed[source] = map[remoteinput.Code]bool{}
+	matrix := zx81keys.Matrix(s.unionLocked())
+	poster := s.poster
+	s.mu.Unlock()
+	if poster == nil {
+		return nil
+	}
+	_ = poster(matrix)
+	return nil
+}
+
 func (s *KeyboardSink) ReleaseAll() error {
 	s.mu.Lock()
-	s.pressed = map[remoteinput.Code]bool{}
+	for source := range s.pressed {
+		s.pressed[source] = map[remoteinput.Code]bool{}
+	}
 	poster := s.poster
 	s.mu.Unlock()
 	if poster == nil {
