@@ -177,6 +177,69 @@ func TestLaunchOnSelectedTargetChangeDoesNotEnsureTheOldNode(t *testing.T) {
 	}
 }
 
+func TestImplicitEmptyTargetIDDoesNotInheritBoundNode(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := &Service{
+		targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		selectedTarget: "spare",
+		targetClients:  map[string]serviceClient{"spare": &fakeServiceClient{}},
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "node-a",
+		Executor:  exec,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("unmatched empty id pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+}
+
+func TestImplicitEmptyTargetIDEnsuresWhenNameIsTheBoundNode(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "dev",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := &Service{
+		targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		selectedTarget: "dev",
+		catalog:        &fakeServiceCatalog{gameErr: errors.New("stop after ensure")},
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "dev",
+		Executor:  exec,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.node != "dev" {
+		t.Fatalf("pulls %+v node %s", exec.pulls, exec.node)
+	}
+}
+
 func TestLaunchOnMatchingTargetEnsuresThatNode(t *testing.T) {
 	entry, cart := fpgaMeshEntry("coleco-frogger")
 	exec := &meshLaunchExecutor{

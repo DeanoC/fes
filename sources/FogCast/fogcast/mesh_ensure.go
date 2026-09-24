@@ -156,6 +156,9 @@ func (p pinnedLaunchTarget) endpointMatches(cfg TargetConfig) bool {
 // pinLaunchTarget resolves an implicit launch to the selected target
 // that is current at this instant. name is what bind stores. nodeID is
 // what FPGA Ensure compares to the executor. Neither is read again.
+// An implicit target with an empty TargetID is the bound node only
+// when its name is that node. Otherwise nodeID stays empty and Ensure
+// returns ErrUnboundNode before Pull.
 func (s *Service) pinLaunchTarget(target string) pinnedLaunchTarget {
 	if s == nil {
 		return pinnedLaunchTarget{}
@@ -208,6 +211,12 @@ func (s *Service) pinLaunchTarget(target string) pinnedLaunchTarget {
 			}
 		}
 	}
-	pinned.nodeID = session.BoundNode
+	// Empty TargetID does not inherit the session node. Selection can
+	// name target B while the session is still bound to node A, and
+	// targets with no ids give the loop above nothing to recognize.
+	// Ensure would then run on A and bind would still use B's client.
+	if name == session.BoundNode {
+		pinned.nodeID = name
+	}
 	return pinned
 }

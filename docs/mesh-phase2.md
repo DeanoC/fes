@@ -161,7 +161,9 @@ executor is rejected before any pull. The launch captures that target
 once; Ensure and bind both use the capture, so a settings change
 during the call cannot bind a different node. A changed address or
 TargetID on that same name is rejected, and the captured client stays
-on an unchanged endpoint. Launch also refuses to program when the
+on an unchanged endpoint. An implicit target with an empty TargetID is
+the bound node only when its name is that node. Otherwise Ensure
+returns `ErrUnboundNode` and does not pull. Launch also refuses to program when the
 selected package, media, firmware, ROM, or expansion composition no
 longer matches the row Ensure checked. A foreign-kit denial for that
 FPGA launch returns before Ensure. Host-only play stays on the

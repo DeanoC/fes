@@ -940,7 +940,9 @@ onto a node the session did not bind, and does not release or change a
 lease. `LaunchOn` captures the target once, before Ensure, and bind
 uses that same name and node id. Bind keeps the captured client and
 returns `ErrUnboundNode` when that name's address or TargetID no longer
-matches the capture. Before programming, Launch compares the ensured
+matches the capture. An implicit target with an empty TargetID is the
+bound node only when its name is that node. Otherwise Ensure returns
+`ErrUnboundNode` and does not pull. Before programming, Launch compares the ensured
 catalog row with the row now selected and refuses a changed package,
 media, firmware, ROM, or expansion composition. Host-only mesh play
 stays on the installed session node. A launchable FPGA entry that the
