@@ -87,7 +87,8 @@ help:
 		"  build-fes-sg1000-quartus  Quartus 17.0.2 oracle package for FES SG-1000" \
 		"  build-fes-sg1000  Seal FES SG-1000 with HIP nextpnr/Mistral (Coleco lock; CACHE_ROOT= for shared cache)" \
 		"  sim-fes-sms  Test the FES SMS blob-stream mailbox, 32KiB map, SN76489 and HDMI I2S (fes.sms)" \
-		"  sim-fes-sms-oss  Test OSS-conditional SMS registered media, RAM and VDP" \
+		"  sim-fes-sms-oss  Test SMS ROM-link mailbox capabilities/rejections and OSS-conditional media, RAM and VDP" \
+		"  sim-fes-sms-rom-link-mailbox  Test SMS ROM-link mailbox capabilities and rejected media commands" \
 		"  sim-fes-sms-quartus  Test SMS RAM/media with supplied Quartus 17 models and Icarus" \
 		"  sms-diagnostic  Generate the open Master System Mode 4 cartridge and reference image" \
 		"  build-fes-sms-quartus  Quartus 17.0.2 oracle package for FES Master System (fes.sms)" \
@@ -136,13 +137,13 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
 endif
 
-.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
+.PHONY: toolchain toolchain-fes toolchain-fes-zx81 toolchain-fes-coleco toolchain-fes-sg1000 toolchain-fes-sms toolchain-check doctor doctor-strict sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-oss sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sg1000-diagnostic sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sms-diagnostic sim-fes-splash build-fes-splash build-fes-zx81-quartus build-fes-zx81 build-fes-coleco-quartus build-fes-coleco build-fes-sg1000-quartus build-fes-sg1000 build-fes-sms-quartus build-fes-sms build-fes-pong   oss oracle compare     export-core-package program clean
 
 sim-pong:
 	$(require_local_sim)
@@ -822,7 +823,21 @@ sim-fes-sms: sms-diagnostic
 	@build/sim/fes-sms-machine/Vsms_machine \
 		build/diagnostics/fes-sms/mode4.rom
 
-sim-fes-sms-oss: sms-diagnostic
+sim-fes-sms-rom-link-mailbox:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-sms-gp-rom-link
+	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
+		-DFES_COLECO_OSS=1 -CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM -Wno-UNUSEDSIGNAL \
+		-Wno-WIDTHTRUNC -Wno-WIDTHEXPAND -Wno-BLKSEQ \
+		-GENABLE_MEDIA_BLOB=0 \
+		-Icores/fes-sms/generated -Icores/fes-coleco/generated \
+		--Mdir "$(CURDIR)/build/sim/fes-sms-gp-rom-link" \
+		cores/fes-common/rtl/fes_computer_gp.v cores/fes-common/rtl/coleco_dpram.v \
+		"$(CURDIR)/cores/fes-sms/sim/no_media_tb.cpp"
+	@build/sim/fes-sms-gp-rom-link/Vfes_computer_gp
+
+sim-fes-sms-oss: sms-diagnostic sim-fes-sms-rom-link-mailbox
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-sms-gp-oss
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall --public \

@@ -91,7 +91,7 @@ module top #(
     );
 
 `ifdef FES_SMS_ROM_LINK
-    fes_computer_gp gp_mailbox (
+    fes_computer_gp #(.ENABLE_MEDIA_BLOB(0)) gp_mailbox (
 `else
     fes_computer_gp #(.ENABLE_MEDIA_STREAM(1)) gp_mailbox (
 `endif

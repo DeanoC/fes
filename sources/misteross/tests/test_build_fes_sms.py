@@ -252,6 +252,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("JP 0x8000", machine)
         self.assertNotIn("fes.mastersystem", machine)
 
+    def test_rom_link_top_selects_mailbox_without_blob_media(self) -> None:
+        top = (ROOT / "cores/fes-sms/rtl/top.v").read_text(encoding="utf-8")
+        rom_link_mailbox = top.split("`ifdef FES_SMS_ROM_LINK", 1)[1].split("`else", 1)[0]
+        self.assertIn("fes_computer_gp #(.ENABLE_MEDIA_BLOB(0)) gp_mailbox", rom_link_mailbox)
+        self.assertIn("ENABLE_MEDIA_STREAM(1)", top)
+
     def test_manifest_carries_sms_identity(self) -> None:
         record = (
             b'{"format":1,"repository":"https://github.com/DeanoC/misteross.git",'
