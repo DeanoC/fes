@@ -303,9 +303,10 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn(f'"seed":{SEED}'.encode(), record)
         self.assertIn(b'"seed_order":"4,1,2,3,5,12,7,10"', record)
         self.assertIn(b'"placer_heap_timingweight":300', record)
-        self.assertIn(b'"placer_heap_timingweights":"10,100,300,1000,2000"', record)
+        self.assertIn(b'"placer_heap_timingweights":"300,100,1000"', record)
         self.assertIn(b'"placer_heap_critexp":5', record)
         self.assertIn(b'"placer_qor_mode":"first-pass"', record)
+        self.assertIn(b'"placer_qor_budget":24', record)
         staged = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
@@ -314,6 +315,16 @@ class BuildFesColecoTests(unittest.TestCase):
             qor_mode="staged", execution=EXECUTION,
         )
         self.assertIn(b'"placer_qor_mode":"staged"', staged)
+        self.assertIn(b'"placer_heap_timingweights":"10,100,300,1000,2000"', staged)
+        self.assertIn(b'"placer_qor_budget":24', staged)
+        first_pass = create_build_record(
+            ROOT,
+            "https://example.invalid/misteross.git",
+            "a" * 40,
+            {"yosys": "test"},
+            qor_mode="first-pass", execution=EXECUTION,
+        )
+        self.assertIn(b'"placer_qor_mode":"first-pass"', first_pass)
         self.assertIn(b'"router":"gpu"', record)
         self.assertIn(b'"gpu_architectures":"gfx1100;gfx1201"', record)
         self.assertIn(b'"gpu_backend":"hip"', record)
@@ -498,6 +509,40 @@ class BuildFesColecoTests(unittest.TestCase):
         self.assertIn("cores/fes-common/rtl/fes_application_gp.v", RTL_SOURCES)
         self.assertIn("cores/fes-coleco/rtl/coleco_application_gp.v", RTL_SOURCES)
         self.assertNotIn("cores/fes-common/rtl/fes_computer_gp.v", RTL_SOURCES)
+
+    def test_first_pass_tries_fallback_weights_and_stops_after_closure(self) -> None:
+        from scripts.search_placer_qor import search
+        from tests.test_search_placer_qor import _candidate
+
+        weights, budget = build_fes_coleco_oss.placement_policy("first-pass")
+        calls = []
+
+        def route(seed, weight):
+            calls.append((seed, weight))
+            closes = (seed, weight) == (5, 100)
+            return _candidate(seed, weight, 52.4 if closes else 51.5)
+
+        ranked = search(
+            nextpnr=Path("unused"), fixture=Path("unused"), output=Path("unused"),
+            device=build_fes_coleco_oss.TARGET, qsf=Path("unused"), sdc=None, freq=None,
+            seeds=PLACER_SEEDS, weights=weights, critexp=PLACER_CRITICALITY_EXPONENT,
+            budget=budget, mode="first-pass", extra=(), timeout=1, run_one=route,
+        )
+
+        self.assertEqual(weights, (300, 100, 1000))
+        self.assertEqual(budget, 24)
+        self.assertEqual(
+            calls,
+            [(seed, 300) for seed in PLACER_SEEDS]
+            + [(seed, 100) for seed in PLACER_SEEDS[:5]],
+        )
+        self.assertTrue(ranked[0].passing)
+        self.assertEqual((ranked[0].seed, ranked[0].weight), (5, 100))
+
+    @patch.object(build_fes_coleco_oss, "build", return_value=Path("coleco.package"))
+    def test_oss_cli_defaults_to_first_pass(self, build_mock) -> None:
+        self.assertEqual(build_fes_coleco_oss.main(["--root", str(ROOT)]), 0)
+        self.assertFalse(build_mock.call_args.kwargs["best_fmax"])
 
     def test_coleco_gpu_configuration_constants_are_consistent(self) -> None:
         self.assertEqual(COLECO_GPU_BACKEND, "hip")
