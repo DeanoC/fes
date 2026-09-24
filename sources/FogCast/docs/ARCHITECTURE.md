@@ -960,8 +960,21 @@ firmware, ROM, and expansion slots). Ensure runs against that snapshot.
 A known target that is already disabled is refused before Ensure. An
 implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
-not pull. Host-only mesh play stays on the installed session node. A
-launchable FPGA entry that the foreign-kit check would deny is rejected
+not pull. Host-only mesh play stays on the installed session node.
+When mesh ensure is on, an explicit FPGA `LaunchOn` whose kit is not the
+executor already installed dials that kit and Ensures there. Before
+Ensure, the snapshot stores that kit's client. Open creates a client
+only for the selected target, so an explicit sibling that does not yet
+have one is opened with the target client factory and captured on the
+snapshot. The lease claim uses that client. A factory that cannot open
+it returns before Ensure and does not pull. Readiness
+keeps the selected-target session. That snapshot's executor is the
+dial, so a later change of the selected session does not by itself
+fail revalidation; the named kit's address, TargetID, and enabled flag
+still do. A dial that does not return that kit's node leaves the
+installed executor in the snapshot, and Ensure returns `ErrUnboundNode`
+without pulling on it. A launchable FPGA entry that the foreign-kit
+check would deny is rejected
 before Ensure. For an FPGA entry, LeaseFree is the session-owned kit
 grant and its generation. InUse is the Phase 1 busy connection: another
 session holds that kit. A fresh session does not yet hold a grant.
@@ -1033,9 +1046,36 @@ node. Those routes drive the kit store.
 They are not an Ensure-result document. The host installs the executor
 only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
 launch stay on the existing path. The store does not program the FPGA.
-The production agent opens the store with a nil content source and an
-empty ABI list. An empty ABI list is not eligibility. A nil content
-source advertises nothing.
+Production `fogcast-api` and the `fogcast` CLI call `EnableMeshContent`
+after open. `[mesh] ensure` defaults off, so that call leaves the seam
+off until the operator sets `ensure = true`. The default stays off
+until #177 (legacy fallback when the source does not advertise) and
+#172 (kit home host) land. The agent installs a
+launcher-backed content source unless `mesh_content = false`, which
+restores a nil source and an empty ABI list. With the switch on, the
+node document's ABIs and package ids are read from installed package
+manifests when that document is served. A directory named with the
+64-hex package id, or with a Stage publication
+`<package-id>-<token>`, contributes that package id. A package staged
+after the agent starts is included on the next read, and a removed
+stage is left out. The host re-reads that document when it asks the
+bound executor for package ids or eligible ABIs, and keeps the previous
+lists when the read fails. An empty ABI list
+is not eligibility. A nil content source advertises nothing. When the
+source is the launcher credential, the kit sends its own target id on
+`GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`.
+The host admits those two GETs for any enabled configured kit. They do
+not require that kit to be the listener's paired identity or the
+foreground selected target. Other launcher operations still require both.
+A pull still caps each write at `min(quota-used, free-reserve)`, re-reads free
+space while copying, and counts `partial/` bytes toward the 2 GiB
+quota. A failed dial leaves the host seam off, so Phase 0 and Phase 1
+launch continue. When the selected target's name, address, agent token,
+node id, or enabled flag no longer matches the dial that installed the
+executor, that session is dropped and the new endpoint is dialed.
+Until that dial succeeds, readiness stays on the Phase 0 and Phase 1
+path instead of the previous kit. Host-only titles are not projected
+into the seam.
 
 The projection is not a host route. JSON tags stay on the host catalog
 shape. Ensure results have no JSON tags. `GET /api/v1/mesh/nodes` does

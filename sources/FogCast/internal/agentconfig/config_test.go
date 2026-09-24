@@ -47,6 +47,32 @@ func TestLoadAgentConfigAcceptsExplicitPositiveCacheMaximum(t *testing.T) {
 	}
 }
 
+func TestLoadAgentConfigMeshContentDefaultsOn(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "agent.toml")
+	if err := os.WriteFile(path, []byte(validAgentConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.MeshContent {
+		t.Fatal("missing mesh_content defaulted off")
+	}
+	off := filepath.Join(t.TempDir(), "off.toml")
+	if err := os.WriteFile(off, []byte(validAgentConfig+"mesh_content = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err = agentconfig.Load(off)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.MeshContent {
+		t.Fatal("mesh_content = false stayed on")
+	}
+}
+
 func TestLoadAgentConfigAcceptsCanonicalTargetID(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "agent.toml")

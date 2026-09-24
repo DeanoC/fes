@@ -39,8 +39,9 @@ type meshABIJSON struct {
 }
 
 type meshNodeJSON struct {
-	NodeID string        `json:"node_id"`
-	ABIs   []meshABIJSON `json:"abis"`
+	NodeID   string        `json:"node_id"`
+	ABIs     []meshABIJSON `json:"abis"`
+	Packages []string      `json:"packages,omitempty"`
 }
 
 type meshStateJSON struct {
@@ -76,7 +77,11 @@ func meshNodeHandler(executor meshcontent.Executor) http.Handler {
 		for _, abi := range abis {
 			out = append(out, meshABIJSON{ID: abi.ID, Major: abi.Major})
 		}
-		writeJSON(w, http.StatusOK, meshNodeJSON{NodeID: executor.NodeID(), ABIs: out})
+		var packages []string
+		if holder, ok := executor.(meshcontent.PackageHolder); ok && holder != nil {
+			packages = holder.Packages()
+		}
+		writeJSON(w, http.StatusOK, meshNodeJSON{NodeID: executor.NodeID(), ABIs: out, Packages: packages})
 	})
 }
 

@@ -30,7 +30,12 @@ identity to the kit; the launcher does not obtain a kit lease credential.
 
 Each request sends `Authorization: Bearer <token>` and
 `X-FogCast-Target-ID: <target_id>`. The configured selected target must match the
-paired identity. Target settings updates and admitted launcher operations are
+paired identity. `GET /api/v1/mesh/content/source` and
+`GET /api/v1/mesh/content/object` are the exception: an enabled configured kit
+may read them with its own target id while another target stays selected.
+Those two GETs still require the launcher bearer token. A disabled or unknown
+target id is rejected. Other launcher operations still require the paired
+identity and the foreground selection. Target settings updates and admitted launcher operations are
 serialized so an address/selection edit cannot redirect an in-flight launch.
 An absent host no longer blanks the kit shelf: `fogcast-kit` paints the last-good
 catalog and covers from `/media/fat/fogcast/launcher-cache/` and labels the footer
@@ -59,6 +64,9 @@ Allowed operations are:
   `rating`, `completion`, `portable`, `series`, `related` / `related_ids`, and
   `collection` decode when present.
 - `GET /api/v1/presentation/artwork/{handle}` for 64-hex catalog or metadata cover, logo, and marquee handles.
+- `GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`
+  for one `id` query. These reads are admitted for any enabled configured
+  kit, not only the foreground selected target.
 - `GET /api/v1/session` and `/api/v1/session/input`.
 - `POST /api/v1/session/launch` with the existing `{"game_id":"pong"}` body.
 - `POST /api/v1/session/stop` with no body.

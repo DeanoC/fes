@@ -25,6 +25,11 @@ var (
 	remoteReadTimeout = 5 * time.Second
 	remoteLinkTimeout = 15 * time.Second
 	remoteSnapshotTTL = time.Second
+	// remoteNodeTTL is how long Packages and EligibleABIs reuse the
+	// node document. The kit re-reads installed packages when it serves
+	// that document, so a stage that appears after Dial is visible on
+	// the next read. A failed read keeps the previous lists.
+	remoteNodeTTL = time.Second
 )
 
 // MutationAuthorizer admits one host mutation with the session kit lease.
@@ -38,13 +43,16 @@ type MutationAuthorizer interface {
 // the FPGA. Pull and link ask the mutation authorizer, when one is set,
 // before the request is sent.
 type Remote struct {
-	base   url.URL
-	token  string
-	client *http.Client
-	nodeID string
-	abis   []meshcontent.EligibleABI
-	auth   MutationAuthorizer
-	snap   snapCache
+	base     url.URL
+	token    string
+	client   *http.Client
+	nodeID   string
+	abis     []meshcontent.EligibleABI
+	packages []string
+	auth     MutationAuthorizer
+	snap     snapCache
+	nodeMu   sync.Mutex
+	nodeAt   time.Time
 }
 
 type snapCache struct {
@@ -60,6 +68,7 @@ type nodeDocument struct {
 		ID    string `json:"id"`
 		Major int    `json:"major"`
 	} `json:"abis"`
+	Packages []string `json:"packages"`
 }
 
 type stateDocument struct {
@@ -91,11 +100,18 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 		return nil, errors.New("mesh content kit did not report a node id")
 	}
 	remote.nodeID = doc.NodeID
-	remote.abis = make([]meshcontent.EligibleABI, 0, len(doc.ABIs))
-	for _, abi := range doc.ABIs {
-		remote.abis = append(remote.abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
-	}
+	remote.storeNodeDocument(doc)
 	return remote, nil
+}
+
+func (r *Remote) storeNodeDocument(doc nodeDocument) {
+	abis := make([]meshcontent.EligibleABI, 0, len(doc.ABIs))
+	for _, abi := range doc.ABIs {
+		abis = append(abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
+	}
+	r.abis = abis
+	r.packages = normalizePackageIDs(doc.Packages)
+	r.nodeAt = time.Now()
 }
 
 // SetMutationAuthorizer installs the host kit-lease check for pull and
@@ -118,7 +134,47 @@ func (r *Remote) EligibleABIs() []meshcontent.EligibleABI {
 	if r == nil {
 		return nil
 	}
+	r.nodeMu.Lock()
+	defer r.nodeMu.Unlock()
+	r.refreshNodeLocked()
 	return append([]meshcontent.EligibleABI(nil), r.abis...)
+}
+
+// Packages returns described package ids the kit reported. An empty
+// list is not eligibility. Executor method signatures are unchanged;
+// ReadyHere reads this through PackageHolder.
+func (r *Remote) Packages() []string {
+	if r == nil {
+		return nil
+	}
+	r.nodeMu.Lock()
+	defer r.nodeMu.Unlock()
+	r.refreshNodeLocked()
+	return append([]string(nil), r.packages...)
+}
+
+// refreshNodeLocked re-reads the kit node document when the last copy
+// is older than remoteNodeTTL. Caller holds nodeMu. A different node
+// id or a failed read leaves the dialed lists in place.
+func (r *Remote) refreshNodeLocked() {
+	if r == nil {
+		return
+	}
+	if !r.nodeAt.IsZero() && time.Since(r.nodeAt) < remoteNodeTTL {
+		return
+	}
+	ctx, cancel := r.bound(context.Background(), remoteReadTimeout)
+	defer cancel()
+	var doc nodeDocument
+	if err := r.get(ctx, "/v1/mesh/content/node", nil, &doc); err != nil {
+		r.nodeAt = time.Now()
+		return
+	}
+	if strings.TrimSpace(doc.NodeID) != r.nodeID {
+		r.nodeAt = time.Now()
+		return
+	}
+	r.storeNodeDocument(doc)
 }
 
 func (r *Remote) Slot(id meshcontent.ContentID) meshcontent.SlotState {

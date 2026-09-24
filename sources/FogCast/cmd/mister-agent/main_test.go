@@ -298,6 +298,63 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	}
 }
 
+func TestMeshNodeDocumentFollowsStagedPackages(t *testing.T) {
+	const targetID = "01234567-89ab-cdef-0123-456789abcdef"
+	configPath := writeCompositionConfig(t, "target_id = \""+targetID+"\"\n")
+	root := t.TempDir()
+	pkg := strings.Repeat("ab", 32)
+	stage := filepath.Join(root, pkg+"-"+strings.Repeat("01", 16))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	deps := runDependencies{
+		meshContentRoot: t.TempDir(),
+		packageRoots:    []string{root},
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
+			return &compositionStore{}, nil
+		},
+		newRuntime: func(agentconfig.Config) agent.Runtime { return &compositionRuntime{} },
+		advertise:  func(context.Context, string, int) error { return errors.New("multicast unavailable") },
+		serve: func(server *http.Server) error {
+			readNode := func() string {
+				t.Helper()
+				request := httptest.NewRequest(http.MethodGet, "/v1/mesh/content/node", nil)
+				request.Header.Set("Authorization", "Bearer test-token")
+				response := httptest.NewRecorder()
+				server.Handler.ServeHTTP(response, request)
+				if response.Code != http.StatusOK {
+					t.Fatalf("mesh node = HTTP %d %s", response.Code, response.Body.String())
+				}
+				return response.Body.String()
+			}
+			if body := readNode(); strings.Contains(body, pkg) || !strings.Contains(body, `"node_id":"`+targetID+`"`) {
+				t.Fatalf("empty root node = %s", body)
+			}
+			if err := os.Mkdir(stage, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			manifest := "[abi]\nid = \"fes.simple-game\"\nmajor = 1\n"
+			if err := os.WriteFile(filepath.Join(stage, "manifest.toml"), []byte(manifest), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			body := readNode()
+			if !strings.Contains(body, pkg) || !strings.Contains(body, "fes.simple-game") {
+				t.Fatalf("staged package missing: %s", body)
+			}
+			if err := os.RemoveAll(stage); err != nil {
+				t.Fatal(err)
+			}
+			if body = readNode(); strings.Contains(body, pkg) {
+				t.Fatalf("removed stage still advertised: %s", body)
+			}
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDiscoveryListenerUsesConfiguredPortAndSkipsLoopback(t *testing.T) {
 	for _, tc := range []struct {
 		address   string

@@ -40,6 +40,8 @@ const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
 	meshContentRoot         = "/media/fat/fogcast/mesh-content"
+	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
+	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
@@ -66,7 +68,10 @@ type runDependencies struct {
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
 	meshContentRoot       string
-	newUpdate             func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
+	// packageRoots are the directories the node document scans for
+	// described packages. Nil uses the installed and development roots.
+	packageRoots []string
+	newUpdate    func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 }
 
 func run(ctx context.Context, configPath string, logger *slog.Logger) error {
@@ -263,15 +268,34 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
 	if dependencies.meshContentRoot != "" && targetID != "" {
 		// The kit store is served for this node's id. Pull and link are
-		// kit-lease mutations. The host launch seam stays off until a
-		// session installs an executor, so Phase 0 and Phase 1 do not
-		// call it. The content source stays nil and eligible ABIs stay
-		// empty: the agent does not inventory packages before it can
-		// name them.
-		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, nil, nil)
+		// kit-lease mutations and their bodies stay empty. mesh_content
+		// defaults on: the source reads the host through the provisioned
+		// launcher credential. The node document reads installed and
+		// staged package manifests on each request, so a stage published
+		// after startup is included and a removed stage is not.
+		// mesh_content = false keeps a nil source and an empty ABI list.
+		var source kitcontent.Source
+		if cfg.MeshContent {
+			opened, sourceErr := kitcontent.OpenLauncherSource(launcherConfigPath)
+			switch {
+			case sourceErr == nil:
+				source = opened
+			case errors.Is(sourceErr, os.ErrNotExist):
+			default:
+				logger.Error("mesh content source unavailable", "error", sourceErr)
+			}
+		}
+		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, source, nil)
 		if meshErr != nil {
 			logger.Error("mesh content store unavailable", "error", meshErr)
 		} else {
+			if cfg.MeshContent {
+				roots := dependencies.packageRoots
+				if roots == nil {
+					roots = []string{installedPackageRoot, developmentCoreRoot}
+				}
+				meshStore.SetPackageRoots(roots)
+			}
 			options = append(options, httpapi.WithMeshContent(meshStore))
 		}
 	}
