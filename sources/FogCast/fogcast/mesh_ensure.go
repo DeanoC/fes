@@ -168,7 +168,8 @@ type launchSnapshot struct {
 // catalog row once. A disabled known target returns before Ensure.
 // With the seam off, only the requested name is kept. An explicit
 // FPGA launch whose kit is a different node dials that kit for this
-// snapshot and leaves the selected-target session installed.
+// snapshot and leaves the selected-target session installed. That
+// dial captures the named kit's client before the snapshot returns.
 func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, error) {
 	if s == nil {
 		return launchSnapshot{}, nil
@@ -192,7 +193,9 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 	if snap.known && !snap.enabled {
 		return snap, snapshotMismatch(launchSnapshotTargetDisabled)
 	}
-	s.useRequestedMeshExecutor(&snap)
+	if err := s.useRequestedMeshExecutor(&snap); err != nil {
+		return snap, err
+	}
 	return snap, nil
 }
 
@@ -200,30 +203,67 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 // when the installed executor is a different node. Readiness keeps the
 // selected-target session. A failed dial leaves that executor in the
 // snapshot, so Ensure returns ErrUnboundNode and does not pull on it.
-// Host-only play stays on the installed session node.
-func (s *Service) useRequestedMeshExecutor(snap *launchSnapshot) {
+// Host-only play stays on the installed session node. A successful
+// dial captures the named kit's client before the snapshot is returned,
+// so Ensure claims that kit's lease through a real client.
+func (s *Service) useRequestedMeshExecutor(snap *launchSnapshot) error {
 	if s == nil || snap == nil || !snap.explicit || !snap.entryOK || !snap.known || !snap.enabled {
-		return
+		return nil
 	}
 	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
-		return
+		return nil
 	}
 	if snap.executor == nil || strings.TrimSpace(snap.nodeID) == "" || snap.executor.NodeID() == snap.nodeID {
-		return
+		return nil
 	}
 	s.meshMu.Lock()
 	ensure := s.meshEnsure
 	s.meshMu.Unlock()
 	if !ensure {
-		return
+		return nil
 	}
 	remote := s.dialNamedMeshExecutor(context.Background(), snap.name)
 	if remote == nil || remote.NodeID() != snap.nodeID {
-		return
+		return nil
+	}
+	if err := s.captureRequestedClient(snap); err != nil {
+		return err
 	}
 	snap.executor = remote
 	snap.siblingExecutor = true
 	s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: snap.nodeID, Executor: remote})
+	return nil
+}
+
+// captureRequestedClient stores the named kit's client on the snapshot
+// before Ensure. Open creates a client only for the selected target, so
+// a fresh explicit sibling is nil at capture. The factory opens that
+// client here. Ensure then claims the lease through it. A client that
+// cannot be opened returns before the sibling executor is installed.
+func (s *Service) captureRequestedClient(snap *launchSnapshot) error {
+	if snap == nil || snap.client != nil {
+		return nil
+	}
+	s.targetMu.Lock()
+	defer s.targetMu.Unlock()
+	if client := s.targetClients[snap.name]; client != nil {
+		snap.client = client
+		return nil
+	}
+	if s.targetClientFactory == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	cfg := targetByName(s.targets, snap.name)
+	client, err := s.targetClientFactory(cfg)
+	if err != nil || client == nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if s.targetClients == nil {
+		s.targetClients = map[string]serviceClient{}
+	}
+	s.targetClients[snap.name] = client
+	snap.client = client
+	return nil
 }
 
 func (s *Service) captureTargetLocked(session MeshExecuteSession, requested string) launchSnapshot {

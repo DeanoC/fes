@@ -135,6 +135,8 @@ func (s *launcherSource) request(ctx context.Context, path string, id meshconten
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+s.token)
+	// This kit's own target id. The host admits these content GETs for
+	// any enabled configured kit, including when another target is selected.
 	req.Header.Set("X-FogCast-Target-ID", s.targetID)
 	return req, nil
 }

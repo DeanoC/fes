@@ -962,7 +962,12 @@ implicit target with an empty TargetID is the bound node only when its
 name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
 not pull. Host-only mesh play stays on the installed session node.
 When mesh ensure is on, an explicit FPGA `LaunchOn` whose kit is not the
-executor already installed dials that kit and Ensures there. Readiness
+executor already installed dials that kit and Ensures there. Before
+Ensure, the snapshot stores that kit's client. Open creates a client
+only for the selected target, so an explicit sibling that does not yet
+have one is opened with the target client factory and captured on the
+snapshot. The lease claim uses that client. A factory that cannot open
+it returns before Ensure and does not pull. Readiness
 keeps the selected-target session. That snapshot's executor is the
 dial, so a later change of the selected session does not by itself
 fail revalidation; the named kit's address, TargetID, and enabled flag
@@ -1056,8 +1061,13 @@ after the agent starts is included on the next read, and a removed
 stage is left out. The host re-reads that document when it asks the
 bound executor for package ids or eligible ABIs, and keeps the previous
 lists when the read fails. An empty ABI list
-is not eligibility. A nil content source advertises nothing. A pull
-still caps each write at `min(quota-used, free-reserve)`, re-reads free
+is not eligibility. A nil content source advertises nothing. When the
+source is the launcher credential, the kit sends its own target id on
+`GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`.
+The host admits those two GETs for any enabled configured kit. They do
+not require that kit to be the listener's paired identity or the
+foreground selected target. Other launcher operations still require both.
+A pull still caps each write at `min(quota-used, free-reserve)`, re-reads free
 space while copying, and counts `partial/` bytes toward the 2 GiB
 quota. A failed dial leaves the host seam off, so Phase 0 and Phase 1
 launch continue. When the selected target's name, address, agent token,

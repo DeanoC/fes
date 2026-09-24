@@ -1,11 +1,13 @@
 package hostapi_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
 	"github.com/DeanoC/FogCast/internal/hostapi"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -97,6 +100,111 @@ func TestLauncherAllowsMeshContentGET(t *testing.T) {
 	handler.ServeHTTP(w, launcherRequest("POST", "http://192.0.2.1:8789/api/v1/mesh/content/object", nil))
 	if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "launcher operation is unavailable") {
 		t.Fatalf("rejected object: %d %s", w.Code, w.Body.String())
+	}
+}
+
+type meshSettingsService struct {
+	settingsFake
+	body []byte
+}
+
+func (m *meshSettingsService) MeshContentAdvertises(_ context.Context, id meshcontent.ContentID) bool {
+	return id == meshcontent.SumSHA256(m.body)
+}
+
+func (m *meshSettingsService) OpenMeshContent(_ context.Context, id meshcontent.ContentID) (io.ReadCloser, error) {
+	if id != meshcontent.SumSHA256(m.body) {
+		return nil, os.ErrNotExist
+	}
+	return io.NopCloser(bytes.NewReader(m.body)), nil
+}
+
+func TestLauncherMeshContentAllowsUnselectedKit(t *testing.T) {
+	const siblingID = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	payload := []byte("sibling-bios")
+	id := meshcontent.SumSHA256(payload)
+	sourcePath := "http://192.0.2.1:8789/api/v1/mesh/content/source?id=" + id.String()
+	objectPath := "http://192.0.2.1:8789/api/v1/mesh/content/object?id=" + id.String()
+	gamesPath := "http://192.0.2.1:8789/api/v1/games"
+	targets := []fogcast.TargetConfig{
+		{Name: "kit-a", Enabled: true, TargetID: launcherID},
+		{Name: "kit-b", Enabled: true, TargetID: siblingID},
+	}
+	handlerFor := func(selected, configured string, kits []fogcast.TargetConfig) http.Handler {
+		t.Helper()
+		service := &meshSettingsService{
+			settingsFake: settingsFake{settings: fogcast.LibraryConfig{SelectedTarget: selected, Targets: kits}},
+			body:         payload,
+		}
+		handler, err := hostapi.NewLauncherHandler(hostapi.New(service), hostapi.LauncherConfig{Token: launcherToken, TargetID: configured})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return handler
+	}
+	serve := func(handler http.Handler, method, path, targetID, token string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := launcherRequest(method, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("X-FogCast-Target-ID", targetID)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+
+	paired := handlerFor("kit-a", launcherID, targets)
+	w := serve(paired, http.MethodGet, sourcePath, siblingID, launcherToken)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"advertises":true`) {
+		t.Fatalf("sibling source: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(paired, http.MethodGet, objectPath, siblingID, launcherToken)
+	if w.Code != http.StatusOK || w.Body.String() != string(payload) {
+		t.Fatalf("sibling object: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(paired, http.MethodGet, gamesPath, siblingID, launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("sibling catalogue: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(paired, http.MethodGet, sourcePath, "11111111-1111-1111-1111-111111111111", launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("unknown kit: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(paired, http.MethodGet, sourcePath, siblingID, "wrong")
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("sibling auth: %d %s", w.Code, w.Body.String())
+	}
+
+	disabled := handlerFor("kit-a", launcherID, []fogcast.TargetConfig{
+		{Name: "kit-a", Enabled: true, TargetID: launcherID},
+		{Name: "kit-b", Enabled: false, TargetID: siblingID},
+	})
+	w = serve(disabled, http.MethodGet, sourcePath, siblingID, launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("disabled sibling: %d %s", w.Code, w.Body.String())
+	}
+
+	// The listener is paired to B while A stays selected. The selected-target
+	// check rejects every other launcher operation. Content reads still admit B.
+	moved := handlerFor("kit-a", siblingID, targets)
+	w = serve(moved, http.MethodGet, sourcePath, siblingID, launcherToken)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"advertises":true`) {
+		t.Fatalf("configured sibling while A selected: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(moved, http.MethodGet, gamesPath, siblingID, launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("configured sibling catalogue: %d %s", w.Code, w.Body.String())
+	}
+
+	// Selection moved to B. A remains enabled, so A's content read is admitted
+	// and A's catalogue request is not.
+	reselected := handlerFor("kit-b", launcherID, targets)
+	w = serve(reselected, http.MethodGet, objectPath, launcherID, launcherToken)
+	if w.Code != http.StatusOK || w.Body.String() != string(payload) {
+		t.Fatalf("paired content after selection moved: %d %s", w.Code, w.Body.String())
+	}
+	w = serve(reselected, http.MethodGet, gamesPath, launcherID, launcherToken)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("paired catalogue after selection moved: %d %s", w.Code, w.Body.String())
 	}
 }
 

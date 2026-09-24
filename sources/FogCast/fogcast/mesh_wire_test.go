@@ -173,6 +173,7 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 		sources: map[string]bool{cart.String(): true},
 		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
 	}
+	var sibling serviceClient
 	service := &Service{
 		meshEnsureConfig: true,
 		targets: []TargetConfig{
@@ -180,10 +181,14 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
 		},
 		selectedTarget: "kit-a",
-		targetClients: map[string]serviceClient{
-			"kit-a": ownedMeshClient(),
-			"kit-b": ownedMeshClient(),
-		},
+		targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient()},
+	}
+	service.targetClientFactory = func(cfg TargetConfig) (serviceClient, error) {
+		if cfg.Name != "kit-b" {
+			t.Fatalf("client factory for %s", cfg.Name)
+		}
+		sibling = ownedMeshClient()
+		return sibling, nil
 	}
 	service.EnableMeshContent()
 	if _, on := service.GamesMeshReady(context.Background(), nil); !on || hitsA.Load() != 1 || hitsB.Load() != 0 {
@@ -203,6 +208,9 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 	if snap.executor == nil || !snap.siblingExecutor || snap.executor == selected || snap.executor.NodeID() != nodeB || snap.nodeID != nodeB {
 		t.Fatalf("sibling executor flag=%v node=%s", snap.siblingExecutor, snap.nodeID)
 	}
+	if snap.client == nil || sibling == nil || snap.client != sibling {
+		t.Fatal("sibling lease client was not captured before ensure")
+	}
 	if err := service.revalidateLaunchSnapshot(snap); err != nil {
 		t.Fatalf("revalidate %v", err)
 	}
@@ -214,7 +222,7 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 	}
 	beforeB := hitsB.Load()
 	_, err = service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
-	if errors.Is(err, meshcontent.ErrUnboundNode) || beforeB == hitsB.Load() {
+	if errors.Is(err, meshcontent.ErrUnboundNode) || errors.Is(err, meshcontent.ErrLeaseNotFree) || beforeB == hitsB.Load() {
 		t.Fatalf("sibling launch err=%v hitsB %d -> %d", err, beforeB, hitsB.Load())
 	}
 	if len(selected.pulls) != 0 || len(selected.links) != 0 {
@@ -224,6 +232,87 @@ func TestLaunchOnNonSelectedKitUsesThatExecutor(t *testing.T) {
 	if err != nil || same.siblingExecutor || same.executor != selected {
 		t.Fatalf("selected launch sibling=%v err=%v", same.siblingExecutor, err)
 	}
+}
+
+func TestFreshSiblingClientIsCapturedBeforeEnsure(t *testing.T) {
+	const (
+		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+	)
+	var hitsA, hitsB atomic.Int32
+	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
+	defer serverA.Close()
+	serverB := meshContentServer(&hitsB, nodeB, "token-b")
+	defer serverB.Close()
+	entry, _ := fpgaMeshEntry("coleco-frogger")
+	selected := &meshLaunchExecutor{
+		node: nodeA,
+		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	newService := func() *Service {
+		service := &Service{
+			meshEnsureConfig: true,
+			targets: []TargetConfig{
+				{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
+				{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
+			},
+			selectedTarget: "kit-a",
+			targetClients:  map[string]serviceClient{"kit-a": ownedMeshClient()},
+		}
+		service.EnableMeshContent()
+		if _, on := service.GamesMeshReady(context.Background(), nil); !on {
+			t.Fatal("selected kit did not install the seam")
+		}
+		service.SetMeshExecuteSession(MeshExecuteSession{
+			BoundNode: nodeA,
+			Executor:  selected,
+			Entry: func(gameID string) (meshcontent.Entry, bool) {
+				return entry, gameID == entry.TitleID
+			},
+		})
+		return service
+	}
+
+	t.Run("claim", func(t *testing.T) {
+		service := newService()
+		var created *releasingMeshClient
+		service.targetClientFactory = func(cfg TargetConfig) (serviceClient, error) {
+			if cfg.Name != "kit-b" || created != nil {
+				t.Fatalf("factory name=%s created=%v", cfg.Name, created != nil)
+			}
+			created = &releasingMeshClient{}
+			return created, nil
+		}
+		_, err := service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
+		if created == nil || service.targetClients["kit-b"] != created {
+			t.Fatal("sibling client was not created before ensure")
+		}
+		if errors.Is(err, meshcontent.ErrLeaseNotFree) || !errors.Is(err, meshcontent.ErrContentMissingNoSource) {
+			t.Fatalf("err %v", err)
+		}
+		if created.claims != 1 || created.releases != 1 {
+			t.Fatalf("claims %d releases %d", created.claims, created.releases)
+		}
+		if len(selected.pulls) != 0 || len(selected.links) != 0 {
+			t.Fatalf("selected executor pulled %+v", selected.pulls)
+		}
+	})
+
+	t.Run("factory-failure", func(t *testing.T) {
+		selected.pulls, selected.links = nil, nil
+		service := newService()
+		service.targetClientFactory = func(TargetConfig) (serviceClient, error) {
+			return nil, errors.New("sibling client unavailable")
+		}
+		_, err := service.LaunchOn(context.Background(), entry.TitleID, "kit-b", nil)
+		var api *protocol.APIError
+		if !errors.As(err, &api) || api.Code != protocol.CodeBadRequest || errors.Is(err, meshcontent.ErrLeaseNotFree) {
+			t.Fatalf("err %v", err)
+		}
+		if service.targetClients["kit-b"] != nil || len(selected.pulls) != 0 {
+			t.Fatalf("client %#v pulls %+v", service.targetClients["kit-b"], selected.pulls)
+		}
+	})
 }
 
 func TestLaunchOnNonSelectedHostEntryStaysOnSelectedExecutor(t *testing.T) {

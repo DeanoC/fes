@@ -69,7 +69,13 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			writeError(w, http.StatusUnauthorized, "UNAUTHORIZED", "launcher authentication required")
 			return
 		}
-		if r.Header.Get("X-FogCast-Target-ID") != config.TargetID {
+		// Content GETs are how a kit reads BIOS, media, and expansion
+		// while another target stays selected. They keep the launcher
+		// bearer and name an enabled configured kit. They do not require
+		// that kit to be this listener's paired identity or the
+		// foreground selection. Every other launcher operation still does.
+		contentRead := launcherMeshContentRead(r.Method, r.URL.Path)
+		if !contentRead && r.Header.Get("X-FogCast-Target-ID") != config.TargetID {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
@@ -79,7 +85,12 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		}
 		a.targetMu.Lock()
 		defer a.targetMu.Unlock()
-		if a.selectedTargetID() != config.TargetID {
+		if contentRead {
+			if !a.launcherMeshContentTarget(r.Header.Get("X-FogCast-Target-ID"), config.TargetID) {
+				writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
+				return
+			}
+		} else if a.selectedTargetID() != config.TargetID {
 			writeError(w, http.StatusForbidden, "TARGET_MISMATCH", "launcher target does not match the selected target")
 			return
 		}
@@ -90,6 +101,33 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 		}
 		a.routes.ServeHTTP(w, r)
 	})), nil
+}
+
+func launcherMeshContentRead(method, path string) bool {
+	return method == http.MethodGet && (path == "/api/v1/mesh/content/source" || path == "/api/v1/mesh/content/object")
+}
+
+// launcherMeshContentTarget admits a content GET from an enabled
+// configured kit. The foreground selected target is not consulted.
+// A service that does not publish a target list keeps the paired identity.
+func (a *applicationHandler) launcherMeshContentTarget(headerID, configured string) bool {
+	if headerID == "" {
+		return false
+	}
+	provider, ok := a.service.(interface{ LibrarySettings() fogcast.LibraryConfig })
+	if !ok {
+		return headerID == configured
+	}
+	settings := provider.LibrarySettings()
+	if len(settings.Targets) == 0 {
+		return headerID == configured
+	}
+	for _, target := range settings.Targets {
+		if target.Enabled && target.TargetID == headerID {
+			return true
+		}
+	}
+	return false
 }
 
 func launcherOperation(method, path string) bool {

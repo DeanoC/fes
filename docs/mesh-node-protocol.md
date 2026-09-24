@@ -400,6 +400,8 @@ The host serves core-media whose media id is that digest, or an
 expansion cart payload whose `CartSHA256` is that digest. A library
 path is not the id. These two GETs are launcher operations so the kit
 can use the existing launcher listener. They are not kit-lease mutations.
+The host admits them for any enabled configured kit, including when that
+kit is not the foreground selected target.
 
 ## Non-goals for the v1 protocol
 
