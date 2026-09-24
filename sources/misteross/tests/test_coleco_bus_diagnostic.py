@@ -106,6 +106,10 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
                 )
 
     def test_response_boundary_contract_accepts_only_declared_bits(self):
+        self.assertEqual(diagnostic.RESPONSE_BOUNDARY_CONTRACT,
+                         "fes.coleco.response-boundary/4")
+        self.assertEqual(diagnostic.RESPONSE_BOUNDARY_COORDINATES,
+                         ((3332, 803), (3333, 802)))
         die = SimpleNamespace(cram_sx=4096)
         cram_size = (die.cram_sx * 1162 + 7) // 8
         base = SimpleNamespace(die=die, cram=bytearray(cram_size))
@@ -114,10 +118,10 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             old, new = index % 2, 1 - index % 2
             cram_set(base.cram, die, x, y, old)
             cram_set(placed.cram, die, x, y, new)
-        coordinates = [[2917, 797], [2917, 799], [3328, 906]]
+        coordinates = [[3332, 803], [3333, 802]]
         changes = {
             "bits_inside_slot": 65,
-            "bits_outside_slot": 3,
+            "bits_outside_slot": 2,
             "outside_slot_coordinates": coordinates,
             "outside_slot_coordinates_truncated": False,
         }
@@ -134,7 +138,7 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
             self.assertTrue(report["archive_published"])
             self.assertEqual(report["boundary_patch"], patch_manifest)
 
-        extra_change = dict(changes, bits_outside_slot=4,
+        extra_change = dict(changes, bits_outside_slot=3,
                             outside_slot_coordinates=coordinates + [[100, 100]])
         with self.assertRaisesRegex(ValueError, "outside the socket and declared response patch"):
             diagnostic.enforce_cram_region(extra_change, Path("cram-diff.json"), base, placed)

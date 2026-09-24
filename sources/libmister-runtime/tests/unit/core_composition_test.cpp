@@ -69,23 +69,23 @@ void ColecoBusAdmission() {
 	assert(!f.Open(&out).ok());
 }
 void ColecoBoundaryPatchAdmission() {
-	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":2917,\"y\":797},"
-		"{\"value\":1,\"x\":2917,\"y\":799},{\"value\":0,\"x\":3328,\"y\":906}],"
-		"\"contract\":\"fes.coleco.response-boundary/3\"},";
+	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
+		"{\"value\":1,\"x\":3333,\"y\":802}],"
+		"\"contract\":\"fes.coleco.response-boundary/4\"},";
 	Fixture f(true);OpenedCoreComposition out;
 	f.manifest.insert(1,patch);f.Seal();
 	assert(f.Open(&out).ok());
 	assert(RecheckCoreComposition(out).ok());
 }
 void RejectColecoBoundaryPatchVariants() {
-	const std::string valid="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":2917,\"y\":797},"
-		"{\"value\":1,\"x\":2917,\"y\":799},{\"value\":0,\"x\":3328,\"y\":906}],"
-		"\"contract\":\"fes.coleco.response-boundary/3\"},";
+	const std::string valid="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"
+		"{\"value\":1,\"x\":3333,\"y\":802}],"
+		"\"contract\":\"fes.coleco.response-boundary/4\"},";
 	for (const auto& mutation : {
 		std::pair<std::string,std::string>{"\"value\":1", "\"value\":2"},
-		{"\"x\":3328", "\"x\":3329"},
-		{"\"y\":797", "\"y\":798"},
-		{"response-boundary/3", "response-boundary/2"},
+		{"\"x\":3333", "\"x\":3334"},
+		{"\"y\":803", "\"y\":804"},
+		{"response-boundary/4", "response-boundary/3"},
 		{"],\"contract\"", ",{\"value\":0,\"x\":3328,\"y\":906}],\"contract\""},
 	}) {
 		Fixture f(true);OpenedCoreComposition out;

@@ -53,29 +53,29 @@ shell and checks its CRAM diff before publishing an expansion archive. The
 builder reconstructs the system PLL's second output from the exact frozen net
 metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
 route. The full-response diagnostic route completes and passes all three clock
-gates. Against the sealed shell built with the Coleco nextpnr pin, it changes
-three bits outside the declared region at `(2917,797)`, `(2917,799)` and
-`(3328,906)`. They map to routing muxes `H3.033.009.0019` and
-`H14.025.010.0001`, which the frozen shell uses on
-`$PACKER_GND_NET` response `DATAIN` stubs. Cart merge disconnects those
-placeholder ground sinks when it connects the response bank, so these are
-deselected shell muxes rather than newly selected cart routes escaping the
+gates. The current integrated shell changes two bits outside the declared
+region at `(3332,803)` and `(3333,802)`. Both belong to routing mux
+`H6.033.009.0035`, which the frozen shell uses on `$PACKER_GND_NET` leading
+to the vacant response `DATAIN` stub at row 9. Cart merge disconnects that
+placeholder ground sink when it drives the response bank, so these are
+deselected shell mux bits rather than newly selected cart routes escaping the
 fence. The one-bit response control does not exercise the full set of response
 boundary stubs. The producer records the exact coordinates and resulting values
-in a `fes.coleco.response-boundary/3` manifest patch. The Go linker accepts
-that closed three-bit patch alongside the CPU-bus rectangle and rejects any
+in a `fes.coleco.response-boundary/4` manifest patch. The Go linker accepts
+that closed two-bit patch alongside the CPU-bus rectangle and rejects any
 other outside change; the socket rectangle itself is unchanged.
 `cram-diff.json` retains the changed coordinates and reports whether the
 declared contract matches. The diagnostic's WAIT request stays armed until a
 CPU read starts, then advances every sixteen system clocks.
 `sim-fes-coleco-diagnostic` exercises this through the registered socket with a
-real CPU program. The linked diagnostic has a functional kit check recorded in
-the dated Coleco expansion bus validation note; the factory image still uses
-the normal package, and that check does not accept a newly assembled image.
+real CPU program. A previous linked diagnostic has a functional kit check in
+the dated Coleco expansion bus validation note. That check covers its recorded
+artifact only; the integrated shell and cart still need their own kit check.
+The factory image continues to use the normal package.
 
 External bus mastering, video/audio takeover and bank switching remain outside
-this first slice. The
-logical frame cadence follows the TMS9918A manual's 262-line, approximately
+this first slice. The logical frame cadence follows the TMS9918A manual's
+262-line, approximately
 60-frame/s noninterlaced mode; composite sync details, half-line behavior and
 cycle-perfect raster effects remain outside this slice. Native host/runtime
 selection follows the declared interfaces. Graphics II supports screen-third

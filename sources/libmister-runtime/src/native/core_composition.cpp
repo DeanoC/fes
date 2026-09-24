@@ -90,16 +90,15 @@ public:
 	bool HasBoundaryPatch() const {return bytes_.find("{\"boundary_patch\":")==0;}
 	bool ColecoBoundaryPatch() {
 		if (!Take("{\"boundary_patch\":{\"bits\":[")) return false;
-		const std::array<const char*,3> coordinates={{
-			",\"x\":2917,\"y\":797}",
-			",\"x\":2917,\"y\":799}",
-			",\"x\":3328,\"y\":906}",
+		const std::array<const char*,2> coordinates={{
+			",\"x\":3332,\"y\":803}",
+			",\"x\":3333,\"y\":802}",
 		}};
 		for (std::size_t i=0;i<coordinates.size();++i) {
 			if (i && !Take(",")) return false;
 			if (!Take("{\"value\":") || !(Take("0") || Take("1")) || !Take(coordinates[i])) return false;
 		}
-		return Take("],\"contract\":\"fes.coleco.response-boundary/3\"}");
+		return Take("],\"contract\":\"fes.coleco.response-boundary/4\"}");
 	}
 	bool Text(const std::string& key, std::string* value) {
 		if (!Key(key) || !Take("\"")) return false;

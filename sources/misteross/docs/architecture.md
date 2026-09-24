@@ -471,8 +471,8 @@ empty socket; launch splices BASIC into the programmed bitstream.
 The `expansion` Go linker admits only the versioned ZX81 full-height socket or
 the Coleco CPU-bus rectangle `(1769, 32, 2806, 1034)`, selected by the exact
 slot/map pair. A Coleco manifest may also declare
-`fes.coleco.response-boundary/3`: exactly three fixed shell-response CRAM
-coordinates and each cart bit's resulting value. The linker requires all three
+`fes.coleco.response-boundary/4`: exactly two fixed shell-response CRAM
+coordinates and each cart bit's resulting value. The linker requires both
 bits to change as declared, applies them with the socket overlay and rejects
 every other outside change. This patch does not enlarge the socket rectangle.
 Changed Coleco frames regenerate their checksums; the existing ZX81 `Link`
@@ -577,8 +577,8 @@ physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
 Mistral and nextpnr pins. The development producer seals a timed shell with a
 vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus`
 1.0. The diagnostic module uses the frozen shell and restores the system PLL's
-second output from exact routed metadata. Its producer permits only the three
-fixed response-stub changes declared by `fes.coleco.response-boundary/3`,
+second output from exact routed metadata. Its producer permits only the two
+fixed response-stub changes declared by `fes.coleco.response-boundary/4`,
 alongside the CPU-bus rectangle; the linker rejects every other outside change.
 The selected factory recipe and FES registration remain unchanged. External
 bus mastering, video/audio takeover, bank switching and retail-cartridge
