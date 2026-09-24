@@ -10,8 +10,8 @@ import (
 	"fmt"
 )
 
-// Geometry and framing are pinned to the DE10-Nano sx120f die and the ZX81
-// ZX81 expansion bus v1. Callers cannot enlarge the permitted overlay rectangle.
+// Geometry and framing are pinned to the DE10-Nano sx120f die. Slot policies
+// below are closed; callers cannot enlarge an overlay rectangle.
 const (
 	cramWidth      = 7605
 	cramHeight     = 7024
@@ -303,11 +303,51 @@ func saveRBF(loaded loadedRBF) []byte {
 	return append(result, postamble()...)
 }
 
-func insideSocket(x, y int) bool { return x >= 1769 && x < 2806 && y >= 32 && y < cramHeight }
+type socketPolicy struct {
+	slot, mapping  string
+	x0, y0, x1, y1 int
+}
+
+var zx81Socket = socketPolicy{Slot, Map, 1769, 32, 2806, cramHeight}
+var colecoSocket = socketPolicy{ColecoSlot, ColecoMap, 1769, 32, 2806, 1034}
+
+func policyFor(slot, mapping string) (socketPolicy, error) {
+	switch {
+	case slot == Slot && mapping == Map:
+		return zx81Socket, nil
+	case slot == ColecoSlot && mapping == ColecoMap:
+		return colecoSocket, nil
+	default:
+		return socketPolicy{}, errors.New("unsupported expansion target, socket or version")
+	}
+}
+
+func (p socketPolicy) inside(x, y int) bool {
+	return x >= p.x0 && x < p.x1 && y >= p.y0 && y < p.y1
+}
+
+// ROM linking currently belongs to the ZX81 socket and retains its original
+// overlap check until another core declares a ROM map alongside a slot.
+func insideSocket(x, y int) bool { return zx81Socket.inside(x, y) }
 
 func crcCompanionColumn(x int) bool {
 	// Same pinned non-routing CRC strips as cyclonev_rbf.SX120F.
 	return (x >= 3488 && x < 3847) || (x >= 3921 && x < 3980) || (x >= 4171 && x < 4471)
+}
+
+func refreshFrameChecksums(frame []byte, x int) {
+	zone := 0
+	for _, candidate := range crcZones {
+		if x <= candidate+255 {
+			zone = candidate
+			break
+		}
+	}
+	clear(frame[frameBytes-8:])
+	if x < zone {
+		binary.LittleEndian.PutUint32(frame[frameBytes-8:], crc32Frame(frame))
+	}
+	binary.LittleEndian.PutUint16(frame[frameBytes-2:], crc16(frame[:frameBytes-2]))
 }
 
 // Link overlays the fixed ZX81 expansion bus. Every non-CRC change outside that
@@ -319,6 +359,10 @@ func Link(shell, cart []byte) ([]byte, error) {
 
 // LinkContext is the cancellable expansion linker.
 func LinkContext(ctx context.Context, shell, cart []byte) ([]byte, error) {
+	return linkContextWithPolicy(ctx, shell, cart, zx81Socket)
+}
+
+func linkContextWithPolicy(ctx context.Context, shell, cart []byte, policy socketPolicy) ([]byte, error) {
 	base, err := loadFramesContext(ctx, shell)
 	if err != nil {
 		return nil, fmt.Errorf("shell: %w", err)
@@ -336,18 +380,26 @@ func LinkContext(ctx context.Context, shell, cart []byte) ([]byte, error) {
 		}
 		before := base.frames[x*frameBytes : (x+1)*frameBytes]
 		after := addition.frames[x*frameBytes : (x+1)*frameBytes]
-		if insideSocket(x, 32) {
+		if policy.y1 == cramHeight && policy.inside(x, 32) {
 			copy(before, after)
 			continue
 		}
 		if crcCompanionColumn(x) || bytes.Equal(before, after) {
 			continue
 		}
+		changed := false
 		for y := 32; y < cramHeight; y++ {
 			pos := frameBit(y)
 			if (before[pos/8]^after[pos/8])&(1<<(pos%8)) != 0 {
-				return nil, fmt.Errorf("cart changes CRAM outside socket at %d,%d", x, y)
+				if !policy.inside(x, y) {
+					return nil, fmt.Errorf("cart changes CRAM outside socket at %d,%d", x, y)
+				}
+				before[pos/8] = (before[pos/8] &^ (1 << (pos % 8))) | (after[pos/8] & (1 << (pos % 8)))
+				changed = true
 			}
+		}
+		if changed {
+			refreshFrameChecksums(before, x)
 		}
 	}
 	packed, err := compressContext(ctx, base.frames)

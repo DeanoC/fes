@@ -34,7 +34,31 @@ retail-game compatibility.
   System/audio clocks share one 52.224/12.288 MHz PLL; the CPU/raster cadence is
   0.43% faster than the earlier 52 MHz profile, while HDMI pixel timing is fixed.
 
-Expansion hardware, bank switching, full VDP modes,
+The machine now models a normally vacant CPU peripheral edge. It exposes Z80
+address/data/control cycles and accepts read data, claim, WAIT and maskable INT
+from a future independently placed module. The machine
+masks read claims to memory `0x2000–0x5fff` and unclaimed I/O ports; BIOS, RAM,
+cartridge, VDP and controller reads retain console priority. The
+`sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
+diagnostic responder. A registered physical socket is available only behind
+`FES_COLECO_EXPANSION_DEV`. The separate
+`scripts/build_fes_coleco_socket_dev.py` recipe uses
+`toolchains/coleco-expansion.lock` to seal a timed development shell with an
+empty `24 1 28 11` region. It declares optional `fes.expansion.coleco-bus`
+1.0 and leaves the factory Coleco producer unchanged. The diagnostic module
+recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
+shell and checks its CRAM diff before publishing an expansion archive. The
+builder reconstructs the system PLL's second output from the exact frozen net
+metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
+route. The authenticated development shell and current diagnostic module pass
+routing, all three clock gates and the socket CRAM audit. The diagnostic's WAIT
+request stays armed until a CPU read starts, then advances every sixteen system
+clocks. `sim-fes-coleco-diagnostic` exercises this through the registered socket
+with a real CPU program. The current diagnostic changes 3,388 CRAM bits inside
+the socket and zero outside. This host-only lane has no kit acceptance or
+library registration.
+
+External bus mastering, video/audio takeover, bank switching, full VDP modes,
 and cycle-perfect clocking remain outside this first slice. Native host/runtime
 selection follows the declared interfaces. Graphics II supports screen-third
 pattern/color addressing and register masks. The bounded sprite path includes

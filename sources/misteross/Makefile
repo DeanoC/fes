@@ -371,7 +371,7 @@ sim-fes-coleco-audio:
 COLECO_BOARD_CASES := graphics stream interactive controllers vdp-io sprites
 COLECO_BOARD_TARGETS := $(addprefix sim-fes-coleco-board-,$(COLECO_BOARD_CASES))
 .PHONY: sim-fes-coleco-unit sim-fes-coleco-unit-oss sim-fes-coleco-board-build sim-fes-coleco-board-build-oss $(COLECO_BOARD_TARGETS) $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
-sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss
+sim-fes-coleco: sim-fes-coleco-unit $(COLECO_BOARD_TARGETS) sim-fes-coleco-oss sim-fes-coleco-expansion
 sim-fes-coleco-oss: sim-fes-coleco-unit-oss $(addsuffix -oss,$(COLECO_BOARD_TARGETS))
 
 $(COLECO_BOARD_TARGETS): sim-fes-coleco-board-build
@@ -442,6 +442,65 @@ sim-fes-coleco-unit: sim-fes-coleco-audio sim-fes-coleco-graphics sim-fes-coleco
 		cores/fes-common/rtl/coleco_video_dpram.v cores/fes-common/rtl/coleco_video_720p.v \
 		"$(CURDIR)/cores/fes-coleco/sim/video_tb.cpp"
 	@build/sim/fes-coleco-video/Vcoleco_video_720p
+
+.PHONY: sim-fes-coleco-expansion
+sim-fes-coleco-expansion:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-expansion
+	$(VERILATOR) --cc --exe --build --top-module coleco_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
+		-CFLAGS "-DFES_COLECO_OSS=1" \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-expansion" \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/expansion_tb.cpp"
+	@build/sim/fes-coleco-expansion/Vcoleco_machine
+
+.PHONY: sim-fes-coleco-diagnostic
+sim-fes-coleco-diagnostic:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-diagnostic
+	$(VERILATOR) --cc --exe --build --top-module cart -Wall \
+		-Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-UNUSEDPARAM \
+		-Icores/fes-coleco/rtl \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-diagnostic" \
+		cores/fes-coleco/expansions/diagnostic.v \
+		"$(CURDIR)/cores/fes-coleco/sim/diagnostic_tb.cpp"
+	@build/sim/fes-coleco-diagnostic/Vcart
+	@$(MAKE) sim-fes-coleco-diagnostic-machine
+
+.PHONY: sim-fes-coleco-diagnostic-machine
+sim-fes-coleco-diagnostic-machine:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-coleco-diagnostic-machine
+	$(VERILATOR) --cc --exe --build --top-module diagnostic_machine -Wall \
+		-DTV80_REFRESH=1 -DFES_COLECO_OSS=1 \
+		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
+		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
+		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
+		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
+		-Icores/fes-coleco/rtl -Icores/fes-coleco/generated -Icores/fes-common/rtl/tv80 \
+		--Mdir "$(CURDIR)/build/sim/fes-coleco-diagnostic-machine" \
+		cores/fes-coleco/sim/diagnostic_machine.sv \
+		cores/fes-coleco/rtl/coleco_expansion_socket.v \
+		cores/fes-coleco/expansions/diagnostic.v \
+		cores/fes-common/rtl/fes_sn76489.sv cores/fes-coleco/rtl/coleco_machine.sv \
+		cores/fes-common/rtl/coleco_vdp.sv cores/fes-common/rtl/coleco_dpram.v \
+		cores/fes-common/rtl/coleco_video_dpram.v \
+		cores/fes-common/rtl/t80pa.v cores/fes-common/rtl/tv80/tv80_core.v \
+		cores/fes-common/rtl/tv80/tv80_alu.v cores/fes-common/rtl/tv80/tv80_mcode.v \
+		cores/fes-common/rtl/tv80/tv80_reg.v \
+		"$(CURDIR)/cores/fes-coleco/sim/diagnostic_machine_tb.cpp"
+	@build/sim/fes-coleco-diagnostic-machine/Vdiagnostic_machine
 
 sim-fes-coleco-board-build:
 	$(require_local_sim)

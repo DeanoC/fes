@@ -36,7 +36,9 @@ module coleco_machine (
     input  wire        firmware_we_a,
     input  wire        firmware_we_b,
     input  wire [12:0] firmware_addr,
-    input  wire [15:0] firmware_data
+    input  wire [15:0] firmware_data,
+    output wire [30:0] bus_request,
+    input  wire [10:0] bus_response
 );
     localparam [14:0] CARTRIDGE_LAST = 15'h7fff;
 
@@ -62,6 +64,12 @@ module coleco_machine (
     wire nWR;
     wire nRFSH;
     wire nHALT;
+    wire [7:0] bus_rdata = bus_response[7:0];
+    wire bus_claim = bus_response[8];
+    wire bus_wait = bus_response[9];
+    wire bus_int = bus_response[10];
+    assign bus_request = {machine_reset, nRFSH, nM1, nWR, nRD, nIORQ,
+                          nMREQ, cpu_dout, cpu_addr};
 
     reg ce_cpu_p;
     reg ce_cpu_n;
@@ -197,8 +205,8 @@ module coleco_machine (
         .CLK(clk_sys),
         .CEN_p(ce_cpu_p),
         .CEN_n(ce_cpu_n),
-        .WAIT_n(1'b1),
-        .INT_n(1'b1),
+        .WAIT_n(~bus_wait),
+        .INT_n(~bus_int),
         .NMI_n(vdp_irq_n),
         .BUSRQ_n(1'b1),
         .M1_n(nM1),
@@ -241,6 +249,12 @@ module coleco_machine (
     wire cpu_ram_select = cpu_addr[15:13] == 3'b011;
     wire cpu_cartridge_select = cpu_addr[15:14] == 2'b10 ||
                                  cpu_addr[15:14] == 2'b11;
+    wire console_io_select = cpu_addr[7:0] == 8'hbe ||
+                             cpu_addr[7:0] == 8'hbf ||
+                             cpu_addr[7:5] == 3'b111;
+    wire bus_read_selected = bus_claim &&
+        ((cpu_mem_read && cpu_addr >= 16'h2000 && cpu_addr <= 16'h5fff) ||
+         (cpu_io_read && !console_io_select));
 
     // Keep the three machine memories in the same explicit wrapper shape as
     // the ZX81 bringup. The OSS mapper cannot reliably infer the larger
@@ -345,6 +359,8 @@ module coleco_machine (
         end else if (cpu_io_read) begin
             cpu_din = io_read_data;
         end
+        if (bus_read_selected)
+            cpu_din = bus_rdata;
     end
 
     // Load the committed mailbox blob while machine_reset holds the CPU/VDP,

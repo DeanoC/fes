@@ -143,3 +143,72 @@ func TestCompositionShellAdmissionMatchesRuntime(t *testing.T) {
 		})
 	}
 }
+
+func TestCompositionShellColecoBus(t *testing.T) {
+	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.application", Major: 1},
+		Interfaces: []Interface{{ID: expansion.ColecoSlot, Major: 1}}}}
+	shell, err := compositionShell(base, nil)
+	if err != nil || shell.Slot != expansion.ColecoSlot {
+		t.Fatalf("Coleco socket rejected: %#v, %v", shell, err)
+	}
+	base.Descriptor.Interfaces = append(base.Descriptor.Interfaces, Interface{ID: expansion.Slot, Major: 1})
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted ambiguous dual-socket package")
+	}
+	base.Descriptor.Interfaces = base.Descriptor.Interfaces[:1]
+	base.Descriptor.ABI.ID = "fes.simple-computer"
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted Coleco bus under the ZX81 ABI")
+	}
+}
+
+func TestColecoProducerComposition(t *testing.T) {
+	root := os.Getenv("FES_COLECO_GOLDEN_ROOT")
+	if root == "" {
+		t.Skip("set FES_COLECO_GOLDEN_ROOT to a sealed diagnostic build")
+	}
+	shell := filepath.Join(root, "..", "..", "fes-coleco-socket-dev")
+	manifest, err := os.ReadFile(filepath.Join(shell, "manifest.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.ReadFile(filepath.Join(shell, "core.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	archives, err := filepath.Glob(filepath.Join(root, "*.tar"))
+	if err != nil || len(archives) != 1 {
+		t.Fatalf("expected one diagnostic archive: %v, %v", archives, err)
+	}
+	f, err := os.Open(archives[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	asset, err := expansion.ReadAsset(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := ComposeArchive(canonicalArchive(manifest, payload), asset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oracle, err := os.ReadFile(filepath.Join(root, "linked.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bundle.Payload, oracle) {
+		t.Fatal("host Coleco composition differs from compiler oracle")
+	}
+	var encoded bytes.Buffer
+	if err := bundle.Write(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	staged, err := StageComposition(context.Background(), t.TempDir(), int64(encoded.Len()), bytes.NewReader(encoded.Bytes()))
+	if err != nil || staged.Composition == nil || staged.Composition.ID != bundle.Composition.ID {
+		t.Fatalf("Coleco target staging: %v, %#v", err, staged.Composition)
+	}
+	if err := staged.Cleanup(); err != nil {
+		t.Fatal(err)
+	}
+}

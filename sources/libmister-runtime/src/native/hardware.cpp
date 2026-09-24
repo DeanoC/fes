@@ -547,6 +547,7 @@ Capabilities NativeHardware::capabilities() const
 		application.major = generated::FesApplicationABIMajor;
 		application.minor = generated::FesApplicationABIMinor;
 		application.interfaces = {
+			{"fes.expansion.coleco-bus", 1, 0},
 			{generated::FesApplicationInterfaceAudioPcmS16Stereo48kID, 1, 0},
 			{generated::FesApplicationInterfaceFirmwareBlobID, 1, 0},
 			{generated::FesApplicationInterfaceGamepadID, 1, 0},
@@ -555,6 +556,8 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesApplicationInterfaceMediaBlobID, 1, 0},
 			{generated::FesApplicationInterfaceMediaBlobStreamID, 1, 0},
 			{generated::FesApplicationInterfaceVideoFixed720p60ID, 1, 0}};
+		std::sort(application.interfaces.begin(), application.interfaces.end(),
+			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(application));
 		std::sort(result.abis.begin(), result.abis.end(),
 			[](const SupportedABI& a, const SupportedABI& b) { return a.id < b.id; });

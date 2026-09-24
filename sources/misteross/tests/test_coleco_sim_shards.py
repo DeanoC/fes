@@ -25,7 +25,8 @@ def commands(result):
 
 class ColecoSimulationShardsTest(unittest.TestCase):
     def test_aggregate_keeps_every_shard_and_builds_each_lane_once(self):
-        targets = ["sim-fes-coleco-unit", "sim-fes-coleco-unit-oss"]
+        targets = ["sim-fes-coleco-unit", "sim-fes-coleco-unit-oss",
+                   "sim-fes-coleco-expansion"]
         targets += [f"sim-fes-coleco-board-{case}{lane}"
                     for lane in ("", "-oss") for case in CASES]
         aggregate = dry_run("sim-fes-coleco")

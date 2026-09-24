@@ -19,6 +19,8 @@ const (
 	// bus consumers, not alternate shell interfaces.
 	Slot             = "fes.expansion.zx81-bus"
 	Map              = "fes.zx81-bus.socket/1"
+	ColecoSlot       = "fes.expansion.coleco-bus"
+	ColecoMap        = "fes.coleco-bus.socket/1"
 	Device           = "5CSEBA6U23I7"
 	MaxManifestBytes = 65536
 	MaxArchiveBytes  = maxRBFBytes + MaxManifestBytes + 4096
@@ -49,8 +51,11 @@ type Manifest struct {
 func hash(data []byte) string { sum := sha256.Sum256(data); return hex.EncodeToString(sum[:]) }
 
 func (m Manifest) validate() error {
-	if m.Format != 1 || m.Device != Device || m.Map != Map || m.Slot != Slot || m.SlotMajor != 1 || m.SlotMinor != 0 {
+	if m.Format != 1 || m.Device != Device || m.SlotMajor != 1 || m.SlotMinor != 0 {
 		return errors.New("unsupported expansion target, socket or version")
+	}
+	if _, err := policyFor(m.Slot, m.Map); err != nil {
+		return err
 	}
 	if !hex64.MatchString(m.CartSHA256) || !hex64.MatchString(m.ShellPackageID) ||
 		!hex64.MatchString(m.ShellSHA256) || !hex64.MatchString(m.RecipeSHA256) ||
@@ -227,8 +232,9 @@ func Admit(shell Shell, asset Asset) error {
 	if err := asset.Validate(); err != nil {
 		return err
 	}
-	if shell.Slot != Slot || shell.SlotMajor != 1 || shell.SlotMinor != 0 {
-		return errors.New("shell does not declare the supported ZX81 expansion bus")
+	if _, err := policyFor(shell.Slot, asset.Manifest.Map); err != nil ||
+		shell.Slot != asset.Manifest.Slot || shell.SlotMajor != 1 || shell.SlotMinor != 0 {
+		return errors.New("shell does not declare the supported expansion bus")
 	}
 	if shell.PackageID != asset.Manifest.ShellPackageID || shell.BuildID != asset.Manifest.ShellBuildID ||
 		hash(shell.Payload) != asset.Manifest.ShellSHA256 {
@@ -249,7 +255,11 @@ func ComposeContext(ctx context.Context, shell Shell, asset Asset) (Composition,
 	if err := Admit(shell, asset); err != nil {
 		return Composition{}, nil, err
 	}
-	linked, err := LinkContext(ctx, shell.Payload, asset.Cart)
+	policy, err := policyFor(asset.Manifest.Slot, asset.Manifest.Map)
+	if err != nil {
+		return Composition{}, nil, err
+	}
+	linked, err := linkContextWithPolicy(ctx, shell.Payload, asset.Cart, policy)
 	if err != nil {
 		return Composition{}, nil, fmt.Errorf("link expansion: %w", err)
 	}

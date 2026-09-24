@@ -29,6 +29,6 @@ module firmware_model (
         .logical_pixel(), .logical_blank(), .vdp_status(), .cpu_addr_debug(),
         .cpu_halt_n(cpu_halt_n), .audio_sample(), .firmware_we_a(firmware_we[0]),
         .firmware_we_b(firmware_we[1]), .firmware_addr(firmware_addr),
-        .firmware_data(firmware_data)
+        .firmware_data(firmware_data), .bus_request(), .bus_response(11'b0)
     );
 endmodule

@@ -313,22 +313,29 @@ func adoptComposition(handle *os.Root, staged *Staged) error {
 
 func compositionShell(inspection Inspection, payload []byte) (expansion.Shell, error) {
 	d := inspection.Descriptor
-	if d.ABI.ID != "fes.simple-computer" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
-		return expansion.Shell{}, errors.New("composition requires simple-computer 1.0")
-	}
-	count := 0
+	var slot string
 	for _, i := range d.Interfaces {
-		if i.ID == expansion.Slot {
-			count++
+		if i.ID == expansion.Slot || i.ID == expansion.ColecoSlot {
 			if i.Required || i.Major != 1 || i.Minor != 0 {
-				return expansion.Shell{}, errors.New("composition requires optional ZX81 expansion bus 1.0")
+				return expansion.Shell{}, errors.New("composition requires optional expansion bus 1.0")
 			}
+			if slot != "" {
+				return expansion.Shell{}, errors.New("composition requires exactly one expansion bus")
+			}
+			slot = i.ID
 		}
 	}
-	if count != 1 {
-		return expansion.Shell{}, errors.New("composition requires exactly one ZX81 expansion bus")
+	if slot == "" {
+		return expansion.Shell{}, errors.New("composition requires exactly one expansion bus")
 	}
-	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: expansion.Slot, SlotMajor: 1}, nil
+	abi := "fes.simple-computer"
+	if slot == expansion.ColecoSlot {
+		abi = "fes.application"
+	}
+	if d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
+		return expansion.Shell{}, errors.New("composition bus does not match package ABI 1.0")
+	}
+	return expansion.Shell{PackageID: inspection.PackageID, BuildID: d.Build.ID, Payload: payload, Slot: slot, SlotMajor: 1}, nil
 }
 
 // ValidateExpansionArchive binds an expansion to its sealed package and declared
