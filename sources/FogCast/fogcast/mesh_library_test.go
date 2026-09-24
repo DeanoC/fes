@@ -149,6 +149,115 @@ func TestProjectMeshLibraryRepresentativeTitles(t *testing.T) {
 	}
 }
 
+func TestProjectMeshLibrarySG1000BrowseSystem(t *testing.T) {
+	pkg := strings.Repeat("ef", 32)
+	cart := strings.Repeat("55", 32)
+	title := meshCoreTitle("SG-1000", "fes.sg1000", pkg, cart, false)
+	title.ABI = corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0}
+	if title.Game.System != catalog.CorePlatform {
+		t.Fatalf("storage platform %s", title.Game.System)
+	}
+	entries, skipped := ProjectMeshLibrary(MeshLibrary{Titles: []MeshTitle{title}})
+	if len(skipped) != 0 || len(entries) != 1 {
+		t.Fatalf("entries %+v skipped %+v", entries, skipped)
+	}
+	entry := entries[0]
+	if entry.System != "sg1000" {
+		t.Fatalf("browse system %q", entry.System)
+	}
+	if !entry.Launchable || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
+		t.Fatalf("shape %+v", entry)
+	}
+	if len(entry.Slots) != 2 || entry.Slots[0].Kind != meshcontent.SlotPackageABI || entry.Slots[1].Kind != meshcontent.SlotPrimaryMedia {
+		t.Fatalf("slots %+v", entry.Slots)
+	}
+	if entry.Slots[0].Package == nil || entry.Slots[0].Package.PackageID != pkg || entry.Slots[0].Package.ABI != "fes.simple-computer" || entry.Slots[0].Package.Major != 1 {
+		t.Fatalf("package %+v", entry.Slots[0].Package)
+	}
+	if entry.Slots[1].Content == nil || entry.Slots[1].Content.Digest != cart || entry.Slots[1].Content.Algorithm != meshcontent.AlgorithmSHA256 {
+		t.Fatalf("cart %+v", entry.Slots[1].Content)
+	}
+	if err := entry.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	assertNoPath(t, entry)
+}
+
+func TestProjectMeshLibraryMultiExpansionOrder(t *testing.T) {
+	pkg := strings.Repeat("cd", 32)
+	bus := strings.Repeat("66", 32)
+	printer := strings.Repeat("77", 32)
+	title := meshCoreTitle("3D Monster Maze", "fes.zx81", pkg, "", false)
+	title.ABI = corepackage.Contract{ID: "fes.simple-computer", Major: 1, Minor: 0}
+	title.Expansions = []MeshExpansion{
+		{Name: expansion.Slot, Digest: bus},
+		{Name: "fes.expansion.printer", Digest: printer},
+	}
+	entries, skipped := ProjectMeshLibrary(MeshLibrary{Titles: []MeshTitle{title}})
+	if len(skipped) != 0 || len(entries) != 1 {
+		t.Fatalf("entries %+v skipped %+v", entries, skipped)
+	}
+	entry := entries[0]
+	if entry.System != "zx81" || len(entry.Slots) != 3 {
+		t.Fatalf("shape %+v", entry)
+	}
+	if entry.Slots[0].Kind != meshcontent.SlotPackageABI {
+		t.Fatalf("package slot %+v", entry.Slots[0])
+	}
+	want := title.Expansions
+	for i, expansionSlot := range want {
+		slot := entry.Slots[i+1]
+		if slot.Kind != meshcontent.SlotExpansion || slot.Name != expansionSlot.Name {
+			t.Fatalf("expansion %d %+v", i, slot)
+		}
+		if slot.Content == nil || slot.Content.Algorithm != meshcontent.AlgorithmSHA256 || slot.Content.Digest != expansionSlot.Digest {
+			t.Fatalf("expansion %d content %+v", i, slot.Content)
+		}
+	}
+	ids := entry.ContentIDs()
+	if len(ids) != 2 || ids[0].String() == ids[1].String() || ids[0].Digest != bus || ids[1].Digest != printer {
+		t.Fatalf("content-ids %+v", ids)
+	}
+	if err := entry.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	assertNoPath(t, entry)
+}
+
+func TestProjectMeshLibraryROMLessPong(t *testing.T) {
+	pkg := strings.Repeat("ab", 32)
+	title := meshCoreTitle("Pong", "fes.pong", pkg, "", false)
+	title.ABI = corepackage.Contract{ID: "fes.simple-game", Major: 1, Minor: 0}
+	if title.Game.System != catalog.CorePlatform || title.Core.MediaID != "" || title.Core.FirmwareRequired {
+		t.Fatalf("pong fixture %+v core %+v", title.Game, title.Core)
+	}
+	entries, skipped := ProjectMeshLibrary(MeshLibrary{
+		Firmware: catalog.CoreFirmware{Slot: protocol.FirmwareRole, MediaID: strings.Repeat("11", 32)},
+		Titles:   []MeshTitle{title},
+	})
+	if len(skipped) != 0 || len(entries) != 1 {
+		t.Fatalf("entries %+v skipped %+v", entries, skipped)
+	}
+	entry := entries[0]
+	if entry.System != "pong" || !entry.Launchable || len(entry.Execute) != 1 || entry.Execute[0].Kind != meshcontent.ExecuteFPGANative {
+		t.Fatalf("shape %+v", entry)
+	}
+	if len(entry.Slots) != 1 || entry.Slots[0].Kind != meshcontent.SlotPackageABI || entry.Slots[0].Content != nil {
+		t.Fatalf("slots %+v", entry.Slots)
+	}
+	pkgSlot := entry.Slots[0].Package
+	if pkgSlot == nil || pkgSlot.PackageID != pkg || pkgSlot.ABI != "fes.simple-game" || pkgSlot.Major != 1 {
+		t.Fatalf("package %+v", pkgSlot)
+	}
+	if len(entry.ContentIDs()) != 0 {
+		t.Fatalf("content slots %+v", entry.ContentIDs())
+	}
+	if err := entry.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	assertNoPath(t, entry)
+}
+
 func TestProjectMeshLibrarySkipsOneTitleAndKeepsTheRest(t *testing.T) {
 	bios := strings.Repeat("11", 32)
 	cart := strings.Repeat("22", 32)

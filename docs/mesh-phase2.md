@@ -151,6 +151,11 @@ execute, each required content-id is already on that executor or is
 pulled from a content source. Failure class: content missing, no
 source. Mid-pull stays Checking and does not program the FPGA.
 
+**Handoff:** Expansion bytes stay separate and are linked on the
+executor. ABI eligibility must be checked before Ready is wired. The
+expansion slot digest must be named as the slot-bytes digest before
+ensure.
+
 **Does not:** automatic placement. Does not pull onto a node the
 session did not bind. Does not free a lease.
 

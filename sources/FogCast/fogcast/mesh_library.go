@@ -118,7 +118,7 @@ func meshExecuteKind(execute string, launchable bool) (kind string, packageBacke
 func meshBrowseSystem(title MeshTitle) string {
 	if title.Core != nil {
 		switch title.Core.CoreID {
-		case "fes.coleco", "fes.zx81", "fes.pong", "fes.sms":
+		case "fes.coleco", "fes.zx81", "fes.pong", "fes.sms", "fes.sg1000":
 			return strings.TrimPrefix(title.Core.CoreID, "fes.")
 		}
 	}
