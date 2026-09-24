@@ -184,6 +184,7 @@ type Service struct {
 	resolveTarget  func(context.Context, string) ([]string, error)
 	meshMu         sync.Mutex
 	meshNodes      []MeshNode
+	meshExecute    MeshExecuteSession
 	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
 	lookupCancel   context.CancelFunc
 	monitorCancel  context.CancelFunc
@@ -790,6 +791,13 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
+	// Mesh ensure runs only when a session installed the seam. It does
+	// not change Phase 0 or Phase 1 launch, and it does not touch rooms
+	// or GET /api/v1/games. A Checking slot or a named content failure
+	// returns before catalog execute and before the FPGA path.
+	if err := s.meshEnsureBeforeExecute(gameID); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {
 		if _, err := store.CoreEntry(ctx, gameID); err == nil {
 			// A core entry executes on an FPGA kit. Deny only the kit whose

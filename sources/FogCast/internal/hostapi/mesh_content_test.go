@@ -36,6 +36,7 @@ func TestPhase2ContentShapeDoesNotChangePhase1Ready(t *testing.T) {
 		Execute: true, LeaseFree: true, MeshMajorOK: true,
 		Distant:  distant,
 		Packages: []string{strings.Repeat("ab", 32)},
+		ABIs:     []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
 	})
 	if ready || block != meshcontent.BlockDistant {
 		t.Fatalf("phase 2 helper ready=%v block=%s", ready, block)

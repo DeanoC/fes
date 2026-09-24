@@ -114,6 +114,7 @@ func TestPongIsPackageOnly(t *testing.T) {
 	ready, block := ReadyHere(entry, Bound{
 		Execute: true, LeaseFree: true, MeshMajorOK: true,
 		Packages: []string{pkg.PackageID},
+		ABIs:     []EligibleABI{{ID: pkg.ABI, Major: pkg.Major}},
 	})
 	if !ready || block != BlockNone {
 		t.Fatalf("pong ready=%v block=%s", ready, block)
@@ -147,6 +148,7 @@ func TestReadyHereClassifiesContentWithoutPulling(t *testing.T) {
 		Execute: true, LeaseFree: true, MeshMajorOK: true,
 		Local: local, Distant: distant,
 		Packages: []string{entry.Slots[0].Package.PackageID},
+		ABIs:     []EligibleABI{{ID: entry.Slots[0].Package.ABI, Major: entry.Slots[0].Package.Major}},
 	}
 	ready, block := ReadyHere(entry, bound)
 	if ready || block != BlockDistant {
