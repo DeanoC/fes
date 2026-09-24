@@ -30,6 +30,28 @@ func compositionResponse(t *testing.T) (Protocol2Response, expansion.Composition
 	active.Composition = &c
 	return r, c
 }
+
+func TestColecoComposedStatusRequiresMatchingOptionalBus(t *testing.T) {
+	response, _ := compositionResponse(t)
+	response.ActivePackage.Descriptor.ABI.ID = "fes.application"
+	response.ActivePackage.Observed.ABI.ID = "fes.application"
+	response.Capabilities.ABIs[0].ID = "fes.application"
+	response.ActivePackage.Descriptor.Interfaces[2].ID = "fes.expansion.coleco-bus"
+	if !validProtocol2Response(response) {
+		t.Fatal("Coleco composition rejected")
+	}
+	response.ActivePackage.Descriptor.Interfaces[2].ID = "fes.expansion.zx81-bus"
+	if validProtocol2Response(response) {
+		t.Fatal("Coleco composition accepted with ZX81 socket")
+	}
+	response.ActivePackage.Descriptor.Interfaces[2].ID = "fes.expansion.coleco-bus"
+	response.ActivePackage.Descriptor.Interfaces = append(response.ActivePackage.Descriptor.Interfaces,
+		corepackage.Interface{ID: "fes.expansion.zx81-bus", Major: 1, Minor: 0, Required: false})
+	if validProtocol2Response(response) {
+		t.Fatal("Coleco composition accepted with both sockets")
+	}
+}
+
 func TestComposedClientChecksExactIdentityAndShape(t *testing.T) {
 	response, c := compositionResponse(t)
 	for _, mode := range []string{"valid", "wrong tuple", "unknown tuple field", "missing tuple field"} {

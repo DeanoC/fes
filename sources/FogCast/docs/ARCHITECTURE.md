@@ -1175,6 +1175,8 @@ readiness independently of firmware requirements, including firmware-free ZX81
 shells. Coleco's bus belongs to `fes.application` 1.0; ZX81's belongs to
 `fes.simple-computer` 1.0. Each package may declare exactly one optional bus,
 and the selected module must bind that bus, map, package, BUILD_ID and payload.
+The target agent validates the runtime's composed status against that ABI and
+optional bus pair before confirming a launch or reconciling a running session.
 Expansion admission distinguishes missing/invalid packs from catalog
 failures: missing titles retain not-found responses, concurrent choices retain
 conflict responses, and unexpected storage failures remain internal errors.

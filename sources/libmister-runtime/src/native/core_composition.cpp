@@ -87,6 +87,20 @@ bool ClosedDirectory(int fd) {
 class ManifestReader {
 public:
 	explicit ManifestReader(const std::string& bytes): bytes_(bytes) {}
+	bool HasBoundaryPatch() const {return bytes_.find("{\"boundary_patch\":")==0;}
+	bool ColecoBoundaryPatch() {
+		if (!Take("{\"boundary_patch\":{\"bits\":[")) return false;
+		const std::array<const char*,3> coordinates={{
+			",\"x\":2917,\"y\":797}",
+			",\"x\":2917,\"y\":799}",
+			",\"x\":3328,\"y\":906}",
+		}};
+		for (std::size_t i=0;i<coordinates.size();++i) {
+			if (i && !Take(",")) return false;
+			if (!Take("{\"value\":") || !(Take("0") || Take("1")) || !Take(coordinates[i])) return false;
+		}
+		return Take("],\"contract\":\"fes.coleco.response-boundary/3\"}");
+	}
 	bool Text(const std::string& key, std::string* value) {
 		if (!Key(key) || !Take("\"")) return false;
 		const auto end=bytes_.find('"', offset_);
@@ -162,6 +176,9 @@ Error OpenCoreComposition(const std::vector<std::string>& roots,
 	error=Read(opened.manifest,&opened.manifest_bytes,nullptr);
 	if (!error.ok()) return error;
 	ManifestReader reader(opened.manifest_bytes);
+	if (reader.HasBoundaryPatch() &&
+		(socket!="fes.expansion.coleco-bus" || !reader.ColecoBoundaryPatch()))
+		return Invalid("expansion manifest must use canonical JSON");
 	std::string cart_hash,device,map,recipe,revision,build,package,shell,slot;
 	std::uint64_t size=0,format=0,major=0,minor=0;
 	if (!reader.Text("cart_sha256",&cart_hash) || !reader.Number("cart_size",&size) ||
