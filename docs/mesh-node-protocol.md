@@ -1,13 +1,14 @@
 # Mesh node protocol (design draft)
 
-**Status:** merged as #131. Phase 1 is in progress under Bob; Deano
+**Status:** merged as #131. Phase 1 closed on main `3d34b6e0`. Phase 2
+execution is [`mesh-phase2.md`](mesh-phase2.md). Bob coordinates; Deano
 merges parents. Still edit strawmen in place. Caster's cast/kit
 contract review is folded below. Foggy's product review is folded in
 [`docs/mesh-lan.md`](mesh-lan.md); this page changes only where that
 review meets a protocol rule. Neither review is a design lock.
 Conceptual contracts only. This is not a wire-format freeze, not an
 opcode list, and not an implementation claim for slices still open in
-[`mesh-phase1.md`](mesh-phase1.md). Deano owns FES parent merge.
+[`mesh-phase2.md`](mesh-phase2.md). Deano owns FES parent merge.
 
 **Audience:** FES parent, FogCast host and target agent, libmister-runtime
 session boundaries, and mister-packages when a later phase actually
@@ -221,9 +222,9 @@ composition is:
 | **Primary media** | Content-id when the title starts from a cart, ROM, or other primary medium. |
 | **Expansions** | Content-ids for expansion slots the composition includes. |
 
-Title identity stays the catalog id. The hash algorithm for each
-content-id stays unnamed until Phase 2. This draft does not freeze
-bytes.
+Title identity stays the catalog id. Phase 2 proposes an unsigned
+SHA-256 strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has not
+locked it. This draft does not freeze bytes.
 
 ## Session request
 
@@ -345,7 +346,9 @@ forking a parallel design.
 **Per-slot hash.** Recommended default, updated from Caster review
 2026-09-23: package / ABI identity plus BIOS, primary-media, and
 expansion content-ids. One hash of the whole launch is not the model.
-The algorithm for each content-id stays unnamed until Phase 2.
+Phase 2 Slice 1 proposes SHA-256 (`sha256:` plus 64 lowercase hex) as
+an unsigned strawman in [`mesh-phase2.md`](mesh-phase2.md). Deano has
+not locked it.
 
 **node-id and `target_id`.** Recommended default, updated from Caster
 review 2026-09-23: kits generalize `target_id` and keep that id when
@@ -370,6 +373,7 @@ the host that owns the shell, as they do now.
 | Doc | Why |
 | --- | --- |
 | [`docs/mesh-lan.md`](mesh-lan.md) | Product intent, placement policy, phases |
+| [`docs/mesh-phase2.md`](mesh-phase2.md) | Phase 2 execution and the unsigned hash strawman |
 | [`docs/README.md`](README.md) | Index |
 | [`docs/component-boundaries.md`](component-boundaries.md) | Agent coordinates; runtime touches hardware |
 | [`docs/kit-sharing.md`](kit-sharing.md) | Current claim / renew / expiry / takeover |

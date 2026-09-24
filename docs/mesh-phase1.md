@@ -1,15 +1,17 @@
 # Mesh LAN — Phase 1 execution brief
 
-**Status:** Phase 1 in progress. Bob is driving mesh development and
-starts phases when ready. Deano owns FES parent merges.
+**Status:** Phase 1 closed and delivered. Bob coordinates mesh and
+starts phases. Deano owns FES parent merges. Phase 2 execution is
+[`mesh-phase2.md`](mesh-phase2.md).
 
 **Audience:** FogCast host/agent (Caster lane for kit and agent), rooms
 UX (Foggy), and anyone picking up a later slice. Bob coordinates. Read
 the locks first. This brief names owners, slices, and the Soft-stop
 flag. It does not reopen the design.
 
-**Base:** FES `main` tip `3df59a65` (Slice 2 capability advertisements, #134).
-Slice 3 host inventory and second-shell in-use copy are the PR on top of that tip.
+**Base:** Delivered on FES `main` `3d34b6e0` (Soft-stop #132, capability
+advertisements #134, host inventory and in-use #137). Acceptance below
+is unchanged.
 
 ---
 
@@ -144,7 +146,7 @@ release.
 **Does not:** list titles, federate the catalog, add a second lease, reboot
 remotely, or change kit power, image, or SD card contents.
 
-### 3. Host node inventory and second-shell in-use — this PR
+### 3. Host node inventory and second-shell in-use — done on main (#137)
 
 **Owner:** FogCast host, then rooms UX for the Unavailable copy.
 
