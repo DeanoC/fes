@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -217,14 +218,59 @@ func (c *Client) MeshKitLease() (bool, string) {
 	}
 	return c.kitLease.Ownership()
 }
-func (c *Client) authorizeMutation(r *http.Request) error {
-	switch r.URL.Path {
-	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
-		return c.kitLease.Authorize(r, true)
-	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
-		return c.kitLease.Authorize(r, false)
+
+// MeshKitLeaseAbandoned reports a grant this session held and then
+// lost, closed, or let expire. A client that never claimed is not
+// abandoned.
+func (c *Client) MeshKitLeaseAbandoned() bool {
+	if c == nil || c.kitLease == nil {
+		return false
 	}
-	return nil
+	return c.kitLease.Abandoned()
+}
+
+// Abandoned reports a grant that is no longer usable. A lease that
+// never claimed is not abandoned.
+func (l *KitLease) Abandoned() bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed || l.lost {
+		return true
+	}
+	if l.grant.Token != "" && !time.Now().Before(l.localExpiry) {
+		return true
+	}
+	return false
+}
+func (c *Client) authorizeMutation(r *http.Request) error {
+	gated, acquire := kitMutation(r.URL.Path)
+	if !gated {
+		return nil
+	}
+	return c.kitLease.Authorize(r, acquire)
+}
+
+// kitMutation reports whether path is a kit-lease mutation and whether
+// it may claim. Mesh content paths match a base URL prefix as well as
+// the exact route, so a remote rooted under a prefix still carries the
+// lease header.
+func kitMutation(path string) (gated, acquire bool) {
+	switch path {
+	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm", "/v1/mesh/content/pull":
+		return true, true
+	case "/v1/stop", "/v1/development/reboot", "/v1/cast/stop", "/v1/update/activate", "/v1/mesh/content/link":
+		return true, false
+	}
+	if strings.HasSuffix(path, "/v1/mesh/content/pull") {
+		return true, true
+	}
+	if strings.HasSuffix(path, "/v1/mesh/content/link") {
+		return true, false
+	}
+	return false, false
 }
 
 // AuthorizeMutation applies the host kit-lease rule for r.
@@ -250,20 +296,14 @@ func (c *Client) AcquireContentPullLease(ctx context.Context) error {
 	return c.authorizeMutation(request)
 }
 
-// PullMeshContent copies id onto the kit. A fresh session claims the
-// kit lease first. The body is empty; the kit reads its content source.
-func (c *Client) PullMeshContent(ctx context.Context, id string) (string, error) {
-	var doc struct {
-		State string `json:"state"`
+// ReleaseContentPullLease drops the grant this client holds. A fresh
+// mesh ensure that fails after claiming uses it. A grant the session
+// already held is not released by that path.
+func (c *Client) ReleaseContentPullLease(ctx context.Context) error {
+	if c == nil || c.kitLease == nil {
+		return ErrKitLeaseLost
 	}
-	err := c.doJSONQuery(ctx, http.MethodPost, "/v1/mesh/content/pull", url.Values{"id": {id}}, nil, &doc)
-	return doc.State, err
-}
-
-// LinkMeshContent records one expansion link. The session must already
-// hold the kit grant.
-func (c *Client) LinkMeshContent(ctx context.Context, name, contentID string) error {
-	return c.doJSONQuery(ctx, http.MethodPost, "/v1/mesh/content/link", url.Values{"name": {name}}, map[string]string{"content_id": contentID}, &struct{}{})
+	return c.kitLease.Release(ctx)
 }
 
 func (l *KitLease) CurrentToken() string {

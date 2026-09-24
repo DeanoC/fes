@@ -24,7 +24,19 @@ import (
 	"sync"
 
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"golang.org/x/sys/unix"
 )
+
+var (
+	// meshContentReserve is free space a pull leaves on the card.
+	// A pull that would start below this reserve fails closed.
+	meshContentReserve uint64 = 32 << 20
+	// meshContentQuota is the most object bytes this store will keep.
+	meshContentQuota int64 = 2 << 30
+)
+
+// availableBytes reports free bytes at path. Tests replace it.
+var availableBytes = statAvailable
 
 // Source is the content source a kit pull reads. A nil source
 // advertises nothing. Open's reader must return when ctx is canceled.
@@ -45,9 +57,12 @@ type Store struct {
 	inflight map[string]struct{}
 }
 
-// Open creates the object, partial, and link directories under root.
-// nodeID is this executor. abis may be empty; an empty list is not
-// eligibility. source may be nil.
+// Open prepares one node's store. It does not create directories: the
+// agent can open the store on boot without writing under the media
+// root. The first pull or link creates objects, partial, and links.
+// A partial directory left by a crashed pull is swept. nodeID is this
+// executor. abis may be empty; an empty list is not eligibility.
+// source may be nil.
 func Open(root, nodeID string, source Source, abis []meshcontent.EligibleABI) (*Store, error) {
 	nodeID = strings.TrimSpace(nodeID)
 	if nodeID == "" {
@@ -57,18 +72,39 @@ func Open(root, nodeID string, source Source, abis []meshcontent.EligibleABI) (*
 	if root == "" || root == "." || root == string(filepath.Separator) {
 		return nil, errors.New("mesh content store requires a root")
 	}
-	for _, sub := range []string{"objects", "partial", "links"} {
-		if err := os.MkdirAll(filepath.Join(root, sub), 0o700); err != nil {
-			return nil, err
-		}
-	}
-	return &Store{
+	store := &Store{
 		root:     root,
 		nodeID:   nodeID,
 		source:   source,
 		abis:     append([]meshcontent.EligibleABI(nil), abis...),
 		inflight: map[string]struct{}{},
-	}, nil
+	}
+	store.sweepPartial()
+	return store, nil
+}
+
+func (s *Store) ensureDirs() error {
+	for _, sub := range []string{"objects", "partial", "links"} {
+		if err := os.MkdirAll(filepath.Join(s.root, sub), 0o700); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sweepPartial removes files left in partial/ by a pull that did not
+// finish. Open runs it once, before any pull on this store is in flight.
+func (s *Store) sweepPartial() {
+	entries, err := os.ReadDir(filepath.Join(s.root, "partial"))
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		_ = os.Remove(filepath.Join(s.root, "partial", entry.Name()))
+	}
 }
 
 func (s *Store) NodeID() string {
@@ -143,6 +179,12 @@ func (s *Store) Pull(ctx context.Context, id meshcontent.ContentID) (meshcontent
 	s.inflight[key] = struct{}{}
 	s.mu.Unlock()
 
+	if err := s.ensureDirs(); err != nil {
+		s.mu.Lock()
+		delete(s.inflight, key)
+		s.mu.Unlock()
+		return "", meshcontent.ErrContentPullFailed
+	}
 	state, err := s.copy(ctx, id)
 	s.mu.Lock()
 	delete(s.inflight, key)
@@ -153,6 +195,14 @@ func (s *Store) Pull(ctx context.Context, id meshcontent.ContentID) (meshcontent
 func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent.SlotState, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	free, err := availableBytes(s.root)
+	if err != nil || free < meshContentReserve {
+		return "", meshcontent.ErrContentPullFailed
+	}
+	used := s.usedBytes()
+	if used >= meshContentQuota {
+		return "", meshcontent.ErrContentPullFailed
 	}
 	body, err := s.source.Open(ctx, id)
 	if err != nil {
@@ -174,7 +224,8 @@ func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent
 		_ = os.Remove(tmpName)
 	}
 	sum := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(tmp, sum), &ctxReader{ctx: ctx, r: body}); err != nil {
+	limited := &quotaWriter{w: io.MultiWriter(tmp, sum), used: used, quota: meshContentQuota}
+	if _, err := io.Copy(limited, &ctxReader{ctx: ctx, r: body}); err != nil {
 		cleanup()
 		if ctx.Err() != nil {
 			return "", ctx.Err()
@@ -210,6 +261,9 @@ func (s *Store) LinkExpansion(name string, id meshcontent.ContentID) error {
 	}
 	if s.Slot(id) != meshcontent.StatePresent {
 		return errors.New("mesh content link: slot is not present")
+	}
+	if err := s.ensureDirs(); err != nil {
+		return err
 	}
 	body := []byte(id.String() + "\n")
 	path := filepath.Join(s.root, "links", name)
@@ -277,4 +331,42 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	return c.r.Read(p)
+}
+
+func (s *Store) usedBytes() int64 {
+	entries, err := os.ReadDir(filepath.Join(s.root, "objects"))
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		total += info.Size()
+	}
+	return total
+}
+
+func statAvailable(path string) (uint64, error) {
+	var st unix.Statfs_t
+	if err := unix.Statfs(path, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Bsize) * uint64(st.Bavail), nil
+}
+
+type quotaWriter struct {
+	w              io.Writer
+	used, quota, n int64
+}
+
+func (q *quotaWriter) Write(p []byte) (int, error) {
+	if q.used+q.n+int64(len(p)) > q.quota {
+		return 0, meshcontent.ErrContentPullFailed
+	}
+	n, err := q.w.Write(p)
+	q.n += int64(n)
+	return n, err
 }

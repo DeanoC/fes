@@ -79,7 +79,16 @@ func TestFreshSessionPullAcquiresLeaseAgainstFakeSource(t *testing.T) {
 	lease := NewKitLease(endpoint, "kit-token", server.Client(), "mesh-host", "mesh pull")
 	defer lease.Close(context.Background())
 	client := NewClient(endpoint, "kit-token", server.Client()).WithKitLease(lease)
-	if err := client.LinkMeshContent(context.Background(), "early", primary.String()); !errors.Is(err, ErrKitLeaseLost) {
+	remoteFor := func(auth kitcontent.MutationAuthorizer) *kitcontent.Remote {
+		t.Helper()
+		remote, dialErr := kitcontent.Dial(context.Background(), endpoint, "kit-token", server.Client())
+		if dialErr != nil {
+			t.Fatal(dialErr)
+		}
+		remote.SetMutationAuthorizer(auth)
+		return remote
+	}
+	if err := remoteFor(client).LinkExpansion("early", primary); !errors.Is(err, ErrKitLeaseLost) {
 		t.Fatalf("unleased link: %v", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "links", "early")); !os.IsNotExist(statErr) {
@@ -89,8 +98,8 @@ func TestFreshSessionPullAcquiresLeaseAgainstFakeSource(t *testing.T) {
 		t.Fatalf("link claimed the kit: %+v", manager.Status())
 	}
 
-	state, err := client.PullMeshContent(context.Background(), primary.String())
-	if err != nil || state != string(meshcontent.StatePresent) {
+	state, err := remoteFor(client).Pull(context.Background(), primary)
+	if err != nil || state != meshcontent.StatePresent {
 		t.Fatalf("pull state %q err %v", state, err)
 	}
 	owned, generation := client.MeshKitLease()
@@ -104,7 +113,7 @@ func TestFreshSessionPullAcquiresLeaseAgainstFakeSource(t *testing.T) {
 	if err != nil || !bytes.Equal(got, payload) {
 		t.Fatalf("object %q err %v", got, err)
 	}
-	if err := client.LinkMeshContent(context.Background(), "port", primary.String()); err != nil {
+	if err := remoteFor(client).LinkExpansion("port", primary); err != nil {
 		t.Fatal(err)
 	}
 	link, err := os.ReadFile(filepath.Join(root, "links", "port"))
@@ -115,7 +124,7 @@ func TestFreshSessionPullAcquiresLeaseAgainstFakeSource(t *testing.T) {
 	otherLease := NewKitLease(endpoint, "kit-token", server.Client(), "other-shell", "mesh pull")
 	defer otherLease.Close(context.Background())
 	otherClient := NewClient(endpoint, "kit-token", server.Client()).WithKitLease(otherLease)
-	_, err = otherClient.PullMeshContent(context.Background(), foreignID.String())
+	_, err = remoteFor(otherClient).Pull(context.Background(), foreignID)
 	var api *protocol.APIError
 	if !errors.As(err, &api) || api.Code != "KIT_LEASE_BUSY" {
 		t.Fatalf("foreign pull: %v", err)
@@ -123,22 +132,22 @@ func TestFreshSessionPullAcquiresLeaseAgainstFakeSource(t *testing.T) {
 	if _, statErr := os.Stat(filepath.Join(root, "objects", foreignID.Digest)); !os.IsNotExist(statErr) {
 		t.Fatalf("foreign pull wrote the kit: %v", statErr)
 	}
-	if err := otherClient.LinkMeshContent(context.Background(), "aux", primary.String()); !errors.Is(err, ErrKitLeaseLost) {
+	if err := remoteFor(otherClient).LinkExpansion("aux", primary); !errors.Is(err, ErrKitLeaseLost) {
 		t.Fatalf("foreign link: %v", err)
 	}
 
 	bareClient := NewClient(endpoint, "kit-token", server.Client())
-	_, err = bareClient.PullMeshContent(context.Background(), bareID.String())
-	api = nil
-	if !errors.As(err, &api) || api.Code != "KIT_LEASE_REQUIRED" {
+	_, err = remoteFor(bareClient).Pull(context.Background(), bareID)
+	var denied *meshcontent.LeaseDeniedError
+	if !errors.As(err, &denied) || denied.Code != "KIT_LEASE_REQUIRED" {
 		t.Fatalf("bare pull: %v", err)
 	}
-	linkErr := bareClient.LinkMeshContent(context.Background(), "bare", primary.String())
+	linkErr := remoteFor(bareClient).LinkExpansion("bare", primary)
 	if linkErr == nil {
 		t.Fatal("bare link succeeded")
 	}
-	api = nil
-	if !errors.As(linkErr, &api) || api.Code != "KIT_LEASE_REQUIRED" {
+	denied = nil
+	if !errors.As(linkErr, &denied) || denied.Code != "KIT_LEASE_REQUIRED" {
 		t.Fatalf("bare link: %v", linkErr)
 	}
 	if _, statErr := os.Stat(filepath.Join(root, "objects", bareID.Digest)); !os.IsNotExist(statErr) {

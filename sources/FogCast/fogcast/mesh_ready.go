@@ -37,17 +37,42 @@ func (s *Service) GamesMeshReady(ctx context.Context, ids []string) (map[string]
 	if session.Executor == nil || session.Entry == nil {
 		return nil, false
 	}
-	out := make(map[string]GameMeshReady, len(ids))
-	foreign := neighborExecuteAd(nodes, session.BoundNode)
+	entries := make(map[string]meshcontent.Entry, len(ids))
+	ordered := make([]meshcontent.Entry, 0, len(ids))
 	for _, id := range ids {
-		if _, seen := out[id]; seen {
+		if _, seen := entries[id]; seen {
 			continue
 		}
 		entry, ok := session.Entry(id)
 		if !ok {
 			continue
 		}
-		bound := s.meshReadyBound(entry, session)
+		entries[id] = entry
+		ordered = append(ordered, entry)
+	}
+	views, err := contentViews(ctx, session.Executor, ordered)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		out := make(map[string]GameMeshReady, len(entries))
+		for id := range entries {
+			out[id] = GameMeshReady{
+				Ready:      false,
+				Block:      meshcontent.BlockInvalid,
+				NextAction: meshcontent.NextAction(meshcontent.BlockInvalid),
+			}
+		}
+		return out, true
+	}
+	out := make(map[string]GameMeshReady, len(entries))
+	foreign := neighborExecuteAd(nodes, session.BoundNode)
+	majorOK := meshMajorOK(nodes, session.BoundNode)
+	for id, entry := range entries {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		bound := s.meshReadyBound(entry, session, majorOK, views)
 		ready, block := discovery.ReadyForBoundExecutor(true, foreign, &discovery.ReadyHereInput{
 			Entry: entry,
 			Bound: bound,
@@ -79,21 +104,23 @@ func neighborExecuteAd(nodes []MeshNode, boundNode string) discovery.Advertiseme
 }
 
 // meshReadyBound is the session fact ReadyHere reads. Execute is the
-// installed binding, not another node's advertisement. Slot reads do
-// not pull. A missing id that some source advertises is distant-only.
-func (s *Service) meshReadyBound(entry meshcontent.Entry, session MeshExecuteSession) meshcontent.Bound {
+// installed binding, not another node's advertisement. views come from
+// one snapshot for the request. Slot reads do not pull. A missing id
+// that some source advertises is distant-only.
+func (s *Service) meshReadyBound(entry meshcontent.Entry, session MeshExecuteSession, majorOK bool, views map[string]meshcontent.SlotFact) meshcontent.Bound {
 	exec := session.Executor
 	local := meshcontent.NewCache()
 	distant := meshcontent.NewCache()
 	var checking []meshcontent.ContentID
 	for _, id := range entry.ContentIDs() {
-		switch exec.Slot(id) {
+		fact := views[id.String()]
+		switch fact.State {
 		case meshcontent.StatePresent:
 			_ = local.Hold(id)
 		case meshcontent.StateChecking:
 			checking = append(checking, id)
 		default:
-			if exec.SourceAdvertises(id) {
+			if fact.Advertises {
 				_ = distant.Hold(id)
 			}
 		}
@@ -105,7 +132,7 @@ func (s *Service) meshReadyBound(entry meshcontent.Entry, session MeshExecuteSes
 	return meshcontent.Bound{
 		Execute:     session.BoundNode != "" && exec.NodeID() == session.BoundNode,
 		LeaseFree:   s.readyLeaseFree(entry, session.BoundNode),
-		MeshMajorOK: meshMajorOK(s.meshNodesCopy(), session.BoundNode),
+		MeshMajorOK: majorOK,
 		Local:       local,
 		Distant:     distant,
 		Checking:    checking,
@@ -114,13 +141,61 @@ func (s *Service) meshReadyBound(entry meshcontent.Entry, session MeshExecuteSes
 	}
 }
 
-func (s *Service) meshNodesCopy() []MeshNode {
-	if s == nil {
-		return nil
+// contentViews reads every required content-id once for this request.
+// A ContentSnapshot is one batch. Otherwise each id is read once and
+// reused across titles. A transport error is returned and is not Missing.
+func contentViews(ctx context.Context, exec meshcontent.Executor, entries []meshcontent.Entry) (map[string]meshcontent.SlotFact, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
-	s.meshMu.Lock()
-	defer s.meshMu.Unlock()
-	return append([]MeshNode(nil), s.meshNodes...)
+	var ids []meshcontent.ContentID
+	seen := map[string]struct{}{}
+	for _, entry := range entries {
+		for _, id := range entry.ContentIDs() {
+			if _, ok := seen[id.String()]; ok {
+				continue
+			}
+			seen[id.String()] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	if snap, ok := exec.(meshcontent.ContentSnapshot); ok && snap != nil {
+		return snap.Snapshot(ctx, ids)
+	}
+	out := make(map[string]meshcontent.SlotFact, len(ids))
+	for _, id := range ids {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		state, err := readReadySlot(ctx, exec, id)
+		if err != nil {
+			return nil, err
+		}
+		fact := meshcontent.SlotFact{State: state}
+		if state == meshcontent.StateMissing {
+			advertises, err := readReadySource(ctx, exec, id)
+			if err != nil {
+				return nil, err
+			}
+			fact.Advertises = advertises
+		}
+		out[id.String()] = fact
+	}
+	return out, nil
+}
+
+func readReadySlot(ctx context.Context, exec meshcontent.Executor, id meshcontent.ContentID) (meshcontent.SlotState, error) {
+	if reader, ok := exec.(meshcontent.SlotReader); ok && reader != nil {
+		return reader.ReadSlot(ctx, id)
+	}
+	return exec.Slot(id), nil
+}
+
+func readReadySource(ctx context.Context, exec meshcontent.Executor, id meshcontent.ContentID) (bool, error) {
+	if reader, ok := exec.(meshcontent.SourceReader); ok && reader != nil {
+		return reader.ReadSource(ctx, id)
+	}
+	return exec.SourceAdvertises(id), nil
 }
 
 func meshMajorOK(nodes []MeshNode, boundNode string) bool {
@@ -135,9 +210,12 @@ func meshMajorOK(nodes []MeshNode, boundNode string) bool {
 
 // readyLeaseFree is LeaseFree for ReadyHere. A host-only title does not
 // take the kit lease. An FPGA title is free when this session holds the
-// current grant and generation, or the kit is unleased and claimable.
-// A foreign holder is not free. A held grant whose observed generation
-// does not match is not free and is not claimed from this path.
+// current grant and generation on the bound node, or that node's client
+// can claim an unleased kit. A foreign holder is not free. A lost or
+// closed grant is not free. A client for a different kit is not used.
+// A held grant whose observed generation does not match is not free
+// and is not claimed from this path. The generation observation is the
+// selected connection only when that connection is this bound node.
 func (s *Service) readyLeaseFree(entry meshcontent.Entry, boundNode string) bool {
 	if meshLaunchExecution(entry) == ExecutionHostOnly {
 		return true
@@ -145,18 +223,25 @@ func (s *Service) readyLeaseFree(entry meshcontent.Entry, boundNode string) bool
 	if s.boundKitForeign(boundNode) {
 		return false
 	}
-	owned, generation := false, ""
-	if lease, ok := s.meshReadyClient(boundNode).(meshKitLease); ok && lease != nil {
-		owned, generation = lease.MeshKitLease()
-	}
-	if !owned || generation == "" {
-		return true
-	}
-	conn := s.TargetConnection()
-	if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
+	client := s.meshReadyClient(boundNode)
+	if abandoned, ok := client.(meshKitLeaseAbandoned); ok && abandoned != nil && abandoned.MeshKitLeaseAbandoned() {
 		return false
 	}
-	return true
+	owned, generation := false, ""
+	if lease, ok := client.(meshKitLease); ok && lease != nil {
+		owned, generation = lease.MeshKitLease()
+	}
+	if owned && generation != "" {
+		if s.connectionDescribesNode(boundNode) {
+			conn := s.TargetConnection()
+			if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
+				return false
+			}
+		}
+		return true
+	}
+	acquirer, ok := client.(meshPullAcquirer)
+	return ok && acquirer != nil
 }
 
 func (s *Service) boundKitForeign(boundNode string) bool {
@@ -191,12 +276,31 @@ func (s *Service) meshReadyClient(boundNode string) serviceClient {
 		if cfg.NodeID() != boundNode && cfg.TargetID != boundNode && cfg.Name != boundNode {
 			continue
 		}
-		if client := s.targetClients[cfg.Name]; client != nil {
-			return client
-		}
-	}
-	if client := s.targetClients[strings.TrimSpace(s.selectedTarget)]; client != nil {
-		return client
+		return s.targetClients[cfg.Name]
 	}
 	return nil
+}
+
+// connectionDescribesNode reports whether the cached target connection
+// is the bound node. A sibling kit's grant is not compared with it.
+func (s *Service) connectionDescribesNode(boundNode string) bool {
+	if s == nil || strings.TrimSpace(boundNode) == "" {
+		return false
+	}
+	conn := s.TargetConnection()
+	s.targetMu.RLock()
+	defer s.targetMu.RUnlock()
+	node := strings.TrimSpace(boundNode)
+	cfg := targetByName(s.targets, strings.TrimSpace(s.selectedTarget))
+	describes := cfg.NodeID() == node || cfg.TargetID == node || cfg.Name == node
+	if !describes {
+		return conn.TargetID != "" && conn.TargetID == node
+	}
+	if conn.TargetID != "" && cfg.TargetID != "" {
+		return conn.TargetID == cfg.TargetID
+	}
+	if conn.Address != "" && cfg.Address != "" {
+		return conn.Address == cfg.Address
+	}
+	return true
 }

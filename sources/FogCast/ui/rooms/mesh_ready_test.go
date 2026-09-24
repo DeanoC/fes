@@ -95,4 +95,15 @@ func TestReadyHereRoomsStayUnavailableUntilTheTitleIsHere(t *testing.T) {
 	if state != AvailReady || dest.Confirm() != ConfirmLaunch || dest.Action != "Play" {
 		t.Fatalf("ready here %+v", dest)
 	}
+
+	offline := hostOnly
+	offline.ReadyHere = &ready
+	offline.State = "missing"
+	offline.RootOnline = false
+	state, matches = ClassifyGames([]hostclient.Game{offline}, offline.Title)
+	dest = Destination{Kind: KindGame, Availability: state, Matches: matches, GameID: offline.ID}
+	dest.FillCopy()
+	if state != AvailUnavailable || dest.Confirm() == ConfirmLaunch || matches[0].LaunchBlock() != hostclient.LaunchSourceOffline {
+		t.Fatalf("offline host row %+v confirm %v", dest, dest.Confirm())
+	}
 }

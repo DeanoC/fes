@@ -277,6 +277,9 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			if _, err := os.Stat(meshRoot); err != nil {
 				t.Fatal(err)
 			}
+			if _, err := os.Stat(filepath.Join(meshRoot, "objects")); !os.IsNotExist(err) {
+				t.Fatalf("agent boot created mesh objects: %v", err)
+			}
 			cancel()
 			return http.ErrServerClosed
 		},

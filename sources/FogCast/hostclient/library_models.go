@@ -66,17 +66,20 @@ const (
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
-// selection and sofa admission share this rule.
+// selection and sofa admission share this rule. A true ReadyHere still
+// applies the catalog gates: a host-only row whose root is offline is
+// not Play. A false ReadyHere keeps the mesh block.
 func (g Game) LaunchBlock() LaunchBlock {
-	if g.ReadyHere != nil {
-		if *g.ReadyHere {
-			return ""
-		}
+	if g.ReadyHere != nil && !*g.ReadyHere {
 		if g.ReadyBlock == "" {
 			return LaunchNotReady
 		}
 		return LaunchBlock(g.ReadyBlock)
 	}
+	return g.catalogLaunchBlock()
+}
+
+func (g Game) catalogLaunchBlock() LaunchBlock {
 	if !g.Launchable {
 		return LaunchBrowseOnly
 	}

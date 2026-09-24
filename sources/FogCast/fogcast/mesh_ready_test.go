@@ -58,6 +58,7 @@ func TestGamesMeshReadyUsesReadyHere(t *testing.T) {
 				}},
 			},
 		}
+		s.targetClients = map[string]serviceClient{"dev": &acquiringMeshClient{}}
 		s.SetMeshExecuteSession(MeshExecuteSession{
 			BoundNode: bound,
 			Executor:  exec,
@@ -74,7 +75,9 @@ func TestGamesMeshReadyUsesReadyHere(t *testing.T) {
 		return s
 	}
 	base := func() *Service {
-		return service(newExec(present, nil, abi, []string{pkg}), discovery.MeshProtocol, "kit-a", fpga)
+		s := service(newExec(present, nil, abi, []string{pkg}), discovery.MeshProtocol, "kit-a", fpga)
+		s.targetClients = map[string]serviceClient{"dev": &acquiringMeshClient{}}
+		return s
 	}
 
 	t.Run("present claimable lease", func(t *testing.T) {
@@ -105,6 +108,8 @@ func TestGamesMeshReadyUsesReadyHere(t *testing.T) {
 	})
 	t.Run("no execute binding", func(t *testing.T) {
 		s := service(newExec(present, nil, abi, []string{pkg}), discovery.MeshProtocol, "other", fpga)
+		s.targets = append(s.targets, TargetConfig{Name: "other", Enabled: true, TargetID: "other"})
+		s.targetClients = map[string]serviceClient{"other": &acquiringMeshClient{}}
 		assertMeshBlock(t, s, fpga.TitleID, meshcontent.BlockNoExecutor, "bind_executor")
 	})
 	t.Run("package missing on executor", func(t *testing.T) {
@@ -169,6 +174,140 @@ func TestGamesMeshReadyUsesReadyHere(t *testing.T) {
 	})
 }
 
+func TestGamesMeshReadyLeaseAndBatch(t *testing.T) {
+	bios := meshcontent.SumSHA256([]byte("bios"))
+	cart := meshcontent.SumSHA256([]byte("cart"))
+	other := meshcontent.SumSHA256([]byte("other-cart"))
+	pkg := strings.Repeat("ab", 32)
+	fpga := meshcontent.Entry{
+		TitleID: "coleco-frogger", System: "coleco", Launchable: true,
+		Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteFPGANative}},
+		Slots: []meshcontent.Slot{
+			meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: pkg, ABI: "fes.application", Major: 1}),
+			meshcontent.BIOSSlot(bios),
+			meshcontent.PrimaryMediaSlot(cart),
+		},
+	}
+	second := fpga
+	second.TitleID = "coleco-dk"
+	second.Slots = []meshcontent.Slot{
+		meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: pkg, ABI: "fes.application", Major: 1}),
+		meshcontent.BIOSSlot(bios),
+		meshcontent.PrimaryMediaSlot(other),
+	}
+	abi := []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}}
+	held := map[string]meshcontent.SlotState{
+		bios.String():  meshcontent.StatePresent,
+		cart.String():  meshcontent.StatePresent,
+		other.String(): meshcontent.StatePresent,
+	}
+	exec := &countReadyExec{readyExec: &readyExec{meshLaunchExecutor: &meshLaunchExecutor{
+		node: "kit-a", held: held, abis: abi,
+	}, packages: []string{pkg}}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}, {Name: "other", Enabled: true, TargetID: "kit-b"}},
+		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": &acquiringMeshClient{}},
+		meshNodes:      []MeshNode{{NodeID: "kit-a", TargetID: "kit-a", Mesh: discovery.MeshProtocol}},
+	}
+	s.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "kit-a",
+		Executor:  exec,
+		Entry: func(id string) (meshcontent.Entry, bool) {
+			switch id {
+			case fpga.TitleID:
+				return fpga, true
+			case second.TitleID:
+				return second, true
+			default:
+				return meshcontent.Entry{}, false
+			}
+		},
+	})
+	got, on := s.GamesMeshReady(context.Background(), []string{fpga.TitleID, second.TitleID})
+	if !on || !got[fpga.TitleID].Ready || !got[second.TitleID].Ready {
+		t.Fatalf("shared slots %#v", got)
+	}
+	if exec.slots != 3 {
+		t.Fatalf("slot reads %d, want one per distinct content id", exec.slots)
+	}
+
+	s.targetClients = nil
+	got, on = s.GamesMeshReady(context.Background(), []string{fpga.TitleID})
+	if !on || got[fpga.TitleID].Ready || got[fpga.TitleID].Block != meshcontent.BlockLeaseHeld {
+		t.Fatalf("unclaimable %#v", got[fpga.TitleID])
+	}
+
+	s.targetClients = map[string]serviceClient{"dev": &fakeServiceClient{meshLeaseAbandoned: true}}
+	got, on = s.GamesMeshReady(context.Background(), []string{fpga.TitleID})
+	if !on || got[fpga.TitleID].Ready || got[fpga.TitleID].NextAction != "wait_for_lease" {
+		t.Fatalf("lost lease %#v", got[fpga.TitleID])
+	}
+
+	s.targets = []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}}
+	s.targetClients = map[string]serviceClient{"dev": &acquiringMeshClient{}}
+	s.meshExecute.BoundNode = "kit-b"
+	exec.node = "kit-b"
+	s.meshNodes = []MeshNode{{NodeID: "kit-b", TargetID: "kit-b", Mesh: discovery.MeshProtocol}}
+	got, on = s.GamesMeshReady(context.Background(), []string{fpga.TitleID})
+	if !on || got[fpga.TitleID].Ready || got[fpga.TitleID].Block != meshcontent.BlockLeaseHeld {
+		t.Fatalf("sibling client %#v", got[fpga.TitleID])
+	}
+
+	s.targets = []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}, {Name: "other", Enabled: true, TargetID: "kit-b"}}
+	s.targetClients = map[string]serviceClient{"other": &fakeServiceClient{meshLeaseGeneration: "gen-b"}}
+	s.connection = TargetConnection{State: "ready", TargetID: "kit-a", leaseSeen: true, leaseOwned: true, leaseGeneration: "gen-a"}
+	got, on = s.GamesMeshReady(context.Background(), []string{fpga.TitleID})
+	if !on || !got[fpga.TitleID].Ready {
+		t.Fatalf("bound grant %#v on %v", got[fpga.TitleID], on)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, on := s.GamesMeshReady(ctx, []string{fpga.TitleID}); on {
+		t.Fatal("canceled context still reported ready")
+	}
+}
+
+func TestGamesMeshReadySnapshotIsOneRead(t *testing.T) {
+	cart := meshcontent.SumSHA256([]byte("cart"))
+	pkg := strings.Repeat("ab", 32)
+	entry := meshcontent.Entry{
+		TitleID: "coleco-frogger", System: "coleco", Launchable: true,
+		Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteFPGANative}},
+		Slots: []meshcontent.Slot{
+			meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: pkg, ABI: "fes.application", Major: 1}),
+			meshcontent.PrimaryMediaSlot(cart),
+		},
+	}
+	exec := &snapReadyExec{readyExec: &readyExec{meshLaunchExecutor: &meshLaunchExecutor{
+		node: "kit-a",
+		held: map[string]meshcontent.SlotState{cart.String(): meshcontent.StatePresent},
+		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}, packages: []string{pkg}}}
+	s := &Service{
+		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}},
+		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": &acquiringMeshClient{}},
+		meshNodes:      []MeshNode{{NodeID: "kit-a", TargetID: "kit-a", Mesh: discovery.MeshProtocol}},
+	}
+	s.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "kit-a", Executor: exec,
+		Entry: func(id string) (meshcontent.Entry, bool) {
+			return entry, id == entry.TitleID
+		},
+	})
+	got, on := s.GamesMeshReady(context.Background(), []string{entry.TitleID, entry.TitleID})
+	if !on || !got[entry.TitleID].Ready || exec.snaps != 1 || exec.slots != 0 {
+		t.Fatalf("ready %#v snaps %d slots %d", got[entry.TitleID], exec.snaps, exec.slots)
+	}
+	exec.fail = true
+	got, on = s.GamesMeshReady(context.Background(), []string{entry.TitleID})
+	if !on || got[entry.TitleID].Ready || got[entry.TitleID].Block != meshcontent.BlockInvalid || got[entry.TitleID].NextAction != "unavailable" {
+		t.Fatalf("unreachable %#v", got[entry.TitleID])
+	}
+}
+
 func TestGamesMeshReadySeamOffLeavesComposition(t *testing.T) {
 	got, on := (&Service{}).GamesMeshReady(context.Background(), []string{"coleco-frogger", "zx81-maze", "snes-mario"})
 	if on || len(got) != 0 {
@@ -201,4 +340,38 @@ func (e *readyExec) Packages() []string {
 		return nil
 	}
 	return append([]string(nil), e.packages...)
+}
+
+type countReadyExec struct {
+	*readyExec
+	slots int
+}
+
+func (e *countReadyExec) Slot(id meshcontent.ContentID) meshcontent.SlotState {
+	e.slots++
+	return e.meshLaunchExecutor.Slot(id)
+}
+
+type snapReadyExec struct {
+	*readyExec
+	snaps int
+	slots int
+	fail  bool
+}
+
+func (e *snapReadyExec) Slot(id meshcontent.ContentID) meshcontent.SlotState {
+	e.slots++
+	return e.meshLaunchExecutor.Slot(id)
+}
+
+func (e *snapReadyExec) Snapshot(context.Context, []meshcontent.ContentID) (map[string]meshcontent.SlotFact, error) {
+	e.snaps++
+	if e.fail {
+		return nil, meshcontent.ErrContentUnreachable
+	}
+	out := make(map[string]meshcontent.SlotFact, len(e.held))
+	for id, state := range e.held {
+		out[id] = meshcontent.SlotFact{State: state}
+	}
+	return out, nil
 }

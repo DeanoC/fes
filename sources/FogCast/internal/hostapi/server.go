@@ -927,12 +927,29 @@ func writeSessionError(w http.ResponseWriter, err error) {
 			Code: "CONTENT_PULL_FAILED", Message: "required content pull failed",
 		}})
 		return
+	case errors.Is(err, meshcontent.ErrContentLinkFailed):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_LINK_FAILED", Message: "mesh link failed",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrContentUnreachable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{
+			Code: "CONTENT_UNREACHABLE", Message: "mesh content could not be read",
+		}})
+		return
 	case errors.Is(err, meshcontent.ErrCheckingTimeout):
 		writeJSON(w, http.StatusGatewayTimeout, map[string]any{"error": apiError{
 			Code: "CONTENT_CHECKING_TIMEOUT", Message: "required content stayed checking until the host timeout",
 		}})
 		return
 	case errors.Is(err, meshcontent.ErrLeaseNotFree):
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
+			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
+		}})
+		return
+	}
+	var lease *meshcontent.LeaseDeniedError
+	if errors.As(err, &lease) {
 		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
 			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
 		}})

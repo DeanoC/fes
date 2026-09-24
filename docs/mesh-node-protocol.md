@@ -201,9 +201,12 @@ Launchable versus browse-only, carried forward on purpose:
   installed: rooms and `GET /api/v1/games` call `ReadyHere`. The games
   row then includes `ready_here`, and, when the title is not Ready,
   `ready_block` plus `next_action`. Those are host catalog fields, not
-  a mesh wire freeze. Lease-free for that view is this session's grant
-  and generation, or an unleased kit this session can claim. A foreign
-  holder is not Ready. When the session is not installed the fields
+  a mesh wire freeze. `next_action` is `wait`, `supply_content`,
+  `fetch_here`, `wait_for_lease`, `resolve_version`, `bind_executor`,
+  `browse`, or `unavailable`. Lease-free for that view is this
+  session's grant and generation on the bound node, or an unleased kit
+  whose client can claim. A lost grant is not free. A foreign holder
+  is not Ready. A true ReadyHere result still passes catalog admission. When the session is not installed the fields
   are omitted and Phase 0 composition Ready stays in force.
 - **Phase 3 and later.** Placement may choose the bound executor.
   Until that choice exists, Ready still does not mean "any node that

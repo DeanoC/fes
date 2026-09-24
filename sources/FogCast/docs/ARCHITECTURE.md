@@ -967,13 +967,22 @@ grant and its generation. InUse is the Phase 1 busy connection: another
 session holds that kit. A fresh session does not yet hold a grant.
 Content pull is the lease-acquiring mutation: when that kit is free,
 Launch claims the session grant before Ensure, and Ensure then sees
-LeaseFree. A held grant whose observed generation differs fails closed
-before any pull. Host-only play stays on the host executor.
+LeaseFree. A grant claimed in that call is released when Ensure does
+not start execution. A grant the session already held stays held. A
+held or denied claim is `KIT_LEASE_DENIED`. A held grant whose observed
+generation differs fails closed before any pull, and that observation
+is the selected connection only when the launch executes on that kit.
+Host-only play stays on the host executor.
 
 Ready for rooms and `GET /api/v1/games` uses that same grant when a mesh
-session is installed, and also treats an unleased kit this session can
-claim as free. A foreign holder is not Ready. Ensure's own LeaseFree is
-unchanged: a free kit is not owned until the content pull claims it.
+session is installed. An unleased kit is free only when the bound
+node's client can claim the pull. A lost or closed grant is not free.
+A client for a different kit is not used. A foreign holder is not
+Ready. Ensure's own LeaseFree is unchanged: a free kit is not owned
+until the content pull claims it. Slot and source reads for that view
+are one batch per request (`GET /v1/mesh/content/slots`), with a one
+second snapshot on the host client. Each read has a deadline. A
+transport failure is `CONTENT_UNREACHABLE`, not missing content.
 
 Immediately before execute, and while lifecycle admission is held,
 `revalidateLaunchSnapshot` compares that snapshot with live state. Any
@@ -992,8 +1001,10 @@ defaults to 30 seconds and is clamped at two minutes
 The timeout returns `ErrCheckingTimeout`. Session launch maps
 missing-with-no-source and a slot that ends Missing to
 `CONTENT_MISSING` (422), a failed pull to `CONTENT_PULL_FAILED` (422),
-an ABI the executor cannot run to `ABI_INELIGIBLE` (409), a checking
-timeout to `CONTENT_CHECKING_TIMEOUT` (504), and an unowned lease to
+a failed link to `CONTENT_LINK_FAILED` (422), a slot read that does not
+complete to `CONTENT_UNREACHABLE` (503), an ABI the executor cannot run
+to `ABI_INELIGIBLE` (409), a checking timeout to
+`CONTENT_CHECKING_TIMEOUT` (504), and an unowned or denied lease to
 `KIT_LEASE_DENIED` (403). `CONTENT_CHECKING` (409) remains the mapping
 for Ensure's in-progress block. Launch always waits with a positive
 timeout, so that 409 is not produced by
@@ -1006,10 +1017,19 @@ on that kit, and links expansion slot-bytes there without folding them
 into primary media or a programmed image. Pull honors the caller's
 context and deletes a partial file on cancel or failure, so that file
 is not Present. The agent serves that store at `/v1/mesh/content/*`
-for the node's id. Pull and link require the current kit lease. Node,
-slot, and source reads remain available to other clients. The host
-authorizes pull as a lease-acquiring mutation and link as a mutation
-that needs the grant already held. Those routes drive the kit store.
+for the node's id. Opening the store does not create directories under
+the media root; the first pull or link does. A partial file left by a
+crashed pull is removed when the store opens. A pull refuses to start
+when free space is under 32 MiB or the object store is already at 2 GiB.
+Pull and link require the current kit lease. A link failure is
+`CONTENT_LINK_FAILED`. A kit lease rejection of pull or link is
+`KIT_LEASE_DENIED` on the host, not a failed copy. A canceled pull is
+logged on the kit. Node, slot, slots, and source reads remain available
+to other clients. The host authorizes pull as a lease-acquiring
+mutation and link as a mutation that needs the grant already held,
+including when the remote base URL has a path prefix. When a session
+installs a remote executor, the authorizer is the client for the bound
+node. Those routes drive the kit store.
 They are not an Ensure-result document. The host installs the executor
 only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
 launch stay on the existing path. The store does not program the FPGA.
@@ -1030,10 +1050,25 @@ binding, every required slot is Present on that executor, the lease is
 free for this session, and the mesh-protocol major is compatible.
 Bytes that exist only on a distant node are not Ready. The games row
 then carries `ready_here`
-false, `ready_block` (the ReadyHere block), and `next_action` (the
-code for that block, `fetch_here` for distant-only). A slot mid-pull
-is Checking (`ready_block` `ensure_in_progress`, `next_action`
-`wait`). Rooms show that as Unavailable or Checking and do not Play.
+false, `ready_block` (the ReadyHere block), and `next_action`. A true
+`ready_here` still applies the catalog gates (`source_offline`,
+missing firmware, ROM, or expansion, and the rest), so Play is not
+offered for a host-only row whose root is offline.
+
+| `next_action` | `ready_block` |
+| --- | --- |
+| `wait` | `ensure_in_progress` |
+| `supply_content` | `content_missing` |
+| `fetch_here` | `distant` |
+| `wait_for_lease` | `lease_held` |
+| `resolve_version` | `version_skew` |
+| `bind_executor` | `no_capable_executor` |
+| `browse` | `browse_only` |
+| `unavailable` | `invalid`, and any other block |
+
+A slot mid-pull is Checking (`ready_block` `ensure_in_progress`,
+`next_action` `wait`). Rooms show that as Unavailable or Checking and
+do not Play.
 `launchable` stays the platform and package gate from
 `enrichLaunchable`, so a firmware-ready Coleco or ZX81 package is not
 reclassified as browse-only.
