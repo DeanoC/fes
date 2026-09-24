@@ -1,7 +1,8 @@
 # Mesh LAN — Phase 2 execution brief
 
 **Status:** Phase 2 started. Slices 1 and 2 are on main. Slice 3 host
-ensure is this change. The kit content store is next. Bob coordinates.
+ensure and the #152 host-hardening follow-up are on main. The kit
+content store is this change. Phase 2 Ready is next. Bob coordinates.
 Deano owns FES parent merges. Do not merge from this brief.
 
 **Audience:** FogCast host (library and host API), Caster when the kit
@@ -75,8 +76,8 @@ Owners are component strawmen. Agree files before parallel edits
 | **Rooms UX** | Foggy | Phase 2 Ready copy, when that slice lands | Treat distant-only bytes as Ready. Collapse Checking, Missing, Needs a choice, In use, and version skew into one string. |
 | **Parent merge** | Deano | Merge to `main` | — |
 
-Slices 1–3 do not touch the kit. Caster's review waits until the kit
-content store writes the executor cache.
+Slices 1–3 do not touch the kit. The kit content store in slice 4
+does. Caster reviews that boundary.
 
 ---
 
@@ -195,7 +196,7 @@ route or a wire freeze. JSON tags stay on the host catalog shape.
 Ensure results have none. The hash algorithm stays the unsigned sha256
 strawman.
 
-### 4. Kit content store — not started
+### 4. Kit content store — this change
 
 **Owner:** FogCast target agent. Caster reviews this boundary.
 
@@ -203,7 +204,8 @@ strawman.
 Hold content-ids, pull bytes from a content source onto that kit, and
 link expansion slot-bytes there. Report Present, Checking, or Missing.
 Honor the same failure class. Do not program the FPGA while a required
-slot is Checking.
+slot is Checking. The host drives that store only when a mesh session
+is installed. Phase 0 and Phase 1 launch do not install one.
 
 **Does not:** automatic placement. Does not pull onto a node the
 session did not bind. Does not free a lease. Does not turn rooms Ready

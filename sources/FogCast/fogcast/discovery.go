@@ -37,6 +37,13 @@ type TargetConnection struct {
 	TargetID string `json:"target_id,omitempty"`
 	BootID   string `json:"boot_id,omitempty"`
 	Owner    string `json:"owner,omitempty"`
+	// leaseSeen is true after this host has read kit ownership for the
+	// connection. The fields are not a wire format. leaseOwned is the
+	// observed session grant. leaseGeneration is that observation's
+	// generation, empty when the kit did not publish one.
+	leaseSeen       bool
+	leaseOwned      bool
+	leaseGeneration string
 }
 
 func (s *Service) TargetConnection() TargetConnection {
@@ -500,7 +507,10 @@ func (s *Service) launchUsesForeignKit(pinned launchSnapshot, execution string) 
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {
-	connection := TargetConnection{State: "ready", Address: address, TargetID: id, BootID: health.BootID}
+	connection := TargetConnection{
+		State: "ready", Address: address, TargetID: id, BootID: health.BootID,
+		leaseSeen: true, leaseOwned: ownership.Owned, leaseGeneration: ownership.Generation,
+	}
 	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 		connection.State = "version_mismatch"
 		connection.Message = err.Error()

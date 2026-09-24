@@ -191,6 +191,32 @@ func (c *Client) KitLeaseStatus(ctx context.Context) (kitlease.Status, error) {
 }
 
 func (l *KitLease) Held() bool { return l.CurrentToken() != "" }
+
+// Ownership reports the grant this session currently holds.
+// generation is empty when the session does not hold a current grant.
+func (l *KitLease) Ownership() (owned bool, generation string) {
+	if l == nil {
+		return false, ""
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed || l.lost || l.grant.Token == "" || l.grant.Status.Generation == "" {
+		return false, ""
+	}
+	if !time.Now().Before(l.localExpiry) {
+		return false, ""
+	}
+	return true, l.grant.Status.Generation
+}
+
+// MeshKitLease is the session-owned kit grant Ensure consults.
+// A client with no current grant is not an owned binding.
+func (c *Client) MeshKitLease() (bool, string) {
+	if c == nil {
+		return false, ""
+	}
+	return c.kitLease.Ownership()
+}
 func (c *Client) authorizeMutation(r *http.Request) error {
 	switch r.URL.Path {
 	case "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/settings", "/v1/launch", "/v2/launch", "/v1/development/rbf", "/v1/development/core", "/v1/cast/start", "/v1/update/stage", "/v1/update/rollback", "/v1/update/confirm":

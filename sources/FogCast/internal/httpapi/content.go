@@ -12,6 +12,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -34,6 +35,7 @@ type serverOptions struct {
 	targetID    string
 	kitLease    *kitlease.Manager
 	content     ContentController
+	meshContent meshcontent.Executor
 	input       InputController
 	cast        CastController
 	development DevelopmentController

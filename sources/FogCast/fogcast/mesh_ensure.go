@@ -64,8 +64,9 @@ type MeshExecuteSession struct {
 }
 
 // SetMeshExecuteSession installs the ensure seam. Tests pass a fake
-// executor. A kit store that pulls bytes through the target agent is
-// a later slice.
+// executor. A kit store is a meshcontent.Executor the target agent
+// serves; the host installs that executor here. A nil executor leaves
+// Phase 0 and Phase 1 launch unchanged.
 func (s *Service) SetMeshExecuteSession(session MeshExecuteSession) {
 	if s == nil {
 		return
@@ -226,8 +227,10 @@ func (s *Service) captureTargetLocked(session MeshExecuteSession, requested stri
 // Host-only execution stays on the installed session node, because that
 // launch does not bind the named kit. A foreign-kit denial returns
 // before Ensure, so a rejected FPGA launch does not pull. A node
-// mismatch returns ErrUnboundNode before Pull or Link. A lease that is
-// not free, or a node that is in use, returns before Pull.
+// mismatch returns ErrUnboundNode before Pull or Link. LeaseFree is
+// this session's grant and generation, not the absence of a foreign
+// holder. InUse is the Phase 1 busy connection. Either one returns
+// before Pull.
 // ErrContentMissingNoSource fails closed. A slot that stays Checking
 // until the host timeout returns ErrCheckingTimeout. Launch must not
 // continue into execute.
@@ -245,12 +248,18 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	if strings.TrimSpace(node) == "" || snap.executor.NodeID() != node {
 		return meshcontent.ErrUnboundNode
 	}
-	// The foreign-kit check above is this launch's LeaseFree / in-use
-	// gate: a busy kit never reaches Ensure. Ensure repeats the refusal
-	// when a caller passes LeaseFree false or InUse true.
+	// LeaseFree is this session's grant on the kit this launch executes
+	// on, including that grant's generation. A free kit is not owned.
+	// InUse is the Phase 1 busy connection: another session holds the
+	// kit. Host-only play does not take that lease. A foreign holder
+	// still returns the lease denial before Ensure.
+	leaseFree, inUse := s.meshLeaseFacts(snap)
+	if meshLaunchExecution(snap.entry) != ExecutionHostOnly && inUse {
+		return canonicalError(protocol.CodeKitLeaseDenied, nil)
+	}
 	result, err := meshcontent.Ensure(ctx, snap.entry, node, snap.executor, meshcontent.EnsureOption{
-		LeaseFree:       true,
-		InUse:           false,
+		LeaseFree:       leaseFree,
+		InUse:           inUse,
 		CheckingTimeout: s.meshCheckingWait(),
 	})
 	if err != nil {
@@ -339,15 +348,22 @@ func (s *Service) snapshotTargetDriftLocked(snap launchSnapshot) error {
 
 // bindCapturedLocked installs the client captured with the snapshot.
 // Caller holds targetMu and has already rejected drift. A client that
-// appeared after capture is not used.
+// appeared after capture is not used. A live client already stored for
+// this name is kept only when it is the captured client. A different
+// client at the same address and TargetID is LAUNCH_CHANGED; the live
+// client is not overwritten.
 func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 	name := snap.name
+	live, liveOK := s.targetClients[name]
 	if snap.client != nil {
+		if liveOK && live != snap.client {
+			return snapshotMismatch(launchSnapshotClientChanged)
+		}
 		if s.targetClients == nil {
 			s.targetClients = map[string]serviceClient{}
 		}
 		s.targetClients[name] = snap.client
-	} else if _, ok := s.targetClients[name]; ok {
+	} else if liveOK {
 		return snapshotMismatch(launchSnapshotClientChanged)
 	}
 	if _, ok := s.targetClients[name]; !ok {
@@ -381,6 +397,37 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 		launchPinnedTargetBoundHook(name)
 	}
 	return nil
+}
+
+// meshKitLease is the session-owned kit grant on one target client.
+// generation is empty when this session does not hold a current grant.
+type meshKitLease interface {
+	MeshKitLease() (owned bool, generation string)
+}
+
+// meshLeaseFacts is what Ensure's LeaseFree and InUse options are.
+// FPGA play is owned only when this session holds the kit grant and,
+// once ownership has been observed, that observation is the same
+// generation. A free or unleased kit is not owned. InUse is the Phase 1
+// busy connection for the kit this launch would execute on. Host-only
+// play does not use that lease.
+func (s *Service) meshLeaseFacts(snap launchSnapshot) (leaseFree, inUse bool) {
+	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
+		return true, false
+	}
+	inUse = s.launchUsesForeignKit(snap, ExecutionFPGANative)
+	owned, generation := false, ""
+	if lease, ok := snap.client.(meshKitLease); ok {
+		owned, generation = lease.MeshKitLease()
+	}
+	if !owned || generation == "" {
+		return false, inUse
+	}
+	conn := s.TargetConnection()
+	if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
+		return false, inUse
+	}
+	return true, inUse
 }
 
 // meshLaunchExecution maps a mesh entry onto the launch execution kind

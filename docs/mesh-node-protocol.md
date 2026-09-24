@@ -319,6 +319,38 @@ Missing remains "not in the household library" after the phase's
 catalog has answered. Needs a choice remains an edition choice. These
 do not collapse into one error string.
 
+## Kit content operations
+
+**Strawman, unsigned. Not an Ensure-result freeze.** Phase 2's kit
+store is `meshcontent.Executor` on the target agent for the node a
+session bound. The host calls Ensure against that executor. Ensure's
+`Result` still has no JSON tags and is not this section.
+
+The agent exposes the executor's operations so the host can drive the
+store. Each call is one method. None of them programs the FPGA, claims
+a lease, or returns an Ensure result.
+
+| Call | Request | Response |
+| --- | --- | --- |
+| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`) |
+| Slot | `GET /v1/mesh/content/slot?id=sha256:<64 hex>` | `state`: `present`, `checking`, or `missing` |
+| Source | `GET /v1/mesh/content/source?id=sha256:<64 hex>` | `advertises` |
+| Pull | `POST /v1/mesh/content/pull?id=sha256:<64 hex>` with an empty body | `state` after the kit reads its content source |
+| Link | `POST /v1/mesh/content/link?name=<expansion>` body `{"content_id":"sha256:<64 hex>"}` | the same content-id |
+
+Pull is the kit's copy. The body is not the bytes. A canceled pull
+deletes its partial file. A partial file is not `present`. Link records
+that expansion's slot-bytes content-id. It does not rewrite primary
+media and it does not store a programmed image. Linking the same name
+and content-id again is a no-op. A later link failure leaves earlier
+links in place.
+
+A pull that does not land the id returns `CONTENT_PULL_FAILED`. The
+host session API uses that same class, plus `CONTENT_MISSING`,
+`ABI_INELIGIBLE`, `CONTENT_CHECKING_TIMEOUT`, and `KIT_LEASE_DENIED`.
+`CONTENT_CHECKING` is Ensure's in-progress block. Launch waits with a
+positive timeout, so session launch returns the timeout class instead.
+
 ## Non-goals for the v1 protocol
 
 v1 matches [`mesh-lan.md`](mesh-lan.md) through Phase 5 unless a later

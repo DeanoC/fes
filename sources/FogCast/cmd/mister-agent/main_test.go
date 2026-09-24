@@ -179,7 +179,9 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	advertised := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	meshRoot := t.TempDir()
 	deps := runDependencies{
+		meshContentRoot: meshRoot,
 		openCache: func(config targetcache.Config, options ...targetcache.Option) (agent.ContentStore, error) {
 			opened = config
 			if len(options) != 1 {
@@ -249,6 +251,23 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			server.Handler.ServeHTTP(response, request)
 			if response.Code != http.StatusOK || rbfStatus(response.Body.Bytes()).State != protocol.StateActive {
 				t.Fatalf("development route = HTTP %d %q", response.Code, response.Body.String())
+			}
+			nodeRequest := httptest.NewRequest(http.MethodGet, "/v1/mesh/content/node", nil)
+			nodeRequest.Header.Set("Authorization", "Bearer test-token")
+			nodeResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(nodeResponse, nodeRequest)
+			if nodeResponse.Code != http.StatusOK || !strings.Contains(nodeResponse.Body.String(), `"node_id":"`+targetID+`"`) {
+				t.Fatalf("mesh node = HTTP %d %s", nodeResponse.Code, nodeResponse.Body.String())
+			}
+			pullRequest := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id=sha256:"+strings.Repeat("ab", 32), nil)
+			pullRequest.Header.Set("Authorization", "Bearer test-token")
+			pullResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(pullResponse, pullRequest)
+			if pullResponse.Code != http.StatusUnprocessableEntity || !strings.Contains(pullResponse.Body.String(), "CONTENT_PULL_FAILED") {
+				t.Fatalf("mesh pull = HTTP %d %s", pullResponse.Code, pullResponse.Body.String())
+			}
+			if _, err := os.Stat(meshRoot); err != nil {
+				t.Fatal(err)
 			}
 			cancel()
 			return http.ErrServerClosed

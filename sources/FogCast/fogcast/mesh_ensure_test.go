@@ -37,7 +37,11 @@ func TestLaunchCheckingDoesNotExecute(t *testing.T) {
 		},
 		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	service := &Service{}
+	service := &Service{
+		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}},
+		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
+	}
 	service.SetMeshCheckingTimeout(40 * time.Millisecond)
 	service.SetMeshExecuteSession(MeshExecuteSession{
 		BoundNode: "kit-a",
@@ -230,6 +234,7 @@ func TestImplicitEmptyTargetIDEnsuresWhenNameIsTheBoundNode(t *testing.T) {
 			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
 		},
 		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
 		catalog:        &fakeServiceCatalog{gameErr: errors.New("stop after ensure")},
 	}
 	service.SetMeshExecuteSession(MeshExecuteSession{
@@ -287,6 +292,53 @@ func TestLaunchOnForeignKitDoesNotPull(t *testing.T) {
 	}
 }
 
+func TestFreeKitDoesNotPull(t *testing.T) {
+	entry, _ := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{meshcontent.SumSHA256([]byte("source-rom")).String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.targetClients["dev"] = &fakeServiceClient{}
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
+	if !errors.Is(err, meshcontent.ErrLeaseNotFree) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("free kit pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+}
+
+func TestObservedLeaseGenerationMismatchDoesNotPull(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.connection = TargetConnection{State: "ready", TargetID: "node-a", leaseSeen: true, leaseOwned: true, leaseGeneration: "other-gen"}
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
+	if !errors.Is(err, meshcontent.ErrLeaseNotFree) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 {
+		t.Fatalf("stale generation pulled %+v", exec.pulls)
+	}
+
+	service.connection.leaseGeneration = "gen-owned"
+	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	_, err = service.LaunchOn(context.Background(), entry.TitleID, "", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+		t.Fatalf("matching generation err %v", err)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
+		t.Fatalf("pulls %+v", exec.pulls)
+	}
+}
+
 func TestLaunchOnHostEntryStaysOnTheSessionNode(t *testing.T) {
 	cart := meshcontent.SumSHA256([]byte("source-rom"))
 	entry := meshcontent.Entry{
@@ -327,6 +379,10 @@ func fpgaMeshEntry(title string) (meshcontent.Entry, meshcontent.ContentID) {
 	return entry, cart
 }
 
+func ownedMeshClient() *fakeServiceClient {
+	return &fakeServiceClient{meshLeaseGeneration: "gen-owned"}
+}
+
 func meshTargetService(exec *meshLaunchExecutor, bound string, entry meshcontent.Entry) *Service {
 	service := &Service{
 		targets: []TargetConfig{
@@ -334,6 +390,7 @@ func meshTargetService(exec *meshLaunchExecutor, bound string, entry meshcontent
 			{Name: "spare", Enabled: true, TargetID: "node-b"},
 		},
 		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
 	}
 	service.SetMeshExecuteSession(MeshExecuteSession{
 		BoundNode: bound,
@@ -413,6 +470,7 @@ func TestLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
 	t.Cleanup(func() { meshEnsureFinishedHook = nil })
 
 	service.targets[0].Enabled = true
+	client.meshLeaseGeneration = "gen-owned"
 	_, err := service.Launch(context.Background(), coreEntry.GameID, nil)
 	var drifted *LaunchSnapshotError
 	if !errors.As(err, &drifted) || drifted.Reason != launchSnapshotCompositionChanged {
@@ -530,7 +588,7 @@ func TestBindRejectsPinnedEndpointChange(t *testing.T) {
 			}
 			service := meshTargetService(exec, "node-a", entry)
 			service.targets[0].Address = "http://192.0.2.10:8182"
-			original := &fakeServiceClient{}
+			original := ownedMeshClient()
 			replacement := &fakeServiceClient{}
 			service.targetClients = map[string]serviceClient{"dev": original}
 			service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, id: entry.TitleID}
@@ -573,7 +631,7 @@ func TestBindKeepsPinnedClientWhenEndpointIsUnchanged(t *testing.T) {
 	}
 	service := meshTargetService(exec, "node-a", entry)
 	service.targets[0].Address = "http://192.0.2.10:8182"
-	original := &fakeServiceClient{}
+	original := ownedMeshClient()
 	replacement := &fakeServiceClient{}
 	service.targetClients = map[string]serviceClient{"dev": original}
 	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, id: entry.TitleID}
@@ -581,8 +639,15 @@ func TestBindKeepsPinnedClientWhenEndpointIsUnchanged(t *testing.T) {
 	t.Cleanup(func() { meshEnsureFinishedHook = nil })
 
 	_, err := service.Launch(context.Background(), entry.TitleID, nil)
-	if service.targetClients["dev"] != original {
-		t.Fatalf("client = replacement, err %v", err)
+	var drifted *LaunchSnapshotError
+	if !errors.As(err, &drifted) || drifted.Reason != launchSnapshotClientChanged {
+		t.Fatalf("err %v", err)
+	}
+	if service.targetClients["dev"] != replacement {
+		t.Fatal("overwrote the live client with the captured one")
+	}
+	if original.coreCalls != 0 || replacement.coreCalls != 0 {
+		t.Fatalf("programmed original=%d replacement=%d", original.coreCalls, replacement.coreCalls)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
 		t.Fatalf("pulls %+v", exec.pulls)
@@ -693,6 +758,7 @@ func TestLaunchRefusesTargetDisabledDuringEnsure(t *testing.T) {
 	service.targets[0].Enabled = true
 	service.targets[0].Address = "http://192.0.2.10:8182"
 	service.targets[0].TargetID = "dev"
+	client.meshLeaseGeneration = "gen-owned"
 	cart := meshcontent.SumSHA256([]byte("source-rom"))
 	exec := &meshLaunchExecutor{
 		node:    "dev",
@@ -810,7 +876,7 @@ func TestLaunchSnapshotRejectsDriftDuringEnsure(t *testing.T) {
 			}
 			service := meshTargetService(exec, "node-a", entry)
 			service.targets[0].Address = "http://192.0.2.10:8182"
-			original := &fakeServiceClient{}
+			original := ownedMeshClient()
 			service.targetClients = map[string]serviceClient{"dev": original}
 			service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, id: entry.TitleID}
 			exec.duringPull = func() { tc.mutate(service) }
@@ -841,7 +907,7 @@ func TestExplicitLaunchKeepsNamedTargetWhenSelectionChanges(t *testing.T) {
 	}
 	service := meshTargetService(exec, "node-a", entry)
 	service.catalog = &stableCoreCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, id: entry.TitleID}
-	service.targetClients = map[string]serviceClient{"dev": &fakeServiceClient{}}
+	service.targetClients = map[string]serviceClient{"dev": ownedMeshClient()}
 	var bound string
 	launchPinnedTargetBoundHook = func(name string) { bound = name }
 	t.Cleanup(func() { launchPinnedTargetBoundHook = nil })
@@ -908,7 +974,11 @@ func TestCheckingCancelDoesNotExecute(t *testing.T) {
 		},
 		abis: []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
 	}
-	service := &Service{}
+	service := &Service{
+		targets:        []TargetConfig{{Name: "dev", Enabled: true, TargetID: "kit-a"}},
+		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": ownedMeshClient()},
+	}
 	service.SetMeshCheckingTimeout(2 * time.Second)
 	service.SetMeshExecuteSession(MeshExecuteSession{
 		BoundNode: "kit-a",

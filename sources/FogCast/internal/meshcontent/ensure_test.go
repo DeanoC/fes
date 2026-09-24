@@ -233,6 +233,9 @@ func TestEnsureABIIneligibleIsNotReady(t *testing.T) {
 	if result.Execute || result.Block != BlockVersionSkew {
 		t.Fatalf("ensure execute=%v block=%s", result.Execute, result.Block)
 	}
+	if len(exec.links) != 0 {
+		t.Fatalf("linked before the ABI was eligible: %+v", exec.links)
+	}
 	ready, block = ReadyHere(entry, Bound{
 		Execute: true, LeaseFree: true, MeshMajorOK: true,
 		Local: local, Packages: []string{pkg.PackageID}, ABIs: exec.abis,
@@ -349,6 +352,48 @@ func (f *fakeExecutor) LinkExpansion(name string, id ContentID) error {
 
 func (f *fakeExecutor) EligibleABIs() []EligibleABI { return f.abis }
 
+type flipCheckingExecutor struct {
+	fakeExecutor
+	seen map[string]int
+}
+
+func (e *flipCheckingExecutor) Slot(id ContentID) SlotState {
+	if e.seen == nil {
+		e.seen = map[string]int{}
+	}
+	e.seen[id.String()]++
+	state := e.fakeExecutor.Slot(id)
+	if state == StateChecking && e.seen[id.String()] > 1 {
+		e.held[id.String()] = StateMissing
+		return StateMissing
+	}
+	return state
+}
+
+type missPullExecutor struct{ fakeExecutor }
+
+func (e *missPullExecutor) Pull(ctx context.Context, id ContentID) (SlotState, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	e.pulls = append(e.pulls, id)
+	return StateMissing, nil
+}
+
+type failSecondLink struct {
+	fakeExecutor
+	n int
+}
+
+func (e *failSecondLink) LinkExpansion(name string, id ContentID) error {
+	e.n++
+	e.links = append(e.links, expansionLink{name: name, id: id})
+	if e.n > 1 {
+		return errors.New("second link failed")
+	}
+	return nil
+}
+
 func TestEnsureCheckingTimeoutAndCancel(t *testing.T) {
 	cart := SumSHA256([]byte("source-rom"))
 	ram := SumSHA256([]byte("slot-bytes"))
@@ -388,6 +433,95 @@ func TestEnsureCheckingTimeoutAndCancel(t *testing.T) {
 	}
 	if len(exec.pulls) != 0 || len(exec.links) != 0 {
 		t.Fatal("canceled ensure touched the executor pull")
+	}
+}
+
+func TestEnsureDoesNotLinkWhenCheckingSettlesMissing(t *testing.T) {
+	cart := SumSHA256([]byte("source-rom"))
+	ram := SumSHA256([]byte("slot-bytes"))
+	entry := Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots: []Slot{
+			PrimaryMediaSlot(cart),
+			ExpansionSlot("port", ram),
+		},
+	}
+	exec := &flipCheckingExecutor{fakeExecutor: fakeExecutor{
+		node: "host-a",
+		held: map[string]SlotState{
+			cart.String(): StateChecking,
+			ram.String():  StatePresent,
+		},
+	}}
+	result, err := Ensure(context.Background(), entry, "host-a", exec, EnsureOption{
+		LeaseFree:       true,
+		CheckingTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Execute || result.Block != BlockContentMissing {
+		t.Fatalf("execute=%v block=%s slots %+v", result.Execute, result.Block, result.Slots)
+	}
+	if len(exec.links) != 0 {
+		t.Fatalf("linked a present sibling after another slot went missing: %+v", exec.links)
+	}
+}
+
+func TestEnsurePullMissedIsPullFailed(t *testing.T) {
+	cart := SumSHA256([]byte("source-rom"))
+	entry := Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots:      []Slot{PrimaryMediaSlot(cart)},
+	}
+	exec := &missPullExecutor{fakeExecutor: fakeExecutor{
+		node:    "host-a",
+		sources: map[string]bool{cart.String(): true},
+	}}
+	_, err := ensureNow(entry, "host-a", exec)
+	if !errors.Is(err, ErrContentPullFailed) || errors.Is(err, ErrContentMissingNoSource) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.links) != 0 {
+		t.Fatal("failed pull linked")
+	}
+}
+
+func TestEnsureLinkFailureDoesNotRollBack(t *testing.T) {
+	cart := SumSHA256([]byte("source-rom"))
+	ram := SumSHA256([]byte("slot-bytes"))
+	aux := SumSHA256([]byte("aux-bytes"))
+	entry := Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []Execute{{Kind: ExecuteNativeEmu}},
+		Slots: []Slot{
+			PrimaryMediaSlot(cart),
+			ExpansionSlot("port", ram),
+			ExpansionSlot("aux", aux),
+		},
+	}
+	exec := &failSecondLink{fakeExecutor: fakeExecutor{
+		node: "host-a",
+		held: map[string]SlotState{
+			cart.String(): StatePresent,
+			ram.String():  StatePresent,
+			aux.String():  StatePresent,
+		},
+	}}
+	_, err := ensureNow(entry, "host-a", exec)
+	if err == nil || errors.Is(err, ErrExecuteBlocked) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.links) != 2 || exec.links[0].name != "port" {
+		t.Fatalf("links %+v", exec.links)
 	}
 }
 

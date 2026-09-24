@@ -48,6 +48,9 @@ func TestKitLeaseSharedMutationAndNoForeignStop(t *testing.T) {
 	if claims != 1 {
 		t.Fatalf("claims=%d", claims)
 	}
+	if owned, generation := c.MeshKitLease(); !owned || generation != "one" {
+		t.Fatalf("owned=%v generation=%q", owned, generation)
+	}
 }
 
 func TestKitLeaseClaimFailureNeverMutates(t *testing.T) {
