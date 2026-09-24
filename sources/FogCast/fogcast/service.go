@@ -189,12 +189,17 @@ type Service struct {
 	meshEnsure       bool
 	meshHTTP         *http.Client
 	meshDialAt       time.Time
-	collectNodes     func(context.Context) ([]discovery.ObservedNode, error)
-	lookupCancel     context.CancelFunc
-	monitorCancel    context.CancelFunc
-	monitorDone      chan struct{}
-	nextLookup       time.Time
-	lookupFailures   uint
+	// meshDialID is the selected-target identity of the last dial attempt.
+	// meshInstalled is the identity that installed meshExecute. A different
+	// selected target drops that executor and dials the new endpoint.
+	meshDialID     meshTargetIdentity
+	meshInstalled  meshTargetIdentity
+	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
+	lookupCancel   context.CancelFunc
+	monitorCancel  context.CancelFunc
+	monitorDone    chan struct{}
+	nextLookup     time.Time
+	lookupFailures uint
 
 	// Grants captured by Stop and not yet released. Idle settings may drop
 	// the owning client; explicit ReleaseKitLease still frees each one.

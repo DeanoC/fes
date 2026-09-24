@@ -33,9 +33,39 @@ func (s *Service) EnableMeshContent() {
 	s.meshMu.Unlock()
 }
 
+// meshTargetIdentity is the selected-target configuration a dial used.
+// Name, address, agent token, node id, and the enabled flag are the
+// fields that choose the endpoint. A later call whose identity differs
+// drops the installed executor instead of keeping the previous kit.
+type meshTargetIdentity struct {
+	name    string
+	address string
+	agent   string
+	nodeID  string
+	enabled bool
+}
+
+func meshTargetIdentityOf(selected string, cfg TargetConfig) meshTargetIdentity {
+	return meshTargetIdentity{
+		name:    strings.TrimSpace(selected),
+		address: strings.TrimSpace(cfg.Address),
+		agent:   cfg.Agent,
+		nodeID:  strings.TrimSpace(cfg.NodeID()),
+		enabled: cfg.Enabled,
+	}
+}
+
+func (id meshTargetIdentity) dialable() bool {
+	return id.enabled && id.address != "" && strings.TrimSpace(id.agent) != ""
+}
+
 // activateMeshExecutor dials the selected kit and installs its content
 // store as the ensure executor. A failed dial leaves the seam off so
-// Phase 0 and Phase 1 launch continue. Retries wait meshDialBackoff.
+// Phase 0 and Phase 1 launch continue. Retries for the same target
+// wait meshDialBackoff. A selected target whose configuration no longer
+// matches the installed dial drops that session first, so readiness is
+// not taken from the previous kit, and dials the new endpoint without
+// waiting out the previous backoff.
 func (s *Service) activateMeshExecutor(ctx context.Context) {
 	if s == nil {
 		return
@@ -46,43 +76,71 @@ func (s *Service) activateMeshExecutor(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
+	s.targetMu.RLock()
+	want := meshTargetIdentityOf(s.selectedTarget, targetByName(s.targets, s.selectedTarget))
 	s.meshMu.Lock()
 	enabled := s.meshEnsure
-	installed := s.meshExecute.Executor != nil
-	recent := !s.meshDialAt.IsZero() && time.Since(s.meshDialAt) < meshDialBackoff
+	matches := s.meshExecute.Executor != nil && s.meshInstalled == want
+	recent := s.meshDialID == want && !s.meshDialAt.IsZero() && time.Since(s.meshDialAt) < meshDialBackoff
 	client := s.meshHTTP
-	if enabled && !installed && !recent {
+	if enabled && !matches && !recent {
+		if s.meshExecute.Executor != nil {
+			s.meshExecute = MeshExecuteSession{}
+			s.meshInstalled = meshTargetIdentity{}
+		}
 		s.meshDialAt = time.Now()
+		s.meshDialID = want
 	}
 	s.meshMu.Unlock()
-	if !enabled || installed || recent {
+	s.targetMu.RUnlock()
+	if !enabled || matches || recent {
 		return
 	}
 	if client == nil {
 		client = &http.Client{}
 	}
-	s.targetMu.RLock()
-	cfg := targetByName(s.targets, s.selectedTarget)
-	s.targetMu.RUnlock()
-	if !cfg.Enabled || strings.TrimSpace(cfg.Address) == "" || strings.TrimSpace(cfg.Agent) == "" {
+	if !want.dialable() {
 		return
 	}
-	endpoint, err := url.Parse(cfg.Address)
+	endpoint, err := url.Parse(want.address)
 	if err != nil {
 		return
 	}
-	remote, err := kitcontent.Dial(ctx, endpoint, cfg.Agent, client)
+	remote, err := kitcontent.Dial(ctx, endpoint, want.agent, client)
 	if err != nil || remote == nil {
 		return
 	}
-	if want := cfg.NodeID(); want != "" && remote.NodeID() != want {
+	if want.nodeID != "" && remote.NodeID() != want.nodeID {
 		return
 	}
-	s.SetMeshExecuteSession(MeshExecuteSession{
+	s.installDialedMeshSession(want, remote)
+}
+
+// installDialedMeshSession installs remote when the selected target and
+// the in-flight dial are still want. A target change that landed during
+// the dial leaves the seam off for the next call to bind.
+func (s *Service) installDialedMeshSession(want meshTargetIdentity, remote *kitcontent.Remote) {
+	if s == nil || remote == nil {
+		return
+	}
+	session := MeshExecuteSession{
 		BoundNode: remote.NodeID(),
 		Executor:  remote,
 		Entry:     s.meshCatalogEntry,
-	})
+	}
+	s.targetMu.RLock()
+	live := meshTargetIdentityOf(s.selectedTarget, targetByName(s.targets, s.selectedTarget))
+	s.meshMu.Lock()
+	ok := live == want && s.meshDialID == want
+	if ok {
+		s.meshExecute = session
+		s.meshInstalled = want
+	}
+	s.meshMu.Unlock()
+	s.targetMu.RUnlock()
+	if ok {
+		s.attachMeshAuthorizer(session)
+	}
 }
 
 // meshCatalogEntry projects one package-backed FPGA title. Host-only

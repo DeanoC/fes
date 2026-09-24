@@ -13,7 +13,12 @@ import (
 
 // describedPackageID is a described core-package id: 64 lowercase hex
 // digits. An empty list of these is not eligibility.
-var describedPackageID = regexp.MustCompile(`^[0-9a-f]{64}$`)
+// stagedPackageDir is a corepackage.Stage publication: that id, a
+// hyphen, and the 32-hex staging token. The package id is the prefix.
+var (
+	describedPackageID = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	stagedPackageDir   = regexp.MustCompile(`^[0-9a-f]{64}-[0-9a-f]{32}$`)
+)
 
 const packageManifestLimit = 1 << 20
 
@@ -25,9 +30,11 @@ type packageABIFile struct {
 }
 
 // ReadInstalledPackages reads [abi] from each described package directory.
-// Unreadable roots, symlinks, and manifests without an ABI major of at
-// least 1 are skipped. Package ids and ABI id+major pairs are deduplicated.
-// Empty or missing roots return nil, nil.
+// A directory name is the bare 64-hex package id or a corepackage.Stage
+// publication `<package-id>-<token>`. Both contribute the package id, not
+// the token. Unreadable roots, symlinks, and manifests without an ABI
+// major of at least 1 are skipped. Package ids and ABI id+major pairs are
+// deduplicated. Empty or missing roots return nil, nil.
 func ReadInstalledPackages(roots []string) ([]meshcontent.EligibleABI, []string) {
 	seenPkg := map[string]struct{}{}
 	seenABI := map[string]struct{}{}
@@ -40,7 +47,8 @@ func ReadInstalledPackages(roots []string) ([]meshcontent.EligibleABI, []string)
 		}
 		for _, entry := range entries {
 			name := entry.Name()
-			if !describedPackageID.MatchString(name) {
+			id, ok := installedPackageID(name)
+			if !ok {
 				continue
 			}
 			dir := filepath.Join(root, name)
@@ -52,9 +60,9 @@ func ReadInstalledPackages(roots []string) ([]meshcontent.EligibleABI, []string)
 			if !ok {
 				continue
 			}
-			if _, ok := seenPkg[name]; !ok {
-				seenPkg[name] = struct{}{}
-				packages = append(packages, name)
+			if _, ok := seenPkg[id]; !ok {
+				seenPkg[id] = struct{}{}
+				packages = append(packages, id)
 			}
 			key := abi.ID + "\x00" + strconv.Itoa(abi.Major)
 			if _, ok := seenABI[key]; !ok {
@@ -71,6 +79,17 @@ func ReadInstalledPackages(roots []string) ([]meshcontent.EligibleABI, []string)
 		return abis[i].ID < abis[j].ID
 	})
 	return abis, packages
+}
+
+func installedPackageID(name string) (string, bool) {
+	switch {
+	case describedPackageID.MatchString(name):
+		return name, true
+	case stagedPackageDir.MatchString(name):
+		return name[:64], true
+	default:
+		return "", false
+	}
 }
 
 func readPackageABI(path string) (meshcontent.EligibleABI, bool) {

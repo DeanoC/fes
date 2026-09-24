@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/DeanoC/FogCast/catalog"
@@ -79,6 +80,80 @@ func TestEnableMeshContentStaysOffWhenDialFailsOrDisabled(t *testing.T) {
 	if _, on := off.GamesMeshReady(context.Background(), nil); on {
 		t.Fatal("ensure = false installed the seam")
 	}
+}
+
+func TestActivateMeshExecutorRebindsWhenSelectedTargetChanges(t *testing.T) {
+	const (
+		nodeA = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+		nodeB = "84ed0a60-2b23-5ba6-b931-bac5f71187ab"
+		nodeC = "95fe1b71-3c34-6cb7-ca42-cbd6082298bc"
+	)
+	var hitsA, hitsB, hitsC atomic.Int32
+	serverA := meshNodeServer(&hitsA, nodeA, "token-a")
+	defer serverA.Close()
+	serverB := meshNodeServer(&hitsB, nodeB, "token-b")
+	defer serverB.Close()
+	serverC := meshNodeServer(&hitsC, nodeC, "token-b")
+	defer serverC.Close()
+	service := &Service{
+		meshEnsureConfig: true,
+		targets: []TargetConfig{
+			{Name: "kit-a", Enabled: true, Address: serverA.URL, Agent: "token-a", TargetID: nodeA},
+			{Name: "kit-b", Enabled: true, Address: serverB.URL, Agent: "token-b", TargetID: nodeB},
+		},
+		selectedTarget: "kit-a",
+	}
+	service.EnableMeshContent()
+	snap, err := service.captureLaunchSnapshot("coleco-frogger", "")
+	if err != nil || !snap.frozen || snap.boundNode != nodeA || snap.executor == nil || snap.executor.NodeID() != nodeA {
+		t.Fatalf("kit A frozen=%v bound=%s err=%v", snap.frozen, snap.boundNode, err)
+	}
+	if hitsA.Load() != 1 || hitsB.Load() != 0 {
+		t.Fatalf("dial hits A=%d B=%d", hitsA.Load(), hitsB.Load())
+	}
+	service.selectedTarget = "kit-b"
+	snap, err = service.captureLaunchSnapshot("coleco-frogger", "")
+	if err != nil || !snap.frozen || snap.boundNode != nodeB || snap.executor == nil || snap.executor.NodeID() != nodeB {
+		t.Fatalf("kit B frozen=%v bound=%s err=%v", snap.frozen, snap.boundNode, err)
+	}
+	if hitsA.Load() != 1 || hitsB.Load() != 1 {
+		t.Fatalf("rebind hits A=%d B=%d", hitsA.Load(), hitsB.Load())
+	}
+	if _, on := service.GamesMeshReady(context.Background(), nil); !on || hitsB.Load() != 1 {
+		t.Fatalf("ready after rebind hitsB=%d", hitsB.Load())
+	}
+	service.targets[1].Address = serverC.URL
+	service.targets[1].TargetID = nodeC
+	snap, err = service.captureLaunchSnapshot("coleco-frogger", "")
+	if err != nil || !snap.frozen || snap.boundNode != nodeC || snap.executor == nil || snap.executor.NodeID() != nodeC {
+		t.Fatalf("address change frozen=%v bound=%s err=%v", snap.frozen, snap.boundNode, err)
+	}
+	if hitsB.Load() != 1 || hitsC.Load() != 1 {
+		t.Fatalf("address rebind hits B=%d C=%d", hitsB.Load(), hitsC.Load())
+	}
+	service.targets[1].Address = "http://127.0.0.1:1"
+	if _, on := service.GamesMeshReady(context.Background(), nil); on {
+		t.Fatal("failed rebind kept the previous executor")
+	}
+	snap, err = service.captureLaunchSnapshot("coleco-frogger", "")
+	if err != nil || snap.frozen || snap.executor != nil {
+		t.Fatalf("failed rebind frozen=%v err=%v", snap.frozen, err)
+	}
+}
+
+func meshNodeServer(hits *atomic.Int32, node, token string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.URL.Path != "/v1/mesh/content/node" || r.Header.Get("Authorization") != "Bearer "+token {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"node_id":  node,
+			"abis":     []map[string]any{{"id": "fes.simple-game", "major": 1}},
+			"packages": []string{strings.Repeat("ab", 32)},
+		})
+	}))
 }
 
 func TestEnableMeshContentRefusesMismatchedNode(t *testing.T) {
