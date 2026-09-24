@@ -127,11 +127,13 @@ func meshLaunchExecution(entry meshcontent.Entry) string {
 	return ExecutionFPGANative
 }
 
-// pinnedLaunchTarget is the kit LaunchOn will bind. It is captured once
-// and then shared by Ensure and bind. name does not follow a later
-// selectedTarget change. nodeID, address, and client are the endpoint
-// Ensure validated. Bind rejects a renamed address or TargetID, and it
-// keeps this client when the endpoint is unchanged.
+// pinnedLaunchTarget is the kit LaunchOn will bind. When frozen, it is
+// captured once and then shared by Ensure and bind. name does not follow
+// a later selectedTarget change. nodeID, address, and client are the
+// endpoint Ensure validated. Bind rejects a renamed address or TargetID,
+// and it keeps this client when the endpoint is unchanged. When frozen
+// is false, only requested is set and bind resolves the selected target
+// at bind time.
 type pinnedLaunchTarget struct {
 	requested    string
 	name         string
@@ -141,6 +143,7 @@ type pinnedLaunchTarget struct {
 	client       serviceClient
 	explicit     bool
 	hadNodeID    bool
+	frozen       bool
 }
 
 func (p pinnedLaunchTarget) endpointMatches(cfg TargetConfig) bool {
@@ -153,9 +156,30 @@ func (p pinnedLaunchTarget) endpointMatches(cfg TargetConfig) bool {
 	return true
 }
 
+// launchTarget pins the kit only when a mesh session is installed.
+// Ensure and bind then share that identity. With the seam off, the
+// result keeps the requested name and bind resolves the selected
+// target later.
+func (s *Service) launchTarget(target string) pinnedLaunchTarget {
+	if s == nil {
+		return pinnedLaunchTarget{}
+	}
+	s.meshMu.Lock()
+	installed := s.meshExecute.Executor != nil
+	s.meshMu.Unlock()
+	if !installed {
+		return pinnedLaunchTarget{requested: strings.TrimSpace(target)}
+	}
+	pinned := s.pinLaunchTarget(target)
+	pinned.frozen = true
+	return pinned
+}
+
 // pinLaunchTarget resolves an implicit launch to the selected target
 // that is current at this instant. name is what bind stores. nodeID is
 // what FPGA Ensure compares to the executor. Neither is read again.
+// LaunchOn calls this only after launchTarget has seen an installed
+// mesh session.
 // An implicit target with an empty TargetID is the bound node only
 // when its name is that node. Otherwise nodeID stays empty and Ensure
 // returns ErrUnboundNode before Pull.

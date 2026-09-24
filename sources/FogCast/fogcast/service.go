@@ -614,6 +614,9 @@ func (s *Service) clearUnstartedSessionTarget() {
 var launchPinnedTargetBoundHook func(name string)
 
 func (s *Service) bindPinnedLaunchTarget(pinned pinnedLaunchTarget) error {
+	if !pinned.frozen {
+		return s.bindLiveLaunchTarget(pinned.requested)
+	}
 	s.meshMu.Lock()
 	meshOn := s.meshExecute.Executor != nil
 	s.meshMu.Unlock()
@@ -657,6 +660,53 @@ func (s *Service) bindPinnedLaunchTarget(pinned pinnedLaunchTarget) error {
 	s.activeTarget = name
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != pinned.selectedName {
+		s.targetOrigin(cfg)
+	}
+	if launchPinnedTargetBoundHook != nil {
+		launchPinnedTargetBoundHook(name)
+	}
+	return nil
+}
+
+// bindLiveLaunchTarget resolves the selected target under targetMu at
+// bind time. LaunchOn uses it when no mesh session is installed, so a
+// settings change that selects another target or replaces its client
+// is the endpoint this launch binds.
+func (s *Service) bindLiveLaunchTarget(target string) error {
+	s.targetMu.Lock()
+	defer s.targetMu.Unlock()
+	explicit := strings.TrimSpace(target) != ""
+	name := strings.TrimSpace(target)
+	if name == "" {
+		name = s.selectedTarget
+	}
+	cfg := targetByName(s.targets, name)
+	if explicit && (strings.TrimSpace(cfg.Name) == "" || !cfg.Enabled) {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if _, ok := s.targetClients[name]; !ok {
+		if !explicit {
+			s.executionMu.Lock()
+			s.activeTarget = name
+			s.executionMu.Unlock()
+			if launchPinnedTargetBoundHook != nil {
+				launchPinnedTargetBoundHook(name)
+			}
+			return nil
+		}
+		if s.targetClientFactory == nil {
+			return canonicalError(protocol.CodeInternal, nil)
+		}
+		client, err := s.targetClientFactory(cfg)
+		if err != nil || client == nil {
+			return canonicalError(protocol.CodeBadRequest, nil)
+		}
+		s.targetClients[name] = client
+	}
+	s.executionMu.Lock()
+	s.activeTarget = name
+	s.executionMu.Unlock()
+	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
 		s.targetOrigin(cfg)
 	}
 	if launchPinnedTargetBoundHook != nil {
@@ -812,15 +862,14 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	// Capture the kit once. Ensure and the later bind both use this
-	// value. A settings update may change selectedTarget while this
-	// call is between those steps; this launch does not follow it.
-	// Mesh ensure runs only when a session installed the seam. A nil
-	// executor leaves Phase 0 and Phase 1 launch unchanged. Rooms and
+	// Pin the kit only when a mesh session is installed, so Ensure and
+	// bind share one identity. With the seam off, bind still resolves
+	// the selected target under targetMu at bind time. A nil executor
+	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
 	// GET /api/v1/games do not use this seam. A Checking slot or a
 	// named content failure returns before catalog execute and before
 	// the FPGA path.
-	pinned := s.pinLaunchTarget(target)
+	pinned := s.launchTarget(target)
 	ensured, ensuredOK, err := s.meshEnsureBeforeExecute(gameID, pinned)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
@@ -850,6 +899,12 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer releaseLifecycle()
+	// Host-only and other non-core launches compare the ensured catalog
+	// row here, after lifecycle admission and before execute. The core
+	// path does the same comparison in launchCoreEntry.
+	if err := s.meshLaunchCompositionChanged(gameID, ensured, ensuredOK); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
 	// Reject retired FPGA requests before stopping or rebinding a live package.
 	admittedGame, admissionErr := s.catalog.Game(ctx, gameID)
 	if admissionErr != nil {

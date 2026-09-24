@@ -474,6 +474,12 @@ func (s *Service) launchUsesForeignKit(pinned pinnedLaunchTarget, execution stri
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	name := pinned.name
+	if !pinned.frozen {
+		name = strings.TrimSpace(pinned.requested)
+		if name == "" {
+			name = strings.TrimSpace(s.selectedTarget)
+		}
+	}
 	cfg := targetByName(s.targets, name)
 	if conn.TargetID != "" && cfg.TargetID != "" {
 		return conn.TargetID == cfg.TargetID
@@ -481,12 +487,15 @@ func (s *Service) launchUsesForeignKit(pinned pinnedLaunchTarget, execution stri
 	if conn.Address != "" && cfg.Address != "" {
 		return conn.Address == cfg.Address
 	}
-	if pinned.explicit {
-		return name == pinned.selectedName
+	if pinned.frozen {
+		if pinned.explicit {
+			return name == pinned.selectedName
+		}
+		// Implicit launch pinned the selected kit. An empty id still means
+		// this connection, including when selectedTarget has since moved.
+		return true
 	}
-	// Implicit launch pinned the selected kit. An empty id still means
-	// this connection, including when selectedTarget has since moved.
-	return true
+	return name == strings.TrimSpace(s.selectedTarget)
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {

@@ -411,6 +411,97 @@ func TestLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
 	}
 }
 
+func TestHostLaunchRejectsCompositionChangeAfterEnsure(t *testing.T) {
+	identity := protocol.ContentIdentity{SHA256: serviceDigest, Size: 3, Extension: "sfc"}
+	game := serviceGame(catalog.Content{})
+	game.Content = nil
+	prepared := preparedServiceFixture(t, []byte("rom"), identity)
+	t.Cleanup(func() { _ = prepared.Remove() })
+	adapter := &fakeHostExecutor{}
+	service := newTestServiceWithExecution(&fakeServiceCatalog{games: []catalog.Game{game}}, &fakeServicePreparer{prepared: prepared}, &fakeServiceClient{}, ExecutionPolicy{
+		Resolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) { return ExecutionHostOnly, nil }),
+		Host:     adapter,
+	})
+	cartA := meshcontent.SumSHA256([]byte("composition-a"))
+	cartB := meshcontent.SumSHA256([]byte("composition-b"))
+	current := cartA
+	exec := &meshLaunchExecutor{
+		node:    "host-a",
+		sources: map[string]bool{cartA.String(): true, cartB.String(): true},
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: "host-a",
+		Executor:  exec,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			if gameID != game.ID {
+				return meshcontent.Entry{}, false
+			}
+			return meshcontent.Entry{
+				TitleID:    game.ID,
+				System:     "snes",
+				Launchable: true,
+				Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+				Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(current)},
+			}, true
+		},
+	})
+	meshEnsureFinishedHook = func() { current = cartB }
+	t.Cleanup(func() { meshEnsureFinishedHook = nil })
+
+	_, err := service.Launch(context.Background(), game.ID, nil)
+	if !errors.Is(err, errMeshCompositionChanged) {
+		t.Fatalf("err %v", err)
+	}
+	if adapter.launchCalls != 0 {
+		t.Fatalf("host launch calls %d", adapter.launchCalls)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cartA {
+		t.Fatalf("pulls %+v", exec.pulls)
+	}
+}
+
+func TestSeamOffBindFollowsLiveTarget(t *testing.T) {
+	original := &fakeServiceClient{}
+	replacement := &fakeServiceClient{}
+	service := &Service{
+		targets: []TargetConfig{
+			{Name: "dev", Enabled: true, Address: "http://192.0.2.10:8182"},
+			{Name: "spare", Enabled: true, Address: "http://192.0.2.11:8182"},
+		},
+		selectedTarget: "dev",
+		targetClients:  map[string]serviceClient{"dev": original},
+		hostExecutor:   &fakeHostExecutor{},
+		executionResolver: ExecutionResolverFunc(func(context.Context, catalog.Game) (string, error) {
+			return ExecutionHostOnly, nil
+		}),
+	}
+	service.catalog = &seamOffTargetCatalog{fakeServiceCatalog: &fakeServiceCatalog{}, service: service, replacement: replacement, next: "spare"}
+	var bound string
+	launchPinnedTargetBoundHook = func(name string) { bound = name }
+	t.Cleanup(func() { launchPinnedTargetBoundHook = nil })
+
+	_, err := service.Launch(context.Background(), "snes-mario", nil)
+	if bound != "spare" {
+		t.Fatalf("bound %q err %v selected %q", bound, err, service.selectedTarget)
+	}
+	if service.targetClients["dev"] != replacement {
+		t.Fatalf("dev client restored to the capture, err %v", err)
+	}
+}
+
+type seamOffTargetCatalog struct {
+	*fakeServiceCatalog
+	service     *Service
+	replacement serviceClient
+	next        string
+}
+
+func (c *seamOffTargetCatalog) Game(context.Context, string) (catalog.Game, error) {
+	c.service.selectedTarget = c.next
+	c.service.targetClients["dev"] = c.replacement
+	return catalog.Game{ID: "snes-mario", System: protocol.SystemSNES, State: catalog.SourceStateAvailable, RootOnline: true}, nil
+}
+
 func TestBindRejectsPinnedEndpointChange(t *testing.T) {
 	for _, change := range []string{"target-id", "address"} {
 		t.Run(change, func(t *testing.T) {

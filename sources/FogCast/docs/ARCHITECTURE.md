@@ -937,14 +937,19 @@ before the existing execute path. Expansion content-ids stay separate
 and are linked by `Executor.LinkExpansion` on that executor. The host
 does not pre-link them. Ensure does not choose a node, does not pull
 onto a node the session did not bind, and does not release or change a
-lease. `LaunchOn` captures the target once, before Ensure, and bind
-uses that same name and node id. Bind keeps the captured client and
-returns `ErrUnboundNode` when that name's address or TargetID no longer
-matches the capture. An implicit target with an empty TargetID is the
-bound node only when its name is that node. Otherwise Ensure returns
-`ErrUnboundNode` and does not pull. Before programming, Launch compares the ensured
-catalog row with the row now selected and refuses a changed package,
-media, firmware, ROM, or expansion composition. Host-only mesh play
+lease. When a mesh session is installed, `LaunchOn` captures the target
+once, before Ensure, and bind uses that same name and node id. Bind
+keeps the captured client and returns `ErrUnboundNode` when that name's
+address or TargetID no longer matches the capture. An implicit target
+with an empty TargetID is the bound node only when its name is that
+node. Otherwise Ensure returns `ErrUnboundNode` and does not pull. With
+the seam off, Launch leaves the target live: bind resolves the selected
+target under the target lock at bind time, so a settings change that
+selects another target or replaces its client is the endpoint that
+launches. Before execute, and after lifecycle admission, Launch compares
+the ensured catalog row with the row now selected. The core path and the
+host-only path both do this, and both refuse a changed package, media,
+firmware, ROM, or expansion composition. Host-only mesh play
 stays on the installed session node. A launchable FPGA entry that the
 foreign-kit check would deny is rejected before Ensure. The executor
 is an interface. Tests pass a fake. The kit store that pulls bytes
