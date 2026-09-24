@@ -25,17 +25,60 @@ from scripts import build_fes_coleco_socket_dev as shell_recipe
 from scripts import build_fes_coleco_oss as factory, coleco_expansion
 from scripts.core_package import read_package
 from scripts.fes_build_common import _prepare_output, _require_clean_source
-from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
+from scripts.cyclonev_rbf import (
+    rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect,
+    cram_get, cram_set,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-coleco/expansions/diagnostic.v",)
 INPUTS = SOURCES + ("cores/fes-coleco/rtl/coleco_bus_pack.vh", "scripts/build_coleco_bus_diagnostic.py", "toolchains/coleco-expansion.lock", "scripts/coleco_expansion.py", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_coleco_socket_dev.py", factory.SDC)
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log",
-                 "clocks.sdc", "scaffold.json", "cart.qsf")
+                 "clocks.sdc", "scaffold.json", "cart.qsf", "cram-diff.json")
 PLACER_SEED = 4
 REQUIRED_CLOCKS_MHZ = {"system_clock.clocks[0]": 52.224, "pixel_clk": 74.25, "system_clock.clocks[1]": 12.288}
 CRAM_REGION = (1769, 32, 2806, 1034)  # fes.coleco-bus.socket/1, half-open
+RESPONSE_BOUNDARY_CONTRACT = "fes.coleco.response-boundary/3"
+RESPONSE_BOUNDARY_COORDINATES = (
+    (2917, 797), (2917, 799), (3328, 906),
+)
+
+def boundary_patch_for(placed) -> dict[str, object]:
+    return {
+        "bits": [
+            {"value": cram_get(placed.cram, placed.die, x, y), "x": x, "y": y}
+            for x, y in RESPONSE_BOUNDARY_COORDINATES
+        ],
+        "contract": RESPONSE_BOUNDARY_CONTRACT,
+    }
+
+def valid_boundary_patch(boundary_patch: dict[str, object] | None) -> bool:
+    if not isinstance(boundary_patch, dict) or set(boundary_patch) != {"bits", "contract"} or \
+            boundary_patch.get("contract") != RESPONSE_BOUNDARY_CONTRACT:
+        return False
+    bits = boundary_patch.get("bits")
+    if not isinstance(bits, list) or len(bits) != len(RESPONSE_BOUNDARY_COORDINATES):
+        return False
+    for bit, (x, y) in zip(bits, RESPONSE_BOUNDARY_COORDINATES):
+        if not isinstance(bit, dict) or set(bit) != {"value", "x", "y"} or \
+                type(bit.get("x")) is not int or bit["x"] != x or \
+                type(bit.get("y")) is not int or bit["y"] != y or \
+                type(bit.get("value")) is not int or bit["value"] not in (0, 1):
+            return False
+    return True
+
+def boundary_coordinates_match(changes: dict[str, object]) -> bool:
+    if int(changes.get("bits_outside_slot", 0)) != len(RESPONSE_BOUNDARY_COORDINATES) or \
+            changes.get("outside_slot_coordinates_truncated", True):
+        return False
+    coordinates = changes.get("outside_slot_coordinates")
+    if not isinstance(coordinates, list) or len(coordinates) != len(RESPONSE_BOUNDARY_COORDINATES):
+        return False
+    if any(not isinstance(point, list) or len(point) != 2 or
+           any(type(value) is not int for value in point) for point in coordinates):
+        return False
+    return sorted(tuple(point) for point in coordinates) == list(RESPONSE_BOUNDARY_COORDINATES)
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -112,6 +155,55 @@ def validate_cart_timing(timing: dict) -> None:
         if achieved < expected:
             raise ValueError(f"cart {name} timing is below required {expected:g} MHz")
 
+def write_cram_diff_report(
+    output: Path, cart: bytes, changes: dict[str, object], *,
+    archive_published: bool = False, expansion_id: str | None = None,
+    boundary_patch: dict[str, object] | None = None,
+) -> Path:
+    """Persist CRAM-fence evidence, including on a rejected route."""
+    outside = int(changes.get("bits_outside_slot", 0))
+    patch_matches = valid_boundary_patch(boundary_patch) and boundary_coordinates_match(changes)
+    if archive_published and outside and not patch_matches:
+        raise ValueError("cannot publish a cart with undeclared CRAM changes outside the reserved slot")
+    if boundary_patch is not None and (not patch_matches or outside != len(RESPONSE_BOUNDARY_COORDINATES)):
+        raise ValueError("invalid Coleco response boundary patch evidence")
+    report = {
+        "archive_published": archive_published,
+        "cart_sha256": digest(cart),
+        "cram_diff": changes,
+        "cram_region": list(CRAM_REGION),
+        "format": 1,
+        "route_contract": (
+            "failed" if outside and not patch_matches else
+            "passed_with_response_boundary_patch" if patch_matches else "passed"
+        ),
+    }
+    if boundary_patch is not None:
+        report["boundary_patch"] = boundary_patch
+    if expansion_id is not None:
+        report["expansion_id"] = expansion_id
+    path = output / "cram-diff.json"
+    path.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
+    return path
+
+def enforce_cram_region(
+    changes: dict[str, object], report_path: Path, base=None, placed=None,
+) -> dict[str, object] | None:
+    outside = int(changes.get("bits_outside_slot", 0))
+    if outside == 0:
+        return None
+    valid_coordinates = boundary_coordinates_match(changes)
+    valid_values = base is not None and placed is not None and all(
+        cram_get(base.cram, base.die, x, y) != cram_get(placed.cram, placed.die, x, y)
+        for x, y in RESPONSE_BOUNDARY_COORDINATES
+    )
+    if not valid_coordinates or not valid_values:
+        raise ValueError(
+            f"cart changes {outside} non-ECC CRAM bits outside the socket and declared response patch; "
+            f"cart not published; CRAM diff report saved to {report_path}"
+        )
+    return boundary_patch_for(placed)
+
 def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None) -> Path:
     root, shell = root.resolve(), shell.resolve()
     _, revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
@@ -186,14 +278,21 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     rect = CramRect(*CRAM_REGION)
     if base.header != placed.header:
         raise ValueError("cart changes shell ORAM/PRAM header")
-    changes = classify_cram_diff(base, placed, rect)
-    if changes["bits_outside_slot"]:
-        raise ValueError(f"cart changes outside reserved slot: {changes}")
-    (output / "linked.rbf").write_bytes(rbf_save(overlay_cram(base, placed, rect), compressed=True))
+    changes = classify_cram_diff(base, placed, rect, include_outside_coordinates=True)
+    cram_report = write_cram_diff_report(output, cart, changes)
+    boundary_patch = enforce_cram_region(changes, cram_report, base, placed)
+    cram_report = write_cram_diff_report(output, cart, changes, boundary_patch=boundary_patch)
+    linked = overlay_cram(base, placed, rect)
+    if boundary_patch is not None:
+        for bit in boundary_patch["bits"]:
+            cram_set(linked.cram, linked.die, int(bit["x"]), int(bit["y"]), int(bit["value"]))
+    (output / "linked.rbf").write_bytes(rbf_save(linked, compressed=True))
     manifest = {"cart_sha256": digest(cart), "cart_size": len(cart), "device": "5CSEBA6U23I7", "format": 1,
         "map": "fes.coleco-bus.socket/1", "recipe_sha256": recipe_sha, "revision": revision,
         "shell_build_id": package.fields["build"]["id"], "shell_package_id": package.package_id,
         "shell_sha256": digest(package.payload_bytes), "slot": "fes.expansion.coleco-bus", "slot_major": 1, "slot_minor": 0}
+    if boundary_patch is not None:
+        manifest["boundary_patch"] = boundary_patch
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     expansion_id = digest(b"fes-expansion-v1\0" + encoded)
     _, final_revision = _require_clean_source(root, pinned_inputs=INPUTS, identity_version=2)
@@ -210,7 +309,9 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
         for name, data in (("manifest.json", encoded), ("cart.rbf", cart)):
             info = tarfile.TarInfo(name); info.size = len(data); info.mode = 0o600
             archive.addfile(info, io.BytesIO(data))
-    (output / "build-summary.json").write_text(json.dumps({"recipe": recipe, "expansion_id": expansion_id, "manifest": manifest, "cram_diff": changes}, sort_keys=True, indent=2) + "\n")
+    write_cram_diff_report(output, cart, changes, archive_published=True, expansion_id=expansion_id,
+                           boundary_patch=boundary_patch)
+    (output / "build-summary.json").write_text(json.dumps({"recipe": recipe, "expansion_id": expansion_id, "manifest": manifest, "cram_diff": changes, "boundary_patch": boundary_patch}, sort_keys=True, indent=2) + "\n")
     return destination
 
 if __name__ == "__main__":

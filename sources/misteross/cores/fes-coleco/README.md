@@ -50,13 +50,25 @@ recipe `scripts/build_coleco_bus_diagnostic.py` routes against that frozen
 shell and checks its CRAM diff before publishing an expansion archive. The
 builder reconstructs the system PLL's second output from the exact frozen net
 metadata. Request bit 23 uses the vacant third-row boundary FF so the cart can
-route. The authenticated development shell and current diagnostic module pass
-routing, all three clock gates and the socket CRAM audit. The diagnostic's WAIT
-request stays armed until a CPU read starts, then advances every sixteen system
-clocks. `sim-fes-coleco-diagnostic` exercises this through the registered socket
-with a real CPU program. The current diagnostic changes 3,388 CRAM bits inside
-the socket and zero outside. This host-only lane has no kit acceptance or
-library registration.
+route. The full-response diagnostic route completes and passes all three clock
+gates. Against the sealed shell built with the Coleco nextpnr pin, it changes
+three bits outside the declared region at `(2917,797)`, `(2917,799)` and
+`(3328,906)`. They map to routing muxes `H3.033.009.0019` and
+`H14.025.010.0001`, which the frozen shell uses on
+`$PACKER_GND_NET` response `DATAIN` stubs. Cart merge disconnects those
+placeholder ground sinks when it connects the response bank, so these are
+deselected shell muxes rather than newly selected cart routes escaping the
+fence. The one-bit response control does not exercise the full set of response
+boundary stubs. The producer records the exact coordinates and resulting values
+in a `fes.coleco.response-boundary/3` manifest patch. The Go linker accepts
+that closed three-bit patch alongside the CPU-bus rectangle and rejects any
+other outside change; the socket rectangle itself is unchanged.
+`cram-diff.json` retains the changed coordinates and reports whether the
+declared contract matches. The diagnostic's WAIT request stays armed until a
+CPU read starts, then advances every sixteen system clocks.
+`sim-fes-coleco-diagnostic` exercises this through the registered socket with a
+real CPU program. This host-only lane has no kit acceptance or library
+registration.
 
 External bus mastering, video/audio takeover, bank switching, full VDP modes,
 and cycle-perfect clocking remain outside this first slice. Native host/runtime

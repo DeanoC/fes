@@ -12,9 +12,9 @@ rationale = "ZX81 socket Mistral pin with physical routing-mux CRAM footprints, 
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "74f26cc1a5554a70cfca89be27850ec90f857030"
+commit = "abce51d34aea8aa4b694404c9333e0887e2a8b6e"
 order = 30
-rationale = "ZX81 socket nextpnr pin with FES_RESERVED_RECT placement and physical CRAM fencing, descended from the Coleco registered-memory nextpnr pin 0fad53a7. The Coleco socket uses this with registered Yosys e2d425de and Mistral 18db248; development route evidence is not hardware acceptance."
+rationale = "ZX81 socket nextpnr pin with FES_RESERVED_RECT placement and physical CRAM fencing, plus Coleco FF route-through FES_SLOT preservation and bounded GPU architecture bind retries. The Coleco socket uses this with registered Yosys e2d425de and Mistral 18db248; development route evidence is not hardware acceptance."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

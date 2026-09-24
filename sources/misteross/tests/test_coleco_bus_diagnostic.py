@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import build_coleco_bus_diagnostic as diagnostic, coleco_expansion
+from scripts.cyclonev_rbf import cram_set
 
 
 class ColecoBusDiagnosticTest(unittest.TestCase):
@@ -79,6 +80,68 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
         self.assertNotIn(b'FES_RESERVED_RECT "24 1 28 11"', cart)
         with self.assertRaises(ValueError):
             diagnostic.cart_qsf(b"pin constraints\n")
+
+    def test_outside_cram_report_keeps_coordinates_and_rejects_publication(self):
+        coordinates = [[2917, 797], [2917, 799], [3328, 906]]
+        changes = {
+            "bits_inside_slot": 65,
+            "bits_outside_slot": len(coordinates),
+            "outside_slot_coordinates": coordinates,
+            "outside_slot_coordinates_truncated": False,
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            report_path = diagnostic.write_cram_diff_report(output, b"cart-rbf", changes)
+            report = json.loads(report_path.read_text())
+            self.assertEqual(report["format"], 1)
+            self.assertEqual(report["cram_region"], list(diagnostic.CRAM_REGION))
+            self.assertEqual(report["cram_diff"]["outside_slot_coordinates"], coordinates)
+            self.assertEqual(report["route_contract"], "failed")
+            self.assertFalse(report["archive_published"])
+            with self.assertRaisesRegex(ValueError, "outside.*not published.*cram-diff.json"):
+                diagnostic.enforce_cram_region(changes, report_path)
+            with self.assertRaisesRegex(ValueError, "cannot publish a cart"):
+                diagnostic.write_cram_diff_report(
+                    output, b"cart-rbf", changes, archive_published=True, expansion_id="unsafe"
+                )
+
+    def test_response_boundary_contract_accepts_only_declared_bits(self):
+        die = SimpleNamespace(cram_sx=4096)
+        cram_size = (die.cram_sx * 1162 + 7) // 8
+        base = SimpleNamespace(die=die, cram=bytearray(cram_size))
+        placed = SimpleNamespace(die=die, cram=bytearray(cram_size))
+        for index, (x, y) in enumerate(diagnostic.RESPONSE_BOUNDARY_COORDINATES):
+            old, new = index % 2, 1 - index % 2
+            cram_set(base.cram, die, x, y, old)
+            cram_set(placed.cram, die, x, y, new)
+        coordinates = [[2917, 797], [2917, 799], [3328, 906]]
+        changes = {
+            "bits_inside_slot": 65,
+            "bits_outside_slot": 3,
+            "outside_slot_coordinates": coordinates,
+            "outside_slot_coordinates_truncated": False,
+        }
+        patch_manifest = diagnostic.enforce_cram_region(changes, Path("cram-diff.json"), base, placed)
+        self.assertEqual(patch_manifest, diagnostic.boundary_patch_for(placed))
+        self.assertTrue(diagnostic.valid_boundary_patch(patch_manifest))
+        with tempfile.TemporaryDirectory() as temporary:
+            path = diagnostic.write_cram_diff_report(
+                Path(temporary), b"cart-rbf", changes, archive_published=True,
+                expansion_id="declared", boundary_patch=patch_manifest,
+            )
+            report = json.loads(path.read_text())
+            self.assertEqual(report["route_contract"], "passed_with_response_boundary_patch")
+            self.assertTrue(report["archive_published"])
+            self.assertEqual(report["boundary_patch"], patch_manifest)
+
+        extra_change = dict(changes, bits_outside_slot=4,
+                            outside_slot_coordinates=coordinates + [[100, 100]])
+        with self.assertRaisesRegex(ValueError, "outside the socket and declared response patch"):
+            diagnostic.enforce_cram_region(extra_change, Path("cram-diff.json"), base, placed)
+        invalid_patch = dict(patch_manifest)
+        invalid_patch["bits"] = [dict(bit) for bit in patch_manifest["bits"]]
+        invalid_patch["bits"][0]["value"] = 2
+        self.assertFalse(diagnostic.valid_boundary_patch(invalid_patch))
 
     def test_wrong_shell_bytes_or_slot_rejects_before_toolchain(self):
         with tempfile.TemporaryDirectory() as temporary:
