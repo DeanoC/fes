@@ -208,9 +208,55 @@ func TestControllerPortsRejectBeforeMutationAndPreserveLegacy(t *testing.T) {
 
 func TestControllerSelectStartWireBits(t *testing.T) {
 	for code, want := range map[remoteinput.Code]uint8{remoteinput.ButtonSelect: 64, remoteinput.ButtonStart: 128} {
-		got, _ := controllerSnapshot(remoteinput.Snapshot{Pressed: []remoteinput.Code{code}})
+		got, keypad := controllerSnapshot(remoteinput.Snapshot{Pressed: []remoteinput.Code{code}}, false)
+		if keypad != 0 {
+			t.Fatalf("code %d keypad=%d without keypad ports", code, keypad)
+		}
 		if got != want {
 			t.Fatalf("code %d bitmap=%d want=%d", code, got, want)
 		}
+	}
+}
+
+func TestControllerKeypadPortsStartSelectAliasKeypad(t *testing.T) {
+	cases := []struct {
+		pressed     []remoteinput.Code
+		wantButtons uint8
+		wantKeypad  uint16
+	}{
+		{[]remoteinput.Code{remoteinput.ButtonStart}, 128, 1 << 1},
+		{[]remoteinput.Code{remoteinput.ButtonSelect}, 64, 1 << 10},
+		{[]remoteinput.Code{remoteinput.ButtonStart, remoteinput.Keypad0 + 1}, 128, 1 << 1},
+		{[]remoteinput.Code{remoteinput.ButtonStart, remoteinput.KeypadHash}, 128, 1<<1 | 1<<11},
+		{[]remoteinput.Code{remoteinput.ButtonA}, 16, 0},
+	}
+	for i, tc := range cases {
+		buttons, keypad := controllerSnapshot(remoteinput.Snapshot{Pressed: tc.pressed}, true)
+		if buttons != tc.wantButtons || keypad != tc.wantKeypad {
+			t.Fatalf("case %d buttons=%d keypad=%d want %d/%d", i, buttons, keypad, tc.wantButtons, tc.wantKeypad)
+		}
+	}
+}
+
+func TestControllerKeypadPortsStartPressesAndReleasesKeypadOne(t *testing.T) {
+	var writes []portWrite
+	sink := &controllerPortsSink{fallback: &recordingSink{}, poster: func(id string, generation uint64, port, buttons uint8, keypad uint16) error {
+		writes = append(writes, portWrite{id, generation, port, buttons, keypad})
+		return nil
+	}}
+	if err := sink.bind(&ControllerBinding{PackageID: "coleco", Generation: 3, Keypad: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []remoteinput.Action{remoteinput.ActionPress, remoteinput.ActionRelease} {
+		if err := sink.Apply(protocol.InputFrame{Player: 1, Device: 1, Kind: uint8(remoteinput.KindButton), Code: uint16(remoteinput.ButtonStart), Action: uint8(action)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []portWrite{{"coleco", 3, 1, 128, 1 << 1}, {"coleco", 3, 1, 0, 0}}
+	if len(writes) != len(want) || writes[0] != want[0] || writes[1] != want[1] {
+		t.Fatalf("writes %+v", writes)
+	}
+	if sink.dirty[1] {
+		t.Fatal("released Start left port dirty")
 	}
 }
