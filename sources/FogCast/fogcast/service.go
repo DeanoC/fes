@@ -791,11 +791,14 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	// Mesh ensure runs only when a session installed the seam. It does
-	// not change Phase 0 or Phase 1 launch, and it does not touch rooms
-	// or GET /api/v1/games. A Checking slot or a named content failure
-	// returns before catalog execute and before the FPGA path.
-	if err := s.meshEnsureBeforeExecute(gameID); err != nil {
+	// Mesh ensure runs only when a session installed the seam. FPGA
+	// entries bind to the target this call will execute on, and a
+	// foreign-kit denial returns before any pull. A nil executor
+	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
+	// GET /api/v1/games do not use this seam. A Checking slot or a
+	// named content failure returns before catalog execute and before
+	// the FPGA path.
+	if err := s.meshEnsureBeforeExecute(gameID, target); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if store, ok := s.catalog.(coreEntryCatalog); ok {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/misteross/expansion"
 )
 
@@ -109,7 +110,7 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 		Executor:  exec,
 		Entry:     func(string) (meshcontent.Entry, bool) { return entry, true },
 	})
-	if err := service.meshEnsureBeforeExecute(entry.TitleID); err != nil {
+	if err := service.meshEnsureBeforeExecute(entry.TitleID, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.Slot(cart) != meshcontent.StatePresent {
@@ -118,12 +119,156 @@ func TestLaunchPullThenPresentAllowsTheExistingPathOnlyAfterEnsure(t *testing.T)
 	// A second ensure sees the id Present and does not pull again.
 	// Launch would continue into the existing path; this service has
 	// no catalog, so the assertion stops at the seam.
-	if err := service.meshEnsureBeforeExecute(entry.TitleID); err != nil {
+	if err := service.meshEnsureBeforeExecute(entry.TitleID, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(exec.pulls) != 1 {
 		t.Fatalf("present id pulled again %+v", exec.pulls)
 	}
+}
+
+func TestLaunchOnNamedTargetDoesNotEnsureAnotherNode(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "spare", nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("mismatched target pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+
+	// A named target with no node id still binds that kit. Ensure must
+	// not fall back to the session node.
+	unnamed := meshTargetService(exec, "node-a", entry)
+	unnamed.targets = []TargetConfig{{Name: "dev", Enabled: true}, {Name: "spare", Enabled: true}}
+	exec.pulls, exec.links = nil, nil
+	_, err = unnamed.LaunchOn(context.Background(), entry.TitleID, "spare", nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("unnamed target err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("unnamed target pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+}
+
+func TestLaunchOnSelectedTargetChangeDoesNotEnsureTheOldNode(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.selectedTarget = "spare"
+	_, err := service.Launch(context.Background(), entry.TitleID, nil)
+	if !errors.Is(err, meshcontent.ErrUnboundNode) {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("moved selection pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+}
+
+func TestLaunchOnMatchingTargetEnsuresThatNode(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "stale-session-node", entry)
+	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "dev", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart || exec.node != "node-a" {
+		t.Fatalf("pulls %+v node %s", exec.pulls, exec.node)
+	}
+}
+
+func TestLaunchOnForeignKitDoesNotPull(t *testing.T) {
+	entry, cart := fpgaMeshEntry("coleco-frogger")
+	exec := &meshLaunchExecutor{
+		node:    "node-a",
+		sources: map[string]bool{cart.String(): true},
+		abis:    []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}
+	service := meshTargetService(exec, "node-a", entry)
+	service.connection = TargetConnection{State: "busy", Owner: "other-shell", TargetID: "node-a"}
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 0 || len(exec.links) != 0 {
+		t.Fatalf("foreign kit pulled %+v linked %+v", exec.pulls, exec.links)
+	}
+}
+
+func TestLaunchOnHostEntryStaysOnTheSessionNode(t *testing.T) {
+	cart := meshcontent.SumSHA256([]byte("source-rom"))
+	entry := meshcontent.Entry{
+		TitleID:    "snes-mario",
+		System:     "snes",
+		Launchable: true,
+		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+		Slots:      []meshcontent.Slot{meshcontent.PrimaryMediaSlot(cart)},
+	}
+	exec := &meshLaunchExecutor{
+		node:    "host-a",
+		sources: map[string]bool{cart.String(): true},
+	}
+	service := meshTargetService(exec, "host-a", entry)
+	service.catalog = &fakeServiceCatalog{gameErr: errors.New("stop after ensure")}
+	_, err := service.LaunchOn(context.Background(), entry.TitleID, "spare", nil)
+	var api *protocol.APIError
+	if !errors.As(err, &api) || api.Code != protocol.CodeInternal {
+		t.Fatalf("err %v", err)
+	}
+	if len(exec.pulls) != 1 || exec.pulls[0] != cart {
+		t.Fatalf("host pulls %+v", exec.pulls)
+	}
+}
+
+func fpgaMeshEntry(title string) (meshcontent.Entry, meshcontent.ContentID) {
+	cart := meshcontent.SumSHA256([]byte("source-rom"))
+	entry := meshcontent.Entry{
+		TitleID:    title,
+		System:     "coleco",
+		Launchable: true,
+		Execute:    []meshcontent.Execute{{Kind: meshcontent.ExecuteFPGANative}},
+		Slots: []meshcontent.Slot{
+			meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: strings.Repeat("ab", 32), ABI: "fes.application", Major: 1}),
+			meshcontent.PrimaryMediaSlot(cart),
+		},
+	}
+	return entry, cart
+}
+
+func meshTargetService(exec *meshLaunchExecutor, bound string, entry meshcontent.Entry) *Service {
+	service := &Service{
+		targets: []TargetConfig{
+			{Name: "dev", Enabled: true, TargetID: "node-a"},
+			{Name: "spare", Enabled: true, TargetID: "node-b"},
+		},
+		selectedTarget: "dev",
+	}
+	service.SetMeshExecuteSession(MeshExecuteSession{
+		BoundNode: bound,
+		Executor:  exec,
+		Entry: func(gameID string) (meshcontent.Entry, bool) {
+			return entry, gameID == entry.TitleID
+		},
+	})
+	return service
 }
 
 func TestProjectedExpansionLinksSlotBytesOnTheExecutor(t *testing.T) {
@@ -170,8 +315,8 @@ func TestProjectedExpansionLinksSlotBytesOnTheExecutor(t *testing.T) {
 	exec := &meshLaunchExecutor{
 		node: "kit-a",
 		sources: map[string]bool{
-			primary.String():    true,
-			expansionID.String(): true,
+			primary.String():       true,
+			expansionID.String():   true,
 			"sha256:" + programmed: true,
 		},
 		abis: []meshcontent.EligibleABI{{ID: "fes.simple-computer", Major: 1}},

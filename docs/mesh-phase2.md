@@ -154,7 +154,12 @@ that id is on the executor. Checking means a pull is in progress.
 Missing with a source starts a pull; the slot stays Checking until
 that pull reports Present. `Launch` calls this only when
 `SetMeshExecuteSession` installed a session, and it returns before the
-existing execute path while any required slot is Checking.
+existing execute path while any required slot is Checking. `LaunchOn`
+ensures a launchable FPGA entry on the target that call will execute
+on. A named target or a changed selected target that is not that
+executor is rejected before any pull. A foreign-kit denial for that
+FPGA launch returns before Ensure. Host-only play stays on the
+installed session node.
 
 `MeshExpansion.Digest` is the slot-bytes digest: SHA-256 of that
 slot's own bytes (`expansion.Manifest.CartSHA256`). It is not
