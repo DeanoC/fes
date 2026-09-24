@@ -457,3 +457,100 @@ func TestMeshContentServesCoreMediaAndExpansionCart(t *testing.T) {
 		t.Fatalf("missing open err %v", err)
 	}
 }
+
+// TestDefaultEnsureLeavesPackageLaunchOnLegacyPath is the host kill
+// switch. A config with no [mesh] table, which is the default, leaves
+// the seam off. EnableMeshContent is still called, as the API and CLI
+// mains do, and a package-backed FPGA launch still streams on the
+// Phase 0 and Phase 1 path when the kit source does not advertise.
+// ensure = true keeps the refusal.
+func TestDefaultEnsureLeavesPackageLaunchOnLegacyPath(t *testing.T) {
+	const hostConfig = `selected_target = "local"
+request_timeout_seconds = 12
+upload_timeout_seconds = 60
+
+[[targets]]
+name = "local"
+enabled = false
+`
+	off, err := LoadConfig(writeMeshConfig(t, hostConfig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off.MeshEnsure {
+		t.Fatal("default config turned ensure on")
+	}
+	media, hits, err := launchColecoAgainstSilentSource(t, off.MeshEnsure)
+	if err != nil || media != 1 || hits != 0 {
+		t.Fatalf("legacy launch media=%d hits=%d err=%v", media, hits, err)
+	}
+
+	on, err := LoadConfig(writeMeshConfig(t, hostConfig+"\n[mesh]\nensure = true\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !on.MeshEnsure {
+		t.Fatal("ensure = true stayed off")
+	}
+	media, hits, err = launchColecoAgainstSilentSource(t, on.MeshEnsure)
+	if !errors.Is(err, meshcontent.ErrContentMissingNoSource) || media != 0 || hits == 0 {
+		t.Fatalf("ensure launch media=%d hits=%d err=%v", media, hits, err)
+	}
+}
+
+func writeMeshConfig(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func launchColecoAgainstSilentSource(t *testing.T, ensure bool) (mediaCalls int, sourceHits int32, err error) {
+	t.Helper()
+	const nodeID = "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		if r.Header.Get("Authorization") != "Bearer kit-token" {
+			http.NotFound(w, r)
+			return
+		}
+		switch r.URL.Path {
+		case "/v1/mesh/content/node":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"node_id": nodeID,
+				"abis":    []map[string]any{{"id": "fes.simple-computer", "major": 1}},
+			})
+		case "/v1/mesh/content/slot":
+			_ = json.NewEncoder(w).Encode(map[string]string{"state": "missing"})
+		case "/v1/mesh/content/source":
+			_ = json.NewEncoder(w).Encode(map[string]bool{"advertises": false})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	service, client, entry, inspection := newCoreEntryLaunchFixture(t, colecoLibraryPackageFixture(t), "Coleco Graphics I")
+	active := coreEntryActiveStatus(inspection, 7, true)
+	client.mediaStatus = active
+	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
+		client.statusResult = active
+		return active, nil
+	}
+	client.meshLeaseGeneration = "gen-owned"
+	if len(service.targets) != 1 || service.selectedTarget != "dev" {
+		t.Fatalf("fixture target %+v selected %q", service.targets, service.selectedTarget)
+	}
+	service.targets[0].Enabled = true
+	service.targets[0].Address = server.URL
+	service.targets[0].Agent = "kit-token"
+	service.targets[0].TargetID = nodeID
+	service.meshEnsureConfig = ensure
+	service.EnableMeshContent()
+
+	_, err = service.Launch(context.Background(), entry.GameID, nil)
+	return client.mediaCalls, hits.Load(), err
+}

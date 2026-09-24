@@ -20,7 +20,8 @@ const meshDialBackoff = 5 * time.Second
 
 // EnableMeshContent turns the ensure seam on when configuration asked
 // for it. Open records that choice and does not dial. Production mains
-// call this after Open. [mesh] ensure = false leaves the seam off.
+// call this after Open. [mesh] ensure defaults off, so an unset table
+// leaves the seam off. ensure = true turns it on.
 func (s *Service) EnableMeshContent() {
 	if s == nil || !s.meshEnsureConfig {
 		return

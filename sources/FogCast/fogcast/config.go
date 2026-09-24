@@ -77,8 +77,11 @@ type Config struct {
 	Metadata       MetadataConfig
 	LibraryMedia   []librarymedia.Root
 	Library        LibraryConfig
-	// MeshEnsure is the production ensure seam. It defaults on. Open
-	// records it and does not dial; EnableMeshContent turns the seam on.
+	// MeshEnsure is the production ensure seam. It defaults off. Open
+	// records it and does not dial; EnableMeshContent turns the seam on
+	// only when this is true. The default stays off until a source that
+	// does not advertise can fall back to the legacy launch, and until
+	// the kit's home host is the content source.
 	MeshEnsure bool
 }
 
@@ -425,11 +428,13 @@ func LoadConfig(path string) (Config, error) {
 	}, nil
 }
 
-// meshEnsureFrom defaults the ensure seam on. A bare [mesh] table stays
-// on. ensure = false is the HIL kill switch.
+// meshEnsureFrom defaults the ensure seam off. A missing or bare [mesh]
+// table stays off, and so does ensure = false. ensure = true turns the
+// seam on. The default stays off until #177 (legacy fallback when the
+// source does not advertise) and #172 (kit home host) land.
 func meshEnsureFrom(raw *fileMesh) bool {
 	if raw == nil || raw.Ensure == nil {
-		return true
+		return false
 	}
 	return *raw.Ensure
 }

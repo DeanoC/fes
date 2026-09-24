@@ -81,6 +81,16 @@ kind, is a host setting. It is not a DisplaySink.
 Phase 0 sessions keep this path. Mesh fields, when they exist, are
 additive.
 
+Host `[mesh] ensure` defaults off. With the key unset or false,
+`fogcast-api` and the `fogcast` CLI still call `EnableMeshContent`,
+and that call leaves the ensure seam off. A package-backed FPGA
+launch then stays on the Phase 0 and Phase 1 path, including when the
+kit's content source does not advertise the title. `ensure = true`
+turns the seam on. The default stays off until #177 (legacy fallback
+when the source does not advertise) and #172 (kit home host) land.
+The agent `mesh_content` switch stays default on. With the host seam
+off, that kit store is not consulted before launch.
+
 ## Planes, and which contracts appear when
 
 Names match [`mesh-lan.md`](mesh-lan.md). A cell says the contract is

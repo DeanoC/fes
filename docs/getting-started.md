@@ -125,7 +125,12 @@ enabled = false
 ```
 
 This minimal configuration is accepted by the selected FogCast loader. It has
-no game-library roots and no enabled hardware target. To add a mounted library,
+no game-library roots and no enabled hardware target. Host `[mesh] ensure`
+defaults to false, so this file leaves the content ensure seam off. That
+default stays off until #177 (legacy fallback when the source does not
+advertise) and #172 (kit home host) land. Set `ensure = true` under a
+`[mesh]` table only when this host should run that seam before a
+package-backed FPGA launch. To add a mounted library,
 append a table using an existing absolute directory:
 
 ```toml

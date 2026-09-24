@@ -921,7 +921,7 @@ func writeConfig(t *testing.T, content string) string {
 	return path
 }
 
-func TestLoadConfigMeshEnsureDefaultsOn(t *testing.T) {
+func TestLoadConfigMeshEnsureDefaultsOff(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "SNES")
 	second := filepath.Join(dir, "Genesis")
@@ -935,16 +935,16 @@ func TestLoadConfigMeshEnsureDefaultsOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.MeshEnsure {
-		t.Fatal("missing [mesh] defaulted ensure off")
+	if cfg.MeshEnsure {
+		t.Fatal("missing [mesh] defaulted ensure on")
 	}
 	bare := writeConfig(t, validConfig(first, second)+"\n[mesh]\n")
 	cfg, err = fogcast.LoadConfig(bare)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.MeshEnsure {
-		t.Fatal("bare [mesh] turned ensure off")
+	if cfg.MeshEnsure {
+		t.Fatal("bare [mesh] turned ensure on")
 	}
 	off := writeConfig(t, validConfig(first, second)+"\n[mesh]\nensure = false\n")
 	cfg, err = fogcast.LoadConfig(off)
@@ -952,7 +952,15 @@ func TestLoadConfigMeshEnsureDefaultsOn(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.MeshEnsure {
-		t.Fatal("ensure = false stayed on")
+		t.Fatal("ensure = false turned ensure on")
+	}
+	on := writeConfig(t, validConfig(first, second)+"\n[mesh]\nensure = true\n")
+	cfg, err = fogcast.LoadConfig(on)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.MeshEnsure {
+		t.Fatal("ensure = true stayed off")
 	}
 }
 

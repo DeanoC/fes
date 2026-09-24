@@ -1,9 +1,12 @@
 # Mesh LAN — Phase 2 execution brief
 
 **Status:** Phase 2 started. Slices 1 through 8 are on main. Slice 9
-turns the ensure seam on in production behind `[mesh] ensure` (default
-on) and installs the kit content source behind `mesh_content` (default
-on). Either switch set to false restores the previous seam-off path.
+turns the ensure seam on in production when `[mesh] ensure = true`.
+The host switch defaults off until #177 (legacy fallback when the
+source does not advertise) and #172 (kit home host) land. An unset
+key or `ensure = false` keeps the Phase 0 and Phase 1 path. The kit
+content source stays behind `mesh_content` (default on).
+`mesh_content = false` restores a nil source.
 Bob coordinates. Deano owns FES parent merges.
 Do not merge from this brief.
 
@@ -249,8 +252,10 @@ off and Source stays nil. Does not program the FPGA.
 Empty-body session stop still releases. Soft-stop still retains.
 The kit lease, DNS-SD advertisements, and `GET /api/v1/mesh/nodes`
 stay as Phase 1 left them. Production `fogcast-api` and the `fogcast`
-CLI call `EnableMeshContent` after open unless `[mesh] ensure = false`.
-A kit that cannot be dialed leaves the seam off, so that launch stays
+CLI call `EnableMeshContent` after open. `[mesh] ensure` defaults off,
+so the seam stays off unless the config sets `ensure = true`. That
+default stays off until #177 and #172 land. A kit that cannot be
+dialed leaves the seam off, so that launch stays
 on the Phase 0 and Phase 1 path. Host-only titles are not projected
 into the seam. Another node's Execute advertisement still
 does not make a row Ready.

@@ -1042,7 +1042,10 @@ They are not an Ensure-result document. The host installs the executor
 only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
 launch stay on the existing path. The store does not program the FPGA.
 Production `fogcast-api` and the `fogcast` CLI call `EnableMeshContent`
-after open unless `[mesh] ensure = false`. The agent installs a
+after open. `[mesh] ensure` defaults off, so that call leaves the seam
+off until the operator sets `ensure = true`. The default stays off
+until #177 (legacy fallback when the source does not advertise) and
+#172 (kit home host) land. The agent installs a
 launcher-backed content source unless `mesh_content = false`, which
 restores a nil source and an empty ABI list. With the switch on, the
 node document's ABIs and package ids are read from installed package
