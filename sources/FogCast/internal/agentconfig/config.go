@@ -30,6 +30,10 @@ type Config struct {
 	CastNativeMode     string
 	CastTokenFile      string
 	CastGeneration     uint64
+	// MeshContent installs the launcher-backed content source and the
+	// installed-package ABI list. It defaults on. false keeps a nil
+	// source and an empty ABI list.
+	MeshContent bool
 }
 
 type fileConfig struct {
@@ -47,6 +51,7 @@ type fileConfig struct {
 	CastNativeMode     string `toml:"cast_native_mode"`
 	CastTokenFile      string `toml:"cast_token_file"`
 	CastGeneration     uint64 `toml:"cast_generation"`
+	MeshContent        *bool  `toml:"mesh_content"`
 }
 
 // retiredSettingsError contains only allowlisted public setting names, never
@@ -104,6 +109,10 @@ func Load(path string) (Config, error) {
 	if raw.CacheMaxBytes != nil {
 		cacheMaxBytes = *raw.CacheMaxBytes
 	}
+	meshContent := true
+	if raw.MeshContent != nil {
+		meshContent = *raw.MeshContent
+	}
 	cfg := Config{
 		TargetID:           raw.TargetID,
 		ListenAddress:      raw.ListenAddress,
@@ -119,6 +128,7 @@ func Load(path string) (Config, error) {
 		CastNativeMode:     raw.CastNativeMode,
 		CastTokenFile:      raw.CastTokenFile,
 		CastGeneration:     raw.CastGeneration,
+		MeshContent:        meshContent,
 	}
 	if cfg.InputListenAddress == "" {
 		cfg.InputListenAddress = "127.0.0.1:18183"

@@ -29,7 +29,7 @@ func TestExecuteAdvertisementDoesNotFlipReadyForUnboundTitle(t *testing.T) {
 	if len(foreign.Capabilities.Execute) != 1 {
 		t.Fatalf("execute = %#v", foreign.Capabilities.Execute)
 	}
-	if discovery.ReadyForBoundExecutor(state == AvailReady, foreign) {
+	if ready, _ := discovery.ReadyForBoundExecutor(state == AvailReady, foreign, nil); ready {
 		t.Fatal("Execute advertisement made an unbound title Ready")
 	}
 	frogger.FirmwareReady = true
@@ -37,7 +37,73 @@ func TestExecuteAdvertisementDoesNotFlipReadyForUnboundTitle(t *testing.T) {
 	if state != AvailReady || len(matches) != 1 {
 		t.Fatalf("bound composition = %s %+v", state, matches)
 	}
-	if !discovery.ReadyForBoundExecutor(state == AvailReady, foreign) {
+	if ready, _ := discovery.ReadyForBoundExecutor(state == AvailReady, foreign, nil); !ready {
 		t.Fatal("bound composition lost Ready")
+	}
+}
+
+func TestReadyHereRoomsStayUnavailableUntilTheTitleIsHere(t *testing.T) {
+	t.Parallel()
+	coleco := readyGame("fpga-coleco-dk", "Donkey Kong", "coleco")
+	coleco.FirmwareRequired = true
+	coleco.FirmwareReady = true
+	zx := readyGame("fpga-zx81-maze", "3D Monster Maze", "zx81")
+	hostOnly := readyGame("snes-mario", "Super Mario World", "snes")
+	hostOnly.Execution = hostclient.ExecutionHostOnly
+	for _, game := range []hostclient.Game{coleco, zx, hostOnly} {
+		state, matches := ClassifyGames([]hostclient.Game{game}, game.Title)
+		dest := Destination{Kind: KindGame, Availability: state, Matches: matches, GameID: game.ID, Label: game.Title}
+		dest.FillCopy()
+		if state != AvailReady || dest.Confirm() != ConfirmLaunch || dest.Action != "Play" {
+			t.Fatalf("seam off %s %+v confirm %v", game.ID, dest, dest.Confirm())
+		}
+	}
+
+	cases := []struct {
+		block   hostclient.LaunchBlock
+		action  string
+		state   Availability
+		confirm ConfirmIntent
+		status  string
+	}{
+		{hostclient.LaunchDistant, "fetch_here", AvailUnavailable, ConfirmExplain, "This title is not on this executor."},
+		{hostclient.LaunchLeaseHeld, "wait_for_lease", AvailUnavailable, ConfirmExplain, "This executor is in use."},
+		{hostclient.LaunchVersionSkew, "resolve_version", AvailUnavailable, ConfirmExplain, "Can't play here yet."},
+		{hostclient.LaunchNoExecutor, "bind_executor", AvailUnavailable, ConfirmExplain, "This title cannot play on the current setup."},
+		{hostclient.LaunchContentMissing, "supply_content", AvailUnavailable, ConfirmExplain, "A required part of this title is missing."},
+		{hostclient.LaunchEnsureProgress, "wait", AvailChecking, ConfirmWait, "Still resolving whether this title can play here."},
+	}
+	for _, tc := range cases {
+		game := coleco
+		ready := false
+		game.ReadyHere = &ready
+		game.ReadyBlock = string(tc.block)
+		game.NextAction = tc.action
+		state, matches := ClassifyGames([]hostclient.Game{game}, game.Title)
+		dest := Destination{Kind: KindGame, Availability: state, Matches: matches, Query: game.Title}
+		dest.FillCopy()
+		if state != tc.state || dest.Confirm() != tc.confirm || dest.NextAction != tc.action || dest.Status != tc.status || dest.Confirm() == ConfirmLaunch {
+			t.Fatalf("%s state=%s confirm=%v dest=%+v", tc.block, state, dest.Confirm(), dest)
+		}
+	}
+
+	ready := true
+	coleco.ReadyHere = &ready
+	state, matches := ClassifyGames([]hostclient.Game{coleco}, coleco.Title)
+	dest := Destination{Kind: KindGame, Availability: state, Matches: matches, GameID: coleco.ID}
+	dest.FillCopy()
+	if state != AvailReady || dest.Confirm() != ConfirmLaunch || dest.Action != "Play" {
+		t.Fatalf("ready here %+v", dest)
+	}
+
+	offline := hostOnly
+	offline.ReadyHere = &ready
+	offline.State = "missing"
+	offline.RootOnline = false
+	state, matches = ClassifyGames([]hostclient.Game{offline}, offline.Title)
+	dest = Destination{Kind: KindGame, Availability: state, Matches: matches, GameID: offline.ID}
+	dest.FillCopy()
+	if state != AvailUnavailable || dest.Confirm() == ConfirmLaunch || matches[0].LaunchBlock() != hostclient.LaunchSourceOffline {
+		t.Fatalf("offline host row %+v confirm %v", dest, dest.Confirm())
 	}
 }

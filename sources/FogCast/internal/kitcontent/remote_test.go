@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,5 +167,218 @@ func TestUnboundRemoteDoesNotPull(t *testing.T) {
 	}
 	if store.Slot(id) != meshcontent.StateMissing {
 		t.Fatal("unbound ensure pulled")
+	}
+}
+
+type countingTransport struct {
+	base  http.RoundTripper
+	calls int
+}
+
+func (c *countingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	c.calls++
+	return c.base.RoundTrip(r)
+}
+
+func TestRemoteSnapshotIsOneBatchAndCaches(t *testing.T) {
+	bios := meshcontent.SumSHA256([]byte("bios-bytes"))
+	cart := meshcontent.SumSHA256([]byte("cart-bytes"))
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", memSource{blobs: map[string][]byte{bios.String(): []byte("bios-bytes")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Pull(context.Background(), bios); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &countingTransport{base: server.Client().Transport}
+	client := &http.Client{Transport: transport}
+	remote, err := Dial(context.Background(), endpoint, "kit-token", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dialCalls := transport.calls
+	facts, err := remote.Snapshot(context.Background(), []meshcontent.ContentID{bios, cart, bios})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transport.calls-dialCalls != 1 {
+		t.Fatalf("batch requests %d", transport.calls-dialCalls)
+	}
+	if facts[bios.String()].State != meshcontent.StatePresent || facts[cart.String()].State != meshcontent.StateMissing || facts[cart.String()].Advertises {
+		t.Fatalf("facts %#v", facts)
+	}
+	if _, err := remote.Snapshot(context.Background(), []meshcontent.ContentID{cart, bios}); err != nil {
+		t.Fatal(err)
+	}
+	if transport.calls-dialCalls != 1 {
+		t.Fatalf("ttl missed, requests %d", transport.calls-dialCalls)
+	}
+	remoteSnapshotTTL = 0
+	t.Cleanup(func() { remoteSnapshotTTL = time.Second })
+	if _, err := remote.Snapshot(context.Background(), []meshcontent.ContentID{bios, cart}); err != nil {
+		t.Fatal(err)
+	}
+	if transport.calls-dialCalls != 2 {
+		t.Fatalf("disabled ttl requests %d", transport.calls-dialCalls)
+	}
+}
+
+func TestRemoteReadFailureIsNotMissing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.Close()
+	remote := &Remote{base: *endpoint, token: "kit-token", client: server.Client()}
+	id := meshcontent.SumSHA256([]byte("gone"))
+	_, err = remote.ReadSlot(context.Background(), id)
+	if !errors.Is(err, meshcontent.ErrContentUnreachable) {
+		t.Fatalf("slot err %v", err)
+	}
+	entry := meshcontent.Entry{
+		TitleID: "snes-mario", System: "snes", Launchable: true,
+		Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteNativeEmu}},
+		Slots:   []meshcontent.Slot{meshcontent.PrimaryMediaSlot(id)},
+	}
+	remote.nodeID = "kit-a"
+	_, err = meshcontent.Ensure(context.Background(), entry, "kit-a", remote, meshcontent.EnsureOption{LeaseFree: true})
+	if !errors.Is(err, meshcontent.ErrContentUnreachable) || errors.Is(err, meshcontent.ErrContentMissingNoSource) {
+		t.Fatalf("ensure err %v", err)
+	}
+}
+
+func TestRemoteLinkFailureIsNotAPullFailure(t *testing.T) {
+	id := meshcontent.SumSHA256([]byte("present"))
+	store, err := Open(t.TempDir(), "kit-a", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = remote.LinkExpansion("port", id)
+	if !errors.Is(err, meshcontent.ErrContentLinkFailed) || errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("link err %v", err)
+	}
+}
+
+func TestDialCopiesDescribedPackages(t *testing.T) {
+	pkg := strings.Repeat("ab", 32)
+	store, err := Open(t.TempDir(), "kit-a", nil, []meshcontent.EligibleABI{{ID: "fes.simple-game", Major: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackages([]string{pkg, "not-a-package", pkg})
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := remote.Packages()
+	if len(got) != 1 || got[0] != pkg {
+		t.Fatalf("packages %v", got)
+	}
+	if len(remote.EligibleABIs()) != 1 || remote.EligibleABIs()[0].ID != "fes.simple-game" {
+		t.Fatalf("abis %+v", remote.EligibleABIs())
+	}
+}
+
+func TestRemotePackagesFollowStagedPackages(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(t.TempDir(), "kit-a", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.SetPackageRoots([]string{root})
+	server := httptest.NewServer(httpapi.New(meshAPI{}, "kit-token", "test", slog.New(slog.NewTextHandler(io.Discard, nil)), httpapi.WithMeshContent(store)))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := remoteNodeTTL
+	remoteNodeTTL = 0
+	t.Cleanup(func() { remoteNodeTTL = previous })
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := remote.Packages(); got != nil {
+		t.Fatalf("packages before stage %v", got)
+	}
+	pkg := strings.Repeat("cd", 32)
+	token := strings.Repeat("02", 16)
+	stage := filepath.Join(root, pkg+"-"+token)
+	writeManifest(t, stage, `
+[abi]
+id = "fes.coleco"
+major = 2
+`)
+	got := remote.Packages()
+	if len(got) != 1 || got[0] != pkg {
+		t.Fatalf("packages after stage %v", got)
+	}
+	abis := remote.EligibleABIs()
+	if len(abis) != 1 || abis[0] != (meshcontent.EligibleABI{ID: "fes.coleco", Major: 2}) {
+		t.Fatalf("abis after stage %+v", abis)
+	}
+	if err := os.RemoveAll(stage); err != nil {
+		t.Fatal(err)
+	}
+	if got = remote.Packages(); got != nil {
+		t.Fatalf("packages after removal %v", got)
+	}
+	if got := remote.EligibleABIs(); got != nil {
+		t.Fatalf("abis after removal %+v", got)
+	}
+}
+
+func TestRemoteReadHonorsItsDeadline(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/mesh/content/node" {
+			_, _ = io.WriteString(w, `{"node_id":"kit-a","abis":[]}`)
+			return
+		}
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	endpoint, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote, err := Dial(context.Background(), endpoint, "kit-token", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := remoteReadTimeout
+	remoteReadTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { remoteReadTimeout = previous })
+	started := time.Now()
+	_, err = remote.ReadSlot(context.Background(), meshcontent.SumSHA256([]byte("slow")))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err %v", err)
+	}
+	if time.Since(started) > time.Second {
+		t.Fatalf("read waited %s", time.Since(started))
 	}
 }

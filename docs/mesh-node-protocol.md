@@ -81,6 +81,16 @@ kind, is a host setting. It is not a DisplaySink.
 Phase 0 sessions keep this path. Mesh fields, when they exist, are
 additive.
 
+Host `[mesh] ensure` defaults off. With the key unset or false,
+`fogcast-api` and the `fogcast` CLI still call `EnableMeshContent`,
+and that call leaves the ensure seam off. A package-backed FPGA
+launch then stays on the Phase 0 and Phase 1 path, including when the
+kit's content source does not advertise the title. `ensure = true`
+turns the seam on. The default stays off until #177 (legacy fallback
+when the source does not advertise) and #172 (kit home host) land.
+The agent `mesh_content` switch stays default on. With the host seam
+off, that kit store is not consulted before launch.
+
 ## Planes, and which contracts appear when
 
 Names match [`mesh-lan.md`](mesh-lan.md). A cell says the contract is
@@ -197,7 +207,17 @@ Launchable versus browse-only, carried forward on purpose:
   that split is the visible contract in
   [`mesh-lan.md`](mesh-lan.md). A slot mid-pull, or only partly
   present, is Checking. It is not Ready, and it does not program the
-  FPGA.
+  FPGA. The host implements that rule when a mesh execute session is
+  installed: rooms and `GET /api/v1/games` call `ReadyHere`. The games
+  row then includes `ready_here`, and, when the title is not Ready,
+  `ready_block` plus `next_action`. Those are host catalog fields, not
+  a mesh wire freeze. `next_action` is `wait`, `supply_content`,
+  `fetch_here`, `wait_for_lease`, `resolve_version`, `bind_executor`,
+  `browse`, or `unavailable`. Lease-free for that view is this
+  session's grant and generation on the bound node, or an unleased kit
+  whose client can claim. A lost grant is not free. A foreign holder
+  is not Ready. A true ReadyHere result still passes catalog admission. When the session is not installed the fields
+  are omitted and Phase 0 composition Ready stays in force.
 - **Phase 3 and later.** Placement may choose the bound executor.
   Until that choice exists, Ready still does not mean "any node that
   advertises Execute."
@@ -333,7 +353,7 @@ slot, and source reads are not.
 
 | Call | Request | Response |
 | --- | --- | --- |
-| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`) |
+| Node | `GET /v1/mesh/content/node` | `node_id`, `abis` (`id`, `major`), optional `packages` (described package ids, 64 lowercase hex). An empty or omitted list is not eligibility. |
 | Slot | `GET /v1/mesh/content/slot?id=sha256:<64 hex>` | `state`: `present`, `checking`, or `missing` |
 | Source | `GET /v1/mesh/content/source?id=sha256:<64 hex>` | `advertises` |
 | Pull | `POST /v1/mesh/content/pull?id=sha256:<64 hex>` with an empty body | `state` after the kit reads its content source |
@@ -362,6 +382,26 @@ host session API uses that same class, plus `CONTENT_MISSING`,
 `ABI_INELIGIBLE`, `CONTENT_CHECKING_TIMEOUT`, and `KIT_LEASE_DENIED`.
 `CONTENT_CHECKING` is Ensure's in-progress block. Launch waits with a
 positive timeout, so session launch returns the timeout class instead.
+
+### Kit content source reads the host
+
+The kit's content `Source` reads the host, which is the content node,
+with the provisioned launcher credential (`Authorization: Bearer` and
+`X-FogCast-Target-ID` from `launcher.json`). This is not a second pull.
+`POST /v1/mesh/content/pull` still has an empty body. The kit then reads
+its source. Executor method signatures are unchanged.
+
+| Call | Request | Response |
+| --- | --- | --- |
+| Advertises | `GET /api/v1/mesh/content/source?id=sha256:<64 hex>` | `{"advertises": true\|false}` with status 200 |
+| Object | `GET /api/v1/mesh/content/object?id=sha256:<64 hex>` | `application/octet-stream` body |
+
+The host serves core-media whose media id is that digest, or an
+expansion cart payload whose `CartSHA256` is that digest. A library
+path is not the id. These two GETs are launcher operations so the kit
+can use the existing launcher listener. They are not kit-lease mutations.
+The host admits them for any enabled configured kit, including when that
+kit is not the foreground selected target.
 
 ## Non-goals for the v1 protocol
 

@@ -68,7 +68,7 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		registerContentRoutes(mux, token, settings.content)
 	}
 	if settings.meshContent != nil {
-		registerMeshContentRoutes(mux, token, settings.meshContent)
+		registerMeshContentRoutes(mux, token, settings.meshContent, logger)
 	}
 	if settings.development != nil {
 		registerDevelopmentRoutes(mux, token, settings.development)

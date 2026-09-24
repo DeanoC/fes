@@ -260,6 +260,13 @@ Rules:
   same `game_id`. Missing flags still do not grant eligibility.
 - Confirm never silently no-ops. Unavailable shows the missing slot and a
   specific next action. Ready launches through the existing session API.
+- When a mesh execute session is installed, rooms Ready and Play follow
+  `ReadyHere` instead of this composition table: Execute binding, every
+  required slot Present on that executor, lease free for this session,
+  and a compatible mesh-protocol major. Distant-only bytes are
+  Unavailable with `next_action` `fetch_here`. When that session is not
+  installed, this table stays the Ready rule. `enrichLaunchable` still
+  keeps a launchable FPGA package ahead of a browse-only cart.
 - A successful package activation with a black HDMI picture is not a
   successful play session. Phase 1 must fail closed *before* boot when
   required firmware is absent, rather than reporting `state: active` and

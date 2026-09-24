@@ -187,6 +187,11 @@ func (r *Instance) gameTable(g hostclient.Game) *lua.LTable {
 	if block := g.LaunchBlock(); block != "" {
 		t.RawSetString("launch_block", lua.LString(string(block)))
 	}
+	if g.ReadyHere != nil {
+		t.RawSetString("ready_here", lua.LBool(*g.ReadyHere))
+		t.RawSetString("ready_block", lua.LString(g.ReadyBlock))
+		t.RawSetString("next_action", lua.LString(g.NextAction))
+	}
 	cols := L.NewTable()
 	for _, c := range g.Collections {
 		cols.Append(lua.LString(c))

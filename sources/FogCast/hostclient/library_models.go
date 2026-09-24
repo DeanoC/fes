@@ -34,6 +34,12 @@ type Game struct {
 	ROMMediaID     string `json:"rom_media_id,omitempty"`
 	ExpansionReady bool   `json:"expansion_ready,omitempty"`
 	FirmwareReady  bool   `json:"firmware_ready,omitempty"`
+	// ReadyHere is Phase 2 Ready for this shell. Nil means the mesh
+	// ensure seam is off and LaunchBlock stays composition. A false
+	// pointer is Unavailable (or Checking while a slot is mid-pull).
+	ReadyHere  *bool  `json:"ready_here,omitempty"`
+	ReadyBlock string `json:"ready_block,omitempty"`
+	NextAction string `json:"next_action,omitempty"`
 }
 
 // LaunchBlock is why a catalog row is ineligible for POST /api/v1/session/launch.
@@ -48,11 +54,32 @@ const (
 	LaunchMissingFirmware  LaunchBlock = "missing_firmware"
 	LaunchMissingExpansion LaunchBlock = "missing_expansion"
 	LaunchMissingROM       LaunchBlock = "missing_rom"
+	// Mesh blocks match meshcontent.Block. They are set only when
+	// ReadyHere is non-nil and false.
+	LaunchDistant        LaunchBlock = "distant"
+	LaunchLeaseHeld      LaunchBlock = "lease_held"
+	LaunchVersionSkew    LaunchBlock = "version_skew"
+	LaunchNoExecutor     LaunchBlock = "no_capable_executor"
+	LaunchContentMissing LaunchBlock = "content_missing"
+	LaunchEnsureProgress LaunchBlock = "ensure_in_progress"
+	LaunchMeshInvalid    LaunchBlock = "invalid"
 )
 
 // LaunchBlock classifies catalog-side launch ineligibility. ListGames variant
-// selection and sofa admission share this rule.
+// selection and sofa admission share this rule. A true ReadyHere still
+// applies the catalog gates: a host-only row whose root is offline is
+// not Play. A false ReadyHere keeps the mesh block.
 func (g Game) LaunchBlock() LaunchBlock {
+	if g.ReadyHere != nil && !*g.ReadyHere {
+		if g.ReadyBlock == "" {
+			return LaunchNotReady
+		}
+		return LaunchBlock(g.ReadyBlock)
+	}
+	return g.catalogLaunchBlock()
+}
+
+func (g Game) catalogLaunchBlock() LaunchBlock {
 	if !g.Launchable {
 		return LaunchBrowseOnly
 	}

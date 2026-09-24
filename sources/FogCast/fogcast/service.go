@@ -178,13 +178,22 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset    func()
-	connectionMu   sync.Mutex
-	connection     TargetConnection
-	resolveTarget  func(context.Context, string) ([]string, error)
-	meshMu         sync.Mutex
-	meshNodes      []MeshNode
-	meshExecute    MeshExecuteSession
+	targetReset      func()
+	connectionMu     sync.Mutex
+	connection       TargetConnection
+	resolveTarget    func(context.Context, string) ([]string, error)
+	meshMu           sync.Mutex
+	meshNodes        []MeshNode
+	meshExecute      MeshExecuteSession
+	meshEnsureConfig bool
+	meshEnsure       bool
+	meshHTTP         *http.Client
+	meshDialAt       time.Time
+	// meshDialID is the selected-target identity of the last dial attempt.
+	// meshInstalled is the identity that installed meshExecute. A different
+	// selected target drops that executor and dials the new endpoint.
+	meshDialID     meshTargetIdentity
+	meshInstalled  meshTargetIdentity
 	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
 	lookupCancel   context.CancelFunc
 	monitorCancel  context.CancelFunc
@@ -412,6 +421,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	service.meshEnsureConfig = config.MeshEnsure
+	service.meshHTTP = &http.Client{}
 	if config.ZX81MachineROM.Script != "" {
 		service.SetMachineROMLinker(PythonMachineROM{
 			Python: config.ZX81MachineROM.Python, Script: config.ZX81MachineROM.Script,
@@ -813,7 +824,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	// catalog access. With the seam off, bind still resolves the
 	// selected target under targetMu at bind time. A nil executor
 	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
-	// GET /api/v1/games do not use this seam.
+	// GET /api/v1/games read ReadyHere only when this seam is installed.
 	if err := ctx.Err(); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}

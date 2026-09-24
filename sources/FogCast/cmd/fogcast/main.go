@@ -20,7 +20,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	open := func(ctx context.Context, paths fogcast.Paths) (fogcastcli.Service, error) {
-		return fogcast.Open(ctx, paths, (*http.Client)(nil))
+		opened, err := fogcast.Open(ctx, paths, (*http.Client)(nil))
+		if err != nil {
+			return nil, err
+		}
+		opened.EnableMeshContent()
+		return opened, nil
 	}
 	os.Exit(run(ctx, os.Args[1:], os.Stdout, os.Stderr, open))
 }

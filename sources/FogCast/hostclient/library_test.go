@@ -93,6 +93,21 @@ func TestLaunchBlockClassifiesCatalogReadiness(t *testing.T) {
 		eligible bool
 	}{
 		{name: "ready", game: ready, block: "", eligible: true},
+		{name: "ready-here-keeps-offline", game: func() Game {
+			game := ready
+			game.Execution = ExecutionHostOnly
+			here := true
+			game.ReadyHere = &here
+			game.RootOnline = false
+			game.State = "missing"
+			return game
+		}(), block: LaunchSourceOffline, eligible: false},
+		{name: "ready-here-keeps-catalog", game: func() Game {
+			game := ready
+			here := true
+			game.ReadyHere = &here
+			return game
+		}(), block: "", eligible: true},
 		{name: "browse-only", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: true, Launchable: false}, block: LaunchBrowseOnly, eligible: false},
 		{name: "missing", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "missing", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},
 		{name: "offline", game: Game{ID: ready.ID, Title: ready.Title, System: ready.System, State: "available", RootOnline: false, Launchable: true}, block: LaunchSourceOffline, eligible: false},
@@ -138,6 +153,36 @@ func TestPreferLaunchableCopiesFavorite(t *testing.T) {
 	}
 	if game.Variants != nil {
 		t.Fatalf("variants leaked into catalog row: %#v", game.Variants)
+	}
+}
+
+func TestPreferLaunchableKeepsPackageAndSkipsDistant(t *testing.T) {
+	t.Parallel()
+	raw := Game{ID: "coleco-dk-cart", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: false}
+	pkg := Game{ID: "fpga-coleco-dk", Title: "Donkey Kong", System: "coleco", State: "available", RootOnline: true, Launchable: true, FirmwareRequired: true, FirmwareReady: true}
+	group := raw
+	group.Variants = []Game{raw, pkg}
+	got := preferLaunchable(group)
+	if got.ID != pkg.ID || !got.LaunchEligible() {
+		t.Fatalf("package variant %+v", got)
+	}
+	distant := false
+	pkg.ReadyHere = &distant
+	pkg.ReadyBlock = string(LaunchDistant)
+	pkg.NextAction = "fetch_here"
+	group.Variants = []Game{raw, pkg}
+	got = preferLaunchable(group)
+	if got.LaunchEligible() || got.ID != raw.ID {
+		t.Fatalf("distant package became playable %+v", got)
+	}
+	here := true
+	pkg.ReadyHere = &here
+	pkg.ReadyBlock = ""
+	pkg.NextAction = ""
+	group.Variants = []Game{raw, pkg}
+	got = preferLaunchable(group)
+	if got.ID != pkg.ID || !got.LaunchEligible() {
+		t.Fatalf("ready package %+v", got)
 	}
 }
 

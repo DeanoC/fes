@@ -62,13 +62,19 @@ type Destination struct {
 	// LeaseHeld is a foreign kit lease. The same shell's Soft-stop retained
 	// grant leaves this false so that shell stays Ready.
 	LeaseHeld bool
+	// ReadyBlock and NextAction are ReadyHere when the mesh seam is on.
+	// Empty when that seam is off.
+	ReadyBlock string
+	NextAction string
 }
 
 // ClassifyGames maps a library result set onto Missing, Needs a choice,
 // Unavailable, or Ready. The caller reports Checking while the query is
 // still in flight. query, when set, filters titles; an exact title match
 // wins over looser contains-matches.
-// Ready is Phase 0 composition for the bound executor. A mesh Execute
+// Ready is Phase 0 composition when the game has no ReadyHere result.
+// When ReadyHere is set, that result is Ready: a false result is
+// Unavailable, and a slot mid-pull is Checking. A mesh Execute
 // advertisement is not an input and cannot change the result.
 func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostclient.Game) {
 	matches := matchingGames(games, query)
@@ -80,6 +86,9 @@ func ClassifyGames(games []hostclient.Game, query string) (Availability, []hostc
 	}
 	if len(matches) > 1 {
 		return AvailNeedsChoice, matches
+	}
+	if matches[0].ReadyHere != nil && !*matches[0].ReadyHere && matches[0].LaunchBlock() == hostclient.LaunchEnsureProgress {
+		return AvailChecking, matches
 	}
 	if !matches[0].LaunchEligible() {
 		return AvailUnavailable, matches
@@ -160,10 +169,10 @@ func ApplyEditionPreference(d Destination, gameID string) Destination {
 		d.Matches = []hostclient.Game{g}
 		d.Label = g.Title
 		d.System = g.System
-		if g.LaunchEligible() {
-			d.Availability = AvailReady
-		} else {
-			d.Availability = AvailUnavailable
+		state, picked := ClassifyGames([]hostclient.Game{g}, "")
+		d.Availability = state
+		if len(picked) == 1 {
+			d.Matches = picked
 		}
 		d.FillCopy()
 		d.FillHistory()
@@ -172,11 +181,55 @@ func ApplyEditionPreference(d Destination, gameID string) Destination {
 	return d
 }
 
+// applyMeshFacts copies ReadyHere onto the destination and keeps a
+// not-ready title from staying Ready. Phase 0 games leave this unchanged.
+func (d *Destination) applyMeshFacts() {
+	if d == nil {
+		return
+	}
+	game, ok := d.Game()
+	if !ok || game.ReadyHere == nil {
+		return
+	}
+	d.ReadyBlock = game.ReadyBlock
+	d.NextAction = game.NextAction
+	if *game.ReadyHere {
+		return
+	}
+	if game.ReadyBlock == string(hostclient.LaunchLeaseHeld) {
+		d.LeaseHeld = true
+	}
+	if d.Availability != AvailReady && d.Availability != "" {
+		return
+	}
+	if game.LaunchBlock() == hostclient.LaunchEnsureProgress {
+		d.Availability = AvailChecking
+		return
+	}
+	d.Availability = AvailUnavailable
+}
+
+func meshUnavailableCopy(block string) (status, action string, ok bool) {
+	switch hostclient.LaunchBlock(block) {
+	case hostclient.LaunchDistant:
+		return "This title is not on this executor.", "Bring it here before Play.", true
+	case hostclient.LaunchVersionSkew:
+		return "Can't play here yet.", "Do not launch.", true
+	case hostclient.LaunchContentMissing:
+		return "A required part of this title is missing.", "Supply the missing part.", true
+	case hostclient.LaunchNoExecutor, hostclient.LaunchMeshInvalid:
+		return "This title cannot play on the current setup.", "See why this title cannot play.", true
+	default:
+		return "", "", false
+	}
+}
+
 // FillCopy sets distinct Status and Action strings for the compact panel.
 func (d *Destination) FillCopy() {
 	if d == nil {
 		return
 	}
+	d.applyMeshFacts()
 	switch d.Kind {
 	case KindRoom:
 		d.Status = "Enter room."
@@ -195,6 +248,11 @@ func (d *Destination) FillCopy() {
 	}
 	switch d.Availability {
 	case AvailChecking:
+		if d.ReadyBlock == string(hostclient.LaunchEnsureProgress) {
+			d.Status = "Still resolving whether this title can play here."
+			d.Action = "Wait. Do not launch."
+			break
+		}
 		d.Status = "Matching this title in your library…"
 		d.Action = "Wait — still checking."
 	case AvailMissing:
@@ -212,9 +270,14 @@ func (d *Destination) FillCopy() {
 		d.Status = "Several editions match. Choose one."
 		d.Action = "Choose an edition."
 	case AvailUnavailable:
-		if d.LeaseHeld {
+		if d.LeaseHeld || d.ReadyBlock == string(hostclient.LaunchLeaseHeld) {
 			d.Status = "This executor is in use."
 			d.Action = "Do not take the lease."
+			break
+		}
+		if status, action, ok := meshUnavailableCopy(d.ReadyBlock); ok {
+			d.Status = status
+			d.Action = action
 			break
 		}
 		d.Status = "This title cannot play on the current setup."

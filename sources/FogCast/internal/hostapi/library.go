@@ -311,6 +311,7 @@ func handleGamesList(w http.ResponseWriter, r *http.Request, service Service) {
 		writeError(w, http.StatusInternalServerError, "INTERNAL", "catalog is unavailable")
 		return
 	}
+	applyMeshReadiness(r.Context(), service, result.Games)
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -636,6 +637,7 @@ func enrichGameResult(ctx context.Context, service Service, result gameResult) (
 	if err := enrichCompositions(ctx, service, games); err != nil {
 		return result, err
 	}
+	applyMeshReadiness(ctx, service, games)
 	return games[0], nil
 }
 
@@ -675,6 +677,50 @@ func gameRowLaunchable(service Service, result gameResult) bool {
 
 type compositionService interface {
 	CoreCompositions(context.Context, []string) (map[string]protocol.CoreComposition, error)
+}
+
+type meshReadyService interface {
+	GamesMeshReady(context.Context, []string) (map[string]fogcast.GameMeshReady, bool)
+}
+
+// applyMeshReadiness writes ReadyHere onto each row when a mesh execute
+// session is installed. The ensure seam stays off when the service does
+// not report one: launchable and composition fields stay as they are.
+func applyMeshReadiness(ctx context.Context, service Service, games []gameResult) {
+	provider, ok := service.(meshReadyService)
+	if !ok || len(games) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(games))
+	for _, game := range games {
+		ids = append(ids, game.ID)
+		for _, variant := range game.Variants {
+			ids = append(ids, variant.ID)
+		}
+	}
+	decisions, on := provider.GamesMeshReady(ctx, ids)
+	if !on {
+		return
+	}
+	apply := func(game *gameResult) {
+		decision, ok := decisions[game.ID]
+		if !ok {
+			return
+		}
+		ready := decision.Ready
+		game.ReadyHere = &ready
+		if ready {
+			return
+		}
+		game.ReadyBlock = string(decision.Block)
+		game.NextAction = decision.NextAction
+	}
+	for i := range games {
+		apply(&games[i])
+		for j := range games[i].Variants {
+			apply(&games[i].Variants[j])
+		}
+	}
 }
 
 func enrichCompositions(ctx context.Context, service Service, games []gameResult) error {

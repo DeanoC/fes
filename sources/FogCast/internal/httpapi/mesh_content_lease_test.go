@@ -1,7 +1,9 @@
 package httpapi_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -142,3 +144,50 @@ func TestMeshContentHostlessOwnerIsDenied(t *testing.T) {
 		t.Fatalf("hostless wrote pulls %d links %d", executor.pulls, executor.links)
 	}
 }
+
+func TestCanceledMeshPullIsLogged(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	executor := &blockingPull{started: make(chan struct{})}
+	handler := httpapi.New(&fakeController{}, "bearer", "test", logger, httpapi.WithMeshContent(executor))
+	ctx, cancel := context.WithCancel(context.Background())
+	id := "sha256:" + strings.Repeat("ab", 32)
+	request := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id="+id, nil).WithContext(ctx)
+	request.Header.Set("Authorization", "Bearer bearer")
+	done := make(chan struct{})
+	go func() {
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+		close(done)
+	}()
+	select {
+	case <-executor.started:
+	case <-time.After(time.Second):
+		t.Fatal("pull did not start")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("canceled pull did not return")
+	}
+	if !strings.Contains(logs.String(), "mesh content pull canceled") {
+		t.Fatalf("log %s", logs.String())
+	}
+}
+
+type blockingPull struct {
+	started chan struct{}
+}
+
+func (blockingPull) NodeID() string                          { return "kit-a" }
+func (blockingPull) EligibleABIs() []meshcontent.EligibleABI { return nil }
+func (blockingPull) Slot(meshcontent.ContentID) meshcontent.SlotState {
+	return meshcontent.StateMissing
+}
+func (blockingPull) SourceAdvertises(meshcontent.ContentID) bool { return false }
+func (b *blockingPull) Pull(ctx context.Context, _ meshcontent.ContentID) (meshcontent.SlotState, error) {
+	close(b.started)
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+func (blockingPull) LinkExpansion(string, meshcontent.ContentID) error { return nil }

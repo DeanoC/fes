@@ -6,6 +6,48 @@
 // and VBlank/collision/overflow status. The raster is deliberately exposed in
 // the logical 256x192 domain; the video shell owns the 720p timing and scaling.
 
+// Convert the unrelated FES system clock into the logical TMS9918 raster
+// cadence. The raster exposes 256 samples on each of 262 lines; 4,024,320
+// enables per second therefore produce a nominal 60 Hz frame without changing
+// the CPU or PSG clocks. A fixed-point phase accumulator spreads the 12/13
+// system-clock intervals evenly and avoids a generated clock.
+/* verilator lint_off DECLFILENAME */
+module tms9918_raster_ce #(
+    parameter integer SYSTEM_CLOCK_HZ = 52_000_000,
+    parameter integer RASTER_RATE_HZ = 4_024_320
+) (
+    input  wire clk,
+    input  wire reset,
+    output reg  raster_ce
+);
+    localparam integer PHASE_WIDTH = 32;
+    localparam [63:0] SYSTEM_CLOCK_HZ_WIDE = 64'd1 * SYSTEM_CLOCK_HZ;
+    localparam [63:0] RASTER_RATE_HZ_WIDE = 64'd1 * RASTER_RATE_HZ;
+    localparam [63:0] PHASE_INCREMENT_WIDE =
+        (((64'd1 << PHASE_WIDTH) * RASTER_RATE_HZ_WIDE +
+          (SYSTEM_CLOCK_HZ_WIDE / 2)) / SYSTEM_CLOCK_HZ_WIDE);
+    localparam [31:0] PHASE_INCREMENT = PHASE_INCREMENT_WIDE[31:0];
+
+    reg [31:0] phase;
+    wire [32:0] phase_sum = {1'b0, phase} + {1'b0, PHASE_INCREMENT};
+
+    initial begin
+        phase = 32'd0;
+        raster_ce = 1'b0;
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            phase <= 32'd0;
+            raster_ce <= 1'b0;
+        end else begin
+            phase <= phase_sum[31:0];
+            raster_ce <= phase_sum[32];
+        end
+    end
+endmodule
+/* verilator lint_on DECLFILENAME */
+
 module coleco_vdp (
     input  wire       clk,
     input  wire       reset,
@@ -432,9 +474,10 @@ module coleco_vdp (
 
 `ifdef FES_COLECO_REGISTERED_VDP
     // Build the next scanline in a bank not currently being displayed. The
-    // serial walker is deliberately faster than the ~4K system clocks in a
-    // logical line: four SAT bytes and up to two pattern bytes per sprite fit
-    // comfortably while keeping VRAM access in one explicit M10K port.
+    // serial walker stays below 800 system clocks even when scanning all 32
+    // SAT entries and rendering four maximum-size magnified sprites; the
+    // 60 Hz logical line provides over 3.3K system clocks while retaining one
+    // explicit M10K VRAM port.
     always @(posedge clk) begin
         if (reset) begin
             sprite_ready_y <= 8'hff;
@@ -749,11 +792,9 @@ module coleco_vdp (
 
 `ifdef FES_COLECO_REGISTERED_VDP
             // Request publication from registered raster coordinates rather
-            // than gating this compare with raster_ce.  raster_ce is launched
-            // on the system-clock falling edge; keeping it out of this
-            // request path avoids turning the sprite publication register into
-            // a new half-cycle timing path.  The request remains held until
-            // the registered lookup pipeline reaches the same line below.
+            // than gating this compare with raster_ce. The request remains
+            // held until the registered lookup pipeline reaches the same line
+            // below.
             if (!sprite_pending_valid &&
                 sprite_ready_y != 8'hff &&
                 sprite_ready_y == oss_scan_y[7:0] &&

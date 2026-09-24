@@ -204,6 +204,9 @@ func TestStoreOrphanPartialIsNotPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "partial"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(root, "partial", id.Digest+".orphan"), []byte("half"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -322,3 +325,250 @@ func (r *blockingReader) Read(p []byte) (int, error) {
 }
 
 func (r *blockingReader) Close() error { return nil }
+
+func TestOpenDoesNotCreateDirectoriesAndSweepsPartial(t *testing.T) {
+	root := t.TempDir()
+	partial := filepath.Join(root, "partial")
+	if err := os.MkdirAll(partial, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(partial, "stale"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(root, "kit-a", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects")); !os.IsNotExist(err) {
+		t.Fatalf("open created objects: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(partial, "stale")); !os.IsNotExist(err) {
+		t.Fatalf("stale partial remained: %v", err)
+	}
+}
+
+func TestPullRefusesLowFreeSpaceAndQuota(t *testing.T) {
+	id := meshcontent.SumSHA256([]byte("abcd"))
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", memSource{blobs: map[string][]byte{id.String(): []byte("abcd")}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origFree := availableBytes
+	origQuota := meshContentQuota
+	t.Cleanup(func() {
+		availableBytes = origFree
+		meshContentQuota = origQuota
+	})
+	availableBytes = func(string) (uint64, error) { return meshContentReserve - 1, nil }
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("free space err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("low free space committed an object")
+	}
+	availableBytes = origFree
+	meshContentQuota = 3
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("quota err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("quota committed an object")
+	}
+}
+
+func TestPullCapsWriteAtFreeSpaceReserve(t *testing.T) {
+	payload := bytes.Repeat([]byte("r"), 8)
+	id := meshcontent.SumSHA256(payload)
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", memSource{blobs: map[string][]byte{id.String(): payload}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origFree, origReserve := availableBytes, meshContentReserve
+	t.Cleanup(func() {
+		availableBytes = origFree
+		meshContentReserve = origReserve
+	})
+	meshContentReserve = 32
+	availableBytes = func(string) (uint64, error) { return meshContentReserve + 4, nil }
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("over-cap pull err %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("pull committed past the free-space reserve")
+	}
+	partials, err := os.ReadDir(filepath.Join(root, "partial"))
+	if err != nil || len(partials) != 0 {
+		t.Fatalf("partials after cap: %v %v", partials, err)
+	}
+
+	small := []byte("ok")
+	smallID := meshcontent.SumSHA256(small)
+	store.source = memSource{blobs: map[string][]byte{smallID.String(): small}}
+	availableBytes = func(string) (uint64, error) { return meshContentReserve + 16, nil }
+	state, err := store.Pull(context.Background(), smallID)
+	if err != nil || state != meshcontent.StatePresent {
+		t.Fatalf("in-cap pull state %s err %v", state, err)
+	}
+}
+
+func TestPullRechecksFreeSpaceDuringCopy(t *testing.T) {
+	payload := bytes.Repeat([]byte("r"), 40<<10)
+	id := meshcontent.SumSHA256(payload)
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", memSource{blobs: map[string][]byte{id.String(): payload}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origFree, origReserve := availableBytes, meshContentReserve
+	t.Cleanup(func() {
+		availableBytes = origFree
+		meshContentReserve = origReserve
+	})
+	meshContentReserve = 32
+	var calls int
+	availableBytes = func(string) (uint64, error) {
+		calls++
+		if calls < 3 {
+			return meshContentReserve + 64<<10, nil
+		}
+		return meshContentReserve, nil
+	}
+	if _, err := store.Pull(context.Background(), id); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("shrinking free space err %v", err)
+	}
+	if calls < 3 {
+		t.Fatalf("free space checked %d times, want a recheck during the copy", calls)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", id.Digest)); !os.IsNotExist(err) {
+		t.Fatal("pull committed after free space dropped to the reserve")
+	}
+}
+
+func TestConcurrentPullsShareTheQuota(t *testing.T) {
+	first := bytes.Repeat([]byte("a"), 90)
+	second := bytes.Repeat([]byte("b"), 80)
+	firstID := meshcontent.SumSHA256(first)
+	secondID := meshcontent.SumSHA256(second)
+	release := make(chan struct{})
+	source := &pauseSource{
+		blobs: map[string][]byte{firstID.String(): first, secondID.String(): second},
+		pause: map[string]int{firstID.String(): 80},
+		ready: make(chan struct{}),
+		release: release,
+	}
+	root := t.TempDir()
+	store, err := Open(root, "kit-a", source, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origQuota := meshContentQuota
+	t.Cleanup(func() { meshContentQuota = origQuota })
+	meshContentQuota = 100
+
+	done := make(chan error, 1)
+	go func() {
+		_, pullErr := store.Pull(context.Background(), firstID)
+		done <- pullErr
+	}()
+	select {
+	case <-source.ready:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first pull did not reach its partial")
+	}
+	if _, err := store.Pull(context.Background(), secondID); !errors.Is(err, meshcontent.ErrContentPullFailed) {
+		t.Fatalf("second pull err %v", err)
+	}
+	close(release)
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("first pull err %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("first pull did not finish")
+	}
+	if store.Slot(firstID) != meshcontent.StatePresent || store.Slot(secondID) != meshcontent.StateMissing {
+		t.Fatalf("slots %s %s", store.Slot(firstID), store.Slot(secondID))
+	}
+	info, err := os.Stat(filepath.Join(root, "objects", firstID.Digest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() > meshContentQuota {
+		t.Fatalf("object is %d bytes, quota %d", info.Size(), meshContentQuota)
+	}
+	if _, err := os.Stat(filepath.Join(root, "objects", secondID.Digest)); !os.IsNotExist(err) {
+		t.Fatal("second pull committed alongside the in-flight partial")
+	}
+}
+
+// pauseSource writes pause[id] bytes, signals ready once, then waits
+// before returning the rest. A second pull can observe the partial.
+type pauseSource struct {
+	blobs   map[string][]byte
+	pause   map[string]int
+	ready   chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (s *pauseSource) Advertises(id meshcontent.ContentID) bool {
+	_, ok := s.blobs[id.String()]
+	return ok
+}
+
+func (s *pauseSource) Open(ctx context.Context, id meshcontent.ContentID) (io.ReadCloser, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	body, ok := s.blobs[id.String()]
+	if !ok {
+		return nil, errors.New("missing")
+	}
+	return &pauseReader{
+		ctx: ctx, data: body, pauseAt: s.pause[id.String()],
+		ready: s.ready, release: s.release, once: &s.once,
+	}, nil
+}
+
+type pauseReader struct {
+	ctx      context.Context
+	data     []byte
+	off      int
+	pauseAt  int
+	ready    chan struct{}
+	release  <-chan struct{}
+	once     *sync.Once
+	released bool
+}
+
+func (r *pauseReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if r.off >= len(r.data) {
+		return 0, io.EOF
+	}
+	if r.pauseAt > 0 && r.off >= r.pauseAt && !r.released {
+		r.once.Do(func() { close(r.ready) })
+		select {
+		case <-r.ctx.Done():
+			return 0, r.ctx.Err()
+		case <-r.release:
+			r.released = true
+		}
+	}
+	end := len(r.data)
+	if r.pauseAt > 0 && !r.released && r.off < r.pauseAt && r.pauseAt < end {
+		end = r.pauseAt
+	}
+	n := copy(p, r.data[r.off:end])
+	r.off += n
+	if n == 0 {
+		return 0, io.EOF
+	}
+	return n, nil
+}
+
+func (r *pauseReader) Close() error { return nil }

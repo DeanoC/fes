@@ -18,13 +18,29 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+	"golang.org/x/sys/unix"
 )
+
+var (
+	// meshContentReserve is free space a pull leaves on the card.
+	// A pull that would start below this reserve fails closed. Each
+	// chunk is also capped at free-reserve, and free space is read
+	// again while the copy is running.
+	meshContentReserve uint64 = 32 << 20
+	// meshContentQuota is the most bytes this store will keep, counting
+	// committed objects and in-flight partial files together.
+	meshContentQuota int64 = 2 << 30
+)
+
+// availableBytes reports free bytes at path. Tests replace it.
+var availableBytes = statAvailable
 
 // Source is the content source a kit pull reads. A nil source
 // advertises nothing. Open's reader must return when ctx is canceled.
@@ -43,11 +59,19 @@ type Store struct {
 	abis     []meshcontent.EligibleABI
 	mu       sync.Mutex
 	inflight map[string]struct{}
+	packages []string
+	// packageRoots are directories whose described packages are this
+	// node's ABI and package lists. Empty means EligibleABIs and
+	// Packages return the lists recorded at Open and SetPackages.
+	packageRoots []string
 }
 
-// Open creates the object, partial, and link directories under root.
-// nodeID is this executor. abis may be empty; an empty list is not
-// eligibility. source may be nil.
+// Open prepares one node's store. It does not create directories: the
+// agent can open the store on boot without writing under the media
+// root. The first pull or link creates objects, partial, and links.
+// A partial directory left by a crashed pull is swept. nodeID is this
+// executor. abis may be empty; an empty list is not eligibility.
+// source may be nil.
 func Open(root, nodeID string, source Source, abis []meshcontent.EligibleABI) (*Store, error) {
 	nodeID = strings.TrimSpace(nodeID)
 	if nodeID == "" {
@@ -57,18 +81,39 @@ func Open(root, nodeID string, source Source, abis []meshcontent.EligibleABI) (*
 	if root == "" || root == "." || root == string(filepath.Separator) {
 		return nil, errors.New("mesh content store requires a root")
 	}
-	for _, sub := range []string{"objects", "partial", "links"} {
-		if err := os.MkdirAll(filepath.Join(root, sub), 0o700); err != nil {
-			return nil, err
-		}
-	}
-	return &Store{
+	store := &Store{
 		root:     root,
 		nodeID:   nodeID,
 		source:   source,
 		abis:     append([]meshcontent.EligibleABI(nil), abis...),
 		inflight: map[string]struct{}{},
-	}, nil
+	}
+	store.sweepPartial()
+	return store, nil
+}
+
+func (s *Store) ensureDirs() error {
+	for _, sub := range []string{"objects", "partial", "links"} {
+		if err := os.MkdirAll(filepath.Join(s.root, sub), 0o700); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sweepPartial removes files left in partial/ by a pull that did not
+// finish. Open runs it once, before any pull on this store is in flight.
+func (s *Store) sweepPartial() {
+	entries, err := os.ReadDir(filepath.Join(s.root, "partial"))
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		_ = os.Remove(filepath.Join(s.root, "partial", entry.Name()))
+	}
 }
 
 func (s *Store) NodeID() string {
@@ -79,10 +124,70 @@ func (s *Store) NodeID() string {
 }
 
 func (s *Store) EligibleABIs() []meshcontent.EligibleABI {
+	abis, _ := s.inventory()
+	return abis
+}
+
+// SetPackages records described package ids installed on this node.
+// ReadyHere reads them through PackageHolder. Call it before the store
+// serves requests. An empty list is not eligibility. Ids that are not
+// 64 lowercase hex digits are dropped. SetPackageRoots replaces this
+// list: the node document then reads the directories on each request.
+func (s *Store) SetPackages(ids []string) {
 	if s == nil {
-		return nil
+		return
 	}
-	return append([]meshcontent.EligibleABI(nil), s.abis...)
+	s.mu.Lock()
+	s.packages = normalizePackageIDs(ids)
+	s.mu.Unlock()
+}
+
+// SetPackageRoots records directories of described packages. EligibleABIs
+// and Packages read them on each call, so a stage published after Open
+// is served and a removed stage is not. An empty or nil list restores
+// the ABIs and package ids recorded by Open and SetPackages.
+func (s *Store) SetPackageRoots(roots []string) {
+	if s == nil {
+		return
+	}
+	cleaned := make([]string, 0, len(roots))
+	for _, root := range roots {
+		root = strings.TrimSpace(root)
+		if root == "" {
+			continue
+		}
+		cleaned = append(cleaned, root)
+	}
+	if len(cleaned) == 0 {
+		cleaned = nil
+	}
+	s.mu.Lock()
+	s.packageRoots = cleaned
+	s.mu.Unlock()
+}
+
+// Packages returns the described package ids on this node.
+func (s *Store) Packages() []string {
+	_, packages := s.inventory()
+	return packages
+}
+
+// inventory is the ABI and package lists the node document serves.
+// Package roots are scanned outside the store lock. Without roots, the
+// lists recorded at Open and SetPackages are returned.
+func (s *Store) inventory() ([]meshcontent.EligibleABI, []string) {
+	if s == nil {
+		return nil, nil
+	}
+	s.mu.Lock()
+	roots := append([]string(nil), s.packageRoots...)
+	abis := append([]meshcontent.EligibleABI(nil), s.abis...)
+	packages := append([]string(nil), s.packages...)
+	s.mu.Unlock()
+	if len(roots) == 0 {
+		return abis, packages
+	}
+	return ReadInstalledPackages(roots)
 }
 
 func (s *Store) SourceAdvertises(id meshcontent.ContentID) bool {
@@ -143,6 +248,12 @@ func (s *Store) Pull(ctx context.Context, id meshcontent.ContentID) (meshcontent
 	s.inflight[key] = struct{}{}
 	s.mu.Unlock()
 
+	if err := s.ensureDirs(); err != nil {
+		s.mu.Lock()
+		delete(s.inflight, key)
+		s.mu.Unlock()
+		return "", meshcontent.ErrContentPullFailed
+	}
 	state, err := s.copy(ctx, id)
 	s.mu.Lock()
 	delete(s.inflight, key)
@@ -153,6 +264,13 @@ func (s *Store) Pull(ctx context.Context, id meshcontent.ContentID) (meshcontent
 func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent.SlotState, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	// Refuse before creating a partial when the card or the quota already
+	// has no room. The writer applies the same cap to every chunk and
+	// re-reads free space, so a pull cannot run the card down to ENOSPC
+	// and two in-flight pulls cannot each spend the same remainder.
+	if !s.roomFor(1) {
+		return "", meshcontent.ErrContentPullFailed
 	}
 	body, err := s.source.Open(ctx, id)
 	if err != nil {
@@ -174,7 +292,8 @@ func (s *Store) copy(ctx context.Context, id meshcontent.ContentID) (meshcontent
 		_ = os.Remove(tmpName)
 	}
 	sum := sha256.New()
-	if _, err := io.Copy(io.MultiWriter(tmp, sum), &ctxReader{ctx: ctx, r: body}); err != nil {
+	limited := &spaceWriter{store: s, w: io.MultiWriter(tmp, sum)}
+	if _, err := io.Copy(limited, &ctxReader{ctx: ctx, r: body}); err != nil {
 		cleanup()
 		if ctx.Err() != nil {
 			return "", ctx.Err()
@@ -210,6 +329,9 @@ func (s *Store) LinkExpansion(name string, id meshcontent.ContentID) error {
 	}
 	if s.Slot(id) != meshcontent.StatePresent {
 		return errors.New("mesh content link: slot is not present")
+	}
+	if err := s.ensureDirs(); err != nil {
+		return err
 	}
 	body := []byte(id.String() + "\n")
 	path := filepath.Join(s.root, "links", name)
@@ -277,4 +399,100 @@ func (c *ctxReader) Read(p []byte) (int, error) {
 		return 0, err
 	}
 	return c.r.Read(p)
+}
+
+// usedBytes is committed objects plus in-flight partial files. Callers
+// that decide whether another byte fits hold s.mu across this read and
+// the write, so two pulls cannot both observe the same remainder.
+func (s *Store) usedBytes() int64 {
+	return dirBytes(filepath.Join(s.root, "objects")) + dirBytes(filepath.Join(s.root, "partial"))
+}
+
+func dirBytes(dir string) int64 {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		total += info.Size()
+	}
+	return total
+}
+
+// roomFor reports whether at least n more bytes fit under the quota and
+// the free-space reserve. n is at least 1 for the pre-copy check.
+func (s *Store) roomFor(n int64) bool {
+	if n < 1 {
+		n = 1
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.roomLocked() >= n
+}
+
+// roomLocked is min(quota-used, free-reserve). Caller holds s.mu.
+// used includes partial/, so an in-flight pull of another id counts.
+func (s *Store) roomLocked() int64 {
+	used := s.usedBytes()
+	if used >= meshContentQuota {
+		return 0
+	}
+	quotaRoom := meshContentQuota - used
+	free, err := availableBytes(s.root)
+	if err != nil || free < meshContentReserve {
+		return 0
+	}
+	space := free - meshContentReserve
+	if space > uint64(math.MaxInt64) {
+		return quotaRoom
+	}
+	spaceRoom := int64(space)
+	if spaceRoom < quotaRoom {
+		return spaceRoom
+	}
+	return quotaRoom
+}
+
+func statAvailable(path string) (uint64, error) {
+	var st unix.Statfs_t
+	if err := unix.Statfs(path, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Bsize) * uint64(st.Bavail), nil
+}
+
+// spaceWriter caps each chunk at min(quota-used, free-reserve) and
+// re-reads free space while the copy is running. A chunk that does not
+// fit is not written past the cap. The pull then fails and drops the
+// partial file.
+type spaceWriter struct {
+	store *Store
+	w     io.Writer
+}
+
+func (q *spaceWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	q.store.mu.Lock()
+	defer q.store.mu.Unlock()
+	room := q.store.roomLocked()
+	if room <= 0 {
+		return 0, meshcontent.ErrContentPullFailed
+	}
+	capped := false
+	if int64(len(p)) > room {
+		p = p[:room]
+		capped = true
+	}
+	n, err := q.w.Write(p)
+	if capped && err == nil {
+		err = meshcontent.ErrContentPullFailed
+	}
+	return n, err
 }

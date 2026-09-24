@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -50,11 +51,14 @@ func snapshotMismatch(reason string) error {
 }
 
 // MeshExecuteSession is the optional seam Launch calls before execute.
-// A nil Executor leaves Phase 0 and Phase 1 launch unchanged. Rooms and
-// GET /api/v1/games do not read it. The executor is one node. A
+// A nil Executor leaves Phase 0 and Phase 1 launch unchanged. GET
+// /api/v1/games calls ReadyHere through this session when an executor
+// and a catalog projection are installed. Rooms follow that result.
+// Neither path Ensures or pulls. The executor is one node. A
 // launchable FPGA entry is ensured on the target this call will
-// execute on. Launch does not pull onto a different node and does not
-// release a lease.
+// execute on. Launch does not pull onto a different node. A grant
+// this call claims is released when Ensure does not start execution.
+// A grant the session already held stays held.
 type MeshExecuteSession struct {
 	BoundNode string
 	Executor  meshcontent.Executor
@@ -74,6 +78,26 @@ func (s *Service) SetMeshExecuteSession(session MeshExecuteSession) {
 	s.meshMu.Lock()
 	s.meshExecute = session
 	s.meshMu.Unlock()
+	s.attachMeshAuthorizer(session)
+}
+
+// attachMeshAuthorizer gives a remote executor the client for the bound
+// node. That client is the one claimContentPullLease uses. A selected
+// sibling is not attached. Reads do not use the authorizer.
+func (s *Service) attachMeshAuthorizer(session MeshExecuteSession) {
+	setter, ok := session.Executor.(interface {
+		SetMutationAuthorizer(kitcontent.MutationAuthorizer)
+	})
+	if !ok || setter == nil {
+		return
+	}
+	client := s.meshReadyClient(session.BoundNode)
+	auth, ok := client.(kitcontent.MutationAuthorizer)
+	if !ok || auth == nil {
+		setter.SetMutationAuthorizer(nil)
+		return
+	}
+	setter.SetMutationAuthorizer(auth)
 }
 
 // SetMeshCheckingTimeout sets how long Launch will wait on a Checking
@@ -133,15 +157,24 @@ type launchSnapshot struct {
 	executor meshcontent.Executor
 	entry    meshcontent.Entry
 	entryOK  bool
+	// siblingExecutor is set when this snapshot dialed an explicit
+	// FPGA kit other than the installed selected-target session.
+	// Revalidation still checks that kit. It does not require the
+	// selected session to stay on this executor.
+	siblingExecutor bool
 }
 
 // captureLaunchSnapshot reads the target, the bound node, and the
 // catalog row once. A disabled known target returns before Ensure.
-// With the seam off, only the requested name is kept.
+// With the seam off, only the requested name is kept. An explicit
+// FPGA launch whose kit is a different node dials that kit for this
+// snapshot and leaves the selected-target session installed. That
+// dial captures the named kit's client before the snapshot returns.
 func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, error) {
 	if s == nil {
 		return launchSnapshot{}, nil
 	}
+	s.activateMeshExecutor(context.Background())
 	s.meshMu.Lock()
 	session := s.meshExecute
 	s.meshMu.Unlock()
@@ -160,7 +193,77 @@ func (s *Service) captureLaunchSnapshot(gameID, target string) (launchSnapshot, 
 	if snap.known && !snap.enabled {
 		return snap, snapshotMismatch(launchSnapshotTargetDisabled)
 	}
+	if err := s.useRequestedMeshExecutor(&snap); err != nil {
+		return snap, err
+	}
 	return snap, nil
+}
+
+// useRequestedMeshExecutor dials the kit an explicit FPGA launch named
+// when the installed executor is a different node. Readiness keeps the
+// selected-target session. A failed dial leaves that executor in the
+// snapshot, so Ensure returns ErrUnboundNode and does not pull on it.
+// Host-only play stays on the installed session node. A successful
+// dial captures the named kit's client before the snapshot is returned,
+// so Ensure claims that kit's lease through a real client.
+func (s *Service) useRequestedMeshExecutor(snap *launchSnapshot) error {
+	if s == nil || snap == nil || !snap.explicit || !snap.entryOK || !snap.known || !snap.enabled {
+		return nil
+	}
+	if meshLaunchExecution(snap.entry) == ExecutionHostOnly {
+		return nil
+	}
+	if snap.executor == nil || strings.TrimSpace(snap.nodeID) == "" || snap.executor.NodeID() == snap.nodeID {
+		return nil
+	}
+	s.meshMu.Lock()
+	ensure := s.meshEnsure
+	s.meshMu.Unlock()
+	if !ensure {
+		return nil
+	}
+	remote := s.dialNamedMeshExecutor(context.Background(), snap.name)
+	if remote == nil || remote.NodeID() != snap.nodeID {
+		return nil
+	}
+	if err := s.captureRequestedClient(snap); err != nil {
+		return err
+	}
+	snap.executor = remote
+	snap.siblingExecutor = true
+	s.attachMeshAuthorizer(MeshExecuteSession{BoundNode: snap.nodeID, Executor: remote})
+	return nil
+}
+
+// captureRequestedClient stores the named kit's client on the snapshot
+// before Ensure. Open creates a client only for the selected target, so
+// a fresh explicit sibling is nil at capture. The factory opens that
+// client here. Ensure then claims the lease through it. A client that
+// cannot be opened returns before the sibling executor is installed.
+func (s *Service) captureRequestedClient(snap *launchSnapshot) error {
+	if snap == nil || snap.client != nil {
+		return nil
+	}
+	s.targetMu.Lock()
+	defer s.targetMu.Unlock()
+	if client := s.targetClients[snap.name]; client != nil {
+		snap.client = client
+		return nil
+	}
+	if s.targetClientFactory == nil {
+		return canonicalError(protocol.CodeInternal, nil)
+	}
+	cfg := targetByName(s.targets, snap.name)
+	client, err := s.targetClientFactory(cfg)
+	if err != nil || client == nil {
+		return canonicalError(protocol.CodeBadRequest, nil)
+	}
+	if s.targetClients == nil {
+		s.targetClients = map[string]serviceClient{}
+	}
+	s.targetClients[snap.name] = client
+	snap.client = client
+	return nil
 }
 
 func (s *Service) captureTargetLocked(session MeshExecuteSession, requested string) launchSnapshot {
@@ -231,9 +334,12 @@ func (s *Service) captureTargetLocked(session MeshExecuteSession, requested stri
 // this session's grant and generation, not the absence of a foreign
 // holder. InUse is the Phase 1 busy connection. A fresh FPGA session
 // on a free kit claims through the content-pull mutation before
-// Ensure, so that first launch holds the grant and can pull. A held
-// grant whose observed generation differs, and a kit another session
-// holds, both return before Pull.
+// Ensure, so that first launch holds the grant and can pull. A grant
+// claimed in this call is released when Ensure does not start
+// execution. A grant the session already held stays held. A held
+// grant whose observed generation differs is compared with the
+// selected connection only when this launch executes on that kit. A
+// kit another session holds returns before Pull.
 // ErrContentMissingNoSource fails closed. A slot that stays Checking
 // until the host timeout returns ErrCheckingTimeout. Launch must not
 // continue into execute.
@@ -265,10 +371,12 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 	if fpga && inUse {
 		return canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
+	claimed := false
 	if fpga && snap.entry.Launchable && !leaseFree {
 		if err := s.claimContentPullLease(ctx, snap); err != nil {
 			return err
 		}
+		claimed = true
 		leaseFree = true
 	}
 	result, err := meshcontent.Ensure(ctx, snap.entry, node, snap.executor, meshcontent.EnsureOption{
@@ -277,9 +385,15 @@ func (s *Service) meshEnsureBeforeExecute(ctx context.Context, snap launchSnapsh
 		CheckingTimeout: s.meshCheckingWait(),
 	})
 	if err != nil {
+		if claimed {
+			s.releaseClaimedContentLease(snap)
+		}
 		return err
 	}
 	if err := result.Blocked(); err != nil {
+		if claimed {
+			s.releaseClaimedContentLease(snap)
+		}
 		return err
 	}
 	if meshEnsureFinishedHook != nil {
@@ -315,7 +429,7 @@ func (s *Service) snapshotSessionDrift(snap launchSnapshot) error {
 	s.meshMu.Lock()
 	session := s.meshExecute
 	s.meshMu.Unlock()
-	if session.BoundNode != snap.boundNode || session.Executor != snap.executor {
+	if !snap.siblingExecutor && (session.BoundNode != snap.boundNode || session.Executor != snap.executor) {
 		return snapshotMismatch(launchSnapshotBoundNodeChanged)
 	}
 	if !snap.entryOK {
@@ -419,10 +533,22 @@ type meshKitLease interface {
 	MeshKitLease() (owned bool, generation string)
 }
 
+// meshKitLeaseAbandoned is a grant this session held and then lost,
+// closed, or let expire. A client that never claimed is not abandoned.
+type meshKitLeaseAbandoned interface {
+	MeshKitLeaseAbandoned() bool
+}
+
 // meshPullAcquirer claims the session grant the way content pull does.
 // A client that cannot claim leaves the launch fail-closed.
 type meshPullAcquirer interface {
 	AcquireContentPullLease(context.Context) error
+}
+
+// meshPullReleaser releases a grant this call claimed. A grant the
+// session already held is not released here.
+type meshPullReleaser interface {
+	ReleaseContentPullLease(context.Context) error
 }
 
 // claimContentPullLease acquires the session grant before Ensure when
@@ -443,6 +569,9 @@ func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot
 		return meshcontent.ErrLeaseNotFree
 	}
 	if err := acquirer.AcquireContentPullLease(ctx); err != nil {
+		if meshClaimDenied(err) {
+			return canonicalError(protocol.CodeKitLeaseDenied, nil)
+		}
 		return err
 	}
 	owned, generation = false, ""
@@ -453,6 +582,32 @@ func (s *Service) claimContentPullLease(ctx context.Context, snap launchSnapshot
 		return meshcontent.ErrLeaseNotFree
 	}
 	return nil
+}
+
+// releaseClaimedContentLease drops a grant this launch claimed after
+// Ensure did not start execution. The call uses its own deadline so a
+// canceled launch still attempts the release. A client that cannot
+// release leaves the grant in place.
+func (s *Service) releaseClaimedContentLease(snap launchSnapshot) {
+	releaser, ok := snap.client.(meshPullReleaser)
+	if !ok || releaser == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = releaser.ReleaseContentPullLease(ctx)
+}
+
+func meshClaimDenied(err error) bool {
+	var api *protocol.APIError
+	if errors.As(err, &api) {
+		switch string(api.Code) {
+		case string(protocol.CodeKitLeaseDenied), "KIT_LEASE_BUSY", "KIT_LEASE_REQUIRED", "KIT_LEASE_BLOCKED":
+			return true
+		}
+	}
+	var lease *meshcontent.LeaseDeniedError
+	return errors.As(err, &lease)
 }
 
 // meshLeaseFacts is what Ensure's LeaseFree and InUse options are.
@@ -473,9 +628,14 @@ func (s *Service) meshLeaseFacts(snap launchSnapshot) (leaseFree, inUse bool) {
 	if !owned || generation == "" {
 		return false, inUse
 	}
-	conn := s.TargetConnection()
-	if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
-		return false, inUse
+	// The selected connection's generation is this launch's grant only
+	// when the launch executes on that kit. An explicit launch to
+	// another target uses that target's client grant alone.
+	if s.launchObservesSelectedConnection(snap) {
+		conn := s.TargetConnection()
+		if conn.leaseSeen && (!conn.leaseOwned || conn.leaseGeneration != generation) {
+			return false, inUse
+		}
 	}
 	return true, inUse
 }

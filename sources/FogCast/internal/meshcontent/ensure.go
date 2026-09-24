@@ -41,8 +41,28 @@ var (
 	// and it is not a down target. Callers must not treat partial bytes
 	// as Present.
 	ErrContentPullFailed = errors.New("mesh content pull failed")
-	errSlotState         = errors.New("meshcontent: executor slot state is invalid")
+	// ErrContentLinkFailed is a link that did not record the expansion
+	// slot. It is not a failed copy.
+	ErrContentLinkFailed = errors.New("mesh content link failed")
+	// ErrContentUnreachable is a slot or source read that failed in
+	// transport. It is not StateMissing and it is not a missing source.
+	ErrContentUnreachable = errors.New("mesh content could not be read")
+	errSlotState          = errors.New("meshcontent: executor slot state is invalid")
 )
+
+// LeaseDeniedError is a kit lease rejection of a mesh pull or link.
+// Code is the kit status (KIT_LEASE_REQUIRED, KIT_LEASE_BUSY, and the
+// rest). Host launch maps it to KIT_LEASE_DENIED. It is not a failed copy.
+type LeaseDeniedError struct {
+	Code string
+}
+
+func (e *LeaseDeniedError) Error() string {
+	if e == nil || e.Code == "" {
+		return "kit lease denied"
+	}
+	return "kit lease denied: " + e.Code
+}
 
 // MaxCheckingTimeout is the upper bound on a Checking wait. Callers
 // that pass a longer EnsureOption.CheckingTimeout are clamped.
@@ -131,6 +151,45 @@ type Executor interface {
 	EligibleABIs() []EligibleABI
 }
 
+// SlotFact is one content-id on an executor. Advertises is meaningful
+// when State is Missing: some source can serve the bytes. A snapshot
+// or read error is a failed read, not Missing.
+type SlotFact struct {
+	State      SlotState
+	Advertises bool
+}
+
+// ContentSnapshot reads many content-ids in one call. ReadyHere uses it
+// so a kit client does not issue one HTTP request per title. A successful
+// snapshot may be reused for a short time by the client. Ensure does not
+// use that cache.
+type ContentSnapshot interface {
+	Snapshot(ctx context.Context, ids []ContentID) (map[string]SlotFact, error)
+}
+
+// SlotReader reports one id. A transport failure returns an error and
+// is not StateMissing.
+type SlotReader interface {
+	ReadSlot(ctx context.Context, id ContentID) (SlotState, error)
+}
+
+// SourceReader reports whether a source advertises id. A transport
+// failure returns an error and is not "no source".
+type SourceReader interface {
+	ReadSource(ctx context.Context, id ContentID) (bool, error)
+}
+
+// MaxSlotBatch is the most content-ids one snapshot read accepts.
+const MaxSlotBatch = 128
+
+// PackageHolder lists described package ids present on this executor.
+// ReadyHere uses the list for package-backed entries. An executor that
+// does not implement PackageHolder has no package ids, so a
+// package-backed title is not Ready here. This is not a pull.
+type PackageHolder interface {
+	Packages() []string
+}
+
 // SlotStatus is one required content slot after Ensure. Package / ABI
 // is not a content slot; eligibility is Result.Block.
 type SlotStatus struct {
@@ -199,13 +258,17 @@ func Ensure(ctx context.Context, entry Entry, boundNode string, exec Executor, o
 		if slot.Content == nil {
 			continue
 		}
-		state, ok := normalizeState(exec.Slot(*slot.Content))
-		if !ok {
-			return Result{}, errSlotState
+		state, err := readSlot(ctx, exec, *slot.Content)
+		if err != nil {
+			return Result{}, err
 		}
 		plan := ensurePlan{slot: slot, state: state}
 		if state == StateMissing {
-			if !exec.SourceAdvertises(*slot.Content) {
+			advertises, err := readSource(ctx, exec, *slot.Content)
+			if err != nil {
+				return Result{}, err
+			}
+			if !advertises {
 				return Result{}, &ContentMissingError{Kind: slot.Kind, Name: slot.Name, ID: *slot.Content}
 			}
 			plan.pull = true
@@ -332,9 +395,9 @@ func waitChecking(ctx context.Context, exec Executor, id ContentID, timeout time
 	ticker := time.NewTicker(checkingPollInterval)
 	defer ticker.Stop()
 	for {
-		state, ok := normalizeState(exec.Slot(id))
-		if !ok {
-			return "", errSlotState
+		state, err := readSlot(ctx, exec, id)
+		if err != nil {
+			return "", err
 		}
 		if state != StateChecking {
 			return state, nil
@@ -356,4 +419,52 @@ func normalizeState(state SlotState) (SlotState, bool) {
 	default:
 		return "", false
 	}
+}
+
+func readSlot(ctx context.Context, exec Executor, id ContentID) (SlotState, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if reader, ok := exec.(SlotReader); ok && reader != nil {
+		state, err := reader.ReadSlot(ctx, id)
+		if err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			return "", err
+		}
+		normalized, ok := normalizeState(state)
+		if !ok {
+			return "", errSlotState
+		}
+		return normalized, nil
+	}
+	state, ok := normalizeState(exec.Slot(id))
+	if !ok {
+		return "", errSlotState
+	}
+	return state, nil
+}
+
+func readSource(ctx context.Context, exec Executor, id ContentID) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if reader, ok := exec.(SourceReader); ok && reader != nil {
+		advertises, err := reader.ReadSource(ctx, id)
+		if err != nil {
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
+			return false, err
+		}
+		return advertises, nil
+	}
+	return exec.SourceAdvertises(id), nil
 }

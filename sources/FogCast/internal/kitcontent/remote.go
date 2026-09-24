@@ -8,9 +8,28 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/meshcontent"
+)
+
+// remoteReadTimeout bounds a slot, source, node, or slots read when the
+// caller did not set a deadline. remoteLinkTimeout bounds a link the
+// same way. remoteSnapshotTTL is how long ReadyHere may reuse a
+// successful slots snapshot. Ensure reads one id and does not use that
+// snapshot. Pull and link drop it.
+var (
+	remoteReadTimeout = 5 * time.Second
+	remoteLinkTimeout = 15 * time.Second
+	remoteSnapshotTTL = time.Second
+	// remoteNodeTTL is how long Packages and EligibleABIs reuse the
+	// node document. The kit re-reads installed packages when it serves
+	// that document, so a stage that appears after Dial is visible on
+	// the next read. A failed read keeps the previous lists.
+	remoteNodeTTL = time.Second
 )
 
 // MutationAuthorizer admits one host mutation with the session kit lease.
@@ -24,12 +43,23 @@ type MutationAuthorizer interface {
 // the FPGA. Pull and link ask the mutation authorizer, when one is set,
 // before the request is sent.
 type Remote struct {
-	base   url.URL
-	token  string
-	client *http.Client
-	nodeID string
-	abis   []meshcontent.EligibleABI
-	auth   MutationAuthorizer
+	base     url.URL
+	token    string
+	client   *http.Client
+	nodeID   string
+	abis     []meshcontent.EligibleABI
+	packages []string
+	auth     MutationAuthorizer
+	snap     snapCache
+	nodeMu   sync.Mutex
+	nodeAt   time.Time
+}
+
+type snapCache struct {
+	mu    sync.Mutex
+	key   string
+	at    time.Time
+	facts map[string]meshcontent.SlotFact
 }
 
 type nodeDocument struct {
@@ -38,6 +68,7 @@ type nodeDocument struct {
 		ID    string `json:"id"`
 		Major int    `json:"major"`
 	} `json:"abis"`
+	Packages []string `json:"packages"`
 }
 
 type stateDocument struct {
@@ -59,6 +90,8 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 		client = http.DefaultClient
 	}
 	remote := &Remote{base: *endpoint, token: token, client: client}
+	ctx, cancel := remote.bound(ctx, remoteReadTimeout)
+	defer cancel()
 	var doc nodeDocument
 	if err := remote.get(ctx, "/v1/mesh/content/node", nil, &doc); err != nil {
 		return nil, err
@@ -67,11 +100,18 @@ func Dial(ctx context.Context, endpoint *url.URL, token string, client *http.Cli
 		return nil, errors.New("mesh content kit did not report a node id")
 	}
 	remote.nodeID = doc.NodeID
-	remote.abis = make([]meshcontent.EligibleABI, 0, len(doc.ABIs))
-	for _, abi := range doc.ABIs {
-		remote.abis = append(remote.abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
-	}
+	remote.storeNodeDocument(doc)
 	return remote, nil
+}
+
+func (r *Remote) storeNodeDocument(doc nodeDocument) {
+	abis := make([]meshcontent.EligibleABI, 0, len(doc.ABIs))
+	for _, abi := range doc.ABIs {
+		abis = append(abis, meshcontent.EligibleABI{ID: abi.ID, Major: abi.Major})
+	}
+	r.abis = abis
+	r.packages = normalizePackageIDs(doc.Packages)
+	r.nodeAt = time.Now()
 }
 
 // SetMutationAuthorizer installs the host kit-lease check for pull and
@@ -94,34 +134,148 @@ func (r *Remote) EligibleABIs() []meshcontent.EligibleABI {
 	if r == nil {
 		return nil
 	}
+	r.nodeMu.Lock()
+	defer r.nodeMu.Unlock()
+	r.refreshNodeLocked()
 	return append([]meshcontent.EligibleABI(nil), r.abis...)
 }
 
+// Packages returns described package ids the kit reported. An empty
+// list is not eligibility. Executor method signatures are unchanged;
+// ReadyHere reads this through PackageHolder.
+func (r *Remote) Packages() []string {
+	if r == nil {
+		return nil
+	}
+	r.nodeMu.Lock()
+	defer r.nodeMu.Unlock()
+	r.refreshNodeLocked()
+	return append([]string(nil), r.packages...)
+}
+
+// refreshNodeLocked re-reads the kit node document when the last copy
+// is older than remoteNodeTTL. Caller holds nodeMu. A different node
+// id or a failed read leaves the dialed lists in place.
+func (r *Remote) refreshNodeLocked() {
+	if r == nil {
+		return
+	}
+	if !r.nodeAt.IsZero() && time.Since(r.nodeAt) < remoteNodeTTL {
+		return
+	}
+	ctx, cancel := r.bound(context.Background(), remoteReadTimeout)
+	defer cancel()
+	var doc nodeDocument
+	if err := r.get(ctx, "/v1/mesh/content/node", nil, &doc); err != nil {
+		r.nodeAt = time.Now()
+		return
+	}
+	if strings.TrimSpace(doc.NodeID) != r.nodeID {
+		r.nodeAt = time.Now()
+		return
+	}
+	r.storeNodeDocument(doc)
+}
+
 func (r *Remote) Slot(id meshcontent.ContentID) meshcontent.SlotState {
-	if r == nil || id.Validate() != nil {
+	state, err := r.ReadSlot(context.Background(), id)
+	if err != nil {
 		return meshcontent.StateMissing
 	}
+	return state
+}
+
+// ReadSlot reports id. A transport failure is ErrContentUnreachable,
+// not Missing. The read has a deadline when ctx does not.
+func (r *Remote) ReadSlot(ctx context.Context, id meshcontent.ContentID) (meshcontent.SlotState, error) {
+	if r == nil || id.Validate() != nil {
+		return meshcontent.StateMissing, nil
+	}
+	ctx, cancel := r.bound(ctx, remoteReadTimeout)
+	defer cancel()
 	var doc stateDocument
-	if err := r.get(context.Background(), "/v1/mesh/content/slot", url.Values{"id": {id.String()}}, &doc); err != nil {
-		return meshcontent.StateMissing
+	if err := r.get(ctx, "/v1/mesh/content/slot", url.Values{"id": {id.String()}}, &doc); err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		return "", err
 	}
 	switch meshcontent.SlotState(doc.State) {
 	case meshcontent.StatePresent, meshcontent.StateChecking, meshcontent.StateMissing:
-		return meshcontent.SlotState(doc.State)
+		return meshcontent.SlotState(doc.State), nil
 	default:
-		return meshcontent.StateMissing
+		return "", meshcontent.ErrContentUnreachable
 	}
 }
 
 func (r *Remote) SourceAdvertises(id meshcontent.ContentID) bool {
+	ok, err := r.ReadSource(context.Background(), id)
+	return err == nil && ok
+}
+
+// ReadSource reports whether a source advertises id. A transport
+// failure is an error, not a missing source.
+func (r *Remote) ReadSource(ctx context.Context, id meshcontent.ContentID) (bool, error) {
 	if r == nil || id.Validate() != nil {
-		return false
+		return false, nil
 	}
+	ctx, cancel := r.bound(ctx, remoteReadTimeout)
+	defer cancel()
 	var doc sourceDocument
-	if err := r.get(context.Background(), "/v1/mesh/content/source", url.Values{"id": {id.String()}}, &doc); err != nil {
-		return false
+	if err := r.get(ctx, "/v1/mesh/content/source", url.Values{"id": {id.String()}}, &doc); err != nil {
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+		return false, err
 	}
-	return doc.Advertises
+	return doc.Advertises, nil
+}
+
+// Snapshot reads ids in one batch request per chunk. A fresh successful
+// snapshot for the same ids is reused until remoteSnapshotTTL. A
+// transport failure is not Missing.
+func (r *Remote) Snapshot(ctx context.Context, ids []meshcontent.ContentID) (map[string]meshcontent.SlotFact, error) {
+	if r == nil {
+		return nil, meshcontent.ErrContentUnreachable
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	wanted := make([]meshcontent.ContentID, 0, len(ids))
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		if id.Validate() != nil {
+			continue
+		}
+		if _, ok := seen[id.String()]; ok {
+			continue
+		}
+		seen[id.String()] = struct{}{}
+		wanted = append(wanted, id)
+	}
+	key := snapshotKey(wanted)
+	if facts, ok := r.cachedSnapshot(key); ok {
+		return facts, nil
+	}
+	facts := make(map[string]meshcontent.SlotFact, len(wanted))
+	for start := 0; start < len(wanted); start += meshcontent.MaxSlotBatch {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		end := start + meshcontent.MaxSlotBatch
+		if end > len(wanted) {
+			end = len(wanted)
+		}
+		chunk, err := r.fetchSlots(ctx, wanted[start:end])
+		if err != nil {
+			return nil, err
+		}
+		for id, fact := range chunk {
+			facts[id] = fact
+		}
+	}
+	r.storeSnapshot(key, facts)
+	return cloneFacts(facts), nil
 }
 
 func (r *Remote) Pull(ctx context.Context, id meshcontent.ContentID) (meshcontent.SlotState, error) {
@@ -139,6 +293,7 @@ func (r *Remote) Pull(ctx context.Context, id meshcontent.ContentID) (meshconten
 	}
 	var doc stateDocument
 	err := r.post(ctx, "/v1/mesh/content/pull", url.Values{"id": {id.String()}}, nil, &doc)
+	r.dropSnapshot()
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", ctx.Err()
@@ -162,7 +317,11 @@ func (r *Remote) LinkExpansion(name string, id meshcontent.ContentID) error {
 	if err != nil {
 		return err
 	}
-	return r.post(context.Background(), "/v1/mesh/content/link", url.Values{"name": {name}}, body, &struct{}{})
+	ctx, cancel := r.bound(context.Background(), remoteLinkTimeout)
+	defer cancel()
+	err = r.post(ctx, "/v1/mesh/content/link", url.Values{"name": {name}}, body, &struct{}{})
+	r.dropSnapshot()
+	return err
 }
 
 func (r *Remote) get(ctx context.Context, path string, query url.Values, dest any) error {
@@ -199,7 +358,7 @@ func (r *Remote) do(ctx context.Context, method, path string, query url.Values, 
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return meshcontent.ErrContentPullFailed
+		return r.transportErr(method, path)
 	}
 	defer resp.Body.Close()
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -207,19 +366,147 @@ func (r *Remote) do(ctx context.Context, method, path string, query url.Values, 
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return meshcontent.ErrContentPullFailed
+		return r.transportErr(method, path)
 	}
 	if resp.StatusCode != http.StatusOK {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return meshcontent.ErrContentPullFailed
+		if lease := leaseDenied(payload); lease != nil {
+			return lease
+		}
+		return r.transportErr(method, path)
 	}
 	if dest == nil {
 		return nil
 	}
 	if err := json.Unmarshal(payload, dest); err != nil {
-		return meshcontent.ErrContentPullFailed
+		return r.transportErr(method, path)
 	}
 	return nil
+}
+
+func (r *Remote) transportErr(method, path string) error {
+	if method == http.MethodGet {
+		return meshcontent.ErrContentUnreachable
+	}
+	if strings.HasSuffix(path, "/link") {
+		return meshcontent.ErrContentLinkFailed
+	}
+	return meshcontent.ErrContentPullFailed
+}
+
+func (r *Remote) bound(ctx context.Context, limit time.Duration) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, limit)
+}
+
+func (r *Remote) fetchSlots(ctx context.Context, ids []meshcontent.ContentID) (map[string]meshcontent.SlotFact, error) {
+	ctx, cancel := r.bound(ctx, remoteReadTimeout)
+	defer cancel()
+	query := url.Values{}
+	for _, id := range ids {
+		query.Add("id", id.String())
+	}
+	var doc struct {
+		Slots []struct {
+			ID         string `json:"id"`
+			State      string `json:"state"`
+			Advertises bool   `json:"advertises"`
+		} `json:"slots"`
+	}
+	if err := r.get(ctx, "/v1/mesh/content/slots", query, &doc); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, err
+	}
+	out := make(map[string]meshcontent.SlotFact, len(doc.Slots))
+	for _, slot := range doc.Slots {
+		state := meshcontent.SlotState(slot.State)
+		switch state {
+		case meshcontent.StatePresent, meshcontent.StateChecking, meshcontent.StateMissing:
+		default:
+			return nil, meshcontent.ErrContentUnreachable
+		}
+		out[slot.ID] = meshcontent.SlotFact{State: state, Advertises: slot.Advertises}
+	}
+	for _, id := range ids {
+		if _, ok := out[id.String()]; !ok {
+			return nil, meshcontent.ErrContentUnreachable
+		}
+	}
+	return out, nil
+}
+
+func (r *Remote) cachedSnapshot(key string) (map[string]meshcontent.SlotFact, bool) {
+	if r == nil || remoteSnapshotTTL <= 0 {
+		return nil, false
+	}
+	r.snap.mu.Lock()
+	defer r.snap.mu.Unlock()
+	if r.snap.facts == nil || r.snap.key != key || time.Since(r.snap.at) >= remoteSnapshotTTL {
+		return nil, false
+	}
+	return cloneFacts(r.snap.facts), true
+}
+
+func (r *Remote) storeSnapshot(key string, facts map[string]meshcontent.SlotFact) {
+	if r == nil || remoteSnapshotTTL <= 0 {
+		return
+	}
+	r.snap.mu.Lock()
+	r.snap.key = key
+	r.snap.at = time.Now()
+	r.snap.facts = cloneFacts(facts)
+	r.snap.mu.Unlock()
+}
+
+func (r *Remote) dropSnapshot() {
+	if r == nil {
+		return
+	}
+	r.snap.mu.Lock()
+	r.snap.at = time.Time{}
+	r.snap.facts = nil
+	r.snap.mu.Unlock()
+}
+
+func snapshotKey(ids []meshcontent.ContentID) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = id.String()
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "\n")
+}
+
+func cloneFacts(in map[string]meshcontent.SlotFact) map[string]meshcontent.SlotFact {
+	out := make(map[string]meshcontent.SlotFact, len(in))
+	for id, fact := range in {
+		out[id] = fact
+	}
+	return out
+}
+
+func leaseDenied(payload []byte) error {
+	var doc struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(payload, &doc) != nil || doc.Error.Code == "" {
+		return nil
+	}
+	switch doc.Error.Code {
+	case "KIT_LEASE_REQUIRED", "KIT_LEASE_BUSY", "KIT_LEASE_DENIED", "KIT_LEASE_BLOCKED":
+		return &meshcontent.LeaseDeniedError{Code: doc.Error.Code}
+	default:
+		return nil
+	}
 }

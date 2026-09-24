@@ -72,6 +72,11 @@ type gameResult struct {
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
+	// ReadyHere is set only when a mesh execute session is installed.
+	// Nil omits the field and leaves Phase 0 composition Ready.
+	ReadyHere  *bool  `json:"ready_here,omitempty"`
+	ReadyBlock string `json:"ready_block,omitempty"`
+	NextAction string `json:"next_action,omitempty"`
 }
 
 type gamesResult struct {
@@ -212,6 +217,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux := http.NewServeMux()
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
+	registerMeshHostContent(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
@@ -922,12 +928,29 @@ func writeSessionError(w http.ResponseWriter, err error) {
 			Code: "CONTENT_PULL_FAILED", Message: "required content pull failed",
 		}})
 		return
+	case errors.Is(err, meshcontent.ErrContentLinkFailed):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_LINK_FAILED", Message: "mesh link failed",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrContentUnreachable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{
+			Code: "CONTENT_UNREACHABLE", Message: "mesh content could not be read",
+		}})
+		return
 	case errors.Is(err, meshcontent.ErrCheckingTimeout):
 		writeJSON(w, http.StatusGatewayTimeout, map[string]any{"error": apiError{
 			Code: "CONTENT_CHECKING_TIMEOUT", Message: "required content stayed checking until the host timeout",
 		}})
 		return
 	case errors.Is(err, meshcontent.ErrLeaseNotFree):
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
+			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
+		}})
+		return
+	}
+	var lease *meshcontent.LeaseDeniedError
+	if errors.As(err, &lease) {
 		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
 			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
 		}})
