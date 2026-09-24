@@ -7,7 +7,7 @@
 // already bound, or asks that executor to pull it. This package does
 // not transfer bytes, does not choose a node, and does not release a
 // lease. Ensure refuses a pull unless the caller reports an owned,
-// idle binding. Rooms Ready does not call it.
+// idle binding. Rooms Ready does not call Ensure.
 //
 // The content-id algorithm is an unsigned strawman: sha256. Deano has
 // not locked it. JSON tags on the catalog types are host-catalog
@@ -369,9 +369,10 @@ type Bound struct {
 }
 
 // ReadyHere is the Phase 2 rule: this session can play here.
-// Rooms, session launch, discovery.ReadyForBoundExecutor, and
-// GET /api/v1/games do not call it. A true result is not Phase 0 or
-// Phase 1 Ready.
+// discovery.ReadyForBoundExecutor calls it when a mesh execute session
+// is installed. Rooms and GET /api/v1/games use that result. A nil
+// session keeps Phase 0 and Phase 1 composition Ready. A true result
+// is not, by itself, a Phase 0 composition flag.
 //
 // Package-backed execution (fpga_native) requires that package id on
 // the executor and an eligible ABI id and major. Package id alone is
@@ -416,6 +417,32 @@ func ReadyHere(entry Entry, bound Bound) (bool, Block) {
 		return false, BlockEnsureProgress
 	default:
 		return true, BlockNone
+	}
+}
+
+// NextAction is the explicit next step when ReadyHere is false.
+// Distant-only bytes ask the shell to bring the title onto this
+// executor. Values are codes, not sofa copy. BlockNone has no action.
+func NextAction(block Block) string {
+	switch block {
+	case BlockNone:
+		return ""
+	case BlockEnsureProgress:
+		return "wait"
+	case BlockContentMissing:
+		return "supply_content"
+	case BlockDistant:
+		return "fetch_here"
+	case BlockLeaseHeld:
+		return "wait_for_lease"
+	case BlockVersionSkew:
+		return "resolve_version"
+	case BlockNoExecutor:
+		return "bind_executor"
+	case BlockBrowseOnly:
+		return "browse"
+	default:
+		return "unavailable"
 	}
 }
 

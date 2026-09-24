@@ -72,6 +72,11 @@ type gameResult struct {
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
+	// ReadyHere is set only when a mesh execute session is installed.
+	// Nil omits the field and leaves Phase 0 composition Ready.
+	ReadyHere  *bool  `json:"ready_here,omitempty"`
+	ReadyBlock string `json:"ready_block,omitempty"`
+	NextAction string `json:"next_action,omitempty"`
 }
 
 type gamesResult struct {

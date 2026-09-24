@@ -131,6 +131,14 @@ type Executor interface {
 	EligibleABIs() []EligibleABI
 }
 
+// PackageHolder lists described package ids present on this executor.
+// ReadyHere uses the list for package-backed entries. An executor that
+// does not implement PackageHolder has no package ids, so a
+// package-backed title is not Ready here. This is not a pull.
+type PackageHolder interface {
+	Packages() []string
+}
+
 // SlotStatus is one required content slot after Ensure. Package / ABI
 // is not a content slot; eligibility is Result.Block.
 type SlotStatus struct {

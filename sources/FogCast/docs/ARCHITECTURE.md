@@ -970,6 +970,11 @@ Launch claims the session grant before Ensure, and Ensure then sees
 LeaseFree. A held grant whose observed generation differs fails closed
 before any pull. Host-only play stays on the host executor.
 
+Ready for rooms and `GET /api/v1/games` uses that same grant when a mesh
+session is installed, and also treats an unleased kit this session can
+claim as free. A foreign holder is not Ready. Ensure's own LeaseFree is
+unchanged: a free kit is not owned until the content pull claims it.
+
 Immediately before execute, and while lifecycle admission is held,
 `revalidateLaunchSnapshot` compares that snapshot with live state. Any
 difference — target disabled or removed, address or TargetID changed,
@@ -1013,12 +1018,30 @@ empty ABI list. An empty ABI list is not eligibility. A nil content
 source advertises nothing.
 
 The projection is not a host route. JSON tags stay on the host catalog
-shape. Ensure results have no JSON tags. Rooms Ready,
-`GET /api/v1/games`, and `GET /api/v1/mesh/nodes` do not call
-`ReadyHere` or `Ensure`. `POST /api/v1/session/launch` calls Ensure
-only when `SetMeshExecuteSession` installed a session; otherwise Phase
-0 and Phase 1 launch are unchanged. Phase 1 Ready remains composition
-against the bound executor.
+shape. Ensure results have no JSON tags. `GET /api/v1/mesh/nodes` does
+not call `ReadyHere` or `Ensure`. `POST /api/v1/session/launch` calls
+Ensure only when `SetMeshExecuteSession` installed a session; otherwise
+Phase 0 and Phase 1 launch are unchanged.
+
+When that session is installed, `GET /api/v1/games` calls `ReadyHere`
+through `discovery.ReadyForBoundExecutor`. Rooms Ready and Play follow
+that result. A title is Ready here only when this shell has an Execute
+binding, every required slot is Present on that executor, the lease is
+free for this session, and the mesh-protocol major is compatible.
+Bytes that exist only on a distant node are not Ready. The games row
+then carries `ready_here`
+false, `ready_block` (the ReadyHere block), and `next_action` (the
+code for that block, `fetch_here` for distant-only). A slot mid-pull
+is Checking (`ready_block` `ensure_in_progress`, `next_action`
+`wait`). Rooms show that as Unavailable or Checking and do not Play.
+`launchable` stays the platform and package gate from
+`enrichLaunchable`, so a firmware-ready Coleco or ZX81 package is not
+reclassified as browse-only.
+
+When the session is not installed, those three fields are omitted.
+Phase 0 and Phase 1 Ready stays composition against the bound executor:
+Coleco and ZX81 packages and host-only titles stay Ready and launch as
+they do now. A neighbor Execute advertisement still does not grant Ready.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID
