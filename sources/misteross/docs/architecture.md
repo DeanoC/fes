@@ -382,7 +382,7 @@ configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
 Coleco, SG-1000 and SMS select the single
-`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
+`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `5dea3ecd`,
 Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
 lock, so all three consumers share the same HIP compiler cache slot.
 Local HIP tools

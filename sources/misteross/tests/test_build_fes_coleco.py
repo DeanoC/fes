@@ -332,7 +332,7 @@ class BuildFesColecoTests(unittest.TestCase):
     def test_gpu_route_keeps_the_registered_sprite_ram_mapper_pair(self) -> None:
         pins = load_lock(ROOT / COLECO_TOOLCHAIN_LOCK)
         self.assertEqual(pins["yosys"].commit, "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(pins["nextpnr"].commit, "0fad53a75a0218941c417ec6bb58bdede9070987")
+        self.assertEqual(pins["nextpnr"].commit, "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7")
 
     def test_coleco_uses_a_core_local_toolchain_without_downgrading_main(self) -> None:
         self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
