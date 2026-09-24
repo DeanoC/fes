@@ -98,4 +98,3 @@ module hps_ddr_port (
         end
     end
 endmodule
-
