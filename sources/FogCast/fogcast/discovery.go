@@ -467,7 +467,7 @@ func (s *Service) kitLeaseForeign() bool {
 // launchUsesForeignKit reports an FPGA launch that would use the kit whose
 // cached connection is held by another session. Host-only execution does not
 // use that kit. A different named target does not use the selected connection.
-func (s *Service) launchUsesForeignKit(pinned pinnedLaunchTarget, execution string) bool {
+func (s *Service) launchUsesForeignKit(pinned launchSnapshot, execution string) bool {
 	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
 		return false
 	}

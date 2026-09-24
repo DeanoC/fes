@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
@@ -910,6 +911,32 @@ func rejectBody(w http.ResponseWriter, r *http.Request) error {
 }
 
 func writeSessionError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, meshcontent.ErrContentMissingNoSource):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_MISSING", Message: "required content is missing and no source advertises it",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrCheckingTimeout):
+		writeJSON(w, http.StatusGatewayTimeout, map[string]any{"error": apiError{
+			Code: "CONTENT_CHECKING_TIMEOUT", Message: "required content stayed checking until the host timeout",
+		}})
+		return
+	}
+	var blocked *meshcontent.ExecuteBlockedError
+	if errors.As(err, &blocked) && blocked.Block == meshcontent.BlockEnsureProgress {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{
+			Code: "CONTENT_CHECKING", Message: "required content is still being checked",
+		}})
+		return
+	}
+	var drifted *fogcast.LaunchSnapshotError
+	if errors.As(err, &drifted) {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{
+			Code: "LAUNCH_CHANGED", Message: drifted.Error(),
+		}})
+		return
+	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
 		status := http.StatusInternalServerError
