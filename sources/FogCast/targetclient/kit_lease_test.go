@@ -10,6 +10,53 @@ import (
 	"time"
 )
 
+func TestKitMutationMatchesAMeshPrefixOnly(t *testing.T) {
+	if gated, acquire := kitMutation("/agent/v1/mesh/content/pull"); !gated || !acquire {
+		t.Fatalf("pull gated %v acquire %v", gated, acquire)
+	}
+	if gated, acquire := kitMutation("/agent/v1/mesh/content/link"); !gated || acquire {
+		t.Fatalf("link gated %v acquire %v", gated, acquire)
+	}
+	if gated, _ := kitMutation("/agent/v1/launch"); gated {
+		t.Fatal("prefix widened a non-mesh route")
+	}
+	if gated, acquire := kitMutation("/v1/mesh/content/pull"); !gated || !acquire {
+		t.Fatalf("exact pull gated %v acquire %v", gated, acquire)
+	}
+}
+
+func TestPrefixedMeshPullClaims(t *testing.T) {
+	claims := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/kit/release" {
+			fmt.Fprint(w, `{"state":"free"}`)
+			return
+		}
+		if r.URL.Path != "/v1/kit/claim" {
+			t.Errorf("path %s", r.URL.Path)
+			http.NotFound(w, r)
+			return
+		}
+		claims++
+		fmt.Fprintf(w, `{"status":{"state":"held","generation":"one","expires_at":%q,"expires_in_ms":60000},"token":"lease-secret"}`, time.Now().Add(time.Minute).Format(time.RFC3339))
+	}))
+	defer server.Close()
+	u, _ := url.Parse(server.URL)
+	lease := NewKitLease(u, "bearer", server.Client(), "test", "mesh")
+	defer lease.Close(context.Background())
+	client := NewClient(u, "bearer", server.Client()).WithKitLease(lease)
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/agent/v1/mesh/content/pull", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.AuthorizeMutation(request); err != nil {
+		t.Fatal(err)
+	}
+	if claims != 1 || request.Header.Get(KitLeaseHeader) != "lease-secret" {
+		t.Fatalf("claims %d header %q", claims, request.Header.Get(KitLeaseHeader))
+	}
+}
+
 func TestKitLeaseSharedMutationAndNoForeignStop(t *testing.T) {
 	claims, mutations := 0, 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +94,9 @@ func TestKitLeaseSharedMutationAndNoForeignStop(t *testing.T) {
 	}
 	if claims != 1 {
 		t.Fatalf("claims=%d", claims)
+	}
+	if owned, generation := c.MeshKitLease(); !owned || generation != "one" {
+		t.Fatalf("owned=%v generation=%q", owned, generation)
 	}
 }
 

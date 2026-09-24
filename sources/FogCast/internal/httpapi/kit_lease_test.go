@@ -38,7 +38,7 @@ func TestKitLeaseGuardsPhysicalRoutes(t *testing.T) {
 	grant := claimKit(t, manager)
 	controller := &fakeController{}
 	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
-	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop"} {
+	for _, path := range []string{"/v1/stop", "/v1/development/rbf", "/v1/development/core", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
 		for _, token := range []string{"", "foreign"} {
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			request.Header.Set("Authorization", "Bearer bearer")
@@ -78,7 +78,7 @@ func TestHostlessOwnerCannotCastOrDirectLaunch(t *testing.T) {
 	}
 	content := &fakeContentController{}
 	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithContent(content))
-	for _, path := range []string{"/v1/cast/start", "/v1/development/rbf"} {
+	for _, path := range []string{"/v1/cast/start", "/v1/development/rbf", "/v1/mesh/content/pull", "/v1/mesh/content/link"} {
 		request := httptest.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Authorization", "Bearer bearer")
 		request.Header.Set(httpapi.KitLeaseHeader, grant.Token)

@@ -1,12 +1,18 @@
-// Package meshcontent names Phase 2 slot identities.
+// Package meshcontent names Phase 2 slot identities and the host ensure
+// step that asks a bound executor for those ids.
 //
 // A catalog entry can carry a package / ABI identity and the BIOS,
-// primary-media, and expansion content-ids a later slice will pull.
-// This package stores presence of those ids. It does not transfer
-// bytes, and rooms Ready does not call it.
+// primary-media, and expansion content-ids. Ensure reports whether
+// each required content-id is present on the executor the session
+// already bound, or asks that executor to pull it. This package does
+// not transfer bytes, does not choose a node, and does not release a
+// lease. Ensure refuses a pull unless the caller reports an owned,
+// idle binding. Rooms Ready does not call Ensure.
 //
 // The content-id algorithm is an unsigned strawman: sha256. Deano has
-// not locked it.
+// not locked it. JSON tags on the catalog types are host-catalog
+// shape only. Ensure results have no JSON tags and are not a wire
+// format.
 package meshcontent
 
 import (
@@ -337,11 +343,20 @@ const (
 	BlockEnsureProgress Block = "ensure_in_progress"
 )
 
+// EligibleABI is one package ABI id and major this executor can run.
+// Major is the package ABI major, not the mesh protocol major.
+type EligibleABI struct {
+	ID    string
+	Major int
+}
+
 // Bound is what this session already knows about one executor.
 // Execute means a binding this shell can use, not another node's
 // advertisement. Packages are described package ids on that executor.
-// Local, Distant, and Checking are content-id presence. ReadyHere does
-// not discover nodes and does not pull bytes.
+// ABIs are the package families that executor can run. Package id
+// alone is not eligibility. Local, Distant, and Checking are
+// content-id presence. ReadyHere does not discover nodes and does not
+// pull bytes.
 type Bound struct {
 	Execute     bool
 	LeaseFree   bool
@@ -350,15 +365,21 @@ type Bound struct {
 	Distant     *Cache
 	Checking    []ContentID
 	Packages    []string
+	ABIs        []EligibleABI
 }
 
 // ReadyHere is the Phase 2 rule: this session can play here.
-// Rooms, session launch, and discovery.ReadyForBoundExecutor do not
-// call it. A true result is not Phase 0 or Phase 1 Ready.
+// discovery.ReadyForBoundExecutor calls it when a mesh execute session
+// is installed. Rooms and GET /api/v1/games use that result. A nil
+// session keeps Phase 0 and Phase 1 composition Ready. A true result
+// is not, by itself, a Phase 0 composition flag.
 //
-// Package-backed execution (fpga_native) also requires that package id
-// on the executor. Host-emulator execution (native_emu) is ready from
-// its content slots once the other session checks pass.
+// Package-backed execution (fpga_native) requires that package id on
+// the executor and an eligible ABI id and major. Package id alone is
+// not enough. A listed ABI id with a different major is version skew.
+// An ABI the executor does not list is no capable executor.
+// Host-emulator execution (native_emu) has no package slot and is
+// ready from its content slots once the other session checks pass.
 //
 // A required content slot that is not on the executor, not distant, and
 // not mid-pull is content missing. Distant-only is not Ready. Mid-pull
@@ -376,8 +397,16 @@ func ReadyHere(entry Entry, bound Bound) (bool, Block) {
 	if !bound.LeaseFree {
 		return false, BlockLeaseHeld
 	}
-	if !bound.Execute || (packageBacked(entry.Execute[0].Kind) && !packageHeld(entry, bound.Packages)) {
+	if !bound.Execute {
 		return false, BlockNoExecutor
+	}
+	if packageBacked(entry.Execute[0].Kind) {
+		if !packageHeld(entry, bound.Packages) {
+			return false, BlockNoExecutor
+		}
+		if block := abiBlock(entry, bound.ABIs); block != BlockNone {
+			return false, block
+		}
 	}
 	switch worstContent(entry, bound) {
 	case presenceMissing:
@@ -388,6 +417,32 @@ func ReadyHere(entry Entry, bound Bound) (bool, Block) {
 		return false, BlockEnsureProgress
 	default:
 		return true, BlockNone
+	}
+}
+
+// NextAction is the explicit next step when ReadyHere is false.
+// Distant-only bytes ask the shell to bring the title onto this
+// executor. Values are codes, not sofa copy. BlockNone has no action.
+func NextAction(block Block) string {
+	switch block {
+	case BlockNone:
+		return ""
+	case BlockEnsureProgress:
+		return "wait"
+	case BlockContentMissing:
+		return "supply_content"
+	case BlockDistant:
+		return "fetch_here"
+	case BlockLeaseHeld:
+		return "wait_for_lease"
+	case BlockVersionSkew:
+		return "resolve_version"
+	case BlockNoExecutor:
+		return "bind_executor"
+	case BlockBrowseOnly:
+		return "browse"
+	default:
+		return "unavailable"
 	}
 }
 
@@ -408,19 +463,58 @@ func packageBacked(kind string) bool {
 }
 
 func packageHeld(entry Entry, packages []string) bool {
-	var id string
-	for _, slot := range entry.Slots {
-		if slot.Kind == SlotPackageABI && slot.Package != nil {
-			id = slot.Package.PackageID
-			break
-		}
+	pkg, ok := entryPackage(entry)
+	if !ok {
+		return false
 	}
 	for _, held := range packages {
-		if held == id {
+		if held == pkg.PackageID {
 			return true
 		}
 	}
 	return false
+}
+
+func entryPackage(entry Entry) (PackageABI, bool) {
+	for _, slot := range entry.Slots {
+		if slot.Kind == SlotPackageABI && slot.Package != nil {
+			return *slot.Package, true
+		}
+	}
+	return PackageABI{}, false
+}
+
+// ABIMatches reports whether abis includes pkg's ABI id and major.
+// An empty list does not match. Major 0 does not match.
+func ABIMatches(pkg PackageABI, abis []EligibleABI) bool {
+	if err := pkg.Validate(); err != nil {
+		return false
+	}
+	for _, abi := range abis {
+		if abi.ID == pkg.ABI && abi.Major == pkg.Major {
+			return true
+		}
+	}
+	return false
+}
+
+// abiBlock is version skew when the executor lists pkg's ABI id at a
+// different major, and no capable executor when it does not list that
+// id. BlockNone means the id and major are eligible.
+func abiBlock(entry Entry, abis []EligibleABI) Block {
+	pkg, ok := entryPackage(entry)
+	if !ok {
+		return BlockNoExecutor
+	}
+	if ABIMatches(pkg, abis) {
+		return BlockNone
+	}
+	for _, abi := range abis {
+		if abi.ID == pkg.ABI {
+			return BlockVersionSkew
+		}
+	}
+	return BlockNoExecutor
 }
 
 func worstContent(entry Entry, bound Bound) presence {

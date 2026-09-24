@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/brutella/dnssd"
+
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 )
 
 const (
@@ -149,11 +151,38 @@ func (a Advertisement) MeshSessionCompatible() bool {
 		a.Mesh.Major == meshProtocolMajor
 }
 
-// ReadyForBoundExecutor keeps Phase 0 composition as the only Ready signal.
+// ReadyHereInput is the bound session ReadyHere evaluates.
+// A nil input means the ensure seam is off: compositionReady stays the
+// Phase 0 and Phase 1 signal.
+type ReadyHereInput struct {
+	Entry meshcontent.Entry
+	Bound meshcontent.Bound
+}
+
+// MeshMajorCompatible reports whether mesh is this build's protocol major.
+// An empty version is the Phase 0 omission and is not compatible. A
+// different major fails closed. A newer minor of the same major is
+// compatible.
+func MeshMajorCompatible(mesh string) bool {
+	version, ok := parseMeshVersion(strings.TrimSpace(mesh))
+	return ok && version.Major == meshProtocolMajor
+}
+
+// ReadyForBoundExecutor reports whether this shell can play here.
 // foreign is another node's advertisement. Its Execute capability cannot
-// grant Ready.
-func ReadyForBoundExecutor(compositionReady bool, _ Advertisement) bool {
-	return compositionReady
+// grant Ready. When here is nil the seam is off and compositionReady is
+// the signal. When here is set, ReadyHere decides and compositionReady
+// is not a substitute.
+func ReadyForBoundExecutor(compositionReady bool, foreign Advertisement, here *ReadyHereInput) (bool, meshcontent.Block) {
+	if here == nil {
+		if compositionReady {
+			return true, meshcontent.BlockNone
+		}
+		return false, meshcontent.BlockNone
+	}
+	// ReadyHere does not read foreign. An Execute advertisement on that
+	// node is not a binding this shell can use.
+	return meshcontent.ReadyHere(here.Entry, here.Bound)
 }
 
 // KitCapabilities is what the target agent can advertise honestly.

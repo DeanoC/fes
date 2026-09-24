@@ -37,6 +37,13 @@ type TargetConnection struct {
 	TargetID string `json:"target_id,omitempty"`
 	BootID   string `json:"boot_id,omitempty"`
 	Owner    string `json:"owner,omitempty"`
+	// leaseSeen is true after this host has read kit ownership for the
+	// connection. The fields are not a wire format. leaseOwned is the
+	// observed session grant. leaseGeneration is that observation's
+	// generation, empty when the kit did not publish one.
+	leaseSeen       bool
+	leaseOwned      bool
+	leaseGeneration string
 }
 
 func (s *Service) TargetConnection() TargetConnection {
@@ -467,16 +474,29 @@ func (s *Service) kitLeaseForeign() bool {
 // launchUsesForeignKit reports an FPGA launch that would use the kit whose
 // cached connection is held by another session. Host-only execution does not
 // use that kit. A different named target does not use the selected connection.
-func (s *Service) launchUsesForeignKit(target, execution string) bool {
+func (s *Service) launchUsesForeignKit(pinned launchSnapshot, execution string) bool {
 	if execution == ExecutionHostOnly || !s.kitLeaseForeign() {
+		return false
+	}
+	return s.launchObservesSelectedConnection(pinned)
+}
+
+// launchObservesSelectedConnection reports whether this launch executes
+// on the kit the cached target connection describes. An explicit launch
+// to another target does not.
+func (s *Service) launchObservesSelectedConnection(pinned launchSnapshot) bool {
+	if s == nil {
 		return false
 	}
 	conn := s.TargetConnection()
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	name := strings.TrimSpace(target)
-	if name == "" {
-		name = s.selectedTarget
+	name := pinned.name
+	if !pinned.frozen {
+		name = strings.TrimSpace(pinned.requested)
+		if name == "" {
+			name = strings.TrimSpace(s.selectedTarget)
+		}
 	}
 	cfg := targetByName(s.targets, name)
 	if conn.TargetID != "" && cfg.TargetID != "" {
@@ -485,11 +505,22 @@ func (s *Service) launchUsesForeignKit(target, execution string) bool {
 	if conn.Address != "" && cfg.Address != "" {
 		return conn.Address == cfg.Address
 	}
-	return name == s.selectedTarget
+	if pinned.frozen {
+		if pinned.explicit {
+			return name == pinned.selectedName
+		}
+		// Implicit launch pinned the selected kit. An empty id still means
+		// this connection, including when selectedTarget has since moved.
+		return true
+	}
+	return name == strings.TrimSpace(s.selectedTarget)
 }
 
 func connectionFromStatus(health protocol.Health, status protocol.Status, ownership targetclient.KitOwnership, address, id string) TargetConnection {
-	connection := TargetConnection{State: "ready", Address: address, TargetID: id, BootID: health.BootID}
+	connection := TargetConnection{
+		State: "ready", Address: address, TargetID: id, BootID: health.BootID,
+		leaseSeen: true, leaseOwned: ownership.Owned, leaseGeneration: ownership.Generation,
+	}
 	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 		connection.State = "version_mismatch"
 		connection.Message = err.Error()

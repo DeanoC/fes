@@ -284,9 +284,10 @@ state survives lock loss to avoid interpreting a stale acknowledgement as a
 new sample. The custom tone demo remains a native audio-clock source and needs
 no CDC. V11 reaches two qualified PLL sites, so Coleco uses a shared fractional
 417.792 MHz VCO for system 52.224 MHz (C8) and audio 12.288 MHz (C34), plus
-the separate video PLL. This raises the reduced CPU and logical raster cadence
-by 0.43% from the old 52 MHz profile; the CPU remains /16 (3.264 MHz), not
-cycle-accurate NTSC. HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
+the separate video PLL. This raises the reduced CPU cadence by 0.43% from the
+old 52 MHz profile; the CPU remains /16 (3.264 MHz), not cycle-accurate NTSC.
+The TMS9918 logical raster now uses its independent fractional 60 Hz enable.
+HDMI video timing stays 74.25 MHz and audio stays 48 kHz.
 The producer checks all three timing domains and each audio output pad before
 packaging. SG-1000/SMS keep their existing shared 52 MHz system PLL.
 
@@ -381,7 +382,7 @@ configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
 Coleco, SG-1000 and SMS select the single
-`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `0fad53a7`,
+`toolchains/registered-memory.lock` (Yosys `e2d425de`, nextpnr `5dea3ecd`,
 Mistral `b28e30a`). Its exact bytes retain the previously qualified Coleco
 lock, so all three consumers share the same HIP compiler cache slot.
 Local HIP tools
@@ -555,24 +556,44 @@ shared `fes.application` 1.0 mailbox, with `fes.gamepad.ports` and
 twelve keypad bits represent 0..9, *, #. Each active-high full-state write
 addresses port 0 or 1. HOLD neutralizes both controllers. The console-owned
 staging RAM preserves registered media-copy timing. The first slice contains a TV80
-Z80-compatible CPU, the Coleco reset/cartridge/RAM map, bounded TMS9918-style
-Graphics I and Graphics II video, two active-low controller views and the FES
-fixed-video shell. A raw 1–32 KiB cartridge image uses the fixed
+Z80-compatible CPU, the Coleco reset/cartridge/RAM map, a shared TMS9918-style
+renderer for Graphics I, Graphics II, Text and Multicolor on the fixed
+256×192 logical raster, two active-low controller views and the FES fixed-video
+shell. A raw 1–32 KiB cartridge image uses the fixed
 `0x8000–0xffff` aperture. Images up to 16 KiB preserve the prior C000 mirror;
 larger images use all fifteen address bits and return FF beyond committed length.
 The shared stream endpoint validates ordered chunks and complete CRC before
 publishing the console-owned 32 KiB staging RAM. The registered cartridge copy
-holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB. Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio). The development Coleco machine edge has an inactive vacant response and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate `coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware Mistral and nextpnr pins. The development-only producer seals a timed shell with a vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus` 1.0. The diagnostic module uses the frozen shell and restores the system PLL's second output from exact routed metadata. Its producer permits only the three fixed response-stub changes declared by `fes.coleco.response-boundary/3`, alongside the CPU-bus rectangle; the linker rejects every other outside change. The selected factory recipe and FES registration remain unchanged. External bus mastering, video/audio takeover, bank
-switching, full VDP modes, cycle-perfect timing and retail-cartridge
+holds CPU/VDP reset through its final write. Legacy blob stays bounded to 16 KiB.
+Audio is the shared SN76489 path under [Shared application audio](#shared-application-audio).
+The shared 32-bit fractional raster enable emits 4,024,320 logical samples per
+second from each core's configured system clock; 256 samples × 262 lines gives
+a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
+models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
+effects. The development Coleco machine edge has an inactive vacant response
+and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
+physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
+`coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware
+Mistral and nextpnr pins. The development producer seals a timed shell with a
+vacant `24 1 28 11` placement region and optional `fes.expansion.coleco-bus`
+1.0. The diagnostic module uses the frozen shell and restores the system PLL's
+second output from exact routed metadata. Its producer permits only the three
+fixed response-stub changes declared by `fes.coleco.response-boundary/3`,
+alongside the CPU-bus rectangle; the linker rejects every other outside change.
+The selected factory recipe and FES registration remain unchanged. External
+bus mastering, video/audio takeover, bank switching and retail-cartridge
 compatibility remain outside this slice.
 
 Graphics I groups color entries by eight character patterns. Graphics II uses
 screen-third pattern/color addressing and the register masks for table mirroring.
-Both paths carry four-bit foreground, background and sprite colors through the
-framebuffer to the TMS palette; color zero resolves to the backdrop and display
-disable suppresses the playfield. The sprite renderer covers normal 8x8/16x16 sprites, magnification, early-clock
-positioning, signed/clipped X coordinates, transparency/priority, four visible
-sprites per line, collision and fifth-sprite status. The VDP uses four coherent
+Text renders 40×24 six-pixel glyphs with eight-pixel side margins and suppresses
+sprites. Multicolor selects four 4×4 color blocks per character and keeps
+sprites active. Unsupported mode selectors render the R7 backdrop. All four
+modes retain the four-bit palette path and color-zero backdrop behavior; display
+disable suppresses the playfield. The sprite renderer covers normal 8x8/16x16
+sprites, magnification, early-clock positioning, signed/clipped X coordinates,
+transparency/priority, four visible sprites per line, collision and
+fifth-sprite status. The VDP uses four coherent
 VRAM copies with broadcast CPU writes, registered read-ahead and a serial SAT /
 pattern walker. Two alternating framebuffer line banks use packed 6-bit M10K
 entries for pixel and visibility metadata; publication is interlocked with the
@@ -602,12 +623,17 @@ scaling accommodations shared by both compiler lanes. The original procedural
 sprite loop expanded to roughly 42K mapped combinational cells; the registered
 one-column/repeat schedule fits the fixed system-clock budget. The Coleco OSS
 recipe uses its core-local lock with Yosys `e2d425de`, nextpnr-mistral
-`0fad53a7` with `--router gpu`, seed 4, HeAP timing weight 300, criticality
+`5dea3ecd` with `--router gpu`, HeAP timing weight 100, criticality
 exponent 5, and `--timing-allow-fail`, and Mistral
 `b28e30a`; the selected toolchain enables the HIP device backend. Default
-place-and-route is first-to-pass on that seed order at weight 300.
-`make build-fes-coleco BEST_FMAX=1 GPU_DEVICES=0,1` synthesizes once, then searches the
-weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax;
+place-and-route is first-to-pass: seeds 5, 4, 1, 2, 3, 12, 7 and 10 at
+weight 100, then the same seeds at weights 300 and 1000. nextpnr `5dea3ecd`
+times each GPU route with Mistral's analogue signoff model and re-routes
+near-critical nets when a clock misses, so the table-model and signoff
+results no longer diverge silently.
+`make build-fes-coleco BEST_FMAX=1` synthesizes once, then searches the
+weight list 10/100/300/1000/2000 and remaining seeds for the best Fmax on
+one HIP device (functional identity v2 rejects more than one);
 the winner is stored in route evidence, not written back into recipe
 constants (that would change `BUILD_ID`). Because the
 sealed build record changes the embedded `BUILD_ID`, the seed is part of the
@@ -645,7 +671,7 @@ marked as path-specific are not requirements of the other lane.
 | Reset image | OSS consumes tracked byte-per-line `coleco_reset_rom.hex`; Quartus `altsyncram` consumes tracked range-form `coleco_reset_rom.mif`. This is a file-format split, not a different reset image. |
 | PLL and I²C | Both retain the two existing `altera_pll` wrappers. Quartus uses tri-state HDMI I²C; OSS uses `MISTRAL_IO` open-drain pads and the HPS I²C BEL `cyclonev_hps_interface_peripheral_i2c.52.60.0`. |
 | Constraints | OSS uses only its accepted pin QSF and 50 MHz `clocks-oss.sdc`; nextpnr derives PLL clocks. Quartus retains `HPS_LOCATION`, clock groups and the full SDC. |
-| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `0fad53a7`, `--router gpu`, seed 4, HeAP timing weight 300, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
+| Route pressure | The OSS reproduction is `5CSEBA6U23I7`, nextpnr `5dea3ecd`, `--router gpu`, seed 5 first (order 5, 4, 1, 2, 3, 12, 7, 10), HeAP timing weight 100 before 300 and 1000, criticality exponent 5, `--timing-allow-fail`, no `--tmg-ripup`, at 74.25 MHz. The embedded `BUILD_ID` makes the seed part of the route recipe. The GPU router can report a provisional timing shortfall before final repair; the allowance only permits that intermediate result, while the recipe requires final structured `clk_sys` and `pixel_clk` timing to pass. The sealed recipe requires `backend hip:<device> ready` and rejects CPU-reference fallback; no missing BEL or pack feature was identified. |
 
 The concrete build entry points are `make build-fes-coleco-quartus` and
 `make build-fes-coleco`; both require a clean source checkout, seal format-2
@@ -655,7 +681,11 @@ separate FES integration step.
 ## FES SG-1000 Quartus oracle and OSS recipe
 
 `cores/fes-sg1000` is the Coleco sibling bring-up for package `fes.sg1000`.
-It reuses Coleco TV80, the bounded TMS9918-style VDP, dual-port RAM wrappers,
+It reuses Coleco TV80 and the shared TMS9918-style VDP, which renders Graphics
+I, Graphics II, Text and Multicolor on a fixed 256×192 logical raster. Text
+suppresses sprites, Multicolor keeps them active, and unsupported selectors
+render the backdrop. Its 256×262 logical raster shares Coleco's nominal 60 Hz
+fractional enable. It also reuses the dual-port RAM wrappers,
 the `fes.simple-computer` mailbox, both PLL wrappers and the 720p HDMI shell.
 The SG-1000-specific RTL is the memory map (cartridge at `0x0000–0x3fff`, 1 KiB
 RAM at `0xc000`) and the 8255 joystick ports `0xdc`/`0xdd`. There is no BIOS
@@ -693,25 +723,33 @@ launch/Stop record does not accept the current bitstream.
 
 `cores/fes-sms` is the Coleco / SG-1000 sibling bring-up for package `fes.sms`
 (FogCast `protocol.SystemSMS = "sms"`). Do not use `fes.mastersystem`. It
-reuses Coleco TV80, the bounded legacy TMS9918-style VDP, dual-port RAM wrappers,
-the `fes.simple-computer` mailbox and both PLL wrappers. The SMS-specific RTL is
+reuses Coleco TV80 and the shared legacy TMS9918-style VDP. Graphics I, Graphics
+II, Text and Multicolor use its fixed 256×192 logical raster; Text suppresses
+sprites, Multicolor keeps them active, and unsupported selectors render the
+backdrop. Dual-port RAM wrappers, the `fes.simple-computer` mailbox and both
+PLL wrappers are also shared. The SMS-specific RTL is
 the Mode 4 VDP and six-bit 720p video shell plus the memory map (32 KiB fixed
 cartridge at `0x0000–0x7fff`,
 unmapped `0x8000–0xbfff`, 8 KiB RAM at `0xc000` mirrored at `0xe000`), the 8255
 joystick ports `0xdc`/`0xdd`, VDP IRQ on Z80 INT rather than NMI, the SN76489
 on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
-`fes.simple-computer` mailbox. The OSS package uses 32 fixed blank M10K
+`fes.simple-computer` mailbox. The TMS fallback uses the shared nominal 60 Hz,
+262-line fractional raster enable. SMS Mode 4 retains its prior `/16` enable
+(about 48.5 frames/s), because its serial scanline builder exceeds the 60 Hz
+line budget; optimizing that renderer is separate work. This timing model
+covers logical frame pacing only, not composite sync, half-lines, PAL timing or
+cycle-perfect raster effects. The OSS package uses 32 fixed blank M10K
 cartridge lanes, authenticated by its format-3 ROM map; the target links an
 exact 32 KiB `cartridge-rom` before download. Shorter fixed-map ROMs must be
 explicitly padded with `0xff`. The Quartus oracle and default mailbox
 simulation remain format-2 media-transport diagnostics. There is no BIOS shim. Mode 4 implements
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and
-VBlank interrupts in the 256×192 NTSC logical raster. The PSG mix is a signed
+VBlank interrupts on the fixed 256×192 logical raster. The PSG mix is a signed
 16-bit sample; HDMI I2S0 is 16-bit 48 kHz against the existing runtime ADV7513
 program (N=6144, CTS=74250). There is no host `fes.audio` mailbox. Mappers,
-banked/48 KiB retail images, 224/240-line modes, PAL timing and cycle-perfect
-raster effects remain outside this slice.
+banked/48 KiB retail images, 224/240-line modes and PAL timing remain outside
+this slice.
 
 `make sms-diagnostic` emits a 32 KiB-capable Mode 4 cartridge that jumps
 from `0x0000` to code at `0x4000` and programs an SN76489 square wave. The sim
@@ -719,7 +757,8 @@ image HALTs after the RAM signature; the HIL image (`--interactive`) keeps the
 controller poll loop with the tone running.
 `make sim-fes-sms` is the default Verilator check (`-DTV80_REFRESH=1` only):
 the mailbox consumes `cores/fes-sms/generated/stream-exchanges.json`, the VDP
-unit covers VRAM buffering, CRAM color, tile priority/palette, sprite collision,
+unit covers legacy Text/Multicolor colors, Mode 4 VRAM buffering, CRAM color,
+tile priority/palette, sprite collision,
 line IRQ and VBlank IRQ, the PSG unit covers ports `0x7E`/`0x7F` and the tone-0
 square wave, HDMI I2S covers 16-bit 48 kHz frames, and the machine covers the
 32 KiB map, long-then-short `0xff` tails, and CPU execution of that diagnostic

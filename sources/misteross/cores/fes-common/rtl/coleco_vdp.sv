@@ -1,10 +1,52 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Bounded TMS9918-compatible video path for the FES ColecoVision slice.
 //
-// Implements Graphics I/II name/pattern/color tables, a bounded sprite path,
-// four-bit color indices, the control/data ports, a 16 KiB VRAM aperture, and
-// VBlank/collision/overflow status. The raster is deliberately exposed in the
-// logical 256x192 domain; the video shell owns the 720p timing and scaling.
+// Implements Graphics I/II, Text and Multicolor rendering, a bounded sprite
+// path, four-bit color indices, the control/data ports, a 16 KiB VRAM aperture,
+// and VBlank/collision/overflow status. The raster is deliberately exposed in
+// the logical 256x192 domain; the video shell owns the 720p timing and scaling.
+
+// Convert the unrelated FES system clock into the logical TMS9918 raster
+// cadence. The raster exposes 256 samples on each of 262 lines; 4,024,320
+// enables per second therefore produce a nominal 60 Hz frame without changing
+// the CPU or PSG clocks. A fixed-point phase accumulator spreads the 12/13
+// system-clock intervals evenly and avoids a generated clock.
+/* verilator lint_off DECLFILENAME */
+module tms9918_raster_ce #(
+    parameter integer SYSTEM_CLOCK_HZ = 52_000_000,
+    parameter integer RASTER_RATE_HZ = 4_024_320
+) (
+    input  wire clk,
+    input  wire reset,
+    output reg  raster_ce
+);
+    localparam integer PHASE_WIDTH = 32;
+    localparam [63:0] SYSTEM_CLOCK_HZ_WIDE = 64'd1 * SYSTEM_CLOCK_HZ;
+    localparam [63:0] RASTER_RATE_HZ_WIDE = 64'd1 * RASTER_RATE_HZ;
+    localparam [63:0] PHASE_INCREMENT_WIDE =
+        (((64'd1 << PHASE_WIDTH) * RASTER_RATE_HZ_WIDE +
+          (SYSTEM_CLOCK_HZ_WIDE / 2)) / SYSTEM_CLOCK_HZ_WIDE);
+    localparam [31:0] PHASE_INCREMENT = PHASE_INCREMENT_WIDE[31:0];
+
+    reg [31:0] phase;
+    wire [32:0] phase_sum = {1'b0, phase} + {1'b0, PHASE_INCREMENT};
+
+    initial begin
+        phase = 32'd0;
+        raster_ce = 1'b0;
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            phase <= 32'd0;
+            raster_ce <= 1'b0;
+        end else begin
+            phase <= phase_sum[31:0];
+            raster_ce <= phase_sum[32];
+        end
+    end
+endmodule
+/* verilator lint_on DECLFILENAME */
 
 module coleco_vdp (
     input  wire       clk,
@@ -176,7 +218,13 @@ module coleco_vdp (
     wire [13:0] name_base = {vdp_reg[2][3:0], 10'b0};
     wire [13:0] color_base = {vdp_reg[3], 6'b0};
     wire [13:0] pattern_base = {vdp_reg[4][2:0], 11'b0};
-    wire graphics_ii = vdp_reg[0][1];
+    wire [2:0] display_mode = {vdp_reg[1][4], vdp_reg[1][3], vdp_reg[0][1]};
+    wire mode_graphics_i = display_mode == 3'b000;
+    wire mode_graphics_ii = display_mode == 3'b001;
+    wire mode_multicolor = display_mode == 3'b010;
+    wire mode_text = display_mode == 3'b100;
+    wire mode_supported = mode_graphics_i || mode_graphics_ii ||
+                          mode_multicolor || mode_text;
     // Graphics II partitions the picture into three 64-line pattern sets.
     // R4[1:0] and R3[6:0] mask address bits, allowing intentional mirroring.
     // TMS99xx also applies R3's character mask to the pattern table (unlike
@@ -185,9 +233,11 @@ module coleco_vdp (
         input [7:0] tile;
         input [7:0] y;
         begin
-            if (graphics_ii)
+            if (mode_graphics_ii)
                 pattern_address = {vdp_reg[4][2], (y[7:6] & vdp_reg[4][1:0]),
                                    (tile & {vdp_reg[3][4:0], 3'b111}), y[2:0]};
+            else if (mode_multicolor)
+                pattern_address = pattern_base | {3'b0, tile, y[4:3], y[2]};
             else
                 pattern_address = pattern_base | {3'b0, tile, y[2:0]};
         end
@@ -196,7 +246,7 @@ module coleco_vdp (
         input [7:0] tile;
         input [7:0] y;
         begin
-            if (graphics_ii)
+            if (mode_graphics_ii)
                 color_address = {vdp_reg[3][7], ({y[7:6], tile} & {vdp_reg[3][6:0], 3'b111}), y[2:0]};
             else
                 color_address = color_base | {9'b0, tile[7:3]};
@@ -206,11 +256,27 @@ module coleco_vdp (
         input [3:0] color;
         begin visible_color = color == 0 ? vdp_reg[7][3:0] : color; end
     endfunction
+    function [13:0] text_name_address;
+        input [7:0] x;
+        input [7:0] y;
+        reg [7:0] column;
+        begin
+            if (x >= 8'd8 && x < 8'd248)
+                column = (x - 8'd8) / 8'd6;
+            else
+                column = 8'd0;
+            text_name_address = name_base + ({9'b0, y[7:3]} * 14'd40) + column;
+        end
+    endfunction
 
 `ifdef FES_COLECO_REGISTERED_VDP
-    wire [31:0] oss_name_address_w = {18'b0, name_base} +
-                                     ({27'b0, oss_launch_y[7:3]} << 5) +
-                                     {27'b0, oss_launch_x[7:3]};
+    wire [13:0] oss_text_name_address_w = text_name_address(oss_launch_x,
+                                                             oss_launch_y[7:0]);
+    wire [31:0] oss_name_address_w = mode_text ?
+                                     {18'b0, oss_text_name_address_w} :
+                                     ({18'b0, name_base} +
+                                      ({27'b0, oss_launch_y[7:3]} << 5) +
+                                      {27'b0, oss_launch_x[7:3]});
     wire [13:0] oss_pattern_address_w = pattern_address(vram_name_read, oss_name_coord_y[7:0]);
     wire [13:0] oss_color_address_w = color_address(vram_name_read, oss_name_coord_y[7:0]);
 
@@ -408,9 +474,10 @@ module coleco_vdp (
 
 `ifdef FES_COLECO_REGISTERED_VDP
     // Build the next scanline in a bank not currently being displayed. The
-    // serial walker is deliberately faster than the ~4K system clocks in a
-    // logical line: four SAT bytes and up to two pattern bytes per sprite fit
-    // comfortably while keeping VRAM access in one explicit M10K port.
+    // serial walker stays below 800 system clocks even when scanning all 32
+    // SAT entries and rendering four maximum-size magnified sprites; the
+    // 60 Hz logical line provides over 3.3K system clocks while retaining one
+    // explicit M10K VRAM port.
     always @(posedge clk) begin
         if (reset) begin
             sprite_ready_y <= 8'hff;
@@ -725,11 +792,9 @@ module coleco_vdp (
 
 `ifdef FES_COLECO_REGISTERED_VDP
             // Request publication from registered raster coordinates rather
-            // than gating this compare with raster_ce.  raster_ce is launched
-            // on the system-clock falling edge; keeping it out of this
-            // request path avoids turning the sprite publication register into
-            // a new half-cycle timing path.  The request remains held until
-            // the registered lookup pipeline reaches the same line below.
+            // than gating this compare with raster_ce. The request remains
+            // held until the registered lookup pipeline reaches the same line
+            // below.
             if (!sprite_pending_valid &&
                 sprite_ready_y != 8'hff &&
                 sprite_ready_y == oss_scan_y[7:0] &&
@@ -994,18 +1059,35 @@ module coleco_vdp (
         pattern_bit = 1'b0;
 
         if (!raster_blank && vdp_reg[1][6]) begin
-            name_index = ({18'b0, name_base} +
-                          ({27'b0, raster_y[7:3]} << 5) +
-                          {27'b0, raster_x[7:3]}) & 32'h00003fff;
-            tile_name = vram[name_index];
-            pattern_index = {18'b0, pattern_address(tile_name, raster_y[7:0])};
-            color_index = {18'b0, color_address(tile_name, raster_y[7:0])};
-            pattern_byte = vram[pattern_index];
-            color_byte = vram[color_index];
-            pattern_bit = pattern_byte[7 - raster_x[2:0]];
-            raster_pixel = visible_color(pattern_bit ? color_byte[7:4] : color_byte[3:0]);
-            if (sprite_pixel_comb != 0)
-                raster_pixel = sprite_pixel_comb;
+            if (mode_text) begin
+                if (raster_x >= 8'd8 && raster_x < 8'd248) begin
+                    name_index = {18'b0, text_name_address(raster_x, raster_y[7:0])};
+                    tile_name = vram[name_index];
+                    pattern_index = {18'b0, pattern_address(tile_name, raster_y[7:0])};
+                    pattern_byte = vram[pattern_index];
+                    pattern_bit = pattern_byte[7 - ((raster_x - 8'd8) % 8'd6)];
+                    raster_pixel = visible_color(pattern_bit ? vdp_reg[7][7:4] :
+                                                               vdp_reg[7][3:0]);
+                end
+            end else if (mode_graphics_i || mode_graphics_ii || mode_multicolor) begin
+                name_index = ({18'b0, name_base} +
+                              ({27'b0, raster_y[7:3]} << 5) +
+                              {27'b0, raster_x[7:3]}) & 32'h00003fff;
+                tile_name = vram[name_index];
+                pattern_index = {18'b0, pattern_address(tile_name, raster_y[7:0])};
+                pattern_byte = vram[pattern_index];
+                if (mode_multicolor) begin
+                    raster_pixel = visible_color(raster_x[2] ? pattern_byte[3:0] :
+                                                                 pattern_byte[7:4]);
+                end else begin
+                    color_index = {18'b0, color_address(tile_name, raster_y[7:0])};
+                    color_byte = vram[color_index];
+                    pattern_bit = pattern_byte[7 - raster_x[2:0]];
+                    raster_pixel = visible_color(pattern_bit ? color_byte[7:4] : color_byte[3:0]);
+                end
+                if (sprite_pixel_comb != 0)
+                    raster_pixel = sprite_pixel_comb;
+            end
         end
     end
 `else
@@ -1017,10 +1099,22 @@ module coleco_vdp (
         raster_y = oss_pattern_coord_y;
         raster_blank = !oss_pattern_valid || oss_pattern_coord_y >= 9'd192;
         raster_pixel = vdp_reg[7][3:0];
-        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6])
-            raster_pixel = visible_color(vram_pattern_read[7 - oss_pattern_coord_x[2:0]] ?
-                                         vram_color_read[7:4] : vram_color_read[3:0]);
-        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6] && sprite_display_pixel != 0)
+        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6]) begin
+            if (mode_text) begin
+                if (oss_pattern_coord_x >= 8'd8 && oss_pattern_coord_x < 8'd248)
+                    raster_pixel = visible_color(
+                        vram_pattern_read[7 - ((oss_pattern_coord_x - 8'd8) % 8'd6)] ?
+                        vdp_reg[7][7:4] : vdp_reg[7][3:0]);
+            end else if (mode_multicolor) begin
+                raster_pixel = visible_color(oss_pattern_coord_x[2] ?
+                                             vram_pattern_read[3:0] : vram_pattern_read[7:4]);
+            end else if (mode_graphics_i || mode_graphics_ii) begin
+                raster_pixel = visible_color(vram_pattern_read[7 - oss_pattern_coord_x[2:0]] ?
+                                             vram_color_read[7:4] : vram_color_read[3:0]);
+            end
+        end
+        if (oss_pattern_valid && !raster_blank && vdp_reg[1][6] &&
+            mode_supported && !mode_text && sprite_display_pixel != 0)
             raster_pixel = sprite_display_pixel;
     end
 `endif

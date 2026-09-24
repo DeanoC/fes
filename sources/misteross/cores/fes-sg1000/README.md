@@ -16,7 +16,7 @@ the oracle recipe.
 This package does not copy the MiSTer framework and does not claim retail-game
 compatibility. The Quartus 17.0.2 recipe is the compiler/oracle lane.
 `make build-fes-sg1000` is the OSS Yosys/nextpnr-mistral producer using the
-Coleco compatibility lock (Yosys `e2d425de`, nextpnr `0fad53a7`). It seals a
+Coleco compatibility lock (Yosys `e2d425de`, nextpnr `5dea3ecd`). It seals a
 format-3 package from a clean tree. `fes.sg1000` is a package-only parent
 recipe; it is not in the factory image.
 
@@ -28,16 +28,19 @@ recipe; it is not in the factory image.
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
   library import. There is no BIOS or reset shim; reset fetches the cartridge.
 - 1 KiB CPU RAM at `0xc000–0xc3ff`, mirrored through `0xffff`.
-- TMS9918-style VDP ports `0xbe` / `0xbf` and the Coleco Graphics I / bounded
-  Graphics II path.
+- TMS9918-style VDP ports `0xbe` / `0xbf` and shared Graphics I, Graphics II,
+  Text and Multicolor rendering on the fixed 256×192 logical raster.
 - Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges, expansion
-hardware and cycle-perfect clocking remain outside this slice. The OSS
-producer can seal from a clean tree; the package-only recipe does not change
-the factory image.
+Text mode suppresses sprites, Multicolor keeps them active, and unsupported
+mode selectors render only the R7 backdrop. The shared 256×262 logical raster
+uses a fractional enable for a nominal 60 Hz frame cadence. Composite sync,
+half-line behavior and cycle-perfect raster effects remain outside this slice.
+Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges and expansion
+hardware remain outside this slice. The OSS producer can seal from a clean
+tree; the package-only recipe does not change the factory image.
 
 ## Memory and host interfaces
 

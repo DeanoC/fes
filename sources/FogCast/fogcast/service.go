@@ -178,12 +178,22 @@ func WithExecutionPolicy(policy ExecutionPolicy) ServiceOption {
 }
 
 type Service struct {
-	targetReset    func()
-	connectionMu   sync.Mutex
-	connection     TargetConnection
-	resolveTarget  func(context.Context, string) ([]string, error)
-	meshMu         sync.Mutex
-	meshNodes      []MeshNode
+	targetReset      func()
+	connectionMu     sync.Mutex
+	connection       TargetConnection
+	resolveTarget    func(context.Context, string) ([]string, error)
+	meshMu           sync.Mutex
+	meshNodes        []MeshNode
+	meshExecute      MeshExecuteSession
+	meshEnsureConfig bool
+	meshEnsure       bool
+	meshHTTP         *http.Client
+	meshDialAt       time.Time
+	// meshDialID is the selected-target identity of the last dial attempt.
+	// meshInstalled is the identity that installed meshExecute. A different
+	// selected target drops that executor and dials the new endpoint.
+	meshDialID     meshTargetIdentity
+	meshInstalled  meshTargetIdentity
 	collectNodes   func(context.Context) ([]discovery.ObservedNode, error)
 	lookupCancel   context.CancelFunc
 	monitorCancel  context.CancelFunc
@@ -219,6 +229,7 @@ type Service struct {
 	targetMu                 sync.RWMutex
 	requestTimeout           time.Duration
 	uploadTimeout            time.Duration
+	meshCheckingTimeout      time.Duration
 	coreLoadReconcileTimeout time.Duration
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
@@ -410,6 +421,8 @@ func Open(ctx context.Context, paths Paths, httpClient *http.Client) (*Service, 
 		options = append(options, WithLibraryMedia(media))
 	}
 	service := newService(config, paths, store, scanner, preparer, client, options...)
+	service.meshEnsureConfig = config.MeshEnsure
+	service.meshHTTP = &http.Client{}
 	if config.ZX81MachineROM.Script != "" {
 		service.SetMachineROMLinker(PythonMachineROM{
 			Python: config.ZX81MachineROM.Python, Script: config.ZX81MachineROM.Script,
@@ -606,7 +619,16 @@ func (s *Service) clearUnstartedSessionTarget() {
 	}
 }
 
-func (s *Service) bindLaunchTarget(target string) error {
+// launchPinnedTargetBoundHook observes the name bind stored. Tests move
+// selectedTarget after Ensure and read this name. It is nil outside tests
+// and must not call back into Service.
+var launchPinnedTargetBoundHook func(name string)
+
+// bindLiveLaunchTarget resolves the selected target under targetMu at
+// bind time. LaunchOn uses it when no mesh session is installed, so a
+// settings change that selects another target or replaces its client
+// is the endpoint this launch binds.
+func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.targetMu.Lock()
 	defer s.targetMu.Unlock()
 	explicit := strings.TrimSpace(target) != ""
@@ -623,6 +645,9 @@ func (s *Service) bindLaunchTarget(target string) error {
 			s.executionMu.Lock()
 			s.activeTarget = name
 			s.executionMu.Unlock()
+			if launchPinnedTargetBoundHook != nil {
+				launchPinnedTargetBoundHook(name)
+			}
 			return nil
 		}
 		if s.targetClientFactory == nil {
@@ -639,6 +664,9 @@ func (s *Service) bindLaunchTarget(target string) error {
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
 		s.targetOrigin(cfg)
+	}
+	if launchPinnedTargetBoundHook != nil {
+		launchPinnedTargetBoundHook(name)
 	}
 	return nil
 }
@@ -790,26 +818,40 @@ func (s *Service) Launch(ctx context.Context, gameID string, progress ProgressFu
 }
 
 func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress ProgressFunc) (protocol.CachedLaunchResponse, error) {
-	if store, ok := s.catalog.(coreEntryCatalog); ok {
-		if _, err := store.CoreEntry(ctx, gameID); err == nil {
-			// A core entry executes on an FPGA kit. Deny only the kit whose
-			// connection is already held elsewhere; another named target does
-			// not use that lease. Generation takeover stays on the kit lease API.
-			if s.launchUsesForeignKit(target, ExecutionFPGANative) {
-				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
-			}
-			return s.launchCoreEntry(ctx, gameID, target)
-		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
-			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
-		}
-	}
-
+	// Admit before Ensure so a canceled or malformed request never
+	// starts a pull. The same two checks run before the core-entry
+	// lookup when the seam is off, so that request returns before
+	// catalog access. With the seam off, bind still resolves the
+	// selected target under targetMu at bind time. A nil executor
+	// leaves Phase 0 and Phase 1 launch unchanged. Rooms and
+	// GET /api/v1/games read ReadyHere only when this seam is installed.
 	if err := ctx.Err(); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	if err := protocol.ValidateGameID(gameID); err != nil {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeBadRequest, nil)
 	}
+	snap, err := s.captureLaunchSnapshot(gameID, target)
+	if err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if err := s.meshEnsureBeforeExecute(ctx, snap); err != nil {
+		return protocol.CachedLaunchResponse{}, err
+	}
+	if store, ok := s.catalog.(coreEntryCatalog); ok {
+		if _, err := store.CoreEntry(ctx, gameID); err == nil {
+			// A core entry executes on an FPGA kit. Deny only the kit whose
+			// connection is already held elsewhere; another named target does
+			// not use that lease. Generation takeover stays on the kit lease API.
+			if s.launchUsesForeignKit(snap, ExecutionFPGANative) {
+				return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
+			}
+			return s.launchCoreEntry(ctx, gameID, snap)
+		} else if !errors.Is(err, catalog.ErrCoreEntryNotFound) {
+			return protocol.CachedLaunchResponse{}, mapCoreEntryError(err)
+		}
+	}
+
 	releaseLifecycle, err := s.acquireLifecycle(ctx)
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
@@ -834,7 +876,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 	if err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
-	if s.launchUsesForeignKit(target, execution) {
+	if s.launchUsesForeignKit(snap, execution) {
 		return protocol.CachedLaunchResponse{}, canonicalError(protocol.CodeKitLeaseDenied, nil)
 	}
 	if err := s.nativeCatalogAdmission(ctx, admittedGame); err != nil {
@@ -847,7 +889,7 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		packageOwnerTarget = s.activeTarget
 	}
 	s.executionMu.Unlock()
-	if err := s.bindLaunchTarget(target); err != nil {
+	if err := s.revalidateLaunchSnapshot(snap); err != nil {
 		return protocol.CachedLaunchResponse{}, err
 	}
 	defer s.clearUnstartedSessionTarget()

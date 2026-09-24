@@ -179,7 +179,9 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	advertised := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	meshRoot := t.TempDir()
 	deps := runDependencies{
+		meshContentRoot: meshRoot,
 		openCache: func(config targetcache.Config, options ...targetcache.Option) (agent.ContentStore, error) {
 			opened = config
 			if len(options) != 1 {
@@ -250,6 +252,34 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 			if response.Code != http.StatusOK || rbfStatus(response.Body.Bytes()).State != protocol.StateActive {
 				t.Fatalf("development route = HTTP %d %q", response.Code, response.Body.String())
 			}
+			nodeRequest := httptest.NewRequest(http.MethodGet, "/v1/mesh/content/node", nil)
+			nodeRequest.Header.Set("Authorization", "Bearer test-token")
+			nodeResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(nodeResponse, nodeRequest)
+			if nodeResponse.Code != http.StatusOK || !strings.Contains(nodeResponse.Body.String(), `"node_id":"`+targetID+`"`) {
+				t.Fatalf("mesh node = HTTP %d %s", nodeResponse.Code, nodeResponse.Body.String())
+			}
+			unleasedPull := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id=sha256:"+strings.Repeat("ab", 32), nil)
+			unleasedPull.Header.Set("Authorization", "Bearer test-token")
+			unleasedResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(unleasedResponse, unleasedPull)
+			if unleasedResponse.Code != http.StatusForbidden || !strings.Contains(unleasedResponse.Body.String(), "KIT_LEASE_REQUIRED") {
+				t.Fatalf("unleased mesh pull = HTTP %d %s", unleasedResponse.Code, unleasedResponse.Body.String())
+			}
+			pullRequest := httptest.NewRequest(http.MethodPost, "/v1/mesh/content/pull?id=sha256:"+strings.Repeat("ab", 32), nil)
+			pullRequest.Header.Set("Authorization", "Bearer test-token")
+			pullRequest.Header.Set(httpapi.KitLeaseHeader, kitToken)
+			pullResponse := httptest.NewRecorder()
+			server.Handler.ServeHTTP(pullResponse, pullRequest)
+			if pullResponse.Code != http.StatusUnprocessableEntity || !strings.Contains(pullResponse.Body.String(), "CONTENT_PULL_FAILED") {
+				t.Fatalf("mesh pull = HTTP %d %s", pullResponse.Code, pullResponse.Body.String())
+			}
+			if _, err := os.Stat(meshRoot); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(meshRoot, "objects")); !os.IsNotExist(err) {
+				t.Fatalf("agent boot created mesh objects: %v", err)
+			}
 			cancel()
 			return http.ErrServerClosed
 		},
@@ -265,6 +295,63 @@ func TestRunComposesFixedCacheContentHandlerAndUploadTimeouts(t *testing.T) {
 	}
 	if runtime.developmentSize != int64(len("development-rbf")) || string(runtime.developmentBody) != "development-rbf" {
 		t.Fatalf("development runtime = size %d body %q", runtime.developmentSize, runtime.developmentBody)
+	}
+}
+
+func TestMeshNodeDocumentFollowsStagedPackages(t *testing.T) {
+	const targetID = "01234567-89ab-cdef-0123-456789abcdef"
+	configPath := writeCompositionConfig(t, "target_id = \""+targetID+"\"\n")
+	root := t.TempDir()
+	pkg := strings.Repeat("ab", 32)
+	stage := filepath.Join(root, pkg+"-"+strings.Repeat("01", 16))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	deps := runDependencies{
+		meshContentRoot: t.TempDir(),
+		packageRoots:    []string{root},
+		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
+			return &compositionStore{}, nil
+		},
+		newRuntime: func(agentconfig.Config) agent.Runtime { return &compositionRuntime{} },
+		advertise:  func(context.Context, string, int) error { return errors.New("multicast unavailable") },
+		serve: func(server *http.Server) error {
+			readNode := func() string {
+				t.Helper()
+				request := httptest.NewRequest(http.MethodGet, "/v1/mesh/content/node", nil)
+				request.Header.Set("Authorization", "Bearer test-token")
+				response := httptest.NewRecorder()
+				server.Handler.ServeHTTP(response, request)
+				if response.Code != http.StatusOK {
+					t.Fatalf("mesh node = HTTP %d %s", response.Code, response.Body.String())
+				}
+				return response.Body.String()
+			}
+			if body := readNode(); strings.Contains(body, pkg) || !strings.Contains(body, `"node_id":"`+targetID+`"`) {
+				t.Fatalf("empty root node = %s", body)
+			}
+			if err := os.Mkdir(stage, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			manifest := "[abi]\nid = \"fes.simple-game\"\nmajor = 1\n"
+			if err := os.WriteFile(filepath.Join(stage, "manifest.toml"), []byte(manifest), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			body := readNode()
+			if !strings.Contains(body, pkg) || !strings.Contains(body, "fes.simple-game") {
+				t.Fatalf("staged package missing: %s", body)
+			}
+			if err := os.RemoveAll(stage); err != nil {
+				t.Fatal(err)
+			}
+			if body = readNode(); strings.Contains(body, pkg) {
+				t.Fatalf("removed stage still advertised: %s", body)
+			}
+			cancel()
+			return http.ErrServerClosed
+		},
+	}
+	if err := runWithDependencies(ctx, configPath, slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+		t.Fatal(err)
 	}
 }
 

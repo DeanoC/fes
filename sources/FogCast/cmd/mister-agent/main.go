@@ -27,6 +27,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/flightdiag"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
@@ -38,6 +39,9 @@ import (
 const (
 	targetCacheRoot         = "/media/fat/fogcast/cache"
 	targetCacheActiveRecord = "/run/fogcast-active.json"
+	meshContentRoot         = "/media/fat/fogcast/mesh-content"
+	launcherConfigPath      = "/media/fat/fogcast/launcher.json"
+	installedPackageRoot    = "/usr/share/mister-runtime/core-packages"
 	developmentRBFPath      = "/tmp/fogcast-development/core.rbf"
 	developmentCoreRoot     = "/tmp/fogcast-development/core-packages"
 	targetIDFile            = "/media/fat/fogcast/target-id"
@@ -63,7 +67,11 @@ type runDependencies struct {
 	serve                 func(*http.Server) error
 	advertise             func(context.Context, string, int) error
 	targetIDPath          string
-	newUpdate             func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
+	meshContentRoot       string
+	// packageRoots are the directories the node document scans for
+	// described packages. Nil uses the installed and development roots.
+	packageRoots []string
+	newUpdate    func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 }
 
 func run(ctx context.Context, configPath string, logger *slog.Logger) error {
@@ -95,9 +103,10 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				StopTimeout: 2 * time.Second,
 			}, nil)
 		},
-		serve:        func(server *http.Server) error { return server.ListenAndServe() },
-		advertise:    discovery.Advertise,
-		targetIDPath: targetIDFile,
+		serve:           func(server *http.Server) error { return server.ListenAndServe() },
+		advertise:       discovery.Advertise,
+		targetIDPath:    targetIDFile,
+		meshContentRoot: meshContentRoot,
 	}
 	if nativeControl == nil {
 		nativeControl = misterruntime.NewClient(misterruntime.DefaultSocketPath)
@@ -257,6 +266,39 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
+	if dependencies.meshContentRoot != "" && targetID != "" {
+		// The kit store is served for this node's id. Pull and link are
+		// kit-lease mutations and their bodies stay empty. mesh_content
+		// defaults on: the source reads the host through the provisioned
+		// launcher credential. The node document reads installed and
+		// staged package manifests on each request, so a stage published
+		// after startup is included and a removed stage is not.
+		// mesh_content = false keeps a nil source and an empty ABI list.
+		var source kitcontent.Source
+		if cfg.MeshContent {
+			opened, sourceErr := kitcontent.OpenLauncherSource(launcherConfigPath)
+			switch {
+			case sourceErr == nil:
+				source = opened
+			case errors.Is(sourceErr, os.ErrNotExist):
+			default:
+				logger.Error("mesh content source unavailable", "error", sourceErr)
+			}
+		}
+		meshStore, meshErr := kitcontent.Open(dependencies.meshContentRoot, targetID, source, nil)
+		if meshErr != nil {
+			logger.Error("mesh content store unavailable", "error", meshErr)
+		} else {
+			if cfg.MeshContent {
+				roots := dependencies.packageRoots
+				if roots == nil {
+					roots = []string{installedPackageRoot, developmentCoreRoot}
+				}
+				meshStore.SetPackageRoots(roots)
+			}
+			options = append(options, httpapi.WithMeshContent(meshStore))
+		}
+	}
 	if targetID != "" {
 		options = append(options, httpapi.WithTargetID(targetID))
 	}

@@ -58,5 +58,33 @@ int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Bench b;
  for(unsigned row=0;row<8;++row){b.byte(row,0xaa);b.byte(56+row,0xaa);b.byte(64+row,0xaa);}
  b.byte(0x2000,0xa4);b.byte(0x2001,0x07);
  b.run({{0,10},{1,4},{8,10},{9,4},{16,13},{17,7}});
+ // Text mode: six visible high glyph bits, 40 columns, side margins and no sprites.
+ b.reg(0,0x00);b.reg(1,0x50);b.reg(2,6);b.reg(4,1);b.reg(7,0xa4);
+ b.byte(0x1800,3);b.byte(0x1801,4);b.byte(0x1827,5);b.byte(0x1828,6);
+ b.byte(0x0818,0xa7);b.byte(0x0820,0xc7);b.byte(0x0828,0x84);b.byte(0x0830,0xc0);b.byte(0x0819,0x00);
+ b.byte(0x1b00,255);b.byte(0x1b01,32);b.byte(0x1b02,0);b.byte(0x1b03,14);b.byte(0x3800,0xff);
+ b.run({{0,4},{7,4},{8,10},{9,4},{10,10},{11,4},{12,4},{13,10},
+        {14,10},{15,10},{16,4},{18,4},{19,10},
+        {32,4},{242,10},{247,10},{248,4},{255,4},{(1u<<8)|8u,4},
+        {(8u<<8)|8u,10}});
+ b.byte(0x0818,0x80);b.reg(7,0x04);b.run({{8,4}});b.reg(7,0xa4);
+ // Invalid TMS mode selectors must render only the R7 backdrop, never fall through.
+ b.reg(3,0x80);b.byte(0x1808,1);b.byte(0x0008,0xff);b.byte(0x0808,0xff);
+ b.byte(0x2000,0xa2);b.byte(0x2008,0xa2);
+ const unsigned invalid_modes[]={3,5,6,7};
+ for(const unsigned selector:invalid_modes){
+  const unsigned m1=(selector>>2)&1;const unsigned m2=(selector>>1)&1;const unsigned m3=selector&1;
+  b.reg(0,m3<<1);b.reg(1,0x40|(m1<<4)|(m2<<3));b.run({{64,4}});
+ }
+ // Multicolor uses a byte pair per tile row, with each nibble filling 4x4 pixels.
+ b.reg(0,0);b.reg(1,0x48);b.reg(2,6);b.reg(4,1);b.reg(7,0x0d);
+ b.byte(0x1801,2);b.byte(0x1821,2);b.byte(0x1841,2);b.byte(0x1861,2);b.byte(0x1881,2);
+ const unsigned multicolor_rows[]={0x2a,0x4c,0x6b,0x0d,0x31,0x52,0x73,0x84};
+ for(unsigned row=0;row<8;++row)b.byte(0x0810+row,multicolor_rows[row]);
+ b.run({{8,2},{12,10},{(4u<<8)|8u,4},{(4u<<8)|12u,12},
+        {(8u<<8)|8u,6},{(8u<<8)|12u,11},{(12u<<8)|8u,13},{(12u<<8)|12u,13},
+        {(16u<<8)|8u,3},{(16u<<8)|12u,1},{(20u<<8)|8u,5},{(20u<<8)|12u,2},
+        {(24u<<8)|8u,7},{(24u<<8)|12u,3},{(28u<<8)|8u,8},{(28u<<8)|12u,4},
+        {(32u<<8)|8u,2},{(32u<<8)|12u,10},{32,14}});
  std::cout<<"TMS Graphics I grouping, Graphics II thirds/masks, foreground/background, backdrop, display and full sprite color passed\n";
 }

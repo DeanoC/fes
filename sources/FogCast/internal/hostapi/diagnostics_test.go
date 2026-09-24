@@ -1,12 +1,50 @@
 package hostapi
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/DeanoC/FogCast/fogcast"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/protocol"
 )
+
+func TestMeshLaunchErrorsUseTheirOwnStatuses(t *testing.T) {
+	cart := meshcontent.SumSHA256([]byte("cart"))
+	for _, tc := range []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{"checking", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockEnsureProgress}, http.StatusConflict, "CONTENT_CHECKING"},
+		{"missing", &meshcontent.ContentMissingError{Kind: meshcontent.SlotPrimaryMedia, ID: cart}, http.StatusUnprocessableEntity, "CONTENT_MISSING"},
+		{"missing after check", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockContentMissing}, http.StatusUnprocessableEntity, "CONTENT_MISSING"},
+		{"pull failed", meshcontent.ErrContentPullFailed, http.StatusUnprocessableEntity, "CONTENT_PULL_FAILED"},
+		{"link failed", meshcontent.ErrContentLinkFailed, http.StatusUnprocessableEntity, "CONTENT_LINK_FAILED"},
+		{"unreachable", meshcontent.ErrContentUnreachable, http.StatusServiceUnavailable, "CONTENT_UNREACHABLE"},
+		{"lease required", &meshcontent.LeaseDeniedError{Code: "KIT_LEASE_REQUIRED"}, http.StatusForbidden, "KIT_LEASE_DENIED"},
+		{"abi skew", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockVersionSkew}, http.StatusConflict, "ABI_INELIGIBLE"},
+		{"abi missing", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockNoExecutor}, http.StatusConflict, "ABI_INELIGIBLE"},
+		{"lease", meshcontent.ErrLeaseNotFree, http.StatusForbidden, "KIT_LEASE_DENIED"},
+		{"timeout", meshcontent.ErrCheckingTimeout, http.StatusGatewayTimeout, "CONTENT_CHECKING_TIMEOUT"},
+		{"snapshot", &fogcast.LaunchSnapshotError{Reason: "target disabled"}, http.StatusConflict, "LAUNCH_CHANGED"},
+		{"other block", &meshcontent.ExecuteBlockedError{Block: meshcontent.BlockBrowseOnly}, http.StatusServiceUnavailable, "TARGET_UNAVAILABLE"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			writeSessionError(w, tc.err)
+			if w.Code != tc.status || !strings.Contains(w.Body.String(), tc.code) {
+				t.Fatalf("status %d body %s", w.Code, w.Body.String())
+			}
+			if tc.code != "TARGET_UNAVAILABLE" && strings.Contains(w.Body.String(), "TARGET_UNAVAILABLE") {
+				t.Fatalf("collapsed to target unavailable: %s", w.Body.String())
+			}
+		})
+	}
+}
 
 func TestSessionErrorSafeDiagnostics(t *testing.T) {
 	for _, tc := range []struct {

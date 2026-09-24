@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/brutella/dnssd"
+
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 )
 
 func TestEncodeAndParseMeshProtocolAndCapabilityBag(t *testing.T) {
@@ -115,11 +117,36 @@ func TestForeignExecuteDoesNotFlipReady(t *testing.T) {
 	if !foreign.MeshSessionCompatible() || len(foreign.Capabilities.Execute) != 1 {
 		t.Fatalf("foreign = %#v", foreign)
 	}
-	if ReadyForBoundExecutor(false, foreign) {
+	if ready, block := ReadyForBoundExecutor(false, foreign, nil); ready || block != meshcontent.BlockNone {
 		t.Fatal("execute advertisement flipped Ready for an unbound title")
 	}
-	if !ReadyForBoundExecutor(true, foreign) {
+	if ready, block := ReadyForBoundExecutor(true, foreign, nil); !ready || block != meshcontent.BlockNone {
 		t.Fatal("bound composition lost Ready")
+	}
+	distant := meshcontent.NewCache()
+	bios := meshcontent.SumSHA256([]byte("bios"))
+	if err := distant.Hold(bios); err != nil {
+		t.Fatal(err)
+	}
+	entry := meshcontent.Entry{
+		TitleID: "coleco-frogger", System: "coleco", Launchable: true,
+		Execute: []meshcontent.Execute{{Kind: meshcontent.ExecuteFPGANative}},
+		Slots: []meshcontent.Slot{
+			meshcontent.PackageSlot(meshcontent.PackageABI{PackageID: strings.Repeat("ab", 32), ABI: "fes.application", Major: 1}),
+			meshcontent.BIOSSlot(bios),
+		},
+	}
+	here := &ReadyHereInput{Entry: entry, Bound: meshcontent.Bound{
+		Execute: true, LeaseFree: true, MeshMajorOK: true,
+		Distant:  distant,
+		Packages: []string{strings.Repeat("ab", 32)},
+		ABIs:     []meshcontent.EligibleABI{{ID: "fes.application", Major: 1}},
+	}}
+	if ready, block := ReadyForBoundExecutor(true, foreign, here); ready || block != meshcontent.BlockDistant {
+		t.Fatalf("distant ready=%v block=%s", ready, block)
+	}
+	if !MeshMajorCompatible("1.0") || !MeshMajorCompatible("1.2") || MeshMajorCompatible("2.0") || MeshMajorCompatible("") {
+		t.Fatal("mesh major compatibility")
 	}
 }
 

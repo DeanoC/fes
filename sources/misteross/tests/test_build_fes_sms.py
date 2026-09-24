@@ -158,7 +158,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertEqual(SMS_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "0fad53a75a0218941c417ec6bb58bdede9070987")
+        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "5dea3ecd5062f1187d0b4f04a56139d5f8680cf7")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
         self.assertEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)

@@ -921,6 +921,49 @@ func writeConfig(t *testing.T, content string) string {
 	return path
 }
 
+func TestLoadConfigMeshEnsureDefaultsOff(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "SNES")
+	second := filepath.Join(dir, "Genesis")
+	if err := os.MkdirAll(first, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(second, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := fogcast.LoadConfig(writeConfig(t, validConfig(first, second)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MeshEnsure {
+		t.Fatal("missing [mesh] defaulted ensure on")
+	}
+	bare := writeConfig(t, validConfig(first, second)+"\n[mesh]\n")
+	cfg, err = fogcast.LoadConfig(bare)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MeshEnsure {
+		t.Fatal("bare [mesh] turned ensure on")
+	}
+	off := writeConfig(t, validConfig(first, second)+"\n[mesh]\nensure = false\n")
+	cfg, err = fogcast.LoadConfig(off)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MeshEnsure {
+		t.Fatal("ensure = false turned ensure on")
+	}
+	on := writeConfig(t, validConfig(first, second)+"\n[mesh]\nensure = true\n")
+	cfg, err = fogcast.LoadConfig(on)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.MeshEnsure {
+		t.Fatal("ensure = true stayed off")
+	}
+}
+
 func TestLoadConfigRejectsRetiredRawCoreMap(t *testing.T) {
 	path := writeConfig(t, `token = "test"
 [fpga_rom_paths]

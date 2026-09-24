@@ -80,6 +80,15 @@ module sms_machine (
     reg ce_cpu_n;
     reg ce_vdp;
     reg [4:0] ce_counter;
+    wire ce_raster;
+
+    tms9918_raster_ce #(
+        .SYSTEM_CLOCK_HZ(52_000_000)
+    ) raster_timing (
+        .clk(clk_sys),
+        .reset(machine_reset),
+        .raster_ce(ce_raster)
+    );
 
     wire [7:0] vdp_cpu_dout;
     wire [8:0] vdp_raster_y;
@@ -139,8 +148,8 @@ module sms_machine (
         ce_counter = 5'h00;
     end
 
-    // Same 52 MHz enable shape as the Coleco / SG-1000 first slice,
-    // approximating the 3.58 MHz CPU/VDP cadence.
+    // Keep the reduced TV80 and PSG clock enables. SMS Mode 4 retains its
+    // existing line-render budget; the shared TMS9918 path uses nominal 60 Hz.
     always @(negedge clk_sys) begin
         ce_counter <= ce_counter + 1'b1;
         ce_cpu_p <= !ce_counter[3] && !ce_counter[2:0];
@@ -180,7 +189,8 @@ module sms_machine (
         .cpu_a(cpu_addr[7:0]),
         .cpu_din(cpu_dout),
         .cpu_dout(vdp_cpu_dout),
-        .raster_ce(ce_vdp),
+        .mode4_raster_ce(ce_vdp),
+        .tms_raster_ce(ce_raster),
         .raster_x(vdp_raster_x),
         .raster_y(vdp_raster_y),
         .raster_color(vdp_raster_color),

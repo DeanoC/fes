@@ -1,17 +1,25 @@
 # Mesh LAN — Phase 2 execution brief
 
-**Status:** Phase 2 started. Slice 1 is this change. Bob coordinates.
-Deano owns FES parent merges. Do not merge from this brief.
+**Status:** Phase 2 started. Slices 1 through 8 are on main. Slice 9
+turns the ensure seam on in production when `[mesh] ensure = true`.
+The host switch defaults off until #177 (legacy fallback when the
+source does not advertise) and #172 (kit home host) land. An unset
+key or `ensure = false` keeps the Phase 0 and Phase 1 path. The kit
+content source stays behind `mesh_content` (default on).
+`mesh_content = false` restores a nil source.
+Bob coordinates. Deano owns FES parent merges.
+Do not merge from this brief.
 
-**Audience:** FogCast host (library and host API), Caster when a later
-slice's ensure touches the kit, rooms UX (Foggy) when Ready copy
-lands, and anyone picking up Slice 2. Read the locks first. This brief
-names owners, slices, and the unsigned hash strawman. It does not
-reopen Phase 1 and it does not freeze a wire format.
+**Audience:** FogCast host (library and host API), Caster when the kit
+content store lands, rooms UX (Foggy) when Ready copy lands, and anyone
+picking up that store. Read the locks first. This brief names owners,
+slices, and the unsigned hash strawman. It does not reopen Phase 1 and
+it does not freeze a wire format.
 
-**Base:** FES `main` `3d34b6e0`. Phase 1 is closed there: Soft-stop
-#132, capability advertisements #134, host inventory and in-use #137.
-Acceptance in [`mesh-phase1.md`](mesh-phase1.md) stays as written.
+**Base:** Slice 3 is FES `main` `663ce6d5`. Phase 1 closed at
+`3d34b6e0`: Soft-stop #132, capability advertisements #134, host
+inventory and in-use #137. Acceptance in
+[`mesh-phase1.md`](mesh-phase1.md) stays as written.
 
 ---
 
@@ -73,14 +81,14 @@ Owners are component strawmen. Agree files before parallel edits
 | **Rooms UX** | Foggy | Phase 2 Ready copy, when that slice lands | Treat distant-only bytes as Ready. Collapse Checking, Missing, Needs a choice, In use, and version skew into one string. |
 | **Parent merge** | Deano | Merge to `main` | — |
 
-Slice 1 does not touch the kit. Caster's review waits until a slice
-writes executor cache or session ensure.
+Slices 1–3 do not touch the kit. The kit content store in slice 4
+does. Caster reviews that boundary.
 
 ---
 
 ## Ordered slices
 
-### 1. Content-id and catalog entry shape — this change
+### 1. Content-id and catalog entry shape — on main
 
 **Owner:** FogCast host. Package `internal/meshcontent`.
 
@@ -105,63 +113,152 @@ writes executor cache or session ensure.
   execute kind, and launchable versus browse-only. Paths do not appear.
 - An in-memory cache records which content-ids one executor holds. It
   stores no bytes and does not contact a peer.
-- `ReadyHere` evaluates the Phase 2 Ready rule for tests. Rooms,
-  `POST /api/v1/session/launch`, `GET /api/v1/games`, and
-  `discovery.ReadyForBoundExecutor` do not call it. Phase 1 Ready stays
-  composition against the bound executor.
+- `ReadyHere` evaluates the Phase 2 Ready rule. This slice did not call
+  it from rooms, launch, `GET /api/v1/games`, or
+  `discovery.ReadyForBoundExecutor`. Slice 5 does, when a mesh session
+  is installed. With the seam off, Phase 1 Ready stays composition
+  against the bound executor.
 
 **Does not:** federated pull, byte cache, a new host route, a title
 list on advertisements, or a Ready change.
 
-### 2. Project today's library into that shape — not started
+### 2. Project today's library into that shape — on main
 
 **Owner:** FogCast host.
 
-**Do:** Fill catalog entries from the host library that already
-exists: package id and ABI, household firmware digest when the slot is
-required, selected primary-media digest, expansion asset digests. Use
-the strawman adapter for digests the host already stores. Still no
-cross-node pull. Still do not call `ReadyHere` from rooms.
+`fogcast.ProjectMeshLibrary` fills `[]meshcontent.Entry` from the host
+library that already exists. A package-backed title gets a
+`package_abi` slot: the described package id, the ABI id, and the ABI
+major. That major is the package ABI major, not the mesh protocol
+major. A title that requires household firmware gets that slot's stored
+core-media digest. The selected primary-media digest and each named
+expansion's stored digest are content-ids. Digests the host already
+stores pass through `meshcontent.FromSHA256`. The projection does not
+open those files and does not hash them again. Today's `host_only`
+execution projects as `native_emu` and carries no package slot.
+Launchable `fpga_native` requires the package slot. Title ids are
+catalog game ids (`protocol.ValidateGameID`). A title that cannot be
+projected is omitted and returned with a reason. It is not invented.
+
+There is no new host route. This slice did not call `ReadyHere`. The
+projection still does not. Slice 5 calls `ReadyHere` from rooms and
+`GET /api/v1/games` when a mesh session is installed.
 
 **Does not:** treat that projection as Phase 2 Ready. Does not move
-bytes onto the kit.
+bytes onto the kit. Does not pull across nodes. Does not add a
+removable or secondary slot. The hash algorithm stays the unsigned
+sha256 strawman.
 
-### 3. Pull and cache onto the bound executor — not started
+### 3. Ensure required slots on the bound executor — this change
 
-**Owner:** FogCast host, then the target agent if the ensure crosses
-the kit. Caster reviews that kit boundary.
+**Owner:** FogCast host. The executor is an interface. Tests use a
+fake. Caster's kit review waits for the next slice.
 
-**Do:** A session may name the required slot content-ids. Before
-execute, each required content-id is already on that executor or is
-pulled from a content source. Failure class: content missing, no
-source. Mid-pull stays Checking and does not program the FPGA.
+**Do:** `meshcontent.Ensure` takes one projected `meshcontent.Entry`
+and the executor the session is already bound to. Each required
+content-id comes back Present, Checking, or Missing. Present means
+that id is on the executor. Checking means a pull is in progress.
+Missing with a source starts a pull; the slot stays Checking until
+that pull reports Present. `Launch` calls this only when
+`SetMeshExecuteSession` installed a session, and it returns before the
+existing execute path while any required slot is Checking. `LaunchOn`
+ensures a launchable FPGA entry on the target that call will execute
+on. A named target or a changed selected target that is not that
+executor is rejected before any pull. The launch captures that target
+once; Ensure and bind both use the capture, so a settings change
+during the call cannot bind a different node. A changed address or
+TargetID on that same name is rejected, and the captured client stays
+on an unchanged endpoint. An implicit target with an empty TargetID is
+the bound node only when its name is that node. Otherwise Ensure
+returns `ErrUnboundNode` and does not pull. Launch also refuses to program when the
+selected package, media, firmware, ROM, or expansion composition no
+longer matches the row Ensure checked. A foreign-kit denial for that
+FPGA launch returns before Ensure. Host-only play stays on the
+installed session node.
+
+`MeshExpansion.Digest` is the slot-bytes digest: SHA-256 of that
+slot's own bytes (`expansion.Manifest.CartSHA256`). It is not
+`Asset.ID`, not the archive `media_id`, and not `ProgrammedSHA256`.
+`ExpansionSlotBytesID` names it. Primary media uses `PrimarySourceID`:
+the format-3 source `MediaID`, which the executor records as
+`SourceSHA256`. Ensure does not read `ProgrammedSHA256`. Expansion
+bytes stay separate content-ids. `Executor.LinkExpansion` links them
+on the executor. The host does not pre-link them.
+
+`ReadyHere` checks package ABI id and major as well as package id. An
+unlisted ABI is no capable executor. The same ABI id at another major
+is version skew. Package id alone is not eligibility. This slice still
+did not call `ReadyHere` from rooms, `GET /api/v1/games`, or
+`discovery.ReadyForBoundExecutor`. Slice 5 does.
+
+**Failure class:** `ErrContentMissingNoSource`. A required content-id
+that is missing on the bound executor and has no source. Fail closed.
+It is not `ErrExecuteBlocked` and it is not `ErrUnboundNode`.
 
 **Does not:** automatic placement. Does not pull onto a node the
-session did not bind. Does not free a lease.
+session did not bind (`ErrUnboundNode`). Does not free or change a
+lease. Does not move bytes through mister-agent. Does not add a host
+route or a wire freeze. JSON tags stay on the host catalog shape.
+Ensure results have none. The hash algorithm stays the unsigned sha256
+strawman.
 
-### 4. Phase 2 Ready — not started
+### 4. Kit content store — this change
+
+**Owner:** FogCast target agent. Caster reviews this boundary.
+
+**Do:** Implement `meshcontent.Executor` on the kit the session bound.
+Hold content-ids, pull bytes from a content source onto that kit, and
+link expansion slot-bytes there. Report Present, Checking, or Missing.
+Honor the same failure class. Do not program the FPGA while a required
+slot is Checking. The host drives that store only when a mesh session
+is installed. Phase 0 and Phase 1 launch do not install one.
+
+**Does not:** automatic placement. Does not pull onto a node the
+session did not bind. Does not free a lease. Does not turn rooms Ready
+on. That is the following slice.
+
+### 5. Phase 2 Ready — this change
 
 **Owner:** FogCast host for the predicate. Foggy for the sofa copy.
 
-**Do:** Rooms Ready uses the Phase 2 rule for a mesh session: Execute
-binding, every required slot ensured on that executor, lease free,
-mesh major OK. Distant-only is Unavailable with a next action. Copy
-stays the five-way split in
+**Do:** Rooms Ready and Play, `GET /api/v1/games`, and
+`discovery.ReadyForBoundExecutor` use `ReadyHere` when a mesh execute
+session is installed. A title is Ready here only when this shell has
+an Execute binding, every required slot is Present on that executor,
+the lease is free for this session, and the mesh-protocol major is
+compatible. Lease-free means this session's current grant and
+generation on the bound node, or an unleased kit whose client can
+claim the pull. A lost grant is not free. A client for a different
+kit is not that lease. A foreign holder is not Ready. A true ReadyHere
+result still has to pass the catalog admission checks. Distant-only bytes are Unavailable with `ready_block`
+and `next_action` on the games row (`fetch_here`). A slot mid-pull
+stays Checking. Copy stays the five-way split in
 [mesh LAN](mesh-lan.md). Phase 0 and Phase 1 sessions that are not
 asking for the mesh content contract keep today's composition Ready.
+With the seam off, `ready_here` is omitted and Coleco, ZX81, and
+host-only titles stay Ready and launch as they do now.
+`enrichLaunchable` still prefers a launchable package over a
+browse-only cart.
 
 **Does not:** Ready from an Execute advertisement alone. Does not
-Ready from bytes that only exist on some other LAN node.
+Ready from bytes that only exist on some other LAN node. Does not
+install the executor or a content source. The production seam stays
+off and Source stays nil. Does not program the FPGA.
 
 ---
 
 ## Phase 0 / Phase 1 floor
 
 Empty-body session stop still releases. Soft-stop still retains.
-Launch, the kit lease, DNS-SD advertisements, and
-`GET /api/v1/mesh/nodes` stay as Phase 1 left them. A room with one
-shell and one kit launches as it does now. Another node's Execute
-advertisement still does not make a row Ready.
+The kit lease, DNS-SD advertisements, and `GET /api/v1/mesh/nodes`
+stay as Phase 1 left them. Production `fogcast-api` and the `fogcast`
+CLI call `EnableMeshContent` after open. `[mesh] ensure` defaults off,
+so the seam stays off unless the config sets `ensure = true`. That
+default stays off until #177 and #172 land. A kit that cannot be
+dialed leaves the seam off, so that launch stays
+on the Phase 0 and Phase 1 path. Host-only titles are not projected
+into the seam. Another node's Execute advertisement still
+does not make a row Ready.
 
 ---
 
@@ -169,7 +266,7 @@ advertisement still does not make a row Ready.
 
 **Per-slot hash algorithm.** Not locked.
 
-Strawman, for Slice 1 only: SHA-256 over that slot's bytes, lowercase
+Strawman, still unsigned: SHA-256 over that slot's bytes, lowercase
 hex, text form `sha256:<64 hex>`. The same digest family as today's
 catalog content hash and core-media id, with an algorithm prefix so
 the value is not a title id and not a package id. Package / ABI stays

@@ -62,7 +62,7 @@ func (s *controllerPortsSink) Apply(f protocol.InputFrame) error {
 	if err := s.state.Apply(e); err != nil {
 		return err
 	}
-	buttons, keypad := controllerSnapshot(s.state.SnapshotForPlayer(f.Player))
+	buttons, keypad := controllerSnapshot(s.state.SnapshotForPlayer(f.Player), s.binding.Keypad)
 	// A failed local request can have applied: release must still attempt zero.
 	s.dirty[f.Player] = true
 	if err := s.poster(s.binding.PackageID, s.binding.Generation, f.Player, buttons, keypad); err != nil {
@@ -80,7 +80,16 @@ func validControllerEvent(e remoteinput.Event, keypad bool) bool {
 		((e.Code >= remoteinput.ButtonDPadUp && e.Code <= remoteinput.ButtonSelect) || (keypad && e.Code >= remoteinput.Keypad0 && e.Code <= remoteinput.KeypadHash))
 }
 
-func controllerSnapshot(snapshot remoteinput.Snapshot) (buttons uint8, keypad uint16) {
+// Keypad-port cores (Coleco) have no Start or Select on the original
+// controller, and a modern pad has no keypad. On those cores Start also
+// presses keypad 1 (the usual one-player game select) and Select also presses
+// keypad * (the usual replay key). The Start/Select bitmap bits stay set.
+const (
+	keypadAliasStart  = uint16(1) << 1 // keypad 1
+	keypadAliasSelect = uint16(1) << (remoteinput.KeypadStar - remoteinput.Keypad0)
+)
+
+func controllerSnapshot(snapshot remoteinput.Snapshot, keypadPorts bool) (buttons uint8, keypad uint16) {
 	// Shared bitmap is Up,Down,Left,Right,A,B,Select,Start.
 	for _, code := range snapshot.Pressed {
 		if code >= remoteinput.ButtonDPadUp && code <= remoteinput.ButtonB {
@@ -88,9 +97,15 @@ func controllerSnapshot(snapshot remoteinput.Snapshot) (buttons uint8, keypad ui
 		}
 		if code == remoteinput.ButtonSelect {
 			buttons |= 1 << 6
+			if keypadPorts {
+				keypad |= keypadAliasSelect
+			}
 		}
 		if code == remoteinput.ButtonStart {
 			buttons |= 1 << 7
+			if keypadPorts {
+				keypad |= keypadAliasStart
+			}
 		}
 		if code >= remoteinput.Keypad0 && code <= remoteinput.KeypadHash {
 			keypad |= 1 << (code - remoteinput.Keypad0)

@@ -19,6 +19,7 @@ import (
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/host"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 	"github.com/DeanoC/FogCast/internal/metadata"
 	"github.com/DeanoC/FogCast/internal/version"
 	"github.com/DeanoC/FogCast/protocol"
@@ -71,6 +72,11 @@ type gameResult struct {
 	ROMMediaID       string              `json:"rom_media_id,omitempty"`
 	ExpansionReady   bool                `json:"expansion_ready,omitempty"`
 	FirmwareReady    bool                `json:"firmware_ready,omitempty"`
+	// ReadyHere is set only when a mesh execute session is installed.
+	// Nil omits the field and leaves Phase 0 composition Ready.
+	ReadyHere  *bool  `json:"ready_here,omitempty"`
+	ReadyBlock string `json:"ready_block,omitempty"`
+	NextAction string `json:"next_action,omitempty"`
 }
 
 type gamesResult struct {
@@ -211,6 +217,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	mux := http.NewServeMux()
 	registerCoreLibrary(mux, service)
 	registerCoreData(mux, service)
+	registerMeshHostContent(mux, service)
 	session := newSessionCoordinator(service, config.remoteInput, config.media)
 	uiEvents := newUIEventRing(uiEventRingCapacity)
 	registerDebugUIRoutes(mux, uiEvents)
@@ -910,6 +917,76 @@ func rejectBody(w http.ResponseWriter, r *http.Request) error {
 }
 
 func writeSessionError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, meshcontent.ErrContentMissingNoSource):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_MISSING", Message: "required content is missing and no source advertises it",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrContentPullFailed):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_PULL_FAILED", Message: "required content pull failed",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrContentLinkFailed):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+			Code: "CONTENT_LINK_FAILED", Message: "mesh link failed",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrContentUnreachable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{
+			Code: "CONTENT_UNREACHABLE", Message: "mesh content could not be read",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrCheckingTimeout):
+		writeJSON(w, http.StatusGatewayTimeout, map[string]any{"error": apiError{
+			Code: "CONTENT_CHECKING_TIMEOUT", Message: "required content stayed checking until the host timeout",
+		}})
+		return
+	case errors.Is(err, meshcontent.ErrLeaseNotFree):
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
+			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
+		}})
+		return
+	}
+	var lease *meshcontent.LeaseDeniedError
+	if errors.As(err, &lease) {
+		writeJSON(w, http.StatusForbidden, map[string]any{"error": apiError{
+			Code: "KIT_LEASE_DENIED", Message: "session does not own the kit lease",
+		}})
+		return
+	}
+	var blocked *meshcontent.ExecuteBlockedError
+	if errors.As(err, &blocked) {
+		switch blocked.Block {
+		case meshcontent.BlockEnsureProgress:
+			// Launch waits with a positive checking timeout, so this
+			// 409 is not produced by POST /api/v1/session/launch. The
+			// timeout wins and the status is CONTENT_CHECKING_TIMEOUT.
+			// Ensure with CheckingTimeout 0 can still return the block.
+			writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{
+				Code: "CONTENT_CHECKING", Message: "required content is still being checked",
+			}})
+			return
+		case meshcontent.BlockContentMissing:
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": apiError{
+				Code: "CONTENT_MISSING", Message: "required content is missing",
+			}})
+			return
+		case meshcontent.BlockVersionSkew, meshcontent.BlockNoExecutor:
+			writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{
+				Code: "ABI_INELIGIBLE", Message: "the bound executor cannot run the required package ABI",
+			}})
+			return
+		}
+	}
+	var drifted *fogcast.LaunchSnapshotError
+	if errors.As(err, &drifted) {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": apiError{
+			Code: "LAUNCH_CHANGED", Message: drifted.Error(),
+		}})
+		return
+	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
 		status := http.StatusInternalServerError

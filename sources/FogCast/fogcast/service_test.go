@@ -767,35 +767,48 @@ func (f *fakeServicePreparer) Prepare(ctx context.Context, root catalog.Root, ga
 }
 
 type fakeServiceClient struct {
-	cacheIndex         func(context.Context) (protocol.CacheIndex, error)
-	cacheIndexCalls    int
-	probe              func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
-	upload             func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
-	developmentLoad    func(context.Context, int64, io.Reader) (protocol.Status, error)
-	coreLoad           func(context.Context, int64, io.Reader) (protocol.Status, error)
-	developmentReboot  func(context.Context) (protocol.Status, error)
-	probeCalls         int
-	uploadCalls        int
-	launchCalls        int
-	nativeLaunchCalls  int
-	developmentCalls   int
-	coreCalls          int
-	developmentReboots int
-	developmentSize    int64
-	developmentBody    []byte
-	healthCalls        int
-	statusCalls        int
-	stopCalls          int
-	activeGame         string
-	healthResult       protocol.Health
-	healthFn           func(context.Context) (protocol.Health, error)
-	statusResult       protocol.Status
-	statusFn           func(context.Context) (protocol.Status, error)
-	stopResult         protocol.Status
-	stopFn             func(context.Context) (protocol.Status, error)
-	healthErr          error
-	statusErr          error
-	stopErr            error
+	cacheIndex          func(context.Context) (protocol.CacheIndex, error)
+	cacheIndexCalls     int
+	probe               func(context.Context, protocol.System, protocol.ContentIdentity) (protocol.CacheProbeResponse, error)
+	upload              func(context.Context, protocol.System, protocol.ContentIdentity, io.Reader) (protocol.CacheUploadResponse, error)
+	developmentLoad     func(context.Context, int64, io.Reader) (protocol.Status, error)
+	coreLoad            func(context.Context, int64, io.Reader) (protocol.Status, error)
+	developmentReboot   func(context.Context) (protocol.Status, error)
+	probeCalls          int
+	uploadCalls         int
+	launchCalls         int
+	nativeLaunchCalls   int
+	developmentCalls    int
+	coreCalls           int
+	developmentReboots  int
+	developmentSize     int64
+	developmentBody     []byte
+	healthCalls         int
+	statusCalls         int
+	stopCalls           int
+	activeGame          string
+	healthResult        protocol.Health
+	healthFn            func(context.Context) (protocol.Health, error)
+	statusResult        protocol.Status
+	statusFn            func(context.Context) (protocol.Status, error)
+	stopResult          protocol.Status
+	stopFn              func(context.Context) (protocol.Status, error)
+	healthErr           error
+	statusErr           error
+	stopErr             error
+	meshLeaseGeneration string
+	meshLeaseAbandoned  bool
+}
+
+func (f *fakeServiceClient) MeshKitLease() (bool, string) {
+	if f == nil || f.meshLeaseGeneration == "" {
+		return false, ""
+	}
+	return true, f.meshLeaseGeneration
+}
+
+func (f *fakeServiceClient) MeshKitLeaseAbandoned() bool {
+	return f != nil && f.meshLeaseAbandoned
 }
 
 type shutdownOwnershipServiceClient struct {

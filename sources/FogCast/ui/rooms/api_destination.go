@@ -81,12 +81,9 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		}
 	case d.GameID != "":
 		if g, ok := r.games[d.GameID]; ok {
-			if g.LaunchEligible() {
-				d.Availability = AvailReady
-			} else {
-				d.Availability = AvailUnavailable
-				d.Matches = []hostclient.Game{g}
-			}
+			state, matches := ClassifyGames([]hostclient.Game{g}, "")
+			d.Availability = state
+			d.Matches = matches
 		} else {
 			d.Availability = AvailChecking
 		}
@@ -161,6 +158,8 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	t.RawSetString("note_by", lua.LString(d.NoteBy))
 	t.RawSetString("query", lua.LString(d.Query))
 	t.RawSetString("platform", lua.LString(d.Platform))
+	t.RawSetString("ready_block", lua.LString(d.ReadyBlock))
+	t.RawSetString("next_action", lua.LString(d.NextAction))
 	t.RawSetString("played", lua.LBool(d.History.Played))
 	t.RawSetString("completed", lua.LBool(d.History.Completed))
 	t.RawSetString("history", lua.LString(d.History.Line()))
@@ -212,6 +211,12 @@ func (r *Instance) gamesFromLua(v lua.LValue) []hostclient.Game {
 			FirmwareReady:    optBool(row, "firmware_ready"),
 		}
 		g = applyPlayFacts(g, row)
+		if _, ok := row.RawGetString("ready_here").(lua.LBool); ok {
+			ready := optBool(row, "ready_here")
+			g.ReadyHere = &ready
+			g.ReadyBlock = optString(row, "ready_block")
+			g.NextAction = optString(row, "next_action")
+		}
 		if g.State == "" && g.Launchable {
 			g.State = "available"
 		}

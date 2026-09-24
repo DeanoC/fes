@@ -74,17 +74,34 @@ void write_cram(Vsms_vdp &dut, uint8_t address, uint8_t value) {
     io_write(dut, 0xbe, value);
 }
 
-void raster_step(Vsms_vdp &dut) {
-    dut.raster_ce = 1;
+void mode4_raster_step(Vsms_vdp &dut) {
+    dut.mode4_raster_ce = 1;
     tick(dut);
-    dut.raster_ce = 0;
+    dut.mode4_raster_ce = 0;
+    for (unsigned cycle = 0; cycle != 15; ++cycle) tick(dut);
+}
+
+void tms_raster_step(Vsms_vdp &dut) {
+    dut.tms_raster_ce = 1;
+    tick(dut);
+    dut.tms_raster_ce = 0;
+    for (unsigned cycle = 0; cycle != 15; ++cycle) tick(dut);
+}
+
+void raster_step(Vsms_vdp &dut) {
+    dut.mode4_raster_ce = 1;
+    dut.tms_raster_ce = 1;
+    tick(dut);
+    dut.mode4_raster_ce = 0;
+    dut.tms_raster_ce = 0;
     for (unsigned cycle = 0; cycle != 15; ++cycle) tick(dut);
 }
 
 uint8_t sample_pixel(Vsms_vdp &dut, uint8_t x, uint8_t y, unsigned occurrence) {
     unsigned seen = 0;
     for (unsigned pixel = 0; pixel != 256 * 262 * 4; ++pixel) {
-        dut.raster_ce = 1;
+        dut.mode4_raster_ce = 1;
+        dut.tms_raster_ce = 1;
         dut.eval();
         if (dut.raster_x == x && dut.raster_y == y) {
             ++seen;
@@ -112,7 +129,8 @@ int main(int argc, char **argv) {
     dut.cpu_wr_n = 1;
     dut.cpu_a = 0;
     dut.cpu_din = 0;
-    dut.raster_ce = 0;
+    dut.mode4_raster_ce = 0;
+    dut.tms_raster_ce = 0;
     dut.eval();
     for (unsigned cycle = 0; cycle != 8; ++cycle) tick(dut);
     dut.reset = 0;
@@ -196,6 +214,32 @@ int main(int argc, char **argv) {
     require(sample_pixel(dut, 192, 0, 3) == 0x07,
             "rightmost eight tile columns did not inhibit vertical scroll");
 
-    std::cout << "FES SMS Mode 4 VDP checks passed\n";
+    write_register(dut, 0, 0x00);  // Return from SMS Mode 4 to legacy TMS modes.
+    write_register(dut, 1, 0x50);
+    write_register(dut, 2, 6);
+    write_register(dut, 4, 1);
+    write_register(dut, 7, 0xa4);
+    write_vram(dut, 0x1800, 3);
+    write_vram(dut, 0x0818, 0xa7);
+    const uint8_t tms_x = dut.raster_x;
+    const uint16_t tms_y = dut.raster_y;
+    mode4_raster_step(dut);
+    require(dut.raster_x == tms_x && dut.raster_y == tms_y,
+            "SMS Mode 4 raster enable advanced the TMS fallback");
+    tms_raster_step(dut);
+    require(dut.raster_x == uint8_t(tms_x + 1) && dut.raster_y == tms_y,
+            "TMS raster enable did not advance the legacy path independently");
+    require(sample_pixel(dut, 8, 0, 3) == 0x1f,
+            "legacy Text glyph did not pass through SMS palette conversion");
+
+    write_register(dut, 1, 0x48);
+    write_vram(dut, 0x1801, 2);
+    write_vram(dut, 0x0810, 0x2a);
+    require(sample_pixel(dut, 8, 0, 3) == 0x1c,
+            "legacy Multicolor high nibble did not pass through SMS palette conversion");
+    require(sample_pixel(dut, 12, 0, 3) == 0x1f,
+            "legacy Multicolor low nibble did not pass through SMS palette conversion");
+
+    std::cout << "FES SMS Mode 4 and legacy TMS VDP checks passed\n";
     return EXIT_SUCCESS;
 }

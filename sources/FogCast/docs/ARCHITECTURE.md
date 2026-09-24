@@ -794,7 +794,8 @@ The production target agent enforces a renewable kit lease across game and
 native development sessions. Authenticated clients read `GET /v1/kit/lease`,
 claim with `POST /v1/kit/claim` (`request_id`, `owner`, `purpose`), and carry the
 returned secret in `X-FogCast-Kit-Lease` on every hardware mutation and input
-CONNECT. Request IDs are random hexadecimal strings of at least 32 characters;
+CONNECT. Mesh content pull and link are hardware mutations on that list.
+Node, slot, and source reads are not. Request IDs are random hexadecimal strings of at least 32 characters;
 retries reuse the same ID. Cache transfer, status inspection, and
 `GET /v2/hostless/identity/{game_id}` do not reserve the kit. A Stop
 ends the current runtime session but retains ownership for another launch.
@@ -822,7 +823,10 @@ remains a maintenance escape outside the lease boundary.
 
 The production service owns a renewable target kit lease, shared explicitly
 with its game/development client and target input bridge (including CONNECT).
-The first hardware mutation claims ownership; renewal runs every 20 seconds
+The first hardware mutation claims ownership. Mesh content pull is one of
+those acquiring mutations, so a fresh session's first FPGA mesh launch on a
+free kit claims before Ensure. Mesh content link requires the grant already
+held. Renewal runs every 20 seconds
 against the target's 90-second timeout. Client expiry uses the returned
 remaining duration and local monotonic time, so a kit without an RTC works;
 request round-trip time counts against that duration. Status and cache transfers do not claim
@@ -900,19 +904,219 @@ session that needs the mesh contract fails closed on that major. A random servic
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
-Host-side content identity for a later library slice lives in
-`internal/meshcontent`. A catalog entry names the title id (a catalog
-game id: lowercase ASCII slug), one execute kind, and the required
-slots. A launchable `fpga_native` entry requires a package/ABI slot.
-A launchable `native_emu` entry requires primary media and carries no
-package/ABI slot; BIOS and expansion content-ids are optional. A
-content-id is the unsigned strawman `sha256:` plus 64 lowercase hex of
-that slot's bytes. Deano has not locked the algorithm. The package/ABI
-slot is the described package id and ABI, not a content-id of an RBF.
-The package can record which of those content-ids one local cache
-holds. It stores no bytes and contacts no peer. Session launch, rooms
-Ready, `GET /api/v1/games`, and `GET /api/v1/mesh/nodes` do not read it.
-Phase 1 Ready remains composition against the bound executor.
+Host-side content identity lives in `internal/meshcontent`.
+`fogcast.ProjectMeshLibrary` projects the host library already stored
+into that catalog shape: described package id and ABI, the household
+firmware digest when that slot is required, the selected primary-media
+digest, and named expansion digests. Stored SHA-256 strings pass
+through `FromSHA256`. Primary media uses `PrimarySourceID`: the
+format-3 source `MediaID`, which the executor records as
+`SourceSHA256`. That id is not the post-link `ProgrammedSHA256`.
+`MeshExpansion.Digest` is the slot-bytes digest, SHA-256 of the
+expansion slot's own bytes (`expansion.Manifest.CartSHA256`). It is
+not `Asset.ID`, not the archive `media_id`, and not
+`ProgrammedSHA256`. `ExpansionSlotBytesID` names that digest. The
+projection does not hash files again and does not link expansion bytes.
+A title that cannot be named is skipped. A catalog entry names the
+title id (a catalog game id: lowercase ASCII slug), one execute kind,
+and the required slots. A launchable `fpga_native` entry requires a
+package/ABI slot. A launchable `native_emu` entry requires primary
+media and carries no package/ABI slot; BIOS and expansion content-ids
+are optional. A content-id is the unsigned strawman `sha256:` plus 64
+lowercase hex of that slot's bytes. Deano has not locked the algorithm.
+The package/ABI slot is the described package id and ABI, not a
+content-id of an RBF. `PackageABI.Major` is that ABI's major, not the
+mesh protocol major. `ReadyHere` requires that package id and an
+eligible ABI id and major before it reports Ready. Package id alone is
+not eligibility.
+
+`meshcontent.Ensure` is the host ensure step. It takes one projected
+entry and the executor the session is already bound to. Each required
+content-id comes back Present, Checking (mid-pull), or Missing. A
+required id that is missing and has no source is
+`ErrContentMissingNoSource`. A Checking slot is not pulled again. A
+pull that finishes Missing is `ErrContentPullFailed`.
+`Result.Execute` stays false while any required slot is Checking or
+the executor's ABI id and major are not eligible, and Launch returns
+before the existing execute path. Expansion content-ids stay separate
+and are linked by `Executor.LinkExpansion` only when every required
+sibling is Present and the package ABI is eligible. A sibling that is
+Checking or Missing is not linked. The same expansion name and
+content-id may be linked again; that call is a no-op. Ensure does not
+roll back a link that already succeeded. The host does not pre-link
+them and does not program the FPGA. Ensure does not choose a node,
+does not pull onto a node the session did not bind, and does not
+release or change a lease. It also does not pull unless the caller
+reports an owned binding that is not in use (`ErrLeaseNotFree`).
+
+`LaunchOn` admits the request first, with the seam on or off. A
+canceled context or a malformed game id returns before the core-entry
+lookup, so that request does not pull and does not read the catalog
+for the launch. When a mesh session is installed, it then takes one
+launch snapshot: target name, TargetID, address, enabled state, the
+captured client, the bound
+node id, and the catalog row Ensure will check (package, ABI, media,
+firmware, ROM, and expansion slots). Ensure runs against that snapshot.
+A known target that is already disabled is refused before Ensure. An
+implicit target with an empty TargetID is the bound node only when its
+name is that node. Otherwise Ensure returns `ErrUnboundNode` and does
+not pull. Host-only mesh play stays on the installed session node.
+When mesh ensure is on, an explicit FPGA `LaunchOn` whose kit is not the
+executor already installed dials that kit and Ensures there. Before
+Ensure, the snapshot stores that kit's client. Open creates a client
+only for the selected target, so an explicit sibling that does not yet
+have one is opened with the target client factory and captured on the
+snapshot. The lease claim uses that client. A factory that cannot open
+it returns before Ensure and does not pull. Readiness
+keeps the selected-target session. That snapshot's executor is the
+dial, so a later change of the selected session does not by itself
+fail revalidation; the named kit's address, TargetID, and enabled flag
+still do. A dial that does not return that kit's node leaves the
+installed executor in the snapshot, and Ensure returns `ErrUnboundNode`
+without pulling on it. A launchable FPGA entry that the foreign-kit
+check would deny is rejected
+before Ensure. For an FPGA entry, LeaseFree is the session-owned kit
+grant and its generation. InUse is the Phase 1 busy connection: another
+session holds that kit. A fresh session does not yet hold a grant.
+Content pull is the lease-acquiring mutation: when that kit is free,
+Launch claims the session grant before Ensure, and Ensure then sees
+LeaseFree. A grant claimed in that call is released when Ensure does
+not start execution. A grant the session already held stays held. A
+held or denied claim is `KIT_LEASE_DENIED`. A held grant whose observed
+generation differs fails closed before any pull, and that observation
+is the selected connection only when the launch executes on that kit.
+Host-only play stays on the host executor.
+
+Ready for rooms and `GET /api/v1/games` uses that same grant when a mesh
+session is installed. An unleased kit is free only when the bound
+node's client can claim the pull. A lost or closed grant is not free.
+A client for a different kit is not used. A foreign holder is not
+Ready. Ensure's own LeaseFree is unchanged: a free kit is not owned
+until the content pull claims it. Slot and source reads for that view
+are one batch per request (`GET /v1/mesh/content/slots`), with a one
+second snapshot on the host client. Each read has a deadline. A
+transport failure is `CONTENT_UNREACHABLE`, not missing content.
+
+Immediately before execute, and while lifecycle admission is held,
+`revalidateLaunchSnapshot` compares that snapshot with live state. Any
+difference — target disabled or removed, address or TargetID changed,
+selection changed on an implicit launch, bound node changed, catalog
+composition changed, or a different live client at the same address
+and TargetID — returns `ErrLaunchSnapshot` and does not install a
+client. A match binds the captured client. Launch does not overwrite
+a different live client. The core path and the host-only path both use
+this one check. With the seam off, Launch leaves the target live: bind
+resolves the selected target under the target lock at bind time.
+
+A Checking slot waits up to the service checking timeout, which
+defaults to 30 seconds and is clamped at two minutes
+(`SetMeshCheckingTimeout`). The caller's cancel returns immediately.
+The timeout returns `ErrCheckingTimeout`. Session launch maps
+missing-with-no-source and a slot that ends Missing to
+`CONTENT_MISSING` (422), a failed pull to `CONTENT_PULL_FAILED` (422),
+a failed link to `CONTENT_LINK_FAILED` (422), a slot read that does not
+complete to `CONTENT_UNREACHABLE` (503), an ABI the executor cannot run
+to `ABI_INELIGIBLE` (409), a checking timeout to
+`CONTENT_CHECKING_TIMEOUT` (504), and an unowned or denied lease to
+`KIT_LEASE_DENIED` (403). `CONTENT_CHECKING` (409) remains the mapping
+for Ensure's in-progress block. Launch always waits with a positive
+timeout, so that 409 is not produced by
+`POST /api/v1/session/launch`; the timeout wins. Ensure with a zero
+checking timeout can still return the block.
+
+The executor on the kit is `kitcontent.Store` in the target agent.
+It holds one content-id per object, pulls bytes from a content source
+on that kit, and links expansion slot-bytes there without folding them
+into primary media or a programmed image. Pull honors the caller's
+context and deletes a partial file on cancel or failure, so that file
+is not Present. The agent serves that store at `/v1/mesh/content/*`
+for the node's id. Opening the store does not create directories under
+the media root; the first pull or link does. A partial file left by a
+crashed pull is removed when the store opens. A pull refuses to start
+when free space is under 32 MiB or the object store is already at 2 GiB.
+Pull and link require the current kit lease. A link failure is
+`CONTENT_LINK_FAILED`. A kit lease rejection of pull or link is
+`KIT_LEASE_DENIED` on the host, not a failed copy. A canceled pull is
+logged on the kit. Node, slot, slots, and source reads remain available
+to other clients. The host authorizes pull as a lease-acquiring
+mutation and link as a mutation that needs the grant already held,
+including when the remote base URL has a path prefix. When a session
+installs a remote executor, the authorizer is the client for the bound
+node. Those routes drive the kit store.
+They are not an Ensure-result document. The host installs the executor
+only when `SetMeshExecuteSession` is called, so Phase 0 and Phase 1
+launch stay on the existing path. The store does not program the FPGA.
+Production `fogcast-api` and the `fogcast` CLI call `EnableMeshContent`
+after open. `[mesh] ensure` defaults off, so that call leaves the seam
+off until the operator sets `ensure = true`. The default stays off
+until #177 (legacy fallback when the source does not advertise) and
+#172 (kit home host) land. The agent installs a
+launcher-backed content source unless `mesh_content = false`, which
+restores a nil source and an empty ABI list. With the switch on, the
+node document's ABIs and package ids are read from installed package
+manifests when that document is served. A directory named with the
+64-hex package id, or with a Stage publication
+`<package-id>-<token>`, contributes that package id. A package staged
+after the agent starts is included on the next read, and a removed
+stage is left out. The host re-reads that document when it asks the
+bound executor for package ids or eligible ABIs, and keeps the previous
+lists when the read fails. An empty ABI list
+is not eligibility. A nil content source advertises nothing. When the
+source is the launcher credential, the kit sends its own target id on
+`GET /api/v1/mesh/content/source` and `GET /api/v1/mesh/content/object`.
+The host admits those two GETs for any enabled configured kit. They do
+not require that kit to be the listener's paired identity or the
+foreground selected target. Other launcher operations still require both.
+A pull still caps each write at `min(quota-used, free-reserve)`, re-reads free
+space while copying, and counts `partial/` bytes toward the 2 GiB
+quota. A failed dial leaves the host seam off, so Phase 0 and Phase 1
+launch continue. When the selected target's name, address, agent token,
+node id, or enabled flag no longer matches the dial that installed the
+executor, that session is dropped and the new endpoint is dialed.
+Until that dial succeeds, readiness stays on the Phase 0 and Phase 1
+path instead of the previous kit. Host-only titles are not projected
+into the seam.
+
+The projection is not a host route. JSON tags stay on the host catalog
+shape. Ensure results have no JSON tags. `GET /api/v1/mesh/nodes` does
+not call `ReadyHere` or `Ensure`. `POST /api/v1/session/launch` calls
+Ensure only when `SetMeshExecuteSession` installed a session; otherwise
+Phase 0 and Phase 1 launch are unchanged.
+
+When that session is installed, `GET /api/v1/games` calls `ReadyHere`
+through `discovery.ReadyForBoundExecutor`. Rooms Ready and Play follow
+that result. A title is Ready here only when this shell has an Execute
+binding, every required slot is Present on that executor, the lease is
+free for this session, and the mesh-protocol major is compatible.
+Bytes that exist only on a distant node are not Ready. The games row
+then carries `ready_here`
+false, `ready_block` (the ReadyHere block), and `next_action`. A true
+`ready_here` still applies the catalog gates (`source_offline`,
+missing firmware, ROM, or expansion, and the rest), so Play is not
+offered for a host-only row whose root is offline.
+
+| `next_action` | `ready_block` |
+| --- | --- |
+| `wait` | `ensure_in_progress` |
+| `supply_content` | `content_missing` |
+| `fetch_here` | `distant` |
+| `wait_for_lease` | `lease_held` |
+| `resolve_version` | `version_skew` |
+| `bind_executor` | `no_capable_executor` |
+| `browse` | `browse_only` |
+| `unavailable` | `invalid`, and any other block |
+
+A slot mid-pull is Checking (`ready_block` `ensure_in_progress`,
+`next_action` `wait`). Rooms show that as Unavailable or Checking and
+do not Play.
+`launchable` stays the platform and package gate from
+`enrichLaunchable`, so a firmware-ready Coleco or ZX81 package is not
+reclassified as browse-only.
+
+When the session is not installed, those three fields are omitted.
+Phase 0 and Phase 1 Ready stays composition against the bound executor:
+Coleco and ZX81 packages and host-only titles stay Ready and launch as
+they do now. A neighbor Execute advertisement still does not grant Ready.
 
 The host authenticates health at its configured or last validated endpoint. A
 legacy address-only target can bind a discovery-capable agent's existing ID
@@ -1223,9 +1427,13 @@ Keypad codes 120–129 mean digits 0–9; 130 means `*` and 131 means `#`.
 These are semantic gamepad-button events, independent of a keyboard layout.
 Input profiles can bind spare physical controls to `keypad-0` through
 `keypad-9`, `keypad-star`, and `keypad-hash`. Keypad events require the observed
-keypad interface. Host snapshots and reconnect replay retain each player's
-buttons and axes separately. Axis directions use an 8000 deadzone and combine
-with held digital directions, so centering a stick cannot release a held D-pad.
+keypad interface. For packages advertising `fes.keypad.ports`, gamepad Start
+also asserts keypad `1` (the common one-player game-select key), and Select also
+asserts keypad `*` (the common replay key); both ordinary gamepad bits remain
+set. Explicit keypad events combine with these aliases in the same keypad mask.
+Host snapshots and reconnect replay retain each player's buttons and axes
+separately. Axis directions use an 8000 deadzone and combine with held digital
+directions, so centering a stick cannot release a held D-pad.
 
 `ui/kitlauncher/controller.Hub` assigns the lowest free port in stable device-ID
 order, never renumbers a surviving controller, and emits releases and zero axes
