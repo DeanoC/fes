@@ -4,7 +4,7 @@
 // This is intentionally an adapter-sized machine rather than a claim of full
 // ColecoVision compatibility: the reset shim replaces the proprietary BIOS,
 // the cartridge aperture is a fixed 32 KiB image, and the VDP exposes the
-// bounded Graphics I/II slice implemented in coleco_vdp.sv.
+// bounded Graphics I/II, Text and Multicolor renderer in coleco_vdp.sv.
 
 `ifdef FES_COLECO_OSS
 `define FES_COLECO_REGISTERED_MEDIA

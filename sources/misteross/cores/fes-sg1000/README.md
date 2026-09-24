@@ -28,16 +28,17 @@ recipe; it is not in the factory image.
   mapped at `0x0000–0x3fff`. Pad shorter fixed-map images with `0xff` before
   library import. There is no BIOS or reset shim; reset fetches the cartridge.
 - 1 KiB CPU RAM at `0xc000–0xc3ff`, mirrored through `0xffff`.
-- TMS9918-style VDP ports `0xbe` / `0xbf` and the Coleco Graphics I / bounded
-  Graphics II path.
+- TMS9918-style VDP ports `0xbe` / `0xbf` and shared Graphics I, Graphics II,
+  Text and Multicolor rendering on the fixed 256×192 logical raster.
 - Two joysticks on the SG-1000 8255 ports `0xdc` / `0xdd`, adapted from the
   existing 40-bit keyboard matrix.
 - Centered 512×384 logical image in the established 1650×750 HDMI timing.
 
-Audio (SN76489), SC-3000 keyboard, banked 32/48 KiB cartridges, expansion
-hardware and cycle-perfect clocking remain outside this slice. The OSS
-producer can seal from a clean tree; the package-only recipe does not change
-the factory image.
+Text mode suppresses sprites, Multicolor keeps them active, and unsupported
+mode selectors render only the R7 backdrop. Audio (SN76489), SC-3000 keyboard,
+banked 32/48 KiB cartridges, expansion hardware, NTSC timing and cycle-perfect
+raster behavior remain outside this slice. The OSS producer can seal from a
+clean tree; the package-only recipe does not change the factory image.
 
 ## Memory and host interfaces
 
